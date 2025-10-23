@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://work-agent.dev/schemas/tool.schema.json",
+  "title": "Tool Definition",
+  "description": "Tool definition for MCP or built-in tools",
+  "type": "object",
+  "required": ["id", "kind"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique tool identifier",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["mcp", "builtin"],
+      "description": "Tool type"
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Tool description"
+    },
+    "transport": {
+      "type": "string",
+      "enum": ["stdio", "process", "ws", "tcp"],
+      "description": "MCP transport mechanism (for kind=mcp)"
+    },
+    "command": {
+      "type": "string",
+      "description": "Command to execute (for stdio/process transport)"
+    },
+    "args": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Command arguments"
+    },
+    "endpoint": {
+      "type": "string",
+      "description": "WebSocket/TCP endpoint (for ws/tcp transport)"
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Environment variables for process"
+    },
+    "builtinPolicy": {
+      "type": "object",
+      "description": "Built-in tool policy (for kind=builtin)",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": ["fs_read", "fs_write", "shell_exec"]
+        },
+        "allowedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "description": "Permission flags",
+      "properties": {
+        "filesystem": {
+          "type": "boolean"
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "allowedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "timeouts": {
+      "type": "object",
+      "properties": {
+        "startupMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requestMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "healthCheck": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["jsonrpc", "http", "command"]
+        },
+        "path": {
+          "type": "string"
+        },
+        "intervalMs": {
+          "type": "integer",
+          "minimum": 1000
+        }
+      },
+      "additionalProperties": false
+    },
+    "exposedTools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Hint of tool names exposed by MCP server"
+    }
+  },
+  "additionalProperties": false
+}

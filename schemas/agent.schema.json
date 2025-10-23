@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://work-agent.dev/schemas/agent.schema.json",
+  "title": "Agent Specification",
+  "description": "Agent configuration defining behavior, model, and tool access",
+  "type": "object",
+  "required": ["name", "prompt"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable agent name",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "prompt": {
+      "type": "string",
+      "description": "System instructions for the agent",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "description": "Bedrock model ID (optional, falls back to defaultModel)"
+    },
+    "region": {
+      "type": "string",
+      "description": "AWS region override (optional)",
+      "pattern": "^[a-z]{2}-[a-z]+-[0-9]{1}$"
+    },
+    "guardrails": {
+      "type": "object",
+      "description": "Model inference parameters",
+      "properties": {
+        "maxTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "topP": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "stopSequences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "tools": {
+      "type": "object",
+      "description": "Tool configuration",
+      "properties": {
+        "use": {
+          "type": "array",
+          "description": "Tool IDs from catalog to load",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed": {
+          "type": "array",
+          "description": "Allow-list for tool invocation (use '*' for all)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "aliases": {
+          "type": "object",
+          "description": "Tool name aliases (alias -> tool ID)",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

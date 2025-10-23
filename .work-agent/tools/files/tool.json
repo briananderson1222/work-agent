@@ -1,0 +1,18 @@
+{
+  "id": "files",
+  "kind": "mcp",
+  "displayName": "File System",
+  "description": "Read and write files using MCP filesystem server",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"],
+  "permissions": {
+    "filesystem": true,
+    "allowedPaths": ["./", "~/"]
+  },
+  "timeouts": {
+    "startupMs": 5000,
+    "requestMs": 30000
+  },
+  "exposedTools": ["read_file", "write_file", "list_directory"]
+}
