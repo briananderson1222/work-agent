@@ -3,6 +3,7 @@
  * Main entry point
  */
 
+import 'dotenv/config';
 import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
 
 async function main() {

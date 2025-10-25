@@ -2,6 +2,7 @@
  * Simple CLI for interacting with Work Agent
  */
 
+import 'dotenv/config';
 import { createInterface } from 'readline';
 import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
 

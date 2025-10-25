@@ -25,14 +25,39 @@ Work Agent provides a desktop-ready system for managing multiple AI agents power
 
 ```bash
 # Clone and install
-git clone <repo>
+git clone https://github.com/briananderson1222/work-agent.git
 cd work-agent
 npm install
-
-# Configure AWS credentials
-cp .env.example .env
-# Edit .env with your AWS credentials or profile
 ```
+
+### AWS Credentials Setup
+
+The system needs AWS credentials to access Amazon Bedrock. You have **three options**:
+
+**Option 1: AWS CLI (Recommended)**
+```bash
+aws configure
+# Enter your credentials and set region to us-east-1
+```
+
+**Option 2: Environment Variables**
+```bash
+cp .env.example .env
+# Edit .env and add:
+# AWS_REGION=us-east-1
+# AWS_ACCESS_KEY_ID=your-key
+# AWS_SECRET_ACCESS_KEY=your-secret
+```
+
+**Option 3: AWS Credentials File**
+```bash
+# Create ~/.aws/credentials with:
+[default]
+aws_access_key_id = your-key
+aws_secret_access_key = your-secret
+```
+
+The system uses AWS SDK's credential chain, so any standard AWS credential method will work.
 
 ### Run the System
 
