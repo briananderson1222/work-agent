@@ -8,6 +8,7 @@ import { honoServer } from '@voltagent/server-hono';
 import { createPinoLogger } from '@voltagent/logger';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
+import { cors } from 'hono/cors';
 import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
 import { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
@@ -78,7 +79,21 @@ export class WorkAgentRuntime {
     this.voltAgent = new VoltAgent({
       agents,
       logger: this.logger,
-      server: honoServer({ port: this.port }),
+      server: honoServer({
+        port: this.port,
+        cors: {
+          origin: (origin) => {
+            // Allow any localhost port in development
+            if (origin?.startsWith('http://localhost:') || origin?.startsWith('https://localhost:')) {
+              return true;
+            }
+            // In production, check against whitelist from environment
+            const allowed = process.env.ALLOWED_ORIGINS?.split(',') || [];
+            return allowed.includes(origin || '');
+          },
+          credentials: true,
+        },
+      }),
     });
 
     this.logger.info({ port: this.port }, 'Work Agent Runtime initialized');

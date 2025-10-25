@@ -38,10 +38,10 @@ function App() {
       if (!response.ok) throw new Error('Failed to fetch agents');
 
       const data = await response.json();
-      const agentList: Agent[] = Object.entries(data.agents || {}).map(([slug, config]: any) => ({
-        slug,
-        name: config.name || slug,
-        prompt: config.instructions || '',
+      const agentList: Agent[] = (data.data || []).map((agent: any) => ({
+        slug: agent.id,
+        name: agent.name,
+        prompt: agent.description || '',
       }));
 
       setAgents(agentList);

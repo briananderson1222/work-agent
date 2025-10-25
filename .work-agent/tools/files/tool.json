@@ -5,10 +5,10 @@
   "description": "Read and write files using MCP filesystem server",
   "transport": "stdio",
   "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"],
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/mnt/e/dev/work-agent"],
   "permissions": {
     "filesystem": true,
-    "allowedPaths": ["./", "~/"]
+    "allowedPaths": ["/mnt/e/dev/work-agent", "~/"]
   },
   "timeouts": {
     "startupMs": 5000,
