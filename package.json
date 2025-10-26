@@ -4,7 +4,8 @@
   "description": "Local-first AI work agent system built with VoltAgent and Amazon Bedrock",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch ./src",
+    "dev": "npm run build && node ./dist/index.js",
+    "dev:api": "npx tsc && node dist/index.js",
     "cli": "tsx ./src/cli.ts",
     "build": "tsdown",
     "start": "node dist/index.js",
@@ -20,6 +21,7 @@
     "@ai-sdk/amazon-bedrock": "^3.0.0",
     "@aws-sdk/credential-providers": "^3.799.0",
     "@hono/node-server": "^1.19.5",
+    "@tauri-apps/api": "^2.9.0",
     "@voltagent/core": "^1.1.30",
     "@voltagent/libsql": "^1.0.9",
     "@voltagent/logger": "^1.0.3",
