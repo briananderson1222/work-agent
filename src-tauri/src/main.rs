@@ -3,6 +3,7 @@
 
 use tauri::{WebviewUrl, WebviewWindowBuilder, Manager};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use tauri_plugin_shell::ShellExt;
 
 static WINDOW_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -48,7 +49,7 @@ fn main() {
                     Ok(child) => {
                         println!("Server started successfully");
                         // Wait a moment for server to initialize
-                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                        std::thread::sleep(Duration::from_secs(2));
                     }
                     Err(e) => {
                         eprintln!("Failed to start server: {}", e);
