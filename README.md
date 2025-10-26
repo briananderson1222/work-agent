@@ -228,6 +228,25 @@ npm run tauri:dev
 npm run tauri:build
 ```
 
+The build process uses **esbuild** to bundle the Node.js server into a single executable file, eliminating the need to ship `node_modules`. The bundled server is automatically included in the Tauri application and spawned on startup.
+
+**Creating Releases:**
+
+The project uses GitHub Actions for automated cross-platform releases:
+
+```bash
+# Create and push a version tag to trigger release workflow
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This builds installers for:
+- **macOS** (Apple Silicon + Intel)
+- **Linux** (Ubuntu 22.04+, .deb and .AppImage)
+- **Windows** (64-bit installer)
+
+The workflow creates a draft release in GitHub with all platform binaries attached. Review and publish the draft to make it available.
+
 The Tauri app is a thin client that communicates with the VoltAgent server via REST API. All agent logic, memory, and tools run in the backend.
 
 ## 🏗️ Architecture
