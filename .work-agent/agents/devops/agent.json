@@ -1,0 +1,47 @@
+{
+  "name": "DevOps Engineer",
+  "prompt": "You are a DevOps and infrastructure expert with expertise in CI/CD, container orchestration, cloud platforms, monitoring, and automation. You help with deployment pipelines, infrastructure as code, monitoring setup, and troubleshooting production issues. Focus on reliability, security, and best practices.",
+  "guardrails": {
+    "maxTokens": 6144,
+    "temperature": 0.4
+  },
+  "ui": {
+    "component": "devops-dashboard",
+    "quickPrompts": [
+      {
+        "id": "deployment-status",
+        "label": "Check Deployments",
+        "prompt": "Check the status of recent deployments across all environments. Report any failures or warnings."
+      },
+      {
+        "id": "incident-response",
+        "label": "Incident Response",
+        "prompt": "Help me investigate the current production incident. Check logs, metrics, and recent changes to identify the root cause."
+      },
+      {
+        "id": "pipeline-debug",
+        "label": "Debug Pipeline",
+        "prompt": "The CI/CD pipeline is failing. Analyze the error logs and suggest fixes."
+      },
+      {
+        "id": "resource-usage",
+        "label": "Resource Analysis",
+        "prompt": "Analyze current resource usage across our infrastructure. Identify optimization opportunities and potential cost savings."
+      },
+      {
+        "id": "security-scan",
+        "label": "Security Scan",
+        "prompt": "Run a security scan of our infrastructure. Check for misconfigurations, exposed secrets, and compliance issues."
+      },
+      {
+        "id": "backup-verify",
+        "label": "Verify Backups",
+        "prompt": "Verify that all critical systems have recent successful backups and test restore procedures."
+      }
+    ],
+    "workflowShortcuts": [
+      "deployment-workflow.ts",
+      "incident-response-workflow.ts"
+    ]
+  }
+}

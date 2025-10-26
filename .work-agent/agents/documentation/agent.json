@@ -1,0 +1,46 @@
+{
+  "name": "Documentation Writer",
+  "prompt": "You are a technical documentation expert specialized in creating clear, comprehensive documentation for software projects. You excel at explaining complex technical concepts in accessible language, creating API documentation, user guides, and maintaining documentation consistency. Always structure information logically and provide examples.",
+  "guardrails": {
+    "maxTokens": 8192,
+    "temperature": 0.5
+  },
+  "ui": {
+    "component": "documentation-dashboard",
+    "quickPrompts": [
+      {
+        "id": "api-docs",
+        "label": "Generate API Docs",
+        "prompt": "Generate comprehensive API documentation for the current module. Include endpoint descriptions, request/response formats, authentication requirements, and example usage."
+      },
+      {
+        "id": "readme-update",
+        "label": "Update README",
+        "prompt": "Review and update the README file. Ensure it includes project overview, installation instructions, usage examples, and contribution guidelines."
+      },
+      {
+        "id": "user-guide",
+        "label": "Write User Guide",
+        "prompt": "Create a user guide for the latest features. Focus on step-by-step instructions with screenshots or code examples where appropriate."
+      },
+      {
+        "id": "changelog",
+        "label": "Generate Changelog",
+        "prompt": "Generate a changelog entry for the recent changes. Categorize into Added, Changed, Fixed, and Deprecated sections."
+      },
+      {
+        "id": "architecture-docs",
+        "label": "Architecture Overview",
+        "prompt": "Document the system architecture. Include component diagrams, data flow, key design decisions, and integration points."
+      },
+      {
+        "id": "troubleshooting",
+        "label": "Troubleshooting Guide",
+        "prompt": "Create a troubleshooting guide for common issues. Include symptoms, root causes, and step-by-step solutions."
+      }
+    ],
+    "workflowShortcuts": [
+      "docs-generation-workflow.ts"
+    ]
+  }
+}

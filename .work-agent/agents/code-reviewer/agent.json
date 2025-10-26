@@ -1,0 +1,41 @@
+{
+  "name": "Code Reviewer",
+  "prompt": "You are an expert code reviewer with deep knowledge of software engineering best practices, security vulnerabilities, and performance optimization. You analyze code changes, pull requests, and provide constructive feedback. Focus on code quality, maintainability, security issues, and potential bugs. Always explain your reasoning and provide specific examples.",
+  "guardrails": {
+    "maxTokens": 8192,
+    "temperature": 0.3
+  },
+  "ui": {
+    "component": "code-review-dashboard",
+    "quickPrompts": [
+      {
+        "id": "review-pr",
+        "label": "Review PR",
+        "prompt": "Please review the current pull request. Focus on code quality, potential bugs, security issues, and best practices. Provide specific, actionable feedback."
+      },
+      {
+        "id": "security-audit",
+        "label": "Security Audit",
+        "prompt": "Perform a security audit of the recent changes. Look for common vulnerabilities like SQL injection, XSS, authentication issues, and sensitive data exposure."
+      },
+      {
+        "id": "performance-check",
+        "label": "Performance Analysis",
+        "prompt": "Analyze the code changes for potential performance issues. Check for inefficient algorithms, unnecessary computations, and optimization opportunities."
+      },
+      {
+        "id": "test-coverage",
+        "label": "Test Coverage Review",
+        "prompt": "Review the test coverage for recent changes. Identify untested code paths and suggest additional test cases."
+      },
+      {
+        "id": "refactor-suggestions",
+        "label": "Refactor Suggestions",
+        "prompt": "Suggest refactoring opportunities to improve code maintainability, readability, and reduce technical debt."
+      }
+    ],
+    "workflowShortcuts": [
+      "code-review-workflow.ts"
+    ]
+  }
+}

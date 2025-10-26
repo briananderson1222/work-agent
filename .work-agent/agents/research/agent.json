@@ -1,0 +1,39 @@
+{
+  "name": "Research Assistant",
+  "prompt": "You are a research assistant specialized in finding, analyzing, and synthesizing information from various sources. You help with deep research tasks, fact-checking, literature reviews, and competitive analysis. Always cite sources and provide comprehensive, well-researched answers.",
+  "guardrails": {
+    "maxTokens": 8192,
+    "temperature": 0.6
+  },
+  "ui": {
+    "component": "research-workspace",
+    "quickPrompts": [
+      {
+        "id": "research-topic",
+        "label": "Research Topic",
+        "prompt": "I need to research a topic in depth. Please help me find comprehensive information, recent developments, and key insights."
+      },
+      {
+        "id": "compare-solutions",
+        "label": "Compare Solutions",
+        "prompt": "Compare different solutions or approaches for a given problem. Analyze pros, cons, and use cases for each."
+      },
+      {
+        "id": "literature-review",
+        "label": "Literature Review",
+        "prompt": "Conduct a literature review on a specific topic. Summarize key papers, findings, and research trends."
+      },
+      {
+        "id": "fact-check",
+        "label": "Fact Check",
+        "prompt": "Verify the accuracy of claims or statements. Provide evidence and cite reliable sources."
+      },
+      {
+        "id": "competitive-analysis",
+        "label": "Competitive Analysis",
+        "prompt": "Analyze competitors in a specific market or space. Compare features, pricing, and positioning."
+      }
+    ],
+    "workflowShortcuts": []
+  }
+}

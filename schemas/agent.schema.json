@@ -81,6 +81,55 @@
         }
       },
       "additionalProperties": false
+    },
+    "ui": {
+      "type": "object",
+      "description": "UI customization metadata for desktop application",
+      "properties": {
+        "component": {
+          "type": "string",
+          "description": "Identifier for the React workspace component to mount",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "quickPrompts": {
+          "type": "array",
+          "description": "Predefined prompts rendered as quick action buttons",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "prompt"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique identifier for the quick prompt",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "label": {
+                "type": "string",
+                "description": "Button label shown in the UI",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "prompt": {
+                "type": "string",
+                "description": "Plain-text prompt content submitted to the agent",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "workflowShortcuts": {
+          "type": "array",
+          "description": "Subset of workflows exposed as quick action buttons",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

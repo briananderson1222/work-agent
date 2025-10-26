@@ -4,5 +4,23 @@
   "guardrails": {
     "maxTokens": 4096,
     "temperature": 0.7
+  },
+  "ui": {
+    "component": "work-agent-dashboard",
+    "quickPrompts": [
+      {
+        "id": "triage",
+        "label": "Daily Triage",
+        "prompt": "Please review open tickets and summarize the top three blockers for today."
+      },
+      {
+        "id": "standup",
+        "label": "Standup Prep",
+        "prompt": "Draft a concise standup update covering yesterday's progress and today's plan."
+      }
+    ],
+    "workflowShortcuts": [
+      "example-simple.ts"
+    ]
   }
 }
