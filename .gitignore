@@ -11,3 +11,4 @@ dist-ui/
 # Tauri
 src-tauri/target/
 src-tauri/Cargo.lock
+src-tauri/binaries/
