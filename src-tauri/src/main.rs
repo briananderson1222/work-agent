@@ -35,13 +35,26 @@ fn main() {
                 let resource_path = app_handle.path().resource_dir().expect("failed to get resource dir");
                 let server_path = resource_path.join("dist").join("index.js");
                 
+                println!("Starting server from: {:?}", server_path);
+                println!("Working directory: {:?}", resource_path);
+                
                 let shell = app_handle.shell();
-                let _child = shell
+                match shell
                     .command("node")
                     .args([server_path.to_str().unwrap()])
-                    .current_dir(resource_path)
+                    .current_dir(&resource_path)
                     .spawn()
-                    .expect("failed to spawn server");
+                {
+                    Ok(child) => {
+                        println!("Server started successfully");
+                        // Wait a moment for server to initialize
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to start server: {}", e);
+                        eprintln!("Make sure Node.js is installed and in your PATH");
+                    }
+                }
             });
             
             Ok(())
