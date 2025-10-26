@@ -7,7 +7,7 @@
     "dev": "npm run build && node ./dist/index.js",
     "dev:api": "npx tsc && node dist/index.js",
     "cli": "tsx ./src/cli.ts",
-    "build": "tsdown",
+    "build": "node esbuild.config.mjs",
     "start": "node dist/index.js",
     "test": "vitest",
     "volt": "volt",
@@ -15,7 +15,7 @@
     "build:ui": "vite build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "npm run build && tauri build"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.0",
@@ -40,6 +40,8 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
     "@voltagent/cli": "^0.1.13",
+    "@yao-pkg/pkg": "^6.9.0",
+    "esbuild": "^0.25.11",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tsdown": "^0.5.0",

@@ -26,12 +26,10 @@ export class SchemaValidator {
     this.ajv = new Ajv({ allErrors: true, verbose: true });
     this.validators = new Map();
 
-    // Load schemas from files
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const appSchema = JSON.parse(readFileSync(join(__dirname, '../../schemas/app.schema.json'), 'utf-8'));
-    const agentSchema = JSON.parse(readFileSync(join(__dirname, '../../schemas/agent.schema.json'), 'utf-8'));
-    const toolSchema = JSON.parse(readFileSync(join(__dirname, '../../schemas/tool.schema.json'), 'utf-8'));
+    // Load schemas from files (relative to working directory)
+    const appSchema = JSON.parse(readFileSync(join(process.cwd(), 'schemas/app.schema.json'), 'utf-8'));
+    const agentSchema = JSON.parse(readFileSync(join(process.cwd(), 'schemas/agent.schema.json'), 'utf-8'));
+    const toolSchema = JSON.parse(readFileSync(join(process.cwd(), 'schemas/tool.schema.json'), 'utf-8'));
 
     // Register schemas
     this.ajv.addSchema(appSchema, 'app');

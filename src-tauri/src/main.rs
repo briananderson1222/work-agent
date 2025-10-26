@@ -1,8 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{WebviewUrl, WebviewWindowBuilder, Manager};
 use std::sync::atomic::{AtomicU64, Ordering};
+use tauri_plugin_shell::ShellExt;
 
 static WINDOW_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -26,6 +27,25 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![open_research_url])
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            
+            // Start Node.js server
+            tauri::async_runtime::spawn(async move {
+                let resource_path = app_handle.path().resource_dir().expect("failed to get resource dir");
+                let server_path = resource_path.join("dist").join("index.js");
+                
+                let shell = app_handle.shell();
+                let _child = shell
+                    .command("node")
+                    .args([server_path.to_str().unwrap()])
+                    .current_dir(resource_path)
+                    .spawn()
+                    .expect("failed to spawn server");
+            });
+            
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
