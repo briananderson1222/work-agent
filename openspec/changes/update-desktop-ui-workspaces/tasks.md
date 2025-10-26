@@ -1,0 +1,8 @@
+- [x] Extend agent configuration schema/validation with `ui.component`, `ui.quickPrompts`, and optional `ui.workflowShortcuts`; document sample usage.
+- [x] Build agent workspace component registry and render pipeline; implement the `work-agent` calendar + detail dashboard as the default example.
+- [x] Replace the existing agent list view with a global dropdown selector that surfaces prompts/workflows as quick action buttons and exposes create/edit agent management entry points.
+- [x] Implement the bottom dock chat layout with collapse/expand states, multi-session tab support, and wiring for quick action triggers.
+- [x] Update chat/session orchestration so multiple agents can run concurrently without draining each other; expose any required API changes to the frontend.
+- [x] Add visual indicators (badge/toast) when docked chats receive activity while collapsed.
+- [x] Expand automated tests to cover schema changes, quick prompt launches, and tabbed chat behavior (unit + integration).
+- [x] Refresh README / UI documentation to explain the new layout and agent UI customization options.

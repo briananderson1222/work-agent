@@ -61,7 +61,7 @@
 - [x] 7.3 Support stdio MCP transport (npx servers)
 - [x] 7.4 Apply agent-level tool allow-lists from config
 - [x] 7.5 Automatic MCP server lifecycle management
-- [ ] 7.6 Support ws/tcp MCP transports
+- [x] 7.6 Support ws/tcp MCP transports
 - [ ] 7.7 Register built-in tools (fs_read, fs_write, shell_exec) as VoltAgent tools
 - [ ] 7.8 Implement MCP health checks (optional per tool)
 - [ ] 7.9 Write integration test (spawn MCP server, discover tools, invoke via VoltAgent)
@@ -130,7 +130,7 @@
 
 - [x] 15.1 Create example agent: `.work-agent/agents/work-agent/agent.json`
 - [x] 15.2 Create example tool: `.work-agent/tools/files/tool.json` (MCP files server)
-- [ ] 15.3 Create example workflow: simple 3-step workflow using andThen
+- [x] 15.3 Create example workflow: simple 3-step workflow using andThen
 - [x] 15.4 Write README with setup instructions
 
 ## 16. Testing (Deferred)

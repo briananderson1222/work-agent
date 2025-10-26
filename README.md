@@ -276,6 +276,28 @@ Custom Layer (Work Agent)
     allowed?: string[];      // Allow-list (or ["*"] for all)
     aliases?: Record<string, string>;
   };
+  ui?: {
+    component?: string;      // React workspace component ID
+    quickPrompts?: Array<{
+      id: string;            // Internal identifier
+      label: string;         // Button label
+      prompt: string;        // Plain-text prompt content
+    }>;
+    workflowShortcuts?: string[]; // Workflow IDs to surface as quick actions
+  };
+}
+```
+
+Example `ui` block with quick prompts and curated workflow shortcuts:
+
+```json
+"ui": {
+  "component": "work-agent-dashboard",
+  "quickPrompts": [
+    { "id": "triage", "label": "Daily Triage", "prompt": "Review open tickets and summarize blockers." },
+    { "id": "standup", "label": "Standup Prep", "prompt": "Draft today's standup update from yesterday's notes." }
+  ],
+  "workflowShortcuts": ["example-simple.ts"]
 }
 ```
 
@@ -304,6 +326,18 @@ Custom Layer (Work Agent)
 ```
 
 ## 🚦 Usage Examples
+
+### Desktop Workspace Overview
+
+The desktop UI now dedicates the main canvas to agent-specific workspaces while the chat experience lives in a collapsible bottom dock. Use the global agent selector to switch agents, launch quick prompts, or open curated workflows. Each conversation appears as a tab inside the dock so you can keep multiple agents or workflows active side-by-side.
+
+Key elements:
+
+- **Agent selector**: Dropdown in the top toolbar that exposes management shortcuts and quick actions defined in `agent.json`.
+- **Workspace panel**: Renders the React component referenced by `ui.component`; the default `work-agent-dashboard` shows a mock calendar + detail view you can extend later.
+- **Chat dock**: Collapsible bottom surface with tabbed sessions, unread badges, and toast notifications when activity arrives while collapsed.
+
+Quick prompts and workflow shortcuts are configured directly in `agent.json` and surfaced in the toolbar for rapid execution.
 
 ### CLI Interactive Mode
 
