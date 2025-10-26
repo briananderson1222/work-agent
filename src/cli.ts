@@ -99,6 +99,12 @@ async function main() {
     }
 
     // Send message to agent
+    if (!currentAgent) {
+      console.error('No agent is currently loaded');
+      rl.prompt();
+      return;
+    }
+
     try {
       const response = await currentAgent.generateText(input, {
         userId: `agent:${currentAgentSlug}:user:cli`,

@@ -4,9 +4,16 @@
 
 import { readFile, readdir, stat, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join, resolve } from 'path';
+import { basename, extname, join, resolve } from 'path';
 import { watch, type FSWatcher } from 'chokidar';
-import type { AgentSpec, ToolDef, AppConfig, AgentMetadata, ToolMetadata } from './types.js';
+import type {
+  AgentSpec,
+  ToolDef,
+  AppConfig,
+  AgentMetadata,
+  ToolMetadata,
+  WorkflowMetadata,
+} from './types.js';
 import { validator } from './validator.js';
 
 export interface ConfigLoaderOptions {
@@ -125,11 +132,16 @@ export class ConfigLoader {
         const spec = await this.loadAgent(entry.name);
         const stats = await stat(agentPath);
 
+        const workflowWarnings = await this.validateWorkflowShortcuts(entry.name, spec.ui?.workflowShortcuts);
+
         agents.push({
           slug: entry.name,
           name: spec.name,
           model: spec.model,
-          updatedAt: stats.mtime.toISOString()
+          updatedAt: stats.mtime.toISOString(),
+          description: spec.prompt,
+          ui: spec.ui,
+          workflowWarnings: workflowWarnings.length > 0 ? workflowWarnings : undefined
         });
       } catch (error) {
         console.error(`Failed to load agent '${entry.name}':`, error);
@@ -137,6 +149,62 @@ export class ConfigLoader {
     }
 
     return agents.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async listAgentWorkflows(slug: string): Promise<WorkflowMetadata[]> {
+    const workflowsDir = join(this.workAgentDir, 'agents', slug, 'workflows');
+
+    if (!existsSync(workflowsDir)) {
+      return [];
+    }
+
+    const entries = await readdir(workflowsDir, { withFileTypes: true });
+    const workflows: WorkflowMetadata[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+
+      const ext = extname(entry.name).toLowerCase();
+      if (!['.ts', '.js', '.mjs', '.cjs'].includes(ext)) continue;
+
+      const id = entry.name;
+      workflows.push({
+        id,
+        label: this.deriveWorkflowLabel(id)
+      });
+    }
+
+    return workflows.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  private deriveWorkflowLabel(filename: string): string {
+    const name = basename(filename, extname(filename));
+    return name
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  private async validateWorkflowShortcuts(slug: string, shortcuts?: string[]): Promise<string[]> {
+    if (!shortcuts || shortcuts.length === 0) {
+      return [];
+    }
+
+    try {
+      const workflows = await this.listAgentWorkflows(slug);
+      const knownIds = new Set(workflows.map((workflow) => workflow.id));
+      const missing = shortcuts.filter((id) => !knownIds.has(id));
+
+      if (missing.length > 0) {
+        console.warn(
+          `Agent '${slug}' references missing workflows in ui.workflowShortcuts: ${missing.join(', ')}`
+        );
+      }
+
+      return missing;
+    } catch (error) {
+      console.error(`Failed to validate workflow shortcuts for agent '${slug}':`, error);
+      return shortcuts;
+    }
   }
 
   /**

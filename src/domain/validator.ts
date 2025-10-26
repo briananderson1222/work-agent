@@ -4,11 +4,9 @@
 
 import Ajv, { type ValidateFunction, type ErrorObject } from 'ajv';
 import type { AgentSpec, ToolDef, AppConfig } from './types.js';
-
-// Import schemas (in real implementation, these would be loaded from files)
-import appSchema from '../../schemas/app.schema.json' assert { type: 'json' };
-import agentSchema from '../../schemas/agent.schema.json' assert { type: 'json' };
-import toolSchema from '../../schemas/tool.schema.json' assert { type: 'json' };
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 export class ValidationError extends Error {
   constructor(
@@ -27,6 +25,13 @@ export class SchemaValidator {
   constructor() {
     this.ajv = new Ajv({ allErrors: true, verbose: true });
     this.validators = new Map();
+
+    // Load schemas from files
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const appSchema = JSON.parse(readFileSync(join(__dirname, '../../schemas/app.schema.json'), 'utf-8'));
+    const agentSchema = JSON.parse(readFileSync(join(__dirname, '../../schemas/agent.schema.json'), 'utf-8'));
+    const toolSchema = JSON.parse(readFileSync(join(__dirname, '../../schemas/tool.schema.json'), 'utf-8'));
 
     // Register schemas
     this.ajv.addSchema(appSchema, 'app');
@@ -145,4 +150,4 @@ export class SchemaValidator {
 }
 
 // Singleton instance
-export const validator = new SchemaValidator();
+export const validator: SchemaValidator = new SchemaValidator();

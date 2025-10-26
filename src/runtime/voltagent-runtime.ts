@@ -6,11 +6,10 @@
 import { Agent, Memory, VoltAgent, MCPConfiguration, type Tool } from '@voltagent/core';
 import { honoServer } from '@voltagent/server-hono';
 import { createPinoLogger } from '@voltagent/logger';
-import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
-import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { cors } from 'hono/cors';
 import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
 import { ConfigLoader } from '../domain/config-loader.js';
+import { createBedrockProvider } from '../providers/bedrock.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
 
 export interface WorkAgentRuntimeOptions {
@@ -55,11 +54,14 @@ export class WorkAgentRuntime {
 
     // Load app configuration
     this.appConfig = await this.configLoader.loadAppConfig();
-    this.logger.info({ region: this.appConfig.region, model: this.appConfig.defaultModel }, 'App config loaded');
+    this.logger.info('App config loaded', {
+      region: this.appConfig.region,
+      model: this.appConfig.defaultModel,
+    });
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
-    this.logger.info({ count: agentMetadataList.length }, 'Found agents');
+    this.logger.info('Found agents', { count: agentMetadataList.length });
 
     // Create VoltAgent instances for each agent
     const agents: Record<string, Agent> = {};
@@ -69,11 +71,16 @@ export class WorkAgentRuntime {
         const agent = await this.createVoltAgentInstance(meta.slug);
         agents[meta.slug] = agent;
         this.activeAgents.set(meta.slug, agent);
-        this.logger.info({ agent: meta.slug }, 'Agent loaded');
+        this.logger.info('Agent loaded', { agent: meta.slug });
       } catch (error) {
-        this.logger.error({ agent: meta.slug, error }, 'Failed to load agent');
+        this.logger.error('Failed to load agent', { agent: meta.slug, error });
       }
     }
+
+    // Store agent metadata for enriching API responses
+    const agentMetadataMap = new Map(
+      agentMetadataList.map(meta => [meta.slug, meta])
+    );
 
     // Initialize VoltAgent with all agents and server
     this.voltAgent = new VoltAgent({
@@ -81,22 +88,42 @@ export class WorkAgentRuntime {
       logger: this.logger,
       server: honoServer({
         port: this.port,
-        cors: {
-          origin: (origin) => {
-            // Allow any localhost port in development
-            if (origin?.startsWith('http://localhost:') || origin?.startsWith('https://localhost:')) {
-              return true;
-            }
-            // In production, check against whitelist from environment
-            const allowed = process.env.ALLOWED_ORIGINS?.split(',') || [];
-            return allowed.includes(origin || '');
-          },
-          credentials: true,
+        configureApp: (app) => {
+          app.use(
+            '*',
+            cors({
+              origin: (origin) => {
+                if (!origin) return origin;
+                if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
+                  return origin;
+                }
+                const allowed = process.env.ALLOWED_ORIGINS?.split(',') || [];
+                return allowed.includes(origin) ? origin : null;
+              },
+              credentials: true,
+            })
+          );
+
+          // Override /agents endpoint to include slug, pretty name, and UI metadata
+          app.get('/agents', async (c) => {
+            const coreAgents = await this.voltAgent!.getAgents();
+            const enrichedAgents = coreAgents.map((agent: any) => {
+              const metadata = agentMetadataMap.get(agent.id);  // agent.id is the slug
+              return metadata ? {
+                ...agent,
+                slug: metadata.slug,
+                name: metadata.name,  // Pretty name from spec
+                updatedAt: metadata.updatedAt,
+                ui: metadata.ui,
+              } : agent;
+            });
+            return c.json({ success: true, data: enrichedAgents });
+          });
         },
       }),
     });
 
-    this.logger.info({ port: this.port }, 'Work Agent Runtime initialized');
+    this.logger.info('Work Agent Runtime initialized', { port: this.port });
   }
 
   /**
@@ -121,7 +148,7 @@ export class WorkAgentRuntime {
 
     // Create Agent instance
     const agent = new Agent({
-      name: agentSlug,
+      name: agentSlug,  // Use slug for routing
       instructions: spec.prompt,
       model,
       memory,
@@ -140,15 +167,10 @@ export class WorkAgentRuntime {
    * Create Bedrock model instance
    */
   private createBedrockModel(spec: AgentSpec) {
-    const model = spec.model || this.appConfig.defaultModel;
-    const region = spec.region || this.appConfig.region;
-
-    const bedrock = createAmazonBedrock({
-      region,
-      credentialProvider: fromNodeProviderChain(),
+    return createBedrockProvider({
+      appConfig: this.appConfig,
+      agentSpec: spec,
     });
-
-    return bedrock(model);
   }
 
   /**
@@ -178,7 +200,7 @@ export class WorkAgentRuntime {
           }
         }
       } catch (error) {
-        this.logger.error({ agent: agentSlug, toolId, error }, 'Failed to load tool');
+        this.logger.error('Failed to load tool', { agent: agentSlug, toolId, error });
       }
     }
 
@@ -221,10 +243,7 @@ export class WorkAgentRuntime {
     // Get tools from MCP server
     const tools = await mcpConfig.getTools();
 
-    this.logger.info(
-      { agent: agentSlug, tool: toolId, count: tools.length },
-      'MCP tools loaded'
-    );
+    this.logger.info('MCP tools loaded', { agent: agentSlug, tool: toolId, count: tools.length });
 
     return tools;
   }
@@ -264,7 +283,7 @@ export class WorkAgentRuntime {
   private createBuiltinTool(toolDef: ToolDef): Tool<any> | null {
     // Built-in tools would be implemented here
     // For now, returning null as they need specific implementations
-    this.logger.warn({ tool: toolDef.id }, 'Built-in tools not yet implemented');
+    this.logger.warn('Built-in tools not yet implemented', { tool: toolDef.id });
     return null;
   }
 
@@ -272,11 +291,11 @@ export class WorkAgentRuntime {
    * Switch to a different agent (for CLI usage)
    */
   async switchAgent(targetSlug: string): Promise<Agent> {
-    this.logger.info({ from: 'current', to: targetSlug }, 'Switching agent');
+    this.logger.info('Switching agent', { from: 'current', to: targetSlug });
 
     // Check if agent already exists
     if (this.activeAgents.has(targetSlug)) {
-      this.logger.info({ agent: targetSlug }, 'Agent already loaded');
+      this.logger.info('Agent already loaded', { agent: targetSlug });
       return this.activeAgents.get(targetSlug)!;
     }
 
@@ -284,7 +303,7 @@ export class WorkAgentRuntime {
     const agent = await this.createVoltAgentInstance(targetSlug);
     this.activeAgents.set(targetSlug, agent);
 
-    this.logger.info({ agent: targetSlug }, 'Agent switched successfully');
+    this.logger.info('Agent switched successfully', { agent: targetSlug });
     return agent;
   }
 
@@ -312,9 +331,9 @@ export class WorkAgentRuntime {
     for (const [key, mcpConfig] of this.mcpConfigs.entries()) {
       try {
         await mcpConfig.disconnect();
-        this.logger.info({ mcp: key }, 'MCP disconnected');
+        this.logger.info('MCP disconnected', { mcp: key });
       } catch (error) {
-        this.logger.error({ mcp: key, error }, 'Failed to disconnect MCP');
+        this.logger.error('Failed to disconnect MCP', { mcp: key, error });
       }
     }
 

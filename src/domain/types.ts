@@ -21,6 +21,19 @@ export interface AgentSpec {
     allowed?: string[]; // allow-list for invocation
     aliases?: Record<string, string>; // alias → tool ID
   };
+  ui?: AgentUIConfig;
+}
+
+export interface AgentUIConfig {
+  component?: string;
+  quickPrompts?: AgentQuickPrompt[];
+  workflowShortcuts?: string[];
+}
+
+export interface AgentQuickPrompt {
+  id: string;
+  label: string;
+  prompt: string;
 }
 
 /**
@@ -103,6 +116,14 @@ export interface AgentMetadata {
   name: string;
   model?: string;
   updatedAt: string;
+  description?: string;
+  ui?: AgentUIConfig;
+  workflowWarnings?: string[];
+}
+
+export interface WorkflowMetadata {
+  id: string;
+  label: string;
 }
 
 /**
