@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "dev.voltagent.work-agent",
   "build": {
-    "beforeDevCommand": "npm run dev:ui",
+    "beforeDevCommand": "npm run build && npm run dev:ui",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build && npm run build:ui",
     "frontendDist": "../dist-ui"
