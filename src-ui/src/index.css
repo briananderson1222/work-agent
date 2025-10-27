@@ -382,12 +382,20 @@ body {
   display: flex;
   flex-direction: column;
   background: #1a1a1a;
+  overflow: hidden;
+  position: relative;
 }
 
 .workspace-panel {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 24px;
+  padding-bottom: 80px; /* Extra space so content isn't hidden behind collapsed chat dock */
+}
+
+.workspace-panel.has-chat-dock {
+  padding-bottom: calc(50vh + 24px); /* Extra space when chat dock is open (50vh + padding) */
 }
 
 .workspace-default {
@@ -401,18 +409,27 @@ body {
 }
 
 .chat-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
   display: flex;
   flex-direction: column;
   background: #242424;
-  border-top: 1px solid #333;
-  max-height: 40vh;
-  min-height: 260px;
+  border-top: 2px solid #4a9eff;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  max-height: 50vh;
+  min-height: 300px;
+  transition: transform 0.3s ease, max-height 0.3s ease;
 }
 
 .chat-dock.is-collapsed {
   min-height: 56px;
   max-height: 56px;
   overflow: hidden;
+  border-top: 1px solid #333;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
 }
 
 .chat-dock__header {
@@ -901,4 +918,754 @@ body {
   border: 1px dashed #333;
   border-radius: 12px;
   color: #999;
+}
+
+/* Management Views */
+.main-content--full {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.management-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: #1a1a1a;
+}
+
+.management-view__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  background: #242424;
+  border-bottom: 1px solid #333;
+}
+
+.management-view__header h2 {
+  flex: 1;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.management-view__header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.management-view__loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 14px;
+}
+
+.management-view__error {
+  padding: 16px 24px;
+  background: #402323;
+  border-bottom: 1px solid #5a2e2e;
+  color: #f0b7b7;
+  font-size: 14px;
+}
+
+/* Buttons */
+.button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  background: #4a9eff;
+  color: white;
+  border-color: #4a9eff;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: #3a8eef;
+}
+
+.button--secondary {
+  background: transparent;
+  color: #e0e0e0;
+  border-color: #444;
+}
+
+.button--secondary:hover:not(:disabled) {
+  border-color: #4a9eff;
+  background: #2a2a2a;
+}
+
+.button--danger {
+  background: #d32f2f;
+  color: white;
+  border-color: #d32f2f;
+}
+
+.button--danger:hover:not(:disabled) {
+  background: #b71c1c;
+}
+
+.button--small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.button--link {
+  background: transparent;
+  border: none;
+  color: #4a9eff;
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.button--link:hover {
+  color: #3a8eef;
+  text-decoration: underline;
+}
+
+/* Forms */
+.form-panel {
+  padding: 24px;
+  max-width: 800px;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #d0d0d0;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #1f1f1f;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #555;
+  opacity: 1;
+}
+
+.form-group input::-webkit-input-placeholder,
+.form-group textarea::-webkit-input-placeholder {
+  color: #555;
+  opacity: 1;
+}
+
+.form-group input::-moz-placeholder,
+.form-group textarea::-moz-placeholder {
+  color: #555;
+  opacity: 1;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.form-group input:disabled,
+.form-group textarea:disabled,
+.form-group select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-help {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #999;
+}
+
+.form-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #f0b7b7;
+}
+
+.field-with-help {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.field-with-help input {
+  flex: 1;
+}
+
+.help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #333;
+  color: #999;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: help;
+  text-decoration: none;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.help-icon:hover {
+  background: #4a9eff;
+  color: white;
+}
+
+.generate-button {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #4a9eff;
+  background: transparent;
+  color: #4a9eff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.generate-button:hover:not(:disabled) {
+  background: rgba(74, 158, 255, 0.15);
+}
+
+.generate-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-dialog {
+  background: #242424;
+  border: 1px solid #333;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  min-width: 400px;
+  max-width: 600px;
+}
+
+.modal-dialog--danger {
+  border-color: #d32f2f;
+}
+
+.modal-dialog--warning {
+  border-color: #ffb74d;
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #333;
+}
+
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-body p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #d0d0d0;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #333;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Settings View */
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid #333;
+  background: #242424;
+}
+
+.settings-tab {
+  padding: 14px 20px;
+  border: none;
+  background: transparent;
+  color: #999;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.settings-tab:hover {
+  color: #e0e0e0;
+}
+
+.settings-tab.is-active {
+  color: #4a9eff;
+  border-bottom-color: #4a9eff;
+}
+
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.settings-panel {
+  padding: 24px;
+  max-width: 800px;
+}
+
+/* Agent Editor */
+.agent-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.agent-editor__steps {
+  display: flex;
+  gap: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid #333;
+  background: #242424;
+}
+
+.step-indicator {
+  padding: 14px 20px;
+  border: none;
+  background: transparent;
+  color: #999;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.step-indicator:hover {
+  color: #e0e0e0;
+}
+
+.step-indicator.is-active {
+  color: #4a9eff;
+  border-bottom-color: #4a9eff;
+}
+
+.agent-editor__content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.agent-editor__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #333;
+  background: #242424;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.tool-checkbox {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #242424;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tool-checkbox:hover {
+  border-color: #4a9eff;
+  background: #2a2a2a;
+}
+
+.tool-checkbox input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.tool-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.tool-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.tool-desc {
+  font-size: 12px;
+  color: #999;
+}
+
+.tool-meta {
+  font-size: 11px;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.quick-prompt-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #242424;
+}
+
+.quick-prompt-editor input {
+  width: 100%;
+}
+
+.quick-prompt-editor textarea {
+  width: 100%;
+  min-height: 80px;
+}
+
+.new-tool-form {
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid #4a9eff;
+  border-radius: 10px;
+  background: rgba(74, 158, 255, 0.05);
+}
+
+.new-tool-form h4 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #4a9eff;
+}
+
+/* Tool Management */
+.tool-management {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 24px;
+  height: calc(100% - 80px);
+  overflow: hidden;
+}
+
+.tool-management__column {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tool-management__column h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.column-help {
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 16px;
+}
+
+.tool-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tool-card {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #333;
+  border-radius: 10px;
+  background: #242424;
+  align-items: flex-start;
+}
+
+.tool-card--enabled {
+  border-color: #4a9eff;
+  background: rgba(74, 158, 255, 0.05);
+}
+
+.tool-card__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-card__info h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.tool-card__info p {
+  font-size: 13px;
+  color: #999;
+  line-height: 1.5;
+}
+
+.tool-card__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tool-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tool-badge--kind {
+  background: #2a2a2a;
+  color: #999;
+  border: 1px solid #333;
+}
+
+.tool-badge--transport {
+  background: rgba(74, 158, 255, 0.15);
+  color: #4a9eff;
+  border: 1px solid rgba(74, 158, 255, 0.3);
+}
+
+.tool-alias {
+  font-size: 13px;
+  color: #d0d0d0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-alias strong {
+  color: #4a9eff;
+}
+
+.tool-alias-editor {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tool-alias-editor input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-allow-list {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #333;
+}
+
+.tool-allow-list h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.allow-list-editor {
+  display: flex;
+  gap: 8px;
+}
+
+.allow-list-editor input {
+  flex: 1;
+}
+
+.empty-state-small {
+  padding: 32px;
+  text-align: center;
+  border: 1px dashed #333;
+  border-radius: 10px;
+  color: #999;
+}
+
+/* Workflow Management */
+.workflow-list {
+  padding: 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.workflow-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #333;
+  border-radius: 10px;
+  background: #242424;
+  transition: all 0.2s;
+}
+
+.workflow-card:hover {
+  border-color: #4a9eff;
+  background: #2a2a2a;
+}
+
+.workflow-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workflow-card__header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e0e0e0;
+  flex: 1;
+}
+
+.workflow-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  background: rgba(74, 158, 255, 0.15);
+  color: #4a9eff;
+  border: 1px solid rgba(74, 158, 255, 0.3);
+}
+
+.workflow-card__meta {
+  font-size: 12px;
+  color: #999;
+}
+
+.workflow-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.workflow-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 24px;
+  gap: 16px;
+}
+
+.code-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.code-editor textarea {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #1f1f1f;
+  color: #e0e0e0;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+  overflow-y: auto;
+}
+
+.code-editor textarea:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+/* App Toolbar Additions */
+.app-toolbar__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.app-toolbar__settings {
+  margin-left: auto;
+  font-size: 18px;
 }

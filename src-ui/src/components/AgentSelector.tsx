@@ -97,7 +97,7 @@ export function AgentSelector({
           {selectedAgent?.model && <span className="agent-selector__current-model">{typeof selectedAgent.model === 'string' ? selectedAgent.model : selectedAgent.model.modelId}</span>}
         </div>
         <span className="agent-selector__chevron" aria-hidden="true">
-          {isOpen ? '^' : 'v'}
+          {isOpen ? '▲' : '▼'}
         </span>
       </button>
 

@@ -50,3 +50,36 @@ export interface ChatSession {
   updatedAt: number;
   hasUnread: boolean;
 }
+
+export interface Tool {
+  id: string;
+  name: string;
+  description?: string;
+  kind: 'mcp' | 'builtin' | 'custom';
+  transport?: string;
+  enabled?: boolean;
+}
+
+export interface WorkflowFile {
+  id: string;
+  name: string;
+  path: string;
+  extension: string;
+  lastModified: string;
+  content?: string;
+}
+
+export interface AppConfig {
+  apiEndpoint?: string;
+  region?: string;
+  defaultModel?: string;
+  logLevel?: string;
+}
+
+export type NavigationView =
+  | { type: 'workspace' }
+  | { type: 'agent-new' }
+  | { type: 'agent-edit'; slug: string }
+  | { type: 'tools'; slug: string }
+  | { type: 'workflows'; slug: string }
+  | { type: 'settings' };

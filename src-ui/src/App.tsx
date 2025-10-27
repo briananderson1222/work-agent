@@ -3,12 +3,17 @@ import type { KeyboardEvent } from 'react';
 import { AgentSelector } from './components/AgentSelector';
 import { QuickActionsBar } from './components/QuickActionsBar';
 import { WorkspaceRenderer } from './workspaces';
+import { AgentEditorView } from './views/AgentEditorView';
+import { ToolManagementView } from './views/ToolManagementView';
+import { WorkflowManagementView } from './views/WorkflowManagementView';
+import { SettingsView } from './views/SettingsView';
 import type {
   AgentSummary,
   AgentQuickPrompt,
   ChatMessage,
   ChatSession,
   WorkflowMetadata,
+  NavigationView,
 } from './types';
 
 const API_BASE = 'http://localhost:3141';
@@ -23,6 +28,7 @@ function App() {
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
   const [workflowCatalog, setWorkflowCatalog] = useState<Record<string, WorkflowMetadata[]>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<NavigationView>({ type: 'workspace' });
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const generateId = () =>
@@ -377,24 +383,40 @@ function App() {
     }, 0);
   };
 
-  const notifyManagementAction = (message: string) => {
-    setManagementNotice(message);
+  const navigateToView = (view: NavigationView) => {
+    setCurrentView(view);
+    setManagementNotice(null);
+  };
+
+  const navigateToWorkspace = () => {
+    navigateToView({ type: 'workspace' });
   };
 
   const handleCreateAgentAction = () => {
-    notifyManagementAction('Agent creation UI is coming soon. Use the CLI or edit .work-agent files for now.');
+    navigateToView({ type: 'agent-new' });
   };
 
   const handleEditAgentAction = (slug: string) => {
-    notifyManagementAction(`Editing agent "${slug}" will be available soon. Edit .work-agent/agents/${slug}/agent.json meanwhile.`);
+    navigateToView({ type: 'agent-edit', slug });
   };
 
   const handleManageToolsAction = (slug: string) => {
-    notifyManagementAction(`Tool management UI for "${slug}" is coming soon. Update .work-agent/tools/ directly for now.`);
+    navigateToView({ type: 'tools', slug });
   };
 
   const handleManageWorkflowsAction = (slug: string) => {
-    notifyManagementAction(`Workflow management for "${slug}" is coming soon. Edit .work-agent/agents/${slug}/workflows/ to make changes.`);
+    navigateToView({ type: 'workflows', slug });
+  };
+
+  const handleAgentSaved = async (slug: string) => {
+    await fetchAgents();
+    setSelectedAgent(slug);
+    navigateToWorkspace();
+    showToast('Agent saved successfully');
+  };
+
+  const handleSettingsSaved = () => {
+    showToast('Settings saved successfully');
   };
 
   const openChatForAgent = (agent: AgentSummary | null) => {
@@ -402,6 +424,88 @@ function App() {
     ensureManualSession(agent);
   };
 
+  // Render management views
+  if (currentView.type !== 'workspace') {
+    return (
+      <div className="app">
+        <header className="app-toolbar">
+          <div className="app-toolbar__title">Work Agent</div>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={() => navigateToView({ type: 'settings' })}
+          >
+            Settings
+          </button>
+        </header>
+
+        {globalError && (
+          <div className="global-error">
+            <span>{globalError}</span>
+            <button type="button" onClick={fetchAgents}>
+              Retry
+            </button>
+          </div>
+        )}
+
+        <div className="main-content main-content--full">
+          {currentView.type === 'agent-new' && (
+            <AgentEditorView
+              apiBase={API_BASE}
+              onBack={navigateToWorkspace}
+              onSaved={handleAgentSaved}
+            />
+          )}
+          {currentView.type === 'agent-edit' && (
+            <AgentEditorView
+              apiBase={API_BASE}
+              slug={currentView.slug}
+              onBack={navigateToWorkspace}
+              onSaved={handleAgentSaved}
+            />
+          )}
+          {currentView.type === 'tools' && (
+            <ToolManagementView
+              apiBase={API_BASE}
+              agentSlug={currentView.slug}
+              agentName={
+                agents.find((a) => a.slug === currentView.slug)?.name || currentView.slug
+              }
+              onBack={navigateToWorkspace}
+            />
+          )}
+          {currentView.type === 'workflows' && (
+            <WorkflowManagementView
+              apiBase={API_BASE}
+              agentSlug={currentView.slug}
+              agentName={
+                agents.find((a) => a.slug === currentView.slug)?.name || currentView.slug
+              }
+              onBack={navigateToWorkspace}
+            />
+          )}
+          {currentView.type === 'settings' && (
+            <SettingsView
+              apiBase={API_BASE}
+              onBack={navigateToWorkspace}
+              onSaved={handleSettingsSaved}
+            />
+          )}
+        </div>
+
+        {toastMessage && (
+          <div className="toast">
+            <span>{toastMessage}</span>
+            <button type="button" onClick={() => setToastMessage(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Render workspace view
   return (
     <div className="app">
       <header className="app-toolbar">
@@ -428,6 +532,15 @@ function App() {
             <span>Select an agent to access quick actions.</span>
           </div>
         )}
+
+        <button
+          type="button"
+          className="button button--secondary app-toolbar__settings"
+          onClick={() => navigateToView({ type: 'settings' })}
+          title="Settings"
+        >
+          ⚙
+        </button>
       </header>
 
       {managementNotice && (
@@ -451,7 +564,7 @@ function App() {
       <div className="main-content">
         {currentAgent ? (
           <>
-            <div className="workspace-panel">
+            <div className={`workspace-panel ${!isDockCollapsed ? 'has-chat-dock' : ''}`}>
               <WorkspaceRenderer
                 agent={currentAgent}
                 onLaunchPrompt={handleLaunchPrompt}

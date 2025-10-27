@@ -46,7 +46,7 @@ fn main() {
                     .current_dir(&resource_path)
                     .spawn()
                 {
-                    Ok(child) => {
+                    Ok(_child) => {
                         println!("Server started successfully");
                         // Wait a moment for server to initialize
                         std::thread::sleep(Duration::from_secs(2));
