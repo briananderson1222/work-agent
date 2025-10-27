@@ -2,7 +2,7 @@
  * Configuration loader for reading and watching .work-agent/ files
  */
 
-import { readFile, readdir, stat, writeFile, mkdir } from 'fs/promises';
+import { readFile, readdir, stat, writeFile, mkdir, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { basename, extname, join, resolve } from 'path';
 import { watch, type FSWatcher } from 'chokidar';
@@ -77,6 +77,16 @@ export class ConfigLoader {
   }
 
   /**
+   * Update application configuration (alias for saveAppConfig)
+   */
+  async updateAppConfig(updates: Partial<AppConfig>): Promise<AppConfig> {
+    const existing = await this.loadAppConfig();
+    const updated = { ...existing, ...updates };
+    await this.saveAppConfig(updated);
+    return updated;
+  }
+
+  /**
    * Load agent specification
    */
   async loadAgent(slug: string): Promise<AgentSpec> {
@@ -90,6 +100,61 @@ export class ConfigLoader {
     const data = JSON.parse(content);
     validator.validateAgentSpec(data);
     return data;
+  }
+
+  /**
+   * Create a new agent (generates slug from name)
+   */
+  async createAgent(spec: AgentSpec): Promise<{ slug: string; spec: AgentSpec }> {
+    validator.validateAgentSpec(spec);
+
+    // Generate slug from name
+    const slug = spec.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    if (!slug) {
+      throw new Error('Agent name must contain at least one alphanumeric character');
+    }
+
+    // Check if agent already exists
+    if (await this.agentExists(slug)) {
+      throw new Error(`Agent with slug '${slug}' already exists`);
+    }
+
+    await this.saveAgent(slug, spec);
+    return { slug, spec };
+  }
+
+  /**
+   * Update an existing agent
+   */
+  async updateAgent(slug: string, updates: Partial<AgentSpec>): Promise<AgentSpec> {
+    // Load existing agent
+    const existing = await this.loadAgent(slug);
+
+    // Merge updates
+    const updated = { ...existing, ...updates };
+
+    // Validate and save
+    await this.saveAgent(slug, updated);
+
+    return updated;
+  }
+
+  /**
+   * Delete an agent and all its data
+   */
+  async deleteAgent(slug: string): Promise<void> {
+    const agentDir = join(this.workAgentDir, 'agents', slug);
+
+    if (!existsSync(agentDir)) {
+      throw new Error(`Agent '${slug}' not found`);
+    }
+
+    // Remove entire agent directory (includes config, memory, workflows)
+    await rm(agentDir, { recursive: true, force: true });
   }
 
   /**
@@ -168,13 +233,79 @@ export class ConfigLoader {
       if (!['.ts', '.js', '.mjs', '.cjs'].includes(ext)) continue;
 
       const id = entry.name;
+      const filePath = join(workflowsDir, entry.name);
+      const stats = await stat(filePath);
+
       workflows.push({
         id,
-        label: this.deriveWorkflowLabel(id)
+        label: this.deriveWorkflowLabel(id),
+        filename: entry.name,
+        lastModified: stats.mtime.toISOString(),
       });
     }
 
     return workflows.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  /**
+   * Create a new workflow file
+   */
+  async createWorkflow(slug: string, filename: string, content: string): Promise<void> {
+    // Validate filename extension
+    const ext = extname(filename).toLowerCase();
+    if (!['.ts', '.js', '.mjs', '.cjs'].includes(ext)) {
+      throw new Error('Workflow filename must end with .ts, .js, .mjs, or .cjs');
+    }
+
+    const workflowsDir = join(this.workAgentDir, 'agents', slug, 'workflows');
+    await mkdir(workflowsDir, { recursive: true });
+
+    const path = join(workflowsDir, filename);
+
+    if (existsSync(path)) {
+      throw new Error(`Workflow '${filename}' already exists`);
+    }
+
+    await writeFile(path, content, 'utf-8');
+  }
+
+  /**
+   * Read workflow file content
+   */
+  async readWorkflow(slug: string, workflowId: string): Promise<string> {
+    const path = join(this.workAgentDir, 'agents', slug, 'workflows', workflowId);
+
+    if (!existsSync(path)) {
+      throw new Error(`Workflow '${workflowId}' not found`);
+    }
+
+    return await readFile(path, 'utf-8');
+  }
+
+  /**
+   * Update an existing workflow file
+   */
+  async updateWorkflow(slug: string, workflowId: string, content: string): Promise<void> {
+    const path = join(this.workAgentDir, 'agents', slug, 'workflows', workflowId);
+
+    if (!existsSync(path)) {
+      throw new Error(`Workflow '${workflowId}' not found`);
+    }
+
+    await writeFile(path, content, 'utf-8');
+  }
+
+  /**
+   * Delete a workflow file
+   */
+  async deleteWorkflow(slug: string, workflowId: string): Promise<void> {
+    const path = join(this.workAgentDir, 'agents', slug, 'workflows', workflowId);
+
+    if (!existsSync(path)) {
+      throw new Error(`Workflow '${workflowId}' not found`);
+    }
+
+    await rm(path, { force: true });
   }
 
   private deriveWorkflowLabel(filename: string): string {

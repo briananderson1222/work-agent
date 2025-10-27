@@ -180,12 +180,108 @@ Switched to agent: my-other-agent
 # Chat with agent "work-agent"
 curl -X POST http://localhost:3141/agents/work-agent/text \
   -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Hello"}]}'
+  -d '{"input": "Hello", "options": {}}'
 
 # Chat with agent "my-other-agent"
 curl -X POST http://localhost:3141/agents/my-other-agent/text \
   -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Help me code"}]}'
+  -d '{"input": "Help me code", "options": {}}'
+```
+
+## 🛠️ Management API
+
+Work Agent provides REST APIs for managing agents, tools, workflows, and application settings programmatically.
+
+### Agent Management
+
+```bash
+# List all agents
+curl http://localhost:3141/agents
+
+# Create a new agent
+curl -X POST http://localhost:3141/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My New Agent",
+    "prompt": "You are a helpful assistant specialized in documentation."
+  }'
+
+# Update an agent
+curl -X PUT http://localhost:3141/agents/my-new-agent \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Updated system instructions.",
+    "model": "anthropic.claude-3-opus-20240229-v1:0"
+  }'
+
+# Delete an agent
+curl -X DELETE http://localhost:3141/agents/my-new-agent
+```
+
+### Tool Configuration
+
+```bash
+# List available tools
+curl http://localhost:3141/tools
+
+# Add a tool to an agent
+curl -X POST http://localhost:3141/agents/work-agent/tools \
+  -H "Content-Type: application/json" \
+  -d '{"toolId": "filesystem"}'
+
+# Remove a tool from an agent
+curl -X DELETE http://localhost:3141/agents/work-agent/tools/filesystem
+
+# Update tool allow-list
+curl -X PUT http://localhost:3141/agents/work-agent/tools/allowed \
+  -H "Content-Type: application/json" \
+  -d '{"allowed": ["read_file", "write_file"]}'
+
+# Update tool aliases
+curl -X PUT http://localhost:3141/agents/work-agent/tools/aliases \
+  -H "Content-Type: application/json" \
+  -d '{"aliases": {"read": "filesystem_read_file"}}'
+```
+
+### Workflow Management
+
+```bash
+# List workflow files for an agent
+curl http://localhost:3141/agents/work-agent/workflows/files
+
+# Get workflow file content
+curl http://localhost:3141/agents/work-agent/workflows/daily-summary.ts
+
+# Create a new workflow
+curl -X POST http://localhost:3141/agents/work-agent/workflows \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filename": "new-workflow.ts",
+    "content": "import { andThen } from \"@voltagent/core\";\n\nexport default andThen(() => \"Hello\");"
+  }'
+
+# Update workflow content
+curl -X PUT http://localhost:3141/agents/work-agent/workflows/new-workflow.ts \
+  -H "Content-Type: application/json" \
+  -d '{"content": "// Updated workflow code"}'
+
+# Delete a workflow
+curl -X DELETE http://localhost:3141/agents/work-agent/workflows/new-workflow.ts
+```
+
+### Application Settings
+
+```bash
+# Get current app configuration
+curl http://localhost:3141/config/app
+
+# Update app configuration
+curl -X PUT http://localhost:3141/config/app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "region": "us-west-2",
+    "defaultModel": "anthropic.claude-3-haiku-20240307-v1:0"
+  }'
 ```
 
 Each agent runs with isolated:

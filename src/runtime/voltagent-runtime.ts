@@ -119,6 +119,265 @@ export class WorkAgentRuntime {
             });
             return c.json({ success: true, data: enrichedAgents });
           });
+
+          // === Agent CRUD Endpoints ===
+
+          // Create new agent
+          app.post('/agents', async (c) => {
+            try {
+              const body = await c.req.json();
+              const { slug, spec } = await this.configLoader.createAgent(body);
+
+              // Reload agents to include the new one
+              await this.initialize();
+
+              return c.json({ success: true, data: { slug, ...spec } }, 201);
+            } catch (error: any) {
+              this.logger.error('Failed to create agent', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Update existing agent
+          app.put('/agents/:slug', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const updates = await c.req.json();
+
+              const updated = await this.configLoader.updateAgent(slug, updates);
+
+              // Reload agents to reflect changes
+              await this.initialize();
+
+              return c.json({ success: true, data: updated });
+            } catch (error: any) {
+              this.logger.error('Failed to update agent', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Delete agent
+          app.delete('/agents/:slug', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+
+              // Drain agent if active
+              if (this.activeAgents.has(slug)) {
+                this.activeAgents.delete(slug);
+              }
+
+              await this.configLoader.deleteAgent(slug);
+
+              // Reload agents
+              await this.initialize();
+
+              return c.json({ success: true }, 204);
+            } catch (error: any) {
+              this.logger.error('Failed to delete agent', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // === Tool Management Endpoints ===
+
+          // List all tools
+          app.get('/tools', async (c) => {
+            try {
+              const tools = await this.configLoader.listTools();
+              return c.json({ success: true, data: tools });
+            } catch (error: any) {
+              this.logger.error('Failed to list tools', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Add tool to agent
+          app.post('/agents/:slug/tools', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const { toolId } = await c.req.json();
+
+              const agent = await this.configLoader.loadAgent(slug);
+              const tools = agent.tools || { use: [], allowed: ['*'] };
+
+              if (!tools.use.includes(toolId)) {
+                tools.use.push(toolId);
+              }
+
+              await this.configLoader.updateAgent(slug, { tools });
+              await this.initialize();
+
+              return c.json({ success: true, data: tools.use });
+            } catch (error: any) {
+              this.logger.error('Failed to add tool', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Remove tool from agent
+          app.delete('/agents/:slug/tools/:toolId', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const toolId = c.req.param('toolId');
+
+              const agent = await this.configLoader.loadAgent(slug);
+              const tools = agent.tools || { use: [] };
+
+              tools.use = tools.use.filter(id => id !== toolId);
+
+              await this.configLoader.updateAgent(slug, { tools });
+              await this.initialize();
+
+              return c.json({ success: true }, 204);
+            } catch (error: any) {
+              this.logger.error('Failed to remove tool', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Update tool allow-list
+          app.put('/agents/:slug/tools/allowed', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const { allowed } = await c.req.json();
+
+              const agent = await this.configLoader.loadAgent(slug);
+              const tools = agent.tools || { use: [] };
+
+              tools.allowed = allowed;
+
+              await this.configLoader.updateAgent(slug, { tools });
+              await this.initialize();
+
+              return c.json({ success: true, data: tools });
+            } catch (error: any) {
+              this.logger.error('Failed to update allow-list', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Update tool aliases
+          app.put('/agents/:slug/tools/aliases', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const { aliases } = await c.req.json();
+
+              const agent = await this.configLoader.loadAgent(slug);
+              const tools = agent.tools || { use: [] };
+
+              tools.aliases = aliases;
+
+              await this.configLoader.updateAgent(slug, { tools });
+              await this.initialize();
+
+              return c.json({ success: true, data: tools });
+            } catch (error: any) {
+              this.logger.error('Failed to update aliases', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // === Workflow File Management Endpoints ===
+
+          // List workflow files for agent
+          app.get('/agents/:slug/workflows/files', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const workflows = await this.configLoader.listAgentWorkflows(slug);
+              return c.json({ success: true, data: workflows });
+            } catch (error: any) {
+              this.logger.error('Failed to list workflows', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Get workflow file content
+          app.get('/agents/:slug/workflows/:workflowId', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const workflowId = c.req.param('workflowId');
+              const content = await this.configLoader.readWorkflow(slug, workflowId);
+              return c.json({ success: true, data: { content } });
+            } catch (error: any) {
+              this.logger.error('Failed to read workflow', { error });
+              return c.json({ success: false, error: error.message }, 404);
+            }
+          });
+
+          // Create workflow file
+          app.post('/agents/:slug/workflows', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const { filename, content } = await c.req.json();
+
+              await this.configLoader.createWorkflow(slug, filename, content);
+
+              return c.json({ success: true, data: { filename } }, 201);
+            } catch (error: any) {
+              this.logger.error('Failed to create workflow', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Update workflow file
+          app.put('/agents/:slug/workflows/:workflowId', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const workflowId = c.req.param('workflowId');
+              const { content } = await c.req.json();
+
+              await this.configLoader.updateWorkflow(slug, workflowId, content);
+
+              return c.json({ success: true });
+            } catch (error: any) {
+              this.logger.error('Failed to update workflow', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Delete workflow file
+          app.delete('/agents/:slug/workflows/:workflowId', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const workflowId = c.req.param('workflowId');
+
+              await this.configLoader.deleteWorkflow(slug, workflowId);
+
+              return c.json({ success: true }, 204);
+            } catch (error: any) {
+              this.logger.error('Failed to delete workflow', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // === App Configuration Endpoints ===
+
+          // Get app config
+          app.get('/config/app', async (c) => {
+            try {
+              const config = await this.configLoader.loadAppConfig();
+              return c.json({ success: true, data: config });
+            } catch (error: any) {
+              this.logger.error('Failed to load app config', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Update app config
+          app.put('/config/app', async (c) => {
+            try {
+              const updates = await c.req.json();
+              const updated = await this.configLoader.updateAppConfig(updates);
+
+              // Note: Some config changes require restart to take effect
+              this.logger.info('App config updated', { config: updated });
+
+              return c.json({ success: true, data: updated });
+            } catch (error: any) {
+              this.logger.error('Failed to update app config', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
         },
       }),
     });

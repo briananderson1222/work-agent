@@ -124,6 +124,8 @@ export interface AgentMetadata {
 export interface WorkflowMetadata {
   id: string;
   label: string;
+  filename?: string;
+  lastModified?: string;
 }
 
 /**
