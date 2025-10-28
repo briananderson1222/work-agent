@@ -23,6 +23,14 @@ export interface AgentSummary {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  toolCalls?: Array<{
+    toolCallId: string;
+    toolName: string;
+    args: any;
+    result?: any;
+    state?: string;
+    error?: string;
+  }>;
 }
 
 export interface WorkflowMetadata {
@@ -44,6 +52,7 @@ export interface ChatSession {
   sourceId?: string;
   messages: ChatMessage[];
   input: string;
+  queuedMessages: string[];
   status: ChatSessionStatus;
   error?: string | null;
   createdAt: number;
@@ -73,7 +82,16 @@ export interface AppConfig {
   apiEndpoint?: string;
   region?: string;
   defaultModel?: string;
+  systemPrompt?: string;
+  templateVariables?: TemplateVariable[];
   logLevel?: string;
+}
+
+export interface TemplateVariable {
+  key: string;
+  type: 'static' | 'date' | 'time' | 'datetime' | 'custom';
+  value?: string;
+  format?: string;
 }
 
 export type NavigationView =

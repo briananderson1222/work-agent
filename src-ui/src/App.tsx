@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { KeyboardEvent } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { AgentSelector } from './components/AgentSelector';
 import { QuickActionsBar } from './components/QuickActionsBar';
+import { ThemeToggle } from './components/ThemeToggle';
 import { WorkspaceRenderer } from './workspaces';
 import { AgentEditorView } from './views/AgentEditorView';
 import { ToolManagementView } from './views/ToolManagementView';
@@ -18,17 +20,100 @@ import type {
 
 const API_BASE = 'http://localhost:3141';
 
+function ToolCallDisplay({ toolCall }: { toolCall: { toolCallId: string; toolName: string; args: any; result?: any; state?: string; error?: string } }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="tool-call">
+      <button 
+        className="tool-call__header" 
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <span className="tool-call__icon">🔧</span>
+        <span className="tool-call__name">{toolCall.toolName}</span>
+        {toolCall.error && <span className="tool-call__error">⚠️</span>}
+        <span className="tool-call__toggle">{isExpanded ? '▼' : '▶'}</span>
+      </button>
+      {isExpanded && (
+        <div className="tool-call__details">
+          <div className="tool-call__section">
+            <strong>Tool ID:</strong>
+            <pre>{toolCall.toolCallId}</pre>
+          </div>
+          <div className="tool-call__section">
+            <strong>Arguments:</strong>
+            <pre>{JSON.stringify(toolCall.args, null, 2)}</pre>
+          </div>
+          {toolCall.state && (
+            <div className="tool-call__section">
+              <strong>State:</strong>
+              <pre>{toolCall.state}</pre>
+            </div>
+          )}
+          {toolCall.result && (
+            <div className="tool-call__section">
+              <strong>Result:</strong>
+              <pre>{JSON.stringify(toolCall.result, null, 2)}</pre>
+            </div>
+          )}
+          {toolCall.error && (
+            <div className="tool-call__section tool-call__section--error">
+              <strong>Error:</strong>
+              <pre>{toolCall.error}</pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(() => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/agent\/([^/]+)/);
+    return match ? match[1] : null;
+  });
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [isDockCollapsed, setIsDockCollapsed] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('session');
+  });
+  const [isDockCollapsed, setIsDockCollapsed] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('dock') !== 'open';
+  });
+  const [dockHeight, setDockHeight] = useState(400);
+  const [isDragging, setIsDragging] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
   const [workflowCatalog, setWorkflowCatalog] = useState<Record<string, WorkflowMetadata[]>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [currentView, setCurrentView] = useState<NavigationView>({ type: 'workspace' });
+  const [currentView, setCurrentView] = useState<NavigationView>(() => {
+    const path = window.location.pathname;
+    
+    if (path === '/settings') return { type: 'settings' };
+    if (path === '/agents/new') return { type: 'agent-new' };
+    if (path.startsWith('/agents/') && path.endsWith('/edit')) {
+      const slug = path.split('/')[2];
+      return { type: 'agent-edit', slug };
+    }
+    if (path.startsWith('/agents/') && path.endsWith('/tools')) {
+      const slug = path.split('/')[2];
+      return { type: 'tools', slug };
+    }
+    if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
+      const slug = path.split('/')[2];
+      return { type: 'workflows', slug };
+    }
+    
+    return { type: 'workspace' };
+  });
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const [pendingPromptSend, setPendingPromptSend] = useState<{ sessionId: string; prompt: string } | null>(null);
+  const [loadedAgents, setLoadedAgents] = useState<Set<string>>(new Set());
+  const [messageQueue, setMessageQueue] = useState<Map<string, string[]>>(new Map());
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const generateId = () =>
@@ -66,6 +151,50 @@ function App() {
     ? sessions.find((session) => session.id === activeSessionId) ?? null
     : null;
   const unreadCount = sessions.filter((session) => session.hasUnread).length;
+
+  // Update URL when state changes
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (activeSessionId) params.set('session', activeSessionId);
+    if (!isDockCollapsed) params.set('dock', 'open');
+    
+    let path = '/';
+    
+    if (currentView.type === 'workspace' && selectedAgent) {
+      path = `/agent/${selectedAgent}`;
+    } else if (currentView.type === 'settings') {
+      path = '/settings';
+    } else if (currentView.type === 'agent-new') {
+      path = '/agents/new';
+    } else if (currentView.type === 'agent-edit') {
+      path = `/agents/${currentView.slug}/edit`;
+    } else if (currentView.type === 'tools') {
+      path = `/agents/${currentView.slug}/tools`;
+    } else if (currentView.type === 'workflows') {
+      path = `/agents/${currentView.slug}/workflows`;
+    }
+    
+    const query = params.toString();
+    const url = query ? `${path}?${query}` : path;
+    
+    window.history.replaceState({}, '', url);
+  }, [selectedAgent, activeSessionId, isDockCollapsed, currentView]);
+
+  useEffect(() => {
+    if (selectedAgent && agents.length > 0 && !loadedAgents.has(selectedAgent)) {
+      loadSessionsForAgent(selectedAgent);
+    }
+  }, [selectedAgent, agents, loadedAgents]);
+
+  useEffect(() => {
+    if (pendingPromptSend) {
+      const session = sessions.find(s => s.id === pendingPromptSend.sessionId);
+      if (session) {
+        sendMessage(pendingPromptSend.sessionId, pendingPromptSend.prompt);
+        setPendingPromptSend(null);
+      }
+    }
+  }, [sessions, pendingPromptSend]);
 
   useEffect(() => {
     fetchAgents();
@@ -113,12 +242,34 @@ function App() {
         ...current,
         hasUnread: false,
       }));
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [isDockCollapsed, activeSessionId]);
 
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newHeight = window.innerHeight - e.clientY;
+      setDockHeight(Math.max(200, Math.min(newHeight, window.innerHeight * 0.8)));
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
   const fetchAgents = async () => {
     try {
-      const response = await fetch(`${API_BASE}/agents`);
+      const response = await fetch(`${API_BASE}/api/agents`);
       if (!response.ok) throw new Error('Failed to fetch agents');
 
       const payload = await response.json();
@@ -140,6 +291,44 @@ function App() {
       }
     } catch (err: any) {
       setGlobalError(err.message);
+    }
+  };
+
+  const loadSessionsForAgent = async (agentSlug: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/agents/${agentSlug}/conversations`);
+      if (!response.ok) return; // Silently fail if endpoint doesn't exist yet
+      
+      const payload = await response.json();
+      const conversations = payload.data || [];
+      
+      // Convert backend conversations to UI sessions
+      const loadedSessions: ChatSession[] = conversations.map((conv: any) => ({
+        id: conv.conversationId,
+        conversationId: conv.conversationId,
+        agentSlug: agentSlug,
+        agentName: agents.find(a => a.slug === agentSlug)?.name || agentSlug,
+        title: conv.title || `${agentSlug} Chat`,
+        source: 'manual' as const,
+        messages: [], // Load messages on demand
+        input: '',
+        status: 'idle' as const,
+        error: null,
+        createdAt: new Date(conv.createdAt).getTime(),
+        updatedAt: new Date(conv.updatedAt).getTime(),
+        hasUnread: false,
+      }));
+      
+      // Merge with existing sessions from other agents
+      setSessions((prev) => {
+        const otherAgentSessions = prev.filter(s => s.agentSlug !== agentSlug);
+        return [...otherAgentSessions, ...loadedSessions];
+      });
+      
+      // Mark this agent as loaded
+      setLoadedAgents((prev) => new Set(prev).add(agentSlug));
+    } catch (err) {
+      console.error('Failed to load sessions:', err);
     }
   };
 
@@ -176,6 +365,7 @@ function App() {
   const focusSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
     setIsDockCollapsed(false);
+    setHistoryIndex(-1);
     updateSession(sessionId, (current) => ({
       ...current,
       hasUnread: false,
@@ -213,13 +403,6 @@ function App() {
   };
 
   const ensureManualSession = (agent: AgentSummary) => {
-    const existing = sessions.find(
-      (session) => session.agentSlug === agent.slug && session.source === 'manual'
-    );
-    if (existing) {
-      focusSession(existing.id);
-      return existing;
-    }
     const session = createChatSession(agent, { source: 'manual', title: `${agent.name} Chat` });
     focusSession(session.id);
     return session;
@@ -253,14 +436,12 @@ function App() {
     focusSession(sessionId);
 
     try {
+      // Send only the new user message - VoltAgent Memory will handle history
       const response = await fetch(`${API_BASE}/agents/${session.agentSlug}/text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          input: [...session.messages, userMessage].map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
+          input: text,
           options: {
             userId: 'tauri-ui-user',
             conversationId: session.conversationId,
@@ -269,13 +450,21 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
       const assistantMessage: ChatMessage = {
         role: 'assistant',
         content: data.data?.text || data.text || 'No response',
+        toolCalls: data.data?.toolCalls?.map((tc: any) => ({
+          id: tc.toolCallId,
+          name: tc.toolName,
+          args: tc.args,
+          result: data.data?.toolResults?.find((tr: any) => tr.toolCallId === tc.toolCallId)?.result,
+        })),
       };
 
       const shouldMarkUnread = sessionId !== activeSessionId || isDockCollapsed;
@@ -314,6 +503,29 @@ function App() {
       event.preventDefault();
       if (activeSessionId) {
         sendMessage(activeSessionId);
+        setHistoryIndex(-1);
+      }
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!activeSession) return;
+      const userMessages = activeSession.messages.filter(m => m.role === 'user');
+      if (userMessages.length === 0) return;
+      const newIndex = historyIndex + 1;
+      if (newIndex < userMessages.length) {
+        setHistoryIndex(newIndex);
+        setSessionInput(activeSession.id, userMessages[userMessages.length - 1 - newIndex].content);
+      }
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!activeSession) return;
+      const userMessages = activeSession.messages.filter(m => m.role === 'user');
+      const newIndex = historyIndex - 1;
+      if (newIndex >= 0) {
+        setHistoryIndex(newIndex);
+        setSessionInput(activeSession.id, userMessages[userMessages.length - 1 - newIndex].content);
+      } else if (newIndex === -1) {
+        setHistoryIndex(-1);
+        setSessionInput(activeSession.id, '');
       }
     }
   };
@@ -326,28 +538,29 @@ function App() {
   const handleLaunchPrompt = (prompt: AgentQuickPrompt) => {
     if (!currentAgent) return;
 
-    const existing = sessions.find(
-      (session) =>
-        session.agentSlug === currentAgent.slug &&
-        session.source === 'prompt' &&
-        session.sourceId === prompt.id
-    );
-
-    if (existing) {
-      focusSession(existing.id);
-      return;
-    }
-
-    const session = createChatSession(currentAgent, {
+    const sessionId = `${currentAgent.slug}:${generateId()}`;
+    const conversationId = `tauri-${currentAgent.slug}-${generateId()}`;
+    const session: ChatSession = {
+      id: sessionId,
+      conversationId,
+      agentSlug: currentAgent.slug,
+      agentName: currentAgent.name,
+      title: `Prompt · ${prompt.label}`,
       source: 'prompt',
       sourceId: prompt.id,
-      title: `Prompt · ${prompt.label}`,
-    });
-    focusSession(session.id);
+      messages: [],
+      input: '',
+      status: 'idle',
+      error: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      hasUnread: false,
+    };
 
-    setTimeout(() => {
-      sendMessage(session.id, prompt.prompt);
-    }, 0);
+    setSessions((prev) => [...prev, session]);
+    setActiveSessionId(sessionId);
+    setIsDockCollapsed(false);
+    setPendingPromptSend({ sessionId, prompt: prompt.prompt });
   };
 
   const handleWorkflowShortcut = (workflowId: string) => {
@@ -430,13 +643,16 @@ function App() {
       <div className="app">
         <header className="app-toolbar">
           <div className="app-toolbar__title">Work Agent</div>
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={() => navigateToView({ type: 'settings' })}
-          >
-            Settings
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <ThemeToggle />
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => navigateToView({ type: 'settings' })}
+            >
+              Settings
+            </button>
+          </div>
         </header>
 
         {globalError && (
@@ -533,14 +749,17 @@ function App() {
           </div>
         )}
 
-        <button
-          type="button"
-          className="button button--secondary app-toolbar__settings"
-          onClick={() => navigateToView({ type: 'settings' })}
-          title="Settings"
-        >
-          ⚙
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <ThemeToggle />
+          <button
+            type="button"
+            className="button button--secondary app-toolbar__settings"
+            onClick={() => navigateToView({ type: 'settings' })}
+            title="Settings"
+          >
+            ⚙
+          </button>
+        </div>
       </header>
 
       {managementNotice && (
@@ -574,23 +793,24 @@ function App() {
 
             <div
               className={`chat-dock ${isDockCollapsed ? 'is-collapsed' : ''}`}
+              style={{ height: isDockCollapsed ? '37px' : `${dockHeight}px` }}
               ref={chatSectionRef}
             >
-              <div className="chat-dock__header">
+              {!isDockCollapsed && (
+                <div
+                  className="chat-dock__resize-handle"
+                  onMouseDown={() => setIsDragging(true)}
+                />
+              )}
+              <div className="chat-dock__header" onClick={() => setIsDockCollapsed((prev) => !prev)}>
                 <div className="chat-dock__title">
                   <span>Chat Dock</span>
-                  {activeSession && (
-                    <span className="chat-dock__subtitle">{activeSession.agentName}</span>
-                  )}
                 </div>
                 <div className="chat-dock__header-actions">
                   <span className="chat-dock__counter">
                     {sessions.length} session{sessions.length === 1 ? '' : 's'}
                   </span>
                   {unreadCount > 0 && <span className="chat-dock__badge">{unreadCount}</span>}
-                  <button type="button" onClick={() => setIsDockCollapsed((prev) => !prev)}>
-                    {isDockCollapsed ? 'Expand' : 'Collapse'}
-                  </button>
                 </div>
               </div>
 
@@ -652,14 +872,40 @@ function App() {
                           ) : (
                             activeSession.messages.map((msg, idx) => (
                               <div key={idx} className={`message ${msg.role}`}>
-                                {msg.content}
+                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                {msg.toolCalls && msg.toolCalls.length > 0 && (
+                                  <div className="tool-calls">
+                                    {msg.toolCalls.map((tc) => (
+                                      <ToolCallDisplay key={tc.toolCallId} toolCall={tc} />
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))
+                          )}
+                          {activeSession.status === 'sending' && (
+                            <div className="message assistant loading">
+                              <span className="loading-dots">
+                                <span style={{ animationDelay: '0s' }}>●</span>
+                                <span style={{ animationDelay: '0.2s' }}>●</span>
+                                <span style={{ animationDelay: '0.4s' }}>●</span>
+                              </span>
+                            </div>
                           )}
                           <div ref={messagesEndRef} />
                         </div>
                         <div className="chat-input-container">
                           {activeSession.error && <div className="error">{activeSession.error}</div>}
+                          {activeSession.queuedMessages && activeSession.queuedMessages.length > 0 && (
+                            <div className="queued-messages">
+                              <div className="queued-messages__label">Queued ({activeSession.queuedMessages.length}):</div>
+                              <div className="queued-messages__list">
+                                {activeSession.queuedMessages.map((msg, idx) => (
+                                  <div key={idx} className="queued-message">{msg}</div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <div className="chat-input">
                             <textarea
                               ref={textareaRef}
@@ -669,14 +915,10 @@ function App() {
                               }
                               onKeyDown={handleKeyDown}
                               placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-                              disabled={activeSession.status === 'sending'}
                             />
                             <button
                               onClick={() => sendMessage(activeSession.id)}
-                              disabled={
-                                activeSession.status === 'sending' ||
-                                !activeSession.input.trim()
-                              }
+                              disabled={!activeSession.input.trim()}
                             >
                               {activeSession.status === 'sending' ? 'Sending...' : 'Send'}
                             </button>

@@ -72,7 +72,7 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(`${apiBase}/agents`);
+      const response = await fetch(`${apiBase}/api/agents`);
       if (!response.ok) throw new Error('Failed to load agents');
       const data = await response.json();
       const agent = (data.data || []).find((a: any) => a.slug === agentSlug || a.id === agentSlug);
@@ -157,10 +157,10 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
         name: formData.name,
         description: formData.description,
         prompt: formData.prompt,
-        model: { modelId: formData.modelId },
+        model: formData.modelId || undefined,
         region: formData.region || undefined,
         guardrails: formData.guardrails || undefined,
-        tools: formData.tools,
+        tools: formData.tools.length > 0 ? { use: formData.tools } : undefined,
         ui: {
           component: formData.uiComponent || undefined,
           quickPrompts: formData.quickPrompts.length > 0 ? formData.quickPrompts : undefined,
@@ -184,7 +184,14 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
       }
 
       const savedAgent = await response.json();
-      onSaved?.(savedAgent.data?.slug || formData.slug);
+      const savedSlug = savedAgent.data?.slug || formData.slug;
+      
+      // Reload the agent data to show updated values
+      if (isEditMode) {
+        await loadAgent(savedSlug);
+      }
+      
+      onSaved?.(savedSlug);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -406,28 +413,28 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
             className={`step-indicator ${currentStep === 'basic' ? 'is-active' : ''}`}
             onClick={() => setCurrentStep('basic')}
           >
-            1. Basic Info
+            Basic Info
           </button>
           <button
             type="button"
             className={`step-indicator ${currentStep === 'model' ? 'is-active' : ''}`}
             onClick={() => setCurrentStep('model')}
           >
-            2. Model Config
+            Model Config
           </button>
           <button
             type="button"
             className={`step-indicator ${currentStep === 'tools' ? 'is-active' : ''}`}
             onClick={() => setCurrentStep('tools')}
           >
-            3. Tools
+            Tools
           </button>
           <button
             type="button"
             className={`step-indicator ${currentStep === 'ui' ? 'is-active' : ''}`}
             onClick={() => setCurrentStep('ui')}
           >
-            4. UI Customization
+            UI Customization
           </button>
         </div>
 
@@ -783,25 +790,14 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
         </div>
 
         <div className="agent-editor__actions">
-          {currentStep !== 'basic' && (
-            <button type="button" className="button button--secondary" onClick={prevStep}>
-              Previous
-            </button>
-          )}
-          {currentStep !== 'ui' ? (
-            <button type="button" className="button button--primary" onClick={nextStep}>
-              Next
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={saveAgent}
-              disabled={isSaving}
-            >
-              {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Agent'}
-            </button>
-          )}
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={saveAgent}
+            disabled={isSaving}
+          >
+            {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Agent'}
+          </button>
         </div>
       </div>
     </div>

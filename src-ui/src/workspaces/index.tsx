@@ -40,6 +40,13 @@ export function resolveWorkspaceComponent(componentId?: string): AgentWorkspaceC
 }
 
 export function WorkspaceRenderer(props: AgentWorkspaceProps) {
-  const Component = resolveWorkspaceComponent(props.agent.ui?.component);
+  const componentId = props.agent.ui?.component;
+  console.log('WorkspaceRenderer:', { 
+    agentSlug: props.agent.slug, 
+    componentId, 
+    hasComponent: componentId ? componentId in registry : false,
+    ui: props.agent.ui 
+  });
+  const Component = resolveWorkspaceComponent(componentId);
   return <Component {...props} />;
 }

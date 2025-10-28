@@ -1,0 +1,41 @@
+{
+  "$schema": "https://raw.githubusercontent.com/aws/amazon-q-developer-cli/refs/heads/main/schemas/agent-v1.json",
+  "name": "work-agent",
+  "description": "Agent for working on work-agent repository",
+  "prompt": "You are a specialized coding assistant for the work-agent repository. Help with development tasks, code review, debugging, and repository management. Focus on maintaining code quality and following project conventions.",
+  "mcpServers": {
+    "voltagent": {
+      "type": "stdio",
+      "url": "",
+      "headers": {},
+      "oauthScopes": [
+        "openid",
+        "email",
+        "profile",
+        "offline_access"
+      ],
+      "command": "npx",
+      "args": [
+        "-y",
+        "@voltagent/docs-mcp"
+      ],
+      "timeout": 120000,
+      "disabled": false
+    }
+  },
+  "tools": [
+    "*"
+  ],
+  "toolAliases": {},
+  "allowedTools": [],
+  "resources": [
+    "file://AmazonQ.md",
+    "file://AGENTS.md",
+    "file://README.md",
+    "file://.amazonq/rules/**/*.md"
+  ],
+  "hooks": {},
+  "toolsSettings": {},
+  "useLegacyMcpJson": false,
+  "model": null
+}

@@ -18,6 +18,37 @@
         "anthropic.claude-3-5-sonnet-20240620-v1:0",
         "anthropic.claude-3-haiku-20240307-v1:0"
       ]
+    },
+    "systemPrompt": {
+      "type": "string",
+      "description": "Global system prompt prepended to all agent instructions"
+    },
+    "templateVariables": {
+      "type": "array",
+      "description": "Custom template variables for prompt replacement",
+      "items": {
+        "type": "object",
+        "required": ["key", "type"],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Variable name (used as {{key}})"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["static", "date", "time", "datetime", "custom"],
+            "description": "Variable type"
+          },
+          "value": {
+            "type": "string",
+            "description": "Static value or custom value"
+          },
+          "format": {
+            "type": "string",
+            "description": "JSON format options for date/time types"
+          }
+        }
+      }
     }
   },
   "additionalProperties": false

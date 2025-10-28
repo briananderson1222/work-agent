@@ -134,8 +134,20 @@ export class ConfigLoader {
     // Load existing agent
     const existing = await this.loadAgent(slug);
 
+    // Filter out metadata fields that aren't part of AgentSpec
+    const { slug: _, updatedAt, description, workflowWarnings, ...cleanUpdates } = updates as any;
+
+    // Remove undefined, null, empty strings, and empty objects/arrays
+    const filteredUpdates: any = {};
+    for (const [key, value] of Object.entries(cleanUpdates)) {
+      if (value === undefined || value === null || value === '') continue;
+      if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) continue;
+      if (Array.isArray(value) && value.length === 0) continue;
+      filteredUpdates[key] = value;
+    }
+
     // Merge updates
-    const updated = { ...existing, ...updates };
+    const updated = { ...existing, ...filteredUpdates };
 
     // Validate and save
     await this.saveAgent(slug, updated);

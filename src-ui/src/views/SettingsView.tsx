@@ -198,6 +198,101 @@ export function SettingsView({ apiBase, onBack, onSaved }: SettingsViewProps) {
                   Default model ID for agents that don't specify one.
                 </span>
               </div>
+
+              <div className="form-group">
+                <label htmlFor="systemPrompt">Global System Prompt</label>
+                <textarea
+                  id="systemPrompt"
+                  value={config.systemPrompt || ''}
+                  onChange={(e) => setConfig({ ...config, systemPrompt: e.target.value })}
+                  placeholder="You are a Work Agent, an AI assistant designed to help users..."
+                  rows={8}
+                />
+                <span className="form-help">
+                  Global instructions prepended to all agent prompts. Agents can override this with their own instructions.
+                  Use template variables like {'{{date}}'}, {'{{time}}'}, or custom variables defined below.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label>Template Variables</label>
+                <div className="template-variables-list">
+                  {(config.templateVariables || []).map((variable, index) => (
+                    <div key={index} className="template-variable-item">
+                      <input
+                        type="text"
+                        value={variable.key}
+                        onChange={(e) => {
+                          const updated = [...(config.templateVariables || [])];
+                          updated[index] = { ...variable, key: e.target.value };
+                          setConfig({ ...config, templateVariables: updated });
+                        }}
+                        placeholder="variable_name"
+                      />
+                      <select
+                        value={variable.type}
+                        onChange={(e) => {
+                          const updated = [...(config.templateVariables || [])];
+                          updated[index] = { ...variable, type: e.target.value as any };
+                          setConfig({ ...config, templateVariables: updated });
+                        }}
+                      >
+                        <option value="static">Static</option>
+                        <option value="date">Date</option>
+                        <option value="time">Time</option>
+                        <option value="datetime">DateTime</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={variable.value || ''}
+                        onChange={(e) => {
+                          const updated = [...(config.templateVariables || [])];
+                          updated[index] = { ...variable, value: e.target.value };
+                          setConfig({ ...config, templateVariables: updated });
+                        }}
+                        placeholder={variable.type === 'static' || variable.type === 'custom' ? 'Value' : 'Format (optional)'}
+                      />
+                      <button
+                        type="button"
+                        className="button button--danger button--small"
+                        onClick={() => {
+                          const updated = (config.templateVariables || []).filter((_, i) => i !== index);
+                          setConfig({ ...config, templateVariables: updated });
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="button button--secondary button--small"
+                    onClick={() => {
+                      const updated = [...(config.templateVariables || []), { key: '', type: 'static' as const, value: '' }];
+                      setConfig({ ...config, templateVariables: updated });
+                    }}
+                  >
+                    Add Variable
+                  </button>
+                </div>
+                <div className="form-help">
+                  <strong>Built-in variables (always available):</strong>
+                  <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
+                    <li><code>{'{{date}}'}</code> - Full date (e.g., "Monday, January 27, 2025")</li>
+                    <li><code>{'{{time}}'}</code> - Current time (e.g., "11:52:00 PM")</li>
+                    <li><code>{'{{datetime}}'}</code> - Date and time combined</li>
+                    <li><code>{'{{iso_date}}'}</code> - ISO date (e.g., "2025-01-27")</li>
+                    <li><code>{'{{year}}'}</code>, <code>{'{{month}}'}</code>, <code>{'{{day}}'}</code>, <code>{'{{weekday}}'}</code></li>
+                  </ul>
+                  <strong style={{ display: 'block', marginTop: '12px' }}>Custom variable types:</strong>
+                  <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
+                    <li><strong>Static:</strong> Fixed text value (e.g., company name, version)</li>
+                    <li><strong>Date/Time/DateTime:</strong> Dynamic date/time with optional format JSON</li>
+                    <li><strong>Custom:</strong> For future extensibility (environment variables, API calls)</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           )}
 

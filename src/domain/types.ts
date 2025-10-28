@@ -86,6 +86,15 @@ export interface ToolDef {
 export interface AppConfig {
   region: string;
   defaultModel: string;
+  systemPrompt?: string;
+  templateVariables?: TemplateVariable[];
+}
+
+export interface TemplateVariable {
+  key: string;
+  type: 'static' | 'date' | 'time' | 'datetime' | 'custom';
+  value?: string;
+  format?: string;
 }
 
 /**

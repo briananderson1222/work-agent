@@ -29,6 +29,8 @@ export class WorkAgentRuntime {
   private voltAgent?: VoltAgent;
   private mcpConfigs: Map<string, MCPConfiguration> = new Map();
   private activeAgents: Map<string, Agent> = new Map();
+  private agentMetadataMap: Map<string, any> = new Map();
+  private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private port: number;
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
@@ -78,9 +80,14 @@ export class WorkAgentRuntime {
     }
 
     // Store agent metadata for enriching API responses
-    const agentMetadataMap = new Map(
+    this.agentMetadataMap = new Map(
       agentMetadataList.map(meta => [meta.slug, meta])
     );
+    this.logger.info('Agent metadata map created', { 
+      count: this.agentMetadataMap.size,
+      keys: Array.from(this.agentMetadataMap.keys()),
+      sample: this.agentMetadataMap.get(agentMetadataList[0]?.slug)
+    });
 
     // Initialize VoltAgent with all agents and server
     this.voltAgent = new VoltAgent({
@@ -104,15 +111,18 @@ export class WorkAgentRuntime {
             })
           );
 
-          // Override /agents endpoint to include slug, pretty name, and UI metadata
-          app.get('/agents', async (c) => {
-            const coreAgents = await this.voltAgent!.getAgents();
+          // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
+          app.get('/api/agents', async (c) => {
+            if (!this.voltAgent) {
+              return c.json({ success: false, error: 'VoltAgent not initialized' }, 500);
+            }
+            const coreAgents = await this.voltAgent.getAgents();
             const enrichedAgents = coreAgents.map((agent: any) => {
-              const metadata = agentMetadataMap.get(agent.id);  // agent.id is the slug
+              const metadata = this.agentMetadataMap.get(agent.id);
               return metadata ? {
                 ...agent,
                 slug: metadata.slug,
-                name: metadata.name,  // Pretty name from spec
+                name: metadata.name,
                 updatedAt: metadata.updatedAt,
                 ui: metadata.ui,
               } : agent;
@@ -171,7 +181,7 @@ export class WorkAgentRuntime {
               // Reload agents
               await this.initialize();
 
-              return c.json({ success: true }, 204);
+              return c.json({ success: true }, 200);
             } catch (error: any) {
               this.logger.error('Failed to delete agent', { error });
               return c.json({ success: false, error: error.message }, 400);
@@ -228,7 +238,7 @@ export class WorkAgentRuntime {
               await this.configLoader.updateAgent(slug, { tools });
               await this.initialize();
 
-              return c.json({ success: true }, 204);
+              return c.json({ success: true }, 200);
             } catch (error: any) {
               this.logger.error('Failed to remove tool', { error });
               return c.json({ success: false, error: error.message }, 400);
@@ -343,7 +353,7 @@ export class WorkAgentRuntime {
 
               await this.configLoader.deleteWorkflow(slug, workflowId);
 
-              return c.json({ success: true }, 204);
+              return c.json({ success: true }, 200);
             } catch (error: any) {
               this.logger.error('Failed to delete workflow', { error });
               return c.json({ success: false, error: error.message }, 400);
@@ -378,6 +388,25 @@ export class WorkAgentRuntime {
               return c.json({ success: false, error: error.message }, 400);
             }
           });
+
+          // Get conversations for an agent
+          app.get('/agents/:slug/conversations', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const adapter = this.memoryAdapters.get(slug);
+              
+              if (!adapter) {
+                return c.json({ success: true, data: [] });
+              }
+
+              const conversations = await adapter.getConversations(`agent:${slug}`);
+              
+              return c.json({ success: true, data: conversations });
+            } catch (error: any) {
+              this.logger.error('Failed to load conversations', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
         },
       }),
     });
@@ -396,19 +425,34 @@ export class WorkAgentRuntime {
     const model = this.createBedrockModel(spec);
 
     // Create memory adapter
-    const memory = new Memory({
-      storage: new FileVoltAgentMemoryAdapter({
-        workAgentDir: this.configLoader.getWorkAgentDir(),
-      }),
+    const memoryAdapter = new FileVoltAgentMemoryAdapter({
+      workAgentDir: this.configLoader.getWorkAgentDir(),
     });
+    const memory = new Memory({
+      storage: memoryAdapter,
+    });
+
+    // Store adapter for later access
+    this.memoryAdapters.set(agentSlug, memoryAdapter);
 
     // Load and configure tools (including MCP)
     const tools = await this.loadAgentTools(agentSlug, spec);
 
+    // Replace template variables in prompts
+    const processedPrompt = this.replaceTemplateVariables(spec.prompt);
+    const processedSystemPrompt = this.appConfig.systemPrompt 
+      ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
+      : '';
+
+    // Combine global system prompt with agent-specific instructions
+    const instructions = processedSystemPrompt
+      ? `${processedSystemPrompt}\n\n${processedPrompt}`
+      : processedPrompt;
+
     // Create Agent instance
     const agent = new Agent({
       name: agentSlug,  // Use slug for routing
-      instructions: spec.prompt,
+      instructions,
       model,
       memory,
       tools,
@@ -512,10 +556,15 @@ export class WorkAgentRuntime {
    */
   private createMCPServerConfig(toolDef: ToolDef): any {
     if (toolDef.transport === 'stdio' || toolDef.transport === 'process') {
+      // Replace ./ with actual cwd for cross-platform compatibility
+      const args = (toolDef.args || []).map(arg => 
+        arg === './' ? process.cwd() : arg
+      );
+      
       return {
         type: 'stdio',
         command: toolDef.command,
-        args: toolDef.args || [],
+        args,
         env: toolDef.env,
         timeout: toolDef.timeouts?.startupMs,
       };
@@ -544,6 +593,88 @@ export class WorkAgentRuntime {
     // For now, returning null as they need specific implementations
     this.logger.warn('Built-in tools not yet implemented', { tool: toolDef.id });
     return null;
+  }
+
+  /**
+   * Replace template variables in prompts
+   */
+  private replaceTemplateVariables(text: string): string {
+    const now = new Date();
+    
+    // Built-in variables (always available)
+    const builtInReplacements: Record<string, string> = {
+      '{{date}}': now.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      '{{time}}': now.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      }),
+      '{{datetime}}': now.toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }),
+      '{{iso_date}}': now.toISOString().split('T')[0],
+      '{{iso_datetime}}': now.toISOString(),
+      '{{timestamp}}': now.getTime().toString(),
+      '{{year}}': now.getFullYear().toString(),
+      '{{month}}': (now.getMonth() + 1).toString(),
+      '{{day}}': now.getDate().toString(),
+      '{{weekday}}': now.toLocaleDateString('en-US', { weekday: 'long' }),
+    };
+
+    // Custom variables from config
+    const customReplacements: Record<string, string> = {};
+    if (this.appConfig.templateVariables) {
+      for (const variable of this.appConfig.templateVariables) {
+        const key = `{{${variable.key}}}`;
+        
+        switch (variable.type) {
+          case 'static':
+            customReplacements[key] = variable.value || '';
+            break;
+          case 'date':
+            customReplacements[key] = variable.format 
+              ? now.toLocaleDateString('en-US', JSON.parse(variable.format))
+              : now.toLocaleDateString();
+            break;
+          case 'time':
+            customReplacements[key] = variable.format
+              ? now.toLocaleTimeString('en-US', JSON.parse(variable.format))
+              : now.toLocaleTimeString();
+            break;
+          case 'datetime':
+            customReplacements[key] = variable.format
+              ? now.toLocaleString('en-US', JSON.parse(variable.format))
+              : now.toLocaleString();
+            break;
+          case 'custom':
+            // For future extensibility (e.g., environment variables, API calls)
+            customReplacements[key] = variable.value || '';
+            break;
+        }
+      }
+    }
+
+    // Apply all replacements
+    let result = text;
+    const allReplacements = { ...builtInReplacements, ...customReplacements };
+    
+    for (const [key, value] of Object.entries(allReplacements)) {
+      result = result.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+    }
+    
+    return result;
   }
 
   /**
