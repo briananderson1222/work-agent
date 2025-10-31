@@ -312,6 +312,7 @@ function App() {
         source: 'manual' as const,
         messages: [], // Load messages on demand
         input: '',
+        queuedMessages: [],
         status: 'idle' as const,
         error: null,
         createdAt: new Date(conv.createdAt).getTime(),
@@ -391,6 +392,7 @@ function App() {
       sourceId: options.sourceId,
       messages: [],
       input: '',
+      queuedMessages: [],
       status: 'idle',
       error: null,
       createdAt: Date.now(),
@@ -420,7 +422,17 @@ function App() {
     if (!session) return;
 
     const text = (overrideContent ?? session.input).trim();
-    if (!text || session.status === 'sending') return;
+    if (!text) return;
+
+    // If already sending, queue the message
+    if (session.status === 'sending') {
+      updateSession(sessionId, (current) => ({
+        ...current,
+        queuedMessages: [...(current.queuedMessages || []), text],
+        input: overrideContent ? current.input : '',
+      }));
+      return;
+    }
 
     const userMessage: ChatMessage = { role: 'user', content: text };
 
@@ -469,14 +481,35 @@ function App() {
 
       const shouldMarkUnread = sessionId !== activeSessionId || isDockCollapsed;
 
-      updateSession(sessionId, (current) => ({
-        ...current,
-        messages: [...current.messages, assistantMessage],
-        status: 'idle',
-        error: null,
-        updatedAt: Date.now(),
-        hasUnread: shouldMarkUnread ? true : false,
-      }));
+      updateSession(sessionId, (current) => {
+        const queue = current.queuedMessages || [];
+        const hasQueued = queue.length > 0;
+
+        // Process next queued message after state update
+        if (hasQueued) {
+          const [nextMessage, ...remaining] = queue;
+          setTimeout(() => sendMessage(sessionId, nextMessage), 100);
+          
+          return {
+            ...current,
+            messages: [...current.messages, assistantMessage],
+            queuedMessages: remaining,
+            status: 'sending',
+            error: null,
+            updatedAt: Date.now(),
+            hasUnread: shouldMarkUnread ? true : false,
+          };
+        }
+
+        return {
+          ...current,
+          messages: [...current.messages, assistantMessage],
+          status: 'idle',
+          error: null,
+          updatedAt: Date.now(),
+          hasUnread: shouldMarkUnread ? true : false,
+        };
+      });
 
       if (shouldMarkUnread) {
         showToast(`New response from ${session.agentName} (${session.title})`);
@@ -920,7 +953,7 @@ function App() {
                               onClick={() => sendMessage(activeSession.id)}
                               disabled={!activeSession.input.trim()}
                             >
-                              {activeSession.status === 'sending' ? 'Sending...' : 'Send'}
+                              Send
                             </button>
                           </div>
                         </div>
