@@ -4,6 +4,7 @@ import { CodeReviewDashboard } from './CodeReviewDashboard';
 import { DocumentationDashboard } from './DocumentationDashboard';
 import { DevOpsDashboard } from './DevOpsDashboard';
 import { ResearchWorkspace } from './ResearchWorkspace';
+import { SADashboard } from './SADashboard';
 
 export interface AgentWorkspaceProps {
   agent: AgentSummary;
@@ -20,6 +21,7 @@ const registry: Record<string, AgentWorkspaceComponent> = {
   'documentation-dashboard': DocumentationDashboard,
   'devops-dashboard': DevOpsDashboard,
   'research-workspace': ResearchWorkspace,
+  'sa-dashboard': SADashboard,
 };
 
 const DefaultWorkspace: AgentWorkspaceComponent = ({ agent, onShowChat }) => (

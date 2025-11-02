@@ -1,5 +1,5 @@
-:root {
-  /* Dark theme (default) */
+:root,
+[data-theme="dark"] {
   --bg-primary: #1a1a1a;
   --bg-secondary: #242424;
   --bg-tertiary: #2a2a2a;
@@ -28,6 +28,54 @@
   --overlay-bg: rgba(0, 0, 0, 0.2);
   --overlay-bg-dark: rgba(0, 0, 0, 0.3);
   --overlay-bg-darker: rgba(0, 0, 0, 0.4);
+  
+  --color-bg: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border-primary);
+  --color-primary: var(--accent-primary);
+  --color-error: var(--error-text);
+}
+
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #eeeeee;
+  --bg-elevated: #fafafa;
+  --bg-input: #ffffff;
+  
+  --text-primary: #1a1a1a;
+  --text-secondary: #333333;
+  --text-tertiary: #666666;
+  --text-muted: #999999;
+  
+  --border-primary: #e0e0e0;
+  --border-secondary: #d0d0d0;
+  
+  --accent-primary: #0066cc;
+  --accent-hover: rgba(0, 102, 204, 0.1);
+  
+  --error-bg: #fff5f5;
+  --error-border: #ffcccc;
+  --error-text: #cc0000;
+  
+  --success-bg: #f0fff0;
+  --success-border: #ccffcc;
+  --success-text: #006600;
+  
+  --overlay-bg: rgba(0, 0, 0, 0.05);
+  --overlay-bg-dark: rgba(0, 0, 0, 0.1);
+  --overlay-bg-darker: rgba(0, 0, 0, 0.15);
+  
+  --color-bg: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border-primary);
+  --color-primary: var(--accent-primary);
+  --color-error: var(--error-text);
+}
   
   --shadow-sm: 0 -2px 10px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 -4px 20px rgba(0, 0, 0, 0.3);
@@ -534,11 +582,10 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 24px;
-  padding-bottom: 80px; /* Extra space so content isn't hidden behind collapsed chat dock */
 }
 
 .workspace-panel.has-chat-dock {
-  padding-bottom: calc(50vh + 24px); /* Extra space when chat dock is open (50vh + padding) */
+  /* Padding is set dynamically via inline style to match chat-dock height */
 }
 
 .workspace-default {
@@ -1169,6 +1216,13 @@ body {
   grid-template-columns: minmax(220px, 320px) 1fr;
   gap: 24px;
   align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+.workspace-dashboard__calendar {
+  overflow: auto;
+  scrollbar-width: thin;
 }
 
 .workspace-dashboard__calendar ul {
@@ -1223,9 +1277,12 @@ body {
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   padding: 20px;
+  padding-bottom: 10px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow: auto;
+  scrollbar-width: thin;
 }
 
 .workspace-dashboard__card {
@@ -2064,4 +2121,70 @@ body {
 .app-toolbar__settings {
   margin-left: auto;
   font-size: 18px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+/* Meeting body content - strip all colors and use theme */
+.meeting-body-content {
+  color: var(--color-text) !important;
+}
+
+.meeting-body-content *,
+.meeting-body-content div {
+  color: inherit !important;
+  background: transparent !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.meeting-body-content a {
+  color: var(--color-primary) !important;
+  text-decoration: underline;
+}
+
+.meeting-body-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+.meeting-body-content td,
+.meeting-body-content th {
+  padding: 0.5rem;
+  border: none;
+}
+
+/* Attendee status colors - theme aware */
+.attendee-status--accepted {
+  color: #28a745;
+}
+
+.attendee-status--declined {
+  color: #dc3545;
+}
+
+.attendee-status--tentative {
+  color: #fd7e14;
+}
+
+.attendee-status--no-response {
+  color: var(--color-text-secondary);
+}
+
+/* Dark theme adjustments */
+@media (prefers-color-scheme: dark) {
+  .attendee-status--accepted {
+    color: #4ade80;
+  }
+  
+  .attendee-status--declined {
+    color: #f87171;
+  }
+  
+  .attendee-status--tentative {
+    color: #fbbf24;
+  }
 }

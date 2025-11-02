@@ -1,0 +1,17 @@
+{
+  "id": "aws-knowledge-mcp-server",
+  "kind": "mcp",
+  "displayName": "AWS Knowledge Base",
+  "description": "Query AWS knowledge base and documentation",
+  "transport": "stdio",
+  "command": "uvx",
+  "args": [
+    "mcp-proxy",
+    "--transport",
+    "streamablehttp",
+    "https://knowledge-mcp.global.api.aws"
+  ],
+  "permissions": {
+    "network": true
+  }
+}

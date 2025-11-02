@@ -1,0 +1,12 @@
+{
+  "id": "sat-sfdc",
+  "kind": "mcp",
+  "displayName": "Salesforce",
+  "description": "Access Salesforce accounts, opportunities, and tasks via MCP",
+  "transport": "stdio",
+  "command": "aws-sentral-mcp",
+  "args": [],
+  "permissions": {
+    "network": true
+  }
+}

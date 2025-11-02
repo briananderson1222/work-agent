@@ -58,16 +58,23 @@
       "type": "object",
       "description": "Tool configuration",
       "properties": {
-        "use": {
+        "mcpServers": {
           "type": "array",
-          "description": "Tool IDs from catalog to load",
+          "description": "MCP server IDs to load from catalog",
           "items": {
             "type": "string"
           }
         },
-        "allowed": {
+        "available": {
           "type": "array",
-          "description": "Allow-list for tool invocation (use '*' for all)",
+          "description": "Tools agent can invoke (supports wildcards, defaults to ['*'])",
+          "items": {
+            "type": "string"
+          }
+        },
+        "autoApprove": {
+          "type": "array",
+          "description": "Tools that execute without user confirmation in chat mode",
           "items": {
             "type": "string"
           }

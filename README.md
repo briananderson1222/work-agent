@@ -63,20 +63,23 @@ The system uses AWS SDK's credential chain, so any standard AWS credential metho
 
 ```bash
 # Option 1: Start the HTTP server (VoltAgent server on port 3141)
-npm run dev
+npm run dev:server
 
-# Option 2: Use the interactive CLI
+# Option 2: Start the React UI (development server on port 5173)
+npm run dev:ui
+
+# Option 3: Use the interactive CLI
 npm run cli
 
-# Option 3: Launch the Tauri desktop app
-npm run tauri:dev
+# Option 4: Launch the Tauri desktop app
+npm run dev:desktop
 ```
 
 The server will be available at:
 - **HTTP API**: http://localhost:3141
 - **Swagger UI**: http://localhost:3141/ui
 - **VoltOps Console**: https://console.voltagent.dev
-- **Desktop App**: Automatically opens when running `npm run tauri:dev`
+- **Desktop App**: Automatically opens when running `npm run dev:desktop`
 
 ## 📁 Directory Structure
 
@@ -98,7 +101,7 @@ The server will be available at:
   workflows/
     states/                           # Workflow suspension states
 
-src/                                  # Backend (VoltAgent runtime)
+src-server/                           # Backend (VoltAgent runtime)
   runtime/                            # VoltAgent integration
   adapters/                           # Storage adapters
   domain/                             # Configuration & types
@@ -109,10 +112,14 @@ src-ui/                               # Frontend (React + Tauri)
     main.tsx                          # React entry point
   index.html                          # HTML entry point
 
-src-tauri/                            # Tauri native app
+src-desktop/                          # Tauri native app
   src/
     main.rs                           # Rust main
   tauri.conf.json                     # Tauri configuration
+
+dist-server/                          # Built backend
+dist-ui/                              # Built frontend
+dist-desktop/                         # Built desktop app
 ```
 
 ## 🤖 Creating an Agent
@@ -129,8 +136,8 @@ Create `.work-agent/agents/my-agent/agent.json`:
     "temperature": 0.7
   },
   "tools": {
-    "use": ["files"],
-    "allowed": ["*"]
+    "mcpServers": ["files"],
+    "available": ["*"]
   }
 }
 ```
@@ -312,16 +319,16 @@ Work Agent includes a **Tauri v2** desktop application with a React frontend:
 **Development:**
 ```bash
 # Start backend server in one terminal
-npm run dev
+npm run dev:server
 
 # Start Tauri desktop app in another terminal
-npm run tauri:dev
+npm run dev:desktop
 ```
 
 **Building:**
 ```bash
 # Build standalone desktop app
-npm run tauri:build
+npm run build:desktop
 ```
 
 The build process uses **esbuild** to bundle the Node.js server into a single executable file, eliminating the need to ship `node_modules`. The bundled server is automatically included in the Tauri application and spawned on startup.
@@ -387,8 +394,9 @@ Custom Layer (Work Agent)
     topP?: number;
   };
   tools?: {
-    use: string[];           // Tool IDs from catalog
-    allowed?: string[];      // Allow-list (or ["*"] for all)
+    mcpServers: string[];        // MCP server IDs to load
+    available?: string[];        // Tools agent can invoke (supports wildcards, defaults to ["*"])
+    autoApprove?: string[];      // Tools that execute without user confirmation in chat mode
     aliases?: Record<string, string>;
   };
   ui?: {
@@ -400,6 +408,23 @@ Custom Layer (Work Agent)
     }>;
     workflowShortcuts?: string[]; // Workflow IDs to surface as quick actions
   };
+}
+```
+
+**Tool Configuration:**
+
+- **`mcpServers`**: List of MCP server IDs to load from the tool catalog (`.work-agent/tools/`)
+- **`available`**: Filters which tools the agent can invoke. Supports wildcards (e.g., `["sat-outlook_*", "sat-sfdc_query"]`). Defaults to `["*"]` (all tools).
+- **`autoApprove`**: Tools that execute automatically without user confirmation in chat mode. Supports wildcards. Tools not in this list will require user approval before execution. Silent invocations (via `/agents/:slug/invoke`) bypass approval checks.
+- **`aliases`**: Map custom names to tool IDs for easier invocation
+
+Example `tools` block:
+
+```json
+"tools": {
+  "mcpServers": ["sat-outlook", "sat-sfdc", "aws-knowledge-mcp-server"],
+  "available": ["sat-outlook_*", "sat-sfdc_query", "sat-sfdc_get_*"],
+  "autoApprove": ["sat-outlook_calendar_view", "sat-outlook_email_read", "sat-sfdc_query"]
 }
 ```
 
@@ -465,7 +490,7 @@ npm run cli
 [work-agent] > /switch code-reviewer
 Switched to agent: code-reviewer
 
-[code-reviewer] > Review the code in src/index.ts
+[code-reviewer] > Review the code in src-server/index.ts
 [Agent reads file and provides review]
 ```
 
@@ -505,18 +530,25 @@ Work Agent integrates with **VoltOps Console** for full observability:
 # Install dependencies
 npm install
 
-# Run in watch mode
-npm run dev
+# Development (with auto-reload)
+npm run dev:server    # Start backend server
+npm run dev:ui        # Start React UI
+npm run dev:desktop   # Start Tauri desktop app
 
-# Run CLI
-npm run cli
+# Building
+npm run build:server  # Build backend only
+npm run build:ui      # Build frontend only
+npm run build:desktop # Build desktop app
+npm run build         # Build server + UI
 
-# Build for production
-npm run build
-npm start
+# Production
+npm run start:server  # Run built backend
+npm run start:ui      # Serve built frontend
 
-# Run tests
-npm test
+# Utilities
+npm run cli           # Interactive CLI
+npm run test          # Run tests
+npm run clean         # Remove build artifacts
 ```
 
 ## 🏢 Production Deployment

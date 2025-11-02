@@ -6,13 +6,13 @@ This document describes how Work Agent leverages VoltAgent's framework.
 
 ### Core VoltAgent Integration
 
-1. **Agent Management** (`src/runtime/voltagent-runtime.ts`)
+1. **Agent Management** (`src-server/runtime/voltagent-runtime.ts`)
    - Creates VoltAgent `Agent` instances from file-based configuration
    - Dynamic agent loading from `.work-agent/agents/<slug>/agent.json`
    - Bedrock provider setup using `@ai-sdk/amazon-bedrock`
    - Memory integration via custom StorageAdapter
 
-2. **Custom StorageAdapter** (`src/adapters/file/voltagent-memory-adapter.ts`)
+2. **Custom StorageAdapter** (`src-server/adapters/file/voltagent-memory-adapter.ts`)
    - Implements VoltAgent's `StorageAdapter` interface
    - File-based NDJSON storage for messages
    - JSON files for conversations, working memory, workflow states
@@ -217,17 +217,17 @@ Agent needs tool
 ## 📝 Files Created
 
 ### Core Runtime
-- `src/runtime/voltagent-runtime.ts` - Main VoltAgent integration
-- `src/index.ts` - HTTP server entry point
-- `src/cli.ts` - Interactive CLI
+- `src-server/runtime/voltagent-runtime.ts` - Main VoltAgent integration
+- `src-server/index.ts` - HTTP server entry point
+- `src-server/cli.ts` - Interactive CLI
 
 ### Storage
-- `src/adapters/file/voltagent-memory-adapter.ts` - StorageAdapter implementation
+- `src-server/adapters/file/voltagent-memory-adapter.ts` - StorageAdapter implementation
 
 ### Configuration (from earlier)
-- `src/domain/types.ts` - TypeScript interfaces
-- `src/domain/validator.ts` - JSON schema validation
-- `src/domain/config-loader.ts` - File-based config loader
+- `src-server/domain/types.ts` - TypeScript interfaces
+- `src-server/domain/validator.ts` - JSON schema validation
+- `src-server/domain/config-loader.ts` - File-based config loader
 
 ### Schemas
 - `schemas/app.schema.json`
@@ -302,7 +302,7 @@ The system now includes a **Tauri v2** desktop application:
                  │
                  ▼
 ┌─────────────────────────────────────┐
-│    VoltAgent HTTP Server (src/)     │
+│  VoltAgent HTTP Server (src-server) │
 │    - REST API endpoints             │
 │    - Agent instances                │
 │    - Memory & tools                 │
@@ -319,16 +319,16 @@ The system now includes a **Tauri v2** desktop application:
 - Chat interface with message history
 - Connects to VoltAgent server via fetch API
 
-**Tauri (`src-tauri/`):**
+**Tauri (`src-desktop/`):**
 - Tauri v2 native wrapper
 - Rust backend (minimal, just wraps frontend)
 - Cross-platform: macOS, Windows, Linux
 - Desktop-native window management
 
 **Key Files Created:**
-- `src-tauri/tauri.conf.json` - Tauri configuration
-- `src-tauri/src/main.rs` - Rust entry point
-- `src-tauri/Cargo.toml` - Rust dependencies
+- `src-desktop/tauri.conf.json` - Tauri configuration
+- `src-desktop/src/main.rs` - Rust entry point
+- `src-desktop/Cargo.toml` - Rust dependencies
 - `vite.config.ts` - Frontend build config
 - `src-ui/src/App.tsx` - Main React component
 - `src-ui/src/main.tsx` - React entry point

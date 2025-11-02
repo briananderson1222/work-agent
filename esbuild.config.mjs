@@ -1,12 +1,12 @@
 import * as esbuild from 'esbuild';
 
 await esbuild.build({
-  entryPoints: ['./src/index.ts'],
+  entryPoints: ['./src-server/index.ts'],
   bundle: true,
   platform: 'node',
   target: 'node20',
   format: 'esm',
-  outfile: 'dist/index.js',
+  outfile: 'dist-server/index.js',
   sourcemap: true,
   external: ['fsevents'],
   banner: {

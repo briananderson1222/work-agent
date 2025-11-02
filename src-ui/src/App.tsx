@@ -1,14 +1,18 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { KeyboardEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { invoke } from '@tauri-apps/api/core';
 import { AgentSelector } from './components/AgentSelector';
 import { QuickActionsBar } from './components/QuickActionsBar';
 import { ThemeToggle } from './components/ThemeToggle';
+import { PinDialog } from './components/PinDialog';
 import { WorkspaceRenderer } from './workspaces';
 import { AgentEditorView } from './views/AgentEditorView';
 import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { SettingsView } from './views/SettingsView';
+import { useAwsAuth } from './hooks/useAwsAuth';
+import { setAuthCallback, apiRequest } from './lib/apiClient';
 import type {
   AgentSummary,
   AgentQuickPrompt,
@@ -20,46 +24,66 @@ import type {
 
 const API_BASE = 'http://localhost:3141';
 
-function ToolCallDisplay({ toolCall }: { toolCall: { toolCallId: string; toolName: string; args: any; result?: any; state?: string; error?: string } }) {
+function ToolCallDisplay({ toolCall }: { toolCall: { id: string; name: string; args: any; result?: any; state?: string; error?: string } }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Create abbreviated args preview
+  const argsPreview = toolCall.args 
+    ? Object.keys(toolCall.args).length > 0
+      ? `${Object.keys(toolCall.args).slice(0, 2).map(k => `${k}: ${JSON.stringify(toolCall.args[k]).slice(0, 20)}`).join(', ')}${Object.keys(toolCall.args).length > 2 ? '...' : ''}`
+      : 'no args'
+    : 'no args';
 
   return (
-    <div className="tool-call">
+    <div className="tool-call" style={{ 
+      display: 'inline-block', 
+      margin: '0.25rem',
+      padding: '0.5rem',
+      background: 'var(--color-bg-secondary)',
+      border: '1px solid var(--color-border)',
+      borderRadius: '4px',
+      verticalAlign: 'top'
+    }}>
       <button 
         className="tool-call__header" 
         onClick={() => setIsExpanded(!isExpanded)}
+        style={{ 
+          display: 'block',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          color: 'inherit',
+          textAlign: 'left'
+        }}
       >
-        <span className="tool-call__icon">🔧</span>
-        <span className="tool-call__name">{toolCall.toolName}</span>
-        {toolCall.error && <span className="tool-call__error">⚠️</span>}
-        <span className="tool-call__toggle">{isExpanded ? '▼' : '▶'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
+          <span className="tool-call__toggle">{isExpanded ? '▼' : '▶'}</span>
+          <span className="tool-call__name" style={{ fontWeight: 500 }}>{toolCall.name}</span>
+          {toolCall.error && <span className="tool-call__error">⚠️</span>}
+        </div>
+        <div style={{ fontSize: '0.85em', opacity: 0.7, paddingLeft: '1rem' }}>{argsPreview}</div>
       </button>
       {isExpanded && (
-        <div className="tool-call__details">
+        <div className="tool-call__details" style={{ marginTop: '0.5rem', fontSize: '0.9em' }}>
           <div className="tool-call__section">
             <strong>Tool ID:</strong>
-            <pre>{toolCall.toolCallId}</pre>
+            <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflow: 'auto' }}>{toolCall.id}</pre>
           </div>
           <div className="tool-call__section">
             <strong>Arguments:</strong>
-            <pre>{JSON.stringify(toolCall.args, null, 2)}</pre>
+            <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflow: 'auto' }}>{JSON.stringify(toolCall.args, null, 2)}</pre>
           </div>
-          {toolCall.state && (
-            <div className="tool-call__section">
-              <strong>State:</strong>
-              <pre>{toolCall.state}</pre>
-            </div>
-          )}
           {toolCall.result && (
             <div className="tool-call__section">
               <strong>Result:</strong>
-              <pre>{JSON.stringify(toolCall.result, null, 2)}</pre>
+              <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflow: 'auto', maxHeight: '200px' }}>{JSON.stringify(toolCall.result, null, 2)}</pre>
             </div>
           )}
           {toolCall.error && (
             <div className="tool-call__section tool-call__section--error">
               <strong>Error:</strong>
-              <pre>{toolCall.error}</pre>
+              <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflow: 'auto', color: 'red' }}>{toolCall.error}</pre>
             </div>
           )}
         </div>
@@ -84,12 +108,21 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get('dock') !== 'open';
   });
+  const [isDockMaximized, setIsDockMaximized] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('maximize') === 'true';
+  });
   const [dockHeight, setDockHeight] = useState(400);
+  const [previousDockHeight, setPreviousDockHeight] = useState(400);
+  const [previousDockCollapsed, setPreviousDockCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
   const [workflowCatalog, setWorkflowCatalog] = useState<Record<string, WorkflowMetadata[]>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pinDialogResolver, setPinDialogResolver] = useState<((success: boolean) => void) | null>(null);
+  const { authenticate, isAuthenticating, error: authError } = useAwsAuth();
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
     const path = window.location.pathname;
     
@@ -152,11 +185,35 @@ function App() {
     : null;
   const unreadCount = sessions.filter((session) => session.hasUnread).length;
 
+  // Setup auth callback
+  useEffect(() => {
+    setAuthCallback(async () => {
+      return new Promise((resolve) => {
+        setPinDialogResolver(() => resolve);
+        setShowPinDialog(true);
+      });
+    });
+  }, []);
+
+  const handlePinSubmit = async (pin: string) => {
+    const success = await authenticate(pin);
+    setShowPinDialog(false);
+    pinDialogResolver?.(success);
+    setPinDialogResolver(null);
+  };
+
+  const handlePinCancel = () => {
+    setShowPinDialog(false);
+    pinDialogResolver?.(false);
+    setPinDialogResolver(null);
+  };
+
   // Update URL when state changes
   useEffect(() => {
     const params = new URLSearchParams();
     if (activeSessionId) params.set('session', activeSessionId);
     if (!isDockCollapsed) params.set('dock', 'open');
+    if (isDockMaximized) params.set('maximize', 'true');
     
     let path = '/';
     
@@ -178,7 +235,7 @@ function App() {
     const url = query ? `${path}?${query}` : path;
     
     window.history.replaceState({}, '', url);
-  }, [selectedAgent, activeSessionId, isDockCollapsed, currentView]);
+  }, [selectedAgent, activeSessionId, isDockCollapsed, isDockMaximized, currentView]);
 
   useEffect(() => {
     if (selectedAgent && agents.length > 0 && !loadedAgents.has(selectedAgent)) {
@@ -252,6 +309,10 @@ function App() {
     const handleMouseMove = (e: MouseEvent) => {
       const newHeight = window.innerHeight - e.clientY;
       setDockHeight(Math.max(200, Math.min(newHeight, window.innerHeight * 0.8)));
+      // Un-maximize when user resizes
+      if (isDockMaximized) {
+        setIsDockMaximized(false);
+      }
     };
 
     const handleMouseUp = () => {
@@ -265,14 +326,11 @@ function App() {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging]);
+  }, [isDragging, isDockMaximized]);
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/agents`);
-      if (!response.ok) throw new Error('Failed to fetch agents');
-
-      const payload = await response.json();
+      const payload = await apiRequest<{ data: any[] }>(`${API_BASE}/api/agents`);
       const agentList: AgentSummary[] = (payload.data || []).map((agent: any) => ({
         slug: agent.slug ?? agent.id,
         name: agent.name,
@@ -448,8 +506,8 @@ function App() {
     focusSession(sessionId);
 
     try {
-      // Send only the new user message - VoltAgent Memory will handle history
-      const response = await fetch(`${API_BASE}/agents/${session.agentSlug}/text`, {
+      // Use streaming /chat endpoint to see tool calls
+      const response = await fetch(`${API_BASE}/agents/${session.agentSlug}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -457,27 +515,127 @@ function App() {
           options: {
             userId: 'tauri-ui-user',
             conversationId: session.conversationId,
+            maxSteps: 10,
           },
         }),
       });
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          const retry = await handleAuthError();
+          if (retry) {
+            // Retry the request
+            return sendMessage(sessionId, text);
+          }
+        }
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
-      const assistantMessage: ChatMessage = {
-        role: 'assistant',
-        content: data.data?.text || data.text || 'No response',
-        toolCalls: data.data?.toolCalls?.map((tc: any) => ({
-          id: tc.toolCallId,
-          name: tc.toolName,
-          args: tc.args,
-          result: data.data?.toolResults?.find((tr: any) => tr.toolCallId === tc.toolCallId)?.result,
-        })),
-      };
+      // Stream SSE response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const contentParts: Array<{ type: 'text' | 'tool'; content?: string; tool?: any }> = [];
+      let currentTextChunk = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.trim() || !line.startsWith('data: ')) continue;
+            
+            const dataStr = line.slice(6).trim();
+            if (dataStr === '[DONE]') continue;
+            
+            try {
+              const data = JSON.parse(dataStr);
+              
+              if (data.type === 'text-delta' && data.delta) {
+                currentTextChunk += data.delta;
+                // Update current text chunk
+                updateSession(sessionId, (current) => {
+                  const messages = [...current.messages];
+                  const lastMsg = messages[messages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    const parts = [...(lastMsg.contentParts || [])];
+                    if (parts.length > 0 && parts[parts.length - 1].type === 'text') {
+                      parts[parts.length - 1].content = currentTextChunk;
+                    } else {
+                      parts.push({ type: 'text', content: currentTextChunk });
+                    }
+                    lastMsg.contentParts = parts;
+                  } else {
+                    messages.push({ 
+                      role: 'assistant', 
+                      content: currentTextChunk,
+                      contentParts: [{ type: 'text', content: currentTextChunk }]
+                    });
+                  }
+                  return { ...current, messages, updatedAt: Date.now() };
+                });
+              } else if (data.type === 'tool-input-available') {
+                // Finalize current text chunk
+                if (currentTextChunk) {
+                  contentParts.push({ type: 'text', content: currentTextChunk });
+                  currentTextChunk = '';
+                }
+                
+                const toolCall = {
+                  id: data.toolCallId,
+                  name: data.toolName,
+                  args: data.input,
+                };
+                
+                // Add tool call inline
+                updateSession(sessionId, (current) => {
+                  const messages = [...current.messages];
+                  const lastMsg = messages[messages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    const parts = [...(lastMsg.contentParts || [])];
+                    parts.push({ type: 'tool', tool: toolCall });
+                    lastMsg.contentParts = parts;
+                  } else {
+                    messages.push({ 
+                      role: 'assistant', 
+                      content: '',
+                      contentParts: [{ type: 'tool', tool: toolCall }]
+                    });
+                  }
+                  return { ...current, messages, updatedAt: Date.now() };
+                });
+              } else if (data.type === 'tool-output-available') {
+                // Update tool result
+                updateSession(sessionId, (current) => {
+                  const messages = [...current.messages];
+                  const lastMsg = messages[messages.length - 1];
+                  if (lastMsg?.role === 'assistant' && lastMsg.contentParts) {
+                    const parts = [...lastMsg.contentParts];
+                    // Find the tool call from the end
+                    for (let i = parts.length - 1; i >= 0; i--) {
+                      if (parts[i].type === 'tool' && parts[i].tool?.id === data.toolCallId) {
+                        parts[i].tool!.result = data.output;
+                        break;
+                      }
+                    }
+                    lastMsg.contentParts = parts;
+                  }
+                  return { ...current, messages, updatedAt: Date.now() };
+                });
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE chunk:', e);
+            }
+          }
+        }
+      }
 
       const shouldMarkUnread = sessionId !== activeSessionId || isDockCollapsed;
 
@@ -492,7 +650,6 @@ function App() {
           
           return {
             ...current,
-            messages: [...current.messages, assistantMessage],
             queuedMessages: remaining,
             status: 'sending',
             error: null,
@@ -503,7 +660,6 @@ function App() {
 
         return {
           ...current,
-          messages: [...current.messages, assistantMessage],
           status: 'idle',
           error: null,
           updatedAt: Date.now(),
@@ -816,7 +972,10 @@ function App() {
       <div className="main-content">
         {currentAgent ? (
           <>
-            <div className={`workspace-panel ${!isDockCollapsed ? 'has-chat-dock' : ''}`}>
+            <div 
+              className={`workspace-panel ${!isDockCollapsed ? 'has-chat-dock' : ''}`}
+              style={{ paddingBottom: isDockCollapsed ? '37px' : `${dockHeight}px` }}
+            >
               <WorkspaceRenderer
                 agent={currentAgent}
                 onLaunchPrompt={handleLaunchPrompt}
@@ -825,18 +984,25 @@ function App() {
             </div>
 
             <div
-              className={`chat-dock ${isDockCollapsed ? 'is-collapsed' : ''}`}
-              style={{ height: isDockCollapsed ? '37px' : `${dockHeight}px` }}
+              className={`chat-dock ${isDockCollapsed ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''}`}
+              style={{ 
+                height: isDockCollapsed ? '37px' : isDockMaximized ? `${window.innerHeight - 107}px` : `${dockHeight}px`
+              }}
               ref={chatSectionRef}
             >
-              {!isDockCollapsed && (
+              {!isDockCollapsed && !isDockMaximized && (
                 <div
                   className="chat-dock__resize-handle"
                   onMouseDown={() => setIsDragging(true)}
                 />
               )}
-              <div className="chat-dock__header" onClick={() => setIsDockCollapsed((prev) => !prev)}>
-                <div className="chat-dock__title">
+              <div className="chat-dock__header" style={{
+                ...(isDockMaximized && {
+                  background: 'rgba(var(--color-primary-rgb, 59, 130, 246), 0.1)',
+                  borderBottom: '2px solid var(--color-primary)'
+                })
+              }}>
+                <div className="chat-dock__title" onClick={() => setIsDockCollapsed((prev) => !prev)} style={{ cursor: 'pointer', flex: 1 }}>
                   <span>Chat Dock</span>
                 </div>
                 <div className="chat-dock__header-actions">
@@ -844,6 +1010,35 @@ function App() {
                     {sessions.length} session{sessions.length === 1 ? '' : 's'}
                   </span>
                   {unreadCount > 0 && <span className="chat-dock__badge">{unreadCount}</span>}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isDockMaximized) {
+                        // Restore to previous state
+                        setDockHeight(previousDockHeight);
+                        setIsDockCollapsed(previousDockCollapsed);
+                        setIsDockMaximized(false);
+                      } else {
+                        // Save current state and maximize
+                        setPreviousDockHeight(dockHeight);
+                        setPreviousDockCollapsed(isDockCollapsed);
+                        setDockHeight(window.innerHeight - 107);
+                        setIsDockMaximized(true);
+                        setIsDockCollapsed(false);
+                      }
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      padding: '0.25rem 0.5rem',
+                      fontSize: '1rem'
+                    }}
+                    title={isDockMaximized ? 'Restore' : 'Maximize'}
+                  >
+                    {isDockMaximized ? '⬇' : '⬆'}
+                  </button>
                 </div>
               </div>
 
@@ -905,13 +1100,27 @@ function App() {
                           ) : (
                             activeSession.messages.map((msg, idx) => (
                               <div key={idx} className={`message ${msg.role}`}>
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                {msg.toolCalls && msg.toolCalls.length > 0 && (
-                                  <div className="tool-calls">
-                                    {msg.toolCalls.map((tc) => (
-                                      <ToolCallDisplay key={tc.toolCallId} toolCall={tc} />
-                                    ))}
-                                  </div>
+                                {msg.contentParts && msg.contentParts.length > 0 ? (
+                                  // Render mixed content inline
+                                  msg.contentParts.map((part, partIdx) => (
+                                    part.type === 'text' ? (
+                                      <ReactMarkdown key={partIdx}>{part.content || ''}</ReactMarkdown>
+                                    ) : (
+                                      <ToolCallDisplay key={partIdx} toolCall={part.tool!} />
+                                    )
+                                  ))
+                                ) : (
+                                  // Fallback for old messages or messages without contentParts
+                                  <>
+                                    {msg.content && <ReactMarkdown>{msg.content}</ReactMarkdown>}
+                                    {msg.toolCalls && msg.toolCalls.length > 0 && (
+                                      <div className="tool-calls">
+                                        {msg.toolCalls.map((tc, tcIdx) => (
+                                          <ToolCallDisplay key={tcIdx} toolCall={tc} />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             ))
@@ -990,6 +1199,15 @@ function App() {
             Dismiss
           </button>
         </div>
+      )}
+
+      {showPinDialog && (
+        <PinDialog
+          onSubmit={handlePinSubmit}
+          onCancel={handlePinCancel}
+          isLoading={isAuthenticating}
+          error={authError}
+        />
       )}
     </div>
   );

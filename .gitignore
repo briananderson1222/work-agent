@@ -9,6 +9,6 @@ dist-ui/
 .env.local
 
 # Tauri
-src-tauri/target/
-src-tauri/Cargo.lock
-src-tauri/binaries/
+src-desktop/target/
+src-desktop/Cargo.lock
+src-desktop/binaries/
