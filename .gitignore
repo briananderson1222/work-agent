@@ -1,8 +1,11 @@
 node_modules/
 dist/
 dist-ui/
+dist-server/
+dist-desktop/
 .work-agent/agents/*/memory/
 .work-agent/agents/*/workflows/
+.amazonq/cli-todo-lists/
 *.log
 .DS_Store
 .env
