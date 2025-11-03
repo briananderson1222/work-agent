@@ -1001,6 +1001,24 @@ function App() {
         }
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+        
+        // Check if this is a model switching error
+        if (errorMessage.includes('Invalid model ID') || errorMessage.includes('Failed to switch to model')) {
+          // Show clear error message for model issues
+          updateSession(sessionId, (current) => ({
+            ...current,
+            status: 'error',
+            error: errorMessage,
+            messages: [...current.messages, { 
+              role: 'system', 
+              content: `❌ **Model Error**: ${errorMessage}\n\nPlease select a different model using \`/model\` command.` 
+            }],
+            updatedAt: Date.now(),
+          }));
+          setActiveAbortController(null);
+          return;
+        }
+        
         throw new Error(errorMessage);
       }
 
@@ -1029,6 +1047,33 @@ function App() {
             try {
               const data = JSON.parse(dataStr);
               console.log('[SSE Event]', data.type, data);
+              
+              // Handle error events from server
+              if (data.type === 'error') {
+                const errorMsg = data.error || 'Unknown error occurred';
+                console.error('[SSE Error]', errorMsg);
+                
+                // Check if this is a model error
+                const isModelError = errorMsg.includes('model') || 
+                                     errorMsg.includes('Model') || 
+                                     errorMsg.includes('bedrock');
+                
+                updateSession(sessionId, (current) => ({
+                  ...current,
+                  status: 'error',
+                  error: errorMsg,
+                  messages: [...current.messages, { 
+                    role: 'system', 
+                    content: isModelError 
+                      ? `❌ **Model Error**: ${errorMsg}\n\nPlease select a different model using \`/model\` command.`
+                      : `❌ **Error**: ${errorMsg}` 
+                  }],
+                  updatedAt: Date.now(),
+                }));
+                
+                setActiveAbortController(null);
+                return; // Stop processing
+              }
               
               if (data.type === 'text-delta' && data.delta) {
                 currentTextChunk += data.delta;
@@ -1318,6 +1363,11 @@ function App() {
               messages: isAlreadyActive ? current.messages : [...current.messages, { role: 'system', content: `Model changed to **${selectedModel.name}**` }],
             }));
             setShowModelSelector(false);
+            
+            // Show success toast if model was actually changed
+            if (!isAlreadyActive) {
+              showToast(`✓ Model switched to ${selectedModel.name}`, activeSessionId);
+            }
           }
         }
         return;
@@ -2221,21 +2271,29 @@ function App() {
                           <div className="chat-input" style={{ position: 'relative' }}>
                             {showModelSelector && (
                               <div className="command-autocomplete">
-                                {availableModels
-                                  .filter((model) => {
+                                {(() => {
+                                  const agent = agents.find(a => a.slug === activeSession?.agentSlug) || currentAgent;
+                                  const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                                  const currentModel = activeSession?.model || agentModelId;
+                                  const normalizeId = (id: string) => id?.replace(/^us\./, '') || '';
+                                  
+                                  const filtered = availableModels.filter((model) => {
                                     if (!activeSession?.input) return true;
                                     const query = activeSession.input.replace('/model ', '').toLowerCase();
                                     return model.name.toLowerCase().includes(query) || 
                                            model.id.toLowerCase().includes(query);
-                                  })
-                                  .slice(0, 10)
-                                  .map((model, idx) => {
-                                  const agent = agents.find(a => a.slug === activeSession?.agentSlug) || currentAgent;
-                                  const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                                  const currentModel = activeSession?.model || agentModelId;
+                                  });
                                   
-                                  // Normalize comparison: strip 'us.' prefix if present
-                                  const normalizeId = (id: string) => id?.replace(/^us\./, '') || '';
+                                  // Sort: active model first, then alphabetically
+                                  const sorted = [...filtered].sort((a, b) => {
+                                    const aIsCurrent = normalizeId(currentModel) === normalizeId(a.id) || currentModel === a.id;
+                                    const bIsCurrent = normalizeId(currentModel) === normalizeId(b.id) || currentModel === b.id;
+                                    if (aIsCurrent && !bIsCurrent) return -1;
+                                    if (!aIsCurrent && bIsCurrent) return 1;
+                                    return 0;
+                                  });
+                                  
+                                  return sorted.slice(0, 10).map((model, idx) => {
                                   const isCurrent = normalizeId(currentModel) === normalizeId(model.id) || currentModel === model.id;
                                   
                                   return (
@@ -2258,6 +2316,11 @@ function App() {
                                             messages: isAlreadyActive ? current.messages : [...current.messages, { role: 'system', content: `Model changed to **${model.name}**` }],
                                           }));
                                           setShowModelSelector(false);
+                                          
+                                          // Show success toast if model was actually changed
+                                          if (!isAlreadyActive) {
+                                            showToast(`✓ Model switched to ${model.name}`, activeSessionId);
+                                          }
                                         }
                                       }}
                                     >
@@ -2265,7 +2328,7 @@ function App() {
                                       <span className="command-item__description" style={{ fontSize: '10px', opacity: 0.6 }}>{model.id}</span>
                                     </div>
                                   );
-                                })}
+                                })})()}
                               </div>
                             )}
                             {showCommandAutocomplete && (

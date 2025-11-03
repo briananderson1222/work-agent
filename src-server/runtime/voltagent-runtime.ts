@@ -904,28 +904,57 @@ export class WorkAgentRuntime {
 
               // If model override, get or create cached agent with that model
               if (modelOverride) {
+                // Validate model ID before creating agent
+                if (this.modelCatalog) {
+                  try {
+                    const isValid = await this.modelCatalog.validateModelId(modelOverride);
+                    if (!isValid) {
+                      return c.json({ 
+                        success: false, 
+                        error: `Invalid model ID: ${modelOverride}. Please select a valid model from the list.` 
+                      }, 400);
+                    }
+                  } catch (validationError: any) {
+                    this.logger.warn('Model validation failed', { modelOverride, error: validationError });
+                    // Continue anyway - validation might fail due to API issues
+                  }
+                }
+
                 const cacheKey = `${slug}:${modelOverride}`;
                 let cachedAgent = this.activeAgents.get(cacheKey);
                 
                 if (!cachedAgent) {
-                  // Get the original agent spec to preserve region and other settings
-                  const originalSpec = this.agentSpecs.get(slug);
-                  
-                  const newModel = createBedrockProvider({
-                    appConfig: this.appConfig,
-                    agentSpec: { 
-                      model: modelOverride,
-                      region: originalSpec?.region || this.appConfig.region
-                    } as any
-                  });
-                  
-                  cachedAgent = new Agent({
-                    ...agent,
-                    name: cacheKey,
-                    model: newModel,
-                  });
-                  
-                  this.activeAgents.set(cacheKey, cachedAgent);
+                  try {
+                    // Get the original agent spec to preserve region and other settings
+                    const originalSpec = this.agentSpecs.get(slug);
+                    
+                    const newModel = createBedrockProvider({
+                      appConfig: this.appConfig,
+                      agentSpec: { 
+                        model: modelOverride,
+                        region: originalSpec?.region || this.appConfig.region
+                      } as any
+                    });
+                    
+                    cachedAgent = new Agent({
+                      ...agent,
+                      name: cacheKey,
+                      model: newModel,
+                    });
+                    
+                    this.activeAgents.set(cacheKey, cachedAgent);
+                    this.logger.info('Created agent with model override', { slug, modelOverride });
+                  } catch (modelError: any) {
+                    this.logger.error('Failed to create agent with model override', { 
+                      slug, 
+                      modelOverride, 
+                      error: modelError 
+                    });
+                    return c.json({ 
+                      success: false, 
+                      error: `Failed to switch to model ${modelOverride}: ${modelError.message}` 
+                    }, 500);
+                  }
                 }
                 
                 agent = cachedAgent;
