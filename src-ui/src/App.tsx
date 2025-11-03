@@ -1002,23 +1002,7 @@ function App() {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
         
-        // Check if this is a model switching error
-        if (errorMessage.includes('Invalid model ID') || errorMessage.includes('Failed to switch to model')) {
-          // Show clear error message for model issues
-          updateSession(sessionId, (current) => ({
-            ...current,
-            status: 'error',
-            error: errorMessage,
-            messages: [...current.messages, { 
-              role: 'system', 
-              content: `❌ **Model Error**: ${errorMessage}\n\nPlease select a different model using \`/model\` command.` 
-            }],
-            updatedAt: Date.now(),
-          }));
-          setActiveAbortController(null);
-          return;
-        }
-        
+        console.error('[Chat Error]', { status: response.status, errorMessage, errorData });
         throw new Error(errorMessage);
       }
 
@@ -1050,29 +1034,18 @@ function App() {
               
               // Handle error events from server
               if (data.type === 'error') {
-                const errorMsg = data.error || 'Unknown error occurred';
+                const errorMsg = data.error || data.errorText || 'Unknown error occurred';
                 console.error('[SSE Error]', errorMsg);
-                
-                // Check if this is a model error
-                const isModelError = errorMsg.includes('model') || 
-                                     errorMsg.includes('Model') || 
-                                     errorMsg.includes('bedrock');
                 
                 updateSession(sessionId, (current) => ({
                   ...current,
                   status: 'error',
                   error: errorMsg,
-                  messages: [...current.messages, { 
-                    role: 'system', 
-                    content: isModelError 
-                      ? `❌ **Model Error**: ${errorMsg}\n\nPlease select a different model using \`/model\` command.`
-                      : `❌ **Error**: ${errorMsg}` 
-                  }],
                   updatedAt: Date.now(),
                 }));
                 
                 setActiveAbortController(null);
-                return; // Stop processing
+                return;
               }
               
               if (data.type === 'text-delta' && data.delta) {
@@ -1266,6 +1239,8 @@ function App() {
       
       const errorMessage = err?.message || 'Failed to send message';
       
+      console.error('[sendMessage Error]', { errorMessage, sessionId, err });
+      
       // Check for Gateway authentication errors
       const needsAuth = errorMessage.includes('AI Gateway authentication failed') ||
                         errorMessage.includes('No authentication provided') ||
@@ -1285,6 +1260,7 @@ function App() {
       }
       
       const shouldMarkUnread = sessionId !== activeSessionId || isDockCollapsed;
+      console.log('[Setting Error State]', { sessionId, errorMessage, shouldMarkUnread });
       updateSession(sessionId, (current) => ({
         ...current,
         status: 'error',
@@ -1363,11 +1339,6 @@ function App() {
               messages: isAlreadyActive ? current.messages : [...current.messages, { role: 'system', content: `Model changed to **${selectedModel.name}**` }],
             }));
             setShowModelSelector(false);
-            
-            // Show success toast if model was actually changed
-            if (!isAlreadyActive) {
-              showToast(`✓ Model switched to ${selectedModel.name}`, activeSessionId);
-            }
           }
         }
         return;
@@ -2316,11 +2287,6 @@ function App() {
                                             messages: isAlreadyActive ? current.messages : [...current.messages, { role: 'system', content: `Model changed to **${model.name}**` }],
                                           }));
                                           setShowModelSelector(false);
-                                          
-                                          // Show success toast if model was actually changed
-                                          if (!isAlreadyActive) {
-                                            showToast(`✓ Model switched to ${model.name}`, activeSessionId);
-                                          }
                                         }
                                       }}
                                     >

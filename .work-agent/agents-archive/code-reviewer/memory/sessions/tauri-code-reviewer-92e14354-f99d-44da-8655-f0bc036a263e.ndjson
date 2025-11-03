@@ -1,0 +1,4 @@
+{"id":"e400676d-8728-45c8-9a43-e5395ede57ac","role":"user","parts":[{"type":"text","text":"What's today's date?"}]}
+{"id":"82f1b89e-1b96-403e-9a91-c8d2ce004dfb","role":"assistant","parts":[{"type":"text","text":"Today's date is Monday, October 27, 2025."}]}
+{"id":"804c62e9-855e-4816-86ec-4b39547e8e76","role":"user","parts":[{"type":"text","text":"How do you know that?"}]}
+{"id":"c23a0f6a-9bce-465b-b0b8-1667c02ae4db","role":"assistant","parts":[{"type":"text","text":"I know today's date because it was provided to me in my instructions: \"Today's date is Monday, October 27, 2025 at 11:57 PM\". This information was included in my system configuration to help me provide timely and contextually appropriate responses."}]}

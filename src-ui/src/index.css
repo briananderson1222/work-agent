@@ -1256,9 +1256,13 @@ body {
 }
 
 .error {
-  padding: 20px;
-  text-align: center;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: 6px;
   color: var(--error-text);
+  font-size: 13px;
 }
 
 .empty-state {

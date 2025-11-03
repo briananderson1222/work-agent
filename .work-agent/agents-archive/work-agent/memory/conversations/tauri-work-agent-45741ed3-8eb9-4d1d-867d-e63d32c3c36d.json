@@ -1,0 +1,18 @@
+{
+  "id": "tauri-work-agent-45741ed3-8eb9-4d1d-867d-e63d32c3c36d",
+  "resourceId": "work-agent",
+  "userId": "tauri-ui-user",
+  "title": "New Chat 2025-11-03T06:08:26.447Z",
+  "metadata": {
+    "stats": {
+      "inputTokens": 5445,
+      "outputTokens": 226,
+      "totalTokens": 5671,
+      "turns": 2,
+      "toolCalls": 0,
+      "estimatedCost": 0.019725
+    }
+  },
+  "createdAt": "2025-11-03T06:08:26.448Z",
+  "updatedAt": "2025-11-03T06:09:07.316Z"
+}

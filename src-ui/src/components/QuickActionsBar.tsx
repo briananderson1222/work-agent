@@ -50,9 +50,9 @@ export function QuickActionsBar({
         )}
       </div>
 
-      <div className="quick-actions__group">
-        <span className="quick-actions__label">Workflows</span>
-        {hasWorkflowShortcuts ? (
+      {hasWorkflowShortcuts && (
+        <div className="quick-actions__group">
+          <span className="quick-actions__label">Workflows</span>
           <div className="quick-actions__buttons">
             {workflowShortcuts!.map((workflow) => (
               <button
@@ -65,12 +65,8 @@ export function QuickActionsBar({
               </button>
             ))}
           </div>
-        ) : (
-          <span className="quick-actions__helper">
-            Add `ui.workflowShortcuts` in agent.json to feature specific workflows here.
-          </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
