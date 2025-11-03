@@ -7,6 +7,7 @@ import { AgentSelector } from './components/AgentSelector';
 import { QuickActionsBar } from './components/QuickActionsBar';
 import { ThemeToggle } from './components/ThemeToggle';
 import { PinDialog } from './components/PinDialog';
+import { ConversationStats, ContextPercentage } from './components/ConversationStats';
 import { WorkspaceRenderer } from './workspaces';
 import { AgentEditorView } from './views/AgentEditorView';
 import { ToolManagementView } from './views/ToolManagementView';
@@ -155,6 +156,7 @@ function App() {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [newChatSearch, setNewChatSearch] = useState('');
   const [newChatSelectedIndex, setNewChatSelectedIndex] = useState(0);
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const generateId = () =>
@@ -194,20 +196,76 @@ function App() {
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
+  const [modelSelectorDismissed, setModelSelectorDismissed] = useState(false);
+  const [availableModels, setAvailableModels] = useState<{ id: string; name: string }[]>([]);
 
-  const availableModels = [
-    { id: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0', name: 'Claude 3.7 Sonnet' },
-    { id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0', name: 'Claude 3.5 Sonnet v2' },
-    { id: 'us.anthropic.claude-3-5-sonnet-20240620-v1:0', name: 'Claude 3.5 Sonnet' },
-    { id: 'us.anthropic.claude-3-opus-20240229-v1:0', name: 'Claude 3 Opus' },
-    { id: 'us.anthropic.claude-3-haiku-20240307-v1:0', name: 'Claude 3 Haiku' },
-  ];
+  // Fetch available models from Bedrock API
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/bedrock/models`);
+        const data = await response.json();
+        if (data.success) {
+          const models = data.data
+            .filter((m: any) => m.outputModalities.includes('TEXT'))
+            .map((m: any) => {
+              // If model only supports INFERENCE_PROFILE, add 'us.' prefix
+              const needsPrefix = m.inferenceTypesSupported?.length === 1 && 
+                                  m.inferenceTypesSupported[0] === 'INFERENCE_PROFILE';
+              return {
+                id: needsPrefix ? `us.${m.modelId}` : m.modelId,
+                name: m.modelName || m.modelId,
+                originalId: m.modelId,
+              };
+            });
+          
+          // Add suffix to duplicate names
+          const nameCounts = new Map<string, number>();
+          models.forEach((m: any) => {
+            nameCounts.set(m.name, (nameCounts.get(m.name) || 0) + 1);
+          });
+          
+          models.forEach((m: any) => {
+            if (nameCounts.get(m.name)! > 1) {
+              // Extract suffix after last colon (e.g., "28k", "200k")
+              const parts = m.originalId.split(':');
+              const suffix = parts[parts.length - 1];
+              if (suffix && suffix !== '0' && isNaN(Number(suffix))) {
+                m.name = `${m.name} (${suffix})`;
+              }
+            }
+          });
+          
+          models.sort((a: any, b: any) => a.name.localeCompare(b.name));
+          setAvailableModels(models);
+        }
+      } catch (error) {
+        console.error('Failed to fetch models:', error);
+        // Fallback to empty array
+        setAvailableModels([]);
+      }
+    };
+    fetchModels();
+  }, []);
+
+  // Re-open model selector if input starts with /model 
+  useEffect(() => {
+    const activeSession = sessions.find(s => s.id === activeSessionId);
+    if (activeSession?.input?.startsWith('/model ') && !showModelSelector && !modelSelectorDismissed) {
+      setShowModelSelector(true);
+      setSelectedModelIndex(0);
+    } else if (activeSession?.input && !activeSession.input.startsWith('/model ')) {
+      setShowModelSelector(false);
+      setModelSelectorDismissed(false);
+    }
+  }, [sessions, activeSessionId, showModelSelector, modelSelectorDismissed]);
 
   const slashCommands = [
     { cmd: '/mcp', description: 'List MCP servers for this agent' },
     { cmd: '/tools', description: 'Show available tools and auto-approved list' },
     { cmd: '/model', description: 'List and select model for this conversation' },
     { cmd: '/clear', aliases: ['/new'], description: 'Clear conversation and start fresh' },
+    { cmd: '/stats', description: 'Show conversation statistics' },
   ];
 
   const currentAgent = useMemo(
@@ -375,7 +433,15 @@ function App() {
     const session = sessions.find((item) => item.id === activeSessionId);
     if (!session) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeSessionId, sessions.find(s => s.id === activeSessionId)?.messages.length, isDockCollapsed, isUserScrolledUp]);
+  }, [
+    activeSessionId, 
+    sessions.find(s => s.id === activeSessionId)?.messages.length,
+    sessions.find(s => s.id === activeSessionId)?.messages[sessions.find(s => s.id === activeSessionId)?.messages.length - 1]?.content,
+    sessions.find(s => s.id === activeSessionId)?.status,
+    sessions.find(s => s.id === activeSessionId)?.updatedAt,
+    isDockCollapsed, 
+    isUserScrolledUp
+  ]);
 
   // Keyboard shortcuts for chat dock
   useEffect(() => {
@@ -386,6 +452,11 @@ function App() {
         setShowNewChatModal(true);
         setNewChatSearch('');
         setNewChatSelectedIndex(0);
+      }
+      // Cmd/Ctrl + S: Toggle stats
+      else if ((e.metaKey || e.ctrlKey) && e.key === 's' && activeSessionId) {
+        e.preventDefault();
+        setShowStatsPanel(prev => !prev);
       }
       // Cmd/Ctrl + W: Close active session
       else if ((e.metaKey || e.ctrlKey) && e.key === 'w' && activeSessionId) {
@@ -402,6 +473,14 @@ function App() {
         e.preventDefault();
         if (!isDockCollapsed) {
           setIsDockMaximized(prev => !prev);
+        }
+      }
+      // Ctrl+C or Esc: Cancel active request
+      else if ((e.ctrlKey && e.key === 'c') || e.key === 'Escape') {
+        if (activeAbortController) {
+          e.preventDefault();
+          activeAbortController.abort();
+          setActiveAbortController(null);
         }
       }
       // Cmd/Ctrl + 1-9: Switch to tab by number
@@ -434,7 +513,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSessionId, sessions, isDockCollapsed]);
+  }, [activeSessionId, sessions, isDockCollapsed, activeAbortController]);
 
   // Update scroll button visibility when sessions change
   useEffect(() => {
@@ -659,6 +738,11 @@ function App() {
       input: value,
     }));
     
+    // Reset dismissed flag when user types after /model 
+    if (value.startsWith('/model ') && value.length > 7) {
+      setModelSelectorDismissed(false);
+    }
+    
     // Show autocomplete when typing slash commands
     if (value.startsWith('/') && !value.includes(' ')) {
       setShowCommandAutocomplete(true);
@@ -671,6 +755,9 @@ function App() {
   const handleSlashCommand = async (sessionId: string, command: string) => {
     const session = sessions.find((item) => item.id === sessionId);
     if (!session) return;
+
+    // Scroll to bottom if user was scrolled up
+    setIsUserScrolledUp(false);
 
     const parts = command.slice(1).trim().split(/\s+/);
     const cmd = parts[0].toLowerCase();
@@ -777,12 +864,14 @@ function App() {
       const currentModelIndex = session?.model 
         ? availableModels.findIndex(m => m.id === session.model)
         : 0;
-      setShowModelSelector(true);
-      setSelectedModelIndex(currentModelIndex >= 0 ? currentModelIndex : 0);
+      
       updateSession(sessionId, (current) => ({
         ...current,
         input: '',
       }));
+      
+      setShowModelSelector(true);
+      setSelectedModelIndex(currentModelIndex >= 0 ? currentModelIndex : 0);
       return;
     } else if (cmd === 'clear' || cmd === 'new') {
       // Clear conversation by generating new conversationId
@@ -801,8 +890,15 @@ function App() {
         }));
       }
       return;
+    } else if (cmd === 'stats') {
+      setShowStatsPanel(true);
+      updateSession(sessionId, (current) => ({
+        ...current,
+        input: '',
+      }));
+      return;
     } else {
-      responseContent = `Unknown command: ${command}\n\nAvailable:\n• /mcp - List MCP servers\n• /tools - Show tools\n• /model - Change model\n• /clear or /new - Clear conversation`;
+      responseContent = `Unknown command: ${command}\n\nAvailable:\n• /mcp - List MCP servers\n• /tools - Show tools\n• /model - Change model\n• /clear or /new - Clear conversation\n• /stats - Show conversation statistics`;
     }
 
     // Set ephemeral message (shows in UI but not in history)
@@ -825,12 +921,6 @@ function App() {
     const text = (overrideContent ?? session.input).trim();
     if (!text) return;
 
-    // Add to input history (including slash commands)
-    updateSession(sessionId, (current) => ({
-      ...current,
-      inputHistory: [...current.inputHistory, text],
-    }));
-
     // Handle slash commands
     if (text.startsWith('/')) {
       await handleSlashCommand(sessionId, text);
@@ -842,10 +932,17 @@ function App() {
       updateSession(sessionId, (current) => ({
         ...current,
         queuedMessages: [...(current.queuedMessages || []), text],
+        inputHistory: [...current.inputHistory, text],
         input: overrideContent ? current.input : '',
       }));
       return;
     }
+
+    // Add to input history only when actually sending (not when queued)
+    updateSession(sessionId, (current) => ({
+      ...current,
+      inputHistory: [...current.inputHistory, text],
+    }));
 
     const userMessage: ChatMessage = { role: 'user', content: text };
 
@@ -854,6 +951,9 @@ function App() {
       const { [sessionId]: _, ...rest } = prev;
       return rest;
     });
+
+    // Reset scroll state before updating messages
+    setIsUserScrolledUp(false);
 
     updateSession(sessionId, (current) => ({
       ...current,
@@ -1110,8 +1210,11 @@ function App() {
         updateSession(sessionId, (current) => ({
           ...current,
           status: 'idle',
-          error: 'Request cancelled',
           updatedAt: Date.now(),
+        }));
+        setEphemeralMessages(prev => ({
+          ...prev,
+          [sessionId]: [{ role: 'system', content: 'Request cancelled' }]
         }));
         return;
       }
@@ -1156,8 +1259,14 @@ function App() {
     if (showModelSelector) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();
+        const filteredModels = availableModels.filter((model) => {
+          if (!activeSession?.input) return true;
+          const query = activeSession.input.replace('/model ', '').toLowerCase();
+          return model.name.toLowerCase().includes(query) || 
+                 model.id.toLowerCase().includes(query);
+        }).slice(0, 10);
         setSelectedModelIndex((prev) => {
-          const next = (prev + 1) % availableModels.length;
+          const next = (prev + 1) % filteredModels.length;
           // Scroll to selected item
           setTimeout(() => {
             const selected = document.querySelector('.command-autocomplete .command-item.selected');
@@ -1168,8 +1277,14 @@ function App() {
         return;
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
+        const filteredModels = availableModels.filter((model) => {
+          if (!activeSession?.input) return true;
+          const query = activeSession.input.replace('/model ', '').toLowerCase();
+          return model.name.toLowerCase().includes(query) || 
+                 model.id.toLowerCase().includes(query);
+        }).slice(0, 10);
         setSelectedModelIndex((prev) => {
-          const next = (prev - 1 + availableModels.length) % availableModels.length;
+          const next = (prev - 1 + filteredModels.length) % filteredModels.length;
           // Scroll to selected item
           setTimeout(() => {
             const selected = document.querySelector('.command-autocomplete .command-item.selected');
@@ -1181,18 +1296,35 @@ function App() {
       } else if (event.key === 'Tab' || event.key === 'Enter') {
         event.preventDefault();
         if (activeSessionId) {
-          const selectedModel = availableModels[selectedModelIndex];
-          updateSession(activeSessionId, (current) => ({
-            ...current,
-            model: selectedModel.id,
-            inputHistory: [...current.inputHistory, `/model ${selectedModel.name}`],
-            messages: [...current.messages, { role: 'system', content: `Model changed to **${selectedModel.name}**` }],
-          }));
-          setShowModelSelector(false);
+          const filteredModels = availableModels.filter((model) => {
+            if (!activeSession?.input) return true;
+            const query = activeSession.input.replace('/model ', '').toLowerCase();
+            return model.name.toLowerCase().includes(query) || 
+                   model.id.toLowerCase().includes(query);
+          }).slice(0, 10);
+          const selectedModel = filteredModels[selectedModelIndex];
+          if (selectedModel) {
+            const agent = agents.find(a => a.slug === activeSession?.agentSlug) || currentAgent;
+            const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+            const currentModel = activeSession?.model || agentModelId;
+            const normalizeId = (id: string) => id?.replace(/^us\./, '') || '';
+            const isAlreadyActive = normalizeId(currentModel) === normalizeId(selectedModel.id) || currentModel === selectedModel.id;
+            
+            updateSession(activeSessionId, (current) => ({
+              ...current,
+              input: '',
+              model: selectedModel.id,
+              inputHistory: [...current.inputHistory, `/model ${selectedModel.name}`],
+              messages: isAlreadyActive ? current.messages : [...current.messages, { role: 'system', content: `Model changed to **${selectedModel.name}**` }],
+            }));
+            setShowModelSelector(false);
+          }
         }
         return;
       } else if (event.key === 'Escape') {
+        event.preventDefault();
         setShowModelSelector(false);
+        setModelSelectorDismissed(true);
         return;
       }
     }
@@ -1213,12 +1345,54 @@ function App() {
         event.preventDefault();
         const filtered = getFilteredCommands();
         if (filtered.length > 0 && activeSessionId) {
+          const selectedCmd = filtered[selectedCommandIndex].cmd;
           setShowCommandAutocomplete(false);
-          sendMessage(activeSessionId, filtered[selectedCommandIndex].cmd);
+          
+          // If selecting /model, insert it with space to trigger model selector
+          if (selectedCmd === '/model') {
+            updateSession(activeSessionId, (current) => ({
+              ...current,
+              input: '/model ',
+            }));
+            setShowModelSelector(true);
+            setSelectedModelIndex(0);
+          } else {
+            sendMessage(activeSessionId, selectedCmd);
+          }
         }
         return;
       } else if (event.key === 'Escape') {
         setShowCommandAutocomplete(false);
+        return;
+      }
+    }
+
+    // Ctrl+C to clear input (only if no text is selected)
+    if ((event.ctrlKey || event.metaKey) && event.key === 'c' && activeSessionId) {
+      const selection = window.getSelection();
+      if (!selection || selection.toString().length === 0) {
+        event.preventDefault();
+        updateSession(activeSessionId, (current) => ({
+          ...current,
+          input: '',
+        }));
+        setShowModelSelector(false);
+        setShowCommandAutocomplete(false);
+        return;
+      }
+    }
+
+    // Handle backspace in model selector to go back to command autocomplete
+    if (showModelSelector && event.key === 'Backspace') {
+      if (activeSession?.input === '/model ') {
+        event.preventDefault();
+        updateSession(activeSessionId!, (current) => ({
+          ...current,
+          input: '/model',
+        }));
+        setShowModelSelector(false);
+        setShowCommandAutocomplete(true);
+        setSelectedCommandIndex(0);
         return;
       }
     }
@@ -1793,13 +1967,10 @@ function App() {
                               const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
                               const isCustomModel = session.model && session.model !== agentModelId;
                               if (!isCustomModel) return null;
+                              const modelInfo = availableModels.find(m => m.id === session.model);
                               return (
                                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
-                                  {session.model.includes('claude-3-7-sonnet') ? 'Claude 3.7 Sonnet' :
-                                   session.model.includes('claude-3-5-sonnet-20241022') ? 'Claude 3.5 Sonnet v2' :
-                                   session.model.includes('claude-3-5-sonnet') ? 'Claude 3.5 Sonnet' :
-                                   session.model.includes('claude-3-opus') ? 'Claude 3 Opus' :
-                                   session.model.includes('claude-3-haiku') ? 'Claude 3 Haiku' : 'Custom'}
+                                  {modelInfo?.name || 'Custom'}
                                 </div>
                               );
                             })()}
@@ -1874,12 +2045,23 @@ function App() {
                   <div className="chat-dock__body">
                     {activeSession ? (
                       <>
+                        {showStatsPanel && (
+                          <ConversationStats
+                            agentSlug={activeSession.agentSlug}
+                            conversationId={activeSession.conversationId}
+                            apiBase={API_BASE}
+                            isVisible={showStatsPanel}
+                            onToggle={() => setShowStatsPanel(!showStatsPanel)}
+                            messageCount={activeSession.messages.length}
+                            key={`${activeSession.conversationId}-${activeSession.status}`}
+                          />
+                        )}
                         <div 
                           className="chat-messages"
                           ref={messagesContainerRef}
                           onScroll={(e) => {
                             const target = e.currentTarget;
-                            const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 150;
+                            const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 10;
                             setIsUserScrolledUp(!isAtBottom);
                           }}
                         >
@@ -1982,6 +2164,17 @@ function App() {
                                 </div>
                               </div>
                             ))}
+                            {activeSession.status === 'sending' && activeSession.messages[activeSession.messages.length - 1]?.role !== 'assistant' && (
+                              <div className="message assistant">
+                                <div style={{ position: 'relative' }}>
+                                  <span className="loading-dots" style={{ display: 'inline-block' }}>
+                                    <span style={{ animationDelay: '0s' }}>●</span>
+                                    <span style={{ animationDelay: '0.2s' }}>●</span>
+                                    <span style={{ animationDelay: '0.4s' }}>●</span>
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                             </>
                           )}
                           <div ref={messagesEndRef} />
@@ -2012,31 +2205,6 @@ function App() {
                           </button>
                         )}
                         
-                        {activeSession.status === 'sending' && activeAbortController && (
-                          <button
-                            onClick={() => {
-                              activeAbortController.abort();
-                              setActiveAbortController(null);
-                            }}
-                            style={{
-                              position: 'absolute',
-                              bottom: '80px',
-                              left: '50%',
-                              transform: 'translateX(-50%)',
-                              padding: '8px 16px',
-                              background: '#dc2626',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '20px',
-                              cursor: 'pointer',
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                              fontSize: '0.9rem',
-                              zIndex: 10
-                            }}
-                          >
-                            ✕ Cancel
-                          </button>
-                        )}
                         
                         <div className="chat-input-container">
                           {activeSession.error && <div className="error">{activeSession.error}</div>}
@@ -2053,11 +2221,22 @@ function App() {
                           <div className="chat-input" style={{ position: 'relative' }}>
                             {showModelSelector && (
                               <div className="command-autocomplete">
-                                {availableModels.map((model, idx) => {
+                                {availableModels
+                                  .filter((model) => {
+                                    if (!activeSession?.input) return true;
+                                    const query = activeSession.input.replace('/model ', '').toLowerCase();
+                                    return model.name.toLowerCase().includes(query) || 
+                                           model.id.toLowerCase().includes(query);
+                                  })
+                                  .slice(0, 10)
+                                  .map((model, idx) => {
                                   const agent = agents.find(a => a.slug === activeSession?.agentSlug) || currentAgent;
                                   const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
                                   const currentModel = activeSession?.model || agentModelId;
-                                  const isCurrent = currentModel === model.id;
+                                  
+                                  // Normalize comparison: strip 'us.' prefix if present
+                                  const normalizeId = (id: string) => id?.replace(/^us\./, '') || '';
+                                  const isCurrent = normalizeId(currentModel) === normalizeId(model.id) || currentModel === model.id;
                                   
                                   return (
                                     <div
@@ -2065,11 +2244,18 @@ function App() {
                                       className={`command-item ${idx === selectedModelIndex ? 'selected' : ''}`}
                                       onClick={() => {
                                         if (activeSessionId) {
+                                          const agent = agents.find(a => a.slug === activeSession?.agentSlug) || currentAgent;
+                                          const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                                          const currentModel = activeSession?.model || agentModelId;
+                                          const normalizeId = (id: string) => id?.replace(/^us\./, '') || '';
+                                          const isAlreadyActive = normalizeId(currentModel) === normalizeId(model.id) || currentModel === model.id;
+                                          
                                           updateSession(activeSessionId, (current) => ({
                                             ...current,
+                                            input: '',
                                             model: model.id,
                                             inputHistory: [...current.inputHistory, `/model ${model.name}`],
-                                            messages: [...current.messages, { role: 'system', content: `Model changed to **${model.name}**` }],
+                                            messages: isAlreadyActive ? current.messages : [...current.messages, { role: 'system', content: `Model changed to **${model.name}**` }],
                                           }));
                                           setShowModelSelector(false);
                                         }
@@ -2091,7 +2277,18 @@ function App() {
                                     onClick={() => {
                                       if (activeSessionId) {
                                         setShowCommandAutocomplete(false);
-                                        sendMessage(activeSessionId, cmd.cmd);
+                                        
+                                        // If selecting /model, insert it with space to trigger model selector
+                                        if (cmd.cmd === '/model') {
+                                          updateSession(activeSessionId, (current) => ({
+                                            ...current,
+                                            input: '/model ',
+                                          }));
+                                          setShowModelSelector(true);
+                                          setSelectedModelIndex(0);
+                                        } else {
+                                          sendMessage(activeSessionId, cmd.cmd);
+                                        }
                                       }
                                     }}
                                   >
@@ -2106,34 +2303,93 @@ function App() {
                                 ))}
                               </div>
                             )}
-                            <textarea
-                              ref={textareaRef}
-                              value={activeSession.input}
-                              onChange={(event) =>
-                                setSessionInput(activeSession.id, event.target.value)
-                              }
-                              onKeyDown={handleKeyDown}
-                              placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-                            />
+                            <div style={{ position: 'relative', flex: 1 }}>
+                              <textarea
+                                ref={textareaRef}
+                                value={activeSession.input}
+                                onChange={(event) =>
+                                  setSessionInput(activeSession.id, event.target.value)
+                                }
+                                onKeyDown={handleKeyDown}
+                                placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+                                style={{ width: '100%', paddingRight: activeSession.input ? '30px' : undefined }}
+                              />
+                              {activeSession.input && (
+                                <button
+                                  onClick={() => {
+                                    updateSession(activeSession.id, (current) => ({
+                                      ...current,
+                                      input: '',
+                                    }));
+                                    setShowModelSelector(false);
+                                    setShowCommandAutocomplete(false);
+                                  }}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '8px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '16px',
+                                    color: 'var(--text-muted)',
+                                    padding: '4px',
+                                    lineHeight: 1,
+                                    opacity: 0.6,
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+                                  title="Clear input (Ctrl+C)"
+                                >
+                                  ×
+                                </button>
+                              )}
+                              <ContextPercentage
+                                agentSlug={activeSession.agentSlug}
+                                conversationId={activeSession.conversationId}
+                                apiBase={API_BASE}
+                                messageCount={activeSession.messages.length}
+                              />
+                            </div>
                             <button
                               onClick={() => sendMessage(activeSession.id)}
                               disabled={!activeSession.input.trim()}
                             >
-                              Send
+                              {activeSession.status === 'sending' ? 'Queue' : 'Send'}
                             </button>
+                            {activeSession.status === 'sending' && activeAbortController && (
+                              <button
+                                onClick={() => {
+                                  activeAbortController.abort();
+                                  setActiveAbortController(null);
+                                }}
+                                style={{
+                                  background: 'var(--bg-secondary)',
+                                  color: 'var(--text-muted)',
+                                  border: '1px solid var(--border-primary)',
+                                }}
+                                title="Cancel (Ctrl+C or Esc)"
+                              >
+                                Cancel
+                              </button>
+                            )}
                           </div>
                         </div>
                       </>
                     ) : (
                       <div className="chat-dock__empty">
-                        <p>No active sessions. Start a new chat to begin.</p>
-                        <button
-                          type="button"
-                          onClick={() => openChatForAgent(currentAgent)}
-                          disabled={!currentAgent}
-                        >
-                          New Session
-                        </button>
+                        <p>No active sessions.</p>
+                        <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginTop: '8px' }}>
+                          Press <kbd style={{ 
+                            padding: '2px 6px', 
+                            background: 'var(--bg-tertiary)', 
+                            border: '1px solid var(--border-primary)', 
+                            borderRadius: '4px',
+                            fontFamily: 'monospace',
+                            fontSize: '0.95em'
+                          }}>⌘N</kbd> to start a new chat
+                        </p>
                       </div>
                     )}
                   </div>

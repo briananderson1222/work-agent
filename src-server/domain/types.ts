@@ -158,3 +158,15 @@ export enum AgentSwitchState {
   BUILD = 'BUILD',
   READY = 'READY'
 }
+
+/**
+ * Conversation statistics tracked per conversation
+ */
+export interface ConversationStats {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  turns: number;
+  toolCalls: number;
+  estimatedCost: number; // USD
+}

@@ -45,16 +45,10 @@ export async function checkBedrockCredentials(): Promise<boolean> {
 
 /**
  * Get available Bedrock models for a region
+ * @deprecated Use BedrockModelCatalog.listModels() instead
  */
 export function getAvailableModels(region: string): string[] {
-  // Common Bedrock model IDs (as of 2025)
-  return [
-    'anthropic.claude-3-5-sonnet-20240620-v1:0',
-    'anthropic.claude-3-sonnet-20240229-v1:0',
-    'anthropic.claude-3-haiku-20240307-v1:0',
-    'anthropic.claude-3-opus-20240229-v1:0',
-    'anthropic.claude-v2:1',
-    'anthropic.claude-v2',
-    'anthropic.claude-instant-v1',
-  ];
+  // This function is deprecated - use the model catalog API
+  console.warn('getAvailableModels is deprecated. Use BedrockModelCatalog.listModels() instead.');
+  return [];
 }

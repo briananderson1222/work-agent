@@ -20,6 +20,8 @@
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.0",
+    "@aws-sdk/client-bedrock": "^3.922.0",
+    "@aws-sdk/client-pricing": "^3.922.0",
     "@aws-sdk/credential-providers": "^3.799.0",
     "@hono/node-server": "^1.19.5",
     "@tauri-apps/api": "^2.9.0",

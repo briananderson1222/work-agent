@@ -4,6 +4,7 @@
 
 import Ajv, { type ValidateFunction, type ErrorObject } from 'ajv';
 import type { AgentSpec, ToolDef, AppConfig } from './types.js';
+import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -149,3 +150,30 @@ export class SchemaValidator {
 
 // Singleton instance
 export const validator: SchemaValidator = new SchemaValidator();
+
+/**
+ * Validate a Bedrock model ID against the actual available models
+ */
+export async function validateBedrockModelId(
+  modelId: string,
+  region: string = 'us-east-1'
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const catalog = new BedrockModelCatalog(region);
+    const isValid = await catalog.validateModelId(modelId);
+    
+    if (!isValid) {
+      return {
+        valid: false,
+        error: `Model ID "${modelId}" is not available in region ${region}`,
+      };
+    }
+    
+    return { valid: true };
+  } catch (error: any) {
+    return {
+      valid: false,
+      error: `Failed to validate model: ${error.message}`,
+    };
+  }
+}

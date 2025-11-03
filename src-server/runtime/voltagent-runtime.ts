@@ -11,6 +11,7 @@ import { stream } from 'hono/streaming';
 import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
 import { ConfigLoader } from '../domain/config-loader.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
+import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
 
 export interface WorkAgentRuntimeOptions {
@@ -33,6 +34,7 @@ export class WorkAgentRuntime {
   private agentMetadataMap: Map<string, any> = new Map();
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
+  private modelCatalog?: BedrockModelCatalog;
   private port: number;
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
@@ -62,6 +64,10 @@ export class WorkAgentRuntime {
       region: this.appConfig.region,
       model: this.appConfig.defaultModel,
     });
+
+    // Initialize Bedrock model catalog
+    this.modelCatalog = new BedrockModelCatalog(this.appConfig.region);
+    this.logger.info('Bedrock model catalog initialized');
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
@@ -407,6 +413,72 @@ export class WorkAgentRuntime {
             }
           });
 
+          // === Bedrock Model Catalog Endpoints ===
+
+          // List all available Bedrock models
+          app.get('/bedrock/models', async (c) => {
+            try {
+              if (!this.modelCatalog) {
+                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
+              }
+              const models = await this.modelCatalog.listModels();
+              return c.json({ success: true, data: models });
+            } catch (error: any) {
+              this.logger.error('Failed to list Bedrock models', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Get pricing for Bedrock models
+          app.get('/bedrock/pricing', async (c) => {
+            try {
+              if (!this.modelCatalog) {
+                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
+              }
+              const region = c.req.query('region') || this.appConfig.region;
+              const pricing = await this.modelCatalog.getModelPricing(region);
+              return c.json({ success: true, data: pricing });
+            } catch (error: any) {
+              this.logger.error('Failed to get Bedrock pricing', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Validate a model ID
+          app.get('/bedrock/models/:modelId/validate', async (c) => {
+            try {
+              if (!this.modelCatalog) {
+                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
+              }
+              const modelId = c.req.param('modelId');
+              const isValid = await this.modelCatalog.validateModelId(modelId);
+              return c.json({ success: true, data: { modelId, isValid } });
+            } catch (error: any) {
+              this.logger.error('Failed to validate model ID', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Get model info
+          app.get('/bedrock/models/:modelId', async (c) => {
+            try {
+              if (!this.modelCatalog) {
+                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
+              }
+              const modelId = c.req.param('modelId');
+              const model = await this.modelCatalog.getModelInfo(modelId);
+              if (!model) {
+                return c.json({ success: false, error: 'Model not found' }, 404);
+              }
+              return c.json({ success: true, data: model });
+            } catch (error: any) {
+              this.logger.error('Failed to get model info', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // === Conversation Endpoints ===
+
           // Get conversations for an agent
           app.get('/agents/:slug/conversations', async (c) => {
             try {
@@ -441,6 +513,57 @@ export class WorkAgentRuntime {
               return c.json({ success: true, data: messages });
             } catch (error: any) {
               this.logger.error('Failed to load messages', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Get conversation statistics
+          app.get('/agents/:slug/conversations/:conversationId/stats', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const conversationId = c.req.param('conversationId');
+              const adapter = this.memoryAdapters.get(slug);
+              
+              if (!adapter) {
+                return c.json({ success: false, error: 'Memory adapter not found' }, 404);
+              }
+
+              const conversation = await adapter.getConversation(conversationId);
+              
+              if (!conversation) {
+                return c.json({ success: false, error: 'Conversation not found' }, 404);
+              }
+
+              const stats = conversation.metadata?.stats || {
+                inputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                turns: 0,
+                toolCalls: 0,
+                estimatedCost: 0,
+              };
+
+              const modelStats = conversation.metadata?.modelStats || {};
+
+              // Calculate context window percentage using actual total tokens
+              const agent = this.activeAgents.get(slug);
+              const spec = await this.configLoader.loadAgent(slug);
+              const modelId = spec.model || this.appConfig.defaultModel;
+              
+              const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, stats.totalTokens);
+
+              return c.json({ 
+                success: true, 
+                data: {
+                  ...stats,
+                  contextWindowPercentage,
+                  conversationId,
+                  modelId,
+                  modelStats,
+                }
+              });
+            } catch (error: any) {
+              this.logger.error('Failed to load conversation stats', { error });
               return c.json({ success: false, error: error.message }, 500);
             }
           });
@@ -785,9 +908,15 @@ export class WorkAgentRuntime {
                 let cachedAgent = this.activeAgents.get(cacheKey);
                 
                 if (!cachedAgent) {
+                  // Get the original agent spec to preserve region and other settings
+                  const originalSpec = this.agentSpecs.get(slug);
+                  
                   const newModel = createBedrockProvider({
                     appConfig: this.appConfig,
-                    agentSpec: { model: modelOverride } as any
+                    agentSpec: { 
+                      model: modelOverride,
+                      region: originalSpec?.region || this.appConfig.region
+                    } as any
                   });
                   
                   cachedAgent = new Agent({
@@ -1019,7 +1148,126 @@ export class WorkAgentRuntime {
           }
         }
       },
+      onEnd: async ({ context, output, agent }) => {
+        // Only track stats for conversations (not silent invocations)
+        if (!context.conversationId || !output) {
+          return;
+        }
+
+        try {
+          const memory = agent.memory;
+          if (!memory) return;
+
+          // Get current conversation
+          const conversation = await memory.getConversation(context.conversationId);
+          if (!conversation) return;
+
+          // Extract usage data
+          const usage = 'usage' in output ? output.usage : undefined;
+          if (!usage) return;
+
+          // Count tool calls from context steps
+          const toolCallCount = context.steps?.reduce((count, step) => {
+            return count + (step.toolInvocations?.length || 0);
+          }, 0) || 0;
+
+          // Get existing stats or initialize
+          const existingStats = conversation.metadata?.stats || {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            turns: 0,
+            toolCalls: 0,
+            estimatedCost: 0,
+          };
+
+          const modelId = spec.model || this.appConfig.defaultModel;
+          const cost = await this.calculateCost(modelId, usage);
+
+          // Update cumulative stats
+          const updatedStats = {
+            inputTokens: existingStats.inputTokens + (usage.promptTokens || 0),
+            outputTokens: existingStats.outputTokens + (usage.completionTokens || 0),
+            totalTokens: existingStats.totalTokens + (usage.totalTokens || 0),
+            turns: existingStats.turns + 1,
+            toolCalls: existingStats.toolCalls + toolCallCount,
+            estimatedCost: existingStats.estimatedCost + cost,
+          };
+
+          // Track per-model stats
+          const modelStats = (conversation.metadata?.modelStats || {}) as Record<string, any>;
+          const currentModelStats = modelStats[modelId] || {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            turns: 0,
+            toolCalls: 0,
+            estimatedCost: 0,
+          };
+
+          modelStats[modelId] = {
+            inputTokens: currentModelStats.inputTokens + (usage.promptTokens || 0),
+            outputTokens: currentModelStats.outputTokens + (usage.completionTokens || 0),
+            totalTokens: currentModelStats.totalTokens + (usage.totalTokens || 0),
+            turns: currentModelStats.turns + 1,
+            toolCalls: currentModelStats.toolCalls + toolCallCount,
+            estimatedCost: currentModelStats.estimatedCost + cost,
+          };
+
+          // Update conversation metadata
+          await memory.updateConversation(context.conversationId, {
+            metadata: {
+              ...conversation.metadata,
+              stats: updatedStats,
+              modelStats,
+            },
+          });
+        } catch (error) {
+          this.logger.error('Failed to update conversation stats', { error });
+        }
+      },
     });
+  }
+
+  /**
+   * Calculate estimated cost based on model and token usage
+   * Uses dynamic pricing from AWS Pricing API
+   */
+  private async calculateCost(modelId: string, usage: { promptTokens?: number; completionTokens?: number }): Promise<number> {
+    const inputTokens = usage.promptTokens || 0;
+    const outputTokens = usage.completionTokens || 0;
+
+    if (!this.modelCatalog) {
+      return 0;
+    }
+
+    try {
+      const pricing = await this.modelCatalog.getModelPricing(this.appConfig.region);
+      const modelPricing = pricing.find(p => 
+        p.modelId === modelId || 
+        modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-'))
+      );
+
+      if (modelPricing) {
+        const inputCost = (inputTokens / 1000) * (modelPricing.inputTokenPrice || 0);
+        const outputCost = (outputTokens / 1000) * (modelPricing.outputTokenPrice || 0);
+        return inputCost + outputCost;
+      }
+    } catch (error) {
+      this.logger.warn('Failed to fetch pricing, using default', { error });
+    }
+
+    // Fallback to default pricing
+    return (inputTokens / 1000) * 0.003 + (outputTokens / 1000) * 0.015;
+  }
+
+  /**
+   * Calculate context window usage percentage
+   * Note: Context window size is not available via API, using 200k default
+   */
+  private calculateContextWindowPercentage(modelId: string, totalTokens: number): number {
+    const maxTokens = 200000; // Default context window
+    return Math.round((totalTokens / maxTokens) * 100 * 100) / 100;
   }
 
   /**
