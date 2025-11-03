@@ -1,40 +1,36 @@
-import type { AgentQuickPrompt, WorkflowMetadata } from '../types';
+import type { WorkspacePrompt } from '../types';
 
 export interface QuickActionsBarProps {
-  prompts?: AgentQuickPrompt[];
-  workflowShortcuts?: string[];
-  onPromptSelect: (prompt: AgentQuickPrompt) => void;
-  onWorkflowSelect: (workflowId: string) => void;
-  workflowMetadata?: WorkflowMetadata[];
+  globalPrompts?: WorkspacePrompt[];
+  localPrompts?: WorkspacePrompt[];
+  onPromptSelect: (prompt: WorkspacePrompt) => void;
 }
 
-const formatWorkflowLabel = (identifier: string) => {
-  if (!identifier.includes('.')) {
-    return identifier.replace(/[-_]/g, ' ');
-  }
-
-  const base = identifier.split('.')[0];
-  return base.replace(/[-_]/g, ' ');
-};
-
 export function QuickActionsBar({
-  prompts,
-  workflowShortcuts,
+  globalPrompts,
+  localPrompts,
   onPromptSelect,
-  onWorkflowSelect,
-  workflowMetadata,
 }: QuickActionsBarProps) {
-  const hasPrompts = (prompts?.length ?? 0) > 0;
-  const hasWorkflowShortcuts = (workflowShortcuts?.length ?? 0) > 0;
-  const workflowLabelMap = new Map((workflowMetadata ?? []).map((item) => [item.id, item.label]));
+  const hasGlobal = (globalPrompts?.length ?? 0) > 0;
+  const hasLocal = (localPrompts?.length ?? 0) > 0;
+
+  if (!hasGlobal && !hasLocal) {
+    return (
+      <div className="quick-actions">
+        <span className="quick-actions__helper">
+          Define prompts in workspace.json to surface them here.
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="quick-actions">
-      <div className="quick-actions__group">
-        <span className="quick-actions__label">Quick Prompts</span>
-        {hasPrompts ? (
+      {hasGlobal && (
+        <div className="quick-actions__group">
+          <span className="quick-actions__label">Global Prompts</span>
           <div className="quick-actions__buttons">
-            {prompts!.map((prompt) => (
+            {globalPrompts!.map((prompt) => (
               <button
                 type="button"
                 key={prompt.id}
@@ -45,23 +41,21 @@ export function QuickActionsBar({
               </button>
             ))}
           </div>
-        ) : (
-          <span className="quick-actions__helper">Define quick prompts in agent.json to surface them here.</span>
-        )}
-      </div>
+        </div>
+      )}
 
-      {hasWorkflowShortcuts && (
+      {hasLocal && (
         <div className="quick-actions__group">
-          <span className="quick-actions__label">Workflows</span>
+          <span className="quick-actions__label">Tab Prompts</span>
           <div className="quick-actions__buttons">
-            {workflowShortcuts!.map((workflow) => (
+            {localPrompts!.map((prompt) => (
               <button
                 type="button"
-                key={workflow}
+                key={prompt.id}
                 className="quick-actions__button quick-actions__button--secondary"
-                onClick={() => onWorkflowSelect(workflow)}
+                onClick={() => onPromptSelect(prompt)}
               >
-                {workflowLabelMap.get(workflow) ?? formatWorkflowLabel(workflow)}
+                {prompt.label}
               </button>
             ))}
           </div>

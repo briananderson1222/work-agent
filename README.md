@@ -98,6 +98,9 @@ The server will be available at:
         sessions/                     # Message NDJSON files
         working/                      # Working memory (optional)
       workflows/                      # VoltAgent workflows (future)
+  workspaces/
+    <workspace-slug>/
+      workspace.json                  # WorkspaceConfig
   workflows/
     states/                           # Workflow suspension states
 
@@ -143,6 +146,49 @@ Create `.work-agent/agents/my-agent/agent.json`:
 ```
 
 The agent will be automatically loaded when you start the server.
+
+## 🖼️ Creating a Workspace
+
+Workspaces define the UI experience and are separate from agents. Create `.work-agent/workspaces/my-workspace/workspace.json`:
+
+```json
+{
+  "name": "My Workspace",
+  "slug": "my-workspace",
+  "icon": "💼",
+  "description": "Custom workspace for my tasks",
+  "tabs": [
+    {
+      "id": "main",
+      "label": "Main",
+      "component": "work-agent-dashboard",
+      "prompts": [
+        {
+          "id": "daily-standup",
+          "label": "Daily Standup",
+          "prompt": "Generate my daily standup update",
+          "agent": "my-agent"
+        }
+      ]
+    }
+  ],
+  "globalPrompts": [
+    {
+      "id": "summarize",
+      "label": "Summarize",
+      "prompt": "Summarize the current context",
+      "agent": "my-agent"
+    }
+  ]
+}
+```
+
+**Key Concepts:**
+- **Agents** define AI behavior (prompts, models, tools)
+- **Workspaces** define UI layout (tabs, components, quick prompts)
+- Multiple workspaces can use the same agent
+- Each prompt can specify which agent to use
+- Workspaces support multiple tabs with different components
 
 ## 🛠️ Adding Tools
 
@@ -550,6 +596,34 @@ npm run cli           # Interactive CLI
 npm run test          # Run tests
 npm run clean         # Remove build artifacts
 ```
+
+## 🔄 Migrating from Agent UI Metadata to Workspaces
+
+If you have existing agents with UI metadata (the old `ui` field in `agent.json`), you can migrate them to the new workspace model:
+
+```bash
+# Run the migration script
+npx tsx scripts/migrate-agents-to-workspaces.ts
+```
+
+The script will:
+1. Create a backup of all modified files in `.work-agent/backup-<timestamp>/`
+2. Scan all agents for UI metadata (`ui.component`, `ui.quickPrompts`, `ui.workflowShortcuts`)
+3. Generate a workspace configuration for each agent with UI metadata
+4. Remove the `ui` field from agent.json files
+
+**Manual Migration:**
+
+If you prefer to migrate manually:
+
+1. Create a workspace directory: `.work-agent/workspaces/my-workspace/`
+2. Create `workspace.json` with tabs and prompts
+3. Reference your agent in prompt definitions: `"agent": "my-agent"`
+4. Remove the `ui` field from your `agent.json`
+
+**Rollback:**
+
+If you need to rollback, restore files from the backup directory created by the migration script.
 
 ## 🏢 Production Deployment
 

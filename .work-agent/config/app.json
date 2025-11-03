@@ -8,5 +8,13 @@
       "type": "static",
       "value": "Work Agent"
     }
-  ]
+  ],
+  "meetingNotifications": {
+    "thresholds": [
+      30,
+      15,
+      10,
+      1
+    ]
+  }
 }

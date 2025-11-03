@@ -137,21 +137,34 @@ export class WorkAgentRuntime {
 
           // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
           app.get('/api/agents', async (c) => {
-            if (!this.voltAgent) {
-              return c.json({ success: false, error: 'VoltAgent not initialized' }, 500);
+            try {
+              if (!this.voltAgent) {
+                return c.json({ success: false, error: 'VoltAgent not initialized' }, 500);
+              }
+              const coreAgents = await this.voltAgent.getAgents();
+              const enrichedAgents = await Promise.all(coreAgents.map(async (agent: any) => {
+                const metadata = this.agentMetadataMap.get(agent.id);
+                if (!metadata) return agent;
+                
+                // Load full agent spec to get prompt, description, icon, commands
+                const spec = await this.configLoader.loadAgent(metadata.slug);
+                
+                return {
+                  ...agent,
+                  slug: metadata.slug,
+                  name: metadata.name,
+                  prompt: spec.prompt,
+                  description: spec.description,
+                  icon: spec.icon,
+                  commands: spec.commands,
+                  updatedAt: metadata.updatedAt,
+                };
+              }));
+              return c.json({ success: true, data: enrichedAgents });
+            } catch (error: any) {
+              this.logger.error('Failed to fetch agents', { error: error.message, stack: error.stack });
+              return c.json({ success: false, error: error.message }, 500);
             }
-            const coreAgents = await this.voltAgent.getAgents();
-            const enrichedAgents = coreAgents.map((agent: any) => {
-              const metadata = this.agentMetadataMap.get(agent.id);
-              return metadata ? {
-                ...agent,
-                slug: metadata.slug,
-                name: metadata.name,
-                updatedAt: metadata.updatedAt,
-                ui: metadata.ui,
-              } : agent;
-            });
-            return c.json({ success: true, data: enrichedAgents });
           });
 
           // === Agent CRUD Endpoints ===
@@ -195,6 +208,15 @@ export class WorkAgentRuntime {
             try {
               const slug = c.req.param('slug');
 
+              // Check if any workspaces reference this agent
+              const dependentWorkspaces = await this.configLoader.getWorkspacesUsingAgent(slug);
+              if (dependentWorkspaces.length > 0) {
+                return c.json({
+                  success: false,
+                  error: `Cannot delete agent '${slug}' - it is referenced by workspaces: ${dependentWorkspaces.join(', ')}`
+                }, 400);
+              }
+
               // Drain agent if active
               if (this.activeAgents.has(slug)) {
                 this.activeAgents.delete(slug);
@@ -213,6 +235,27 @@ export class WorkAgentRuntime {
           });
 
           // === Tool Management Endpoints ===
+
+          // Get Q Developer agents
+          app.get('/q-agents', async (c) => {
+            try {
+              const { readFileSync, existsSync } = await import('fs');
+              const { join } = await import('path');
+              const { homedir } = await import('os');
+              
+              const qAgentsPath = join(homedir(), '.aws', 'amazonq', 'cli-agents.json');
+              
+              if (!existsSync(qAgentsPath)) {
+                return c.json({ success: false, error: 'Q Developer agents file not found', agents: [] });
+              }
+              
+              const agents = JSON.parse(readFileSync(qAgentsPath, 'utf-8'));
+              return c.json({ success: true, agents });
+            } catch (error: any) {
+              this.logger.error('Failed to load Q agents', { error });
+              return c.json({ success: false, error: error.message, agents: [] });
+            }
+          });
 
           // List all tools
           app.get('/tools', async (c) => {
@@ -307,6 +350,68 @@ export class WorkAgentRuntime {
               return c.json({ success: true, data: tools });
             } catch (error: any) {
               this.logger.error('Failed to update aliases', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // === Workspace Management Endpoints ===
+
+          // List all workspaces
+          app.get('/workspaces', async (c) => {
+            try {
+              const workspaces = await this.configLoader.listWorkspaces();
+              return c.json({ success: true, data: workspaces });
+            } catch (error: any) {
+              this.logger.error('Failed to list workspaces', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Get workspace config
+          app.get('/workspaces/:slug', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const workspace = await this.configLoader.loadWorkspace(slug);
+              return c.json({ success: true, data: workspace });
+            } catch (error: any) {
+              this.logger.error('Failed to load workspace', { error });
+              return c.json({ success: false, error: error.message }, 404);
+            }
+          });
+
+          // Create new workspace
+          app.post('/workspaces', async (c) => {
+            try {
+              const config = await c.req.json();
+              await this.configLoader.createWorkspace(config);
+              return c.json({ success: true, data: config }, 201);
+            } catch (error: any) {
+              this.logger.error('Failed to create workspace', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Update workspace
+          app.put('/workspaces/:slug', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const updates = await c.req.json();
+              const updated = await this.configLoader.updateWorkspace(slug, updates);
+              return c.json({ success: true, data: updated });
+            } catch (error: any) {
+              this.logger.error('Failed to update workspace', { error });
+              return c.json({ success: false, error: error.message }, 400);
+            }
+          });
+
+          // Delete workspace
+          app.delete('/workspaces/:slug', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              await this.configLoader.deleteWorkspace(slug);
+              return c.json({ success: true }, 200);
+            } catch (error: any) {
+              this.logger.error('Failed to delete workspace', { error });
               return c.json({ success: false, error: error.message }, 400);
             }
           });

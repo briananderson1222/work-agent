@@ -3,7 +3,7 @@
  */
 
 import Ajv, { type ValidateFunction, type ErrorObject } from 'ajv';
-import type { AgentSpec, ToolDef, AppConfig } from './types.js';
+import type { AgentSpec, ToolDef, AppConfig, WorkspaceConfig } from './types.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -62,6 +62,37 @@ export class SchemaValidator {
    */
   validateToolDef(data: unknown): asserts data is ToolDef {
     this.validate('tool', data);
+  }
+
+  /**
+   * Validate workspace configuration
+   */
+  validateWorkspaceConfig(data: unknown): asserts data is WorkspaceConfig {
+    // Basic structure validation
+    if (!data || typeof data !== 'object') {
+      throw new ValidationError('Workspace config must be an object', []);
+    }
+
+    const config = data as any;
+
+    if (!config.name || typeof config.name !== 'string') {
+      throw new ValidationError('Workspace must have a name', []);
+    }
+
+    if (!config.slug || typeof config.slug !== 'string') {
+      throw new ValidationError('Workspace must have a slug', []);
+    }
+
+    if (!Array.isArray(config.tabs) || config.tabs.length === 0) {
+      throw new ValidationError('Workspace must have at least one tab', []);
+    }
+
+    // Validate tabs
+    for (const tab of config.tabs) {
+      if (!tab.id || !tab.label || !tab.component) {
+        throw new ValidationError('Each tab must have id, label, and component', []);
+      }
+    }
   }
 
   /**
@@ -148,7 +179,7 @@ export class SchemaValidator {
   }
 }
 
-// Singleton instance
+// Singleton instance (updated for commands schema)
 export const validator: SchemaValidator = new SchemaValidator();
 
 /**

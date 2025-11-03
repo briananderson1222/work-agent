@@ -157,7 +157,57 @@ function formatOrganizerName(organizer?: { name: string; email: string }): strin
   return organizer.name;
 }
 
+function detectMeetingProvider(location?: string): { provider: string; url: string } | null {
+  if (!location) return null;
+  
+  const lowerLocation = location.toLowerCase();
+  
+  if (lowerLocation.includes('zoom.us')) {
+    return { provider: 'Zoom', url: location };
+  }
+  if (lowerLocation.includes('teams.microsoft.com') || lowerLocation.includes('teams.live.com')) {
+    return { provider: 'Teams', url: location };
+  }
+  if (lowerLocation.includes('chime.aws')) {
+    return { provider: 'Chime', url: location };
+  }
+  if (lowerLocation.includes('meet.google.com')) {
+    return { provider: 'Google Meet', url: location };
+  }
+  if (lowerLocation.includes('webex.com')) {
+    return { provider: 'Webex', url: location };
+  }
+  
+  return null;
+}
+
 export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat }: AgentWorkspaceProps) {
+  // Load config for notification settings
+  const [notificationConfig, setNotificationConfig] = useState<{ enabled: boolean; thresholds: number[] }>({
+    enabled: true,
+    thresholds: [30, 10, 1]
+  });
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/config/app`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.config?.meetingNotifications) {
+            setNotificationConfig({
+              enabled: data.config.meetingNotifications.enabled !== false,
+              thresholds: data.config.meetingNotifications.thresholds || [30, 10, 1]
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load notification config:', err);
+      }
+    };
+    loadConfig();
+  }, []);
+
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
     const year = date.getFullYear();
@@ -189,6 +239,7 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
   }, []);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialState.eventId);
   const [meetingDetails, setMeetingDetails] = useState<MeetingDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -206,6 +257,64 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
   const [isInitialMount, setIsInitialMount] = useState(true);
   const [contentExpanded, setContentExpanded] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
+  const [hidePastEvents, setHidePastEvents] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
+
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
+
+  // Update current time every minute when viewing today
+  useEffect(() => {
+    if (!isToday) return;
+    
+    const updateTime = () => setCurrentTime(new Date());
+    const msUntilNextMinute = 60000 - (Date.now() % 60000);
+    
+    const timeout = setTimeout(() => {
+      updateTime();
+      const interval = setInterval(updateTime, 60000);
+      return () => clearInterval(interval);
+    }, msUntilNextMinute);
+    
+    return () => clearTimeout(timeout);
+  }, [isToday]);
+
+  // Check for upcoming meeting notifications
+  const upcomingNotification = useMemo(() => {
+    if (isToday || todayEvents.length === 0 || !notificationConfig.enabled) return null;
+    
+    const now = new Date();
+    const upcomingMeeting = todayEvents
+      .filter(e => !e.isAllDay)
+      .find(e => {
+        const start = new Date(e.start);
+        const minutesUntil = Math.round((start.getTime() - now.getTime()) / 60000);
+        return minutesUntil > 0 && minutesUntil <= Math.max(...notificationConfig.thresholds);
+      });
+    
+    if (!upcomingMeeting) return null;
+    
+    const start = new Date(upcomingMeeting.start);
+    const minutesUntil = Math.round((start.getTime() - now.getTime()) / 60000);
+    
+    // Find the appropriate threshold
+    const threshold = notificationConfig.thresholds
+      .sort((a, b) => a - b)
+      .find(t => minutesUntil <= t);
+    
+    if (!threshold) return null;
+    
+    const notificationId = `${upcomingMeeting.meetingId}-${threshold}`;
+    
+    if (dismissedNotifications.has(notificationId)) return null;
+    
+    return {
+      meeting: upcomingMeeting,
+      minutesUntil,
+      threshold,
+      notificationId
+    };
+  }, [isToday, todayEvents, currentTime, dismissedNotifications, notificationConfig]);
 
   // Update URL hash when state changes (skip on initial mount)
   useEffect(() => {
@@ -250,6 +359,10 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
         }
         return e.categories?.some(cat => selectedCategories.has(cat));
       });
+  
+  const visibleEvents = (hidePastEvents && isToday)
+    ? filteredEvents.filter(e => new Date(e.end) > currentTime)
+    : filteredEvents;
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
     const startTime = performance.now();
@@ -275,8 +388,12 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
       if (preserveEventId) {
         setSelectedEventId(preserveEventId);
       } else {
+        // Select active event, or next upcoming event, or first non-all-day, or first event
+        const now = new Date();
+        const activeEvent = cached.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
+        const upcomingEvent = cached.find(e => !e.isAllDay && new Date(e.start) > now);
         const firstNonAllDay = cached.find(e => !e.isAllDay);
-        const eventId = firstNonAllDay?.meetingId || cached[0]?.meetingId;
+        const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || cached[0]?.meetingId;
         setSelectedEventId(eventId);
       }
       
@@ -355,8 +472,12 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
         if (preserveEventId) {
           setSelectedEventId(preserveEventId);
         } else {
+          // Select active event, or next upcoming event, or first non-all-day, or first event
+          const now = new Date();
+          const activeEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
+          const upcomingEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) > now);
           const firstNonAllDay = parsedEvents.find(e => !e.isAllDay);
-          const eventId = firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
+          const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
           setSelectedEventId(eventId);
         }
         
@@ -374,7 +495,62 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
-  // Listen for browser back/forward navigation
+  // Always fetch today's events for notifications
+  useEffect(() => {
+    const fetchTodayEvents = async () => {
+      const today = new Date();
+      const dateStr = formatLocalDate(today);
+      const cacheKey = `sa-calendar-${dateStr}`;
+      
+      const cached = getFromCache<CalendarEvent[]>(cacheKey);
+      if (cached) {
+        setTodayEvents(cached);
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/agents/sa-agent/invoke/transform`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'sat-outlook_calendar_view',
+            toolArgs: { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
+            transform: `(data) => ({
+              events: data.map(e => ({
+                meetingId: e.meetingId,
+                meetingChangeKey: e.meetingChangeKey,
+                subject: e.subject,
+                start: e.start,
+                end: e.end,
+                location: e.location || '',
+                organizer: e.organizer?.name || '',
+                status: e.status,
+                isCanceled: e.isCanceled || false,
+                categories: e.categories || [],
+                isAllDay: e.isAllDay || false
+              }))
+            })`,
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setTodayEvents(data.response.events);
+            setCache(cacheKey, data.response.events);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch today events:', err);
+      }
+    };
+    
+    fetchTodayEvents();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchTodayEvents, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash.slice(1);
@@ -607,6 +783,82 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
 
   return (
     <div className="workspace-dashboard">
+      {upcomingNotification && (
+        <div style={{
+          position: 'fixed',
+          top: '1rem',
+          right: '1rem',
+          zIndex: 1000,
+          background: 'var(--color-bg-secondary)',
+          border: '2px solid var(--color-primary)',
+          borderRadius: '8px',
+          padding: '1rem',
+          maxWidth: '400px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+            <strong style={{ color: 'var(--color-primary)' }}>
+              {upcomingNotification.threshold === 1 ? 'Meeting starting in 1 minute!' :
+               `Meeting in ${upcomingNotification.threshold} minutes`}
+            </strong>
+            <button
+              onClick={() => setDismissedNotifications(prev => new Set(prev).add(upcomingNotification.notificationId))}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                fontSize: '1.2rem',
+                padding: 0,
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <button
+              onClick={() => {
+                setSelectedDate(new Date());
+                setViewMonth(new Date());
+                setTimeout(() => {
+                  setSelectedEventId(upcomingNotification.meeting.meetingId);
+                  fetchMeetingDetails(upcomingNotification.meeting.meetingId);
+                  setSfdcContext(null);
+                }, 100);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                padding: 0,
+                font: 'inherit',
+                textAlign: 'left'
+              }}
+            >
+              {upcomingNotification.meeting.subject}
+            </button>
+          </div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+            {new Date(upcomingNotification.meeting.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            {upcomingNotification.threshold === 1 && upcomingNotification.meeting.location && (
+              <>
+                {' • '}
+                <a
+                  href={upcomingNotification.meeting.location}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                >
+                  Join Meeting
+                </a>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <header className="workspace-dashboard__header">
         <div>
           <h2>SA Workspace</h2>
@@ -629,7 +881,8 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
 
       <div className="workspace-dashboard__content">
         <aside className="workspace-dashboard__calendar">
-          <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'var(--color-bg-secondary)', borderRadius: '4px', maxWidth: '260px' }}>
+          <div style={{ position: 'sticky', top: 0, background: 'var(--color-bg)', paddingBottom: '1rem' }}>
+            <div className="calendar-widget" style={{ padding: '0.75rem', background: 'var(--color-bg-secondary)', borderRadius: '4px', maxWidth: '260px', marginLeft: 'auto', marginRight: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <button 
                 onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))}
@@ -693,6 +946,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
               })()}
             </div>
           </div>
+          </div>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
             {loading && <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>}
             {loading ? 'Loading...' : selectedDate.toDateString() === new Date().toDateString() 
@@ -720,7 +974,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <span>Filter by Category</span>
+                  <span>Filter</span>
                   {selectedCategories.size > 0 && (
                     <button
                       onClick={(e) => {
@@ -742,7 +996,22 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                     </button>
                   )}
                 </div>
-                <span>{filterExpanded ? '▼' : '▶'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {isToday && (
+                    <label 
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 400 }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={hidePastEvents} 
+                        onChange={(e) => setHidePastEvents(e.target.checked)}
+                      />
+                      Hide past
+                    </label>
+                  )}
+                  <span>{filterExpanded ? '▼' : '▶'}</span>
+                </div>
               </div>
               
               {!filterExpanded && selectedCategories.size > 0 && (
@@ -816,19 +1085,23 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
             <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
               <p>{selectedCategories.size === 0 ? 'No events for this date' : 'No events match selected categories'}</p>
             </div>
+          ) : visibleEvents.length === 0 ? (
+            <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+              <p>No upcoming events</p>
+            </div>
           ) : (
             <>
-              {filteredEvents.filter(e => e.isAllDay).length > 0 && (
+              {visibleEvents.filter(e => e.isAllDay).length > 0 && (
                 <details 
                   open={allDayExpanded} 
                   onToggle={(e) => setAllDayExpanded((e.target as HTMLDetailsElement).open)}
                   style={{ marginBottom: '1rem', border: '1px solid var(--color-border)', borderRadius: '4px', padding: '0.5rem' }}
                 >
                   <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-                    All-Day Events ({filteredEvents.filter(e => e.isAllDay).length})
+                    All-Day Events ({visibleEvents.filter(e => e.isAllDay).length})
                   </summary>
                   <ul style={{ marginTop: '0.5rem' }}>
-                    {filteredEvents.filter(e => e.isAllDay).map((event) => (
+                    {visibleEvents.filter(e => e.isAllDay).map((event) => (
                       <li
                         key={event.meetingId}
                         data-event-id={event.meetingId}
@@ -863,60 +1136,293 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                 </details>
               )}
               
-              {filteredEvents.filter(e => !e.isAllDay).length > 0 && (
+              {visibleEvents.filter(e => !e.isAllDay).length > 0 && (
                 <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                  Events ({filteredEvents.filter(e => !e.isAllDay).length})
+                  Events ({visibleEvents.filter(e => !e.isAllDay).length})
                 </div>
               )}
               
               <ul>
-                {filteredEvents.filter(e => !e.isAllDay).map((event) => (
-                <li
-                  key={event.meetingId}
-                  data-event-id={event.meetingId}
-                  className={`workspace-dashboard__calendar-item ${event.meetingId === selectedEventId ? 'is-active' : ''}`}
-                >
-                  <button type="button" onClick={() => {
-                      setSelectedEventId(event.meetingId);
-                      fetchMeetingDetails(event.meetingId);
-                      setSfdcContext(null); // Clear SFDC context when switching meetings
-                    }}>
-                      <span className="workspace-dashboard__time">
-                        {new Date(event.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        {' - '}
-                        {new Date(event.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                      <span className="workspace-dashboard__title">{event.subject}</span>
-                      {event.categories && event.categories.length > 0 && (
-                        <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-                          {event.categories.map(cat => (
-                            <span key={cat} style={{
-                              fontSize: '0.7rem',
-                              padding: '2px 6px',
-                              borderRadius: '8px',
-                              background: 'var(--color-bg)',
-                              border: '1px solid var(--color-border)',
-                              color: 'var(--color-text-secondary)'
-                            }}>
-                              {cat}
-                            </span>
-                          ))}
+                {(() => {
+                  const nonAllDayEvents = visibleEvents.filter(e => !e.isAllDay);
+                  const result: JSX.Element[] = [];
+                  let activeGroup: JSX.Element[] = [];
+                  let showedIndicator = false;
+                  
+                  nonAllDayEvents.forEach((event, idx) => {
+                    const eventStart = new Date(event.start);
+                    const eventEnd = new Date(event.end);
+                    const prevEvent = idx > 0 ? nonAllDayEvents[idx - 1] : null;
+                    const prevEventEnd = prevEvent ? new Date(prevEvent.end) : null;
+                    
+                    const isActiveEvent = currentTime >= eventStart && currentTime < eventEnd;
+                    const isPrevActive = prevEvent && currentTime >= new Date(prevEvent.start) && currentTime < new Date(prevEvent.end);
+                    
+                    const showTimeLineBefore = isToday && !showedIndicator && (
+                      (idx === 0 && currentTime < eventStart) || // Before first event
+                      (prevEventEnd && currentTime > prevEventEnd && currentTime < eventStart) || // Between events
+                      isActiveEvent // Before first active event only
+                    );
+                    
+                    if (showTimeLineBefore) {
+                      showedIndicator = true;
+                      
+                      let indicatorText = '';
+                      let nextMeetingLink: JSX.Element | null = null;
+                      let joinButton: JSX.Element | null = null;
+                      
+                      if (isActiveEvent) {
+                        const meetingProvider = detectMeetingProvider(event.location);
+                        
+                        indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - `;
+                        
+                        nextMeetingLink = (
+                          <button
+                            onClick={() => {
+                              setSelectedEventId(event.meetingId);
+                              fetchMeetingDetails(event.meetingId);
+                              setSfdcContext(null);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--color-primary)',
+                              textDecoration: 'underline',
+                              cursor: 'pointer',
+                              padding: 0,
+                              font: 'inherit'
+                            }}
+                          >
+                            {event.subject}
+                          </button>
+                        );
+                        
+                        if (meetingProvider) {
+                          joinButton = (
+                            <>
+                              {' in progress • '}
+                              <a
+                                href={meetingProvider.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: 'var(--color-primary)',
+                                  textDecoration: 'underline',
+                                  fontWeight: 600
+                                }}
+                              >
+                                Join Now
+                              </a>
+                            </>
+                          );
+                        } else {
+                          joinButton = <span> in progress</span>;
+                        }
+                      } else {
+                        // Find next meeting (could be filtered out)
+                        const allNonAllDay = events.filter(e => !e.isAllDay);
+                        const nextMeeting = allNonAllDay.find(e => new Date(e.start) > currentTime);
+                        
+                        if (nextMeeting) {
+                          const nextStart = new Date(nextMeeting.start);
+                          const minutesUntil = Math.round((nextStart.getTime() - currentTime.getTime()) / 60000);
+                          const hoursUntil = Math.floor(minutesUntil / 60);
+                          const remainingMinutes = minutesUntil % 60;
+                          
+                          let timeText = '';
+                          if (hoursUntil > 0) {
+                            timeText = `${hoursUntil}h ${remainingMinutes}m`;
+                          } else {
+                            timeText = `${minutesUntil}m`;
+                          }
+                          
+                          const isFiltered = !visibleEvents.some(e => e.meetingId === nextMeeting.meetingId);
+                          
+                          nextMeetingLink = (
+                            <button
+                              onClick={() => {
+                                if (isFiltered) {
+                                  setSelectedCategories(new Set());
+                                  setHidePastEvents(false);
+                                }
+                                setSelectedEventId(nextMeeting.meetingId);
+                                fetchMeetingDetails(nextMeeting.meetingId);
+                                setSfdcContext(null);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--color-primary)',
+                                textDecoration: 'underline',
+                                cursor: 'pointer',
+                                padding: 0,
+                                font: 'inherit'
+                              }}
+                            >
+                              {nextMeeting.subject}
+                            </button>
+                          );
+                          
+                          indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${timeText} until next meeting: `;
+                        } else {
+                          indicatorText = `Now - ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+                        }
+                      }
+                      
+                      result.push(
+                        <div key={`indicator-${event.meetingId}`} className="time-indicator" style={{ 
+                          margin: '0.5rem 0 0',
+                          padding: '0.125rem 0.5rem 0',
+                          borderTop: '2px dotted var(--color-primary)',
+                          fontSize: '0.75rem',
+                          color: 'var(--color-primary)',
+                          fontWeight: 600
+                        }}>
+                          {indicatorText}{nextMeetingLink}{joinButton}
                         </div>
-                      )}
-                    </button>
-                  </li>
-                ))}
+                      );
+                    }
+                    
+                    const isSelected = event.meetingId === selectedEventId;
+                    
+                    const eventItem = (
+                      <li
+                        key={event.meetingId}
+                        data-event-id={event.meetingId}
+                        className={`workspace-dashboard__calendar-item ${isSelected ? 'is-active' : ''}`}
+                        style={isActiveEvent ? { marginBottom: '0.5rem' } : undefined}
+                      >
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setSelectedEventId(event.meetingId);
+                            fetchMeetingDetails(event.meetingId);
+                            setSfdcContext(null);
+                          }}
+                          style={isSelected ? {
+                            backgroundColor: 'var(--accent-light)',
+                            border: '2px solid var(--color-accent)',
+                            borderRadius: '4px'
+                          } : undefined}
+                        >
+                          <span className="workspace-dashboard__time">
+                            {new Date(event.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                            {' - '}
+                            {new Date(event.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          </span>
+                          <span className="workspace-dashboard__title">{event.subject}</span>
+                          {event.categories && event.categories.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                              {event.categories.map(cat => (
+                                <span key={cat} style={{
+                                  fontSize: '0.7rem',
+                                  padding: '2px 6px',
+                                  borderRadius: '8px',
+                                  background: 'var(--color-bg)',
+                                  border: '1px solid var(--color-border)',
+                                  color: 'var(--color-text-secondary)'
+                                }}>
+                                  {cat}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </button>
+                      </li>
+                    );
+                    
+                    if (isActiveEvent) {
+                      activeGroup.push(eventItem);
+                    } else {
+                      // If we have accumulated active events, close the group first
+                      if (activeGroup.length > 0) {
+                        result.push(
+                          <div key={`active-group-${activeGroup[0].key}`} className="active-events-group" style={{ border: '2px solid var(--color-primary)', borderRadius: '4px', padding: '0.5rem 0.25rem 0' }}>
+                            {activeGroup}
+                          </div>
+                        );
+                        activeGroup = [];
+                      }
+                      result.push(eventItem);
+                    }
+                  });
+                  
+                  // Close any remaining active group
+                  if (activeGroup.length > 0) {
+                    result.push(
+                      <div key={`active-group-final`} className="active-events-group" style={{ border: '2px solid var(--color-primary)', borderRadius: '4px', padding: '0.5rem 0.25rem 0' }}>
+                        {activeGroup}
+                      </div>
+                    );
+                  }
+                  
+                  return result;
+                })()}
+                {isToday && visibleEvents.filter(e => !e.isAllDay).length > 0 && 
+                 currentTime > new Date(visibleEvents.filter(e => !e.isAllDay)[visibleEvents.filter(e => !e.isAllDay).length - 1].end) && (
+                  <div style={{ 
+                    margin: '0.5rem 0',
+                    padding: '0.25rem 0.5rem',
+                    borderTop: '2px dotted var(--color-primary)',
+                    fontSize: '0.75rem',
+                    color: 'var(--color-primary)',
+                    fontWeight: 600
+                  }}>
+                    Now - {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </div>
+                )}
               </ul>
             </>
           )}
           </aside>
 
           <section className="workspace-dashboard__details">
-              {selectedEvent && (
+              {selectedEvent && (() => {
+                const meetingProvider = detectMeetingProvider(meetingDetails?.location);
+                
+                return (
                 <div className="workspace-dashboard__card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem', gap: '1rem' }}>
-                    <h3>{selectedEvent.subject}</h3>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
+                    <div>
+                      <h3 style={{ minWidth: 'fit-content', marginBottom: '0.5rem' }}>{selectedEvent.subject}</h3>
+                      {meetingDetails?.organizer && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                          <span>
+                            Organized by{' '}
+                            <a href={`mailto:${meetingDetails.organizer}`} style={{ color: 'var(--color-primary)' }}>
+                              {meetingDetails.organizer}
+                            </a>
+                          </span>
+                          {meetingProvider && (
+                            <a
+                              href={meetingProvider.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.25rem 0.5rem',
+                                background: 'var(--color-primary)',
+                                color: 'var(--color-bg)',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                cursor: 'pointer',
+                                transition: 'opacity 0.2s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                            >
+                              Join {meetingProvider.provider} →
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {meetingDetails?.attendees && meetingDetails.attendees.length > 0 && (
                         <>
                           <a
@@ -976,6 +1482,8 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                           </button>
                         </>
                       )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {new Date(selectedEvent.end) < new Date() && (
                         <button 
                           onClick={() => {
@@ -1008,26 +1516,6 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                       <div style={{ display: 'grid', gridTemplateColumns: sfdcContext ? '3fr 1fr' : '1fr', gap: '1.5rem', marginBottom: '1rem' }}>
                         <div>
                         <p><strong>Time:</strong> {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}</p>
-                        {meetingDetails.location && (
-                          <p>
-                            <strong>Location:</strong>{' '}
-                            {meetingDetails.location.startsWith('http') ? (
-                              <a href={meetingDetails.location} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)' }}>
-                                {meetingDetails.location}
-                              </a>
-                            ) : (
-                              meetingDetails.location
-                            )}
-                          </p>
-                        )}
-                        {meetingDetails.organizer && (
-                          <p>
-                            <strong>Organizer:</strong>{' '}
-                            <a href={`mailto:${meetingDetails.organizer}`} style={{ color: 'var(--color-primary)' }}>
-                              {meetingDetails.organizer}
-                            </a>
-                          </p>
-                        )}
                         {selectedEvent.categories && selectedEvent.categories.length > 0 && (
                           <p><strong>Categories:</strong> {selectedEvent.categories.join(', ')}</p>
                         )}
@@ -1165,9 +1653,8 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
 
                         {sfdcContext && (
                           <div style={{ position: 'sticky', top: '1rem', alignSelf: 'start' }}>
-                            {sfdcContext ? (
-                              <>
-                                <h4 style={{ marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--color-border)' }}>Salesforce Intelligence</h4>
+                            <>
+                              <h4 style={{ marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--color-border)' }}>Salesforce Intelligence</h4>
                                 
                   {sfdcContext.accounts && sfdcContext.accounts.length > 0 && (
                         <details open style={{ marginTop: '0.5rem' }}>
@@ -1462,10 +1949,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                         </details>
                       )}
 
-                              </>
-                            ) : (
-                              <p style={{ fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>No CRM data loaded.</p>
-                            )}
+                            </>
                           </div>
                         )}
                       </div>
@@ -1476,7 +1960,8 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                     </div>
                   )}
                 </div>
-              )}
+              );
+              })()}
             </section>
       </div>
     </div>

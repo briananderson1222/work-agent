@@ -13,6 +13,8 @@ import type {
   AgentMetadata,
   ToolMetadata,
   WorkflowMetadata,
+  WorkspaceConfig,
+  WorkspaceMetadata,
 } from './types.js';
 import { validator } from './validator.js';
 
@@ -220,8 +222,11 @@ export class ConfigLoader {
           ui: spec.ui,
           workflowWarnings: workflowWarnings.length > 0 ? workflowWarnings : undefined
         });
-      } catch (error) {
-        console.error(`Failed to load agent '${entry.name}':`, error);
+      } catch (error: any) {
+        console.error(`Failed to load agent '${entry.name}':`, error.message || error);
+        if (error.name === 'ValidationError') {
+          console.error(`  Validation errors:`, JSON.stringify(error.errors, null, 2));
+        }
       }
     }
 
@@ -415,10 +420,164 @@ export class ConfigLoader {
   }
 
   /**
+   * Load workspace configuration
+   */
+  async loadWorkspace(slug: string): Promise<WorkspaceConfig> {
+    const path = join(this.workAgentDir, 'workspaces', slug, 'workspace.json');
+
+    if (!existsSync(path)) {
+      throw new Error(`Workspace '${slug}' not found at ${path}`);
+    }
+
+    const content = await readFile(path, 'utf-8');
+    const data = JSON.parse(content);
+    validator.validateWorkspaceConfig(data);
+    
+    // Validate agent references
+    for (const prompt of data.globalPrompts || []) {
+      if (prompt.agent && !(await this.agentExists(prompt.agent))) {
+        throw new Error(`Workspace '${slug}' references non-existent agent '${prompt.agent}'`);
+      }
+    }
+    for (const tab of data.tabs || []) {
+      for (const prompt of tab.prompts || []) {
+        if (prompt.agent && !(await this.agentExists(prompt.agent))) {
+          throw new Error(`Workspace '${slug}' tab '${tab.id}' references non-existent agent '${prompt.agent}'`);
+        }
+      }
+    }
+    
+    return data;
+  }
+
+  /**
+   * List all workspaces
+   */
+  async listWorkspaces(): Promise<WorkspaceMetadata[]> {
+    const workspacesDir = join(this.workAgentDir, 'workspaces');
+
+    if (!existsSync(workspacesDir)) {
+      return [];
+    }
+
+    const entries = await readdir(workspacesDir, { withFileTypes: true });
+    const workspaces: WorkspaceMetadata[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const workspacePath = join(workspacesDir, entry.name, 'workspace.json');
+      if (!existsSync(workspacePath)) continue;
+
+      try {
+        const config = await this.loadWorkspace(entry.name);
+        workspaces.push({
+          slug: config.slug,
+          name: config.name,
+          icon: config.icon,
+          description: config.description,
+          tabCount: config.tabs.length
+        });
+      } catch (error) {
+        console.error(`Failed to load workspace '${entry.name}':`, error);
+      }
+    }
+
+    return workspaces.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Create a new workspace
+   */
+  async createWorkspace(config: WorkspaceConfig): Promise<void> {
+    validator.validateWorkspaceConfig(config);
+
+    if (await this.workspaceExists(config.slug)) {
+      throw new Error(`Workspace with slug '${config.slug}' already exists`);
+    }
+
+    await this.saveWorkspace(config.slug, config);
+  }
+
+  /**
+   * Update an existing workspace
+   */
+  async updateWorkspace(slug: string, updates: Partial<WorkspaceConfig>): Promise<WorkspaceConfig> {
+    const existing = await this.loadWorkspace(slug);
+    const updated = { ...existing, ...updates };
+    await this.saveWorkspace(slug, updated);
+    return updated;
+  }
+
+  /**
+   * Delete a workspace
+   */
+  async deleteWorkspace(slug: string): Promise<void> {
+    const workspaceDir = join(this.workAgentDir, 'workspaces', slug);
+
+    if (!existsSync(workspaceDir)) {
+      throw new Error(`Workspace '${slug}' not found`);
+    }
+
+    await rm(workspaceDir, { recursive: true, force: true });
+  }
+
+  /**
+   * Save workspace configuration
+   */
+  async saveWorkspace(slug: string, config: WorkspaceConfig): Promise<void> {
+    validator.validateWorkspaceConfig(config);
+
+    const workspaceDir = join(this.workAgentDir, 'workspaces', slug);
+    await mkdir(workspaceDir, { recursive: true });
+
+    const path = join(workspaceDir, 'workspace.json');
+    await writeFile(path, JSON.stringify(config, null, 2), 'utf-8');
+  }
+
+  /**
+   * Get all workspaces that reference a specific agent
+   */
+  async getWorkspacesUsingAgent(agentSlug: string): Promise<string[]> {
+    const workspaces = await this.listWorkspaces();
+    const using: string[] = [];
+
+    for (const ws of workspaces) {
+      try {
+        const config = await this.loadWorkspace(ws.slug);
+        
+        // Check global prompts
+        const hasGlobalRef = config.globalPrompts?.some(p => p.agent === agentSlug);
+        
+        // Check tab prompts
+        const hasTabRef = config.tabs.some(tab => 
+          tab.prompts?.some(p => p.agent === agentSlug)
+        );
+
+        if (hasGlobalRef || hasTabRef) {
+          using.push(ws.slug);
+        }
+      } catch (error) {
+        console.error(`Error checking workspace ${ws.slug}:`, error);
+      }
+    }
+
+    return using;
+  }
+
+  /**
    * Check if agent exists
    */
   async agentExists(slug: string): Promise<boolean> {
     const path = join(this.workAgentDir, 'agents', slug, 'agent.json');
+    return existsSync(path);
+  }
+
+  /**
+   * Check if workspace exists
+   */
+  async workspaceExists(slug: string): Promise<boolean> {
+    const path = join(this.workAgentDir, 'workspaces', slug, 'workspace.json');
     return existsSync(path);
   }
 

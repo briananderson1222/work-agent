@@ -170,3 +170,38 @@ export interface ConversationStats {
   toolCalls: number;
   estimatedCost: number; // USD
 }
+
+/**
+ * Workspace configuration defining UI layout and prompts
+ */
+export interface WorkspaceConfig {
+  name: string;
+  slug: string;
+  icon?: string;
+  description?: string;
+  tabs: WorkspaceTab[];
+  globalPrompts?: WorkspacePrompt[];
+}
+
+export interface WorkspaceTab {
+  id: string;
+  label: string;
+  component: string;
+  icon?: string;
+  prompts?: WorkspacePrompt[];
+}
+
+export interface WorkspacePrompt {
+  id: string;
+  label: string;
+  prompt: string;
+  agent?: string; // optional agent slug
+}
+
+export interface WorkspaceMetadata {
+  slug: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  tabCount: number;
+}

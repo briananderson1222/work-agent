@@ -16,10 +16,11 @@
   
   --accent-primary: #4a9eff;
   --accent-hover: rgba(74, 158, 255, 0.1);
+  --accent-yellow: #c9a854;
   
   --error-bg: #402323;
   --error-border: #5a2e2e;
-  --error-text: #f0b7b7;
+  --error-text: #ff6b6b;
   
   --success-bg: #234023;
   --success-border: #2e5a2e;
@@ -35,6 +36,7 @@
   --color-text-secondary: var(--text-secondary);
   --color-border: var(--border-primary);
   --color-primary: var(--accent-primary);
+  --color-accent: var(--accent-yellow);
   --color-error: var(--error-text);
 }
 
@@ -55,10 +57,13 @@
   
   --accent-primary: #0066cc;
   --accent-hover: rgba(0, 102, 204, 0.1);
+  --accent-darker: #0052a3;
+  --accent-yellow: #ca8a04;
   
   --error-bg: #fff5f5;
   --error-border: #ffcccc;
   --error-text: #cc0000;
+  --error-dark: #990000;
   
   --success-bg: #f0fff0;
   --success-border: #ccffcc;
@@ -74,6 +79,7 @@
   --color-text-secondary: var(--text-secondary);
   --color-border: var(--border-primary);
   --color-primary: var(--accent-primary);
+  --color-accent: var(--accent-yellow);
   --color-error: var(--error-text);
 }
   
@@ -87,7 +93,7 @@
   --bg-selected: #2f2f2f;
   --bg-highlight: #3a3a3a;
   
-  --accent-light: rgba(74, 158, 255, 0.12);
+  --accent-light: rgba(74, 158, 255, 0.25);
   --accent-medium: rgba(74, 158, 255, 0.15);
   --accent-strong: rgba(74, 158, 255, 0.3);
   
@@ -150,7 +156,7 @@
   --bg-selected: #d0d0d0;
   --bg-highlight: #c5c5c5;
   
-  --accent-light: rgba(0, 82, 163, 0.08);
+  --accent-light: rgba(0, 82, 163, 0.2);
   --accent-medium: rgba(0, 82, 163, 0.12);
   --accent-strong: rgba(0, 82, 163, 0.2);
   
@@ -609,7 +615,11 @@ body {
   background: var(--bg-secondary);
   border-top: 2px solid var(--accent-primary);
   box-shadow: var(--shadow-md);
-  transition: transform 0.3s ease;
+  transition: height 0.2s ease-in-out, transform 0.3s ease;
+}
+
+.chat-dock.is-dragging {
+  transition: none;
 }
 
 .chat-dock.is-collapsed {

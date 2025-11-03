@@ -4,17 +4,20 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentSelector } from './components/AgentSelector';
-import { QuickActionsBar } from './components/QuickActionsBar';
-import { ThemeToggle } from './components/ThemeToggle';
+import { Header } from './components/Header';
+import { AgentSelectorModal } from './components/AgentSelectorModal';
 import { PinDialog } from './components/PinDialog';
 import { ConversationStats, ContextPercentage } from './components/ConversationStats';
+import { useAppData } from './contexts/AppDataContext';
 import { WorkspaceRenderer } from './workspaces';
 import { AgentEditorView } from './views/AgentEditorView';
+import { WorkspaceEditorView } from './views/WorkspaceEditorView';
 import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { SettingsView } from './views/SettingsView';
 import { useAwsAuth } from './hooks/useAwsAuth';
 import { setAuthCallback, apiRequest } from './lib/apiClient';
+import { getAgentIcon } from './utils/workspace';
 import type {
   AgentSummary,
   AgentQuickPrompt,
@@ -95,12 +98,20 @@ function ToolCallDisplay({ toolCall }: { toolCall: { id: string; name: string; a
 }
 
 function App() {
+  const { models: availableModels } = useAppData();
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(() => {
     const path = window.location.pathname;
     const match = path.match(/^\/agent\/([^/]+)/);
     return match ? match[1] : null;
   });
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<any | null>(null);
+  const [activeTabId, setActiveTabId] = useState<string>('');
+  const [agentSelectorModal, setAgentSelectorModal] = useState<{
+    show: boolean;
+    onSelect: (slug: string) => void;
+  } | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -129,26 +140,63 @@ function App() {
   const [activeAbortController, setActiveAbortController] = useState<AbortController | null>(null);
   const { authenticate, isAuthenticating, error: authError } = useAwsAuth();
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
-    const path = window.location.pathname;
+    const hash = window.location.hash.slice(1); // Remove #
     
-    if (path === '/settings') return { type: 'settings' };
-    if (path === '/agents/new') return { type: 'agent-new' };
-    if (path.startsWith('/agents/') && path.endsWith('/edit')) {
-      const slug = path.split('/')[2];
+    if (hash === '/settings') return { type: 'settings' };
+    if (hash === '/agents/new') return { type: 'agent-new' };
+    if (hash.startsWith('/agents/') && hash.endsWith('/edit')) {
+      const slug = hash.split('/')[2];
       return { type: 'agent-edit', slug };
     }
-    if (path.startsWith('/agents/') && path.endsWith('/tools')) {
-      const slug = path.split('/')[2];
+    if (hash.startsWith('/agents/') && hash.endsWith('/tools')) {
+      const slug = hash.split('/')[2];
       return { type: 'tools', slug };
     }
-    if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
-      const slug = path.split('/')[2];
+    if (hash.startsWith('/agents/') && hash.endsWith('/workflows')) {
+      const slug = hash.split('/')[2];
       return { type: 'workflows', slug };
+    }
+    if (hash === '/workspaces/new') return { type: 'workspace-new' };
+    if (hash.startsWith('/workspaces/') && hash.endsWith('/edit')) {
+      const slug = hash.split('/')[2];
+      return { type: 'workspace-edit', slug };
     }
     
     return { type: 'workspace' };
   });
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
+
+  // Listen for hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      
+      if (hash === '/settings') {
+        setCurrentView({ type: 'settings' });
+      } else if (hash === '/agents/new') {
+        setCurrentView({ type: 'agent-new' });
+      } else if (hash.startsWith('/agents/') && hash.endsWith('/edit')) {
+        const slug = hash.split('/')[2];
+        setCurrentView({ type: 'agent-edit', slug });
+      } else if (hash.startsWith('/agents/') && hash.endsWith('/tools')) {
+        const slug = hash.split('/')[2];
+        setCurrentView({ type: 'tools', slug });
+      } else if (hash.startsWith('/agents/') && hash.endsWith('/workflows')) {
+        const slug = hash.split('/')[2];
+        setCurrentView({ type: 'workflows', slug });
+      } else if (hash === '/workspaces/new') {
+        setCurrentView({ type: 'workspace-new' });
+      } else if (hash.startsWith('/workspaces/') && hash.endsWith('/edit')) {
+        const slug = hash.split('/')[2];
+        setCurrentView({ type: 'workspace-edit', slug });
+      } else if (!hash || hash === '/') {
+        setCurrentView({ type: 'workspace' });
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
   const [pendingPromptSend, setPendingPromptSend] = useState<{ sessionId: string; prompt: string } | null>(null);
   const [loadedAgents, setLoadedAgents] = useState<Set<string>>(new Set());
   const [messageQueue, setMessageQueue] = useState<Map<string, string[]>>(new Map());
@@ -197,56 +245,8 @@ function App() {
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [modelSelectorDismissed, setModelSelectorDismissed] = useState(false);
-  const [availableModels, setAvailableModels] = useState<{ id: string; name: string }[]>([]);
 
-  // Fetch available models from Bedrock API
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/bedrock/models`);
-        const data = await response.json();
-        if (data.success) {
-          const models = data.data
-            .filter((m: any) => m.outputModalities.includes('TEXT'))
-            .map((m: any) => {
-              // If model only supports INFERENCE_PROFILE, add 'us.' prefix
-              const needsPrefix = m.inferenceTypesSupported?.length === 1 && 
-                                  m.inferenceTypesSupported[0] === 'INFERENCE_PROFILE';
-              return {
-                id: needsPrefix ? `us.${m.modelId}` : m.modelId,
-                name: m.modelName || m.modelId,
-                originalId: m.modelId,
-              };
-            });
-          
-          // Add suffix to duplicate names
-          const nameCounts = new Map<string, number>();
-          models.forEach((m: any) => {
-            nameCounts.set(m.name, (nameCounts.get(m.name) || 0) + 1);
-          });
-          
-          models.forEach((m: any) => {
-            if (nameCounts.get(m.name)! > 1) {
-              // Extract suffix after last colon (e.g., "28k", "200k")
-              const parts = m.originalId.split(':');
-              const suffix = parts[parts.length - 1];
-              if (suffix && suffix !== '0' && isNaN(Number(suffix))) {
-                m.name = `${m.name} (${suffix})`;
-              }
-            }
-          });
-          
-          models.sort((a: any, b: any) => a.name.localeCompare(b.name));
-          setAvailableModels(models);
-        }
-      } catch (error) {
-        console.error('Failed to fetch models:', error);
-        // Fallback to empty array
-        setAvailableModels([]);
-      }
-    };
-    fetchModels();
-  }, []);
+  // Models are now provided by AppDataContext
 
   // Re-open model selector if input starts with /model 
   useEffect(() => {
@@ -260,18 +260,35 @@ function App() {
     }
   }, [sessions, activeSessionId, showModelSelector, modelSelectorDismissed]);
 
-  const slashCommands = [
-    { cmd: '/mcp', description: 'List MCP servers for this agent' },
-    { cmd: '/tools', description: 'Show available tools and auto-approved list' },
-    { cmd: '/model', description: 'List and select model for this conversation' },
-    { cmd: '/clear', aliases: ['/new'], description: 'Clear conversation and start fresh' },
-    { cmd: '/stats', description: 'Show conversation statistics' },
-  ];
-
   const currentAgent = useMemo(
     () => agents.find((agent) => agent.slug === selectedAgent) ?? null,
     [agents, selectedAgent]
   );
+
+  const slashCommands = useMemo(() => {
+    const baseCommands = [
+      { cmd: '/mcp', description: 'List MCP servers for this agent' },
+      { cmd: '/tools', description: 'Show available tools and auto-approved list' },
+      { cmd: '/model', description: 'List and select model for this conversation' },
+      { cmd: '/prompts', description: 'List custom slash commands for this agent' },
+      { cmd: '/clear', aliases: ['/new'], description: 'Clear conversation and start fresh' },
+      { cmd: '/stats', description: 'Show conversation statistics' },
+    ];
+
+    // Add custom agent commands
+    console.log('Building slash commands, currentAgent:', currentAgent?.slug, 'commands:', currentAgent?.commands);
+    if (currentAgent?.commands) {
+      const customCommands = Object.values(currentAgent.commands).map((cmd: any) => ({
+        cmd: `/${cmd.name}`,
+        description: cmd.description || 'Custom command',
+      }));
+      console.log('Adding custom commands:', customCommands);
+      return [...baseCommands, ...customCommands];
+    }
+
+    return baseCommands;
+  }, [currentAgent]);
+
   const quickPrompts = currentAgent?.ui?.quickPrompts;
   const workflowShortcuts = currentAgent?.ui?.workflowShortcuts;
   const activeSession = activeSessionId
@@ -321,24 +338,27 @@ function App() {
     if (!isDockCollapsed) params.set('dock', 'open');
     if (isDockMaximized) params.set('maximize', 'true');
     
-    let path = '/';
+    let hash = '';
     
-    if (currentView.type === 'workspace' && selectedAgent) {
-      path = `/agent/${selectedAgent}`;
-    } else if (currentView.type === 'settings') {
-      path = '/settings';
+    if (currentView.type === 'settings') {
+      hash = '/settings';
     } else if (currentView.type === 'agent-new') {
-      path = '/agents/new';
+      hash = '/agents/new';
     } else if (currentView.type === 'agent-edit') {
-      path = `/agents/${currentView.slug}/edit`;
+      hash = `/agents/${currentView.slug}/edit`;
+    } else if (currentView.type === 'workspace-new') {
+      hash = '/workspaces/new';
+    } else if (currentView.type === 'workspace-edit') {
+      hash = `/workspaces/${currentView.slug}/edit`;
     } else if (currentView.type === 'tools') {
-      path = `/agents/${currentView.slug}/tools`;
+      hash = `/agents/${currentView.slug}/tools`;
     } else if (currentView.type === 'workflows') {
-      path = `/agents/${currentView.slug}/workflows`;
+      hash = `/agents/${currentView.slug}/workflows`;
     }
     
     const query = params.toString();
-    const url = query ? `${path}?${query}` : path;
+    const path = currentView.type === 'workspace' && selectedAgent ? `/agent/${selectedAgent}` : '/';
+    const url = query ? `${path}?${query}${hash ? '#' + hash : ''}` : `${path}${hash ? '#' + hash : ''}`;
     
     window.history.replaceState({}, '', url);
   }, [selectedAgent, activeSessionId, isDockCollapsed, isDockMaximized, currentView]);
@@ -366,6 +386,7 @@ function App() {
 
   useEffect(() => {
     fetchAgents();
+    fetchWorkspaces();
   }, []);
 
   useEffect(() => {
@@ -446,20 +467,49 @@ function App() {
   // Keyboard shortcuts for chat dock
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      // Cmd/Ctrl + N: New chat
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+      // Cmd/Ctrl + T: New chat
+      if ((e.metaKey || e.ctrlKey) && e.key === 't') {
         e.preventDefault();
-        setShowNewChatModal(true);
-        setNewChatSearch('');
-        setNewChatSelectedIndex(0);
+        if (agents.length === 1) {
+          openChatForAgent(agents[0]);
+        } else {
+          setShowNewChatModal(true);
+          setNewChatSearch('');
+          setNewChatSelectedIndex(0);
+        }
       }
-      // Cmd/Ctrl + S: Toggle stats
-      else if ((e.metaKey || e.ctrlKey) && e.key === 's' && activeSessionId) {
+      // Cmd/Ctrl + ,: Toggle settings
+      else if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        if (currentView.type === 'settings') {
+          navigateToWorkspace();
+        } else {
+          navigateToView({ type: 'settings' });
+        }
+      }
+      // Cmd/Ctrl + N: New workspace
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault();
+        navigateToView({ type: 'workspace-new' });
+      }
+      // Cmd/Ctrl + W: Open workspace dropdown (only on workspace view)
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'w' && currentView.type === 'workspace') {
+        e.preventDefault();
+        // Trigger workspace dropdown - we'll need to add a ref to WorkspaceSelector
+        const workspaceButton = document.querySelector('.workspace-selector button') as HTMLButtonElement;
+        workspaceButton?.click();
+      }
+      
+      // Chat dock shortcuts - only work on workspace view
+      if (currentView.type !== 'workspace') return;
+      
+      // Cmd/Ctrl + S: Toggle stats (only if dock is open and has active session)
+      if ((e.metaKey || e.ctrlKey) && e.key === 's' && !isDockCollapsed && activeSessionId) {
         e.preventDefault();
         setShowStatsPanel(prev => !prev);
       }
-      // Cmd/Ctrl + W: Close active session
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'w' && activeSessionId) {
+      // Cmd/Ctrl + X: Close active session
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'x' && activeSessionId) {
         e.preventDefault();
         removeSession(activeSessionId);
       }
@@ -513,7 +563,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSessionId, sessions, isDockCollapsed, activeAbortController]);
+  }, [activeSessionId, sessions, isDockCollapsed, activeAbortController, currentView, agents]);
 
   // Update scroll button visibility when sessions change
   useEffect(() => {
@@ -592,15 +642,19 @@ function App() {
   const fetchAgents = async () => {
     try {
       const payload = await apiRequest<{ data: any[] }>(`${API_BASE}/api/agents`);
+      console.log('Raw agent data from API:', payload.data);
       const agentList: AgentSummary[] = (payload.data || []).map((agent: any) => ({
         slug: agent.slug ?? agent.id,
         name: agent.name,
         model: agent.model,
         updatedAt: agent.updatedAt,
         description: agent.description,
+        icon: agent.icon,
+        commands: agent.commands,
         ui: agent.ui,
         workflowWarnings: agent.workflowWarnings || undefined,
       }));
+      console.log('Mapped agent list:', agentList);
 
       setAgents(agentList);
       setGlobalError(null);
@@ -610,6 +664,36 @@ function App() {
       }
     } catch (err: any) {
       setGlobalError(err.message);
+    }
+  };
+
+  const fetchWorkspaces = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/workspaces`);
+      const data = await response.json();
+      console.log('Workspaces fetched:', data);
+      if (data.success) {
+        setWorkspaces(data.data);
+        console.log('Workspaces set:', data.data);
+        if (data.data.length > 0 && !selectedWorkspace) {
+          await handleWorkspaceSelect(data.data[0].slug);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load workspaces:', error);
+    }
+  };
+
+  const handleWorkspaceSelect = async (slug: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/workspaces/${slug}`);
+      const data = await response.json();
+      if (data.success) {
+        setSelectedWorkspace(data.data);
+        setActiveTabId(data.data.tabs[0]?.id || '');
+      }
+    } catch (error) {
+      console.error('Failed to load workspace:', error);
     }
   };
 
@@ -727,6 +811,13 @@ function App() {
   };
 
   const ensureManualSession = (agent: AgentSummary) => {
+    const existing = sessions.find(
+      (s) => s.agentSlug === agent.slug && s.source === 'manual'
+    );
+    if (existing) {
+      focusSession(existing.id);
+      return existing;
+    }
     const session = createChatSession(agent, { source: 'manual', title: `${agent.name} Chat` });
     focusSession(session.id);
     return session;
@@ -761,6 +852,29 @@ function App() {
 
     const parts = command.slice(1).trim().split(/\s+/);
     const cmd = parts[0].toLowerCase();
+
+    // Check for custom agent commands first
+    const agent = agents.find(a => a.slug === session.agentSlug);
+    console.log('Checking for custom command:', cmd, 'Agent:', agent?.slug, 'Commands:', agent?.commands);
+    if (agent?.commands && agent.commands[cmd]) {
+      console.log('Found custom command:', agent.commands[cmd]);
+      const customCmd = agent.commands[cmd];
+      const args = parts.slice(1);
+      
+      // Parse parameters and expand template
+      let expandedPrompt = customCmd.prompt;
+      const params = customCmd.params || [];
+      
+      params.forEach((param, idx) => {
+        const value = args[idx] || param.default || '';
+        expandedPrompt = expandedPrompt.replace(new RegExp(`{{${param.name}}}`, 'g'), value);
+      });
+      
+      // Send expanded prompt as regular message
+      updateSession(sessionId, (current) => ({ ...current, input: expandedPrompt }));
+      await sendMessage(sessionId, expandedPrompt);
+      return;
+    }
 
     let responseContent = '';
 
@@ -897,8 +1011,25 @@ function App() {
         input: '',
       }));
       return;
+    } else if (cmd === 'prompts') {
+      const agent = agents.find(a => a.slug === session.agentSlug);
+      if (agent?.commands && Object.keys(agent.commands).length > 0) {
+        const commandList = Object.values(agent.commands).map((cmd: any) => {
+          const params = cmd.params?.map((p: any) => 
+            `${p.name}${p.required === false ? '?' : ''}`
+          ).join(' ') || '';
+          return `• **/${cmd.name}** ${params ? `\`${params}\`` : ''}\n  ${cmd.description || 'No description'}`;
+        }).join('\n\n');
+        responseContent = `**Custom Slash Commands (${Object.keys(agent.commands).length})**\n\n${commandList}`;
+      } else {
+        responseContent = `No custom slash commands defined for this agent.\n\n[MANAGE_COMMANDS:${session.agentSlug}]`;
+      }
+      updateSession(sessionId, (current) => ({
+        ...current,
+        input: '',
+      }));
     } else {
-      responseContent = `Unknown command: ${command}\n\nAvailable:\n• /mcp - List MCP servers\n• /tools - Show tools\n• /model - Change model\n• /clear or /new - Clear conversation\n• /stats - Show conversation statistics`;
+      responseContent = `Unknown command: ${command}\n\nAvailable:\n• /mcp - List MCP servers\n• /tools - Show tools\n• /model - Change model\n• /prompts - List custom commands\n• /clear or /new - Clear conversation\n• /stats - Show conversation statistics`;
     }
 
     // Set ephemeral message (shows in UI but not in history)
@@ -1380,6 +1511,10 @@ function App() {
           } else {
             sendMessage(activeSessionId, selectedCmd);
           }
+        } else if (event.key === 'Enter' && activeSessionId) {
+          // No matching commands, just send the message as-is
+          setShowCommandAutocomplete(false);
+          sendMessage(activeSessionId);
         }
         return;
       } else if (event.key === 'Escape') {
@@ -1421,6 +1556,7 @@ function App() {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       if (activeSessionId) {
+        setShowCommandAutocomplete(false);
         sendMessage(activeSessionId);
         setHistoryIndex(-1);
       }
@@ -1490,6 +1626,23 @@ function App() {
     setPendingPromptSend({ sessionId, prompt: prompt.prompt });
   }, [currentAgent]);
 
+  const handlePromptSelect = useCallback((prompt: any) => {
+    console.log('handlePromptSelect called with:', prompt);
+    if (prompt.agent) {
+      console.log('Sending to agent:', prompt.agent);
+      handleSendToChat(prompt.prompt, prompt.agent);
+    } else {
+      console.log('No agent specified, showing selector');
+      setAgentSelectorModal({
+        show: true,
+        onSelect: (agentSlug) => {
+          setAgentSelectorModal(null);
+          handleSendToChat(prompt.prompt, agentSlug);
+        }
+      });
+    }
+  }, []);
+
   const handleWorkflowShortcut = (workflowId: string) => {
     if (!currentAgent) return;
 
@@ -1526,6 +1679,34 @@ function App() {
   const navigateToView = (view: NavigationView) => {
     setCurrentView(view);
     setManagementNotice(null);
+    
+    // Update hash for routing
+    switch (view.type) {
+      case 'workspace':
+        window.location.hash = '';
+        break;
+      case 'settings':
+        window.location.hash = '/settings';
+        break;
+      case 'agent-new':
+        window.location.hash = '/agents/new';
+        break;
+      case 'agent-edit':
+        window.location.hash = `/agents/${view.slug}/edit`;
+        break;
+      case 'tools':
+        window.location.hash = `/agents/${view.slug}/tools`;
+        break;
+      case 'workflows':
+        window.location.hash = `/agents/${view.slug}/workflows`;
+        break;
+      case 'workspace-new':
+        window.location.hash = '/workspaces/new';
+        break;
+      case 'workspace-edit':
+        window.location.hash = `/workspaces/${view.slug}/edit`;
+        break;
+    }
   };
 
   const navigateToWorkspace = () => {
@@ -1549,10 +1730,20 @@ function App() {
   };
 
   const handleAgentSaved = async (slug: string) => {
+    console.log('Agent saved, refetching agents...');
     await fetchAgents();
+    console.log('Agents refetched, navigating to workspace');
     setSelectedAgent(slug);
     navigateToWorkspace();
     showToast('Agent saved successfully');
+  };
+
+  const handleWorkspaceSaved = async (slug: string) => {
+    console.log('Workspace saved, refetching workspaces...');
+    await fetchWorkspaces();
+    console.log('Workspaces refetched, navigating to workspace');
+    navigateToWorkspace();
+    showToast('Workspace saved successfully');
   };
 
   const handleSettingsSaved = () => {
@@ -1562,35 +1753,50 @@ function App() {
   const openChatForAgent = useCallback((agent: AgentSummary | null) => {
     if (!agent) return;
     ensureManualSession(agent);
-  }, []);
+  }, [sessions]);
 
   const handleShowChatForCurrentAgent = useCallback(() => {
     openChatForAgent(currentAgent);
   }, [currentAgent, openChatForAgent]);
 
-  const handleSendToChat = useCallback((text: string) => {
-    if (!currentAgent) return;
-    const session = ensureManualSession(currentAgent);
+  const handleSendToChat = useCallback((text: string, agentSlug?: string) => {
+    console.log('handleSendToChat called with:', { text, agentSlug, currentAgent: currentAgent?.slug, agents: agents.map(a => a.slug) });
+    const targetAgent = agentSlug ? agents.find(a => a.slug === agentSlug) : currentAgent;
+    console.log('Target agent:', targetAgent);
+    if (!targetAgent) {
+      console.log('No target agent found!');
+      return;
+    }
+    // Always create a new session for prompts to ensure clean context
+    const session = createChatSession(targetAgent, { source: 'manual', title: `${targetAgent.name} Chat` });
+    console.log('New session created:', session.id);
+    focusSession(session.id);
     setSessionInput(session.id, text);
-  }, [currentAgent]);
+    setPendingPromptSend({ sessionId: session.id, prompt: text });
+    console.log('Pending prompt set');
+  }, [currentAgent, agents]);
 
   // Render management views
   if (currentView.type !== 'workspace') {
     return (
       <div className="app">
-        <header className="app-toolbar">
-          <div className="app-toolbar__title">Work Agent</div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <ThemeToggle />
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={() => navigateToView({ type: 'settings' })}
-            >
-              Settings
-            </button>
-          </div>
-        </header>
+        <Header
+          workspaces={workspaces}
+          selectedWorkspace={selectedWorkspace}
+          activeTabId={activeTabId}
+          currentView={currentView}
+          onWorkspaceSelect={handleWorkspaceSelect}
+          onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
+          onEditWorkspace={(slug) => navigateToView({ type: 'workspace-edit', slug })}
+          onToggleSettings={() => {
+            if (currentView.type === 'settings') {
+              navigateToWorkspace();
+            } else {
+              navigateToView({ type: 'settings' });
+            }
+          }}
+          onTabChange={setActiveTabId}
+        />
 
         {globalError && (
           <div className="global-error">
@@ -1613,8 +1819,24 @@ function App() {
             <AgentEditorView
               apiBase={API_BASE}
               slug={currentView.slug}
+              initialTab={currentView.initialTab}
               onBack={navigateToWorkspace}
               onSaved={handleAgentSaved}
+            />
+          )}
+          {currentView.type === 'workspace-new' && (
+            <WorkspaceEditorView
+              apiBase={API_BASE}
+              onBack={navigateToWorkspace}
+              onSaved={handleWorkspaceSaved}
+            />
+          )}
+          {currentView.type === 'workspace-edit' && (
+            <WorkspaceEditorView
+              apiBase={API_BASE}
+              slug={currentView.slug}
+              onBack={navigateToWorkspace}
+              onSaved={handleWorkspaceSaved}
             />
           )}
           {currentView.type === 'tools' && (
@@ -1642,6 +1864,10 @@ function App() {
               apiBase={API_BASE}
               onBack={navigateToWorkspace}
               onSaved={handleSettingsSaved}
+              onEditAgent={(slug) => navigateToView({ type: 'agent-edit', slug })}
+              onCreateAgent={() => navigateToView({ type: 'agent-new' })}
+              onEditWorkspace={(slug) => navigateToView({ type: 'workspace-edit', slug })}
+              onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
             />
           )}
         </div>
@@ -1673,45 +1899,28 @@ function App() {
   }
 
   // Render workspace view
+  const activeTab = selectedWorkspace?.tabs.find((t: any) => t.id === activeTabId);
+
   return (
     <div className="app">
-      <header className="app-toolbar">
-        <AgentSelector
-          agents={agents}
-          selectedAgent={currentAgent}
-          onSelect={switchAgent}
-          onCreateAgent={handleCreateAgentAction}
-          onEditAgent={handleEditAgentAction}
-          onManageTools={handleManageToolsAction}
-          onManageWorkflows={handleManageWorkflowsAction}
-        />
-
-        {currentAgent ? (
-          <QuickActionsBar
-            prompts={quickPrompts}
-            workflowShortcuts={workflowShortcuts}
-            onPromptSelect={handleLaunchPrompt}
-            onWorkflowSelect={handleWorkflowShortcut}
-            workflowMetadata={workflowCatalog[currentAgent.slug]}
-          />
-        ) : (
-          <div className="quick-actions quick-actions--placeholder">
-            <span>Select an agent to access quick actions.</span>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <ThemeToggle />
-          <button
-            type="button"
-            className="button button--secondary app-toolbar__settings"
-            onClick={() => navigateToView({ type: 'settings' })}
-            title="Settings"
-          >
-            ⚙
-          </button>
-        </div>
-      </header>
+      <Header
+        workspaces={workspaces}
+        selectedWorkspace={selectedWorkspace}
+        activeTabId={activeTabId}
+        currentView={currentView}
+        onWorkspaceSelect={handleWorkspaceSelect}
+        onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
+        onEditWorkspace={(slug) => navigateToView({ type: 'workspace-edit', slug })}
+        onToggleSettings={() => {
+          if (currentView.type === 'settings') {
+            navigateToWorkspace();
+          } else {
+            navigateToView({ type: 'settings' });
+          }
+        }}
+        onTabChange={setActiveTabId}
+        onPromptSelect={handlePromptSelect}
+      />
 
       {managementNotice && (
         <div className="management-notice">
@@ -1732,27 +1941,49 @@ function App() {
       )}
 
       <div className="main-content">
-        {currentAgent ? (
+        {!selectedWorkspace ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="text-4xl mb-4">📋</div>
+              <div className="text-xl font-medium mb-2">Loading workspace...</div>
+              <div className="text-sm text-gray-500">Please wait while we load your workspace</div>
+            </div>
+          </div>
+        ) : (
           <>
             <div 
               className={`workspace-panel ${!isDockCollapsed ? 'has-chat-dock' : ''}`}
-              style={{ paddingBottom: isDockCollapsed ? '37px' : `${dockHeight}px` }}
+              style={{ paddingBottom: isDockCollapsed ? '43px' : `${dockHeight}px` }}
             >
               <WorkspaceRenderer
-                agent={currentAgent}
-                onLaunchPrompt={handleLaunchPrompt}
-                onShowChat={handleShowChatForCurrentAgent}
+                componentId={activeTab?.component || 'work-agent-dashboard'}
+                workspace={selectedWorkspace}
+                activeTab={activeTab}
                 onRequestAuth={handleAuthError}
-                onSendToChat={handleSendToChat}
+                onSendToChat={(text, agent) => {
+                  if (agent) {
+                    handleSendToChat(text, agent);
+                  } else {
+                    setAgentSelectorModal({
+                      show: true,
+                      onSelect: (agentSlug) => {
+                        setAgentSelectorModal(null);
+                        handleSendToChat(text, agentSlug);
+                      }
+                    });
+                  }
+                }}
               />
             </div>
 
             <div
-              className={`chat-dock ${isDockCollapsed ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''}`}
+              className={`chat-dock ${isDockCollapsed ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''}`}
               style={{ 
-                ...(!isDockCollapsed && {
-                  height: isDockMaximized ? `${window.innerHeight - 107}px` : `${dockHeight}px`
-                })
+                height: isDockCollapsed 
+                  ? '43px' 
+                  : isDockMaximized 
+                    ? `${window.innerHeight - 107}px` 
+                    : `${dockHeight}px`
               }}
               ref={chatSectionRef}
             >
@@ -1762,24 +1993,26 @@ function App() {
                   onMouseDown={() => setIsDragging(true)}
                 />
               )}
-              <div className="chat-dock__header" style={{
-                ...(isDockMaximized && {
-                  background: 'rgba(var(--color-primary-rgb, 59, 130, 246), 0.1)',
-                  borderBottom: '2px solid var(--color-primary)'
-                })
-              }}>
-                <div className="chat-dock__title" onClick={() => {
+              <div className="chat-dock__header" 
+                onClick={() => {
                   if (isDockMaximized) {
-                    // If maximized, restore to previous state before collapsing
                     setDockHeight(previousDockHeight);
                     setIsDockMaximized(false);
                   }
                   setIsDockCollapsed((prev) => !prev);
-                }} style={{ cursor: 'pointer', flex: 1 }}>
+                }}
+                style={{
+                  cursor: 'pointer',
+                  ...(isDockMaximized && {
+                    background: 'rgba(var(--color-primary-rgb, 59, 130, 246), 0.1)',
+                    borderBottom: '2px solid var(--color-primary)'
+                  })
+                }}>
+                <div className="chat-dock__title" style={{ flex: 1 }}>
                   <span>Chat Dock</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>⌘D</span>
                 </div>
-                <div className="chat-dock__header-actions">
+                <div className="chat-dock__header-actions" onClick={(e) => e.stopPropagation()}>
                   {(() => {
                     const activeSessions = sessions.filter(s => s.status === 'sending');
                     if (activeSessions.length > 0) {
@@ -1910,12 +2143,33 @@ function App() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '4px',
+                      opacity: 1,
+                      transition: 'opacity 0.2s',
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                     title={isDockMaximized ? 'Restore (⌘M)' : 'Maximize (⌘M)'}
                   >
                     {isDockMaximized ? '⬇' : '⬆'}
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>⌘M</span>
                   </button>
+                  <div
+                    style={{
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title={isDockCollapsed ? 'Expand' : 'Collapse'}
+                  >
+                    <svg style={{ 
+                      width: '16px', 
+                      height: '16px',
+                      transform: isDockCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                      transition: 'transform 0.2s',
+                    }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
                 </div>
               </div>
 
@@ -1960,7 +2214,11 @@ function App() {
                         }
                       }}
                     >
-                      {sessions.map((session, idx) => (
+                      {sessions.map((session, idx) => {
+                        const agent = agents.find(a => a.slug === session.agentSlug);
+                        const agentIcon = agent ? getAgentIcon(agent) : null;
+                        
+                        return (
                         <button
                           type="button"
                           key={session.id}
@@ -1975,6 +2233,24 @@ function App() {
                           onClick={() => focusSession(session.id)}
                           title={`Switch to tab (⌘${idx + 1})`}
                         >
+                          {agentIcon && (
+                            <div style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              backgroundColor: 'var(--color-primary)',
+                              color: 'var(--bg-primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: agentIcon.isCustomIcon ? '12px' : '9px',
+                              fontWeight: 600,
+                              flexShrink: 0,
+                              marginRight: '8px'
+                            }}>
+                              {agentIcon.display}
+                            </div>
+                          )}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div className="chat-dock__tab-title">
                               {session.title}
@@ -2016,13 +2292,14 @@ function App() {
                                 removeSession(session.id);
                               }
                             }}
-                            title="Close (⌘W)"
+                            title="Close (⌘X)"
                             style={{ flexShrink: 0 }}
                           >
                             ×
                           </span>
                         </button>
-                      ))}
+                      );
+                      })}
                     </div>
                     {showScrollButtons.right && (
                       <button
@@ -2053,13 +2330,17 @@ function App() {
                       type="button"
                       className="chat-dock__new"
                       onClick={() => {
-                        setShowNewChatModal(true);
-                        setNewChatSearch('');
-                        setNewChatSelectedIndex(0);
+                        if (agents.length === 1) {
+                          openChatForAgent(agents[0]);
+                        } else {
+                          setShowNewChatModal(true);
+                          setNewChatSearch('');
+                          setNewChatSelectedIndex(0);
+                        }
                       }}
-                      title="New Chat (⌘N)"
+                      title="New Chat (⌘T)"
                     >
-                      + New <span style={{ fontSize: '10px', opacity: 0.7 }}>⌘N</span>
+                      + New <span style={{ fontSize: '10px', opacity: 0.7 }}>⌘T</span>
                     </button>
                   </div>
 
@@ -2178,13 +2459,54 @@ function App() {
                                 </div>
                               );
                             })}
-                            {ephemeralMessages[activeSession.id]?.map((msg, idx) => (
-                              <div key={`ephemeral-${idx}`} className={`message ${msg.role}`}>
-                                <div style={{ position: 'relative' }}>
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                            {ephemeralMessages[activeSession.id]?.map((msg, idx) => {
+                              const manageCommandsMatch = msg.content.match(/\[MANAGE_COMMANDS:([^\]]+)\]/);
+                              const contentWithoutButton = msg.content.replace(/\[MANAGE_COMMANDS:[^\]]+\]/, '').trim();
+                              
+                              return (
+                                <div key={`ephemeral-${idx}`} className={`message ${msg.role}`}>
+                                  <div style={{ position: 'relative' }}>
+                                    <ReactMarkdown 
+                                      remarkPlugins={[remarkGfm]}
+                                      components={{
+                                        a: ({ node, href, children, ...props }) => {
+                                          if (href?.startsWith('#/agents/') && href.includes('/edit')) {
+                                            const slug = href.replace('#/agents/', '').replace('/edit', '');
+                                            return (
+                                              <a
+                                                href={href}
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  navigateToView({ type: 'agent-edit', slug });
+                                                }}
+                                                {...props}
+                                              >
+                                                {children}
+                                              </a>
+                                            );
+                                          }
+                                          return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+                                        }
+                                      }}
+                                    >
+                                      {contentWithoutButton}
+                                    </ReactMarkdown>
+                                    {manageCommandsMatch && (
+                                      <button
+                                        className="button button--secondary"
+                                        onClick={() => {
+                                          const slug = manageCommandsMatch[1].replace(/^["']|["']$/g, '');
+                                          navigateToView({ type: 'agent-edit', slug, initialTab: 'commands' });
+                                        }}
+                                        style={{ marginTop: '12px', padding: '8px 12px' }}
+                                      >
+                                        Manage Slash Commands
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                             {activeSession.status === 'sending' && activeSession.messages[activeSession.messages.length - 1]?.role !== 'assistant' && (
                               <div className="message assistant">
                                 <div style={{ position: 'relative' }}>
@@ -2302,6 +2624,11 @@ function App() {
                                 {getFilteredCommands().map((cmd, idx) => (
                                   <div
                                     key={cmd.cmd}
+                                    ref={(el) => {
+                                      if (idx === selectedCommandIndex && el) {
+                                        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                                      }
+                                    }}
                                     className={`command-item ${idx === selectedCommandIndex ? 'selected' : ''}`}
                                     onClick={() => {
                                       if (activeSessionId) {
@@ -2382,7 +2709,10 @@ function App() {
                               />
                             </div>
                             <button
-                              onClick={() => sendMessage(activeSession.id)}
+                              onClick={() => {
+                                setShowCommandAutocomplete(false);
+                                sendMessage(activeSession.id);
+                              }}
                               disabled={!activeSession.input.trim()}
                             >
                               {activeSession.status === 'sending' ? 'Queue' : 'Send'}
@@ -2417,7 +2747,7 @@ function App() {
                             borderRadius: '4px',
                             fontFamily: 'monospace',
                             fontSize: '0.95em'
-                          }}>⌘N</kbd> to start a new chat
+                          }}>⌘T</kbd> to start a new chat
                         </p>
                       </div>
                     )}
@@ -2426,11 +2756,6 @@ function App() {
               )}
             </div>
           </>
-        ) : (
-          <div className="empty-state">
-            <h3>No agent selected</h3>
-            <p>Choose an agent from the selector to load its workspace.</p>
-          </div>
         )}
       </div>
 
@@ -2463,6 +2788,14 @@ function App() {
           onCancel={handlePinCancel}
           isLoading={isAuthenticating}
           error={authError}
+        />
+      )}
+
+      {agentSelectorModal?.show && (
+        <AgentSelectorModal
+          agents={agents}
+          onSelect={agentSelectorModal.onSelect}
+          onCancel={() => setAgentSelectorModal(null)}
         />
       )}
 

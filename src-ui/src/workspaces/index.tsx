@@ -1,4 +1,4 @@
-import type { AgentSummary, AgentQuickPrompt } from '../types';
+import type { AgentSummary, AgentQuickPrompt, WorkspaceConfig, WorkspaceTab } from '../types';
 import { WorkAgentDashboard } from './WorkAgentDashboard';
 import { CodeReviewDashboard } from './CodeReviewDashboard';
 import { DocumentationDashboard } from './DocumentationDashboard';
@@ -7,12 +7,14 @@ import { ResearchWorkspace } from './ResearchWorkspace';
 import { SADashboard } from './SADashboard';
 
 export interface AgentWorkspaceProps {
-  agent: AgentSummary;
+  agent?: AgentSummary;
+  workspace?: WorkspaceConfig;
+  activeTab?: WorkspaceTab;
   onLaunchPrompt?: (prompt: AgentQuickPrompt) => void;
   onLaunchWorkflow?: (workflowId: string) => void;
   onShowChat?: () => void;
   onRequestAuth?: () => Promise<boolean>;
-  onSendToChat?: (text: string) => void;
+  onSendToChat?: (text: string, agent?: string) => void;
 }
 
 export type AgentWorkspaceComponent = (props: AgentWorkspaceProps) => JSX.Element;
@@ -26,10 +28,10 @@ const registry: Record<string, AgentWorkspaceComponent> = {
   'sa-dashboard': SADashboard,
 };
 
-const DefaultWorkspace: AgentWorkspaceComponent = ({ agent, onShowChat }) => (
+const DefaultWorkspace: AgentWorkspaceComponent = ({ workspace, onShowChat }) => (
   <div className="workspace-default">
-    <h2>{agent.name}</h2>
-    <p>This agent does not define a custom workspace component yet.</p>
+    <h2>{workspace?.name || 'Workspace'}</h2>
+    <p>This workspace does not define a custom component yet.</p>
     <button type="button" className="workspace-dashboard__action" onClick={() => onShowChat?.()}>
       Open Chat Dock
     </button>
@@ -43,8 +45,11 @@ export function resolveWorkspaceComponent(componentId?: string): AgentWorkspaceC
   return DefaultWorkspace;
 }
 
-export function WorkspaceRenderer(props: AgentWorkspaceProps) {
-  const componentId = props.agent.ui?.component;
+interface WorkspaceRendererProps extends AgentWorkspaceProps {
+  componentId?: string;
+}
+
+export function WorkspaceRenderer({ componentId, ...props }: WorkspaceRendererProps) {
   const Component = resolveWorkspaceComponent(componentId);
   return <Component {...props} />;
 }

@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
 import type { AgentSummary, Tool } from '../types';
+import { getAgentIcon } from '../utils/workspace';
+import { useAppData } from '../contexts/AppDataContext';
+import { ModelSelector } from '../components/ModelSelector';
+import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
+import { useCloseShortcut } from '../hooks/useCloseShortcut';
 
 export interface AgentEditorViewProps {
   apiBase: string;
   slug?: string;
+  initialTab?: 'basic' | 'model' | 'tools' | 'commands';
   onBack: () => void;
   onSaved?: (slug: string) => void;
 }
@@ -17,15 +23,22 @@ interface AgentFormData {
   region: string;
   guardrails: string;
   tools: string[];
-  uiComponent: string;
-  quickPrompts: Array<{ id: string; label: string; prompt: string }>;
-  workflowShortcuts: string[];
+  icon?: string;
+  commands?: Record<string, any>;
 }
 
-type FormStep = 'basic' | 'model' | 'tools' | 'ui';
+type FormStep = 'basic' | 'model' | 'tools' | 'commands';
 
-export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorViewProps) {
-  const [currentStep, setCurrentStep] = useState<FormStep>('basic');
+const FORM_STEPS: readonly FormStep[] = ['basic', 'model', 'tools', 'commands'] as const;
+
+export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: AgentEditorViewProps) {
+  const { models: availableModels } = useAppData();
+  const [currentStep, setCurrentStep] = useState<FormStep>(initialTab || 'basic');
+  const [expandedCommands, setExpandedCommands] = useState<Record<string, boolean>>({});
+  
+  useTabKeyboardShortcuts(FORM_STEPS, currentStep, setCurrentStep);
+  useCloseShortcut(onBack);
+
   const [formData, setFormData] = useState<AgentFormData>({
     slug: '',
     name: '',
@@ -35,9 +48,6 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
     region: '',
     guardrails: '',
     tools: [],
-    uiComponent: '',
-    quickPrompts: [],
-    workflowShortcuts: [],
   });
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
   const [isLoading, setIsLoading] = useState(!!slug);
@@ -58,6 +68,8 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
   const [isCreatingTool, setIsCreatingTool] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'failed' | null>(null);
+  const [appConfig, setAppConfig] = useState<{ region?: string; defaultModel?: string } | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   const isEditMode = !!slug;
 
@@ -66,7 +78,19 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
       loadAgent(slug);
     }
     loadTools();
+    loadAppConfig();
   }, [slug]);
+
+  const loadAppConfig = async () => {
+    try {
+      const response = await fetch(`${apiBase}/config/app`);
+      if (!response.ok) throw new Error('Failed to load app config');
+      const data = await response.json();
+      setAppConfig(data.data);
+    } catch (err) {
+      console.error('Failed to load app config:', err);
+    }
+  };
 
   const loadAgent = async (agentSlug: string) => {
     try {
@@ -78,6 +102,7 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
       const agent = (data.data || []).find((a: any) => a.slug === agentSlug || a.id === agentSlug);
       if (!agent) throw new Error('Agent not found');
 
+      setUpdatedAt(agent.updatedAt);
       setFormData({
         slug: agent.slug || agent.id,
         name: agent.name || '',
@@ -87,9 +112,8 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
         region: agent.region || '',
         guardrails: agent.guardrails || '',
         tools: agent.tools || [],
-        uiComponent: agent.ui?.component || '',
-        quickPrompts: agent.ui?.quickPrompts || [],
-        workflowShortcuts: agent.ui?.workflowShortcuts || [],
+        icon: agent.icon || '',
+        commands: agent.commands || {},
       });
     } catch (err: any) {
       setError(err.message);
@@ -130,7 +154,7 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
   const nextStep = () => {
     if (!validateStep(currentStep)) return;
 
-    const steps: FormStep[] = ['basic', 'model', 'tools', 'ui'];
+    const steps: FormStep[] = ['basic', 'model', 'tools', 'commands'];
     const currentIndex = steps.indexOf(currentStep);
     if (currentIndex < steps.length - 1) {
       setCurrentStep(steps[currentIndex + 1]);
@@ -138,7 +162,7 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
   };
 
   const prevStep = () => {
-    const steps: FormStep[] = ['basic', 'model', 'tools', 'ui'];
+    const steps: FormStep[] = ['basic', 'model', 'tools', 'commands'];
     const currentIndex = steps.indexOf(currentStep);
     if (currentIndex > 0) {
       setCurrentStep(steps[currentIndex - 1]);
@@ -161,12 +185,8 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
         region: formData.region || undefined,
         guardrails: formData.guardrails || undefined,
         tools: formData.tools.length > 0 ? { use: formData.tools } : undefined,
-        ui: {
-          component: formData.uiComponent || undefined,
-          quickPrompts: formData.quickPrompts.length > 0 ? formData.quickPrompts : undefined,
-          workflowShortcuts:
-            formData.workflowShortcuts.length > 0 ? formData.workflowShortcuts : undefined,
-        },
+        icon: formData.icon || undefined,
+        commands: formData.commands && Object.keys(formData.commands).length > 0 ? formData.commands : undefined,
       };
 
       const url = isEditMode ? `${apiBase}/agents/${slug}` : `${apiBase}/agents`;
@@ -205,32 +225,6 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
       tools: prev.tools.includes(toolId)
         ? prev.tools.filter((id) => id !== toolId)
         : [...prev.tools, toolId],
-    }));
-  };
-
-  const addQuickPrompt = () => {
-    setFormData((prev) => ({
-      ...prev,
-      quickPrompts: [
-        ...prev.quickPrompts,
-        { id: `prompt-${Date.now()}`, label: '', prompt: '' },
-      ],
-    }));
-  };
-
-  const updateQuickPrompt = (index: number, field: 'label' | 'prompt', value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      quickPrompts: prev.quickPrompts.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      ),
-    }));
-  };
-
-  const removeQuickPrompt = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      quickPrompts: prev.quickPrompts.filter((_, i) => i !== index),
     }));
   };
 
@@ -385,10 +379,10 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
     return (
       <div className="management-view">
         <div className="management-view__header">
+          <h2>{isEditMode ? 'Edit Agent' : 'New Agent'}</h2>
           <button type="button" className="button button--secondary" onClick={onBack}>
             Back
           </button>
-          <h2>{isEditMode ? 'Edit Agent' : 'New Agent'}</h2>
         </div>
         <div className="management-view__loading">Loading agent...</div>
       </div>
@@ -396,12 +390,40 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
   }
 
   return (
-    <div className="management-view">
-      <div className="management-view__header">
-        <button type="button" className="button button--secondary" onClick={onBack}>
-          Back
-        </button>
-        <h2>{isEditMode ? `Edit Agent: ${formData.name}` : 'New Agent'}</h2>
+    <div className="management-view" tabIndex={-1} ref={(el) => el?.focus()} style={{ outline: 'none' }}>
+      <div className="management-view__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h2>{isEditMode ? formData.name : 'New Agent'}</h2>
+          {isEditMode && updatedAt && (
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+              Last updated: {new Date(updatedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button 
+            type="button" 
+            className="button button--secondary" 
+            onClick={() => window.history.back()}
+            title="Back"
+          >
+            Back
+          </button>
+          <button 
+            type="button" 
+            className="button button--secondary" 
+            onClick={onBack}
+            style={{ 
+              minWidth: '40px',
+              padding: '8px 12px',
+              fontSize: '18px',
+              lineHeight: '1'
+            }}
+            title="Close (⌘X)"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {error && <div className="management-view__error">{error}</div>}
@@ -411,30 +433,46 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
           <button
             type="button"
             className={`step-indicator ${currentStep === 'basic' ? 'is-active' : ''}`}
-            onClick={() => setCurrentStep('basic')}
+            onClick={() => {
+              setCurrentStep('basic');
+              window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=basic`);
+            }}
+            title="Basic Info (⌘1)"
           >
-            Basic Info
+            Basic Info <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘1</span>
           </button>
           <button
             type="button"
             className={`step-indicator ${currentStep === 'model' ? 'is-active' : ''}`}
-            onClick={() => setCurrentStep('model')}
+            onClick={() => {
+              setCurrentStep('model');
+              window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=model`);
+            }}
+            title="Model Config (⌘2)"
           >
-            Model Config
+            Model Config <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘2</span>
           </button>
           <button
             type="button"
             className={`step-indicator ${currentStep === 'tools' ? 'is-active' : ''}`}
-            onClick={() => setCurrentStep('tools')}
+            onClick={() => {
+              setCurrentStep('tools');
+              window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=tools`);
+            }}
+            title="Tools (⌘3)"
           >
-            Tools
+            Tools <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘3</span>
           </button>
           <button
             type="button"
-            className={`step-indicator ${currentStep === 'ui' ? 'is-active' : ''}`}
-            onClick={() => setCurrentStep('ui')}
+            className={`step-indicator ${currentStep === 'commands' ? 'is-active' : ''}`}
+            onClick={() => {
+              setCurrentStep('commands');
+              window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=commands`);
+            }}
+            title="Slash Commands (⌘4)"
           >
-            UI Customization
+            Slash Commands <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘4</span>
           </button>
         </div>
 
@@ -469,6 +507,40 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
                   placeholder="My Agent"
                 />
                 {validationErrors.name && <span className="form-error">{validationErrors.name}</span>}
+              </div>
+
+              <div className="form-group">
+                <label>Icon</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'var(--accent-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: formData.icon ? '24px' : '16px',
+                      fontWeight: formData.icon ? 'normal' : 600,
+                      color: formData.icon ? 'inherit' : 'var(--color-bg)',
+                    }}
+                  >
+                    {formData.icon || getAgentIcon({ name: formData.name || 'Agent' }).display}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="text"
+                      value={formData.icon || ''}
+                      onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                      placeholder="Enter emoji (e.g., 🤖) or leave empty for initials"
+                      style={{ marginBottom: '4px' }}
+                    />
+                    <span className="form-help" style={{ margin: 0 }}>
+                      Use an emoji or leave empty to auto-generate from name
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div className="form-group">
@@ -510,24 +582,11 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
             <div className="form-panel">
               <div className="form-group">
                 <label htmlFor="modelId">Model ID</label>
-                <div className="field-with-help">
-                  <input
-                    id="modelId"
-                    type="text"
-                    value={formData.modelId}
-                    onChange={(e) => setFormData({ ...formData, modelId: e.target.value })}
-                    placeholder="anthropic.claude-3-7-sonnet-20250219-v1:0"
-                  />
-                  <a
-                    href="https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="help-icon"
-                    title="View supported Bedrock models"
-                  >
-                    ?
-                  </a>
-                </div>
+                <ModelSelector
+                  value={formData.modelId}
+                  onChange={(modelId) => setFormData({ ...formData, modelId })}
+                  placeholder="Select a model..."
+                />
                 {validationErrors.modelId && (
                   <span className="form-error">{validationErrors.modelId}</span>
                 )}
@@ -543,9 +602,9 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
                   type="text"
                   value={formData.region}
                   onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-                  placeholder="us-east-1"
+                  placeholder={appConfig?.region || 'us-east-1'}
                 />
-                <span className="form-help">Leave empty to use default region</span>
+                <span className="form-help">Leave empty to use default region ({appConfig?.region || 'us-east-1'})</span>
               </div>
 
               <div className="form-group">
@@ -555,7 +614,7 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
                   type="text"
                   value={formData.guardrails}
                   onChange={(e) => setFormData({ ...formData, guardrails: e.target.value })}
-                  placeholder="guardrail-id"
+                  placeholder="Optional guardrail ID"
                 />
                 <span className="form-help">Optional guardrail configuration</span>
               </div>
@@ -722,69 +781,182 @@ export function AgentEditorView({ apiBase, slug, onBack, onSaved }: AgentEditorV
             </div>
           )}
 
-          {currentStep === 'ui' && (
+          {currentStep === 'commands' && (
             <div className="form-panel">
-              <div className="form-group">
-                <label htmlFor="uiComponent">Workspace Component</label>
-                <input
-                  id="uiComponent"
-                  type="text"
-                  value={formData.uiComponent}
-                  onChange={(e) => setFormData({ ...formData, uiComponent: e.target.value })}
-                  placeholder="WorkAgentDashboard"
-                />
-                <span className="form-help">React component name for the agent workspace</span>
-              </div>
-
-              <div className="form-group">
-                <label>Quick Prompts</label>
-                {formData.quickPrompts.map((qp, index) => (
-                  <div key={qp.id} className="quick-prompt-editor">
-                    <input
-                      type="text"
-                      value={qp.label}
-                      onChange={(e) => updateQuickPrompt(index, 'label', e.target.value)}
-                      placeholder="Button label (e.g., 'Summarize')"
-                    />
-                    <textarea
-                      value={qp.prompt}
-                      onChange={(e) => updateQuickPrompt(index, 'prompt', e.target.value)}
-                      placeholder="Full prompt text that will be sent to the agent..."
-                      rows={3}
-                    />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <div>
+                  <h3>Slash Commands</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '8px' }}>
+                    Define custom slash commands that users can invoke in chat. Commands can accept parameters and execute specific prompts.
+                  </p>
+                </div>
+                {(() => {
+                  const hasCommands = formData.commands && Object.keys(formData.commands).length > 0;
+                  return hasCommands ? (
                     <button
                       type="button"
-                      className="button button--danger button--small"
-                      onClick={() => removeQuickPrompt(index)}
+                      className="button button--primary button--small"
+                      onClick={() => {
+                        const commandKey = `cmd-${Date.now()}`;
+                        console.log('Adding command:', commandKey);
+                        setFormData({
+                          ...formData,
+                          commands: {
+                            [commandKey]: {
+                              name: '',
+                              description: '',
+                              prompt: '',
+                              params: []
+                            },
+                            ...formData.commands
+                          }
+                        });
+                        // Auto-expand the new command
+                        setExpandedCommands({ ...expandedCommands, [commandKey]: true });
+                      }}
+                      style={{ flexShrink: 0 }}
                     >
-                      Remove
+                      + Add Command
                     </button>
-                  </div>
-                ))}
-                <button type="button" className="button button--secondary" onClick={addQuickPrompt}>
-                  Add Quick Prompt
-                </button>
+                  ) : null;
+                })()}
               </div>
 
-              <div className="form-group">
-                <label htmlFor="workflowShortcuts">Workflow Shortcuts</label>
-                <input
-                  id="workflowShortcuts"
-                  type="text"
-                  value={formData.workflowShortcuts.join(', ')}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      workflowShortcuts: e.target.value
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  placeholder="workflow-1, workflow-2"
-                />
-                <span className="form-help">Comma-separated workflow IDs</span>
-              </div>
+              {(!formData.commands || Object.keys(formData.commands).length === 0) ? (
+                <div style={{ 
+                  padding: '32px', 
+                  textAlign: 'center', 
+                  color: 'var(--text-muted)',
+                  border: '2px dashed var(--border-primary)',
+                  borderRadius: '8px'
+                }}>
+                  <p>No slash commands defined yet.</p>
+                  <button
+                    type="button"
+                    className="button button--primary button--small"
+                    style={{ marginTop: '12px' }}
+                    onClick={() => {
+                      const commandKey = 'cmd-1';
+                      setFormData({
+                        ...formData,
+                        commands: {
+                          [commandKey]: {
+                            name: '',
+                            description: '',
+                            prompt: '',
+                            params: []
+                          }
+                        }
+                      });
+                      setExpandedCommands({ [commandKey]: true });
+                    }}
+                  >
+                    + Add First Command
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {Object.entries(formData.commands).map(([key, cmd]: [string, any]) => {
+                    const isExpanded = expandedCommands[key] || false;
+                    return (
+                      <div key={key} style={{
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '8px',
+                        background: 'var(--color-bg-secondary)',
+                        overflow: 'hidden'
+                      }}>
+                        <div 
+                          style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            padding: '12px 16px',
+                            cursor: 'pointer',
+                            background: isExpanded ? 'var(--color-bg-tertiary)' : 'transparent'
+                          }}
+                          onClick={() => setExpandedCommands({ ...expandedCommands, [key]: !isExpanded })}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                            <span style={{ fontSize: '14px', opacity: 0.6 }}>
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                            <div>
+                              <strong style={{ fontSize: '15px', color: 'var(--color-text-primary)' }}>/{cmd.name}</strong>
+                              <p style={{ color: 'var(--color-text-secondary)', fontSize: '13px', marginTop: '2px', marginBottom: 0 }}>
+                                {cmd.description || 'No description'}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="button button--danger button--small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newCommands = { ...formData.commands };
+                              delete newCommands[key];
+                              setFormData({ ...formData, commands: newCommands });
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        {isExpanded && (
+                          <div style={{ 
+                            padding: '16px',
+                            borderTop: '1px solid var(--border-primary)',
+                            background: 'var(--bg-primary)'
+                          }}>
+                            <div className="form-group">
+                              <label>Command Name</label>
+                              <input
+                                type="text"
+                                value={cmd.name}
+                                onChange={(e) => {
+                                  const newCommands = { ...formData.commands };
+                                  newCommands[key] = { ...cmd, name: e.target.value };
+                                  setFormData({ ...formData, commands: newCommands });
+                                }}
+                                placeholder="command-name"
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>Description</label>
+                              <input
+                                type="text"
+                                value={cmd.description || ''}
+                                onChange={(e) => {
+                                  const newCommands = { ...formData.commands };
+                                  newCommands[key] = { ...cmd, description: e.target.value };
+                                  setFormData({ ...formData, commands: newCommands });
+                                }}
+                                placeholder="What does this command do?"
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>Prompt</label>
+                              <textarea
+                                value={cmd.prompt || ''}
+                                onChange={(e) => {
+                                  const newCommands = { ...formData.commands };
+                                  newCommands[key] = { ...cmd, prompt: e.target.value };
+                                  setFormData({ ...formData, commands: newCommands });
+                                }}
+                                placeholder="The prompt to execute when this command is invoked..."
+                                style={{ 
+                                  minHeight: '120px',
+                                  resize: 'vertical',
+                                  fontFamily: 'monospace',
+                                  fontSize: '13px',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

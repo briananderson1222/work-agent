@@ -137,6 +137,36 @@
         }
       },
       "additionalProperties": false
+    },
+    "commands": {
+      "type": "object",
+      "description": "Custom slash commands for the agent",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["name", "description", "prompt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Command name (without slash)",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "Command description shown in help",
+            "minLength": 1
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Prompt template to execute",
+            "minLength": 1
+          },
+          "parameters": {
+            "type": "string",
+            "description": "Optional parameter description"
+          }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false

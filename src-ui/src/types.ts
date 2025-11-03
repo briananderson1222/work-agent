@@ -4,10 +4,28 @@ export interface AgentQuickPrompt {
   prompt: string;
 }
 
+export interface SlashCommandParam {
+  name: string;
+  description?: string;
+  required?: boolean;
+  default?: string;
+}
+
+export interface SlashCommand {
+  name: string;
+  description?: string;
+  prompt: string;
+  params?: SlashCommandParam[];
+}
+
 export interface AgentUIConfig {
   component?: string;
   quickPrompts?: AgentQuickPrompt[];
   workflowShortcuts?: string[];
+}
+
+export interface AgentCommands {
+  [commandName: string]: SlashCommand;
 }
 
 export interface AgentSummary {
@@ -16,7 +34,9 @@ export interface AgentSummary {
   model?: string;
   updatedAt: string;
   description?: string;
+  icon?: string;
   ui?: AgentUIConfig;
+  commands?: AgentCommands;
   workflowWarnings?: string[];
 }
 
@@ -88,6 +108,10 @@ export interface AppConfig {
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
   logLevel?: string;
+  meetingNotifications?: {
+    enabled?: boolean;
+    thresholds?: number[]; // Minutes before meeting to show notification
+  };
 }
 
 export interface TemplateVariable {
@@ -100,7 +124,41 @@ export interface TemplateVariable {
 export type NavigationView =
   | { type: 'workspace' }
   | { type: 'agent-new' }
-  | { type: 'agent-edit'; slug: string }
+  | { type: 'agent-edit'; slug: string; initialTab?: 'basic' | 'model' | 'tools' | 'commands' }
   | { type: 'tools'; slug: string }
   | { type: 'workflows'; slug: string }
-  | { type: 'settings' };
+  | { type: 'settings' }
+  | { type: 'workspace-new' }
+  | { type: 'workspace-edit'; slug: string };
+
+export interface WorkspacePrompt {
+  id: string;
+  label: string;
+  prompt: string;
+  agent?: string;
+}
+
+export interface WorkspaceTab {
+  id: string;
+  label: string;
+  component: string;
+  icon?: string;
+  prompts?: WorkspacePrompt[];
+}
+
+export interface WorkspaceConfig {
+  name: string;
+  slug: string;
+  icon?: string;
+  description?: string;
+  tabs: WorkspaceTab[];
+  globalPrompts?: WorkspacePrompt[];
+}
+
+export interface WorkspaceMetadata {
+  slug: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  tabCount: number;
+}
