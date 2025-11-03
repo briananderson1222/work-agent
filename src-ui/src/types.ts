@@ -23,6 +23,7 @@ export interface AgentSummary {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  model?: string;
   toolCalls?: Array<{
     toolCallId: string;
     toolName: string;
@@ -58,6 +59,8 @@ export interface ChatSession {
   createdAt: number;
   updatedAt: number;
   hasUnread: boolean;
+  model?: string;
+  inputHistory: string[];
 }
 
 export interface Tool {

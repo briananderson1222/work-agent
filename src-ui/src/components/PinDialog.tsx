@@ -55,10 +55,41 @@ export function PinDialog({ onSubmit, onCancel, isLoading, error }: PinDialogPro
           {error && <p style={{ color: 'var(--color-error)', fontSize: '12px', margin: '4px 0' }}>{error}</p>}
           {isLoading && <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '4px 0' }}>Touch your security key...</p>}
           <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-            <button type="submit" disabled={isLoading || !pin}>
+            <button 
+              type="submit" 
+              disabled={isLoading || !pin}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                background: 'var(--color-primary)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: isLoading || !pin ? 'not-allowed' : 'pointer',
+                opacity: isLoading || !pin ? 0.5 : 1,
+                fontSize: '14px',
+                fontWeight: 500
+              }}
+            >
               Authenticate
             </button>
-            <button type="button" onClick={onCancel} disabled={isLoading}>
+            <button 
+              type="button" 
+              onClick={onCancel} 
+              disabled={isLoading}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                background: 'var(--color-bg-secondary)',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '4px',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.5 : 1,
+                fontSize: '14px',
+                fontWeight: 500
+              }}
+            >
               Cancel
             </button>
           </div>

@@ -59,9 +59,6 @@ async function streamInvoke(
   } = {}
 ): Promise<any> {
   const requestStart = performance.now();
-  console.log(`[streamInvoke] Starting request to ${agentSlug}`);
-  console.log(`[streamInvoke] Tools filter:`, options.tools);
-  console.log(`[streamInvoke] Prompt length:`, prompt.length);
   
   const response = await fetch(`${API_BASE}/agents/${agentSlug}/invoke/stream`, {
     method: 'POST',
@@ -76,7 +73,6 @@ async function streamInvoke(
   });
 
   const fetchTime = performance.now() - requestStart;
-  console.log(`[streamInvoke] Fetch completed in ${fetchTime.toFixed(2)}ms`);
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -84,7 +80,6 @@ async function streamInvoke(
 
   const parseStart = performance.now();
   const data = await response.json();
-  console.log(`[streamInvoke] JSON parse took ${(performance.now() - parseStart).toFixed(2)}ms`);
   
   if (!data.success) {
     throw new Error(data.error || 'Request failed');
@@ -92,20 +87,16 @@ async function streamInvoke(
 
   // Log usage to see how many steps were taken
   if (data.usage) {
-    console.log(`[${agentSlug}] Usage:`, data.usage);
   }
   
   // Log debug info
   if (data.debug) {
-    console.log(`[${agentSlug}] Debug:`, data.debug);
   }
   
   // Log trace if available
   if (data.trace) {
-    console.log(`[${agentSlug}] Trace:`, data.trace);
   }
 
-  console.log(`[streamInvoke] Total time: ${(performance.now() - requestStart).toFixed(2)}ms`);
   return data.response;
 }
 
@@ -166,7 +157,7 @@ function formatOrganizerName(organizer?: { name: string; email: string }): strin
   return organizer.name;
 }
 
-export function SADashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspaceProps) {
+export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat }: AgentWorkspaceProps) {
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
     const year = date.getFullYear();
@@ -262,7 +253,6 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspac
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
     const startTime = performance.now();
-    console.log('fetchCalendarData called with date:', date);
     setLoading(true);
     setError(null);
     setRawResponse(''); // Clear previous
@@ -274,35 +264,26 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspac
     }
     
     const dateStr = date.toISOString().split('T')[0];
-    console.log('Fetching events for:', dateStr);
     
     // Check cache first
     const cacheKey = `sa-calendar-${dateStr}`;
-    console.log('Cache key:', cacheKey);
     const cached = getFromCache<CalendarEvent[]>(cacheKey);
-    console.log('Cached data:', cached);
     if (cached) {
-      console.log('Using cached data');
-      console.log('preserveEventId param:', preserveEventId);
       setEvents(cached);
       
       // Only auto-select if not preserving a selection
       if (preserveEventId) {
-        console.log('Restoring preserved selection:', preserveEventId);
         setSelectedEventId(preserveEventId);
       } else {
         const firstNonAllDay = cached.find(e => !e.isAllDay);
         const eventId = firstNonAllDay?.meetingId || cached[0]?.meetingId;
-        console.log('Auto-selecting first event:', eventId);
         setSelectedEventId(eventId);
       }
       
       setLoading(false);
-      console.log(`Cache hit - total time: ${(performance.now() - startTime).toFixed(2)}ms`);
       return;
     }
     
-    console.log('Making API request...');
     const apiStartTime = performance.now();
     try {
       // Use pure transformation (no LLM, instant)
@@ -330,38 +311,58 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspac
         }),
       });
       
+      if (response.status === 401) {
+        if (onRequestAuth) {
+          const success = await onRequestAuth();
+          if (success) {
+            return fetchEvents(dateStr, preserveEventId);
+          }
+        }
+        throw new Error('Authentication required');
+      }
+      
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      if (!data.success) throw new Error(data.error);
+      
+      if (!data.success) {
+        const errorStr = JSON.stringify(data.error);
+        
+        if (errorStr.includes('Form action URL not found') || 
+            errorStr.includes('Midway') || 
+            errorStr.includes('authentication') ||
+            errorStr.includes('mwinit')) {
+          if (onRequestAuth) {
+            const success = await onRequestAuth();
+            if (success) {
+              // Retry
+              return fetchEvents(dateStr, preserveEventId);
+            }
+          }
+        }
+        throw new Error(data.error);
+      }
 
       const apiTime = performance.now() - apiStartTime;
-      console.log(`API request completed in ${apiTime.toFixed(2)}ms`);
       
       const parsedEvents = data.response.events;
-      console.log(`Received ${parsedEvents.length} events`);
       
       if (parsedEvents.length === 0) {
         setError(`No events parsed. Agent response: ${response.substring(0, 300)}...`);
       } else {
         setEvents(parsedEvents);
         
-        console.log('API response - preserveEventId param:', preserveEventId);
         // Only auto-select if not preserving a selection
         if (preserveEventId) {
-          console.log('Restoring preserved selection from API:', preserveEventId);
           setSelectedEventId(preserveEventId);
         } else {
           const firstNonAllDay = parsedEvents.find(e => !e.isAllDay);
           const eventId = firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
-          console.log('Auto-selecting first event from API:', eventId);
           setSelectedEventId(eventId);
         }
         
         setCache(cacheKey, parsedEvents);
       }
-      console.log(`Total time: ${(performance.now() - startTime).toFixed(2)}ms`);
     } catch (err) {
-      console.log(`Error after ${(performance.now() - startTime).toFixed(2)}ms:`, err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -402,9 +403,7 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspac
 
   // Auto-fetch meeting details when event is selected
   useEffect(() => {
-    console.log('Auto-fetch effect triggered:', { selectedEventId, eventsLength: events.length });
     if (selectedEventId && events.length > 0) {
-      console.log('Fetching meeting details for:', selectedEventId);
       fetchMeetingDetails(selectedEventId);
       
       // Scroll to selected event
@@ -428,7 +427,7 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspac
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events]);
+  }, [events.length, initialState.eventId]);
 
   const handleRefresh = () => {
     // Clear all cache
@@ -499,9 +498,39 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspac
         }),
       });
       
+      if (response.status === 401) {
+        if (onRequestAuth) {
+          const success = await onRequestAuth();
+          if (success) {
+            return fetchMeetingDetails(meetingId);
+          }
+        }
+        throw new Error('Authentication required');
+      }
+      
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      if (!data.success) throw new Error(data.error);
+      
+      if (!data.success) {
+        // Check for auth errors
+        const errorStr = JSON.stringify(data.error);
+        
+        if (errorStr.includes('Form action URL not found') || 
+            errorStr.includes('Midway') || 
+            errorStr.includes('authentication') ||
+            errorStr.includes('mwinit')) {
+          // Trigger auth via parent component
+          if (onRequestAuth) {
+            const success = await onRequestAuth();
+            if (success) {
+              // Retry
+              return fetchMeetingDetails(meetingId);
+            }
+          } else {
+          }
+        }
+        throw new Error(data.error);
+      }
 
       const details = data.response;
       setMeetingDetails(details);
@@ -639,7 +668,6 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                     <button
                       key={day}
                       onClick={() => {
-                        console.log('Date clicked:', date);
                         setSelectedDate(date);
                       }}
                       disabled={loading}
@@ -886,22 +914,83 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
           <section className="workspace-dashboard__details">
               {selectedEvent && (
                 <div className="workspace-dashboard__card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem', gap: '1rem' }}>
                     <h3>{selectedEvent.subject}</h3>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button 
-                        onClick={() => {
-                          onLaunchPrompt?.({
-                            id: `meeting-notes-${selectedEvent.meetingId}`,
-                            label: 'Check email for meeting notes',
-                            prompt: `Search my email for meeting notes or follow-ups related to: "${selectedEvent.subject}"`
-                          });
-                          onShowChat?.();
-                        }}
-                        className="workspace-dashboard__action"
-                      >
-                        Fetch Meeting Summary
-                      </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                      {meetingDetails?.attendees && meetingDetails.attendees.length > 0 && (
+                        <>
+                          <a
+                            href={`mailto:${meetingDetails.attendees.map(a => a.email).join(';')}?subject=${encodeURIComponent(meetingDetails.subject)}`}
+                            style={{
+                              padding: '0.4rem 0.8rem',
+                              background: 'var(--color-bg-secondary)',
+                              color: 'var(--color-text)',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              textDecoration: 'none',
+                              display: 'inline-block',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Email All
+                          </a>
+                          <button
+                            onClick={() => {
+                              const attendeeList = meetingDetails.attendees!.map(a => a.email).join(', ');
+                              const prompt = `Draft an email to the following attendees about "${meetingDetails.subject}":\n\nAttendees: ${attendeeList}\n\nMeeting: ${meetingDetails.subject}\nTime: ${new Date(meetingDetails.start).toLocaleString()} - ${new Date(meetingDetails.end).toLocaleTimeString()}\nLocation: ${meetingDetails.location || 'Not specified'}`;
+                              onSendToChat?.(prompt);
+                            }}
+                            style={{
+                              padding: '0.4rem 0.8rem',
+                              background: 'var(--color-bg-secondary)',
+                              color: 'var(--color-text)',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Draft via Chat
+                          </button>
+                          <button
+                            onClick={() => {
+                              const attendeeList = meetingDetails.attendees!.map(a => a.email).join(', ');
+                              const prompt = `Schedule a follow-up meeting for "${meetingDetails.subject}" with the same attendees:\n\nAttendees: ${attendeeList}\n\nOriginal meeting was on ${new Date(meetingDetails.start).toLocaleString()}. Please help me find a suitable time and draft the meeting invite.`;
+                              onSendToChat?.(prompt);
+                            }}
+                            style={{
+                              padding: '0.4rem 0.8rem',
+                              background: 'var(--color-bg-secondary)',
+                              color: 'var(--color-text)',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Schedule Follow-up
+                          </button>
+                        </>
+                      )}
+                      {new Date(selectedEvent.end) < new Date() && (
+                        <button 
+                          onClick={() => {
+                            onLaunchPrompt?.({
+                              id: `meeting-notes-${selectedEvent.meetingId}`,
+                              label: 'Check email for meeting notes',
+                              prompt: `Search my email for meeting notes or follow-ups related to: "${selectedEvent.subject}"`
+                            });
+                            onShowChat?.();
+                          }}
+                          className="workspace-dashboard__action"
+                        >
+                          Fetch Meeting Summary
+                        </button>
+                      )}
                       <button 
                         onClick={fetchSFDCContext}
                         disabled={loadingSFDC}
@@ -978,6 +1067,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                             )}
                           </div>
                         )}
+                        
                         {meetingDetails.categories && meetingDetails.categories.length > 0 && (
                           <p><strong>Categories:</strong> {meetingDetails.categories.join(', ')}</p>
                         )}

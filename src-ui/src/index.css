@@ -361,9 +361,9 @@ body {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  z-index: 10;
+  z-index: 1000;
   min-width: 320px;
-  background: var(--bg-hover);
+  background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   box-shadow: var(--shadow-xl);
@@ -645,8 +645,8 @@ body {
 
 .chat-dock__title {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
   font-weight: 600;
 }
 
@@ -699,9 +699,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 10px 16px 10px 16px;
   border-bottom: 1px solid var(--border-primary);
   gap: 16px;
+  position: relative;
 }
 
 .chat-dock__tab-list {
@@ -709,6 +710,13 @@ body {
   flex-wrap: nowrap;
   overflow-x: auto;
   gap: 8px;
+  flex: 1;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.chat-dock__tab-list::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 .chat-dock__tab {
@@ -722,6 +730,8 @@ body {
   color: var(--text-secondary);
   cursor: pointer;
   position: relative;
+  min-width: 180px;
+  flex-shrink: 0;
 }
 
 .chat-dock__tab.is-active {
@@ -734,6 +744,10 @@ body {
   border-color: var(--warning-primary);
 }
 
+.chat-dock__tab.is-processing {
+  border-color: var(--accent-primary);
+}
+
 .chat-dock__tab.has-unread::after {
   content: '';
   position: absolute;
@@ -743,6 +757,14 @@ body {
   height: 6px;
   border-radius: 50%;
   background: var(--warning-primary);
+}
+
+.chat-dock__tab-badge {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--accent-primary);
+  font-size: 10px;
+  animation: loading-pulse 1.4s infinite;
 }
 
 .chat-dock__tab-title {
@@ -848,7 +870,7 @@ body {
 
 .message {
   max-width: 80%;
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-radius: 12px;
   line-height: 1.5;
 }
@@ -863,6 +885,58 @@ body {
   align-self: flex-start;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-primary);
+}
+
+.message.system {
+  align-self: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.9em;
+  font-style: italic;
+  max-width: 90%;
+}
+
+/* Table styling for slash command responses */
+.message.assistant table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+.message.assistant table th,
+.message.assistant table td {
+  padding: 8px 12px;
+  border: 1px solid var(--border-primary);
+  text-align: left;
+}
+
+.message.assistant table th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+
+/* Description column with flexible height based on row */
+.message.assistant table td:nth-child(2) {
+  max-width: 500px;
+  padding: 8px 12px;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+}
+
+/* Fixed width for parameters column with wrapping */
+.message.assistant table td:nth-child(3) {
+  max-width: 250px;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* Center align trusted column */
+.message.assistant table td:nth-child(4),
+.message.assistant table th:nth-child(4) {
+  text-align: center;
 }
 
 .message.loading {
@@ -1091,6 +1165,49 @@ body {
 .chat-input {
   display: flex;
   gap: 12px;
+}
+
+.command-autocomplete {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 60px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.command-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.command-item:hover,
+.command-item.selected {
+  background: var(--bg-tertiary);
+  border-left-color: var(--accent-primary);
+}
+
+.command-name {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-weight: 600;
+  color: var(--accent-primary);
+  font-size: 0.95em;
+}
+
+.command-desc {
+  font-size: 0.85em;
+  color: var(--text-secondary);
 }
 
 .chat-input textarea {

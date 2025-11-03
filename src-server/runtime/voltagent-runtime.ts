@@ -98,6 +98,22 @@ export class WorkAgentRuntime {
       server: honoServer({
         port: this.port,
         configureApp: (app) => {
+          // Global error handler middleware
+          app.onError((err, c) => {
+            const errorMsg = err.message || '';
+            const isAuthError = errorMsg.includes('authentication failed') ||
+                                errorMsg.includes('status code 403') ||
+                                errorMsg.includes('Request failed with status code 403') ||
+                                errorMsg.includes('Midway') ||
+                                errorMsg.includes('Form action URL not found');
+            
+            if (isAuthError) {
+              return c.json({ success: false, error: err.message }, 401);
+            }
+            
+            return c.json({ success: false, error: err.message }, 500);
+          });
+
           app.use(
             '*',
             cors({
@@ -410,6 +426,25 @@ export class WorkAgentRuntime {
             }
           });
 
+          app.get('/agents/:slug/conversations/:conversationId/messages', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const conversationId = c.req.param('conversationId');
+              const adapter = this.memoryAdapters.get(slug);
+              
+              if (!adapter) {
+                return c.json({ success: true, data: [] });
+              }
+
+              const messages = await adapter.getMessages(`agent:${slug}`, conversationId);
+              
+              return c.json({ success: true, data: messages });
+            } catch (error: any) {
+              this.logger.error('Failed to load messages', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
           // Silent agent invocation for dashboard data fetching
           app.post('/agents/:slug/invoke', async (c) => {
             try {
@@ -448,7 +483,14 @@ export class WorkAgentRuntime {
               });
             } catch (error: any) {
               this.logger.error('Failed to invoke agent', { error });
-              return c.json({ success: false, error: error.message }, 500);
+              // Check if it's an authentication error
+              const errorMsg = error.message || '';
+              const isAuthError = errorMsg.includes('authentication failed') ||
+                                  errorMsg.includes('status code 403') ||
+                                  errorMsg.includes('Request failed with status code 403') ||
+                                  errorMsg.includes('Midway') ||
+                                  errorMsg.includes('Form action URL not found');
+              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
             }
           });
 
@@ -507,7 +549,14 @@ export class WorkAgentRuntime {
             } catch (error: any) {
               console.log(`=== RAW TOOL ERROR: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
               this.logger.error('Failed to call tool', { error });
-              return c.json({ success: false, error: error.message }, 500);
+              // Check if it's an authentication error
+              const errorMsg = error.message || '';
+              const isAuthError = errorMsg.includes('authentication failed') ||
+                                  errorMsg.includes('status code 403') ||
+                                  errorMsg.includes('Request failed with status code 403') ||
+                                  errorMsg.includes('Midway') ||
+                                  errorMsg.includes('Form action URL not found');
+              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
             }
           });
 
@@ -553,6 +602,24 @@ export class WorkAgentRuntime {
               
               console.log('[Unwrapped result]', JSON.stringify(unwrappedResult));
               
+              // Check if the MCP tool returned an error
+              if (unwrappedResult?.success === false && unwrappedResult?.error) {
+                const errorMessage = unwrappedResult.error?.message?.message || unwrappedResult.error?.message || unwrappedResult.error;
+                const errorStr = typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage);
+                
+                // Check if it's an auth error
+                if (errorStr.includes('Form action URL not found') || 
+                    errorStr.includes('Midway') || 
+                    errorStr.includes('authentication') ||
+                    errorStr.includes('status code 403') ||
+                    errorStr.includes('Request failed with status code 403') ||
+                    errorStr.includes('mwinit')) {
+                  return c.json({ success: false, error: errorMessage }, 401);
+                }
+                
+                return c.json({ success: false, error: errorMessage }, 500);
+              }
+              
               // Apply transformation
               const transformStart = performance.now();
               const transformFn = new Function('data', `return (${transform})(data);`);
@@ -570,7 +637,16 @@ export class WorkAgentRuntime {
               });
             } catch (error: any) {
               this.logger.error('Failed to transform invoke', { error });
-              return c.json({ success: false, error: error.message }, 500);
+              // Check if it's an authentication error
+              const errorMsg = error.message || '';
+              console.log('[Auth Check]', { errorMsg, includes403: errorMsg.includes('status code 403') });
+              const isAuthError = errorMsg.includes('authentication failed') ||
+                                  errorMsg.includes('status code 403') ||
+                                  errorMsg.includes('Request failed with status code 403') ||
+                                  errorMsg.includes('Midway') ||
+                                  errorMsg.includes('Form action URL not found');
+              console.log('[Auth Error?]', isAuthError);
+              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
             }
           });
 
@@ -687,6 +763,66 @@ export class WorkAgentRuntime {
               });
             } catch (error: any) {
               this.logger.error('Failed to stream invoke', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Chat endpoint for UI - handles streaming with model overrides
+          app.post('/agents/:slug/chat', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const { input, options = {} } = await c.req.json();
+              const { model: modelOverride, ...restOptions } = options;
+
+              let agent = this.activeAgents.get(slug);
+              if (!agent) {
+                return c.json({ success: false, error: 'Agent not found' }, 404);
+              }
+
+              // If model override, get or create cached agent with that model
+              if (modelOverride) {
+                const cacheKey = `${slug}:${modelOverride}`;
+                let cachedAgent = this.activeAgents.get(cacheKey);
+                
+                if (!cachedAgent) {
+                  const newModel = createBedrockProvider({
+                    appConfig: this.appConfig,
+                    agentSpec: { model: modelOverride } as any
+                  });
+                  
+                  cachedAgent = new Agent({
+                    ...agent,
+                    name: cacheKey,
+                    model: newModel,
+                  });
+                  
+                  this.activeAgents.set(cacheKey, cachedAgent);
+                }
+                
+                agent = cachedAgent;
+              }
+
+              // Use VoltAgent's streamText for proper SSE formatting
+              const result = await agent.streamText(input, restOptions);
+
+              // Set SSE headers
+              c.header('Content-Type', 'text/event-stream');
+              c.header('Cache-Control', 'no-cache');
+              c.header('Connection', 'keep-alive');
+
+              return stream(c, async (streamWriter) => {
+                try {
+                  for await (const chunk of result.fullStream) {
+                    await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                  }
+                  await streamWriter.write('data: [DONE]\n\n');
+                } catch (error: any) {
+                  this.logger.error('Stream error', { error });
+                  await streamWriter.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+                }
+              });
+            } catch (error: any) {
+              this.logger.error('Chat error', { error });
               return c.json({ success: false, error: error.message }, 500);
             }
           });

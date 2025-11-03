@@ -11,6 +11,8 @@ export interface AgentWorkspaceProps {
   onLaunchPrompt?: (prompt: AgentQuickPrompt) => void;
   onLaunchWorkflow?: (workflowId: string) => void;
   onShowChat?: () => void;
+  onRequestAuth?: () => Promise<boolean>;
+  onSendToChat?: (text: string) => void;
 }
 
 export type AgentWorkspaceComponent = (props: AgentWorkspaceProps) => JSX.Element;
@@ -43,12 +45,6 @@ export function resolveWorkspaceComponent(componentId?: string): AgentWorkspaceC
 
 export function WorkspaceRenderer(props: AgentWorkspaceProps) {
   const componentId = props.agent.ui?.component;
-  console.log('WorkspaceRenderer:', { 
-    agentSlug: props.agent.slug, 
-    componentId, 
-    hasComponent: componentId ? componentId in registry : false,
-    ui: props.agent.ui 
-  });
   const Component = resolveWorkspaceComponent(componentId);
   return <Component {...props} />;
 }

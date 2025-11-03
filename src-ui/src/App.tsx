@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { KeyboardEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentSelector } from './components/AgentSelector';
 import { QuickActionsBar } from './components/QuickActionsBar';
@@ -68,22 +69,22 @@ function ToolCallDisplay({ toolCall }: { toolCall: { id: string; name: string; a
         <div className="tool-call__details" style={{ marginTop: '0.5rem', fontSize: '0.9em' }}>
           <div className="tool-call__section">
             <strong>Tool ID:</strong>
-            <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflow: 'auto' }}>{toolCall.id}</pre>
+            <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{toolCall.id}</pre>
           </div>
           <div className="tool-call__section">
             <strong>Arguments:</strong>
-            <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflow: 'auto' }}>{JSON.stringify(toolCall.args, null, 2)}</pre>
+            <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(toolCall.args, null, 2)}</pre>
           </div>
           {toolCall.result && (
             <div className="tool-call__section">
               <strong>Result:</strong>
-              <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflow: 'auto', maxHeight: '200px' }}>{JSON.stringify(toolCall.result, null, 2)}</pre>
+              <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflowX: 'auto', maxHeight: '200px', overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(toolCall.result, null, 2)}</pre>
             </div>
           )}
           {toolCall.error && (
             <div className="tool-call__section tool-call__section--error">
               <strong>Error:</strong>
-              <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflow: 'auto', color: 'red' }}>{toolCall.error}</pre>
+              <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflowX: 'auto', color: 'red', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{toolCall.error}</pre>
             </div>
           )}
         </div>
@@ -108,6 +109,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get('dock') !== 'open';
   });
+  const isDockCollapsedRef = useRef(isDockCollapsed);
   const [isDockMaximized, setIsDockMaximized] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('maximize') === 'true';
@@ -120,8 +122,10 @@ function App() {
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
   const [workflowCatalog, setWorkflowCatalog] = useState<Record<string, WorkflowMetadata[]>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastSessionId, setToastSessionId] = useState<string | null>(null);
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [pinDialogResolver, setPinDialogResolver] = useState<((success: boolean) => void) | null>(null);
+  const [activeAbortController, setActiveAbortController] = useState<AbortController | null>(null);
   const { authenticate, isAuthenticating, error: authError } = useAwsAuth();
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
     const path = window.location.pathname;
@@ -147,6 +151,10 @@ function App() {
   const [pendingPromptSend, setPendingPromptSend] = useState<{ sessionId: string; prompt: string } | null>(null);
   const [loadedAgents, setLoadedAgents] = useState<Set<string>>(new Set());
   const [messageQueue, setMessageQueue] = useState<Map<string, string[]>>(new Map());
+  const [ephemeralMessages, setEphemeralMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [newChatSearch, setNewChatSearch] = useState('');
+  const [newChatSelectedIndex, setNewChatSelectedIndex] = useState(0);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const generateId = () =>
@@ -154,25 +162,53 @@ function App() {
       ? crypto.randomUUID()
       : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const modKey = isMac ? '⌘' : 'Ctrl+';
+
   const humanizeWorkflowId = (identifier: string) => {
     const base = identifier.includes('.') ? identifier.split('.')[0] : identifier;
     return base.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   };
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, sessionId?: string) => {
     setToastMessage(message);
+    setToastSessionId(sessionId || null);
     if (toastTimeoutRef.current) {
       clearTimeout(toastTimeoutRef.current);
     }
     toastTimeoutRef.current = setTimeout(() => {
       setToastMessage(null);
+      setToastSessionId(null);
       toastTimeoutRef.current = null;
     }, 5000);
   };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatSectionRef = useRef<HTMLDivElement>(null);
+  const tabListRef = useRef<HTMLDivElement>(null);
+  const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
+  const [showCommandAutocomplete, setShowCommandAutocomplete] = useState(false);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [showModelSelector, setShowModelSelector] = useState(false);
+  const [selectedModelIndex, setSelectedModelIndex] = useState(0);
+
+  const availableModels = [
+    { id: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0', name: 'Claude 3.7 Sonnet' },
+    { id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0', name: 'Claude 3.5 Sonnet v2' },
+    { id: 'us.anthropic.claude-3-5-sonnet-20240620-v1:0', name: 'Claude 3.5 Sonnet' },
+    { id: 'us.anthropic.claude-3-opus-20240229-v1:0', name: 'Claude 3 Opus' },
+    { id: 'us.anthropic.claude-3-haiku-20240307-v1:0', name: 'Claude 3 Haiku' },
+  ];
+
+  const slashCommands = [
+    { cmd: '/mcp', description: 'List MCP servers for this agent' },
+    { cmd: '/tools', description: 'Show available tools and auto-approved list' },
+    { cmd: '/model', description: 'List and select model for this conversation' },
+    { cmd: '/clear', aliases: ['/new'], description: 'Clear conversation and start fresh' },
+  ];
 
   const currentAgent = useMemo(
     () => agents.find((agent) => agent.slug === selectedAgent) ?? null,
@@ -197,15 +233,27 @@ function App() {
 
   const handlePinSubmit = async (pin: string) => {
     const success = await authenticate(pin);
-    setShowPinDialog(false);
-    pinDialogResolver?.(success);
-    setPinDialogResolver(null);
+    if (success) {
+      setShowPinDialog(false);
+      pinDialogResolver?.(true);
+      setPinDialogResolver(null);
+      // Refresh page after successful auth
+      window.location.reload();
+    }
+    // Keep dialog open on failure to show error
   };
 
   const handlePinCancel = () => {
     setShowPinDialog(false);
     pinDialogResolver?.(false);
     setPinDialogResolver(null);
+  };
+
+  const handleAuthError = async (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setPinDialogResolver(() => resolve);
+      setShowPinDialog(true);
+    });
   };
 
   // Update URL when state changes
@@ -237,6 +285,11 @@ function App() {
     window.history.replaceState({}, '', url);
   }, [selectedAgent, activeSessionId, isDockCollapsed, isDockMaximized, currentView]);
 
+  // Keep ref in sync with state
+  useEffect(() => {
+    isDockCollapsedRef.current = isDockCollapsed;
+  }, [isDockCollapsed]);
+
   useEffect(() => {
     if (selectedAgent && agents.length > 0 && !loadedAgents.has(selectedAgent)) {
       loadSessionsForAgent(selectedAgent);
@@ -264,11 +317,140 @@ function App() {
   }, [sessions, activeSessionId]);
 
   useEffect(() => {
-    if (!activeSessionId || isDockCollapsed) return;
+    const loadMessagesForActiveSession = async () => {
+      if (!activeSessionId) return;
+      const session = sessions.find(s => s.id === activeSessionId);
+      if (!session || session.messages.length > 0) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/agents/${session.agentSlug}/conversations/${session.conversationId}/messages`);
+        if (response.ok) {
+          const payload = await response.json();
+          const messages = payload.data || [];
+          
+          // Only update if messages are still empty (avoid race condition)
+          setSessions(prev => prev.map(s => 
+            s.id === activeSessionId && s.messages.length === 0
+              ? {
+                  ...s,
+                  messages: messages.map((msg: any) => {
+                    // VoltAgent stores messages with parts array
+                    const textParts = msg.parts?.filter((p: any) => p.type === 'text') || [];
+                    const toolParts = msg.parts?.filter((p: any) => p.type === 'tool-call') || [];
+                    const content = textParts.map((p: any) => p.text).join('');
+                    
+                    const contentParts = [
+                      ...textParts.map((p: any) => ({ type: 'text' as const, content: p.text })),
+                      ...toolParts.map((p: any) => ({ 
+                        type: 'tool' as const, 
+                        tool: {
+                          id: p.toolCallId,
+                          name: p.toolName,
+                          args: p.args,
+                          result: p.result
+                        }
+                      }))
+                    ];
+                    
+                    return {
+                      role: msg.role,
+                      content,
+                      contentParts: contentParts.length > 0 ? contentParts : undefined
+                    };
+                  }),
+                }
+              : s
+          ));
+        }
+      } catch (err) {
+        console.error('Failed to load messages:', err);
+      }
+    };
+    
+    loadMessagesForActiveSession();
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!activeSessionId || isDockCollapsed || isUserScrolledUp) return;
     const session = sessions.find((item) => item.id === activeSessionId);
     if (!session) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeSessionId, sessions.find(s => s.id === activeSessionId)?.messages.length, isDockCollapsed, isUserScrolledUp]);
+
+  // Keyboard shortcuts for chat dock
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      // Cmd/Ctrl + N: New chat
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault();
+        setShowNewChatModal(true);
+        setNewChatSearch('');
+        setNewChatSelectedIndex(0);
+      }
+      // Cmd/Ctrl + W: Close active session
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'w' && activeSessionId) {
+        e.preventDefault();
+        removeSession(activeSessionId);
+      }
+      // Cmd/Ctrl + D: Toggle dock
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        e.preventDefault();
+        setIsDockCollapsed(prev => !prev);
+      }
+      // Cmd/Ctrl + M: Maximize dock
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'm') {
+        e.preventDefault();
+        if (!isDockCollapsed) {
+          setIsDockMaximized(prev => !prev);
+        }
+      }
+      // Cmd/Ctrl + 1-9: Switch to tab by number
+      else if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const index = parseInt(e.key) - 1;
+        if (sessions[index]) {
+          focusSession(sessions[index].id);
+        }
+      }
+      // Cmd/Ctrl + [: Previous tab
+      else if ((e.metaKey || e.ctrlKey) && e.key === '[') {
+        e.preventDefault();
+        if (isDockCollapsed) return;
+        const currentIndex = sessions.findIndex(s => s.id === activeSessionId);
+        if (currentIndex > 0) {
+          focusSession(sessions[currentIndex - 1].id);
+        }
+      }
+      // Cmd/Ctrl + ]: Next tab
+      else if ((e.metaKey || e.ctrlKey) && e.key === ']') {
+        e.preventDefault();
+        if (isDockCollapsed) return;
+        const currentIndex = sessions.findIndex(s => s.id === activeSessionId);
+        if (currentIndex >= 0 && currentIndex < sessions.length - 1) {
+          focusSession(sessions[currentIndex + 1].id);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeSessionId, sessions, isDockCollapsed]);
+
+  // Update scroll button visibility when sessions change
+  useEffect(() => {
+    const checkScroll = () => {
+      if (tabListRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = tabListRef.current;
+        setShowScrollButtons({
+          left: scrollLeft > 0,
+          right: scrollLeft < scrollWidth - clientWidth - 1,
+        });
+      }
+    };
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, [sessions]);
 
   useEffect(() => {
     if (!currentAgent) return;
@@ -425,6 +607,8 @@ function App() {
     setActiveSessionId(sessionId);
     setIsDockCollapsed(false);
     setHistoryIndex(-1);
+    setShowModelSelector(false);
+    setShowCommandAutocomplete(false);
     updateSession(sessionId, (current) => ({
       ...current,
       hasUnread: false,
@@ -456,6 +640,7 @@ function App() {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       hasUnread: false,
+      inputHistory: [],
     };
 
     setSessions((prev) => [...prev, session]);
@@ -473,6 +658,164 @@ function App() {
       ...current,
       input: value,
     }));
+    
+    // Show autocomplete when typing slash commands
+    if (value.startsWith('/') && !value.includes(' ')) {
+      setShowCommandAutocomplete(true);
+      setSelectedCommandIndex(0);
+    } else {
+      setShowCommandAutocomplete(false);
+    }
+  };
+
+  const handleSlashCommand = async (sessionId: string, command: string) => {
+    const session = sessions.find((item) => item.id === sessionId);
+    if (!session) return;
+
+    const parts = command.slice(1).trim().split(/\s+/);
+    const cmd = parts[0].toLowerCase();
+
+    let responseContent = '';
+
+    if (cmd === 'mcp') {
+      try {
+        // Get agent's tools to find which MCP servers are loaded
+        const response = await fetch(`${API_BASE}/agents/${session.agentSlug}`);
+        const data = await response.json();
+        const agent = data.data;
+        
+        const tools = agent?.tools || [];
+        
+        // Extract unique MCP server names (prefix before underscore)
+        const mcpServers = [...new Set(
+          tools
+            .map((t: any) => {
+              const name = typeof t === 'string' ? t : (t.name || t.id || '');
+              // Extract server name (e.g., "sat-outlook" from "sat-outlook_email_read")
+              return name.includes('_') ? name.split('_')[0] : null;
+            })
+            .filter((s: string | null) => s !== null)
+        )].sort();
+        
+        if (mcpServers.length > 0) {
+          responseContent = `**MCP Servers (${mcpServers.length}):**\n\n${mcpServers.map((s: string) => `- ${s}`).join('\n')}`;
+        } else {
+          responseContent = `No MCP servers loaded for this agent.`;
+        }
+      } catch (error) {
+        responseContent = `Error: ${error}`;
+      }
+    } else if (cmd === 'tools') {
+      try {
+        // Use standard VoltAgent endpoint
+        const response = await fetch(`${API_BASE}/agents/${session.agentSlug}`);
+        const data = await response.json();
+        const agent = data.data;
+        
+        const tools = agent?.tools || [];
+        const autoApproveList = agent?.autoApprove || agent?.autoApproved || [];
+        
+        if (tools.length > 0) {
+          // Sort alphabetically
+          const sortedTools = [...tools].sort((a: any, b: any) => {
+            const nameA = typeof a === 'string' ? a : (a.name || a.id || '');
+            const nameB = typeof b === 'string' ? b : (b.name || b.id || '');
+            return nameA.localeCompare(nameB);
+          });
+          
+          const toolLines = sortedTools.map((t: any) => {
+            const name = typeof t === 'string' ? t : (t.name || t.id || 'unknown');
+            const isAutoApproved = autoApproveList.includes(name) || autoApproveList.some((pattern: string) => {
+              if (pattern.includes('*')) {
+                const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+                return regex.test(name);
+              }
+              return pattern === name;
+            });
+            const trusted = isAutoApproved ? '✓' : '';
+            
+            // Get parameters with * for optional, required first
+            let params = '';
+            if (t.parameters?.properties) {
+              const required = t.parameters.required || [];
+              const allParams = Object.keys(t.parameters.properties);
+              // Sort: required first, then optional
+              const sortedParams = [
+                ...allParams.filter(p => required.includes(p)),
+                ...allParams.filter(p => !required.includes(p))
+              ];
+              const paramNames = sortedParams.map(p => 
+                required.includes(p) ? p : `${p}*`
+              );
+              params = paramNames.length > 0 ? paramNames.join(', ') : 'none';
+            }
+            
+            // Clean up and truncate description to ~200 chars (roughly 2-3 lines)
+            let desc = t.description || 'No description';
+            desc = desc.replace(/\s+/g, ' ').replace(/^#+\s*/g, '').trim();
+            if (desc.length > 200) {
+              desc = desc.substring(0, 197) + '...';
+            }
+            
+            return `| ${name} | ${desc} | ${params} | ${trusted} |`;
+          });
+          
+          const autoApproveNote = autoApproveList.length > 0 
+            ? `*Auto-approve: ${autoApproveList.join(', ')}*\n\n` 
+            : '';
+          
+          responseContent = `**Tools (${tools.length}):**\n\n${autoApproveNote}| Tool | Description | Parameters (* optional) | Trusted |\n|------|-------------|-------------------------|:-------:|\n${toolLines.join('\n')}`;
+        } else {
+          responseContent = `No tools configured.`;
+        }
+      } catch (error) {
+        responseContent = `Error: ${error}`;
+      }
+    } else if (cmd === 'model') {
+      // Show model selector menu
+      const session = sessions.find(s => s.id === sessionId);
+      const currentModelIndex = session?.model 
+        ? availableModels.findIndex(m => m.id === session.model)
+        : 0;
+      setShowModelSelector(true);
+      setSelectedModelIndex(currentModelIndex >= 0 ? currentModelIndex : 0);
+      updateSession(sessionId, (current) => ({
+        ...current,
+        input: '',
+      }));
+      return;
+    } else if (cmd === 'clear' || cmd === 'new') {
+      // Clear conversation by generating new conversationId
+      const session = sessions.find(s => s.id === sessionId);
+      if (session) {
+        const newConversationId = `tauri-${session.agentSlug}-${generateId()}`;
+        updateSession(sessionId, (current) => ({
+          ...current,
+          conversationId: newConversationId,
+          messages: [],
+          input: '',
+        }));
+        setEphemeralMessages(prev => ({
+          ...prev,
+          [sessionId]: [{ role: 'system', content: 'Conversation cleared. Starting fresh with new history.' }]
+        }));
+      }
+      return;
+    } else {
+      responseContent = `Unknown command: ${command}\n\nAvailable:\n• /mcp - List MCP servers\n• /tools - Show tools\n• /model - Change model\n• /clear or /new - Clear conversation`;
+    }
+
+    // Set ephemeral message (shows in UI but not in history)
+    setEphemeralMessages(prev => ({
+      ...prev,
+      [sessionId]: [{ role: 'assistant', content: responseContent }]
+    }));
+    
+    // Clear input
+    updateSession(sessionId, (current) => ({
+      ...current,
+      input: '',
+    }));
   };
 
   const sendMessage = async (sessionId: string, overrideContent?: string) => {
@@ -481,6 +824,18 @@ function App() {
 
     const text = (overrideContent ?? session.input).trim();
     if (!text) return;
+
+    // Add to input history (including slash commands)
+    updateSession(sessionId, (current) => ({
+      ...current,
+      inputHistory: [...current.inputHistory, text],
+    }));
+
+    // Handle slash commands
+    if (text.startsWith('/')) {
+      await handleSlashCommand(sessionId, text);
+      return;
+    }
 
     // If already sending, queue the message
     if (session.status === 'sending') {
@@ -494,6 +849,12 @@ function App() {
 
     const userMessage: ChatMessage = { role: 'user', content: text };
 
+    // Clear ephemeral messages when sending real message
+    setEphemeralMessages(prev => {
+      const { [sessionId]: _, ...rest } = prev;
+      return rest;
+    });
+
     updateSession(sessionId, (current) => ({
       ...current,
       messages: [...current.messages, userMessage],
@@ -505,17 +866,27 @@ function App() {
     }));
     focusSession(sessionId);
 
+    const abortController = new AbortController();
+    setActiveAbortController(abortController);
+
     try {
+      // Get agent to check if model override is needed
+      const agent = agents.find(a => a.slug === session.agentSlug);
+      const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+      const needsModelOverride = session.model && session.model !== agentModelId;
+
       // Use streaming /chat endpoint to see tool calls
       const response = await fetch(`${API_BASE}/agents/${session.agentSlug}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: abortController.signal,
         body: JSON.stringify({
           input: text,
           options: {
             userId: 'tauri-ui-user',
             conversationId: session.conversationId,
             maxSteps: 10,
+            ...(needsModelOverride && { model: session.model }),
           },
         }),
       });
@@ -557,6 +928,7 @@ function App() {
             
             try {
               const data = JSON.parse(dataStr);
+              console.log('[SSE Event]', data.type, data);
               
               if (data.type === 'text-delta' && data.delta) {
                 currentTextChunk += data.delta;
@@ -576,8 +948,26 @@ function App() {
                     messages.push({ 
                       role: 'assistant', 
                       content: currentTextChunk,
+                      model: current.model,
                       contentParts: [{ type: 'text', content: currentTextChunk }]
                     });
+                  }
+                  return { ...current, messages, updatedAt: Date.now() };
+                });
+              } else if (data.type === 'max-steps-reached' || data.type === 'finish' && data.reason === 'max-steps') {
+                // Append max turns warning
+                updateSession(sessionId, (current) => {
+                  const messages = [...current.messages];
+                  const lastMsg = messages[messages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    const parts = [...(lastMsg.contentParts || [])];
+                    const warningText = '\n\n⚠️ *Maximum turns reached. The conversation was terminated to prevent excessive tool usage.*';
+                    if (parts.length > 0 && parts[parts.length - 1].type === 'text') {
+                      parts[parts.length - 1].content += warningText;
+                    } else {
+                      parts.push({ type: 'text', content: warningText });
+                    }
+                    lastMsg.contentParts = parts;
                   }
                   return { ...current, messages, updatedAt: Date.now() };
                 });
@@ -606,12 +996,35 @@ function App() {
                     messages.push({ 
                       role: 'assistant', 
                       content: '',
+                      model: current.model,
                       contentParts: [{ type: 'tool', tool: toolCall }]
                     });
                   }
                   return { ...current, messages, updatedAt: Date.now() };
                 });
               } else if (data.type === 'tool-output-available') {
+                console.log('[Tool Output]', data);
+                
+                // Check for auth errors in tool output
+                const outputStr = JSON.stringify(data.output || data.error || data);
+                const needsAuth = outputStr.includes('Form action URL not found') || 
+                                  outputStr.includes('Midway') || 
+                                  outputStr.includes('authentication failed') ||
+                                  outputStr.includes('mwinit') ||
+                                  outputStr.includes('status code 403') ||
+                                  outputStr.includes('Request failed with status code 403');
+                
+                if (needsAuth) {
+                  console.log('[Auth Error Detected] Showing PIN dialog');
+                  // Trigger auth flow
+                  const success = await handleAuthError();
+                  if (success) {
+                    console.log('[Auth Success] Retrying message');
+                    // Retry the message
+                    return sendMessage(sessionId, text);
+                  }
+                }
+                
                 // Update tool result
                 updateSession(sessionId, (current) => {
                   const messages = [...current.messages];
@@ -637,7 +1050,21 @@ function App() {
         }
       }
 
-      const shouldMarkUnread = sessionId !== activeSessionId || isDockCollapsed;
+      // Get current dock state at completion time (not from closure)
+      const currentDockCollapsed = isDockCollapsedRef.current;
+      
+      const shouldMarkUnread = sessionId !== activeSessionId || currentDockCollapsed;
+      const shouldShowToast = sessionId !== activeSessionId || currentDockCollapsed;
+      
+      console.log('[Toast Debug]', { 
+        sessionId, 
+        activeSessionId, 
+        isDockCollapsedFromClosure: isDockCollapsed,
+        currentDockCollapsed,
+        shouldMarkUnread,
+        shouldShowToast,
+        sessionTitle: session.title 
+      });
 
       updateSession(sessionId, (current) => {
         const queue = current.queuedMessages || [];
@@ -666,12 +1093,49 @@ function App() {
           hasUnread: shouldMarkUnread ? true : false,
         };
       });
+      
+      setActiveAbortController(null);
 
-      if (shouldMarkUnread) {
-        showToast(`New response from ${session.agentName} (${session.title})`);
+      if (shouldShowToast) {
+        const sessionIndex = sessions.findIndex(s => s.id === sessionId);
+        const shortcut = sessionIndex >= 0 && sessionIndex < 9 ? ` (⌘${sessionIndex + 1})` : '';
+        const toastMsg = `New response from ${session.agentName} (${session.title})${shortcut}`;
+        console.log('[Showing Toast]', toastMsg);
+        showToast(toastMsg, sessionId);
       }
     } catch (err: any) {
+      setActiveAbortController(null);
+      
+      if (err.name === 'AbortError') {
+        updateSession(sessionId, (current) => ({
+          ...current,
+          status: 'idle',
+          error: 'Request cancelled',
+          updatedAt: Date.now(),
+        }));
+        return;
+      }
+      
       const errorMessage = err?.message || 'Failed to send message';
+      
+      // Check for Gateway authentication errors
+      const needsAuth = errorMessage.includes('AI Gateway authentication failed') ||
+                        errorMessage.includes('No authentication provided') ||
+                        errorMessage.includes('Vercel AI Gateway access failed') ||
+                        errorMessage.includes('status code 403') ||
+                        errorMessage.includes('Request failed with status code 403') ||
+                        errorMessage.includes('Outlook authentication failed') ||
+                        errorMessage.includes('Midway');
+      
+      if (needsAuth) {
+        console.log('[Gateway Auth Error Detected] Showing PIN dialog');
+        const success = await handleAuthError();
+        if (success) {
+          console.log('[Auth Success] Retrying message');
+          return sendMessage(sessionId, text);
+        }
+      }
+      
       const shouldMarkUnread = sessionId !== activeSessionId || isDockCollapsed;
       updateSession(sessionId, (current) => ({
         ...current,
@@ -682,12 +1146,83 @@ function App() {
         hasUnread: shouldMarkUnread ? true : false,
       }));
       if (shouldMarkUnread) {
-        showToast(`Message failed for ${session.agentName} (${session.title})`);
+        showToast(`Message failed for ${session.agentName} (${session.title})`, sessionId);
       }
     }
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle model selector navigation
+    if (showModelSelector) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setSelectedModelIndex((prev) => {
+          const next = (prev + 1) % availableModels.length;
+          // Scroll to selected item
+          setTimeout(() => {
+            const selected = document.querySelector('.command-autocomplete .command-item.selected');
+            selected?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 0);
+          return next;
+        });
+        return;
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setSelectedModelIndex((prev) => {
+          const next = (prev - 1 + availableModels.length) % availableModels.length;
+          // Scroll to selected item
+          setTimeout(() => {
+            const selected = document.querySelector('.command-autocomplete .command-item.selected');
+            selected?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 0);
+          return next;
+        });
+        return;
+      } else if (event.key === 'Tab' || event.key === 'Enter') {
+        event.preventDefault();
+        if (activeSessionId) {
+          const selectedModel = availableModels[selectedModelIndex];
+          updateSession(activeSessionId, (current) => ({
+            ...current,
+            model: selectedModel.id,
+            inputHistory: [...current.inputHistory, `/model ${selectedModel.name}`],
+            messages: [...current.messages, { role: 'system', content: `Model changed to **${selectedModel.name}**` }],
+          }));
+          setShowModelSelector(false);
+        }
+        return;
+      } else if (event.key === 'Escape') {
+        setShowModelSelector(false);
+        return;
+      }
+    }
+
+    // Handle autocomplete navigation
+    if (showCommandAutocomplete) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        const filtered = getFilteredCommands();
+        setSelectedCommandIndex((prev) => (prev + 1) % filtered.length);
+        return;
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const filtered = getFilteredCommands();
+        setSelectedCommandIndex((prev) => (prev - 1 + filtered.length) % filtered.length);
+        return;
+      } else if (event.key === 'Tab' || event.key === 'Enter') {
+        event.preventDefault();
+        const filtered = getFilteredCommands();
+        if (filtered.length > 0 && activeSessionId) {
+          setShowCommandAutocomplete(false);
+          sendMessage(activeSessionId, filtered[selectedCommandIndex].cmd);
+        }
+        return;
+      } else if (event.key === 'Escape') {
+        setShowCommandAutocomplete(false);
+        return;
+      }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       if (activeSessionId) {
@@ -697,21 +1232,19 @@ function App() {
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       if (!activeSession) return;
-      const userMessages = activeSession.messages.filter(m => m.role === 'user');
-      if (userMessages.length === 0) return;
+      if (activeSession.inputHistory.length === 0) return;
       const newIndex = historyIndex + 1;
-      if (newIndex < userMessages.length) {
+      if (newIndex < activeSession.inputHistory.length) {
         setHistoryIndex(newIndex);
-        setSessionInput(activeSession.id, userMessages[userMessages.length - 1 - newIndex].content);
+        setSessionInput(activeSession.id, activeSession.inputHistory[activeSession.inputHistory.length - 1 - newIndex]);
       }
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
       if (!activeSession) return;
-      const userMessages = activeSession.messages.filter(m => m.role === 'user');
       const newIndex = historyIndex - 1;
       if (newIndex >= 0) {
         setHistoryIndex(newIndex);
-        setSessionInput(activeSession.id, userMessages[userMessages.length - 1 - newIndex].content);
+        setSessionInput(activeSession.id, activeSession.inputHistory[activeSession.inputHistory.length - 1 - newIndex]);
       } else if (newIndex === -1) {
         setHistoryIndex(-1);
         setSessionInput(activeSession.id, '');
@@ -719,12 +1252,22 @@ function App() {
     }
   };
 
+  const getFilteredCommands = () => {
+    if (!activeSession) return slashCommands;
+    const input = activeSession.input.toLowerCase();
+    if (!input.startsWith('/')) return slashCommands;
+    return slashCommands.filter(c => 
+      c.cmd.toLowerCase().startsWith(input) || 
+      c.aliases?.some(a => a.toLowerCase().startsWith(input))
+    );
+  };
+
   const switchAgent = (slug: string) => {
     setSelectedAgent(slug);
     setManagementNotice(null);
   };
 
-  const handleLaunchPrompt = (prompt: AgentQuickPrompt) => {
+  const handleLaunchPrompt = useCallback((prompt: AgentQuickPrompt) => {
     if (!currentAgent) return;
 
     const sessionId = `${currentAgent.slug}:${generateId()}`;
@@ -750,7 +1293,7 @@ function App() {
     setActiveSessionId(sessionId);
     setIsDockCollapsed(false);
     setPendingPromptSend({ sessionId, prompt: prompt.prompt });
-  };
+  }, [currentAgent]);
 
   const handleWorkflowShortcut = (workflowId: string) => {
     if (!currentAgent) return;
@@ -821,10 +1364,20 @@ function App() {
     showToast('Settings saved successfully');
   };
 
-  const openChatForAgent = (agent: AgentSummary | null) => {
+  const openChatForAgent = useCallback((agent: AgentSummary | null) => {
     if (!agent) return;
     ensureManualSession(agent);
-  };
+  }, []);
+
+  const handleShowChatForCurrentAgent = useCallback(() => {
+    openChatForAgent(currentAgent);
+  }, [currentAgent, openChatForAgent]);
+
+  const handleSendToChat = useCallback((text: string) => {
+    if (!currentAgent) return;
+    const session = ensureManualSession(currentAgent);
+    setSessionInput(session.id, text);
+  }, [currentAgent]);
 
   // Render management views
   if (currentView.type !== 'workspace') {
@@ -899,9 +1452,23 @@ function App() {
         </div>
 
         {toastMessage && (
-          <div className="toast">
+          <div 
+            className="toast" 
+            onClick={() => {
+              if (toastSessionId) {
+                focusSession(toastSessionId);
+                setToastMessage(null);
+                setToastSessionId(null);
+              }
+            }}
+            style={{ cursor: toastSessionId ? 'pointer' : 'default' }}
+          >
             <span>{toastMessage}</span>
-            <button type="button" onClick={() => setToastMessage(null)}>
+            <button type="button" onClick={(e) => {
+              e.stopPropagation();
+              setToastMessage(null);
+              setToastSessionId(null);
+            }}>
               Dismiss
             </button>
           </div>
@@ -979,14 +1546,18 @@ function App() {
               <WorkspaceRenderer
                 agent={currentAgent}
                 onLaunchPrompt={handleLaunchPrompt}
-                onShowChat={() => openChatForAgent(currentAgent)}
+                onShowChat={handleShowChatForCurrentAgent}
+                onRequestAuth={handleAuthError}
+                onSendToChat={handleSendToChat}
               />
             </div>
 
             <div
               className={`chat-dock ${isDockCollapsed ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''}`}
               style={{ 
-                height: isDockCollapsed ? '37px' : isDockMaximized ? `${window.innerHeight - 107}px` : `${dockHeight}px`
+                ...(!isDockCollapsed && {
+                  height: isDockMaximized ? `${window.innerHeight - 107}px` : `${dockHeight}px`
+                })
               }}
               ref={chatSectionRef}
             >
@@ -1002,10 +1573,117 @@ function App() {
                   borderBottom: '2px solid var(--color-primary)'
                 })
               }}>
-                <div className="chat-dock__title" onClick={() => setIsDockCollapsed((prev) => !prev)} style={{ cursor: 'pointer', flex: 1 }}>
+                <div className="chat-dock__title" onClick={() => {
+                  if (isDockMaximized) {
+                    // If maximized, restore to previous state before collapsing
+                    setDockHeight(previousDockHeight);
+                    setIsDockMaximized(false);
+                  }
+                  setIsDockCollapsed((prev) => !prev);
+                }} style={{ cursor: 'pointer', flex: 1 }}>
                   <span>Chat Dock</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>⌘D</span>
                 </div>
                 <div className="chat-dock__header-actions">
+                  {(() => {
+                    const activeSessions = sessions.filter(s => s.status === 'sending');
+                    if (activeSessions.length > 0) {
+                      return (
+                        <div style={{ position: 'relative' }}>
+                          <button
+                            onClick={() => {
+                              const dropdown = document.getElementById('activity-dropdown');
+                              if (dropdown) {
+                                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+                              }
+                            }}
+                            onMouseEnter={(e) => {
+                              const dropdown = document.getElementById('activity-dropdown');
+                              if (dropdown) dropdown.style.display = 'block';
+                            }}
+                            onMouseLeave={(e) => {
+                              const dropdown = document.getElementById('activity-dropdown');
+                              if (dropdown) dropdown.style.display = 'none';
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--accent-primary)',
+                              cursor: 'pointer',
+                              padding: '4px 8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span className="loading-dots" style={{ display: 'inline-block' }}>
+                              <span style={{ animationDelay: '0s' }}>●</span>
+                              <span style={{ animationDelay: '0.2s' }}>●</span>
+                              <span style={{ animationDelay: '0.4s' }}>●</span>
+                            </span>
+                            {activeSessions.length}
+                          </button>
+                          <div
+                            id="activity-dropdown"
+                            style={{
+                              display: 'none',
+                              position: 'absolute',
+                              bottom: '100%',
+                              right: 0,
+                              marginBottom: '4px',
+                              background: 'var(--bg-primary)',
+                              border: '1px solid var(--border-primary)',
+                              borderRadius: '8px',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                              minWidth: '200px',
+                              zIndex: 1001,
+                            }}
+                          >
+                            {activeSessions.map((session, idx) => {
+                              const sessionIndex = sessions.findIndex(s => s.id === session.id);
+                              return (
+                                <button
+                                  key={session.id}
+                                  onClick={() => {
+                                    focusSession(session.id);
+                                    const dropdown = document.getElementById('activity-dropdown');
+                                    if (dropdown) dropdown.style.display = 'none';
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '10px 12px',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '14px',
+                                    borderBottom: idx < activeSessions.length - 1 ? '1px solid var(--border-primary)' : 'none',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {session.title}
+                                  </span>
+                                  {sessionIndex < 9 && (
+                                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                                      ⌘{sessionIndex + 1}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   <span className="chat-dock__counter">
                     {sessions.length} session{sessions.length === 1 ? '' : 's'}
                   </span>
@@ -1033,11 +1711,15 @@ function App() {
                       color: 'inherit',
                       cursor: 'pointer',
                       padding: '0.25rem 0.5rem',
-                      fontSize: '1rem'
+                      fontSize: '1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
                     }}
-                    title={isDockMaximized ? 'Restore' : 'Maximize'}
+                    title={isDockMaximized ? 'Restore (⌘M)' : 'Maximize (⌘M)'}
                   >
                     {isDockMaximized ? '⬇' : '⬆'}
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>⌘M</span>
                   </button>
                 </div>
               </div>
@@ -1045,18 +1727,88 @@ function App() {
               {!isDockCollapsed && (
                 <>
                   <div className="chat-dock__tabs">
-                    <div className="chat-dock__tab-list">
-                      {sessions.map((session) => (
+                    {showScrollButtons.left && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tabListRef.current) {
+                            tabListRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+                          }
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          zIndex: 10,
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                          boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
+                        }}
+                      >
+                        ←
+                      </button>
+                    )}
+                    <div 
+                      className="chat-dock__tab-list"
+                      ref={tabListRef}
+                      onScroll={() => {
+                        if (tabListRef.current) {
+                          const { scrollLeft, scrollWidth, clientWidth } = tabListRef.current;
+                          setShowScrollButtons({
+                            left: scrollLeft > 0,
+                            right: scrollLeft < scrollWidth - clientWidth - 1,
+                          });
+                        }
+                      }}
+                    >
+                      {sessions.map((session, idx) => (
                         <button
                           type="button"
                           key={session.id}
+                          ref={(el) => {
+                            if (el && session.id === activeSessionId) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                            }
+                          }}
                           className={`chat-dock__tab ${
                             session.id === activeSessionId ? 'is-active' : ''
-                          } ${session.hasUnread ? 'has-unread' : ''}`}
+                          } ${session.hasUnread ? 'has-unread' : ''} ${session.status === 'sending' ? 'is-processing' : ''}`}
                           onClick={() => focusSession(session.id)}
+                          title={`Switch to tab (⌘${idx + 1})`}
                         >
-                          <span className="chat-dock__tab-title">{session.title}</span>
-                          <span className="chat-dock__tab-agent">{session.agentName}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="chat-dock__tab-title">
+                              {session.title}
+                              {session.status === 'sending' && (
+                                <span className="chat-dock__tab-badge">●</span>
+                              )}
+                            </div>
+                            <div className="chat-dock__tab-agent">{session.agentName}</div>
+                            {(() => {
+                              const agent = agents.find(a => a.slug === session.agentSlug);
+                              const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                              const isCustomModel = session.model && session.model !== agentModelId;
+                              if (!isCustomModel) return null;
+                              return (
+                                <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                                  {session.model.includes('claude-3-7-sonnet') ? 'Claude 3.7 Sonnet' :
+                                   session.model.includes('claude-3-5-sonnet-20241022') ? 'Claude 3.5 Sonnet v2' :
+                                   session.model.includes('claude-3-5-sonnet') ? 'Claude 3.5 Sonnet' :
+                                   session.model.includes('claude-3-opus') ? 'Claude 3 Opus' :
+                                   session.model.includes('claude-3-haiku') ? 'Claude 3 Haiku' : 'Custom'}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          {idx < 9 && (
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                              ⌘{idx + 1}
+                            </span>
+                          )}
                           <span
                             className="chat-dock__tab-close"
                             role="button"
@@ -1072,70 +1824,220 @@ function App() {
                                 removeSession(session.id);
                               }
                             }}
+                            title="Close (⌘W)"
+                            style={{ flexShrink: 0 }}
                           >
                             ×
                           </span>
                         </button>
                       ))}
                     </div>
+                    {showScrollButtons.right && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tabListRef.current) {
+                            tabListRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                          }
+                        }}
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          zIndex: 10,
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                          boxShadow: '-2px 0 8px rgba(0,0,0,0.1)',
+                        }}
+                      >
+                        →
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="chat-dock__new"
-                      onClick={() => openChatForAgent(currentAgent)}
-                      disabled={!currentAgent}
+                      onClick={() => {
+                        setShowNewChatModal(true);
+                        setNewChatSearch('');
+                        setNewChatSelectedIndex(0);
+                      }}
+                      title="New Chat (⌘N)"
                     >
-                      + New
+                      + New <span style={{ fontSize: '10px', opacity: 0.7 }}>⌘N</span>
                     </button>
                   </div>
 
                   <div className="chat-dock__body">
                     {activeSession ? (
                       <>
-                        <div className="chat-messages">
-                          {activeSession.messages.length === 0 ? (
+                        <div 
+                          className="chat-messages"
+                          ref={messagesContainerRef}
+                          onScroll={(e) => {
+                            const target = e.currentTarget;
+                            const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 150;
+                            setIsUserScrolledUp(!isAtBottom);
+                          }}
+                        >
+                          {activeSession.messages.length === 0 && !ephemeralMessages[activeSession.id] ? (
                             <div className="empty-state">
                               <h3>Start a conversation</h3>
                               <p>Type a message below to chat with {activeSession.agentName}</p>
+                              <div style={{ marginTop: '1rem', fontSize: '0.85em', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                Type '/' to see available slash commands
+                              </div>
                             </div>
                           ) : (
-                            activeSession.messages.map((msg, idx) => (
-                              <div key={idx} className={`message ${msg.role}`}>
-                                {msg.contentParts && msg.contentParts.length > 0 ? (
-                                  // Render mixed content inline
-                                  msg.contentParts.map((part, partIdx) => (
-                                    part.type === 'text' ? (
-                                      <ReactMarkdown key={partIdx}>{part.content || ''}</ReactMarkdown>
-                                    ) : (
-                                      <ToolCallDisplay key={partIdx} toolCall={part.tool!} />
-                                    )
-                                  ))
-                                ) : (
-                                  // Fallback for old messages or messages without contentParts
-                                  <>
-                                    {msg.content && <ReactMarkdown>{msg.content}</ReactMarkdown>}
-                                    {msg.toolCalls && msg.toolCalls.length > 0 && (
-                                      <div className="tool-calls">
-                                        {msg.toolCalls.map((tc, tcIdx) => (
-                                          <ToolCallDisplay key={tcIdx} toolCall={tc} />
-                                        ))}
+                            <>
+                              {activeSession.messages.map((msg, idx) => {
+                                const isLastAssistant = idx === activeSession.messages.length - 1 && msg.role === 'assistant';
+                                const isStreaming = activeSession.status === 'sending' && isLastAssistant;
+                                const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
+                                
+                                return (
+                                  <div key={idx} className={`message ${msg.role}`}>
+                                  <div style={{ position: 'relative' }}>
+                                    {msg.role === 'assistant' && msg.model && (
+                                      <div style={{ 
+                                        fontSize: '9px', 
+                                        color: 'var(--text-muted)', 
+                                        marginBottom: '4px',
+                                        fontStyle: 'italic',
+                                        opacity: 0.6
+                                      }}>
+                                        {msg.model.includes('claude-3-7-sonnet') ? '🤖 Claude 3.7 Sonnet' :
+                                         msg.model.includes('claude-3-5-sonnet-20241022') ? '🤖 Claude 3.5 Sonnet v2' :
+                                         msg.model.includes('claude-3-5-sonnet') ? '🤖 Claude 3.5 Sonnet' :
+                                         msg.model.includes('claude-3-opus') ? '🤖 Claude 3 Opus' :
+                                         msg.model.includes('claude-3-haiku') ? '🤖 Claude 3 Haiku' : '🤖 Custom'}
                                       </div>
                                     )}
-                                  </>
-                                )}
+                                    {msg.contentParts && msg.contentParts.length > 0 ? (
+                                      // Render mixed content inline
+                                      msg.contentParts.map((part, partIdx) => (
+                                        part.type === 'text' ? (
+                                          <ReactMarkdown key={partIdx}>{part.content || ''}</ReactMarkdown>
+                                        ) : (
+                                          <ToolCallDisplay key={partIdx} toolCall={part.tool!} />
+                                        )
+                                      ))
+                                    ) : (
+                                      // Fallback for old messages or messages without contentParts
+                                      <>
+                                        {msg.content && <ReactMarkdown>{msg.content}</ReactMarkdown>}
+                                        {msg.toolCalls && msg.toolCalls.length > 0 && (
+                                          <div className="tool-calls">
+                                            {msg.toolCalls.map((tc, tcIdx) => (
+                                              <ToolCallDisplay key={tcIdx} toolCall={tc} />
+                                            ))}
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                    {isStreaming && (
+                                      <span className="loading-dots" style={{ display: 'inline-block', marginLeft: '0.5rem' }}>
+                                        <span style={{ animationDelay: '0s' }}>●</span>
+                                        <span style={{ animationDelay: '0.2s' }}>●</span>
+                                        <span style={{ animationDelay: '0.4s' }}>●</span>
+                                      </span>
+                                    )}
+                                    {textContent && msg.role === 'assistant' && (
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(textContent);
+                                          showToast('Copied to clipboard');
+                                        }}
+                                        style={{
+                                          position: 'absolute',
+                                          bottom: '4px',
+                                          right: '4px',
+                                          padding: '4px',
+                                          fontSize: '18px',
+                                          background: 'none',
+                                          border: 'none',
+                                          cursor: 'pointer',
+                                          color: 'var(--text-secondary)',
+                                          lineHeight: 1,
+                                          opacity: 1,
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.5'}
+                                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                        title="Copy message"
+                                      >
+                                        ⎘
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {ephemeralMessages[activeSession.id]?.map((msg, idx) => (
+                              <div key={`ephemeral-${idx}`} className={`message ${msg.role}`}>
+                                <div style={{ position: 'relative' }}>
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                                </div>
                               </div>
-                            ))
-                          )}
-                          {activeSession.status === 'sending' && (
-                            <div className="message assistant loading">
-                              <span className="loading-dots">
-                                <span style={{ animationDelay: '0s' }}>●</span>
-                                <span style={{ animationDelay: '0.2s' }}>●</span>
-                                <span style={{ animationDelay: '0.4s' }}>●</span>
-                              </span>
-                            </div>
+                            ))}
+                            </>
                           )}
                           <div ref={messagesEndRef} />
                         </div>
+                        
+                        {isUserScrolledUp && (
+                          <button
+                            onClick={() => {
+                              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                              setIsUserScrolledUp(false);
+                            }}
+                            style={{
+                              position: 'absolute',
+                              bottom: activeSession.status === 'sending' ? '120px' : '80px',
+                              right: '20px',
+                              padding: '8px 16px',
+                              background: 'var(--color-primary)',
+                              color: 'var(--color-bg)',
+                              border: 'none',
+                              borderRadius: '20px',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                              fontSize: '0.9rem',
+                              zIndex: 10
+                            }}
+                          >
+                            ↓ Scroll to bottom
+                          </button>
+                        )}
+                        
+                        {activeSession.status === 'sending' && activeAbortController && (
+                          <button
+                            onClick={() => {
+                              activeAbortController.abort();
+                              setActiveAbortController(null);
+                            }}
+                            style={{
+                              position: 'absolute',
+                              bottom: '80px',
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              padding: '8px 16px',
+                              background: '#dc2626',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '20px',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                              fontSize: '0.9rem',
+                              zIndex: 10
+                            }}
+                          >
+                            ✕ Cancel
+                          </button>
+                        )}
+                        
                         <div className="chat-input-container">
                           {activeSession.error && <div className="error">{activeSession.error}</div>}
                           {activeSession.queuedMessages && activeSession.queuedMessages.length > 0 && (
@@ -1148,7 +2050,62 @@ function App() {
                               </div>
                             </div>
                           )}
-                          <div className="chat-input">
+                          <div className="chat-input" style={{ position: 'relative' }}>
+                            {showModelSelector && (
+                              <div className="command-autocomplete">
+                                {availableModels.map((model, idx) => {
+                                  const agent = agents.find(a => a.slug === activeSession?.agentSlug) || currentAgent;
+                                  const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                                  const currentModel = activeSession?.model || agentModelId;
+                                  const isCurrent = currentModel === model.id;
+                                  
+                                  return (
+                                    <div
+                                      key={model.id}
+                                      className={`command-item ${idx === selectedModelIndex ? 'selected' : ''}`}
+                                      onClick={() => {
+                                        if (activeSessionId) {
+                                          updateSession(activeSessionId, (current) => ({
+                                            ...current,
+                                            model: model.id,
+                                            inputHistory: [...current.inputHistory, `/model ${model.name}`],
+                                            messages: [...current.messages, { role: 'system', content: `Model changed to **${model.name}**` }],
+                                          }));
+                                          setShowModelSelector(false);
+                                        }
+                                      }}
+                                    >
+                                      <span className="command-item__name">{model.name}{isCurrent ? ' (active)' : ''}</span>
+                                      <span className="command-item__description" style={{ fontSize: '10px', opacity: 0.6 }}>{model.id}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {showCommandAutocomplete && (
+                              <div className="command-autocomplete">
+                                {getFilteredCommands().map((cmd, idx) => (
+                                  <div
+                                    key={cmd.cmd}
+                                    className={`command-item ${idx === selectedCommandIndex ? 'selected' : ''}`}
+                                    onClick={() => {
+                                      if (activeSessionId) {
+                                        setShowCommandAutocomplete(false);
+                                        sendMessage(activeSessionId, cmd.cmd);
+                                      }
+                                    }}
+                                  >
+                                    <span className="command-name">
+                                      {cmd.cmd}
+                                      {cmd.aliases && cmd.aliases.length > 0 && (
+                                        <span style={{ opacity: 0.6, fontWeight: 400 }}> / {cmd.aliases.join(' / ')}</span>
+                                      )}
+                                    </span>
+                                    <span className="command-desc">{cmd.description}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <textarea
                               ref={textareaRef}
                               value={activeSession.input}
@@ -1193,9 +2150,23 @@ function App() {
       </div>
 
       {toastMessage && (
-        <div className="toast">
+        <div 
+          className="toast" 
+          onClick={() => {
+            if (toastSessionId) {
+              focusSession(toastSessionId);
+              setToastMessage(null);
+              setToastSessionId(null);
+            }
+          }}
+          style={{ cursor: toastSessionId ? 'pointer' : 'default' }}
+        >
           <span>{toastMessage}</span>
-          <button type="button" onClick={() => setToastMessage(null)}>
+          <button type="button" onClick={(e) => {
+            e.stopPropagation();
+            setToastMessage(null);
+            setToastSessionId(null);
+          }}>
             Dismiss
           </button>
         </div>
@@ -1209,6 +2180,110 @@ function App() {
           error={authError}
         />
       )}
+
+      {/* New Chat Modal */}
+      {showNewChatModal && (() => {
+        const filteredAgents = agents.filter(a => 
+          a.name.toLowerCase().includes(newChatSearch.toLowerCase()) ||
+          a.slug.toLowerCase().includes(newChatSearch.toLowerCase())
+        );
+        
+        return (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+          }}
+          onClick={() => setShowNewChatModal(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-primary)',
+              borderRadius: '12px',
+              width: '90%',
+              maxWidth: '500px',
+              maxHeight: '600px',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '20px', borderBottom: '1px solid var(--border-primary)' }}>
+              <h3 style={{ margin: '0 0 12px 0' }}>New Chat</h3>
+              <input
+                type="text"
+                placeholder="Search agents..."
+                value={newChatSearch}
+                onChange={(e) => {
+                  setNewChatSearch(e.target.value);
+                  setNewChatSelectedIndex(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setNewChatSelectedIndex((prev) => Math.min(prev + 1, filteredAgents.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setNewChatSelectedIndex((prev) => Math.max(prev - 1, 0));
+                  } else if (e.key === 'Enter' && filteredAgents[newChatSelectedIndex]) {
+                    openChatForAgent(filteredAgents[newChatSelectedIndex]);
+                    setShowNewChatModal(false);
+                  } else if (e.key === 'Escape') {
+                    setShowNewChatModal(false);
+                  }
+                }}
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: '8px',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '14px',
+                }}
+              />
+            </div>
+            <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
+              {filteredAgents.map((agent, idx) => (
+                  <button
+                    key={agent.slug}
+                    onClick={() => {
+                      openChatForAgent(agent);
+                      setShowNewChatModal(false);
+                    }}
+                    onMouseEnter={() => setNewChatSelectedIndex(idx)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 20px',
+                      border: 'none',
+                      borderBottom: '1px solid var(--border-primary)',
+                      background: idx === newChatSelectedIndex ? 'var(--accent-primary)' : 'transparent',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      color: idx === newChatSelectedIndex ? 'white' : 'var(--text-primary)',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
+                    {agent.description && (
+                      <div style={{ fontSize: '12px', color: idx === newChatSelectedIndex ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)' }}>
+                        {agent.description}
+                      </div>
+                    )}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+        );
+      })()}
     </div>
   );
 }

@@ -27,18 +27,23 @@ fn open_research_url(app: tauri::AppHandle, url: String, title: String) -> Resul
 #[tauri::command]
 async fn authenticate_aws(app: tauri::AppHandle, pin: String) -> Result<String, String> {
     let shell = app.shell();
+    
+    // Run mwinit in background with PIN piped via stdin
+    // The -f flag forces it to run even if already authenticated
     let output = shell
-        .command("mwinit")
-        .args(["-f"])
-        .env("MWINIT_PIN", pin)
+        .command("sh")
+        .args(["-c", &format!("echo '{}' | mwinit -f 2>&1", pin)])
         .output()
         .await
         .map_err(|e| format!("Failed to execute mwinit: {}", e))?;
 
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    
+    if output.status.success() || stdout.contains("successfully") || stdout.contains("authenticated") {
+        Ok(stdout.to_string())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+        Err(format!("{}\n{}", stdout, stderr))
     }
 }
 
