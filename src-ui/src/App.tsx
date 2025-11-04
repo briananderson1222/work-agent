@@ -3,6 +3,9 @@ import type { KeyboardEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { invoke } from '@tauri-apps/api/core';
+import { SDKAdapter } from './core/SDKAdapter';
+import { PermissionManager } from './core/PermissionManager';
+import { EventRouter } from './core/EventRouter';
 import { AgentSelector } from './components/AgentSelector';
 import { Header } from './components/Header';
 import { AgentSelectorModal } from './components/AgentSelectorModal';
@@ -2913,4 +2916,16 @@ function App() {
   );
 }
 
-export default App;
+function AppWithSDK() {
+  return (
+    <SDKAdapter apiBase={API_BASE}>
+      <PermissionManager>
+        <EventRouter>
+          <App />
+        </EventRouter>
+      </PermissionManager>
+    </SDKAdapter>
+  );
+}
+
+export default AppWithSDK;
