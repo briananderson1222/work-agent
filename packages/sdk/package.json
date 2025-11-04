@@ -1,0 +1,21 @@
+{
+  "name": "@stallion-ai/sdk",
+  "version": "0.3.0",
+  "description": "SDK for building Work Agent workspace plugins",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "keywords": ["work-agent", "plugin", "sdk"],
+  "author": "Stallion AI",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "typescript": "^5.3.0"
+  }
+}
