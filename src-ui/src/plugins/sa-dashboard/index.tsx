@@ -166,7 +166,7 @@ export default function SADashboard(props: SADashboardProps) {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const response = await fetch(`${API_BASE}/config/app`);
+        const response = await fetch(`${sdk.apiBase}/config/app`);
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config?.meetingNotifications) {
@@ -181,7 +181,7 @@ export default function SADashboard(props: SADashboardProps) {
       }
     };
     loadConfig();
-  }, []);
+  }, [sdk]);
 
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
@@ -521,9 +521,8 @@ export default function SADashboard(props: SADashboardProps) {
       return;
     }
 
-    // Check cache first
     const cacheKey = getCacheKey('sfdc', `details-${meetingId}`);
-    const cached = getFromCache<MeetingDetails>(cacheKey);
+    const cached = await getFromCache<MeetingDetails>(cacheKey, workspace);
     if (cached) {
       setMeetingDetails(cached);
       return;
@@ -532,82 +531,23 @@ export default function SADashboard(props: SADashboardProps) {
     setLoadingDetails(true);
     
     try {
-      const response = await fetch(`${API_BASE}/agents/sa-agent/invoke/transform`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'sat-outlook_calendar_meeting',
-          toolArgs: { 
-            operation: 'read',
-            meetingId: meetingId, 
-            meetingChangeKey: event.meetingChangeKey 
-          },
-          transform: `(data) => {
-            const meeting = data.success ? data.content : data;
-            const normalizeStatus = (status) => {
-              if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
-              if (status === 'Accept' || status === 'Accepted') return 'Accepted';
-              if (status === 'Decline' || status === 'Declined') return 'Declined';
-              return status;
-            };
-            const mapAttendees = (list) => (list || []).map(a => ({
-              email: typeof a === 'string' ? a : a.email,
-              status: normalizeStatus(a.responseStatus)
-            }));
-            return {
-              meetingId: meeting.meetingId,
-              meetingChangeKey: meeting.changeKey,
-              subject: meeting.subject,
-              body: meeting.body || '',
-              attendees: [...mapAttendees(meeting.attendees), ...mapAttendees(meeting.optionalAttendees || [])],
-              start: meeting.start,
-              end: meeting.end,
-              location: meeting.location || '',
-              organizer: meeting.organizer || '',
-              responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
-            };
-          }`,
-        }),
+      const result = await agents.invoke(agentSlug, `Get meeting details for meeting ID ${meetingId}`, {
+        tools: ['sat-outlook_calendar_get_event'],
+        maxSteps: 3
       });
       
-      if (response.status === 401) {
+      const details = typeof result.output === 'string' ? JSON.parse(result.output) : result.output;
+      setMeetingDetails(details);
+      await setCache(cacheKey, details, workspace);
+    } catch (err) {
+      if (err instanceof Error && (err.message.includes('401') || err.message.includes('authentication'))) {
         if (onRequestAuth) {
           const success = await onRequestAuth();
           if (success) {
             return fetchMeetingDetails(meetingId);
           }
         }
-        throw new Error('Authentication required');
       }
-      
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      
-      if (!data.success) {
-        // Check for auth errors
-        const errorStr = JSON.stringify(data.error);
-        
-        if (errorStr.includes('Form action URL not found') || 
-            errorStr.includes('Midway') || 
-            errorStr.includes('authentication') ||
-            errorStr.includes('mwinit')) {
-          // Trigger auth via parent component
-          if (onRequestAuth) {
-            const success = await onRequestAuth();
-            if (success) {
-              // Retry
-              return fetchMeetingDetails(meetingId);
-            }
-          } else {
-          }
-        }
-        throw new Error(data.error);
-      }
-
-      const details = data.response;
-      setMeetingDetails(details);
-      setCache(cacheKey, details);
-    } catch (err) {
       console.error('Failed to fetch meeting details:', err);
     } finally {
       setLoadingDetails(false);
@@ -617,9 +557,8 @@ export default function SADashboard(props: SADashboardProps) {
   const fetchSFDCContext = async () => {
     if (!selectedEvent) return;
     
-    // Check cache first
     const cacheKey = getCacheKey('sfdc', selectedEvent.meetingId);
-    const cached = getFromCache<SFDCContext>(cacheKey);
+    const cached = await getFromCache<SFDCContext>(cacheKey, workspace);
     if (cached) {
       setSfdcContext(cached);
       return;
@@ -627,7 +566,6 @@ export default function SADashboard(props: SADashboardProps) {
     
     setLoadingSFDC(true);
     
-    // Build detailed meeting context
     const meetingContext = `
 Meeting: ${selectedEvent.subject}
 Time: ${new Date(selectedEvent.start).toLocaleString()} - ${new Date(selectedEvent.end).toLocaleTimeString()}
@@ -637,41 +575,18 @@ ${selectedEvent.categories?.length ? `Categories: ${selectedEvent.categories.joi
 ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}
     `.trim();
     
-    let partialText = '';
-    
     try {
-      const response = await streamInvoke('sa-agent', `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:\n\n${meetingContext}\n\nReturn JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
-        tools: ['sat-sfdc_search_accounts', 'sat-sfdc_get_opportunities_for_account', 'sat-sfdc_list_user_tasks'],
-        onChunk: (text) => {
-          partialText += text;
-          // Try to parse and update UI progressively
-          try {
-            const jsonMatch = partialText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const context = JSON.parse(jsonMatch[0]);
-              setSfdcContext(context);
-            }
-          } catch {
-            // Ignore parse errors for partial JSON
-          }
-        },
+      const result = await agents.invoke(agentSlug, `Find related Salesforce accounts, opportunities, and tasks for: ${meetingContext}`, {
+        tools: ['sat-sfdc_query'],
+        maxSteps: 5
       });
 
-      // Final parse
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const context = JSON.parse(jsonMatch[0]);
-          setSfdcContext(context);
-          setCache(cacheKey, context);
-        } else {
-          setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
-        }
-      } catch {
-        setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
-      }
+      const context = typeof result.output === 'string' ? JSON.parse(result.output) : result.output;
+      setSfdcContext(context || { accounts: [], opportunities: [], tasks: [] });
+      await setCache(cacheKey, context, workspace);
     } catch (err) {
       console.error('Failed to fetch SFDC context:', err);
+      setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
     } finally {
       setLoadingSFDC(false);
     }

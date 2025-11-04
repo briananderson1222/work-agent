@@ -10,6 +10,7 @@ import type { SDKConfig, PluginManifest } from './types';
 export * from './types';
 
 export class SDK {
+  public apiBase: string;
   public agents: AgentsAPI;
   public tools: ToolsAPI;
   public events: EventsAPI;
@@ -18,6 +19,7 @@ export class SDK {
   public workspace: WorkspaceAPI;
 
   constructor(config: SDKConfig, manifest: PluginManifest) {
+    this.apiBase = config.apiBase;
     this.agents = new AgentsAPI(config.apiBase, config.authToken);
     this.tools = new ToolsAPI(config.apiBase, config.authToken);
     this.events = new EventsAPI();
