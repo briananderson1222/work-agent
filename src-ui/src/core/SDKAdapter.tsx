@@ -15,10 +15,20 @@ const defaultManifest: PluginManifest = {
   permissions: ['storage.session', 'storage.local']
 };
 
-export function SDKAdapter({ children, apiBase = 'http://localhost:3141', authToken }: SDKAdapterProps) {
+// Detect backend port from environment or use default
+const getApiBase = () => {
+  if (typeof window !== 'undefined' && (window as any).__BACKEND_PORT__) {
+    return `http://localhost:${(window as any).__BACKEND_PORT__}`;
+  }
+  return 'http://localhost:3141';
+};
+
+export function SDKAdapter({ children, apiBase, authToken }: SDKAdapterProps) {
+  const effectiveApiBase = apiBase || getApiBase();
+  
   const sdk = useMemo(
-    () => new SDK({ apiBase, authToken }, defaultManifest),
-    [apiBase, authToken]
+    () => new SDK({ apiBase: effectiveApiBase, authToken }, defaultManifest),
+    [effectiveApiBase, authToken]
   );
 
   return <SDKProvider value={sdk}>{children}</SDKProvider>;
