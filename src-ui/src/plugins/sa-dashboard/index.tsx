@@ -46,60 +46,14 @@ interface SFDCContext {
   tasks?: any[];
 }
 
-const API_BASE = 'http://localhost:3141';
 
-async function streamInvoke(
-  agentSlug: string,
-  prompt: string,
-  options: {
-    tools?: string[];
-    maxSteps?: number;
-    schema?: z.ZodType<any>;
-    onChunk?: (text: string) => void;
-  } = {}
-): Promise<any> {
-  const requestStart = performance.now();
-  
-  const response = await fetch(`${API_BASE}/agents/${agentSlug}/invoke/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      silent: true,
-      tools: options.tools,
-      maxSteps: options.maxSteps ?? 10,
-      schema: options.schema ? zodToJsonSchema(options.schema) : undefined,
-    }),
-  });
 
-  const fetchTime = performance.now() - requestStart;
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+async function ensureStoragePermission(workspace: any): Promise<boolean> {
+  if (!workspace.hasCapability('storage')) {
+    return false;
   }
-
-  const parseStart = performance.now();
-  const data = await response.json();
-  
-  if (!data.success) {
-    throw new Error(data.error || 'Request failed');
-  }
-
-  // Log usage to see how many steps were taken
-  if (data.usage) {
-  }
-  
-  // Log debug info
-  if (data.debug) {
-  }
-  
-  // Log trace if available
-  if (data.trace) {
-  }
-
-  return data.response;
+  return await workspace.requestPermission('storage.session');
 }
-
 
 function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
   const today = new Date().toISOString().split('T')[0];
@@ -108,7 +62,10 @@ function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
     : `sa-sfdc-${identifier}`;
 }
 
-function getFromCache<T>(key: string): T | null {
+async function getFromCache<T>(key: string, workspace: any): Promise<T | null> {
+  const hasPermission = await ensureStoragePermission(workspace);
+  if (!hasPermission) return null;
+  
   try {
     const cached = sessionStorage.getItem(key);
     if (cached) {
@@ -125,7 +82,10 @@ function getFromCache<T>(key: string): T | null {
   return null;
 }
 
-function setCache(key: string, data: any): void {
+async function setCache(key: string, data: any, workspace: any): Promise<void> {
+  const hasPermission = await ensureStoragePermission(workspace);
+  if (!hasPermission) return;
+  
   try {
     sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
   } catch {
@@ -380,30 +340,24 @@ export default function SADashboard(props: SADashboardProps) {
     : filteredEvents;
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
-    const startTime = performance.now();
     setLoading(true);
     setError(null);
-    setRawResponse(''); // Clear previous
-    setEvents([]); // Clear events list
+    setEvents([]);
     
-    // Only clear selectedEventId if not preserving selection
     if (!preserveEventId) {
       setSelectedEventId(null);
     }
     
     const dateStr = date.toISOString().split('T')[0];
+    const cacheKey = `sa-calendar-${dateStr}`;
     
     // Check cache first
-    const cacheKey = `sa-calendar-${dateStr}`;
-    const cached = getFromCache<CalendarEvent[]>(cacheKey);
+    const cached = await getFromCache<CalendarEvent[]>(cacheKey, workspace);
     if (cached) {
       setEvents(cached);
-      
-      // Only auto-select if not preserving a selection
       if (preserveEventId) {
         setSelectedEventId(preserveEventId);
       } else {
-        // Select active event, or next upcoming event, or first non-all-day, or first event
         const now = new Date();
         const activeEvent = cached.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
         const upcomingEvent = cached.find(e => !e.isAllDay && new Date(e.start) > now);
@@ -411,94 +365,43 @@ export default function SADashboard(props: SADashboardProps) {
         const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || cached[0]?.meetingId;
         setSelectedEventId(eventId);
       }
-      
       setLoading(false);
       return;
     }
     
-    const apiStartTime = performance.now();
     try {
-      // Use pure transformation (no LLM, instant)
-      const response = await fetch(`${API_BASE}/agents/sa-agent/invoke/transform`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'sat-outlook_calendar_view',
-          toolArgs: { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-          transform: `(data) => ({
-            events: data.map(e => ({
-              meetingId: e.meetingId,
-              meetingChangeKey: e.meetingChangeKey,
-              subject: e.subject,
-              start: e.start,
-              end: e.end,
-              location: e.location || '',
-              organizer: e.organizer?.name || '',
-              status: e.status,
-              isCanceled: e.isCanceled || false,
-              categories: e.categories || [],
-              isAllDay: e.isAllDay || false
-            }))
-          })`,
-        }),
+      const result = await agents.invoke(agentSlug, `Get today's calendar events for ${dateStr}`, {
+        tools: ['sat-outlook_calendar_view'],
+        maxSteps: 5
       });
       
-      if (response.status === 401) {
-        if (onRequestAuth) {
-          const success = await onRequestAuth();
-          if (success) {
-            return fetchEvents(dateStr, preserveEventId);
-          }
-        }
-        throw new Error('Authentication required');
-      }
+      const parsedEvents = typeof result.output === 'string' ? JSON.parse(result.output).events : result.output.events;
       
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      
-      if (!data.success) {
-        const errorStr = JSON.stringify(data.error);
-        
-        if (errorStr.includes('Form action URL not found') || 
-            errorStr.includes('Midway') || 
-            errorStr.includes('authentication') ||
-            errorStr.includes('mwinit')) {
-          if (onRequestAuth) {
-            const success = await onRequestAuth();
-            if (success) {
-              // Retry
-              return fetchEvents(dateStr, preserveEventId);
-            }
-          }
-        }
-        throw new Error(data.error);
-      }
-
-      const apiTime = performance.now() - apiStartTime;
-      
-      const parsedEvents = data.response.events;
-      
-      if (parsedEvents.length === 0) {
-        setError(`No events parsed. Agent response: ${response.substring(0, 300)}...`);
-      } else {
+      if (parsedEvents && parsedEvents.length > 0) {
         setEvents(parsedEvents);
         
-        // Only auto-select if not preserving a selection
         if (preserveEventId) {
           setSelectedEventId(preserveEventId);
         } else {
-          // Select active event, or next upcoming event, or first non-all-day, or first event
           const now = new Date();
-          const activeEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
-          const upcomingEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) > now);
-          const firstNonAllDay = parsedEvents.find(e => !e.isAllDay);
+          const activeEvent = parsedEvents.find((e: CalendarEvent) => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
+          const upcomingEvent = parsedEvents.find((e: CalendarEvent) => !e.isAllDay && new Date(e.start) > now);
+          const firstNonAllDay = parsedEvents.find((e: CalendarEvent) => !e.isAllDay);
           const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
           setSelectedEventId(eventId);
         }
         
-        setCache(cacheKey, parsedEvents);
+        await setCache(cacheKey, parsedEvents, workspace);
       }
     } catch (err) {
+      if (err instanceof Error && (err.message.includes('401') || err.message.includes('authentication'))) {
+        if (onRequestAuth) {
+          const success = await onRequestAuth();
+          if (success) {
+            return fetchCalendarData(date, preserveEventId);
+          }
+        }
+      }
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -517,43 +420,22 @@ export default function SADashboard(props: SADashboardProps) {
       const dateStr = formatLocalDate(today);
       const cacheKey = `sa-calendar-${dateStr}`;
       
-      const cached = getFromCache<CalendarEvent[]>(cacheKey);
+      const cached = await getFromCache<CalendarEvent[]>(cacheKey, workspace);
       if (cached) {
         setTodayEvents(cached);
         return;
       }
       
       try {
-        const response = await fetch(`${API_BASE}/agents/sa-agent/invoke/transform`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            toolName: 'sat-outlook_calendar_view',
-            toolArgs: { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-            transform: `(data) => ({
-              events: data.map(e => ({
-                meetingId: e.meetingId,
-                meetingChangeKey: e.meetingChangeKey,
-                subject: e.subject,
-                start: e.start,
-                end: e.end,
-                location: e.location || '',
-                organizer: e.organizer?.name || '',
-                status: e.status,
-                isCanceled: e.isCanceled || false,
-                categories: e.categories || [],
-                isAllDay: e.isAllDay || false
-              }))
-            })`,
-          }),
+        const result = await agents.invoke(agentSlug, `Get today's calendar events for ${dateStr}`, {
+          tools: ['sat-outlook_calendar_view'],
+          maxSteps: 5
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setTodayEvents(data.response.events);
-            setCache(cacheKey, data.response.events);
-          }
+        const parsedEvents = typeof result.output === 'string' ? JSON.parse(result.output).events : result.output.events;
+        if (parsedEvents) {
+          setTodayEvents(parsedEvents);
+          await setCache(cacheKey, parsedEvents, workspace);
         }
       } catch (err) {
         console.error('Failed to fetch today events:', err);
@@ -561,10 +443,9 @@ export default function SADashboard(props: SADashboardProps) {
     };
     
     fetchTodayEvents();
-    // Refresh every 5 minutes
     const interval = setInterval(fetchTodayEvents, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [agents, agentSlug, workspace]);
   
   useEffect(() => {
     const handlePopState = () => {

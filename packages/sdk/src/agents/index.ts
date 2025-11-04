@@ -26,11 +26,18 @@ export class AgentsAPI {
         'Content-Type': 'application/json',
         ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {})
       },
-      body: JSON.stringify({ prompt, ...options }),
+      body: JSON.stringify({ 
+        prompt,
+        silent: true,
+        tools: options.tools,
+        maxSteps: options.maxSteps ?? 10
+      }),
       signal: options.signal
     });
     if (!res.ok) throw new Error(`Failed to invoke agent: ${res.statusText}`);
-    return res.json();
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Request failed');
+    return { output: data.response, toolCalls: data.toolCalls };
   }
 
   async *streamInvoke(slug: string, prompt: string, options: InvokeOptions = {}): AsyncGenerator<string> {
