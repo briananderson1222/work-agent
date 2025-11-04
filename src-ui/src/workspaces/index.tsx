@@ -4,7 +4,7 @@ import { CodeReviewDashboard } from './CodeReviewDashboard';
 import { DocumentationDashboard } from './DocumentationDashboard';
 import { DevOpsDashboard } from './DevOpsDashboard';
 import { ResearchWorkspace } from './ResearchWorkspace';
-import { SADashboard } from './SADashboard';
+import SADashboard from '../plugins/sa-dashboard/index';
 
 export interface AgentWorkspaceProps {
   agent?: AgentSummary;

@@ -1,0 +1,17 @@
+{
+  "name": "sa-dashboard",
+  "version": "1.0.0",
+  "sdkVersion": "^0.3",
+  "displayName": "SA Dashboard",
+  "description": "Stallion AI workspace dashboard with calendar and SFDC integration",
+  "capabilities": ["chat", "mcp", "storage"],
+  "permissions": ["storage.session"],
+  "commands": [
+    {
+      "id": "refresh",
+      "name": "Refresh Dashboard",
+      "key": "r",
+      "modifiers": ["meta"]
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import type { AgentWorkspaceProps } from './index';
+import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from '@stallion-ai/sdk';
 
 const CalendarEventSchema = z.object({
   events: z.array(z.object({
@@ -181,7 +181,22 @@ function detectMeetingProvider(location?: string): { provider: string; url: stri
   return null;
 }
 
-export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat }: AgentWorkspaceProps) {
+interface SADashboardProps extends WorkspaceProps {
+  agent?: any;
+  onLaunchPrompt?: (prompt: any) => void;
+  onShowChat?: () => void;
+  onRequestAuth?: () => Promise<boolean>;
+  onSendToChat?: (text: string, agent?: string) => void;
+}
+
+export default function SADashboard(props: SADashboardProps) {
+  const sdk = useSDK();
+  const agents = useAgents();
+  const workspace = useWorkspace();
+  
+  // Extract props
+  const { agentSlug, onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat } = props;
+  
   // Load config for notification settings
   const [notificationConfig, setNotificationConfig] = useState<{ enabled: boolean; thresholds: number[] }>({
     enabled: true,
