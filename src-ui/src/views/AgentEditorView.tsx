@@ -22,6 +22,7 @@ interface AgentFormData {
   modelId: string;
   region: string;
   guardrails: string;
+  maxTurns: string;
   tools: string[];
   icon?: string;
   commands?: Record<string, any>;
@@ -47,6 +48,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
     modelId: '',
     region: '',
     guardrails: '',
+    maxTurns: '',
     tools: [],
   });
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
@@ -68,7 +70,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
   const [isCreatingTool, setIsCreatingTool] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'failed' | null>(null);
-  const [appConfig, setAppConfig] = useState<{ region?: string; defaultModel?: string } | null>(null);
+  const [appConfig, setAppConfig] = useState<{ region?: string; defaultModel?: string; defaultMaxTurns?: number } | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   const isEditMode = !!slug;
@@ -111,6 +113,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         modelId: typeof agent.model === 'string' ? agent.model : agent.model?.modelId || '',
         region: agent.region || '',
         guardrails: agent.guardrails || '',
+        maxTurns: agent.maxTurns?.toString() || '',
         tools: agent.tools || [],
         icon: agent.icon || '',
         commands: agent.commands || {},
@@ -184,6 +187,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         model: formData.modelId || undefined,
         region: formData.region || undefined,
         guardrails: formData.guardrails || undefined,
+        maxTurns: formData.maxTurns ? parseInt(formData.maxTurns) : undefined,
         tools: formData.tools.length > 0 ? { use: formData.tools } : undefined,
         icon: formData.icon || undefined,
         commands: formData.commands && Object.keys(formData.commands).length > 0 ? formData.commands : undefined,
@@ -617,6 +621,20 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   placeholder="Optional guardrail ID"
                 />
                 <span className="form-help">Optional guardrail configuration</span>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="maxTurns">Max Turns</label>
+                <input
+                  id="maxTurns"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={formData.maxTurns}
+                  onChange={(e) => setFormData({ ...formData, maxTurns: e.target.value })}
+                  placeholder={appConfig?.defaultMaxTurns?.toString() || '10'}
+                />
+                <span className="form-help">Maximum conversation turns (default: {appConfig?.defaultMaxTurns || 10})</span>
               </div>
             </div>
           )}

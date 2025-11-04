@@ -756,6 +756,13 @@ function App() {
   };
 
   const removeSession = (sessionId: string) => {
+    // Cancel any ongoing request for this session
+    if (activeAbortController) {
+      console.log('Cancelling ongoing request for session:', sessionId);
+      activeAbortController.abort();
+      setActiveAbortController(null);
+    }
+    
     setSessions((prev) => {
       const remaining = prev.filter((session) => session.id !== sessionId);
       if (activeSessionId === sessionId) {
