@@ -2258,6 +2258,24 @@ body {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hide-past-toggle:hover {
+  background: var(--color-bg-secondary) !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-primary) !important;
+}
+
 /* Meeting body content - strip all colors and use theme */
 .meeting-body-content {
   color: var(--color-text) !important;

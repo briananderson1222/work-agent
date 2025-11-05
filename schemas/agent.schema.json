@@ -163,6 +163,28 @@
           "parameters": {
             "type": "string",
             "description": "Optional parameter description"
+          },
+          "params": {
+            "type": "array",
+            "description": "Command parameters",
+            "items": {
+              "type": "object",
+              "required": ["name", "description"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "default": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "additionalProperties": false

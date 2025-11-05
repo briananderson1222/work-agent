@@ -75,6 +75,22 @@ npm run cli
 npm run dev:desktop
 ```
 
+**Running Multiple Instances Side-by-Side:**
+
+To test changes by running multiple instances simultaneously, use environment variables:
+
+```bash
+# Terminal 1: Original instance (default ports)
+npm run dev:server
+npm run dev:ui
+
+# Terminal 2: Test instance (custom ports)
+PORT=3142 npm run dev:server
+VITE_API_BASE=http://localhost:3142 npm run dev:ui -- --port 5174
+```
+
+You can also override the backend URL at runtime through **Settings > Advanced > Backend API Base URL** in the UI.
+
 The server will be available at:
 - **HTTP API**: http://localhost:3141
 - **Swagger UI**: http://localhost:3141/ui

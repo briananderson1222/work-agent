@@ -197,7 +197,7 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
   );
 }
 
-export function ContextPercentage({ agentSlug, conversationId, apiBase, messageCount }: { agentSlug: string; conversationId: string; apiBase: string; messageCount?: number }) {
+export function ContextPercentage({ agentSlug, conversationId, apiBase, messageCount, onClick }: { agentSlug: string; conversationId: string; apiBase: string; messageCount?: number; onClick?: () => void }) {
   const [percentage, setPercentage] = useState<number | null>(null);
 
   useEffect(() => {
@@ -225,18 +225,22 @@ export function ContextPercentage({ agentSlug, conversationId, apiBase, messageC
   if (percentage === null) return null;
 
   return (
-    <div style={{ 
-      position: 'absolute',
-      bottom: '-18px',
-      left: '0',
-      right: '0',
-      fontSize: '10px', 
-      color: 'var(--text-muted)', 
-      display: 'flex', 
-      alignItems: 'center', 
-      gap: '6px',
-      pointerEvents: 'none'
-    }}>
+    <div 
+      onClick={onClick}
+      style={{ 
+        position: 'absolute',
+        bottom: '-18px',
+        left: '0',
+        right: '0',
+        fontSize: '10px', 
+        color: 'var(--text-muted)', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '6px',
+        pointerEvents: onClick ? 'auto' : 'none',
+        cursor: onClick ? 'pointer' : 'default'
+      }}
+    >
       <span>Context:</span>
       <div style={{ 
         flex: 1, 

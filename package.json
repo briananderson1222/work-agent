@@ -1,5 +1,5 @@
 {
-  "name": "work-agent",
+  "name": "project-stallion",
   "version": "0.1.0",
   "description": "Local-first AI work agent system built with VoltAgent and Amazon Bedrock",
   "type": "module",

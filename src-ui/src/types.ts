@@ -37,13 +37,55 @@ export interface AgentSummary {
   icon?: string;
   ui?: AgentUIConfig;
   commands?: AgentCommands;
+  toolsConfig?: {
+    mcpServers?: string[];
+    available?: string[];
+    autoApprove?: string[];
+    aliases?: Record<string, string>;
+  };
   workflowWarnings?: string[];
+}
+
+export interface FileAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  data: string; // base64 or URL
+  preview?: string; // For images
+}
+
+export interface FileAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  data: string; // base64 or URL
+  preview?: string; // For images
 }
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   model?: string;
+  contentParts?: Array<{
+    type: 'text' | 'image' | 'file' | 'tool';
+    content?: string;
+    image?: string;
+    mediaType?: string;
+    url?: string;
+    tool?: any;
+  }>;
+  attachments?: FileAttachment[];
+  contentParts?: Array<{
+    type: 'text' | 'image' | 'file' | 'tool';
+    content?: string;
+    image?: string;
+    mediaType?: string;
+    url?: string;
+    tool?: any;
+  }>;
+  attachments?: FileAttachment[];
   toolCalls?: Array<{
     toolCallId: string;
     toolName: string;
@@ -73,6 +115,7 @@ export interface ChatSession {
   sourceId?: string;
   messages: ChatMessage[];
   input: string;
+  attachments: FileAttachment[];
   queuedMessages: string[];
   status: ChatSessionStatus;
   error?: string | null;
@@ -81,6 +124,7 @@ export interface ChatSession {
   hasUnread: boolean;
   model?: string;
   inputHistory: string[];
+  attachments?: FileAttachment[];
 }
 
 export interface Tool {

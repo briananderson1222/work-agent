@@ -1,0 +1,17 @@
+{
+  "name": "sfdc-account-manager",
+  "version": "1.0.0",
+  "sdkVersion": "^0.3",
+  "displayName": "SFDC Account Manager",
+  "description": "Salesforce account management with opportunities and tasks",
+  "capabilities": ["chat", "mcp", "storage"],
+  "permissions": ["storage.session"],
+  "commands": [
+    {
+      "id": "refresh",
+      "name": "Refresh Accounts",
+      "key": "r",
+      "modifiers": ["meta"]
+    }
+  ]
+}

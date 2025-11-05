@@ -3,6 +3,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import type { AppConfig } from '../types';
 import { getWorkspaceIcon, getAgentIcon } from '../utils/workspace';
 import { useAppData } from '../contexts/AppDataContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
@@ -19,6 +20,7 @@ export interface SettingsViewProps {
 
 export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAgent, onEditWorkspace, onCreateWorkspace }: SettingsViewProps) {
   const { models: availableModels } = useAppData();
+  const { apiBase: currentApiBase, setApiBase, resetToDefault, isCustom } = useApiBase();
   const [activeTab, setActiveTab] = useState<'general' | 'agents' | 'workspaces' | 'prompts' | 'notifications' | 'advanced' | 'debug'>(() => {
     const hash = window.location.hash.slice(1);
     return (hash && ['general', 'agents', 'workspaces', 'prompts', 'notifications', 'advanced', 'debug'].includes(hash)) 
@@ -795,6 +797,34 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
 
           {activeTab === 'advanced' && (
             <div className="settings-panel">
+              <div className="form-group">
+                <label htmlFor="apiBase">Backend API Base URL</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                  <input
+                    id="apiBase"
+                    type="text"
+                    value={currentApiBase}
+                    onChange={(e) => setApiBase(e.target.value)}
+                    placeholder="http://localhost:3141"
+                    style={{ flex: 1 }}
+                  />
+                  {isCustom && (
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      onClick={resetToDefault}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="form-help">
+                  Base URL for the backend API. Changes take effect immediately. 
+                  {isCustom && <span style={{ color: 'var(--color-warning)' }}> Using custom URL.</span>}
+                </span>
+              </div>
+
               <div className="form-group">
                 <label htmlFor="region">AWS Region</label>
                 <input

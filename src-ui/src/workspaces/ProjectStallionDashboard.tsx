@@ -64,7 +64,7 @@ const MOCK_EVENTS: CalendarEvent[] = [
   }
 ];
 
-export function WorkAgentDashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspaceProps) {
+export function ProjectStallionDashboard({ agent, onLaunchPrompt, onShowChat }: AgentWorkspaceProps) {
   const events = useMemo(() => MOCK_EVENTS, []);
   const [selectedId, setSelectedId] = useState<string | null>(events[0]?.id ?? null);
 

@@ -32,10 +32,12 @@ export class WorkAgentRuntime {
   private mcpConfigs: Map<string, MCPConfiguration> = new Map();
   private activeAgents: Map<string, Agent> = new Map();
   private agentMetadataMap: Map<string, any> = new Map();
+  private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
   private modelCatalog?: BedrockModelCatalog;
   private port: number;
+  private pendingApprovals: Map<string, { resolve: (approved: boolean) => void; reject: (error: Error) => void }> = new Map();
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const workAgentDir = options.workAgentDir || '.work-agent';
@@ -146,8 +148,13 @@ export class WorkAgentRuntime {
                 const metadata = this.agentMetadataMap.get(agent.id);
                 if (!metadata) return agent;
                 
-                // Load full agent spec to get prompt, description, icon, commands
+                // Load full agent spec to get prompt, description, icon, commands, tools
                 const spec = await this.configLoader.loadAgent(metadata.slug);
+                
+                console.log('[Agent Enrichment] Agent:', metadata.slug);
+                console.log('[Agent Enrichment] Spec loaded:', !!spec);
+                console.log('[Agent Enrichment] Spec.tools:', spec.tools);
+                console.log('[Agent Enrichment] Spec keys:', Object.keys(spec));
                 
                 return {
                   ...agent,
@@ -157,9 +164,23 @@ export class WorkAgentRuntime {
                   description: spec.description,
                   icon: spec.icon,
                   commands: spec.commands,
+                  toolsConfig: spec.tools, // Rename to avoid conflict with agent.tools (tool instances)
                   updatedAt: metadata.updatedAt,
                 };
               }));
+              
+              this.logger.debug('Enriched agents response', { 
+                count: enrichedAgents.length,
+                sample: enrichedAgents[0] 
+              });
+              
+              console.log('[Agent Enrichment] Final enriched agents:', JSON.stringify(enrichedAgents.map(a => ({
+                slug: a.slug,
+                name: a.name,
+                hasToolsConfig: !!a.toolsConfig,
+                toolsConfig: a.toolsConfig
+              })), null, 2));
+              
               return c.json({ success: true, data: enrichedAgents });
             } catch (error: any) {
               this.logger.error('Failed to fetch agents', { error: error.message, stack: error.stack });
@@ -995,12 +1016,42 @@ export class WorkAgentRuntime {
             }
           });
 
-          // Chat endpoint for UI - handles streaming with model overrides
-          app.post('/agents/:slug/chat', async (c) => {
+          // Tool approval response endpoint
+          app.post('/tool-approval/:approvalId', async (c) => {
             try {
-              const slug = c.req.param('slug');
+              const approvalId = c.req.param('approvalId');
+              const { approved } = await c.req.json();
+              
+              this.logger.info('[Approval Endpoint] Received approval response', { approvalId, approved });
+              
+              const pending = this.pendingApprovals.get(approvalId);
+              if (pending) {
+                pending.resolve(approved);
+                this.pendingApprovals.delete(approvalId);
+                this.logger.info('[Approval Endpoint] Approval resolved', { approvalId, approved });
+                return c.json({ success: true });
+              }
+              
+              this.logger.warn('[Approval Endpoint] Approval request not found', { approvalId });
+              return c.json({ success: false, error: 'Approval request not found' }, 404);
+            } catch (error: any) {
+              this.logger.error('Approval response error', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Custom chat endpoint with elicitation - use different path to avoid VoltAgent conflicts
+          app.post('/api/agents/:slug/chat', async (c) => {
+            const slug = c.req.param('slug');
+            console.log(`[CHAT ENDPOINT] Called for agent: ${slug}`);
+            this.logger.info('[Chat Endpoint] Called', { slug });
+            
+            try {
               const { input, options = {} } = await c.req.json();
               const { model: modelOverride, ...restOptions } = options;
+
+              console.log(`[CHAT ENDPOINT] Processing request for ${slug}`);
+              this.logger.info('[Chat Endpoint] Processing request', { slug, hasInput: !!input });
 
               let agent = this.activeAgents.get(slug);
               if (!agent) {
@@ -1065,9 +1116,6 @@ export class WorkAgentRuntime {
                 agent = cachedAgent;
               }
 
-              // Use VoltAgent's streamText for proper SSE formatting
-              const result = await agent.streamText(input, restOptions);
-
               // Set SSE headers
               c.header('Content-Type', 'text/event-stream');
               c.header('Cache-Control', 'no-cache');
@@ -1075,18 +1123,120 @@ export class WorkAgentRuntime {
 
               return stream(c, async (streamWriter) => {
                 try {
+                  // Elicitation handler for tool approval
+                  const elicitation = async (request: any) => {
+                    if (request.type === 'tool-approval') {
+                      const approvalId = `approval-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                      
+                      this.logger.info('[Elicitation] Sending approval request', {
+                        approvalId,
+                        toolName: request.toolName,
+                      });
+                      
+                      // Send approval request to UI
+                      await streamWriter.write(`data: ${JSON.stringify({
+                        type: 'tool-approval-request',
+                        approvalId,
+                        toolName: request.toolName,
+                        toolDescription: request.toolDescription,
+                        toolArgs: request.toolArgs,
+                      })}\n\n`);
+                      
+                      // Wait for response with timeout
+                      return new Promise<boolean>((resolve, reject) => {
+                        this.logger.info('[Elicitation] Waiting for approval response', { approvalId });
+                        this.pendingApprovals.set(approvalId, { resolve, reject });
+                        
+                        const timeout = setTimeout(async () => {
+                          if (this.pendingApprovals.has(approvalId)) {
+                            this.pendingApprovals.delete(approvalId);
+                            this.logger.warn('[Elicitation] Approval timeout', { approvalId });
+                            
+                            // Send timeout message to UI
+                            await streamWriter.write(`data: ${JSON.stringify({
+                              type: 'ephemeral-message',
+                              content: `Tool approval timed out for ${request.toolName}. The request was automatically denied. Please try again if you'd like to use this tool.`,
+                              timestamp: Date.now()
+                            })}\n\n`);
+                            
+                            resolve(false); // Deny on timeout
+                          }
+                        }, 60000);
+                        
+                        const originalResolve = resolve;
+                        const wrappedResolve = (value: boolean) => {
+                          clearTimeout(timeout);
+                          originalResolve(value);
+                        };
+                        this.pendingApprovals.set(approvalId, { resolve: wrappedResolve, reject });
+                      });
+                    }
+                    return false;
+                  };
+
+                  const operationContext: any = {
+                    ...restOptions,
+                    elicitation,
+                  };
+                  
+                  this.logger.info('[Chat] Calling streamText with context', {
+                    hasElicitation: !!operationContext.elicitation,
+                    elicitationType: typeof operationContext.elicitation,
+                    contextKeys: Object.keys(operationContext)
+                  });
+                  
+                  const result = await agent.streamText(input, operationContext);
+
                   for await (const chunk of result.fullStream) {
+                    // Emit tool-input-available for tool calls that VoltAgent might not emit
+                    if (chunk.type === 'tool-call' && chunk.toolName) {
+                      await streamWriter.write(`data: ${JSON.stringify({
+                        type: 'tool-input-available',
+                        toolCallId: chunk.toolCallId,
+                        toolName: chunk.toolName,
+                        input: chunk.args || {}
+                      })}\n\n`);
+                    }
+                    
+                    // Emit tool-output-available for tool results
+                    if (chunk.type === 'tool-result' && chunk.toolCallId) {
+                      await streamWriter.write(`data: ${JSON.stringify({
+                        type: 'tool-output-available',
+                        toolCallId: chunk.toolCallId,
+                        output: chunk.result
+                      })}\n\n`);
+                    }
+                    
                     await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
                   }
                   await streamWriter.write('data: [DONE]\n\n');
                 } catch (error: any) {
-                  this.logger.error('Stream error', { error });
-                  await streamWriter.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+                  this.logger.error('Stream error occurred', {
+                    agentId: slug,
+                    modelName: agent.model?.modelId,
+                    operationId: operationContext?.operationId,
+                    userId: operationContext?.userId,
+                    conversationId: operationContext?.conversationId,
+                    executionId: operationContext?.executionId,
+                    agentName: slug,
+                    error,
+                  });
+                  const isCredentialError = error.message?.includes('credential') || 
+                                           error.message?.includes('accessKeyId') ||
+                                           error.message?.includes('secretAccessKey');
+                  await streamWriter.write(`data: ${JSON.stringify({ 
+                    type: 'error', 
+                    errorText: error.message,
+                    statusCode: isCredentialError ? 401 : undefined
+                  })}\n\n`);
                 }
               });
             } catch (error: any) {
               this.logger.error('Chat error', { error });
-              return c.json({ success: false, error: error.message }, 500);
+              const isCredentialError = error.message?.includes('credential') || 
+                                       error.message?.includes('accessKeyId') ||
+                                       error.message?.includes('secretAccessKey');
+              return c.json({ success: false, error: error.message }, isCredentialError ? 401 : 500);
             }
           });
         },
@@ -1102,6 +1252,9 @@ export class WorkAgentRuntime {
   private async createVoltAgentInstance(agentSlug: string): Promise<Agent> {
     // Load agent spec
     const spec = await this.configLoader.loadAgent(agentSlug);
+    
+    // Cache spec for later use
+    this.agentSpecs.set(agentSlug, spec);
 
     // Create Bedrock provider
     const model = this.createBedrockModel(spec);
@@ -1251,36 +1404,28 @@ export class WorkAgentRuntime {
 
     return createHooks({
       onToolStart: async ({ tool, context }) => {
+        this.logger.info('[onToolStart] Tool execution starting', {
+          toolName: tool.name,
+          conversationId: context.conversationId,
+          autoApproveList: autoApprove,
+        });
+
         // Check if this is a silent invocation (no conversationId means silent mode)
         const isSilentInvocation = !context.conversationId;
         
         if (isSilentInvocation) {
+          this.logger.info('[onToolStart] Silent invocation - skipping approval check');
           return;
         }
 
         // Check if tool is in autoApprove list
-        if (autoApprove.length > 0) {
-          const isAutoApproved = this.matchesToolPattern(tool.name, autoApprove);
-          
-          if (!isAutoApproved) {
-            if (context.elicitation) {
-              const approved = await context.elicitation({
-                type: 'tool-approval',
-                toolName: tool.name,
-                message: `Allow ${tool.name}?`,
-              });
-              
-              if (!approved) {
-                throw new Error(`Tool ${tool.name} requires user approval`);
-              }
-            } else {
-              this.logger.warn('Tool requires approval but no elicitation available', {
-                tool: tool.name,
-                context: context.operationId,
-              });
-            }
-          }
-        }
+        const isAutoApproved = this.matchesToolPattern(tool.name, autoApprove);
+        
+        this.logger.info('[onToolStart] Tool execution', {
+          toolName: tool.name,
+          isAutoApproved,
+          autoApproveList: autoApprove,
+        });
       },
       onEnd: async ({ context, output, agent }) => {
         // Only track stats for conversations (not silent invocations)
@@ -1318,11 +1463,12 @@ export class WorkAgentRuntime {
           const modelId = spec.model || this.appConfig.defaultModel;
           const cost = await this.calculateCost(modelId, usage);
 
-          // Update cumulative stats
+          // Update stats - Bedrock returns cumulative tokens for the conversation,
+          // so we use the latest values directly instead of accumulating
           const updatedStats = {
-            inputTokens: existingStats.inputTokens + (usage.promptTokens || 0),
+            inputTokens: usage.promptTokens || 0,
             outputTokens: existingStats.outputTokens + (usage.completionTokens || 0),
-            totalTokens: existingStats.totalTokens + (usage.totalTokens || 0),
+            totalTokens: (usage.promptTokens || 0) + existingStats.outputTokens + (usage.completionTokens || 0),
             turns: existingStats.turns + 1,
             toolCalls: existingStats.toolCalls + toolCallCount,
             estimatedCost: existingStats.estimatedCost + cost,
@@ -1340,9 +1486,9 @@ export class WorkAgentRuntime {
           };
 
           modelStats[modelId] = {
-            inputTokens: currentModelStats.inputTokens + (usage.promptTokens || 0),
+            inputTokens: usage.promptTokens || 0,
             outputTokens: currentModelStats.outputTokens + (usage.completionTokens || 0),
-            totalTokens: currentModelStats.totalTokens + (usage.totalTokens || 0),
+            totalTokens: (usage.promptTokens || 0) + currentModelStats.outputTokens + (usage.completionTokens || 0),
             turns: currentModelStats.turns + 1,
             toolCalls: currentModelStats.toolCalls + toolCallCount,
             estimatedCost: currentModelStats.estimatedCost + cost,
@@ -1414,34 +1560,112 @@ export class WorkAgentRuntime {
   ): Promise<Tool<any>[]> {
     const mcpKey = `${agentSlug}:${toolId}`;
 
+    let mcpConfig: MCPConfiguration;
+    let isNewConfig = false;
+
     // Check if MCP config already exists
     if (this.mcpConfigs.has(mcpKey)) {
-      const mcpConfig = this.mcpConfigs.get(mcpKey)!;
-      return await mcpConfig.getTools();
+      mcpConfig = this.mcpConfigs.get(mcpKey)!;
+    } else {
+      // Create new MCP configuration
+      const serverConfig: any = {
+        [toolId]: this.createMCPServerConfig(toolDef),
+      };
+
+      mcpConfig = new MCPConfiguration({
+        servers: serverConfig,
+      });
+
+      this.mcpConfigs.set(mcpKey, mcpConfig);
+      isNewConfig = true;
     }
-
-    // Create new MCP configuration
-    const serverConfig: any = {
-      [toolId]: this.createMCPServerConfig(toolDef),
-    };
-
-    const mcpConfig = new MCPConfiguration({
-      servers: serverConfig,
-    });
-
-    this.mcpConfigs.set(mcpKey, mcpConfig);
 
     // Get tools from MCP server
     const tools = await mcpConfig.getTools();
 
-    this.logger.info('MCP tools loaded', { 
-      agent: agentSlug, 
-      tool: toolId, 
-      count: tools.length,
-      sampleNames: tools.slice(0, 3).map(t => t.name)
+    if (isNewConfig) {
+      this.logger.info('MCP tools loaded', { 
+        agent: agentSlug, 
+        tool: toolId, 
+        count: tools.length,
+        sampleNames: tools.slice(0, 3).map(t => t.name)
+      });
+    }
+
+    // Always wrap tools with elicitation for approval (agent config may have changed)
+    const spec = await this.configLoader.loadAgent(agentSlug);
+    const wrappedTools = tools.map(tool => this.wrapToolWithElicitation(tool, spec));
+
+    return wrappedTools;
+  }
+
+  /**
+   * Wrap a tool to add elicitation-based approval for non-auto-approved tools
+   */
+  private wrapToolWithElicitation(tool: Tool<any>, spec: AgentSpec): Tool<any> {
+    if (!spec?.tools) return tool;
+
+    const autoApprove = spec.tools.autoApprove || [];
+    const isAutoApproved = autoApprove.some(pattern => {
+      if (pattern === '*') return true;
+      if (pattern.endsWith('*')) {
+        return tool.name.startsWith(pattern.slice(0, -1));
+      }
+      return tool.name === pattern;
     });
 
-    return tools;
+    if (isAutoApproved) {
+      this.logger.debug('[Wrapper] Tool auto-approved, skipping wrapper', { toolName: tool.name });
+      return tool;
+    }
+
+    this.logger.info('[Wrapper] Wrapping tool with elicitation', { toolName: tool.name });
+
+    // Wrap the execute function
+    const originalExecute = tool.execute;
+    if (!originalExecute) return tool;
+
+    return {
+      ...tool,
+      execute: async (args: any, options: any) => {
+        // Get elicitation from options (VoltAgent passes OperationContext properties directly)
+        const elicitation = options?.elicitation;
+        
+        this.logger.info('[Wrapper] Tool execute called, requesting approval', { 
+          toolName: tool.name,
+          hasElicitation: !!elicitation,
+          elicitationType: typeof elicitation
+        });
+
+        // Request approval via elicitation
+        if (elicitation) {
+          this.logger.info('[Wrapper] Calling elicitation for approval', { toolName: tool.name });
+          
+          const approved = await elicitation({
+            type: 'tool-approval',
+            toolName: tool.name,
+            toolDescription: (tool as any).description || '',
+            toolArgs: args,
+          });
+
+          this.logger.info('[Wrapper] Elicitation response received', { 
+            toolName: tool.name, 
+            approved 
+          });
+
+          if (!approved) {
+            throw new Error(`Tool '${tool.name}' was denied by user`);
+          }
+        } else {
+          this.logger.warn('[Wrapper] No elicitation function available - tool will execute without approval', { 
+            toolName: tool.name 
+          });
+        }
+
+        // Execute the original tool
+        return originalExecute(args, options);
+      }
+    };
   }
 
   /**

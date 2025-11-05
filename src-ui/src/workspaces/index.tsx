@@ -1,10 +1,11 @@
 import type { AgentSummary, AgentQuickPrompt, WorkspaceConfig, WorkspaceTab } from '../types';
-import { WorkAgentDashboard } from './WorkAgentDashboard';
+import { ProjectStallionDashboard } from './ProjectStallionDashboard';
 import { CodeReviewDashboard } from './CodeReviewDashboard';
 import { DocumentationDashboard } from './DocumentationDashboard';
 import { DevOpsDashboard } from './DevOpsDashboard';
 import { ResearchWorkspace } from './ResearchWorkspace';
 import SADashboard from '../plugins/sa-dashboard/index';
+import SFDCAccountManager from '../plugins/sfdc-account-manager/index';
 
 export interface AgentWorkspaceProps {
   agent?: AgentSummary;
@@ -20,12 +21,13 @@ export interface AgentWorkspaceProps {
 export type AgentWorkspaceComponent = (props: AgentWorkspaceProps) => JSX.Element;
 
 const registry: Record<string, AgentWorkspaceComponent> = {
-  'work-agent-dashboard': WorkAgentDashboard,
+  'project-stallion-dashboard': ProjectStallionDashboard,
   'code-review-dashboard': CodeReviewDashboard,
   'documentation-dashboard': DocumentationDashboard,
   'devops-dashboard': DevOpsDashboard,
   'research-workspace': ResearchWorkspace,
   'sa-dashboard': SADashboard,
+  'sfdc-account-manager': SFDCAccountManager,
 };
 
 const DefaultWorkspace: AgentWorkspaceComponent = ({ workspace, onShowChat }) => (

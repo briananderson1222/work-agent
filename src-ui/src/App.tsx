@@ -11,7 +11,9 @@ import { Header } from './components/Header';
 import { AgentSelectorModal } from './components/AgentSelectorModal';
 import { PinDialog } from './components/PinDialog';
 import { ConversationStats, ContextPercentage } from './components/ConversationStats';
+import { FileAttachmentInput } from './components/FileAttachmentInput';
 import { useAppData } from './contexts/AppDataContext';
+import { useApiBase } from './contexts/ApiBaseContext';
 import { WorkspaceRenderer } from './workspaces';
 import { AgentEditorView } from './views/AgentEditorView';
 import { WorkspaceEditorView } from './views/WorkspaceEditorView';
@@ -21,6 +23,7 @@ import { SettingsView } from './views/SettingsView';
 import { useAwsAuth } from './hooks/useAwsAuth';
 import { setAuthCallback, apiRequest } from './lib/apiClient';
 import { getAgentIcon } from './utils/workspace';
+import { getModelCapabilities } from './utils/modelCapabilities';
 import type {
   AgentSummary,
   AgentQuickPrompt,
@@ -28,11 +31,15 @@ import type {
   ChatSession,
   WorkflowMetadata,
   NavigationView,
+  FileAttachment,
 } from './types';
 
-const API_BASE = 'http://localhost:3141';
+import { ApiBaseProvider } from './contexts/ApiBaseContext';
 
-function ToolCallDisplay({ toolCall }: { toolCall: { id: string; name: string; args: any; result?: any; state?: string; error?: string } }) {
+function ToolCallDisplay({ toolCall, onApprove }: { 
+  toolCall: { id: string; name: string; args: any; result?: any; state?: string; error?: string; needsApproval?: boolean }; 
+  onApprove?: (action: 'once' | 'trust' | 'deny') => void;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Create abbreviated args preview
@@ -44,13 +51,12 @@ function ToolCallDisplay({ toolCall }: { toolCall: { id: string; name: string; a
 
   return (
     <div className="tool-call" style={{ 
-      display: 'inline-block', 
-      margin: '0.25rem',
+      display: 'block', 
+      margin: '0.5rem 0',
       padding: '0.5rem',
       background: 'var(--color-bg-secondary)',
       border: '1px solid var(--color-border)',
       borderRadius: '4px',
-      verticalAlign: 'top'
     }}>
       <button 
         className="tool-call__header" 
@@ -62,12 +68,76 @@ function ToolCallDisplay({ toolCall }: { toolCall: { id: string; name: string; a
           cursor: 'pointer',
           padding: 0,
           color: 'inherit',
-          textAlign: 'left'
+          textAlign: 'left',
+          width: '100%'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
           <span className="tool-call__toggle">{isExpanded ? '▼' : '▶'}</span>
           <span className="tool-call__name" style={{ fontWeight: 500 }}>{toolCall.name}</span>
+          {toolCall.needsApproval && onApprove && !toolCall.error && !toolCall.result && !toolCall.cancelled && (
+            <>
+              <button 
+                onClick={() => onApprove('once')} 
+                style={{ 
+                  padding: '2px 6px', 
+                  fontSize: '0.7em',
+                  background: 'var(--color-primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                  fontWeight: 400,
+                  marginLeft: '0.25rem'
+                }}
+                onMouseDown={(e) => e.target.style.transform = 'scale(0.95)'}
+                onMouseUp={(e) => e.target.style.transform = 'scale(1)'}
+                onMouseOver={(e) => e.target.style.opacity = '0.8'}
+                onMouseOut={(e) => { e.target.style.opacity = '1'; e.target.style.transform = 'scale(1)'; }}
+              >
+                Allow Once
+              </button>
+              <button 
+                onClick={() => onApprove('trust')} 
+                style={{ 
+                  padding: '2px 6px', 
+                  fontSize: '0.7em',
+                  background: 'var(--color-bg)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                  fontWeight: 400
+                }}
+                onMouseDown={(e) => e.target.style.transform = 'scale(0.95)'}
+                onMouseUp={(e) => e.target.style.transform = 'scale(1)'}
+                onMouseOver={(e) => e.target.style.background = 'var(--color-bg-secondary)'}
+                onMouseOut={(e) => { e.target.style.background = 'var(--color-bg)'; e.target.style.transform = 'scale(1)'; }}
+              >
+                Always Allow
+              </button>
+              <button 
+                onClick={() => onApprove('deny')} 
+                style={{ 
+                  padding: '2px 6px', 
+                  fontSize: '0.7em',
+                  background: 'var(--color-error)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                  fontWeight: 400
+                }}
+                onMouseDown={(e) => e.target.style.transform = 'scale(0.95)'}
+                onMouseUp={(e) => e.target.style.transform = 'scale(1)'}
+                onMouseOver={(e) => e.target.style.opacity = '0.8'}
+                onMouseOut={(e) => { e.target.style.opacity = '1'; e.target.style.transform = 'scale(1)'; }}
+              >
+                Deny
+              </button>
+            </>
+          )}
+          {toolCall.needsApproval && !toolCall.error && !toolCall.result && !toolCall.cancelled && <span style={{ color: 'orange' }}>⏸</span>}
           {toolCall.error && <span className="tool-call__error">⚠️</span>}
         </div>
         <div style={{ fontSize: '0.85em', opacity: 0.7, paddingLeft: '1rem' }}>{argsPreview}</div>
@@ -102,6 +172,7 @@ function ToolCallDisplay({ toolCall }: { toolCall: { id: string; name: string; a
 
 function App() {
   const { models: availableModels } = useAppData();
+  const { apiBase: API_BASE } = useApiBase();
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(() => {
     const path = window.location.pathname;
@@ -169,10 +240,27 @@ function App() {
   });
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
-  // Listen for hash changes
+  // Listen for hash changes and URL paths
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1);
+      const path = window.location.pathname;
+      
+      // Parse workspace paths from URL
+      if (path.startsWith('/workspace/')) {
+        const pathParts = path.split('/');
+        const workspaceSlug = pathParts[2];
+        const tabId = pathParts[3];
+        
+        if (workspaceSlug && workspaceSlug !== selectedWorkspace?.slug) {
+          handleWorkspaceSelect(workspaceSlug);
+        }
+        if (tabId && tabId !== activeTabId) {
+          setActiveTabId(tabId);
+        }
+        setCurrentView({ type: 'workspace' });
+        return;
+      }
       
       if (hash === '/settings') {
         setCurrentView({ type: 'settings' });
@@ -197,8 +285,17 @@ function App() {
       }
     };
 
+    const handlePathChange = () => {
+      handleHashChange(); // Reuse the same logic
+    };
+
+    handleHashChange(); // Initial call
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePathChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handlePathChange);
+    };
   }, []);
   const [pendingPromptSend, setPendingPromptSend] = useState<{ sessionId: string; prompt: string } | null>(null);
   const [loadedAgents, setLoadedAgents] = useState<Set<string>>(new Set());
@@ -284,6 +381,7 @@ function App() {
       const customCommands = Object.values(currentAgent.commands).map((cmd: any) => ({
         cmd: `/${cmd.name}`,
         description: cmd.description || 'Custom command',
+        isCustom: true,
       }));
       console.log('Adding custom commands:', customCommands);
       return [...baseCommands, ...customCommands];
@@ -301,12 +399,16 @@ function App() {
 
   // Setup auth callback
   useEffect(() => {
-    setAuthCallback(async () => {
-      return new Promise((resolve) => {
+    const authCallback = async () => {
+      return new Promise<boolean>((resolve) => {
         setPinDialogResolver(() => resolve);
         setShowPinDialog(true);
       });
-    });
+    };
+    
+    setAuthCallback(authCallback);
+    // Also expose globally for SDK
+    (globalThis as any).authCallback = authCallback;
   }, []);
 
   const handlePinSubmit = async (pin: string) => {
@@ -360,10 +462,21 @@ function App() {
     }
     
     const query = params.toString();
-    const path = currentView.type === 'workspace' && selectedAgent ? `/agent/${selectedAgent}` : '/';
+    let path = '/';
+    
+    if (currentView.type === 'workspace') {
+      if (selectedWorkspace && activeTabId) {
+        path = `/workspace/${selectedWorkspace.slug}/${activeTabId}`;
+      } else if (selectedWorkspace) {
+        path = `/workspace/${selectedWorkspace.slug}`;
+      } else if (selectedAgent) {
+        path = `/agent/${selectedAgent}`;
+      }
+    }
+    
     const url = query ? `${path}?${query}${hash ? '#' + hash : ''}` : `${path}${hash ? '#' + hash : ''}`;
     
-    window.history.replaceState({}, '', url);
+    window.history.pushState({}, '', url);
   }, [selectedAgent, activeSessionId, isDockCollapsed, isDockMaximized, currentView]);
 
   // Keep ref in sync with state
@@ -655,6 +768,7 @@ function App() {
         icon: agent.icon,
         commands: agent.commands,
         ui: agent.ui,
+        toolsConfig: agent.toolsConfig,
         workflowWarnings: agent.workflowWarnings || undefined,
       }));
       console.log('Mapped agent list:', agentList);
@@ -807,6 +921,7 @@ function App() {
       sourceId: options.sourceId,
       messages: [],
       input: '',
+      attachments: [],
       queuedMessages: [],
       status: 'idle',
       error: null,
@@ -918,13 +1033,23 @@ function App() {
       }
     } else if (cmd === 'tools') {
       try {
-        // Use standard VoltAgent endpoint
-        const response = await fetch(`${API_BASE}/agents/${session.agentSlug}`);
-        const data = await response.json();
-        const agent = data.data;
-        
-        const tools = agent?.tools || [];
-        const autoApproveList = agent?.autoApprove || agent?.autoApproved || [];
+        // Get agent from state (already has tools config from /api/agents)
+        const agent = agents.find(a => a.slug === session.agentSlug);
+        console.log('[/tools] Agent found:', !!agent);
+        console.log('[/tools] Agent:', JSON.stringify(agent, null, 2));
+        console.log('[/tools] Agent toolsConfig:', agent?.toolsConfig);
+        console.log('[/tools] All agents:', agents.map(a => ({ slug: a.slug, hasToolsConfig: !!a.toolsConfig })));
+        if (!agent) {
+          responseContent = 'Agent not found';
+        } else {
+          // Fetch VoltAgent tools list
+          const response = await fetch(`${API_BASE}/agents/${session.agentSlug}`);
+          const data = await response.json();
+          const voltAgentData = data.data;
+          
+          const tools = voltAgentData?.tools || [];
+          const autoApproveList = agent.toolsConfig?.autoApprove || [];
+          console.log('[/tools] autoApproveList:', autoApproveList);
         
         if (tools.length > 0) {
           // Sort alphabetically
@@ -936,14 +1061,20 @@ function App() {
           
           const toolLines = sortedTools.map((t: any) => {
             const name = typeof t === 'string' ? t : (t.name || t.id || 'unknown');
+            console.log('[/tools] Checking tool:', name, 'against autoApprove:', autoApproveList);
             const isAutoApproved = autoApproveList.includes(name) || autoApproveList.some((pattern: string) => {
               if (pattern.includes('*')) {
                 const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-                return regex.test(name);
+                const matches = regex.test(name);
+                console.log('[/tools] Pattern match:', pattern, 'vs', name, '=', matches);
+                return matches;
               }
-              return pattern === name;
+              const exactMatch = pattern === name;
+              console.log('[/tools] Exact match:', pattern, 'vs', name, '=', exactMatch);
+              return exactMatch;
             });
             const trusted = isAutoApproved ? '✓' : '';
+            console.log('[/tools] Tool', name, 'isAutoApproved:', isAutoApproved, 'trusted:', trusted);
             
             // Get parameters with * for optional, required first
             let params = '';
@@ -971,13 +1102,10 @@ function App() {
             return `| ${name} | ${desc} | ${params} | ${trusted} |`;
           });
           
-          const autoApproveNote = autoApproveList.length > 0 
-            ? `*Auto-approve: ${autoApproveList.join(', ')}*\n\n` 
-            : '';
-          
-          responseContent = `**Tools (${tools.length}):**\n\n${autoApproveNote}| Tool | Description | Parameters (* optional) | Trusted |\n|------|-------------|-------------------------|:-------:|\n${toolLines.join('\n')}`;
+          responseContent = `**Tools (${tools.length}):**\n\n| Tool | Description | Parameters (* optional) | Trusted |\n|------|-------------|-------------------------|:-------:|\n${toolLines.join('\n')}`;
         } else {
           responseContent = `No tools configured.`;
+        }
         }
       } catch (error) {
         responseContent = `Error: ${error}`;
@@ -1060,10 +1188,12 @@ function App() {
     if (!session) return;
 
     const text = (overrideContent ?? session.input).trim();
-    if (!text) return;
+    const hasAttachments = session.attachments && session.attachments.length > 0;
+    
+    if (!text && !hasAttachments) return;
 
-    // Handle slash commands
-    if (text.startsWith('/')) {
+    // Handle slash commands (only if no attachments)
+    if (text.startsWith('/') && !hasAttachments) {
       await handleSlashCommand(sessionId, text);
       return;
     }
@@ -1085,7 +1215,12 @@ function App() {
       inputHistory: [...current.inputHistory, text],
     }));
 
-    const userMessage: ChatMessage = { role: 'user', content: text };
+    // Construct multi-modal message
+    const userMessage: ChatMessage = { 
+      role: 'user', 
+      content: text,
+      attachments: hasAttachments ? [...session.attachments!] : undefined,
+    };
 
     // Clear ephemeral messages when sending real message
     setEphemeralMessages(prev => {
@@ -1100,6 +1235,7 @@ function App() {
       ...current,
       messages: [...current.messages, userMessage],
       input: '',
+      attachments: [],
       status: 'sending',
       error: null,
       updatedAt: Date.now(),
@@ -1116,13 +1252,48 @@ function App() {
       const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
       const needsModelOverride = session.model && session.model !== agentModelId;
 
+      // Construct input for API - either string or multi-modal message array
+      let apiInput: string | any[];
+      
+      if (hasAttachments) {
+        // Build multi-modal message with content parts
+        const contentParts: any[] = [];
+        
+        if (text) {
+          contentParts.push({ type: 'text', text });
+        }
+        
+        for (const att of session.attachments!) {
+          if (att.type.startsWith('image/')) {
+            contentParts.push({
+              type: 'image',
+              image: att.data,
+              mediaType: att.type,
+            });
+          } else {
+            contentParts.push({
+              type: 'file',
+              url: att.data,
+              mediaType: att.type,
+            });
+          }
+        }
+        
+        apiInput = [{
+          role: 'user',
+          content: contentParts,
+        }];
+      } else {
+        apiInput = text;
+      }
+
       // Use streaming /chat endpoint to see tool calls
-      const response = await fetch(`${API_BASE}/agents/${session.agentSlug}/chat`, {
+      const response = await fetch(`${API_BASE}/api/agents/${session.agentSlug}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortController.signal,
         body: JSON.stringify({
-          input: text,
+          input: apiInput,
           options: {
             userId: 'tauri-ui-user',
             conversationId: session.conversationId,
@@ -1189,8 +1360,9 @@ function App() {
                 return;
               }
               
-              if (data.type === 'text-delta' && data.delta) {
-                currentTextChunk += data.delta;
+              if (data.type === 'text-delta' && (data.delta || data.text)) {
+                const textDelta = data.delta || data.text;
+                currentTextChunk += textDelta;
                 // Update current text chunk
                 updateSession(sessionId, (current) => {
                   const messages = [...current.messages];
@@ -1298,6 +1470,60 @@ function App() {
                       }
                     }
                     lastMsg.contentParts = parts;
+                  }
+                  return { ...current, messages, updatedAt: Date.now() };
+                });
+              } else if (data.type === 'ephemeral-message') {
+                console.log('[Ephemeral Message]', data);
+                
+                // Add ephemeral message to UI
+                updateSession(sessionId, (current) => {
+                  const messages = [...current.messages];
+                  messages.push({
+                    role: 'assistant',
+                    content: data.content,
+                    model: current.model,
+                    isEphemeral: true,
+                    timestamp: data.timestamp || Date.now()
+                  });
+                  return { ...current, messages, updatedAt: Date.now() };
+                });
+              } else if (data.type === 'tool-approval-request') {
+                console.log('[Tool Approval Request]', data);
+                
+                // Add pending tool call to UI
+                updateSession(sessionId, (current) => {
+                  const messages = [...current.messages];
+                  const lastMsg = messages[messages.length - 1];
+                  if (lastMsg?.role === 'assistant') {
+                    const parts = [...(lastMsg.contentParts || [])];
+                    parts.push({ 
+                      type: 'tool', 
+                      tool: {
+                        id: data.approvalId,
+                        name: data.toolName,
+                        args: data.toolArgs || {},
+                        needsApproval: true,
+                        description: data.toolDescription,
+                      }
+                    });
+                    lastMsg.contentParts = parts;
+                  } else {
+                    messages.push({ 
+                      role: 'assistant', 
+                      content: '',
+                      model: current.model,
+                      contentParts: [{ 
+                        type: 'tool', 
+                        tool: {
+                          id: data.approvalId,
+                          name: data.toolName,
+                          args: data.toolArgs || {},
+                          needsApproval: true,
+                          description: data.toolDescription,
+                        }
+                      }]
+                    });
                   }
                   return { ...current, messages, updatedAt: Date.now() };
                 });
@@ -1414,6 +1640,16 @@ function App() {
         showToast(`Message failed for ${session.agentName} (${session.title})`, sessionId);
       }
     }
+  };
+
+  const getFilteredCommands = () => {
+    if (!activeSession) return slashCommands;
+    const input = activeSession.input.toLowerCase();
+    if (!input.startsWith('/')) return slashCommands;
+    return slashCommands.filter(c => 
+      c.cmd.toLowerCase().startsWith(input) || 
+      c.aliases?.some(a => a.toLowerCase().startsWith(input))
+    );
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1593,20 +1829,33 @@ function App() {
     }
   };
 
-  const getFilteredCommands = () => {
-    if (!activeSession) return slashCommands;
-    const input = activeSession.input.toLowerCase();
-    if (!input.startsWith('/')) return slashCommands;
-    return slashCommands.filter(c => 
-      c.cmd.toLowerCase().startsWith(input) || 
-      c.aliases?.some(a => a.toLowerCase().startsWith(input))
-    );
-  };
-
   const switchAgent = (slug: string) => {
     setSelectedAgent(slug);
     setManagementNotice(null);
   };
+
+  const handleSendToChat = useCallback((text: string, agentSlug?: string) => {
+    console.log('handleSendToChat called with:', { text, agentSlug, agents: agents.map(a => a.slug) });
+    
+    if (!agentSlug) {
+      console.log('No agent slug provided!');
+      return;
+    }
+    
+    const targetAgent = agents.find(a => a.slug === agentSlug);
+    console.log('Target agent:', targetAgent);
+    if (!targetAgent) {
+      console.log('No target agent found!');
+      return;
+    }
+    // Always create a new session for prompts to ensure clean context
+    const session = createChatSession(targetAgent, { source: 'manual', title: `${targetAgent.name} Chat` });
+    console.log('New session created:', session.id);
+    focusSession(session.id);
+    setSessionInput(session.id, text);
+    setPendingPromptSend({ sessionId: session.id, prompt: text });
+    console.log('Pending prompt set');
+  }, [agents]);
 
   const handleLaunchPrompt = useCallback((prompt: AgentQuickPrompt) => {
     if (!currentAgent) return;
@@ -1651,7 +1900,7 @@ function App() {
         }
       });
     }
-  }, []);
+  }, [handleSendToChat]);
 
   const handleWorkflowShortcut = (workflowId: string) => {
     if (!currentAgent) return;
@@ -1768,23 +2017,6 @@ function App() {
   const handleShowChatForCurrentAgent = useCallback(() => {
     openChatForAgent(currentAgent);
   }, [currentAgent, openChatForAgent]);
-
-  const handleSendToChat = useCallback((text: string, agentSlug?: string) => {
-    console.log('handleSendToChat called with:', { text, agentSlug, currentAgent: currentAgent?.slug, agents: agents.map(a => a.slug) });
-    const targetAgent = agentSlug ? agents.find(a => a.slug === agentSlug) : currentAgent;
-    console.log('Target agent:', targetAgent);
-    if (!targetAgent) {
-      console.log('No target agent found!');
-      return;
-    }
-    // Always create a new session for prompts to ensure clean context
-    const session = createChatSession(targetAgent, { source: 'manual', title: `${targetAgent.name} Chat` });
-    console.log('New session created:', session.id);
-    focusSession(session.id);
-    setSessionInput(session.id, text);
-    setPendingPromptSend({ sessionId: session.id, prompt: text });
-    console.log('Pending prompt set');
-  }, [currentAgent, agents]);
 
   // Render management views
   if (currentView.type !== 'workspace') {
@@ -1966,7 +2198,7 @@ function App() {
               style={{ paddingBottom: isDockCollapsed ? '43px' : `${dockHeight}px` }}
             >
               <WorkspaceRenderer
-                componentId={activeTab?.component || 'work-agent-dashboard'}
+                componentId={activeTab?.component || 'project-stallion-dashboard'}
                 workspace={selectedWorkspace}
                 activeTab={activeTab}
                 onRequestAuth={handleAuthError}
@@ -2163,8 +2395,16 @@ function App() {
                     {isDockMaximized ? '⬇' : '⬆'}
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>⌘M</span>
                   </button>
-                  <div
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDockCollapsed(!isDockCollapsed);
+                    }}
                     style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      cursor: 'pointer',
                       padding: '4px',
                       display: 'flex',
                       alignItems: 'center',
@@ -2179,7 +2419,7 @@ function App() {
                     }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
-                  </div>
+                  </button>
                 </div>
               </div>
 
@@ -2389,7 +2629,8 @@ function App() {
                             <>
                               {activeSession.messages.map((msg, idx) => {
                                 const isLastAssistant = idx === activeSession.messages.length - 1 && msg.role === 'assistant';
-                                const isStreaming = activeSession.status === 'sending' && isLastAssistant;
+                                const hasPendingApproval = msg.contentParts?.some(p => p.tool?.needsApproval);
+                                const isStreaming = activeSession.status === 'sending' && isLastAssistant && !hasPendingApproval;
                                 const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
                                 
                                 return (
@@ -2410,15 +2651,164 @@ function App() {
                                          msg.model.includes('claude-3-haiku') ? '🤖 Claude 3 Haiku' : '🤖 Custom'}
                                       </div>
                                     )}
+                                    {msg.attachments && msg.attachments.length > 0 && (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                                        {msg.attachments.map((att) => (
+                                          <div
+                                            key={att.id}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '8px',
+                                              padding: '8px',
+                                              background: 'var(--bg-secondary)',
+                                              border: '1px solid var(--border-primary)',
+                                              borderRadius: '4px',
+                                              maxWidth: '200px',
+                                            }}
+                                          >
+                                            {att.preview ? (
+                                              <img
+                                                src={att.preview}
+                                                alt={att.name}
+                                                style={{
+                                                  maxWidth: '120px',
+                                                  maxHeight: '120px',
+                                                  objectFit: 'contain',
+                                                  borderRadius: '4px',
+                                                  cursor: 'pointer',
+                                                }}
+                                                onClick={() => window.open(att.preview, '_blank')}
+                                                title="Click to view full size"
+                                              />
+                                            ) : (
+                                              <div
+                                                style={{
+                                                  width: '40px',
+                                                  height: '40px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  background: 'var(--bg-tertiary)',
+                                                  borderRadius: '4px',
+                                                  fontSize: '20px',
+                                                }}
+                                              >
+                                                📄
+                                              </div>
+                                            )}
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <div style={{ fontSize: '12px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {att.name}
+                                              </div>
+                                              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                                                {(att.size / 1024).toFixed(1)} KB
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                     {msg.contentParts && msg.contentParts.length > 0 ? (
-                                      // Render mixed content inline
-                                      msg.contentParts.map((part, partIdx) => (
-                                        part.type === 'text' ? (
-                                          <ReactMarkdown key={partIdx}>{part.content || ''}</ReactMarkdown>
-                                        ) : (
-                                          <ToolCallDisplay key={partIdx} toolCall={part.tool!} />
-                                        )
-                                      ))
+                                      // Render mixed content inline with deduplication
+                                      (() => {
+                                        const seenToolIds = new Set<string>();
+                                        return msg.contentParts.map((part, partIdx) => {
+                                          if (part.type === 'tool') {
+                                            if (seenToolIds.has(part.tool?.id)) return null;
+                                            seenToolIds.add(part.tool?.id);
+                                          }
+                                          return part.type === 'text' ? (
+                                            <ReactMarkdown key={partIdx}>{part.content || ''}</ReactMarkdown>
+                                          ) : (
+                                            <ToolCallDisplay 
+                                              key={partIdx} 
+                                              toolCall={part.tool!}
+                                              onApprove={async (action) => {
+                                                const approved = action !== 'deny';
+                                                
+                                                // Cancel stream if denied
+                                                if (!approved && activeAbortController) {
+                                                  activeAbortController.abort('Tool denied by user');
+                                                  setActiveAbortController(null);
+                                                  
+                                                  // Update session status to cancelled
+                                                  updateSession(activeSession.id, (current) => {
+                                                    return { ...current, status: 'cancelled', updatedAt: Date.now() };
+                                                  });
+                                                }
+                                                
+                                                // Resume loading indicator for approved tools
+                                                if (approved) {
+                                                  updateSession(activeSession.id, (current) => {
+                                                    return { ...current, status: 'sending', updatedAt: Date.now() };
+                                                  });
+                                                }
+                                                
+                                                try {
+                                                  await fetch(`${API_BASE}/tool-approval/${part.tool!.id}`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ approved }),
+                                                  });
+                                                  
+                                                  // Remove needsApproval flag
+                                                  updateSession(activeSession.id, (current) => {
+                                                    const messages = [...current.messages];
+                                                    const msgIdx = messages.findIndex(m => m.contentParts?.some(p => p.tool?.id === part.tool!.id));
+                                                    if (msgIdx >= 0 && messages[msgIdx].contentParts) {
+                                                      const parts = [...messages[msgIdx].contentParts!];
+                                                      const partIdx = parts.findIndex(p => p.tool?.id === part.tool!.id);
+                                                      if (partIdx >= 0 && parts[partIdx].tool) {
+                                                        parts[partIdx].tool!.needsApproval = false;
+                                                        // Mark as cancelled if denied
+                                                        if (!approved) {
+                                                          parts[partIdx].tool!.cancelled = true;
+                                                        }
+                                                      }
+                                                      messages[msgIdx].contentParts = parts;
+                                                    }
+                                                    return { ...current, messages };
+                                                  });
+
+                                                  // Add ephemeral feedback message
+                                                  if (!approved) {
+                                                    // Add ephemeral message for denial
+                                                    updateSession(activeSession.id, (current) => {
+                                                      const messages = [...current.messages];
+                                                      messages.push({
+                                                        role: 'assistant',
+                                                        content: `I understand you've denied the ${part.tool!.name} tool. Could you help me understand what you'd prefer I do instead? For example:
+- Should I try a different approach?
+- Do you need more information about what this tool does?
+- Would you like me to suggest alternative ways to help you?`,
+                                                        model: current.model,
+                                                        isEphemeral: true,
+                                                        timestamp: Date.now()
+                                                      });
+                                                      return { ...current, messages, updatedAt: Date.now() };
+                                                    });
+                                                  }
+                                                } catch (err) {
+                                                  console.error('Failed to send approval:', err);
+                                                  // Add ephemeral error message
+                                                  updateSession(activeSession.id, (current) => {
+                                                    const messages = [...current.messages];
+                                                    messages.push({
+                                                      role: 'assistant',
+                                                      content: 'There was an error processing your approval. The tool request may have timed out. Please try your request again.',
+                                                      model: current.model,
+                                                      isEphemeral: true,
+                                                      timestamp: Date.now()
+                                                    });
+                                                    return { ...current, messages, updatedAt: Date.now() };
+                                                  });
+                                                }
+                                              }}
+                                            />
+                                          );
+                                        });
+                                      })()
                                     ) : (
                                       // Fallback for old messages or messages without contentParts
                                       <>
@@ -2517,17 +2907,24 @@ function App() {
                                 </div>
                               );
                             })}
-                            {activeSession.status === 'sending' && activeSession.messages[activeSession.messages.length - 1]?.role !== 'assistant' && (
-                              <div className="message assistant">
-                                <div style={{ position: 'relative' }}>
-                                  <span className="loading-dots" style={{ display: 'inline-block' }}>
-                                    <span style={{ animationDelay: '0s' }}>●</span>
-                                    <span style={{ animationDelay: '0.2s' }}>●</span>
-                                    <span style={{ animationDelay: '0.4s' }}>●</span>
-                                  </span>
+                            {activeSession.status === 'sending' && (() => {
+                              const lastMsg = activeSession.messages[activeSession.messages.length - 1];
+                              const showLoading = !lastMsg || 
+                                                 lastMsg.role !== 'assistant' || 
+                                                 !lastMsg.contentParts?.some(p => p.tool?.needsApproval);
+                              
+                              return showLoading ? (
+                                <div className="message assistant">
+                                  <div style={{ position: 'relative' }}>
+                                    <span className="loading-dots" style={{ display: 'inline-block' }}>
+                                      <span style={{ animationDelay: '0s' }}>●</span>
+                                      <span style={{ animationDelay: '0.2s' }}>●</span>
+                                      <span style={{ animationDelay: '0.4s' }}>●</span>
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              ) : null;
+                            })()}
                             </>
                           )}
                           <div ref={messagesEndRef} />
@@ -2663,6 +3060,9 @@ function App() {
                                       {cmd.aliases && cmd.aliases.length > 0 && (
                                         <span style={{ opacity: 0.6, fontWeight: 400 }}> / {cmd.aliases.join(' / ')}</span>
                                       )}
+                                      {cmd.isCustom && (
+                                        <span style={{ marginLeft: '8px', fontSize: '10px', color: 'var(--color-primary)', fontWeight: 600 }}>(custom)</span>
+                                      )}
                                     </span>
                                     <span className="command-desc">{cmd.description}</span>
                                   </div>
@@ -2716,14 +3116,33 @@ function App() {
                                 conversationId={activeSession.conversationId}
                                 apiBase={API_BASE}
                                 messageCount={activeSession.messages.length}
+                                onClick={() => setShowStatsPanel(!showStatsPanel)}
                               />
                             </div>
+                            <FileAttachmentInput
+                              attachments={activeSession.attachments || []}
+                              onAdd={(newAttachments) => {
+                                updateSession(activeSession.id, (current) => ({
+                                  ...current,
+                                  attachments: [...(current.attachments || []), ...newAttachments],
+                                }));
+                              }}
+                              onRemove={(id) => {
+                                updateSession(activeSession.id, (current) => ({
+                                  ...current,
+                                  attachments: (current.attachments || []).filter(a => a.id !== id),
+                                }));
+                              }}
+                              disabled={activeSession.status === 'sending'}
+                              supportsImages={true}
+                              supportsFiles={true}
+                            />
                             <button
                               onClick={() => {
                                 setShowCommandAutocomplete(false);
                                 sendMessage(activeSession.id);
                               }}
-                              disabled={!activeSession.input.trim()}
+                              disabled={!activeSession.input.trim() && (!activeSession.attachments || activeSession.attachments.length === 0)}
                             >
                               {activeSession.status === 'sending' ? 'Queue' : 'Send'}
                             </button>
@@ -2918,7 +3337,17 @@ function App() {
 
 function AppWithSDK() {
   return (
-    <SDKAdapter apiBase={API_BASE}>
+    <ApiBaseProvider>
+      <AppWithSDKInner />
+    </ApiBaseProvider>
+  );
+}
+
+function AppWithSDKInner() {
+  const { apiBase } = useApiBase();
+  
+  return (
+    <SDKAdapter apiBase={apiBase}>
       <PermissionManager>
         <EventRouter>
           <App />

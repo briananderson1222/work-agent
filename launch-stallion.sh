@@ -17,11 +17,19 @@ else
     BACKEND_PORT=3141
 fi
 
-# Check if port 5173 is in use
+# Check if port 5173 is in use and find next available
 if lsof -Pi :5173 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
     echo "⚠️  Port 5173 is in use"
-    echo "   Vite will automatically use next available port (likely 5174)"
-    UI_PORT="auto"
+    # Try 5174
+    if lsof -Pi :5174 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
+        echo "⚠️  Port 5174 is also in use"
+        echo "   Please stop other Vite instances or Tauri will fail"
+        exit 1
+    else
+        echo "   Using port 5174 for UI"
+        export VITE_PORT=5174
+        UI_PORT=5174
+    fi
 else
     echo "✓ Port 5173 available"
     UI_PORT=5173
@@ -32,12 +40,6 @@ echo "Starting Project Stallion..."
 echo "  Backend: http://localhost:$BACKEND_PORT"
 echo "  UI: http://localhost:$UI_PORT"
 echo ""
-
-# Update Tauri config if using fallback port
-if [ "$BACKEND_PORT" = "3142" ]; then
-    echo "Updating Tauri config for port 3142..."
-    # Tauri will use the UI port, backend is accessed via fetch
-fi
 
 # Start backend server in background
 echo "Starting backend server..."

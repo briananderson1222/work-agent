@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from '@stallion-ai/sdk';
+import { apiRequest } from '../lib/apiClient';
+import type { AgentWorkspaceProps } from './index';
 
 const CalendarEventSchema = z.object({
   events: z.array(z.object({
@@ -36,9 +37,8 @@ interface CalendarEvent {
 
 interface MeetingDetails extends CalendarEvent {
   body?: string;
-  attendees?: Array<{email: string, name?: string, status: string, isOptional?: boolean}>;
+  attendees?: Array<{email: string, status: string}>;
   responseStatus?: string;
-  organizerName?: string;
 }
 
 interface SFDCContext {
@@ -47,26 +47,69 @@ interface SFDCContext {
   tasks?: any[];
 }
 
+const API_BASE = 'http://localhost:3141';
 
+async function streamInvoke(
+  agentSlug: string,
+  prompt: string,
+  options: {
+    tools?: string[];
+    maxSteps?: number;
+    schema?: z.ZodType<any>;
+    onChunk?: (text: string) => void;
+  } = {}
+): Promise<any> {
+  const requestStart = performance.now();
+  
+  const response = await fetch(`${API_BASE}/agents/${agentSlug}/invoke/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt,
+      silent: true,
+      tools: options.tools,
+      maxSteps: options.maxSteps ?? 10,
+      schema: options.schema ? zodToJsonSchema(options.schema) : undefined,
+    }),
+  });
 
-async function ensureStoragePermission(workspace: any): Promise<boolean> {
-  if (!workspace.hasCapability('storage')) {
-    return false;
+  const fetchTime = performance.now() - requestStart;
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
   }
-  return await workspace.requestPermission('storage.session');
+
+  const parseStart = performance.now();
+  const data = await response.json();
+  
+  if (!data.success) {
+    throw new Error(data.error || 'Request failed');
+  }
+
+  // Log usage to see how many steps were taken
+  if (data.usage) {
+  }
+  
+  // Log debug info
+  if (data.debug) {
+  }
+  
+  // Log trace if available
+  if (data.trace) {
+  }
+
+  return data.response;
 }
 
-function getCacheKey(type: 'calendar' | 'sfdc' | 'meeting', identifier?: string): string {
+
+function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
   const today = new Date().toISOString().split('T')[0];
   return type === 'calendar' 
     ? `sa-calendar-${today}` 
-    : `sa-${type}-${identifier}`;
+    : `sa-sfdc-${identifier}`;
 }
 
-async function getFromCache<T>(key: string, workspace: any): Promise<T | null> {
-  const hasPermission = await ensureStoragePermission(workspace);
-  if (!hasPermission) return null;
-  
+function getFromCache<T>(key: string): T | null {
   try {
     const cached = sessionStorage.getItem(key);
     if (cached) {
@@ -83,10 +126,7 @@ async function getFromCache<T>(key: string, workspace: any): Promise<T | null> {
   return null;
 }
 
-async function setCache(key: string, data: any, workspace: any): Promise<void> {
-  const hasPermission = await ensureStoragePermission(workspace);
-  if (!hasPermission) return;
-  
+function setCache(key: string, data: any): void {
   try {
     sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
   } catch {
@@ -142,23 +182,7 @@ function detectMeetingProvider(location?: string): { provider: string; url: stri
   return null;
 }
 
-interface SADashboardProps extends WorkspaceProps {
-  agent?: any;
-  onLaunchPrompt?: (prompt: any) => void;
-  onShowChat?: () => void;
-  onRequestAuth?: () => Promise<boolean>;
-  onSendToChat?: (text: string, agent?: string) => void;
-}
-
-export default function SADashboard(props: SADashboardProps) {
-  const sdk = useSDK();
-  const agents = useAgents();
-  const workspace = useWorkspace();
-  
-  // Extract props - SA Dashboard always uses sa-agent
-  const agentSlug = 'sa-agent';
-  const { onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat } = props;
-  
+export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat }: AgentWorkspaceProps) {
   // Load config for notification settings
   const [notificationConfig, setNotificationConfig] = useState<{ enabled: boolean; thresholds: number[] }>({
     enabled: true,
@@ -168,7 +192,7 @@ export default function SADashboard(props: SADashboardProps) {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const response = await fetch(`${sdk.apiBase}/config/app`);
+        const response = await fetch(`${API_BASE}/config/app`);
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config?.meetingNotifications) {
@@ -183,7 +207,7 @@ export default function SADashboard(props: SADashboardProps) {
       }
     };
     loadConfig();
-  }, [sdk]);
+  }, []);
 
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
@@ -344,31 +368,30 @@ export default function SADashboard(props: SADashboardProps) {
     : filteredEvents;
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
-    if (!agents) {
-      console.warn('Agents not available yet, skipping calendar fetch');
-      setError('SDK not ready');
-      setLoading(false);
-      return;
-    }
-    
+    const startTime = performance.now();
     setLoading(true);
     setError(null);
-    setEvents([]);
+    setRawResponse(''); // Clear previous
+    setEvents([]); // Clear events list
     
+    // Only clear selectedEventId if not preserving selection
     if (!preserveEventId) {
       setSelectedEventId(null);
     }
     
     const dateStr = date.toISOString().split('T')[0];
-    const cacheKey = `sa-calendar-${dateStr}`;
     
     // Check cache first
-    const cached = await getFromCache<CalendarEvent[]>(cacheKey, workspace);
+    const cacheKey = `sa-calendar-${dateStr}`;
+    const cached = getFromCache<CalendarEvent[]>(cacheKey);
     if (cached) {
       setEvents(cached);
+      
+      // Only auto-select if not preserving a selection
       if (preserveEventId) {
         setSelectedEventId(preserveEventId);
       } else {
+        // Select active event, or next upcoming event, or first non-all-day, or first event
         const now = new Date();
         const activeEvent = cached.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
         const upcomingEvent = cached.find(e => !e.isAllDay && new Date(e.start) > now);
@@ -376,50 +399,79 @@ export default function SADashboard(props: SADashboardProps) {
         const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || cached[0]?.meetingId;
         setSelectedEventId(eventId);
       }
+      
       setLoading(false);
       return;
     }
     
+    const apiStartTime = performance.now();
     try {
-      const result = await agents.transform(agentSlug, 'sat-outlook_calendar_view', 
-        { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-        `(data) => ({
-          events: data.map(e => ({
-            meetingId: e.meetingId,
-            meetingChangeKey: e.meetingChangeKey,
-            subject: e.subject,
-            start: e.start,
-            end: e.end,
-            location: e.location || '',
-            organizer: e.organizer?.name || '',
-            status: e.status,
-            isCanceled: e.isCanceled || false,
-            categories: e.categories || [],
-            isAllDay: e.isAllDay || false
-          }))
-        })`
+      // Use pure transformation (no LLM, instant)
+      const data = await apiRequest<{ success: boolean; response: { events: CalendarEvent[] }; error?: any }>(
+        `${API_BASE}/agents/sa-agent/invoke/transform`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'sat-outlook_calendar_view',
+            toolArgs: { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
+            transform: `(data) => ({
+              events: data.map(e => ({
+                meetingId: e.meetingId,
+                meetingChangeKey: e.meetingChangeKey,
+                subject: e.subject,
+                start: e.start,
+                end: e.end,
+                location: e.location || '',
+                organizer: e.organizer?.name || '',
+                status: e.status,
+                isCanceled: e.isCanceled || false,
+                categories: e.categories || [],
+                isAllDay: e.isAllDay || false
+              }))
+            })`,
+          }),
+        }
       );
       
-      const parsedEvents = result.events;
+      if (!data.success) {
+        const errorStr = JSON.stringify(data.error);
+        
+        if (errorStr.includes('Form action URL not found') || 
+            errorStr.includes('Midway') || 
+            errorStr.includes('authentication') ||
+            errorStr.includes('mwinit')) {
+          // Auth errors are now handled by apiRequest, but retry if needed
+          return fetchEvents(dateStr, preserveEventId);
+        }
+        throw new Error(data.error);
+      }
+
+      const apiTime = performance.now() - apiStartTime;
       
-      if (parsedEvents && parsedEvents.length > 0) {
+      const parsedEvents = data.response.events;
+      
+      if (parsedEvents.length === 0) {
+        setError(`No events parsed. Agent response: ${response.substring(0, 300)}...`);
+      } else {
         setEvents(parsedEvents);
         
+        // Only auto-select if not preserving a selection
         if (preserveEventId) {
           setSelectedEventId(preserveEventId);
         } else {
+          // Select active event, or next upcoming event, or first non-all-day, or first event
           const now = new Date();
-          const activeEvent = parsedEvents.find((e: CalendarEvent) => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
-          const upcomingEvent = parsedEvents.find((e: CalendarEvent) => !e.isAllDay && new Date(e.start) > now);
-          const firstNonAllDay = parsedEvents.find((e: CalendarEvent) => !e.isAllDay);
+          const activeEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
+          const upcomingEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) > now);
+          const firstNonAllDay = parsedEvents.find(e => !e.isAllDay);
           const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
           setSelectedEventId(eventId);
         }
         
-        await setCache(cacheKey, parsedEvents, workspace);
+        setCache(cacheKey, parsedEvents);
       }
     } catch (err) {
-      // Let auth errors bubble up to be handled by the SDK/parent
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -434,44 +486,47 @@ export default function SADashboard(props: SADashboardProps) {
   // Always fetch today's events for notifications
   useEffect(() => {
     const fetchTodayEvents = async () => {
-      if (!agents) {
-        console.warn('Agents not available yet, skipping today events fetch');
-        return;
-      }
-      
       const today = new Date();
       const dateStr = formatLocalDate(today);
       const cacheKey = `sa-calendar-${dateStr}`;
       
-      const cached = await getFromCache<CalendarEvent[]>(cacheKey, workspace);
+      const cached = getFromCache<CalendarEvent[]>(cacheKey);
       if (cached) {
         setTodayEvents(cached);
         return;
       }
       
       try {
-        const result = await agents.transform(agentSlug, 'sat-outlook_calendar_view',
-          { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-          `(data) => ({
-            events: data.map(e => ({
-              meetingId: e.meetingId,
-              meetingChangeKey: e.meetingChangeKey,
-              subject: e.subject,
-              start: e.start,
-              end: e.end,
-              location: e.location || '',
-              organizer: e.organizer?.name || '',
-              status: e.status,
-              isCanceled: e.isCanceled || false,
-              categories: e.categories || [],
-              isAllDay: e.isAllDay || false
-            }))
-          })`
+        const data = await apiRequest<{ success: boolean; response: { events: CalendarEvent[] } }>(
+          `${API_BASE}/agents/sa-agent/invoke/transform`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              toolName: 'sat-outlook_calendar_view',
+              toolArgs: { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
+              transform: `(data) => ({
+                events: data.map(e => ({
+                  meetingId: e.meetingId,
+                  meetingChangeKey: e.meetingChangeKey,
+                  subject: e.subject,
+                  start: e.start,
+                  end: e.end,
+                  location: e.location || '',
+                  organizer: e.organizer?.name || '',
+                  status: e.status,
+                  isCanceled: e.isCanceled || false,
+                  categories: e.categories || [],
+                  isAllDay: e.isAllDay || false
+                }))
+              })`,
+            }),
+          }
         );
         
-        if (result.events) {
-          setTodayEvents(result.events);
-          await setCache(cacheKey, result.events, workspace);
+        if (data.success) {
+          setTodayEvents(data.response.events);
+          setCache(cacheKey, data.response.events);
         }
       } catch (err) {
         console.error('Failed to fetch today events:', err);
@@ -479,9 +534,10 @@ export default function SADashboard(props: SADashboardProps) {
     };
     
     fetchTodayEvents();
+    // Refresh every 5 minutes
     const interval = setInterval(fetchTodayEvents, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [agents, agentSlug, workspace]);
+  }, []);
   
   useEffect(() => {
     const handlePopState = () => {
@@ -512,7 +568,6 @@ export default function SADashboard(props: SADashboardProps) {
   // Auto-fetch meeting details when event is selected
   useEffect(() => {
     if (selectedEventId && events.length > 0) {
-      setShowAllAttendees(false); // Reset attendee list expansion
       fetchMeetingDetails(selectedEventId);
       
       // Scroll to selected event
@@ -562,7 +617,7 @@ export default function SADashboard(props: SADashboardProps) {
     const dateStr = formatLocalDate(selectedDate);
     sessionStorage.removeItem(`sa-calendar-${dateStr}`);
     events.forEach(e => {
-      sessionStorage.removeItem(getCacheKey('meeting', `details-${e.meetingId}`));
+      sessionStorage.removeItem(getCacheKey('sfdc', `details-${e.meetingId}`));
       sessionStorage.removeItem(getCacheKey('sfdc', e.meetingId));
     });
     
@@ -577,8 +632,9 @@ export default function SADashboard(props: SADashboardProps) {
       return;
     }
 
-    const cacheKey = getCacheKey('meeting', `details-${meetingId}`);
-    const cached = await getFromCache<MeetingDetails>(cacheKey, workspace);
+    // Check cache first
+    const cacheKey = getCacheKey('sfdc', `details-${meetingId}`);
+    const cached = getFromCache<MeetingDetails>(cacheKey);
     if (cached) {
       setMeetingDetails(cached);
       return;
@@ -587,106 +643,65 @@ export default function SADashboard(props: SADashboardProps) {
     setLoadingDetails(true);
     
     try {
-      const details = await agents.transform(agentSlug, 'sat-outlook_calendar_meeting',
-        { 
-          operation: 'read',
-          meetingId: meetingId, 
-          meetingChangeKey: event.meetingChangeKey 
-        },
-        `(data) => {
-          const meeting = data.success ? data.content : data;
-          
-          const eventData = ${JSON.stringify(event)};
-          const allEvents = ${JSON.stringify(events)};
-          const normalizeStatus = (status) => {
-            if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
-            if (status === 'Accept' || status === 'Accepted') return 'Accepted';
-            if (status === 'Decline' || status === 'Declined') return 'Declined';
-            return status;
-          };
-          
-          // Build email-to-name lookup from all calendar events
-          const emailToName = {};
-          
-          // Add organizer mapping from meeting data
-          if (meeting.organizer && eventData.organizer) {
-            emailToName[meeting.organizer] = eventData.organizer;
-          }
-          
-          // Add current event organizer mapping
-          if (eventData.organizer && eventData.organizerEmail) {
-            emailToName[eventData.organizerEmail] = eventData.organizer;
-            console.log('Mapped organizer:', eventData.organizerEmail, '->', eventData.organizer);
-          }
-          
-          allEvents.forEach(evt => {
-            // Extract from organizer
-            if (evt.organizer && typeof evt.organizer === 'string') {
-              const emailMatch = evt.organizer.match(/([^<]+)<([^>]+)>/);
-              if (emailMatch) {
-                emailToName[emailMatch[2]] = emailMatch[1].trim();
-              }
-            }
-            // Map organizer name to organizerEmail if available
-            if (evt.organizer && evt.organizerEmail) {
-              emailToName[evt.organizerEmail] = evt.organizer;
-            }
-            // Extract from attendees if they have names
-            if (evt.attendees) {
-              evt.attendees.forEach(att => {
-                if (att.name && att.email) {
-                  emailToName[att.email] = att.name;
-                }
-              });
-            }
-          });
-          
-          // Also extract from current meeting data
-          if (meeting.attendees) {
-            meeting.attendees.forEach(att => {
-              if (typeof att === 'object' && att.name && att.email) {
-                emailToName[att.email] = att.name;
-              }
-            });
-          }
-          
-          const getNameForEmail = (email) => {
-            const name = emailToName[email] || null;
-            console.log('getNameForEmail:', email, '->', name);
-            return name;
-          };
-          const mapAttendees = (list, isOptional = false) => (list || []).map(a => {
-            const email = typeof a === 'string' ? a : a.email;
-            return {
-              email: email,
-              name: getNameForEmail(email),
-              status: normalizeStatus(a.responseStatus),
-              isOptional: isOptional
-            };
-          });
-          return {
-            meetingId: meeting.meetingId,
-            meetingChangeKey: meeting.changeKey,
-            subject: meeting.subject,
-            body: meeting.body || '',
-            attendees: [
-              ...mapAttendees(meeting.attendees, false), 
-              ...mapAttendees(meeting.optionalAttendees || [], true)
-            ],
-            start: meeting.start,
-            end: meeting.end,
-            location: meeting.location || '',
-            organizer: meeting.organizer || '',
-            organizerName: eventData.organizer || '',
-            responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
-          };
-        }`
+      const data = await apiRequest<{ success: boolean; response: any; error?: any }>(
+        `${API_BASE}/agents/sa-agent/invoke/transform`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'sat-outlook_calendar_meeting',
+            toolArgs: { 
+              operation: 'read',
+              meetingId: meetingId, 
+              meetingChangeKey: event.meetingChangeKey 
+            },
+            transform: `(data) => {
+              const meeting = data.success ? data.content : data;
+              const normalizeStatus = (status) => {
+                if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
+                if (status === 'Accept' || status === 'Accepted') return 'Accepted';
+                if (status === 'Decline' || status === 'Declined') return 'Declined';
+                return status;
+              };
+              const mapAttendees = (list) => (list || []).map(a => ({
+                email: typeof a === 'string' ? a : a.email,
+                status: normalizeStatus(a.responseStatus)
+              }));
+              return {
+                meetingId: meeting.meetingId,
+                meetingChangeKey: meeting.changeKey,
+                subject: meeting.subject,
+                body: meeting.body || '',
+                attendees: [...mapAttendees(meeting.attendees), ...mapAttendees(meeting.optionalAttendees || [])],
+                start: meeting.start,
+                end: meeting.end,
+                location: meeting.location || '',
+                organizer: meeting.organizer || '',
+                responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
+              };
+            }`,
+          }),
+        }
       );
       
+      if (!data.success) {
+        // Check for auth errors
+        const errorStr = JSON.stringify(data.error);
+        
+        if (errorStr.includes('Form action URL not found') || 
+            errorStr.includes('Midway') || 
+            errorStr.includes('authentication') ||
+            errorStr.includes('mwinit')) {
+          // Auth errors are now handled by apiRequest, but retry if needed
+          return fetchMeetingDetails(meetingId);
+        }
+        throw new Error(data.error);
+      }
+
+      const details = data.response;
       setMeetingDetails(details);
-      await setCache(cacheKey, details, workspace);
+      setCache(cacheKey, details);
     } catch (err) {
-      // Let auth errors bubble up to be handled by the SDK/parent
       console.error('Failed to fetch meeting details:', err);
     } finally {
       setLoadingDetails(false);
@@ -696,8 +711,9 @@ export default function SADashboard(props: SADashboardProps) {
   const fetchSFDCContext = async () => {
     if (!selectedEvent) return;
     
+    // Check cache first
     const cacheKey = getCacheKey('sfdc', selectedEvent.meetingId);
-    const cached = await getFromCache<SFDCContext>(cacheKey, workspace);
+    const cached = getFromCache<SFDCContext>(cacheKey);
     if (cached) {
       setSfdcContext(cached);
       return;
@@ -705,6 +721,7 @@ export default function SADashboard(props: SADashboardProps) {
     
     setLoadingSFDC(true);
     
+    // Build detailed meeting context
     const meetingContext = `
 Meeting: ${selectedEvent.subject}
 Time: ${new Date(selectedEvent.start).toLocaleString()} - ${new Date(selectedEvent.end).toLocaleTimeString()}
@@ -714,23 +731,33 @@ ${selectedEvent.categories?.length ? `Categories: ${selectedEvent.categories.joi
 ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}
     `.trim();
     
+    let partialText = '';
+    
     try {
-      const response = await agents.stream(agentSlug, `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:
-
-${meetingContext}
-
-Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
+      const response = await streamInvoke('sa-agent', `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:\n\n${meetingContext}\n\nReturn JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
         tools: ['sat-sfdc_search_accounts', 'sat-sfdc_get_opportunities_for_account', 'sat-sfdc_list_user_tasks'],
-        maxSteps: 10
+        onChunk: (text) => {
+          partialText += text;
+          // Try to parse and update UI progressively
+          try {
+            const jsonMatch = partialText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const context = JSON.parse(jsonMatch[0]);
+              setSfdcContext(context);
+            }
+          } catch {
+            // Ignore parse errors for partial JSON
+          }
+        },
       });
 
-      // Parse JSON response
+      // Final parse
       try {
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const context = JSON.parse(jsonMatch[0]);
           setSfdcContext(context);
-          await setCache(cacheKey, context, workspace);
+          setCache(cacheKey, context);
         } else {
           setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
         }
@@ -739,7 +766,6 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
       }
     } catch (err) {
       console.error('Failed to fetch SFDC context:', err);
-      setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
     } finally {
       setLoadingSFDC(false);
     }
@@ -923,30 +949,30 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
               })()}
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: calendarCollapsed ? '0' : '0.5rem' }}>
-            <button
-              onClick={() => setCalendarCollapsed(!calendarCollapsed)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px 8px',
-                color: 'var(--color-text-secondary)',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-              title={calendarCollapsed ? 'Expand calendar' : 'Collapse calendar'}
-            >
-              <svg style={{ 
-                width: '16px', 
-                height: '16px',
-                transform: calendarCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-                transition: 'transform 0.2s',
-              }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          </div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: calendarCollapsed ? '0' : '0.5rem' }}>
+              <button
+                onClick={() => setCalendarCollapsed(!calendarCollapsed)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  color: 'var(--color-text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title={calendarCollapsed ? 'Expand calendar' : 'Collapse calendar'}
+              >
+                <svg style={{ 
+                  width: '16px', 
+                  height: '16px',
+                  transform: calendarCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                  transition: 'transform 0.2s',
+                }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
           <h3 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.5rem' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {loading && <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>}
@@ -961,7 +987,7 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                   setSelectedDate(today);
                   setViewMonth(new Date(today.getFullYear(), today.getMonth(), 1));
                   // Trigger fetch without preserving selection to use smart selection logic
-                  fetchCalendarData(today, undefined);
+                  fetchEvents(formatLocalDate(today), null);
                 }}
                 style={{
                   background: 'var(--color-primary)',
@@ -1479,71 +1505,41 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                 <div className="workspace-dashboard__card">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                        <h3 style={{ minWidth: 'fit-content', margin: 0 }}>{selectedEvent.subject}</h3>
-                        {selectedEvent.categories && selectedEvent.categories.length > 0 && (
-                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                            {selectedEvent.categories.map((category, i) => (
-                              <span
-                                key={i}
-                                style={{
-                                  padding: '0.2rem 0.5rem',
-                                  background: 'var(--color-accent)',
-                                  color: 'white',
-                                  borderRadius: '12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: '500'
-                                }}
-                              >
-                                {category}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <h3 style={{ minWidth: 'fit-content', marginBottom: '0.5rem' }}>{selectedEvent.subject}</h3>
                       {meetingDetails?.organizer && (
-                        <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                            <span>
-                              Organized by{' '}
-                              <a 
-                                href={`mailto:${meetingDetails.organizer}`} 
-                                style={{ color: 'var(--color-primary)' }}
-                                title={meetingDetails.organizer}
-                              >
-                                {meetingDetails.organizerName || meetingDetails.organizer}
-                              </a>
-                            </span>
-                            {meetingProvider && (
-                              <a
-                                href={meetingProvider.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem',
-                                  padding: '0.25rem 0.5rem',
-                                  background: 'var(--color-primary)',
-                                  color: 'var(--color-bg)',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 600,
-                                  textDecoration: 'none',
-                                  cursor: 'pointer',
-                                  transition: 'opacity 0.2s'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                              >
-                                Join {meetingProvider.provider} →
-                              </a>
-                            )}
-                          </div>
-                          <div style={{ fontSize: '0.85rem' }}>
-                            {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}
-                          </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                          <span>
+                            Organized by{' '}
+                            <a href={`mailto:${meetingDetails.organizer}`} style={{ color: 'var(--color-primary)' }}>
+                              {meetingDetails.organizer}
+                            </a>
+                          </span>
+                          {meetingProvider && (
+                            <a
+                              href={meetingProvider.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.25rem 0.5rem',
+                                background: 'var(--color-primary)',
+                                color: 'var(--color-bg)',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                cursor: 'pointer',
+                                transition: 'opacity 0.2s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                            >
+                              Join {meetingProvider.provider} →
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1640,19 +1636,18 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                     <>
                       <div style={{ display: 'grid', gridTemplateColumns: sfdcContext ? '3fr 1fr' : '1fr', gap: '1.5rem', marginBottom: '1rem' }}>
                         <div>
+                        <p><strong>Time:</strong> {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}</p>
+                        {selectedEvent.categories && selectedEvent.categories.length > 0 && (
+                          <p><strong>Categories:</strong> {selectedEvent.categories.join(', ')}</p>
+                        )}
                         {meetingDetails.attendees && meetingDetails.attendees.length > 0 && (
                           <div>
                             <strong>Attendees ({meetingDetails.attendees.length}):</strong>
                             <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
                               {(showAllAttendees ? meetingDetails.attendees : meetingDetails.attendees.slice(0, 5)).map((a, i) => (
                                 <li key={i}>
-                                  {a.isOptional && <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.85em', marginRight: '0.5rem' }}>(Optional)</span>}
-                                  <a 
-                                    href={`mailto:${a.email}`} 
-                                    style={{ color: 'var(--color-primary)' }}
-                                    title={a.email}
-                                  >
-                                    {a.name || a.email}
+                                  <a href={`mailto:${a.email}`} style={{ color: 'var(--color-primary)' }}>
+                                    {a.email}
                                   </a>
                                   <span 
                                     className={`attendee-status attendee-status--${a.status.toLowerCase().replace(' ', '-')}`}

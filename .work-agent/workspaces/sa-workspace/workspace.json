@@ -1,0 +1,52 @@
+{
+  "name": "SA Workspace",
+  "slug": "sa-workspace",
+  "icon": "🏢",
+  "description": "Solution Architect workspace with Salesforce tools and daily workflows",
+  "tabs": [
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "component": "sa-dashboard",
+      "prompts": [
+        {
+          "id": "daily-triage",
+          "label": "Daily Triage",
+          "prompt": "Review my calendar for today and identify customer meetings that need preparation or follow-up.",
+          "agent": "sa-agent"
+        },
+        {
+          "id": "meeting-prep",
+          "label": "Meeting Prep",
+          "prompt": "Help me prepare for my next customer meeting by summarizing account details and recent opportunities.",
+          "agent": "sa-agent"
+        }
+      ]
+    },
+    {
+      "id": "salesforce",
+      "label": "Salesforce",
+      "component": "sfdc-account-manager"
+    }
+  ],
+  "globalPrompts": [
+    {
+      "id": "daily",
+      "label": "Daily Overview",
+      "prompt": "/daily",
+      "agent": "sa-agent"
+    },
+    {
+      "id": "activity-log",
+      "label": "Log Activity",
+      "prompt": "/activity",
+      "agent": "sa-agent"
+    },
+    {
+      "id": "sfdc-update",
+      "label": "SFDC Update",
+      "prompt": "Check my Salesforce tasks and opportunities that need updates this week.",
+      "agent": "sa-agent"
+    }
+  ]
+}

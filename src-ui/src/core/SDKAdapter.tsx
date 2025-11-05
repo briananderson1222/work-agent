@@ -15,12 +15,9 @@ const defaultManifest: PluginManifest = {
   permissions: ['storage.session', 'storage.local']
 };
 
-// Detect backend port from environment or use default
+// Detect backend port - use environment variable or default to 3141
 const getApiBase = () => {
-  if (typeof window !== 'undefined' && (window as any).__BACKEND_PORT__) {
-    return `http://localhost:${(window as any).__BACKEND_PORT__}`;
-  }
-  return 'http://localhost:3141';
+  return import.meta.env.VITE_API_BASE || 'http://localhost:3141';
 };
 
 export function SDKAdapter({ children, apiBase, authToken }: SDKAdapterProps) {

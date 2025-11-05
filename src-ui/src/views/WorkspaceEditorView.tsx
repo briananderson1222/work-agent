@@ -15,7 +15,7 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
     slug: '',
     icon: '',
     description: '',
-    tabs: [{ id: 'main', label: 'Main', component: 'work-agent-dashboard' }],
+    tabs: [{ id: 'main', label: 'Main', component: 'project-stallion-dashboard' }],
     globalPrompts: [],
   });
   const [agents, setAgents] = useState<AgentSummary[]>([]);
@@ -96,7 +96,7 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
   const addTab = () => {
     setFormData(prev => ({
       ...prev,
-      tabs: [...prev.tabs, { id: `tab-${Date.now()}`, label: 'New Tab', component: 'work-agent-dashboard' }],
+      tabs: [...prev.tabs, { id: `tab-${Date.now()}`, label: 'New Tab', component: 'project-stallion-dashboard' }],
     }));
   };
 
@@ -542,7 +542,7 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
                       </label>
                       <input
                         type="text"
-                        placeholder="work-agent-dashboard"
+                        placeholder="project-stallion-dashboard"
                         value={tab.component}
                         onChange={e => updateTab(tabIdx, { component: e.target.value })}
                         style={{
