@@ -68,15 +68,9 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   model?: string;
-  contentParts?: Array<{
-    type: 'text' | 'image' | 'file' | 'tool';
-    content?: string;
-    image?: string;
-    mediaType?: string;
-    url?: string;
-    tool?: any;
-  }>;
-  attachments?: FileAttachment[];
+  isEphemeral?: boolean;
+  showContinue?: boolean;
+  timestamp?: number;
   contentParts?: Array<{
     type: 'text' | 'image' | 'file' | 'tool';
     content?: string;
@@ -131,9 +125,10 @@ export interface Tool {
   id: string;
   name: string;
   description?: string;
-  kind: 'mcp' | 'builtin' | 'custom';
+  kind?: 'mcp' | 'builtin' | 'custom';
   transport?: string;
   enabled?: boolean;
+  parameters?: any;
 }
 
 export interface WorkflowFile {
@@ -149,6 +144,7 @@ export interface AppConfig {
   apiEndpoint?: string;
   region?: string;
   defaultModel?: string;
+  defaultChatFontSize?: number;
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
   logLevel?: string;

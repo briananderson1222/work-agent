@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useStats } from '../contexts/StatsContext';
+import { useConversationStatus } from '../contexts/ConversationsContext';
 
 interface ModelStats {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  contextTokens: number;
   turns: number;
   toolCalls: number;
   estimatedCost: number;
@@ -13,6 +16,12 @@ interface ConversationStatsData {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  contextTokens: number;
+  systemPromptTokens?: number;
+  mcpServerTokens?: number;
+  userMessageTokens?: number;
+  assistantMessageTokens?: number;
+  contextFilesTokens?: number;
   turns: number;
   toolCalls: number;
   estimatedCost: number;
@@ -27,16 +36,19 @@ interface ConversationStatsProps {
   apiBase: string;
   isVisible: boolean;
   onToggle: () => void;
-  messageCount?: number; // Trigger refetch when message count changes
+  messageCount?: number;
 }
 
 export function ConversationStats({ agentSlug, conversationId, apiBase, isVisible, onToggle, messageCount }: ConversationStatsProps) {
-  const [stats, setStats] = useState<ConversationStatsData | null>(null);
+  const { stats, refetch } = useStats(agentSlug, conversationId, apiBase, isVisible);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Refetch stats when messageCount changes (after each turn)
   useEffect(() => {
-    setStats(null);
-  }, [conversationId]);
+    if (messageCount !== undefined && messageCount > 0) {
+      refetch();
+    }
+  }, [messageCount, refetch]);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -50,27 +62,6 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isVisible, onToggle]);
-
-  useEffect(() => {
-    if (!isVisible) return;
-
-    const fetchStats = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}/stats`);
-        const result = await response.json();
-        if (result.success) {
-          setStats(result.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch conversation stats:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, [agentSlug, conversationId, apiBase, isVisible, messageCount]);
 
   if (!isVisible) return null;
 
@@ -124,24 +115,13 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
           <div>Loading...</div>
         ) : stats ? (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Total Tokens</div>
-                <div style={{ marginBottom: '4px' }}>In: {stats.inputTokens.toLocaleString()}</div>
-                <div style={{ marginBottom: '4px' }}>Out: {stats.outputTokens.toLocaleString()}</div>
-                <div>Total: {stats.totalTokens.toLocaleString()}</div>
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Total Usage</div>
-                <div style={{ marginBottom: '4px' }}>Turns: {stats.turns}</div>
-                <div style={{ marginBottom: '4px' }}>Tools: {stats.toolCalls}</div>
-                <div>Cost: ${stats.estimatedCost.toFixed(4)}</div>
-              </div>
-            </div>
             {stats.contextWindowPercentage !== undefined && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Context Window</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--bg-primary)', borderRadius: '8px' }}>
+                <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Context Window Usage</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  {stats.contextTokens?.toLocaleString() || 'N/A'} tokens (all messages + system prompt + tools)
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                   <div style={{ 
                     flex: 1, 
                     height: '6px', 
@@ -158,8 +138,57 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
                   </div>
                   <span style={{ fontWeight: 600 }}>{stats.contextWindowPercentage.toFixed(1)}%</span>
                 </div>
+                {(stats.systemPromptTokens || stats.mcpServerTokens || stats.userMessageTokens || stats.assistantMessageTokens || stats.contextFilesTokens) && (
+                  <div style={{ fontSize: '11px', paddingTop: '8px', borderTop: '1px solid var(--border-primary)' }}>
+                    <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Token Breakdown</div>
+                    {stats.systemPromptTokens !== undefined && stats.systemPromptTokens > 0 && (
+                      <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>System Prompt:</span>
+                        <span style={{ fontWeight: 600 }}>{stats.systemPromptTokens.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {stats.mcpServerTokens !== undefined && stats.mcpServerTokens > 0 && (
+                      <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>MCP Tools:</span>
+                        <span style={{ fontWeight: 600 }}>{stats.mcpServerTokens.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {stats.userMessageTokens !== undefined && stats.userMessageTokens > 0 && (
+                      <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>User Messages:</span>
+                        <span style={{ fontWeight: 600 }}>{stats.userMessageTokens.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {stats.assistantMessageTokens !== undefined && stats.assistantMessageTokens > 0 && (
+                      <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Assistant Messages:</span>
+                        <span style={{ fontWeight: 600 }}>{stats.assistantMessageTokens.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {stats.contextFilesTokens !== undefined && stats.contextFilesTokens > 0 && (
+                      <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Context Files:</span>
+                        <span style={{ fontWeight: 600 }}>{stats.contextFilesTokens.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Consumed Tokens</div>
+                <div style={{ marginBottom: '4px' }}>In: {stats.inputTokens.toLocaleString()}</div>
+                <div style={{ marginBottom: '4px' }}>Out: {stats.outputTokens.toLocaleString()}</div>
+                <div>Total: {stats.totalTokens.toLocaleString()}</div>
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Usage</div>
+                <div style={{ marginBottom: '4px' }}>Turns: {stats.turns}</div>
+                <div style={{ marginBottom: '4px' }}>Tool Calls: {stats.toolCalls}</div>
+                <div>Cost: ${stats.estimatedCost.toFixed(4)}</div>
+              </div>
+            </div>
             {stats.modelStats && Object.keys(stats.modelStats).length > 0 && (
               <div>
                 <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Per-Model Breakdown</div>
@@ -174,14 +203,16 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
                     <div style={{ fontWeight: 600, marginBottom: '6px', fontSize: '11px', opacity: 0.8 }}>{modelId}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       <div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '2px' }}>Consumed</div>
                         <div>In: {modelStat.inputTokens.toLocaleString()}</div>
                         <div>Out: {modelStat.outputTokens.toLocaleString()}</div>
                         <div>Total: {modelStat.totalTokens.toLocaleString()}</div>
                       </div>
                       <div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '2px' }}>Stats</div>
                         <div>Turns: {modelStat.turns}</div>
-                        <div>Tools: {modelStat.toolCalls}</div>
-                        <div>Cost: ${modelStat.estimatedCost.toFixed(4)}</div>
+                        <div>Tool Calls: {modelStat.toolCalls}</div>
+                        <div style={{ marginTop: '4px' }}>Cost: ${modelStat.estimatedCost.toFixed(4)}</div>
                       </div>
                     </div>
                   </div>
@@ -198,29 +229,17 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
 }
 
 export function ContextPercentage({ agentSlug, conversationId, apiBase, messageCount, onClick }: { agentSlug: string; conversationId: string; apiBase: string; messageCount?: number; onClick?: () => void }) {
-  const [percentage, setPercentage] = useState<number | null>(null);
+  const { stats, refetch } = useStats(agentSlug, conversationId, apiBase, true);
+  const { status } = useConversationStatus(agentSlug, conversationId);
+  const percentage = stats?.contextWindowPercentage ?? null;
+  const isActive = status !== 'idle';
 
+  // Refetch when messageCount changes (after each turn)
   useEffect(() => {
-    // Don't fetch if no messages yet
-    if (!messageCount || messageCount === 0) {
-      setPercentage(null);
-      return;
+    if (messageCount !== undefined && messageCount > 0) {
+      refetch();
     }
-    
-    const fetchStats = async () => {
-      try {
-        const response = await fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}/stats`);
-        const result = await response.json();
-        if (result.success && result.data.contextWindowPercentage !== undefined) {
-          setPercentage(result.data.contextWindowPercentage);
-        }
-      } catch (error) {
-        console.error('Failed to fetch context percentage:', error);
-      }
-    };
-
-    fetchStats();
-  }, [agentSlug, conversationId, apiBase, messageCount]);
+  }, [messageCount, refetch]);
 
   if (percentage === null) return null;
 
@@ -258,6 +277,12 @@ export function ContextPercentage({ agentSlug, conversationId, apiBase, messageC
         }} />
       </div>
       <span>{percentage.toFixed(1)}%</span>
+      {isActive && (
+        <span style={{ 
+          fontSize: '8px',
+          animation: 'pulse 1.5s ease-in-out infinite'
+        }}>●</span>
+      )}
     </div>
   );
 }

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from '@stallion-ai/sdk';
 import '../shared/workspace.css';
 
+const SALESFORCE_BASE_URL = 'https://aws-crm.lightning.force.com';
+
 interface Account {
   id: string;
   name: string;
@@ -49,26 +51,23 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
   const agentSlug = 'sa-agent';
   const { onSendToChat } = props;
   
-  const [ownerSearch, setOwnerSearch] = useState(() => 
-    localStorage.getItem('sfdc-owner-search') || ''
-  );
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [activeOwnerSearches, setActiveOwnerSearches] = useState<string[]>(() => {
+    const stored = localStorage.getItem('sfdc-active-owner-searches');
+    return stored ? JSON.parse(stored) : [];
+  });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [showAllOpportunities, setShowAllOpportunities] = useState(false);
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [filterExpanded, setFilterExpanded] = useState(false);
   const [selectedGeos, setSelectedGeos] = useState<Set<string>>(new Set());
   const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set());
   const [nameFilter, setNameFilter] = useState('');
-
-  // Auto-search on mount if owner search is populated
-  useEffect(() => {
-    if (ownerSearch.trim()) {
-      searchAccounts();
-    }
-  }, []); // Empty dependency array - only run on mount
 
   const getCacheKey = (type: string, key: string) => `sfdc-${type}-${key}`;
 
@@ -93,13 +92,20 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
   const searchAccounts = async (forceRefresh = false) => {
     if (!ownerSearch.trim()) return;
     
-    const cacheKey = getCacheKey('accounts', ownerSearch);
+    const searchValue = ownerSearch; // Store before clearing
+    const cacheKey = getCacheKey('accounts', searchValue);
     
     // Check cache first unless forcing refresh
     if (!forceRefresh) {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
         setAccounts(JSON.parse(cached));
+        setOwnerSearch(''); // Clear search box
+        
+        // Add to active searches
+        const newActiveSearches = [...new Set([...activeOwnerSearches, searchValue])];
+        setActiveOwnerSearches(newActiveSearches);
+        localStorage.setItem('sfdc-active-owner-searches', JSON.stringify(newActiveSearches));
         return;
       }
     }
@@ -108,7 +114,7 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
     setSearchError(null);
     try {
       // Split by comma and trim whitespace
-      const owners = ownerSearch.split(',').map(owner => owner.trim()).filter(owner => owner);
+      const owners = searchValue.split(',').map(owner => owner.trim()).filter(owner => owner);
       
       // Search for each owner in parallel
       const searchPromises = owners.map(owner =>
@@ -120,25 +126,35 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
       
       const results = await Promise.all(searchPromises);
       
-      // Combine all results and remove duplicates by id
-      const allAccounts = results.flat();
-      const uniqueAccounts = allAccounts.filter((account, index, self) => 
+      // Combine new results with existing accounts
+      const newAccounts = results.flat();
+      const combinedAccounts = [...accounts, ...newAccounts];
+      
+      // Remove duplicates by id
+      const uniqueAccounts = combinedAccounts.filter((account, index, self) => 
         index === self.findIndex(a => a.id === account.id)
       );
       
       setAccounts(uniqueAccounts);
       
       // Check if any owner returned no results
-      if (uniqueAccounts.length === 0) {
-        const emptyOwners = owners.filter((owner, index) => !results[index] || results[index].length === 0);
+      const emptyOwners = owners.filter((owner, index) => !results[index] || results[index].length === 0);
+      if (emptyOwners.length > 0) {
         setSearchError(`No accounts found for: ${emptyOwners.join(', ')}`);
       } else {
-        // Only cache and save to localStorage if ALL owners returned results
-        const allHaveResults = results.every(result => result && result.length > 0);
-        if (allHaveResults) {
-          sessionStorage.setItem(cacheKey, JSON.stringify(uniqueAccounts));
-          localStorage.setItem('sfdc-owner-search', ownerSearch);
-        }
+        setSearchError(null); // Clear any previous error
+      }
+      
+      // Cache and save to localStorage if we got any results
+      if (newAccounts.length > 0) {
+        sessionStorage.setItem(cacheKey, JSON.stringify(newAccounts));
+        
+        // Add new searches to active list (avoid duplicates)
+        const newActiveSearches = [...new Set([...activeOwnerSearches, searchValue])];
+        setActiveOwnerSearches(newActiveSearches);
+        localStorage.setItem('sfdc-active-owner-searches', JSON.stringify(newActiveSearches));
+        
+        setOwnerSearch(''); // Clear search box after successful search
       }
     } catch (error) {
       console.error('Failed to search accounts:', error);
@@ -149,6 +165,9 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
 
   const loadAccountDetails = async (account: Account, forceRefresh = false) => {
     setSelectedAccount(account);
+    
+    // Update URL hash
+    window.location.hash = `account/${account.id}`;
     
     const oppsCacheKey = getCacheKey('opportunities', account.id);
     const tasksCacheKey = getCacheKey('tasks', account.id);
@@ -171,17 +190,21 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
       // Load opportunities and tasks in parallel
       const [oppsResult, tasksResult] = await Promise.all([
         agents.transform(agentSlug, 'sat-sfdc_get_opportunities_for_account',
-          { accountId: account.id, limit: 10 },
-          `(data) => data.response || []`
+          { accountId: account.id },
+          `(data) => data.opportunities || data.response || data || []`
         ),
         agents.transform(agentSlug, 'sat-sfdc_list_user_tasks',
-          { accountId: account.id, limit: 10 },
-          `(data) => data.tasks || []`
+          { accountId: account.id },
+          `(data) => data.tasks || data.records || data || []`
         )
       ]);
 
       setOpportunities(oppsResult || []);
       setTasks(tasksResult || []);
+      
+      console.log('Final opportunities state:', oppsResult);
+      console.log('Final tasks state:', tasksResult);
+      console.log('Tasks length:', (tasksResult || []).length);
       
       // Cache results
       sessionStorage.setItem(oppsCacheKey, JSON.stringify(oppsResult || []));
@@ -193,12 +216,95 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
     }
   };
 
-  const handleRefresh = () => {
-    if (selectedAccount) {
-      loadAccountDetails(selectedAccount, true);
+  // Auto-search on mount if active searches exist
+  useEffect(() => {
+    if (activeOwnerSearches.length > 0) {
+      // Load all cached results
+      const allAccounts = [];
+      for (const search of activeOwnerSearches) {
+        const cached = sessionStorage.getItem(getCacheKey('accounts', search));
+        if (cached) {
+          allAccounts.push(...JSON.parse(cached));
+        }
+      }
+      // Remove duplicates
+      const uniqueAccounts = allAccounts.filter((account, index, self) => 
+        index === self.findIndex(a => a.id === account.id)
+      );
+      setAccounts(uniqueAccounts);
+      
+      // Restore selected account from URL hash
+      const hash = window.location.hash.slice(1);
+      console.log('Checking hash:', hash);
+      if (hash.startsWith('account/')) {
+        const accountId = hash.replace('account/', '');
+        console.log('Looking for account:', accountId);
+        const account = uniqueAccounts.find(a => a.id === accountId);
+        console.log('Found account:', account);
+        if (account) {
+          loadAccountDetails(account);
+          // Scroll to the account in the list
+          setTimeout(() => {
+            const accountElement = document.querySelector(`[data-account-id="${accountId}"]`);
+            if (accountElement) {
+              accountElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }, 100);
+        }
+      }
     }
-    if (ownerSearch) {
-      searchAccounts(true);
+  }, []); // Empty dependency array - only run on mount
+
+  const handleRefresh = async () => {
+    // Clear all account-related cache
+    activeOwnerSearches.forEach(search => {
+      sessionStorage.removeItem(getCacheKey('accounts', search));
+    });
+    
+    // Clear account details cache
+    accounts.forEach(account => {
+      sessionStorage.removeItem(getCacheKey('account-details', account.id));
+      sessionStorage.removeItem(getCacheKey('opportunities', account.id));
+      sessionStorage.removeItem(getCacheKey('tasks', account.id));
+    });
+    
+    // Clear current state
+    setAccounts([]);
+    setOpportunities([]);
+    setTasks([]);
+    setSearchError(null);
+    
+    // Refetch all active owner searches
+    if (activeOwnerSearches.length > 0) {
+      setLoading(true);
+      try {
+        const allAccounts = [];
+        for (const search of activeOwnerSearches) {
+          const owners = search.split(',').map(owner => owner.trim()).filter(owner => owner);
+          const searchPromises = owners.map(owner =>
+            agents.transform(agentSlug, 'sat-sfdc_search_accounts',
+              { owner, ownerFilterType: 'CONTAINS_WORD' },
+              `(data) => data || []`
+            )
+          );
+          const results = await Promise.all(searchPromises);
+          const searchAccounts = results.flat();
+          allAccounts.push(...searchAccounts);
+          
+          // Cache the results
+          sessionStorage.setItem(getCacheKey('accounts', search), JSON.stringify(searchAccounts));
+        }
+        
+        // Remove duplicates and set accounts
+        const uniqueAccounts = allAccounts.filter((account, index, self) =>
+          index === self.findIndex(a => a.id === account.id)
+        );
+        setAccounts(uniqueAccounts);
+      } catch (error) {
+        console.error('Failed to refresh accounts:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -214,46 +320,150 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
 
   return (
     <div className="workspace-container">
-      <header className="workspace-dashboard__header">
-        <div>
-          <h2>Salesforce Accounts</h2>
-          <p>Account management with opportunities and tasks</p>
-        </div>
-        <div className="workspace-dashboard__actions">
-          <button 
-            className="workspace-dashboard__action" 
-            onClick={handleRefresh}
-            disabled={loading}
-            type="button"
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
-      </header>
-
       <div className="workspace-dashboard__content">
         <aside className="workspace-dashboard__sidebar">
           <div className="workspace-dashboard__sidebar-header">
             <h3>Accounts</h3>
-            <div className="workspace-dashboard__search">
+            <div className="workspace-dashboard__search" style={{ position: 'relative' }}>
               <input
                 type="text"
-                placeholder="Enter full name(s) (First Last, First Last)..."
+                placeholder="Owner name (First Last)..."
                 value={ownerSearch}
-                onChange={(e) => setOwnerSearch(e.target.value)}
+                onChange={(e) => {
+                  setOwnerSearch(e.target.value);
+                  if (searchError) setSearchError(null); // Clear error when typing
+                }}
                 onKeyPress={(e) => e.key === 'Enter' && searchAccounts()}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 4rem 0.5rem 0.75rem',
+                  fontSize: '0.875rem',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '6px',
+                  background: 'var(--color-bg)',
+                  color: 'var(--color-text-primary)',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
               />
+              {ownerSearch && (
+                <button
+                  onClick={() => {
+                    setOwnerSearch('');
+                    if (searchError) setSearchError(null);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '2.5rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-text-secondary)',
+                    cursor: 'pointer',
+                    padding: '0.25rem',
+                    fontSize: '1rem',
+                    lineHeight: 1,
+                    opacity: 0.6
+                  }}
+                  title="Clear"
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+                >
+                  ×
+                </button>
+              )}
               <button
                 onClick={searchAccounts}
                 disabled={loading || !ownerSearch.trim()}
+                style={{
+                  position: 'absolute',
+                  right: '0.5rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'var(--color-primary)',
+                  border: 'none',
+                  color: 'white',
+                  cursor: ownerSearch.trim() ? 'pointer' : 'not-allowed',
+                  padding: '0.25rem 0.5rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '4px',
+                  opacity: ownerSearch.trim() ? 1 : 0.5
+                }}
+                title="Search"
               >
-                Search
+                →
               </button>
             </div>
+            {accounts.length > 0 && activeOwnerSearches.length > 0 && (
+              <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                {activeOwnerSearches.map((search, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      background: 'var(--color-primary)',
+                      color: 'white',
+                      borderRadius: '12px',
+                      fontSize: '0.7rem',
+                      fontWeight: 500
+                    }}
+                  >
+                    Owner: "{search}"
+                    <button
+                      onClick={async () => {
+                        // Remove this search from active list
+                        const newActiveSearches = activeOwnerSearches.filter(s => s !== search);
+                        setActiveOwnerSearches(newActiveSearches);
+                        localStorage.setItem('sfdc-active-owner-searches', JSON.stringify(newActiveSearches));
+                        
+                        // If no more active searches, clear everything
+                        if (newActiveSearches.length === 0) {
+                          setAccounts([]);
+                          setSelectedAccount(null);
+                        } else {
+                          // Reload accounts from remaining searches
+                          const allAccounts = [];
+                          for (const s of newActiveSearches) {
+                            const cached = sessionStorage.getItem(getCacheKey('accounts', s));
+                            if (cached) {
+                              allAccounts.push(...JSON.parse(cached));
+                            }
+                          }
+                          // Remove duplicates
+                          const uniqueAccounts = allAccounts.filter((account, index, self) => 
+                            index === self.findIndex(a => a.id === account.id)
+                          );
+                          setAccounts(uniqueAccounts);
+                        }
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'white',
+                        cursor: 'pointer',
+                        padding: 0,
+                        marginLeft: '0.25rem',
+                        fontSize: '0.9rem',
+                        lineHeight: 1
+                      }}
+                      title="Remove this owner filter"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             
             {/* Filter Bar */}
             {accounts.length > 0 && (
-              <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
+              <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
                 <div 
                   onClick={() => setFilterExpanded(!filterExpanded)}
                   style={{ 
@@ -263,7 +473,8 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                     fontSize: '0.85rem', 
                     fontWeight: 600, 
                     color: 'var(--color-text-secondary)',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    padding: '0.75rem 0'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -298,13 +509,32 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
                     {nameFilter && (
                       <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
                         fontSize: '0.75rem',
                         padding: '2px 6px',
                         borderRadius: '8px',
-                        background: 'var(--color-text-secondary)',
+                        background: 'var(--color-primary)',
                         color: '#fff'
                       }}>
-                        "{nameFilter}"
+                        Name: "{nameFilter}"
+                        <button
+                          onClick={() => setNameFilter('')}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'white',
+                            cursor: 'pointer',
+                            padding: 0,
+                            marginLeft: '0.25rem',
+                            fontSize: '0.9rem',
+                            lineHeight: 1
+                          }}
+                          title="Clear filter"
+                        >
+                          ×
+                        </button>
                       </span>
                     )}
                     {Array.from(selectedGeos).map(geo => (
@@ -351,6 +581,41 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                           color: 'var(--color-text-primary)'
                         }}
                       />
+                      {nameFilter && (
+                        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              padding: '0.25rem 0.5rem',
+                              background: 'var(--color-primary)',
+                              color: 'white',
+                              borderRadius: '12px',
+                              fontSize: '0.7rem',
+                              fontWeight: 500
+                            }}
+                          >
+                            Name: "{nameFilter}"
+                            <button
+                              onClick={() => setNameFilter('')}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'white',
+                                cursor: 'pointer',
+                                padding: 0,
+                                marginLeft: '0.25rem',
+                                fontSize: '0.9rem',
+                                lineHeight: 1
+                              }}
+                              title="Clear filter"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        </div>
+                      )}
                     </div>
                     
                     {allGeos.length > 0 && (
@@ -435,71 +700,146 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
           </div>
           
           <div className="workspace-dashboard__list">
-            {loading && accounts.length === 0 ? (
+            {loading && accounts.length === 0 && (
               <div className="workspace-dashboard__loading">Loading...</div>
-            ) : searchError ? (
-              <div className="workspace-dashboard__loading" style={{ color: 'var(--color-error, #ef4444)' }}>
+            )}
+            {searchError && (
+              <div className="workspace-dashboard__loading" style={{ color: 'var(--color-error, #ef4444)', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border)' }}>
                 {searchError}
               </div>
-            ) : (
+            )}
+            {filteredAccounts.length > 0 ? (
               filteredAccounts.map((account) => (
                 <div
                   key={account.id}
-                  onClick={() => loadAccountDetails(account)}
+                  data-account-id={account.id}
+                  onClick={(e) => {
+                    // Don't load details if clicking on a link
+                    if ((e.target as HTMLElement).tagName === 'A' || (e.target as HTMLElement).closest('a')) {
+                      return;
+                    }
+                    loadAccountDetails(account);
+                  }}
                   className={`workspace-dashboard__list-item ${
                     selectedAccount?.id === account.id ? 'is-active' : ''
                   }`}
                   style={{ position: 'relative' }}
                 >
-                  <div className="workspace-dashboard__list-item-title">{account.name}</div>
+                  <div className="workspace-dashboard__list-item-title">
+                    {account.name}
+                  </div>
                   <div className="workspace-dashboard__list-item-meta">
                     {account.website && (
                       <a
                         href={account.website.startsWith('http') ? account.website : `https://${account.website}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
                         style={{
                           fontSize: '0.75rem',
                           color: 'var(--color-primary)',
-                          textDecoration: 'none',
-                          marginTop: '0.25rem',
-                          display: 'block'
+                          textDecoration: 'none'
                         }}
                       >
                         {account.website.replace(/^https?:\/\//, '')}
                       </a>
                     )}
                   </div>
-                  {account.owner?.name && (
-                    <span style={{
-                      position: 'absolute',
-                      top: '0.5rem',
-                      right: '0.5rem',
-                      fontSize: '0.65rem',
-                      padding: '2px 6px',
-                      borderRadius: '12px',
-                      background: 'var(--color-bg)',
-                      color: 'var(--color-text-secondary)',
+                  <div style={{
+                    position: 'absolute',
+                    top: '0.25rem',
+                    right: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}>
+                    {account.owner?.name && (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        padding: '2px 6px',
+                        borderRadius: '12px',
+                        background: 'var(--color-bg)',
+                        color: 'var(--color-text-secondary)',
                       border: '1px solid var(--color-border)'
                     }}>
                       {account.owner.name}
                     </span>
-                  )}
+                    )}
+                    <a
+                      href={`${SALESFORCE_BASE_URL}/lightning/r/Account/${account.id}/view`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: 'var(--color-text-secondary)',
+                        opacity: 0.6,
+                        cursor: 'pointer',
+                        textDecoration: 'none'
+                      }}
+                      title="Open in Salesforce"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
+                    </a>
+                  </div>
                 </div>
               ))
-            )}
+            ) : !loading && accounts.length === 0 && !searchError ? (
+              <div className="workspace-dashboard__empty">
+                <div>
+                  <div className="workspace-dashboard__empty-title">No Accounts</div>
+                  <div className="workspace-dashboard__empty-subtitle">Search for accounts by owner name to get started</div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </aside>
 
         <section className="workspace-dashboard__details">
           {selectedAccount ? (
             <>
-              <div className="workspace-dashboard__details-header">
+              <div className="workspace-dashboard__details-header" style={{ position: 'relative' }}>
                 <h1 className="workspace-dashboard__details-title">{selectedAccount.name}</h1>
+                <a
+                  href={`${SALESFORCE_BASE_URL}/lightning/r/Account/${selectedAccount.id}/view`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    position: 'absolute',
+                    top: '0.5rem',
+                    right: '0.5rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '0.5rem 0.75rem',
+                    background: 'var(--color-primary)',
+                    color: 'white',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textDecoration: 'none'
+                  }}
+                  title="Open in Salesforce"
+                >
+                  Open in Salesforce →
+                </a>
                 <div className="workspace-dashboard__details-meta">
                   {selectedAccount.owner?.name && <span>Owner: {selectedAccount.owner.name}</span>}
-                  {selectedAccount.website && <span> • Website: {selectedAccount.website}</span>}
+                  {selectedAccount.website && (
+                    <span>
+                      {' • Website: '}
+                      <a 
+                        href={selectedAccount.website.startsWith('http') ? selectedAccount.website : `https://${selectedAccount.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                      >
+                        {selectedAccount.website}
+                      </a>
+                    </span>
+                  )}
                   {selectedAccount.geo_Text__c && <span> • Geo: {selectedAccount.geo_Text__c}</span>}
                   {selectedAccount.awsci_customer?.customerRevenue?.tShirtSize && (
                     <span> • Size: {selectedAccount.awsci_customer.customerRevenue.tShirtSize}</span>
@@ -508,31 +848,73 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
               </div>
               
               <div className="workspace-dashboard__details-content">
-                {/* Opportunities Section */}
                 <div className="workspace-dashboard__card">
-                  <div className="workspace-dashboard__card-header">
-                    <h3 className="workspace-dashboard__card-title">Opportunities</h3>
-                    <button
-                      onClick={createOpportunity}
-                      className="workspace-dashboard__card-action"
-                    >
-                      Create Opportunity
-                    </button>
+                  <div style={{ display: 'flex', gap: '2rem' }}>
+                    {/* Opportunities Section */}
+                    <div style={{ flex: 1 }}>
+                      <div className="workspace-dashboard__card-header">
+                        <h3 className="workspace-dashboard__card-title">Opportunities</h3>
+                        <button
+                          onClick={createOpportunity}
+                          className="workspace-dashboard__card-action"
+                      >
+                        Create Opportunity
+                      </button>
                   </div>
                   {opportunities.length > 0 ? (
-                    opportunities.map((opp) => (
-                      <div key={opp.id} className="workspace-dashboard__card-content">
-                        <div className="workspace-dashboard__card-item">
-                          <div className="workspace-dashboard__card-item-title">{opp.name}</div>
-                          <div className="workspace-dashboard__card-item-meta">
-                            <span>Stage: {opp.stageName}</span>
-                            {opp.amount && <span> • Amount: ${opp.amount.toLocaleString()}</span>}
-                            <span> • Close: {new Date(opp.closeDate).toLocaleDateString()}</span>
-                            <span> • Probability: {opp.probability}%</span>
+                    <div>
+                      {(showAllOpportunities ? opportunities : opportunities.slice(0, 5)).map((opp) => (
+                        <div key={opp.id} className="workspace-dashboard__card-content">
+                          <div className="workspace-dashboard__card-item">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div className="workspace-dashboard__card-item-title">{opp.name}</div>
+                              <a
+                                href={`${SALESFORCE_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: 'var(--color-text-secondary)',
+                                  opacity: 0.6,
+                                  cursor: 'pointer',
+                                  textDecoration: 'none',
+                                  marginLeft: '0.5rem'
+                                }}
+                                title="Open in Salesforce"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                  <polyline points="15 3 21 3 21 9"></polyline>
+                                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                              </a>
+                            </div>
+                            <div className="workspace-dashboard__card-item-meta">
+                              <span>Stage: {opp.stageName}</span>
+                              {opp.amount && <span> • Amount: ${opp.amount.toLocaleString()}</span>}
+                              <span> • Close: {new Date(opp.closeDate).toLocaleDateString()}</span>
+                              <span> • Probability: {opp.probability}%</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                      {opportunities.length > 5 && (
+                        <div className="workspace-dashboard__card-content">
+                          <button
+                            onClick={() => setShowAllOpportunities(!showAllOpportunities)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--color-primary)',
+                              cursor: 'pointer',
+                              padding: '0.5rem',
+                              fontSize: '0.875rem'
+                            }}
+                          >
+                            {showAllOpportunities ? 'Show less' : `Show ${opportunities.length - 5} more`}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="workspace-dashboard__card-content">
                       <div className="workspace-dashboard__card-item">
@@ -540,34 +922,90 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                       </div>
                     </div>
                   )}
-                </div>
+                    </div>
 
-                {/* Tasks Section */}
-                <div className="workspace-dashboard__card">
-                  <div className="workspace-dashboard__card-header">
-                    <h3 className="workspace-dashboard__card-title">Tasks</h3>
-                    <button
-                      onClick={createTask}
-                      className="workspace-dashboard__card-action"
-                    >
-                      Create Task
-                    </button>
-                  </div>
+                    {/* Tasks Section */}
+                    <div style={{ flex: 1 }}>
+                      <div className="workspace-dashboard__card-header">
+                        <h3 className="workspace-dashboard__card-title">Tasks ({tasks.length})</h3>
+                        <button
+                          onClick={createTask}
+                          className="workspace-dashboard__card-action"
+                        >
+                          Create Task
+                        </button>
+                      </div>
                   {tasks.length > 0 ? (
-                    tasks.map((task) => (
-                      <div key={task.Id} className="workspace-dashboard__card-content">
-                        <div className="workspace-dashboard__card-item">
-                          <div className="workspace-dashboard__card-item-title">{task.Subject}</div>
-                          <div className="workspace-dashboard__card-item-meta">
-                            <span>Status: {task.Status}</span>
-                            {task.Priority && <span> • Priority: {task.Priority}</span>}
-                            {task.ActivityDate && (
-                              <span> • Due: {new Date(task.ActivityDate).toLocaleDateString()}</span>
+                    <div>
+                      {(showAllTasks ? tasks : tasks.slice(0, 5)).map((task) => (
+                        <div key={task.id} className="workspace-dashboard__card-content">
+                          <div className="workspace-dashboard__card-item">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div className="workspace-dashboard__card-item-title">{task.subject}</div>
+                              <a
+                                href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.id}/view`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: 'var(--color-text-secondary)',
+                                  opacity: 0.6,
+                                  cursor: 'pointer',
+                                  textDecoration: 'none',
+                                  marginLeft: '0.5rem'
+                                }}
+                                title="Open in Salesforce"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                  <polyline points="15 3 21 3 21 9"></polyline>
+                                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                              </a>
+                            </div>
+                            {task.sa_Activity__c && (
+                              <div style={{ 
+                                fontSize: '0.875rem', 
+                                color: 'var(--color-text-secondary)', 
+                                marginTop: '0.25rem',
+                                fontWeight: '500'
+                              }}>
+                                SA Activity: {task.sa_Activity__c}
+                              </div>
                             )}
+                            <div className="workspace-dashboard__card-item-meta">
+                              <span>Status: {task.status}</span>
+                              {task.type && <span> • Type: {task.type}</span>}
+                              {task.activityDate && (
+                                <span> • Due: {new Date(task.activityDate).toLocaleDateString()}</span>
+                              )}
+                              {task.createdDate && (
+                                <span> • Created: {new Date(task.createdDate).toLocaleDateString()}</span>
+                              )}
+                              {task.lastModifiedDate && (
+                                <span> • Modified: {new Date(task.lastModifiedDate).toLocaleDateString()}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                      {tasks.length > 5 && (
+                        <div className="workspace-dashboard__card-content">
+                          <button
+                            onClick={() => setShowAllTasks(!showAllTasks)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--color-primary)',
+                              cursor: 'pointer',
+                              padding: '0.5rem',
+                              fontSize: '0.875rem'
+                            }}
+                          >
+                            {showAllTasks ? 'Show less' : `Show ${tasks.length - 5} more`}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="workspace-dashboard__card-content">
                       <div className="workspace-dashboard__card-item">
@@ -575,6 +1013,8 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                       </div>
                     </div>
                   )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </>

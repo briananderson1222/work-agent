@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { AgentIcon } from '../components/AgentIcon';
 import type { AppConfig } from '../types';
-import { getWorkspaceIcon, getAgentIcon } from '../utils/workspace';
+import { getWorkspaceIcon } from '../utils/workspace';
 import { useAppData } from '../contexts/AppDataContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { ModelSelector } from '../components/ModelSelector';
@@ -16,9 +17,11 @@ export interface SettingsViewProps {
   onCreateAgent?: () => void;
   onEditWorkspace?: (slug: string) => void;
   onCreateWorkspace?: () => void;
+  chatFontSize?: number;
+  onChatFontSizeChange?: (size: number) => void;
 }
 
-export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAgent, onEditWorkspace, onCreateWorkspace }: SettingsViewProps) {
+export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAgent, onEditWorkspace, onCreateWorkspace, chatFontSize = 14, onChatFontSizeChange }: SettingsViewProps) {
   const { models: availableModels } = useAppData();
   const { apiBase: currentApiBase, setApiBase, resetToDefault, isCustom } = useApiBase();
   const [activeTab, setActiveTab] = useState<'general' | 'agents' | 'workspaces' | 'prompts' | 'notifications' | 'advanced' | 'debug'>(() => {
@@ -38,6 +41,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [showResetModal, setShowResetModal] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{type: 'agent' | 'workspace', slug: string, name: string} | null>(null);
   const [modelSearch, setModelSearch] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [qAgents, setQAgents] = useState<any[]>([]);
@@ -161,6 +165,44 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
       setError(err.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAgent = (slug: string, name: string) => {
+    console.log('handleDeleteAgent called with:', { slug, name });
+    setDeleteConfirm({ type: 'agent', slug, name });
+  };
+
+  const handleDeleteWorkspace = (slug: string, name: string) => {
+    setDeleteConfirm({ type: 'workspace', slug, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm || !deleteConfirm.slug) {
+      console.error('Delete confirmation missing slug:', deleteConfirm);
+      setError('Cannot delete: missing identifier');
+      setDeleteConfirm(null);
+      return;
+    }
+    
+    try {
+      const endpoint = deleteConfirm.type === 'agent' 
+        ? `${apiBase}/agents/${deleteConfirm.slug}`
+        : `${apiBase}/workspaces/${deleteConfirm.slug}`;
+      
+      const response = await fetch(endpoint, { method: 'DELETE' });
+      if (!response.ok) throw new Error(`Failed to delete ${deleteConfirm.type}`);
+      
+      // Reload data
+      if (deleteConfirm.type === 'agent') {
+        loadAgents();
+      } else {
+        loadWorkspaces();
+      }
+      
+      setDeleteConfirm(null);
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
@@ -299,7 +341,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
                 {agents.map((agent) => (
                   <div
-                    key={agent.slug}
+                    key={agent.slug || agent.id}
                     style={{
                       background: 'var(--color-bg-secondary)',
                       border: '1px solid var(--color-border)',
@@ -319,28 +361,47 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                       e.currentTarget.style.borderColor = 'var(--color-border)';
                       e.currentTarget.style.transform = 'translateY(0)';
                     }}
-                    onClick={() => onEditAgent?.(agent.slug)}
+                    onClick={() => onEditAgent?.(agent.slug || agent.id)}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                          {agent.slug}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
+                        <AgentIcon agent={agent} size="medium" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                            {agent.slug}
+                          </div>
                         </div>
                       </div>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          background: 'var(--accent-primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '16px',
-                        }}
-                      >
-                        {getAgentIcon(agent).display}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteAgent(agent.slug || agent.id, agent.name);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--color-text-secondary)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Delete agent"
+                          onMouseOver={(e) => e.currentTarget.style.color = 'var(--color-error)'}
+                          onMouseOut={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline key="top" points="3,6 5,6 21,6"></polyline>
+                            <path key="body" d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            <line key="line1" x1="10" y1="11" x2="10" y2="17"></line>
+                            <line key="line2" x1="14" y1="11" x2="14" y2="17"></line>
+                          </svg>
+                        </button>
                       </div>
                     </div>
                     {agent.description && (
@@ -452,6 +513,34 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                           {workspace.tabCount} tab{workspace.tabCount !== 1 ? 's' : ''}
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteWorkspace(workspace.slug, workspace.name);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--color-text-secondary)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Delete workspace"
+                        onMouseOver={(e) => e.currentTarget.style.color = 'var(--color-error)'}
+                        onMouseOut={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline key="top" points="3,6 5,6 21,6"></polyline>
+                          <path key="body" d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                          <line key="line1" x1="10" y1="11" x2="10" y2="17"></line>
+                          <line key="line2" x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                      </button>
                     </div>
                     {workspace.description && (
                       <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
@@ -585,6 +674,29 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                 />
                 <span className="form-help">
                   Default model for agents that don't specify one.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="chatFontSize">Chat Font Size</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <input
+                    id="chatFontSize"
+                    type="range"
+                    min="10"
+                    max="24"
+                    value={chatFontSize}
+                    onChange={(e) => {
+                      const newSize = parseInt(e.target.value, 10);
+                      onChatFontSizeChange?.(newSize);
+                      setConfig({ ...config, defaultChatFontSize: newSize });
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ minWidth: '3rem', textAlign: 'right' }}>{chatFontSize}px</span>
+                </div>
+                <span className="form-help">
+                  Default font size for chat messages (10-24px).
                 </span>
               </div>
 
@@ -1126,6 +1238,19 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
             </div>
           </div>
         </div>
+      )}
+
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen={true}
+          title={`Delete ${deleteConfirm.type === 'agent' ? 'Agent' : 'Workspace'}`}
+          message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+          variant="danger"
+        />
       )}
     </>
   );

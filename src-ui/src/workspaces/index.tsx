@@ -1,4 +1,5 @@
 import type { AgentSummary, AgentQuickPrompt, WorkspaceConfig, WorkspaceTab } from '../types';
+import { WorkspaceHeader } from '../components/WorkspaceHeader';
 import { ProjectStallionDashboard } from './ProjectStallionDashboard';
 import { CodeReviewDashboard } from './CodeReviewDashboard';
 import { DocumentationDashboard } from './DocumentationDashboard';
@@ -49,9 +50,48 @@ export function resolveWorkspaceComponent(componentId?: string): AgentWorkspaceC
 
 interface WorkspaceRendererProps extends AgentWorkspaceProps {
   componentId?: string;
+  onRefresh?: () => void;
+  loading?: boolean;
+  activeTabId?: string;
+  onTabChange?: (tabId: string) => void;
 }
 
-export function WorkspaceRenderer({ componentId, ...props }: WorkspaceRendererProps) {
+export function WorkspaceRenderer({ 
+  componentId, 
+  workspace,
+  activeTab,
+  onRefresh,
+  loading,
+  activeTabId,
+  onTabChange,
+  onLaunchPrompt,
+  ...props 
+}: WorkspaceRendererProps) {
   const Component = resolveWorkspaceComponent(componentId);
-  return <Component {...props} />;
+  
+  return (
+    <>
+      {workspace && (
+        <WorkspaceHeader
+          workspaceName={workspace.name}
+          tabs={workspace.tabs?.map(tab => ({
+            id: tab.id,
+            label: tab.label,
+            icon: tab.icon
+          }))}
+          activeTabId={activeTabId}
+          onTabChange={onTabChange}
+          workspacePrompts={workspace.globalPrompts}
+          onWorkspacePromptSelect={onLaunchPrompt}
+          title={activeTab?.label || workspace.name}
+          description={workspace.description || ''}
+          tabPrompts={activeTab?.prompts}
+          onTabPromptSelect={onLaunchPrompt}
+          onRefresh={onRefresh}
+          loading={loading}
+        />
+      )}
+      <Component workspace={workspace} activeTab={activeTab} onLaunchPrompt={onLaunchPrompt} {...props} />
+    </>
+  );
 }

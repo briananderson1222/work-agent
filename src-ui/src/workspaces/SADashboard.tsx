@@ -260,6 +260,7 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [hidePastEvents, setHidePastEvents] = useState(false);
+  const [hideCanceledEvents, setHideCanceledEvents] = useState(false);
   const [isNowLineVisible, setIsNowLineVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
@@ -363,9 +364,16 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
         return e.categories?.some(cat => selectedCategories.has(cat));
       });
   
-  const visibleEvents = (hidePastEvents && isToday)
+  let visibleEvents = (hidePastEvents && isToday)
     ? filteredEvents.filter(e => new Date(e.end) > currentTime)
     : filteredEvents;
+  
+  if (hideCanceledEvents) {
+    visibleEvents = visibleEvents.filter(e => !e.subject.startsWith('Canceled:'));
+  }
+
+  const hasCanceledEvents = events.some(e => e.subject.startsWith('Canceled:'));
+  console.log('Debug - Total events:', events.length, 'Has canceled:', hasCanceledEvents, 'Canceled events:', events.filter(e => e.subject.startsWith('Canceled:')).map(e => e.subject));
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
     const startTime = performance.now();
@@ -858,7 +866,6 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
           <button 
             className="workspace-dashboard__action" 
             onClick={handleRefresh}
-            disabled={loading}
             type="button"
           >
             {loading ? 'Refreshing...' : 'Refresh'}
@@ -1052,6 +1059,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedCategories(new Set());
+                        setHideCanceledEvents(false);
                       }}
                       style={{
                         padding: 0,
@@ -1093,6 +1101,32 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                       }}
                     >
                       Hide past
+                    </button>
+                  )}
+                  {hasCanceledEvents && (
+                    <button
+                      className="hide-canceled-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHideCanceledEvents(!hideCanceledEvents);
+                      }}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.35rem', 
+                        fontSize: '0.7rem', 
+                        cursor: 'pointer', 
+                        fontWeight: 400,
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '10px',
+                        background: hideCanceledEvents ? 'var(--color-primary)' : 'transparent',
+                        color: hideCanceledEvents ? 'white' : 'var(--color-text-secondary)',
+                        border: '1px solid',
+                        borderColor: hideCanceledEvents ? 'var(--color-primary)' : 'var(--color-border)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      Hide Canceled
                     </button>
                   )}
                   <span>{filterExpanded ? '▼' : '▶'}</span>
@@ -1354,6 +1388,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                                 if (isFiltered) {
                                   setSelectedCategories(new Set());
                                   setHidePastEvents(false);
+                                  setHideCanceledEvents(false);
                                 }
                                 setSelectedEventId(nextMeeting.meetingId);
                                 fetchMeetingDetails(nextMeeting.meetingId);

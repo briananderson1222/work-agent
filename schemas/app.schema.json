@@ -77,6 +77,13 @@
           "default": [30, 10, 1]
         }
       }
+    },
+    "defaultChatFontSize": {
+      "type": "number",
+      "description": "Default font size for chat messages in pixels",
+      "default": 14,
+      "minimum": 10,
+      "maximum": 24
     }
   },
   "additionalProperties": false

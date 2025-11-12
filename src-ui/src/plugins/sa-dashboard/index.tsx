@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
 import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from '@stallion-ai/sdk';
+import { useConfig } from '../../contexts/ConfigContext';
 
 const CalendarEventSchema = z.object({
   events: z.array(z.object({
@@ -118,28 +119,32 @@ function formatOrganizerName(organizer?: { name: string; email: string }): strin
   return organizer.name;
 }
 
-function detectMeetingProvider(location?: string): { provider: string; url: string } | null {
-  if (!location) return null;
+function detectMeetingProviders(location?: string): Array<{ provider: string; url: string }> {
+  if (!location) return [];
   
-  const lowerLocation = location.toLowerCase();
+  const providers: Array<{ provider: string; url: string }> = [];
   
-  if (lowerLocation.includes('zoom.us')) {
-    return { provider: 'Zoom', url: location };
-  }
-  if (lowerLocation.includes('teams.microsoft.com') || lowerLocation.includes('teams.live.com')) {
-    return { provider: 'Teams', url: location };
-  }
-  if (lowerLocation.includes('chime.aws')) {
-    return { provider: 'Chime', url: location };
-  }
-  if (lowerLocation.includes('meet.google.com')) {
-    return { provider: 'Google Meet', url: location };
-  }
-  if (lowerLocation.includes('webex.com')) {
-    return { provider: 'Webex', url: location };
+  // Extract URLs from the location string
+  const urlRegex = /https?:\/\/[^\s]+/g;
+  const urls = location.match(urlRegex) || [];
+  
+  for (const url of urls) {
+    const lowerUrl = url.toLowerCase();
+    
+    if (lowerUrl.includes('zoom.us')) {
+      providers.push({ provider: 'Zoom', url });
+    } else if (lowerUrl.includes('teams.microsoft.com') || lowerUrl.includes('teams.live.com')) {
+      providers.push({ provider: 'Teams', url });
+    } else if (lowerUrl.includes('chime.aws')) {
+      providers.push({ provider: 'Chime', url });
+    } else if (lowerUrl.includes('meet.google.com')) {
+      providers.push({ provider: 'Google Meet', url });
+    } else if (lowerUrl.includes('webex.com')) {
+      providers.push({ provider: 'Webex', url });
+    }
   }
   
-  return null;
+  return providers;
 }
 
 interface SADashboardProps extends WorkspaceProps {
@@ -154,36 +159,17 @@ export default function SADashboard(props: SADashboardProps) {
   const sdk = useSDK();
   const agents = useAgents();
   const workspace = useWorkspace();
+  const appConfig = useConfig(sdk.apiBase);
   
   // Extract props - SA Dashboard always uses sa-agent
   const agentSlug = 'sa-agent';
   const { onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat } = props;
   
   // Load config for notification settings
-  const [notificationConfig, setNotificationConfig] = useState<{ enabled: boolean; thresholds: number[] }>({
-    enabled: true,
-    thresholds: [30, 10, 1]
-  });
-
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const response = await fetch(`${sdk.apiBase}/config/app`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.config?.meetingNotifications) {
-            setNotificationConfig({
-              enabled: data.config.meetingNotifications.enabled !== false,
-              thresholds: data.config.meetingNotifications.thresholds || [30, 10, 1]
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load notification config:', err);
-      }
-    };
-    loadConfig();
-  }, [sdk]);
+  const notificationConfig = useMemo(() => ({
+    enabled: appConfig?.meetingNotifications?.enabled !== false,
+    thresholds: appConfig?.meetingNotifications?.thresholds || [30, 10, 1]
+  }), [appConfig]);
 
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
@@ -211,7 +197,9 @@ export default function SADashboard(props: SADashboardProps) {
       categories: params.get('categories')?.split(',').filter(Boolean) || [],
       eventId: params.get('event') || null,
       filterExpanded: params.get('filterExpanded') === 'true',
-      allDayExpanded: params.get('allDayExpanded') === 'true' // Default to false (collapsed)
+      allDayExpanded: params.get('allDayExpanded') === 'true',
+      hideCanceledEvents: params.get('hideCanceled') === 'true',
+      calendarWidth: parseInt(params.get('calendarWidth') || '320', 10)
     };
   }, []);
 
@@ -236,11 +224,50 @@ export default function SADashboard(props: SADashboardProps) {
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [hidePastEvents, setHidePastEvents] = useState(false);
+  const [hideCanceledEvents, setHideCanceledEvents] = useState(initialState.hideCanceledEvents);
   const [isNowLineVisible, setIsNowLineVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
+  const [calendarWidth, setCalendarWidth] = useState(initialState.calendarWidth);
+  const [tempCalendarWidth, setTempCalendarWidth] = useState<number | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
+
+  // Handle calendar resize
+  useEffect(() => {
+    if (!isResizing) return;
+
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const minWidth = 280;
+      const maxWidth = window.innerWidth * 0.5;
+      const newWidth = Math.min(Math.max(e.clientX, minWidth), maxWidth);
+      setTempCalendarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      if (tempCalendarWidth !== null) {
+        setCalendarWidth(tempCalendarWidth);
+        setTempCalendarWidth(null);
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isResizing, tempCalendarWidth]);
 
   // Update current time every minute when viewing today
   useEffect(() => {
@@ -315,10 +342,16 @@ export default function SADashboard(props: SADashboardProps) {
     if (allDayExpanded) {
       params.set('allDayExpanded', 'true');
     }
+    if (hideCanceledEvents) {
+      params.set('hideCanceled', 'true');
+    }
+    if (calendarWidth !== 320) {
+      params.set('calendarWidth', String(calendarWidth));
+    }
     const hashString = params.toString();
     window.history.pushState(null, '', `#${hashString}`);
     sessionStorage.setItem('sa-dashboard-hash', hashString);
-  }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, isInitialMount]);
+  }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, hideCanceledEvents, calendarWidth, isInitialMount]);
 
   const selectedEvent = events.find((e) => e.meetingId === selectedEventId) ?? null;
   
@@ -339,9 +372,15 @@ export default function SADashboard(props: SADashboardProps) {
         return e.categories?.some(cat => selectedCategories.has(cat));
       });
   
-  const visibleEvents = (hidePastEvents && isToday)
+  let visibleEvents = (hidePastEvents && isToday)
     ? filteredEvents.filter(e => new Date(e.end) > currentTime)
     : filteredEvents;
+  
+  if (hideCanceledEvents) {
+    visibleEvents = visibleEvents.filter(e => !e.subject.startsWith('Canceled:'));
+  }
+
+  const hasCanceledEvents = events.some(e => e.subject.startsWith('Canceled:'));
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
     if (!agents) {
@@ -503,6 +542,10 @@ export default function SADashboard(props: SADashboardProps) {
       
       setFilterExpanded(params.get('filterExpanded') === 'true');
       setAllDayExpanded(params.get('allDayExpanded') === 'true');
+      setHideCanceledEvents(params.get('hideCanceled') === 'true');
+      
+      const width = parseInt(params.get('calendarWidth') || '320', 10);
+      setCalendarWidth(width);
     };
     
     window.addEventListener('popstate', handlePopState);
@@ -807,44 +850,61 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
             {new Date(upcomingNotification.meeting.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-            {upcomingNotification.threshold === 1 && upcomingNotification.meeting.location && (
-              <>
-                {' • '}
-                <a
-                  href={upcomingNotification.meeting.location}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
-                >
-                  Join Meeting
-                </a>
-              </>
-            )}
+            {upcomingNotification.threshold === 1 && upcomingNotification.meeting.location && (() => {
+              const providers = detectMeetingProviders(upcomingNotification.meeting.location);
+              return providers.length > 0 ? (
+                <>
+                  {' • '}
+                  {providers.map((provider, idx) => (
+                    <span key={idx}>
+                      {idx > 0 && ' • '}
+                      <a
+                        href={provider.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                      >
+                        Join {provider.provider}
+                      </a>
+                    </span>
+                  ))}
+                </>
+              ) : null;
+            })()}
           </div>
         </div>
       )}
-      <header className="workspace-dashboard__header">
-        <div>
-          <h2>SA Workspace</h2>
-          <p>Calendar, Email, and Salesforce integration</p>
-        </div>
-        <div className="workspace-dashboard__actions">
-          <button 
-            className="workspace-dashboard__action" 
-            onClick={handleRefresh}
-            disabled={loading}
-            type="button"
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-          <button className="workspace-dashboard__action" onClick={() => onShowChat?.()} type="button">
-            Open Chat
-          </button>
-        </div>
-      </header>
 
-      <div className="workspace-dashboard__content">
-        <aside className="workspace-dashboard__calendar">
+      <div className="workspace-dashboard__content" style={{
+        display: 'flex',
+        gridTemplateColumns: 'unset'
+      }}>
+        <aside className="workspace-dashboard__calendar" style={{ 
+          width: `${tempCalendarWidth ?? calendarWidth}px`, 
+          minWidth: '280px', 
+          maxWidth: '50vw',
+          flexShrink: 0,
+          position: 'relative'
+        }}>
+          <div 
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setIsResizing(true);
+            }}
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: '4px',
+              cursor: 'col-resize',
+              background: isResizing ? 'var(--color-primary)' : 'transparent',
+              transition: 'background 0.2s',
+              zIndex: 10
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-border)'}
+            onMouseLeave={(e) => !isResizing && (e.currentTarget.style.background = 'transparent')}
+          />
           <div style={{ position: 'sticky', top: 0, background: 'var(--color-bg)', paddingBottom: '1rem' }}>
             <div className="calendar-widget" style={{ 
               padding: '0.75rem', 
@@ -1026,6 +1086,7 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedCategories(new Set());
+                        setHideCanceledEvents(false);
                       }}
                       style={{
                         padding: 0,
@@ -1067,6 +1128,32 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                       }}
                     >
                       Hide past
+                    </button>
+                  )}
+                  {hasCanceledEvents && (
+                    <button
+                      className="hide-canceled-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHideCanceledEvents(!hideCanceledEvents);
+                      }}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.35rem', 
+                        fontSize: '0.7rem', 
+                        cursor: 'pointer', 
+                        fontWeight: 400,
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '10px',
+                        background: hideCanceledEvents ? 'var(--color-primary)' : 'transparent',
+                        color: hideCanceledEvents ? 'white' : 'var(--color-text-secondary)',
+                        border: '1px solid',
+                        borderColor: hideCanceledEvents ? 'var(--color-primary)' : 'var(--color-border)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      Hide Canceled
                     </button>
                   )}
                   <span>{filterExpanded ? '▼' : '▶'}</span>
@@ -1256,81 +1343,48 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                       let joinButton: JSX.Element | null = null;
                       
                       if (isActiveEvent) {
-                        const meetingProvider = detectMeetingProvider(event.location);
+                        const meetingProviders = detectMeetingProviders(event.location);
+                        const startTime = new Date(event.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                        const endTime = new Date(event.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                         
-                        indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - `;
+                        indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - in progress`;
                         
-                        nextMeetingLink = (
-                          <button
-                            onClick={() => {
-                              setSelectedEventId(event.meetingId);
-                              fetchMeetingDetails(event.meetingId);
-                              setSfdcContext(null);
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--color-primary)',
-                              textDecoration: 'underline',
-                              cursor: 'pointer',
-                              padding: 0,
-                              font: 'inherit'
-                            }}
-                          >
-                            {event.subject}
-                          </button>
-                        );
-                        
-                        if (meetingProvider) {
+                        if (meetingProviders.length > 0) {
+                          indicatorText += ' - ';
                           joinButton = (
                             <>
-                              {' in progress • '}
-                              <a
-                                href={meetingProvider.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  color: 'var(--color-primary)',
-                                  textDecoration: 'underline',
-                                  fontWeight: 600
-                                }}
-                              >
-                                Join Now
-                              </a>
+                              {meetingProviders.map((provider, idx) => (
+                                <span key={idx}>
+                                  {idx > 0 && ' '}
+                                  <a
+                                    href={provider.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '2px 6px',
+                                      fontSize: '0.65rem',
+                                      borderRadius: '4px',
+                                      background: 'var(--color-primary)',
+                                      color: 'white',
+                                      textDecoration: 'none',
+                                      fontWeight: 500
+                                    }}
+                                  >
+                                    Join {provider.provider}
+                                  </a>
+                                </span>
+                              ))}
                             </>
                           );
-                        } else {
-                          joinButton = <span> in progress</span>;
                         }
-                      } else {
-                        // Find next meeting (could be filtered out)
-                        const allNonAllDay = events.filter(e => !e.isAllDay);
-                        const nextMeeting = allNonAllDay.find(e => new Date(e.start) > currentTime);
                         
-                        if (nextMeeting) {
-                          const nextStart = new Date(nextMeeting.start);
-                          const minutesUntil = Math.round((nextStart.getTime() - currentTime.getTime()) / 60000);
-                          const hoursUntil = Math.floor(minutesUntil / 60);
-                          const remainingMinutes = minutesUntil % 60;
-                          
-                          let timeText = '';
-                          if (hoursUntil > 0) {
-                            timeText = `${hoursUntil}h ${remainingMinutes}m`;
-                          } else {
-                            timeText = `${minutesUntil}m`;
-                          }
-                          
-                          const isFiltered = !visibleEvents.some(e => e.meetingId === nextMeeting.meetingId);
-                          
-                          nextMeetingLink = (
+                        nextMeetingLink = (
+                          <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
                             <button
                               onClick={() => {
-                                if (isFiltered) {
-                                  setSelectedCategories(new Set());
-                                  setHidePastEvents(false);
-                                }
-                                setSelectedEventId(nextMeeting.meetingId);
-                                fetchMeetingDetails(nextMeeting.meetingId);
+                                setSelectedEventId(event.meetingId);
+                                fetchMeetingDetails(event.meetingId);
                                 setSfdcContext(null);
                               }}
                               style={{
@@ -1343,11 +1397,93 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                                 font: 'inherit'
                               }}
                             >
-                              {nextMeeting.subject}
+                              {`[${startTime} - ${endTime}] ${event.subject}`}
                             </button>
-                          );
+                          </div>
+                        );
+                      } else {
+                        // Find next meeting (could be filtered out)
+                        const allNonAllDay = events.filter(e => !e.isAllDay);
+                        const nextMeeting = allNonAllDay.find(e => new Date(e.start) > currentTime);
+                        
+                        if (nextMeeting) {
+                          const nextStart = new Date(nextMeeting.start);
+                          const nextEnd = new Date(nextMeeting.end);
+                          const startTime = nextStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                          const endTime = nextEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                          const minutesUntil = Math.round((nextStart.getTime() - currentTime.getTime()) / 60000);
+                          const hoursUntil = Math.floor(minutesUntil / 60);
+                          const remainingMinutes = minutesUntil % 60;
                           
-                          indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${timeText} until next meeting: `;
+                          let timeText = '';
+                          if (hoursUntil > 0) {
+                            timeText = `${hoursUntil}h ${remainingMinutes}m`;
+                          } else {
+                            timeText = `${minutesUntil}m`;
+                          }
+                          
+                          const isFiltered = !visibleEvents.some(e => e.meetingId === nextMeeting.meetingId);
+                          const meetingProviders = detectMeetingProviders(nextMeeting.location);
+                          
+                          indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${timeText} until next meeting`;
+                          
+                          if (meetingProviders.length > 0) {
+                            indicatorText += ' - ';
+                            joinButton = (
+                              <>
+                                {meetingProviders.map((provider, idx) => (
+                                  <span key={idx}>
+                                    {idx > 0 && ' '}
+                                    <a
+                                      href={provider.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        display: 'inline-block',
+                                        padding: '2px 6px',
+                                        fontSize: '0.65rem',
+                                        borderRadius: '4px',
+                                        background: 'var(--color-primary)',
+                                        color: 'white',
+                                        textDecoration: 'none',
+                                        fontWeight: 500
+                                      }}
+                                    >
+                                      Join {provider.provider}
+                                    </a>
+                                  </span>
+                                ))}
+                              </>
+                            );
+                          }
+                          
+                          nextMeetingLink = (
+                            <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
+                              <button
+                                onClick={() => {
+                                  if (isFiltered) {
+                                    setSelectedCategories(new Set());
+                                    setHidePastEvents(false);
+                                    setHideCanceledEvents(false);
+                                  }
+                                  setSelectedEventId(nextMeeting.meetingId);
+                                  fetchMeetingDetails(nextMeeting.meetingId);
+                                  setSfdcContext(null);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--color-primary)',
+                                  textDecoration: 'underline',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  font: 'inherit'
+                                }}
+                              >
+                                {`[${startTime} - ${endTime}] ${nextMeeting.subject}`}
+                              </button>
+                            </div>
+                          );
                         } else {
                           indicatorText = `Now - ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
                         }
@@ -1362,7 +1498,7 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                           color: 'var(--color-primary)',
                           fontWeight: 600
                         }}>
-                          {indicatorText}{nextMeetingLink}{joinButton}
+                          {indicatorText}{joinButton}{nextMeetingLink}
                         </div>
                       );
                     }
@@ -1473,7 +1609,7 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
 
           <section className="workspace-dashboard__details">
               {selectedEvent && (() => {
-                const meetingProvider = detectMeetingProvider(meetingDetails?.location);
+                const meetingProviders = detectMeetingProviders(meetingDetails?.location);
                 
                 return (
                 <div className="workspace-dashboard__card">
@@ -1514,31 +1650,36 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                                 {meetingDetails.organizerName || meetingDetails.organizer}
                               </a>
                             </span>
-                            {meetingProvider && (
-                              <a
-                                href={meetingProvider.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem',
-                                  padding: '0.25rem 0.5rem',
-                                  background: 'var(--color-primary)',
-                                  color: 'var(--color-bg)',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 600,
-                                  textDecoration: 'none',
-                                  cursor: 'pointer',
-                                  transition: 'opacity 0.2s'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                              >
-                                Join {meetingProvider.provider} →
-                              </a>
+                            {meetingProviders.length > 0 && (
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                {meetingProviders.map((provider, idx) => (
+                                  <a
+                                    key={idx}
+                                    href={provider.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem',
+                                      padding: '0.25rem 0.5rem',
+                                      background: 'var(--color-primary)',
+                                      color: 'var(--color-bg)',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600,
+                                      textDecoration: 'none',
+                                      cursor: 'pointer',
+                                      transition: 'opacity 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                  >
+                                    Join {provider.provider} →
+                                  </a>
+                                ))}
+                              </div>
                             )}
                           </div>
                           <div style={{ fontSize: '0.85rem' }}>

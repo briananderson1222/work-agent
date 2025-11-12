@@ -6,7 +6,7 @@
 
 .workspace-tabs__container {
   display: flex;
-  padding: 0 1.5rem;
+  padding: 0;
   gap: 0.25rem;
 }
 
@@ -126,7 +126,7 @@
 }
 
 .workspace-dashboard__sidebar-header {
-  padding: 1rem;
+  padding: 1rem 0.5rem 0;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg);
   position: sticky;
@@ -177,7 +177,7 @@
 }
 
 .workspace-dashboard__list-item {
-  padding: 1rem;
+  padding: 1.5rem 0.5rem 1rem;
   cursor: pointer;
   border-bottom: 1px solid var(--color-border);
   transition: background-color 0.2s;
@@ -188,8 +188,9 @@
 }
 
 .workspace-dashboard__list-item.is-active {
-  background: var(--color-primary-bg);
-  border-right: 2px solid var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border-left: 3px solid var(--color-primary);
+  border-right: none;
 }
 
 .workspace-dashboard__list-item-title {
@@ -241,7 +242,8 @@
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  overflow: hidden;
+  overflow: auto;
+  padding: 0.5rem;
 }
 
 .workspace-dashboard__card-header {

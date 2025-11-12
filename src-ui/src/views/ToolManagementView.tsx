@@ -35,9 +35,10 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
       setIsLoading(true);
       setError(null);
 
-      const [toolsResponse, agentResponse] = await Promise.all([
+      const [toolsResponse, agentResponse, agentToolsResponse] = await Promise.all([
         fetch(`${apiBase}/tools`),
         fetch(`${apiBase}/agents`),
+        fetch(`${apiBase}/agents/${agentSlug}/tools`).catch(() => null),
       ]);
 
       if (!toolsResponse.ok) throw new Error('Failed to load tools');
@@ -51,7 +52,23 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
       );
       if (!agent) throw new Error('Agent not found');
 
-      setGlobalTools(toolsData.data || []);
+      let tools = toolsData.data || [];
+      
+      // Enrich with parameters from active agent if available
+      if (agentToolsResponse?.ok) {
+        const agentToolsData = await agentToolsResponse.json();
+        if (agentToolsData.success && agentToolsData.data) {
+          const toolsWithParams = new Map(
+            agentToolsData.data.map((t: any) => [t.id || t.name, t])
+          );
+          tools = tools.map((tool: any) => {
+            const enriched = toolsWithParams.get(tool.id);
+            return enriched ? { ...tool, parameters: enriched.parameters } : tool;
+          });
+        }
+      }
+
+      setGlobalTools(tools);
       const config: AgentToolConfig = {
         tools: agent.tools || [],
         allowed: agent.allowed,
@@ -166,6 +183,26 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
     }));
   };
 
+  const renderParameters = (params: any) => {
+    if (!params?.properties) return null;
+    
+    const required = params.required || [];
+    const props = params.properties;
+    
+    return (
+      <div className="tool-params">
+        {Object.entries(props).map(([key, schema]: [string, any]) => (
+          <div key={key} className="tool-param">
+            <code>{key}</code>
+            {required.includes(key) && <span className="required">*</span>}
+            {schema.type && <span className="param-type">{schema.type}</span>}
+            {schema.description && <span className="param-desc">{schema.description}</span>}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="management-view">
@@ -216,6 +253,7 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
                           <span className="tool-badge tool-badge--transport">{tool.transport}</span>
                         )}
                       </div>
+                      {tool.parameters && renderParameters(tool.parameters)}
                     </div>
                     <button
                       type="button"
@@ -251,6 +289,7 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
                           <span className="tool-badge tool-badge--transport">{tool.transport}</span>
                         )}
                       </div>
+                      {tool.parameters && renderParameters(tool.parameters)}
                       {aliasEditMode[tool.id] ? (
                         <div className="tool-alias-editor">
                           <input

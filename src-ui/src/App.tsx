@@ -8,12 +8,21 @@ import { PermissionManager } from './core/PermissionManager';
 import { EventRouter } from './core/EventRouter';
 import { AgentSelector } from './components/AgentSelector';
 import { Header } from './components/Header';
+import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { AgentSelectorModal } from './components/AgentSelectorModal';
+import { SessionPickerModal } from './components/SessionPickerModal';
+import { SessionManagementMenu } from './components/SessionManagementMenu';
 import { PinDialog } from './components/PinDialog';
 import { ConversationStats, ContextPercentage } from './components/ConversationStats';
 import { FileAttachmentInput } from './components/FileAttachmentInput';
+import { SessionTab } from './components/SessionTab';
 import { useAppData } from './contexts/AppDataContext';
 import { useApiBase } from './contexts/ApiBaseContext';
+import { useConfig, CONFIG_DEFAULTS } from './contexts/ConfigContext';
+import { useWorkspaces, useWorkspace } from './contexts/WorkspacesContext';
+import { useAgents } from './contexts/AgentsContext';
+import { useWorkflows } from './contexts/WorkflowsContext';
+import { useConversationStatus } from './contexts/ConversationsContext';
 import { WorkspaceRenderer } from './workspaces';
 import { AgentEditorView } from './views/AgentEditorView';
 import { WorkspaceEditorView } from './views/WorkspaceEditorView';
@@ -42,10 +51,20 @@ function ToolCallDisplay({ toolCall, onApprove }: {
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
+  // Only log when expanded to reduce noise
+  if (isExpanded) {
+    console.log('[ToolCallDisplay expanded]', { 
+      id: toolCall.id, 
+      name: toolCall.name, 
+      hasResult: !!toolCall.result,
+      resultKeys: toolCall.result ? Object.keys(toolCall.result) : []
+    });
+  }
+  
   // Create abbreviated args preview
   const argsPreview = toolCall.args 
     ? Object.keys(toolCall.args).length > 0
-      ? `${Object.keys(toolCall.args).slice(0, 2).map(k => `${k}: ${JSON.stringify(toolCall.args[k]).slice(0, 20)}`).join(', ')}${Object.keys(toolCall.args).length > 2 ? '...' : ''}`
+      ? Object.keys(toolCall.args).map(k => `${k}: ${JSON.stringify(toolCall.args[k])}`).join(', ')
       : 'no args'
     : 'no args';
 
@@ -75,6 +94,8 @@ function ToolCallDisplay({ toolCall, onApprove }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
           <span className="tool-call__toggle">{isExpanded ? '▼' : '▶'}</span>
           <span className="tool-call__name" style={{ fontWeight: 500 }}>{toolCall.name}</span>
+          {toolCall.result && !toolCall.error && <span style={{ color: 'var(--success-primary)' }} title="Success">✓</span>}
+          {toolCall.error && <span style={{ color: 'var(--error-primary)' }} title="Error">✗</span>}
           {toolCall.needsApproval && onApprove && !toolCall.error && !toolCall.result && !toolCall.cancelled && (
             <>
               <button 
@@ -140,13 +161,22 @@ function ToolCallDisplay({ toolCall, onApprove }: {
           {toolCall.needsApproval && !toolCall.error && !toolCall.result && !toolCall.cancelled && <span style={{ color: 'orange' }}>⏸</span>}
           {toolCall.error && <span className="tool-call__error">⚠️</span>}
         </div>
-        <div style={{ fontSize: '0.85em', opacity: 0.7, paddingLeft: '1rem' }}>{argsPreview}</div>
+        <div style={{ fontSize: '0.85em', opacity: 0.7, paddingLeft: '1rem', width: '100%', wordBreak: 'break-word', whiteSpace: 'normal' }}>{argsPreview}</div>
       </button>
       {isExpanded && (
         <div className="tool-call__details" style={{ marginTop: '0.5rem', fontSize: '0.9em' }}>
-          <div className="tool-call__section">
-            <strong>Tool ID:</strong>
-            <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{toolCall.id}</pre>
+          <div className="tool-call__section" style={{ fontSize: '0.85em', opacity: 0.7, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+            <span>
+              <strong>ID:</strong> <span style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>{toolCall.id}</span>
+            </span>
+            {(toolCall.result || toolCall.error) && (
+              <span>
+                <strong>Status:</strong>{' '}
+                <span style={{ color: toolCall.error ? 'var(--error-primary)' : 'var(--success-primary)' }}>
+                  {toolCall.error ? 'Failed' : 'Success'}
+                </span>
+              </span>
+            )}
           </div>
           <div className="tool-call__section">
             <strong>Arguments:</strong>
@@ -154,14 +184,14 @@ function ToolCallDisplay({ toolCall, onApprove }: {
           </div>
           {toolCall.result && (
             <div className="tool-call__section">
-              <strong>Result:</strong>
+              <strong>Response:</strong>
               <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflowX: 'auto', maxHeight: '200px', overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(toolCall.result, null, 2)}</pre>
             </div>
           )}
           {toolCall.error && (
             <div className="tool-call__section tool-call__section--error">
               <strong>Error:</strong>
-              <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflowX: 'auto', color: 'red', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{toolCall.error}</pre>
+              <pre style={{ margin: '0.25rem 0', padding: '0.5rem', background: 'var(--color-bg)', borderRadius: '2px', overflowX: 'auto', color: 'var(--error-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{toolCall.error}</pre>
             </div>
           )}
         </div>
@@ -173,13 +203,13 @@ function ToolCallDisplay({ toolCall, onApprove }: {
 function App() {
   const { models: availableModels } = useAppData();
   const { apiBase: API_BASE } = useApiBase();
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const agents = useAgents(API_BASE);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(() => {
     const path = window.location.pathname;
     const match = path.match(/^\/agent\/([^/]+)/);
     return match ? match[1] : null;
   });
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const workspaces = useWorkspaces(API_BASE);
   const [selectedWorkspace, setSelectedWorkspace] = useState<any | null>(null);
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [agentSelectorModal, setAgentSelectorModal] = useState<{
@@ -204,9 +234,16 @@ function App() {
   const [previousDockHeight, setPreviousDockHeight] = useState(400);
   const [previousDockCollapsed, setPreviousDockCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const appConfig = useConfig(API_BASE);
+  const defaultFontSize = appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
+  const [chatFontSize, setChatFontSize] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const querySize = params.get('fontSize');
+    return querySize ? parseInt(querySize, 10) : CONFIG_DEFAULTS.defaultChatFontSize;
+  });
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
-  const [workflowCatalog, setWorkflowCatalog] = useState<Record<string, WorkflowMetadata[]>>({});
+  const workflowCatalog = useWorkflows(API_BASE);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastSessionId, setToastSessionId] = useState<string | null>(null);
   const [showPinDialog, setShowPinDialog] = useState(false);
@@ -214,25 +251,25 @@ function App() {
   const [activeAbortController, setActiveAbortController] = useState<AbortController | null>(null);
   const { authenticate, isAuthenticating, error: authError } = useAwsAuth();
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
-    const hash = window.location.hash.slice(1); // Remove #
+    const path = window.location.pathname;
     
-    if (hash === '/settings') return { type: 'settings' };
-    if (hash === '/agents/new') return { type: 'agent-new' };
-    if (hash.startsWith('/agents/') && hash.endsWith('/edit')) {
-      const slug = hash.split('/')[2];
+    if (path === '/settings') return { type: 'settings' };
+    if (path === '/agents/new') return { type: 'agent-new' };
+    if (path.startsWith('/agents/') && path.endsWith('/edit')) {
+      const slug = path.split('/')[2];
       return { type: 'agent-edit', slug };
     }
-    if (hash.startsWith('/agents/') && hash.endsWith('/tools')) {
-      const slug = hash.split('/')[2];
+    if (path.startsWith('/agents/') && path.endsWith('/tools')) {
+      const slug = path.split('/')[2];
       return { type: 'tools', slug };
     }
-    if (hash.startsWith('/agents/') && hash.endsWith('/workflows')) {
-      const slug = hash.split('/')[2];
+    if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
+      const slug = path.split('/')[2];
       return { type: 'workflows', slug };
     }
-    if (hash === '/workspaces/new') return { type: 'workspace-new' };
-    if (hash.startsWith('/workspaces/') && hash.endsWith('/edit')) {
-      const slug = hash.split('/')[2];
+    if (path === '/workspaces/new') return { type: 'workspace-new' };
+    if (path.startsWith('/workspaces/') && path.endsWith('/edit')) {
+      const slug = path.split('/')[2];
       return { type: 'workspace-edit', slug };
     }
     
@@ -240,60 +277,61 @@ function App() {
   });
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
-  // Listen for hash changes and URL paths
+  // Listen for path changes (back/forward navigation)
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.slice(1);
+    const handlePathChange = () => {
       const path = window.location.pathname;
       
-      // Parse workspace paths from URL
+      // Check path for main app navigation
+      if (path === '/settings') {
+        setCurrentView({ type: 'settings' });
+        return;
+      } else if (path === '/agents/new') {
+        setCurrentView({ type: 'agent-new' });
+        return;
+      } else if (path.startsWith('/agents/') && path.endsWith('/edit')) {
+        const slug = path.split('/')[2];
+        setCurrentView({ type: 'agent-edit', slug });
+        return;
+      } else if (path.startsWith('/agents/') && path.endsWith('/tools')) {
+        const slug = path.split('/')[2];
+        setCurrentView({ type: 'tools', slug });
+        return;
+      } else if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
+        const slug = path.split('/')[2];
+        setCurrentView({ type: 'workflows', slug });
+        return;
+      } else if (path === '/workspaces/new') {
+        setCurrentView({ type: 'workspace-new' });
+        return;
+      } else if (path.startsWith('/workspaces/') && path.endsWith('/edit')) {
+        const slug = path.split('/')[2];
+        setCurrentView({ type: 'workspace-edit', slug });
+        return;
+      }
+      
+      // Parse workspace paths from URL (for workspace tab navigation)
       if (path.startsWith('/workspace/')) {
         const pathParts = path.split('/');
         const workspaceSlug = pathParts[2];
         const tabId = pathParts[3];
         
         if (workspaceSlug && workspaceSlug !== selectedWorkspace?.slug) {
-          handleWorkspaceSelect(workspaceSlug);
-        }
-        if (tabId && tabId !== activeTabId) {
+          handleWorkspaceSelect(workspaceSlug, tabId);
+        } else if (tabId && tabId !== activeTabId) {
           setActiveTabId(tabId);
         }
         setCurrentView({ type: 'workspace' });
         return;
       }
       
-      if (hash === '/settings') {
-        setCurrentView({ type: 'settings' });
-      } else if (hash === '/agents/new') {
-        setCurrentView({ type: 'agent-new' });
-      } else if (hash.startsWith('/agents/') && hash.endsWith('/edit')) {
-        const slug = hash.split('/')[2];
-        setCurrentView({ type: 'agent-edit', slug });
-      } else if (hash.startsWith('/agents/') && hash.endsWith('/tools')) {
-        const slug = hash.split('/')[2];
-        setCurrentView({ type: 'tools', slug });
-      } else if (hash.startsWith('/agents/') && hash.endsWith('/workflows')) {
-        const slug = hash.split('/')[2];
-        setCurrentView({ type: 'workflows', slug });
-      } else if (hash === '/workspaces/new') {
-        setCurrentView({ type: 'workspace-new' });
-      } else if (hash.startsWith('/workspaces/') && hash.endsWith('/edit')) {
-        const slug = hash.split('/')[2];
-        setCurrentView({ type: 'workspace-edit', slug });
-      } else if (!hash || hash === '/') {
-        setCurrentView({ type: 'workspace' });
-      }
+      // Default to workspace if no path matches
+      setCurrentView({ type: 'workspace' });
     };
 
-    const handlePathChange = () => {
-      handleHashChange(); // Reuse the same logic
-    };
-
-    handleHashChange(); // Initial call
-    window.addEventListener('hashchange', handleHashChange);
+    handlePathChange(); // Initial call
     window.addEventListener('popstate', handlePathChange);
     return () => {
-      window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('popstate', handlePathChange);
     };
   }, []);
@@ -302,6 +340,7 @@ function App() {
   const [messageQueue, setMessageQueue] = useState<Map<string, string[]>>(new Map());
   const [ephemeralMessages, setEphemeralMessages] = useState<Record<string, ChatMessage[]>>({});
   const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [showSessionPicker, setShowSessionPicker] = useState(false);
   const [newChatSearch, setNewChatSearch] = useState('');
   const [newChatSelectedIndex, setNewChatSelectedIndex] = useState(0);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
@@ -442,29 +481,28 @@ function App() {
     if (activeSessionId) params.set('session', activeSessionId);
     if (!isDockCollapsed) params.set('dock', 'open');
     if (isDockMaximized) params.set('maximize', 'true');
-    
-    let hash = '';
-    
-    if (currentView.type === 'settings') {
-      hash = '/settings';
-    } else if (currentView.type === 'agent-new') {
-      hash = '/agents/new';
-    } else if (currentView.type === 'agent-edit') {
-      hash = `/agents/${currentView.slug}/edit`;
-    } else if (currentView.type === 'workspace-new') {
-      hash = '/workspaces/new';
-    } else if (currentView.type === 'workspace-edit') {
-      hash = `/workspaces/${currentView.slug}/edit`;
-    } else if (currentView.type === 'tools') {
-      hash = `/agents/${currentView.slug}/tools`;
-    } else if (currentView.type === 'workflows') {
-      hash = `/agents/${currentView.slug}/workflows`;
-    }
+    if (chatFontSize !== defaultFontSize) params.set('fontSize', String(chatFontSize));
     
     const query = params.toString();
     let path = '/';
     
-    if (currentView.type === 'workspace') {
+    // Management views use path routing
+    if (currentView.type === 'settings') {
+      path = '/settings';
+    } else if (currentView.type === 'agent-new') {
+      path = '/agents/new';
+    } else if (currentView.type === 'agent-edit') {
+      path = `/agents/${currentView.slug}/edit`;
+    } else if (currentView.type === 'workspace-new') {
+      path = '/workspaces/new';
+    } else if (currentView.type === 'workspace-edit') {
+      path = `/workspaces/${currentView.slug}/edit`;
+    } else if (currentView.type === 'tools') {
+      path = `/agents/${currentView.slug}/tools`;
+    } else if (currentView.type === 'workflows') {
+      path = `/agents/${currentView.slug}/workflows`;
+    } else if (currentView.type === 'workspace') {
+      // Workspace views use path routing
       if (selectedWorkspace && activeTabId) {
         path = `/workspace/${selectedWorkspace.slug}/${activeTabId}`;
       } else if (selectedWorkspace) {
@@ -474,10 +512,10 @@ function App() {
       }
     }
     
-    const url = query ? `${path}?${query}${hash ? '#' + hash : ''}` : `${path}${hash ? '#' + hash : ''}`;
+    const url = query ? `${path}?${query}` : path;
     
     window.history.pushState({}, '', url);
-  }, [selectedAgent, activeSessionId, isDockCollapsed, isDockMaximized, currentView]);
+  }, [selectedAgent, activeSessionId, isDockCollapsed, isDockMaximized, chatFontSize, currentView]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -501,9 +539,16 @@ function App() {
   }, [sessions, pendingPromptSend]);
 
   useEffect(() => {
-    fetchAgents();
-    fetchWorkspaces();
+    // Agents auto-load via context
   }, []);
+
+  // Sync font size from config
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('fontSize') && appConfig?.defaultChatFontSize) {
+      setChatFontSize(defaultFontSize);
+    }
+  }, [appConfig, defaultFontSize]);
 
   useEffect(() => {
     if (!activeSessionId && sessions.length > 0) {
@@ -511,11 +556,46 @@ function App() {
     }
   }, [sessions, activeSessionId]);
 
+  // Auto-update conversation title from first user message
+  useEffect(() => {
+    sessions.forEach(session => {
+      // Only update if: has conversationId, exactly 2 messages, hasn't been auto-titled yet, and not from a prompt
+      if (
+        session.conversationId &&
+        session.messages.length === 2 &&
+        !session.hasAutoTitle &&
+        session.source !== 'prompt'
+      ) {
+        const firstUserMsg = session.messages.find(m => m.role === 'user');
+        if (firstUserMsg?.content) {
+          const autoTitle = firstUserMsg.content.slice(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '');
+          
+          // Update locally
+          updateSession(session.id, (current) => ({
+            ...current,
+            title: autoTitle,
+            hasAutoTitle: true,
+          }));
+          
+          // Update on server
+          fetch(`${API_BASE}/agents/${session.agentSlug}/conversations/${session.conversationId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: autoTitle }),
+          }).catch(err => console.error('Failed to update conversation title:', err));
+        }
+      }
+    });
+  }, [sessions.map(s => `${s.id}:${s.messages.length}`).join(',')]);
+
   useEffect(() => {
     const loadMessagesForActiveSession = async () => {
       if (!activeSessionId) return;
       const session = sessions.find(s => s.id === activeSessionId);
       if (!session || session.messages.length > 0) return;
+      
+      // Skip loading if no conversationId (new chat)
+      if (!session.conversationId) return;
       
       try {
         const response = await fetch(`${API_BASE}/agents/${session.agentSlug}/conversations/${session.conversationId}/messages`);
@@ -556,9 +636,15 @@ function App() {
                 }
               : s
           ));
+        } else {
+          // Failed to load conversation, close the session
+          console.error('Failed to load conversation, closing session');
+          removeSession(activeSessionId);
         }
       } catch (err) {
         console.error('Failed to load messages:', err);
+        // Close session on error
+        removeSession(activeSessionId);
       }
     };
     
@@ -593,6 +679,11 @@ function App() {
           setNewChatSearch('');
           setNewChatSelectedIndex(0);
         }
+      }
+      // Cmd/Ctrl + O: Open conversation
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'o') {
+        e.preventDefault();
+        setShowSessionPicker(true);
       }
       // Cmd/Ctrl + ,: Toggle settings
       else if ((e.metaKey || e.ctrlKey) && e.key === ',') {
@@ -700,9 +791,7 @@ function App() {
   useEffect(() => {
     if (!currentAgent) return;
 
-    if (!workflowCatalog[currentAgent.slug]) {
-      fetchWorkflowsForAgent(currentAgent.slug);
-    }
+    // Workflows auto-load via context
 
     if (currentAgent.workflowWarnings && currentAgent.workflowWarnings.length > 0) {
       const warningText = `Missing workflow shortcuts for ${currentAgent.name}: ${currentAgent.workflowWarnings.join(
@@ -710,7 +799,7 @@ function App() {
       )}`;
       setManagementNotice((prev) => prev ?? warningText);
     }
-  }, [currentAgent, workflowCatalog]);
+  }, [currentAgent]);
 
   useEffect(() => {
     return () => {
@@ -733,6 +822,9 @@ function App() {
   useEffect(() => {
     if (!isDragging) return;
 
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+
     const handleMouseMove = (e: MouseEvent) => {
       const newHeight = window.innerHeight - e.clientY;
       setDockHeight(Math.max(200, Math.min(newHeight, window.innerHeight * 0.8)));
@@ -744,6 +836,8 @@ function App() {
 
     const handleMouseUp = () => {
       setIsDragging(false);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -752,65 +846,60 @@ function App() {
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
     };
   }, [isDragging, isDockMaximized]);
 
-  const fetchAgents = async () => {
-    try {
-      const payload = await apiRequest<{ data: any[] }>(`${API_BASE}/api/agents`);
-      console.log('Raw agent data from API:', payload.data);
-      const agentList: AgentSummary[] = (payload.data || []).map((agent: any) => ({
-        slug: agent.slug ?? agent.id,
-        name: agent.name,
-        model: agent.model,
-        updatedAt: agent.updatedAt,
-        description: agent.description,
-        icon: agent.icon,
-        commands: agent.commands,
-        ui: agent.ui,
-        toolsConfig: agent.toolsConfig,
-        workflowWarnings: agent.workflowWarnings || undefined,
-      }));
-      console.log('Mapped agent list:', agentList);
-
-      setAgents(agentList);
-      setGlobalError(null);
-
-      if (agentList.length > 0 && !selectedAgent) {
-        setSelectedAgent(agentList[0].slug);
-      }
-    } catch (err: any) {
-      setGlobalError(err.message);
+  // Auto-select first agent if none selected
+  useEffect(() => {
+    if (agents.length > 0 && !selectedAgent) {
+      setSelectedAgent(agents[0].slug);
     }
-  };
+  }, [agents, selectedAgent]);
 
-  const fetchWorkspaces = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/workspaces`);
-      const data = await response.json();
-      console.log('Workspaces fetched:', data);
-      if (data.success) {
-        setWorkspaces(data.data);
-        console.log('Workspaces set:', data.data);
-        if (data.data.length > 0 && !selectedWorkspace) {
-          await handleWorkspaceSelect(data.data[0].slug);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load workspaces:', error);
+  // Sync active session status to ConversationsContext
+  const { setStatus: setConversationStatus } = useConversationStatus(
+    activeSession?.agentSlug || '',
+    activeSession?.conversationId || ''
+  );
+
+  useEffect(() => {
+    if (activeSession?.agentSlug && activeSession?.conversationId) {
+      const status = activeSession.status === 'sending' ? 'streaming' : 'idle';
+      setConversationStatus(status);
     }
-  };
+  }, [activeSession?.status, activeSession?.agentSlug, activeSession?.conversationId, setConversationStatus]);
 
-  const handleWorkspaceSelect = async (slug: string) => {
+  const handleWorkspaceSelect = async (slug: string, preferredTabId?: string) => {
     try {
       const response = await fetch(`${API_BASE}/workspaces/${slug}`);
       const data = await response.json();
       if (data.success) {
         setSelectedWorkspace(data.data);
-        setActiveTabId(data.data.tabs[0]?.id || '');
+        
+        // Use preferred tab ID if provided and valid, otherwise use first tab
+        const validTabId = preferredTabId && data.data.tabs.find((t: any) => t.id === preferredTabId)
+          ? preferredTabId 
+          : data.data.tabs[0]?.id || '';
+        
+        setActiveTabId(validTabId);
+        
+        // Update URL
+        const newPath = `/workspace/${slug}${validTabId ? `/${validTabId}` : ''}`;
+        window.history.replaceState(null, '', newPath + window.location.search);
       }
     } catch (error) {
       console.error('Failed to load workspace:', error);
+    }
+  };
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTabId(tabId);
+    // Update URL
+    if (selectedWorkspace) {
+      const newPath = `/workspace/${selectedWorkspace.slug}/${tabId}`;
+      window.history.replaceState(null, '', newPath + window.location.search);
     }
   };
 
@@ -853,19 +942,6 @@ function App() {
     }
   };
 
-  const fetchWorkflowsForAgent = async (slug: string) => {
-    try {
-      const response = await fetch(`${API_BASE}/workflows`);
-      if (!response.ok) throw new Error('Failed to fetch workflows');
-
-      const payload = await response.json();
-      const workflows: WorkflowMetadata[] = payload.data || [];
-      setWorkflowCatalog((prev) => ({ ...prev, [slug]: workflows }));
-    } catch (err: any) {
-      setManagementNotice((prev) => prev ?? `Failed to load workflows for ${slug}: ${err.message}`);
-    }
-  };
-
   const updateSession = (sessionId: string, modifier: (session: ChatSession) => ChatSession) => {
     setSessions((prev) =>
       prev.map((session) => (session.id === sessionId ? modifier(session) : session))
@@ -873,8 +949,10 @@ function App() {
   };
 
   const removeSession = (sessionId: string) => {
-    // Cancel any ongoing request for this session
-    if (activeAbortController) {
+    const session = sessions.find(s => s.id === sessionId);
+    
+    // Only cancel ongoing request if this session is currently sending
+    if (activeAbortController && session?.status === 'sending') {
       console.log('Cancelling ongoing request for session:', sessionId);
       activeAbortController.abort();
       setActiveAbortController(null);
@@ -907,13 +985,12 @@ function App() {
 
   const createChatSession = (
     agent: AgentSummary,
-    options: { title?: string; source: ChatSession['source']; sourceId?: string }
+    options: { title?: string; source: ChatSession['source']; sourceId?: string; conversationId?: string }
   ) => {
     const sessionId = `${agent.slug}:${generateId()}`;
-    const conversationId = `tauri-${agent.slug}-${generateId()}`;
     const session: ChatSession = {
       id: sessionId,
-      conversationId,
+      conversationId: options.conversationId || '', // Empty until first message
       agentSlug: agent.slug,
       agentName: agent.name,
       title: options.title || `${agent.name} Chat`,
@@ -936,13 +1013,7 @@ function App() {
   };
 
   const ensureManualSession = (agent: AgentSummary) => {
-    const existing = sessions.find(
-      (s) => s.agentSlug === agent.slug && s.source === 'manual'
-    );
-    if (existing) {
-      focusSession(existing.id);
-      return existing;
-    }
+    // Always create a new session for "New Chat"
     const session = createChatSession(agent, { source: 'manual', title: `${agent.name} Chat` });
     focusSession(session.id);
     return session;
@@ -1215,6 +1286,17 @@ function App() {
       inputHistory: [...current.inputHistory, text],
     }));
 
+    // Create conversationId on first message if it doesn't exist
+    if (!session.conversationId) {
+      const newConversationId = `tauri-${session.agentSlug}-${generateId()}`;
+      updateSession(sessionId, (current) => ({
+        ...current,
+        conversationId: newConversationId,
+      }));
+      // Update session reference
+      session.conversationId = newConversationId;
+    }
+
     // Construct multi-modal message
     const userMessage: ChatMessage = { 
       role: 'user', 
@@ -1223,17 +1305,9 @@ function App() {
     };
 
     // Clear ephemeral messages when sending real message
-    setEphemeralMessages(prev => {
-      const { [sessionId]: _, ...rest } = prev;
-      return rest;
-    });
-
-    // Reset scroll state before updating messages
-    setIsUserScrolledUp(false);
-
     updateSession(sessionId, (current) => ({
       ...current,
-      messages: [...current.messages, userMessage],
+      messages: [...current.messages.filter(m => !m.isEphemeral), userMessage],
       input: '',
       attachments: [],
       status: 'sending',
@@ -1324,6 +1398,7 @@ function App() {
       let buffer = '';
       const contentParts: Array<{ type: 'text' | 'tool'; content?: string; tool?: any }> = [];
       let currentTextChunk = '';
+      let stepCount = 0;
 
       if (reader) {
         while (true) {
@@ -1385,21 +1460,18 @@ function App() {
                   }
                   return { ...current, messages, updatedAt: Date.now() };
                 });
-              } else if (data.type === 'max-steps-reached' || data.type === 'finish' && data.reason === 'max-steps') {
-                // Append max turns warning
+              } else if (data.type === 'finish' && data.finishReason === 'tool-calls') {
+                // When finish reason is tool-calls, it means maxSteps was reached
                 updateSession(sessionId, (current) => {
                   const messages = [...current.messages];
-                  const lastMsg = messages[messages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    const parts = [...(lastMsg.contentParts || [])];
-                    const warningText = '\n\n⚠️ *Maximum turns reached. The conversation was terminated to prevent excessive tool usage.*';
-                    if (parts.length > 0 && parts[parts.length - 1].type === 'text') {
-                      parts[parts.length - 1].content += warningText;
-                    } else {
-                      parts.push({ type: 'text', content: warningText });
-                    }
-                    lastMsg.contentParts = parts;
-                  }
+                  messages.push({
+                    role: 'assistant',
+                    content: '⚠️ Maximum turns reached. The conversation was terminated to prevent excessive tool usage.',
+                    model: current.model,
+                    isEphemeral: true,
+                    showContinue: true,
+                    timestamp: Date.now()
+                  });
                   return { ...current, messages, updatedAt: Date.now() };
                 });
               } else if (data.type === 'tool-input-available') {
@@ -1462,15 +1534,48 @@ function App() {
                   const lastMsg = messages[messages.length - 1];
                   if (lastMsg?.role === 'assistant' && lastMsg.contentParts) {
                     const parts = [...lastMsg.contentParts];
-                    // Find the tool call from the end
+                    // Find the tool call from the end and create new object
                     for (let i = parts.length - 1; i >= 0; i--) {
                       if (parts[i].type === 'tool' && parts[i].tool?.id === data.toolCallId) {
-                        parts[i].tool!.result = data.output;
+                        parts[i] = {
+                          ...parts[i],
+                          tool: {
+                            ...parts[i].tool!,
+                            result: data.output
+                          }
+                        };
                         break;
                       }
                     }
                     lastMsg.contentParts = parts;
                   }
+                  return { ...current, messages, updatedAt: Date.now() };
+                });
+              } else if (data.type === 'tool-result') {
+                // VoltAgent native tool-result event with output
+                console.log('[Handling tool-result]', { toolCallId: data.toolCallId, hasOutput: !!data.output });
+                updateSession(sessionId, (current) => {
+                  const messages = current.messages.map(msg => {
+                    if (msg.role === 'assistant' && msg.contentParts) {
+                      return {
+                        ...msg,
+                        contentParts: msg.contentParts.map(part => {
+                          if (part.type === 'tool' && part.tool?.id === data.toolCallId) {
+                            console.log('[Updating tool in message]', { toolId: data.toolCallId });
+                            return {
+                              ...part,
+                              tool: {
+                                ...part.tool,
+                                result: data.output
+                              }
+                            };
+                          }
+                          return part;
+                        })
+                      };
+                    }
+                    return msg;
+                  });
                   return { ...current, messages, updatedAt: Date.now() };
                 });
               } else if (data.type === 'ephemeral-message') {
@@ -1834,8 +1939,8 @@ function App() {
     setManagementNotice(null);
   };
 
-  const handleSendToChat = useCallback((text: string, agentSlug?: string) => {
-    console.log('handleSendToChat called with:', { text, agentSlug, agents: agents.map(a => a.slug) });
+  const handleSendToChat = useCallback((text: string, agentSlug?: string, promptLabel?: string) => {
+    console.log('handleSendToChat called with:', { text, agentSlug, promptLabel, agents: agents.map(a => a.slug) });
     
     if (!agentSlug) {
       console.log('No agent slug provided!');
@@ -1849,7 +1954,11 @@ function App() {
       return;
     }
     // Always create a new session for prompts to ensure clean context
-    const session = createChatSession(targetAgent, { source: 'manual', title: `${targetAgent.name} Chat` });
+    const title = promptLabel || `${targetAgent.name} Chat`;
+    const session = createChatSession(targetAgent, { 
+      source: promptLabel ? 'prompt' : 'manual', 
+      title 
+    });
     console.log('New session created:', session.id);
     focusSession(session.id);
     setSessionInput(session.id, text);
@@ -1867,7 +1976,7 @@ function App() {
       conversationId,
       agentSlug: currentAgent.slug,
       agentName: currentAgent.name,
-      title: `Prompt · ${prompt.label}`,
+      title: prompt.label,
       source: 'prompt',
       sourceId: prompt.id,
       messages: [],
@@ -1889,14 +1998,14 @@ function App() {
     console.log('handlePromptSelect called with:', prompt);
     if (prompt.agent) {
       console.log('Sending to agent:', prompt.agent);
-      handleSendToChat(prompt.prompt, prompt.agent);
+      handleSendToChat(prompt.prompt, prompt.agent, prompt.label);
     } else {
       console.log('No agent specified, showing selector');
       setAgentSelectorModal({
         show: true,
         onSelect: (agentSlug) => {
           setAgentSelectorModal(null);
-          handleSendToChat(prompt.prompt, agentSlug);
+          handleSendToChat(prompt.prompt, agentSlug, prompt.label);
         }
       });
     }
@@ -1939,31 +2048,31 @@ function App() {
     setCurrentView(view);
     setManagementNotice(null);
     
-    // Update hash for routing
+    // Update path for routing (not hash)
     switch (view.type) {
       case 'workspace':
-        window.location.hash = '';
+        window.history.pushState(null, '', '/');
         break;
       case 'settings':
-        window.location.hash = '/settings';
+        window.history.pushState(null, '', '/settings');
         break;
       case 'agent-new':
-        window.location.hash = '/agents/new';
+        window.history.pushState(null, '', '/agents/new');
         break;
       case 'agent-edit':
-        window.location.hash = `/agents/${view.slug}/edit`;
-        break;
-      case 'tools':
-        window.location.hash = `/agents/${view.slug}/tools`;
-        break;
-      case 'workflows':
-        window.location.hash = `/agents/${view.slug}/workflows`;
+        window.history.pushState(null, '', `/agents/${view.slug}/edit`);
         break;
       case 'workspace-new':
-        window.location.hash = '/workspaces/new';
+        window.history.pushState(null, '', '/workspaces/new');
         break;
       case 'workspace-edit':
-        window.location.hash = `/workspaces/${view.slug}/edit`;
+        window.history.pushState(null, '', `/workspaces/${view.slug}/edit`);
+        break;
+      case 'tools':
+        window.history.pushState(null, '', `/agents/${view.slug}/tools`);
+        break;
+      case 'workflows':
+        window.history.pushState(null, '', `/agents/${view.slug}/workflows`);
         break;
     }
   };
@@ -1989,18 +2098,14 @@ function App() {
   };
 
   const handleAgentSaved = async (slug: string) => {
-    console.log('Agent saved, refetching agents...');
-    await fetchAgents();
-    console.log('Agents refetched, navigating to workspace');
+    // Agents auto-update via context
     setSelectedAgent(slug);
     navigateToWorkspace();
     showToast('Agent saved successfully');
   };
 
   const handleWorkspaceSaved = async (slug: string) => {
-    console.log('Workspace saved, refetching workspaces...');
-    await fetchWorkspaces();
-    console.log('Workspaces refetched, navigating to workspace');
+    // Workspaces auto-update via context
     navigateToWorkspace();
     showToast('Workspace saved successfully');
   };
@@ -2014,6 +2119,86 @@ function App() {
     ensureManualSession(agent);
   }, [sessions]);
 
+  const openConversation = async (conversationId: string, agentSlug: string) => {
+    // Check if already open
+    const existing = sessions.find(s => s.conversationId === conversationId);
+    if (existing) {
+      focusSession(existing.id);
+      return;
+    }
+
+    // Load conversation
+    const agent = agents.find(a => a.slug === agentSlug);
+    if (!agent) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/agents/${agentSlug}/conversations/${conversationId}/messages`);
+      if (response.ok) {
+        const payload = await response.json();
+        const rawMessages = payload.data || [];
+        
+        // Transform messages from VoltAgent format
+        const messages = rawMessages.map((msg: any) => {
+          const textParts = msg.parts?.filter((p: any) => p.type === 'text') || [];
+          const toolParts = msg.parts?.filter((p: any) => p.type === 'tool-call') || [];
+          const content = textParts.map((p: any) => p.text).join('');
+          
+          const contentParts = [
+            ...textParts.map((p: any) => ({ type: 'text' as const, content: p.text })),
+            ...toolParts.map((p: any) => ({ 
+              type: 'tool' as const, 
+              tool: {
+                id: p.toolCallId,
+                name: p.toolName,
+                args: p.args,
+                result: p.result
+              }
+            }))
+          ];
+          
+          return {
+            role: msg.role,
+            content,
+            contentParts: contentParts.length > 0 ? contentParts : undefined
+          };
+        });
+        
+        // Get conversation metadata for title
+        const convResponse = await fetch(`${API_BASE}/agents/${agentSlug}/conversations`);
+        let conversationTitle = `${agent.name} Chat`;
+        if (convResponse.ok) {
+          const convData = await convResponse.json();
+          const conv = (convData.data || []).find((c: any) => c.id === conversationId);
+          if (conv?.title) {
+            conversationTitle = conv.title;
+          }
+        }
+        
+        const sessionId = `${agentSlug}:${generateId()}`;
+        const session: ChatSession = {
+          id: sessionId,
+          conversationId,
+          agentSlug,
+          agentName: agent.name,
+          title: conversationTitle,
+          messages,
+          input: '',
+          status: 'idle',
+          source: 'manual',
+          hasUnread: false,
+          inputHistory: [],
+          historyIndex: -1,
+        };
+        
+        setSessions(prev => [...prev, session]);
+        focusSession(sessionId);
+      }
+    } catch (error) {
+      console.error('Failed to open conversation:', error);
+      showToast('Failed to open conversation');
+    }
+  };
+
   const handleShowChatForCurrentAgent = useCallback(() => {
     openChatForAgent(currentAgent);
   }, [currentAgent, openChatForAgent]);
@@ -2025,7 +2210,6 @@ function App() {
         <Header
           workspaces={workspaces}
           selectedWorkspace={selectedWorkspace}
-          activeTabId={activeTabId}
           currentView={currentView}
           onWorkspaceSelect={handleWorkspaceSelect}
           onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
@@ -2037,15 +2221,11 @@ function App() {
               navigateToView({ type: 'settings' });
             }
           }}
-          onTabChange={setActiveTabId}
         />
 
         {globalError && (
           <div className="global-error">
             <span>{globalError}</span>
-            <button type="button" onClick={fetchAgents}>
-              Retry
-            </button>
           </div>
         )}
 
@@ -2110,6 +2290,8 @@ function App() {
               onCreateAgent={() => navigateToView({ type: 'agent-new' })}
               onEditWorkspace={(slug) => navigateToView({ type: 'workspace-edit', slug })}
               onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
+              chatFontSize={chatFontSize}
+              onChatFontSizeChange={setChatFontSize}
             />
           )}
         </div>
@@ -2148,7 +2330,6 @@ function App() {
       <Header
         workspaces={workspaces}
         selectedWorkspace={selectedWorkspace}
-        activeTabId={activeTabId}
         currentView={currentView}
         onWorkspaceSelect={handleWorkspaceSelect}
         onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
@@ -2160,7 +2341,12 @@ function App() {
             navigateToView({ type: 'settings' });
           }
         }}
-        onTabChange={setActiveTabId}
+      />
+
+      <WorkspaceHeader
+        selectedWorkspace={selectedWorkspace}
+        activeTabId={activeTabId}
+        onTabChange={handleTabChange}
         onPromptSelect={handlePromptSelect}
       />
 
@@ -2176,9 +2362,6 @@ function App() {
       {globalError && (
         <div className="global-error">
           <span>{globalError}</span>
-          <button type="button" onClick={fetchAgents}>
-            Retry
-          </button>
         </div>
       )}
 
@@ -2201,6 +2384,20 @@ function App() {
                 componentId={activeTab?.component || 'project-stallion-dashboard'}
                 workspace={selectedWorkspace}
                 activeTab={activeTab}
+                activeTabId={activeTabId}
+                onTabChange={(tabId) => setActiveTabId(tabId)}
+                onLaunchPrompt={handlePromptSelect}
+                onRefresh={() => {
+                  // Clear session storage for the current workspace
+                  const prefix = `${selectedWorkspace?.slug || 'workspace'}-`;
+                  Object.keys(sessionStorage).forEach(key => {
+                    if (key.startsWith(prefix)) {
+                      sessionStorage.removeItem(key);
+                    }
+                  });
+                  // Trigger a re-render by updating a timestamp
+                  window.location.reload();
+                }}
                 onRequestAuth={handleAuthError}
                 onSendToChat={(text, agent) => {
                   if (agent) {
@@ -2232,7 +2429,10 @@ function App() {
               {!isDockCollapsed && !isDockMaximized && (
                 <div
                   className="chat-dock__resize-handle"
-                  onMouseDown={() => setIsDragging(true)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
                 />
               )}
               <div className="chat-dock__header" 
@@ -2426,172 +2626,275 @@ function App() {
               {!isDockCollapsed && (
                 <>
                   <div className="chat-dock__tabs">
-                    {showScrollButtons.left && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (tabListRef.current) {
-                            tabListRef.current.scrollBy({ left: -200, behavior: 'smooth' });
-                          }
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0, position: 'relative' }}>
+                      <SessionManagementMenu
+                        sessions={sessions.filter(s => s.conversationId)}
+                        activeSessionId={activeSessionId}
+                        apiBase={API_BASE}
+                        agents={agents}
+                        chatDockRef={chatSectionRef}
+                        onTitleUpdate={(sessionId, newTitle) => {
+                          updateSession(sessionId, (current) => ({
+                            ...current,
+                            title: newTitle,
+                          }));
                         }}
-                        style={{
-                          position: 'absolute',
-                          left: 0,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          zIndex: 10,
-                          background: 'var(--bg-primary)',
-                          border: '1px solid var(--border-primary)',
-                          borderRadius: '4px',
-                          padding: '4px 8px',
-                          cursor: 'pointer',
-                          boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
+                        onDelete={(sessionId) => {
+                          removeSession(sessionId);
                         }}
-                      >
-                        ←
-                      </button>
-                    )}
-                    <div 
-                      className="chat-dock__tab-list"
-                      ref={tabListRef}
-                      onScroll={() => {
-                        if (tabListRef.current) {
-                          const { scrollLeft, scrollWidth, clientWidth } = tabListRef.current;
-                          setShowScrollButtons({
-                            left: scrollLeft > 0,
-                            right: scrollLeft < scrollWidth - clientWidth - 1,
-                          });
-                        }
-                      }}
-                    >
-                      {sessions.map((session, idx) => {
-                        const agent = agents.find(a => a.slug === session.agentSlug);
-                        const agentIcon = agent ? getAgentIcon(agent) : null;
-                        
-                        return (
+                        onSelect={(sessionId) => {
+                          focusSession(sessionId);
+                        }}
+                        onOpenConversation={openConversation}
+                      />
+                      {showScrollButtons.left && (
                         <button
                           type="button"
-                          key={session.id}
-                          ref={(el) => {
-                            if (el && session.id === activeSessionId) {
-                              el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                          onClick={() => {
+                            if (tabListRef.current) {
+                              tabListRef.current.scrollBy({ left: -200, behavior: 'smooth' });
                             }
                           }}
-                          className={`chat-dock__tab ${
-                            session.id === activeSessionId ? 'is-active' : ''
-                          } ${session.hasUnread ? 'has-unread' : ''} ${session.status === 'sending' ? 'is-processing' : ''}`}
-                          onClick={() => focusSession(session.id)}
-                          title={`Switch to tab (⌘${idx + 1})`}
+                          style={{
+                            position: 'absolute',
+                            left: '48px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            zIndex: 10,
+                            background: 'var(--bg-primary)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            color: 'var(--text-primary)',
+                            boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
+                          }}
                         >
-                          {agentIcon && (
-                            <div style={{
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              backgroundColor: 'var(--color-primary)',
-                              color: 'var(--bg-primary)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: agentIcon.isCustomIcon ? '12px' : '9px',
-                              fontWeight: 600,
-                              flexShrink: 0,
-                              marginRight: '8px'
-                            }}>
-                              {agentIcon.display}
-                            </div>
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="chat-dock__tab-title">
-                              {session.title}
-                              {session.status === 'sending' && (
-                                <span className="chat-dock__tab-badge">●</span>
-                              )}
-                            </div>
-                            <div className="chat-dock__tab-agent">{session.agentName}</div>
-                            {(() => {
-                              const agent = agents.find(a => a.slug === session.agentSlug);
-                              const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                              const isCustomModel = session.model && session.model !== agentModelId;
-                              if (!isCustomModel) return null;
-                              const modelInfo = availableModels.find(m => m.id === session.model);
-                              return (
-                                <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
-                                  {modelInfo?.name || 'Custom'}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          {idx < 9 && (
-                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>
-                              ⌘{idx + 1}
-                            </span>
-                          )}
-                          <span
-                            className="chat-dock__tab-close"
-                            role="button"
-                            tabIndex={0}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              removeSession(session.id);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                removeSession(session.id);
-                              }
-                            }}
-                            title="Close (⌘X)"
-                            style={{ flexShrink: 0 }}
-                          >
-                            ×
-                          </span>
+                          ←
                         </button>
-                      );
-                      })}
-                    </div>
-                    {showScrollButtons.right && (
-                      <button
-                        type="button"
-                        onClick={() => {
+                      )}
+                      <div 
+                        className="chat-dock__tab-list"
+                        ref={tabListRef}
+                        onScroll={() => {
                           if (tabListRef.current) {
-                            tabListRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                            const { scrollLeft, scrollWidth, clientWidth } = tabListRef.current;
+                            setShowScrollButtons({
+                              left: scrollLeft > 0,
+                              right: scrollLeft < scrollWidth - clientWidth - 1,
+                            });
                           }
                         }}
-                        style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          zIndex: 10,
-                          background: 'var(--bg-primary)',
-                          border: '1px solid var(--border-primary)',
-                          borderRadius: '4px',
-                          padding: '4px 8px',
-                          cursor: 'pointer',
-                          boxShadow: '-2px 0 8px rgba(0,0,0,0.1)',
-                        }}
                       >
-                        →
+                        {sessions.map((session, idx) => {
+                          const agent = agents.find(a => a.slug === session.agentSlug);
+                          const agentIcon = agent ? getAgentIcon(agent) : null;
+                          
+                          return (
+                          <button
+                            type="button"
+                            key={session.id}
+                            ref={(el) => {
+                              if (el && session.id === activeSessionId) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                              }
+                            }}
+                            className={`chat-dock__tab ${
+                              session.id === activeSessionId ? 'is-active' : ''
+                            } ${session.hasUnread ? 'has-unread' : ''} ${session.status === 'sending' ? 'is-processing' : ''}`}
+                            onClick={() => focusSession(session.id)}
+                            title={`Switch to tab (⌘${idx + 1})`}
+                          >
+                            {agentIcon && (
+                              <div style={{
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                backgroundColor: 'var(--color-primary)',
+                                color: 'var(--bg-primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: agentIcon.isCustomIcon ? '12px' : '9px',
+                                fontWeight: 600,
+                                flexShrink: 0,
+                                marginRight: '8px'
+                              }}>
+                                {agentIcon.display}
+                              </div>
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="chat-dock__tab-title">
+                                {session.title}
+                                {session.status === 'sending' && (
+                                  <span className="chat-dock__tab-badge">●</span>
+                                )}
+                              </div>
+                              <div className="chat-dock__tab-agent">{session.agentName}</div>
+                              {(() => {
+                                const agent = agents.find(a => a.slug === session.agentSlug);
+                                const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                                const isCustomModel = session.model && session.model !== agentModelId;
+                                if (!isCustomModel) return null;
+                                const modelInfo = availableModels.find(m => m.id === session.model);
+                                return (
+                                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                                    {modelInfo?.name || 'Custom'}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            {idx < 9 && (
+                              <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                                ⌘{idx + 1}
+                              </span>
+                            )}
+                            <span
+                              className="chat-dock__tab-close"
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                removeSession(session.id);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  removeSession(session.id);
+                                }
+                              }}
+                              title="Close (⌘X)"
+                              style={{ flexShrink: 0 }}
+                            >
+                              ×
+                            </span>
+                          </button>
+                        );
+                        })}
+                      </div>
+                      {showScrollButtons.right && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (tabListRef.current) {
+                              tabListRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                            }
+                          }}
+                          style={{
+                            position: 'absolute',
+                            right: '0',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            zIndex: 10,
+                            background: 'var(--bg-primary)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            color: 'var(--text-primary)',
+                            boxShadow: '-2px 0 8px rgba(0,0,0,0.15)',
+                          }}
+                        >
+                          →
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setChatFontSize(prev => Math.max(10, prev - 1));
+                          }}
+                          disabled={chatFontSize <= 10}
+                          title="Decrease font size"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--border-primary)',
+                            color: 'var(--text-primary)',
+                            cursor: chatFontSize <= 10 ? 'not-allowed' : 'pointer',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            lineHeight: 1,
+                            opacity: chatFontSize <= 10 ? 0.3 : 1
+                          }}
+                        >
+                          A−
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setChatFontSize(defaultFontSize);
+                          }}
+                          title="Reset font size"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--border-primary)',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            lineHeight: 1,
+                            opacity: chatFontSize === defaultFontSize ? 0.5 : 1
+                          }}
+                        >
+                          A
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setChatFontSize(prev => Math.min(24, prev + 1));
+                          }}
+                          disabled={chatFontSize >= 24}
+                          title="Increase font size"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--border-primary)',
+                            color: 'var(--text-primary)',
+                            cursor: chatFontSize >= 24 ? 'not-allowed' : 'pointer',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            lineHeight: 1,
+                            opacity: chatFontSize >= 24 ? 0.3 : 1
+                          }}
+                        >
+                          A+
+                        </button>
+                        <span style={{ fontSize: '9px', color: 'var(--text-muted)', minWidth: '32px', textAlign: 'center' }}>
+                          {Math.round((chatFontSize / defaultFontSize) * 100)}%
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="chat-dock__new"
+                        onClick={() => {
+                          setShowSessionPicker(true);
+                        }}
+                        title="Open Conversation (⌘O)"
+                      >
+                        Open <span style={{ fontSize: '10px', opacity: 0.7 }}>⌘O</span>
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="chat-dock__new"
-                      onClick={() => {
-                        if (agents.length === 1) {
-                          openChatForAgent(agents[0]);
-                        } else {
-                          setShowNewChatModal(true);
-                          setNewChatSearch('');
-                          setNewChatSelectedIndex(0);
-                        }
-                      }}
-                      title="New Chat (⌘T)"
-                    >
-                      + New <span style={{ fontSize: '10px', opacity: 0.7 }}>⌘T</span>
-                    </button>
+                      <button
+                        type="button"
+                        className="chat-dock__new"
+                        onClick={() => {
+                          if (agents.length === 1) {
+                            openChatForAgent(agents[0]);
+                          } else {
+                            setShowNewChatModal(true);
+                            setNewChatSearch('');
+                            setNewChatSelectedIndex(0);
+                          }
+                        }}
+                        title="New Chat (⌘T)"
+                      >
+                        + New <span style={{ fontSize: '10px', opacity: 0.7 }}>⌘T</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="chat-dock__body">
@@ -2600,17 +2903,18 @@ function App() {
                         {showStatsPanel && (
                           <ConversationStats
                             agentSlug={activeSession.agentSlug}
-                            conversationId={activeSession.conversationId}
+                            conversationId={activeSession.conversationId || ''}
                             apiBase={API_BASE}
                             isVisible={showStatsPanel}
                             onToggle={() => setShowStatsPanel(!showStatsPanel)}
                             messageCount={activeSession.messages.length}
-                            key={`${activeSession.conversationId}-${activeSession.status}`}
+                            key={`${activeSession.conversationId || activeSession.agentSlug}-${activeSession.status}`}
                           />
                         )}
                         <div 
                           className="chat-messages"
                           ref={messagesContainerRef}
+                          style={{ fontSize: `${chatFontSize}px` }}
                           onScroll={(e) => {
                             const target = e.currentTarget;
                             const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 10;
@@ -2634,11 +2938,11 @@ function App() {
                                 const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
                                 
                                 return (
-                                  <div key={idx} className={`message ${msg.role}`}>
+                                  <div key={`${activeSession.id}-msg-${idx}`} className={`message ${msg.role}`}>
                                   <div style={{ position: 'relative' }}>
                                     {msg.role === 'assistant' && msg.model && (
                                       <div style={{ 
-                                        fontSize: '9px', 
+                                        fontSize: '0.64em', 
                                         color: 'var(--text-muted)', 
                                         marginBottom: '4px',
                                         fontStyle: 'italic',
@@ -2822,6 +3126,30 @@ function App() {
                                         )}
                                       </>
                                     )}
+                                    {msg.showContinue && (
+                                      <button
+                                        onClick={() => {
+                                          updateSession(activeSession.id, (current) => ({
+                                            ...current,
+                                            input: 'continue',
+                                          }));
+                                          sendMessage(activeSession.id, 'continue');
+                                        }}
+                                        style={{
+                                          marginTop: '8px',
+                                          padding: '6px 12px',
+                                          fontSize: '13px',
+                                          background: 'var(--accent-primary)',
+                                          color: 'white',
+                                          border: 'none',
+                                          borderRadius: '6px',
+                                          cursor: 'pointer',
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        Continue
+                                      </button>
+                                    )}
                                     {isStreaming && (
                                       <span className="loading-dots" style={{ display: 'inline-block', marginLeft: '0.5rem' }}>
                                         <span style={{ animationDelay: '0s' }}>●</span>
@@ -2909,9 +3237,7 @@ function App() {
                             })}
                             {activeSession.status === 'sending' && (() => {
                               const lastMsg = activeSession.messages[activeSession.messages.length - 1];
-                              const showLoading = !lastMsg || 
-                                                 lastMsg.role !== 'assistant' || 
-                                                 !lastMsg.contentParts?.some(p => p.tool?.needsApproval);
+                              const showLoading = !lastMsg || lastMsg.role !== 'assistant';
                               
                               return showLoading ? (
                                 <div className="message assistant">
@@ -3331,6 +3657,15 @@ function App() {
         </div>
         );
       })()}
+
+      {/* Session Picker Modal */}
+      <SessionPickerModal
+        isOpen={showSessionPicker}
+        onClose={() => setShowSessionPicker(false)}
+        onSelect={openConversation}
+        apiBase={API_BASE}
+        agents={agents}
+      />
     </div>
   );
 }

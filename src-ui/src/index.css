@@ -587,7 +587,7 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px;
+  padding: 0 1.5rem;
 }
 
 .workspace-panel.has-chat-dock {
@@ -755,7 +755,7 @@ body {
 }
 
 .chat-dock__tab.is-processing {
-  border-color: var(--accent-primary);
+  /* Border removed - badge indicator is sufficient */
 }
 
 .chat-dock__tab.has-unread::after {
@@ -1068,7 +1068,7 @@ body {
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.93em;
   transition: background 0.2s;
 }
 
@@ -1077,7 +1077,7 @@ body {
 }
 
 .tool-call__icon {
-  font-size: 14px;
+  font-size: 1em;
 }
 
 .tool-call__name {
@@ -1088,18 +1088,18 @@ body {
 
 .tool-call__error {
   color: var(--error-text);
-  font-size: 14px;
+  font-size: 1em;
 }
 
 .tool-call__toggle {
-  font-size: 10px;
+  font-size: 0.71em;
   opacity: 0.6;
 }
 
 .tool-call__details {
   padding: 12px;
   border-top: 1px solid var(--accent-hover);
-  font-size: 12px;
+  font-size: 0.86em;
 }
 
 .tool-call__section {
@@ -1126,7 +1126,7 @@ body {
   border-radius: 4px;
   background: var(--overlay-bg-dark);
   overflow-x: auto;
-  font-size: 11px;
+  font-size: 0.79em;
   line-height: 1.4;
 }
 
@@ -2111,6 +2111,55 @@ body {
 .tool-alias-editor input {
   flex: 1;
   min-width: 0;
+}
+
+.tool-params {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.tool-param {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.tool-param:not(:last-child) {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tool-param code {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: var(--accent-subtle);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.tool-param .required {
+  color: var(--error-primary);
+  font-weight: 700;
+}
+
+.tool-param .param-type {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.tool-param .param-desc {
+  color: var(--text-secondary);
+  font-size: 11px;
+  flex: 1;
+  min-width: 150px;
 }
 
 .tool-allow-list {

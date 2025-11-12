@@ -285,6 +285,31 @@ export class WorkAgentRuntime {
               return c.json({ success: true, data: tools });
             } catch (error: any) {
               this.logger.error('Failed to list tools', { error });
+              return c.json({ success: true, error: error.message }, 500);
+            }
+          });
+
+          // Get agent tools with full schemas
+          app.get('/agents/:slug/tools', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const agent = this.activeAgents.get(slug);
+              
+              if (!agent) {
+                return c.json({ success: false, error: 'Agent not found or not active' }, 404);
+              }
+
+              const state = await agent.getState();
+              const tools = state.tools.map((tool: any) => ({
+                id: tool.id || tool.name,
+                name: tool.name,
+                description: tool.description,
+                parameters: tool.parameters
+              }));
+
+              return c.json({ success: true, data: tools });
+            } catch (error: any) {
+              this.logger.error('Failed to get agent tools', { error });
               return c.json({ success: false, error: error.message }, 500);
             }
           });
@@ -615,11 +640,52 @@ export class WorkAgentRuntime {
                 return c.json({ success: true, data: [] });
               }
 
-              const conversations = await adapter.getConversations(`agent:${slug}`);
+              const conversations = await adapter.getConversations(slug);
               
               return c.json({ success: true, data: conversations });
             } catch (error: any) {
               this.logger.error('Failed to load conversations', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Update conversation (e.g., title)
+          app.patch('/agents/:slug/conversations/:conversationId', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const conversationId = c.req.param('conversationId');
+              const adapter = this.memoryAdapters.get(slug);
+              
+              if (!adapter) {
+                return c.json({ success: false, error: 'Agent not found' }, 404);
+              }
+
+              const body = await c.req.json();
+              const updated = await adapter.updateConversation(conversationId, body);
+              
+              return c.json({ success: true, data: updated });
+            } catch (error: any) {
+              this.logger.error('Failed to update conversation', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Delete conversation
+          app.delete('/agents/:slug/conversations/:conversationId', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const conversationId = c.req.param('conversationId');
+              const adapter = this.memoryAdapters.get(slug);
+              
+              if (!adapter) {
+                return c.json({ success: false, error: 'Agent not found' }, 404);
+              }
+
+              await adapter.deleteConversation(conversationId);
+              
+              return c.json({ success: true });
+            } catch (error: any) {
+              this.logger.error('Failed to delete conversation', { error });
               return c.json({ success: false, error: error.message }, 500);
             }
           });
@@ -648,6 +714,45 @@ export class WorkAgentRuntime {
             try {
               const slug = c.req.param('slug');
               const conversationId = c.req.param('conversationId');
+              const spec = await this.configLoader.loadAgent(slug);
+              const modelId = spec.model || this.appConfig.defaultModel;
+              
+              // Calculate base stats from system prompt and tools
+              const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
+              const agentTools = this.agentTools.get(slug) || [];
+              const toolsJson = JSON.stringify(agentTools.map((t: any) => ({
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters
+              })));
+              const mcpServerTokens = Math.ceil(toolsJson.length / 4);
+              
+              // If no conversationId or conversation doesn't exist, return agent-level stats
+              if (!conversationId) {
+                const contextTokens = systemPromptTokens + mcpServerTokens;
+                const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, contextTokens);
+                
+                return c.json({ 
+                  success: true, 
+                  data: {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    totalTokens: 0,
+                    contextTokens,
+                    turns: 0,
+                    toolCalls: 0,
+                    estimatedCost: 0,
+                    contextWindowPercentage,
+                    modelId,
+                    systemPromptTokens,
+                    mcpServerTokens,
+                    userMessageTokens: 0,
+                    assistantMessageTokens: 0,
+                    contextFilesTokens: 0,
+                  }
+                });
+              }
+              
               const adapter = this.memoryAdapters.get(slug);
               
               if (!adapter) {
@@ -670,13 +775,13 @@ export class WorkAgentRuntime {
               };
 
               const modelStats = conversation.metadata?.modelStats || {};
-
-              // Calculate context window percentage using actual total tokens
-              const agent = this.activeAgents.get(slug);
-              const spec = await this.configLoader.loadAgent(slug);
-              const modelId = spec.model || this.appConfig.defaultModel;
               
-              const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, stats.totalTokens);
+              const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, stats.contextTokens || stats.totalTokens);
+
+              // Get token breakdown from stats or use calculated values
+              const breakdown = stats.tokenBreakdown || {};
+              const userMessageTokens = breakdown.userMessageTokens || 0;
+              const assistantMessageTokens = breakdown.assistantMessageTokens || 0;
 
               return c.json({ 
                 success: true, 
@@ -686,6 +791,11 @@ export class WorkAgentRuntime {
                   conversationId,
                   modelId,
                   modelStats,
+                  systemPromptTokens,
+                  mcpServerTokens,
+                  userMessageTokens,
+                  assistantMessageTokens,
+                  contextFilesTokens: 0, // Placeholder for future context files support
                 }
               });
             } catch (error: any) {
@@ -1182,8 +1292,22 @@ export class WorkAgentRuntime {
                   this.logger.info('[Chat] Calling streamText with context', {
                     hasElicitation: !!operationContext.elicitation,
                     elicitationType: typeof operationContext.elicitation,
-                    contextKeys: Object.keys(operationContext)
+                    contextKeys: Object.keys(operationContext),
+                    conversationId: operationContext.conversationId,
+                    userId: operationContext.userId
                   });
+                  
+                  // Log what's in memory before the call
+                  if (agent.memory && operationContext.conversationId) {
+                    const conv = await agent.memory.getConversation(operationContext.conversationId);
+                    this.logger.info('[Chat] Memory state before call', {
+                      conversationId: operationContext.conversationId,
+                      messageCount: conv?.messages?.length || 0,
+                      hasMessages: !!conv?.messages,
+                      conversationExists: !!conv,
+                      createdAt: conv?.createdAt,
+                    });
+                  }
                   
                   const result = await agent.streamText(input, operationContext);
 
@@ -1194,7 +1318,7 @@ export class WorkAgentRuntime {
                         type: 'tool-input-available',
                         toolCallId: chunk.toolCallId,
                         toolName: chunk.toolName,
-                        input: chunk.args || {}
+                        input: chunk.input || {}
                       })}\n\n`);
                     }
                     
@@ -1404,6 +1528,10 @@ export class WorkAgentRuntime {
 
     return createHooks({
       onToolStart: async ({ tool, context }) => {
+        // Track tool call count in context metadata
+        if (!context.metadata) context.metadata = {};
+        context.metadata.toolCallCount = (context.metadata.toolCallCount || 0) + 1;
+        
         this.logger.info('[onToolStart] Tool execution starting', {
           toolName: tool.name,
           conversationId: context.conversationId,
@@ -1445,33 +1573,93 @@ export class WorkAgentRuntime {
           const usage = 'usage' in output ? output.usage : undefined;
           if (!usage) return;
 
-          // Count tool calls from context steps
-          const toolCallCount = context.steps?.reduce((count, step) => {
-            return count + (step.toolInvocations?.length || 0);
-          }, 0) || 0;
+          // Count tool calls from context metadata (tracked in onToolStart)
+          const toolCallCount = context.metadata?.toolCallCount || 0;
+
+          this.logger.info('[Debug] Tool call count from metadata:', toolCallCount);
+
+          // Log actual usage from VoltAgent
+          this.logger.info('[Usage Stats]', {
+            conversationId: context.conversationId,
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+            messageCount: conversation.messages?.length || 0,
+            stepCount: context.steps?.length || 0,
+            toolCallCount,
+          });
 
           // Get existing stats or initialize
           const existingStats = conversation.metadata?.stats || {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
+            contextTokens: 0,
             turns: 0,
             toolCalls: 0,
             estimatedCost: 0,
           };
 
-          const modelId = spec.model || this.appConfig.defaultModel;
+          // Get agent spec for model info
+          const agentSlug = conversation.resourceId;
+          const agentSpec = await this.configLoader.loadAgent(agentSlug);
+          const modelId = agentSpec.model || this.appConfig.defaultModel;
           const cost = await this.calculateCost(modelId, usage);
 
-          // Update stats - Bedrock returns cumulative tokens for the conversation,
-          // so we use the latest values directly instead of accumulating
+          // Calculate context tokens: accumulated outputs + latest input
+          // Context represents what's in memory (grows with conversation)
+          const newOutputTokens = existingStats.outputTokens + (usage.completionTokens || 0);
+          const newInputTokens = existingStats.inputTokens + (usage.promptTokens || 0);
+          
+          // Estimate system prompt + tools tokens (calculate once, store in breakdown)
+          const agentTools = this.agentTools.get(agentSlug) || [];
+          
+          // Use stored breakdown values if available, otherwise calculate
+          const existingBreakdown = existingStats.tokenBreakdown || {};
+          const systemPromptTokens = existingBreakdown.systemPromptTokens || Math.ceil((agentSpec.prompt?.length || 0) / 4);
+          const toolsJson = JSON.stringify(agentTools.map((t: any) => ({
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters
+          })));
+          const mcpServerTokens = existingBreakdown.mcpServerTokens || Math.ceil(toolsJson.length / 4);
+          
+          // Context = system prompt + tools + all user messages + all assistant responses
+          // Get updated conversation to include the latest user message
+          const updatedConversation = await memory.getConversation(context.conversationId);
+          const userMessageTokens = updatedConversation?.messages
+            ?.filter(m => m.role === 'user')
+            .reduce((sum, m) => {
+              // Handle both string content and array of content parts
+              const content = typeof m.content === 'string' 
+                ? m.content 
+                : Array.isArray(m.content) 
+                  ? m.content.map((p: any) => p.text || '').join('') 
+                  : '';
+              return sum + Math.ceil(content.length / 4);
+            }, 0) || 0;
+          const assistantMessageTokens = newOutputTokens;
+          
+          const contextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + assistantMessageTokens;
+
+          // Store breakdown for stats endpoint
+          const tokenBreakdown = {
+            systemPromptTokens,
+            mcpServerTokens,
+            userMessageTokens,
+            assistantMessageTokens,
+          };
+
+          // Update stats
           const updatedStats = {
-            inputTokens: usage.promptTokens || 0,
-            outputTokens: existingStats.outputTokens + (usage.completionTokens || 0),
-            totalTokens: (usage.promptTokens || 0) + existingStats.outputTokens + (usage.completionTokens || 0),
+            inputTokens: newInputTokens, // Total consumed across all LLM calls
+            outputTokens: newOutputTokens, // Total generated
+            totalTokens: newInputTokens + newOutputTokens,
+            contextTokens, // Current memory size
             turns: existingStats.turns + 1,
             toolCalls: existingStats.toolCalls + toolCallCount,
             estimatedCost: existingStats.estimatedCost + cost,
+            tokenBreakdown,
           };
 
           // Track per-model stats
@@ -1480,15 +1668,23 @@ export class WorkAgentRuntime {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
+            contextTokens: 0,
             turns: 0,
             toolCalls: 0,
             estimatedCost: 0,
           };
 
+          const newModelOutputTokens = currentModelStats.outputTokens + (usage.completionTokens || 0);
+          const newModelInputTokens = currentModelStats.inputTokens + (usage.promptTokens || 0);
+          
+          // Per-model context is harder to track accurately, use accumulated outputs as approximation
+          const modelContextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + newModelOutputTokens;
+          
           modelStats[modelId] = {
-            inputTokens: usage.promptTokens || 0,
-            outputTokens: currentModelStats.outputTokens + (usage.completionTokens || 0),
-            totalTokens: (usage.promptTokens || 0) + currentModelStats.outputTokens + (usage.completionTokens || 0),
+            inputTokens: newModelInputTokens,
+            outputTokens: newModelOutputTokens,
+            totalTokens: newModelInputTokens + newModelOutputTokens,
+            contextTokens: modelContextTokens,
             turns: currentModelStats.turns + 1,
             toolCalls: currentModelStats.toolCalls + toolCallCount,
             estimatedCost: currentModelStats.estimatedCost + cost,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { AgentSummary, Tool } from '../types';
 import { getAgentIcon } from '../utils/workspace';
+import { AgentIcon } from '../components/AgentIcon';
 import { useAppData } from '../contexts/AppDataContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
@@ -516,22 +517,11 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
               <div className="form-group">
                 <label>Icon</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div
-                    style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '12px',
-                      background: 'var(--accent-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: formData.icon ? '24px' : '16px',
-                      fontWeight: formData.icon ? 'normal' : 600,
-                      color: formData.icon ? 'inherit' : 'var(--color-bg)',
-                    }}
-                  >
-                    {formData.icon || getAgentIcon({ name: formData.name || 'Agent' }).display}
-                  </div>
+                  <AgentIcon 
+                    agent={{ name: formData.name || 'Agent', icon: formData.icon }} 
+                    size="large"
+                    style={{ borderRadius: '12px' }}
+                  />
                   <div style={{ flex: 1 }}>
                     <input
                       type="text"

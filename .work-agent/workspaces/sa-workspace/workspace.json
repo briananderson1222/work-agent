@@ -10,15 +10,21 @@
       "component": "sa-dashboard",
       "prompts": [
         {
-          "id": "daily-triage",
-          "label": "Daily Triage",
-          "prompt": "Review my calendar for today and identify customer meetings that need preparation or follow-up.",
+          "id": "daily-overview",
+          "label": "Daily Overview",
+          "prompt": "/daily",
           "agent": "sa-agent"
         },
         {
-          "id": "meeting-prep",
-          "label": "Meeting Prep",
-          "prompt": "Help me prepare for my next customer meeting by summarizing account details and recent opportunities.",
+          "id": "customer-outreach",
+          "label": "Customer Outreach",
+          "prompt": "Help me identify customers who need outreach based on recent activity and upcoming renewals.",
+          "agent": "sa-agent"
+        },
+        {
+          "id": "log-activity",
+          "label": "Log Activity from Event",
+          "prompt": "/activity",
           "agent": "sa-agent"
         }
       ]
@@ -26,26 +32,34 @@
     {
       "id": "salesforce",
       "label": "Salesforce",
-      "component": "sfdc-account-manager"
+      "component": "sfdc-account-manager",
+      "prompts": [
+        {
+          "id": "latest-activities",
+          "label": "Latest Activities Filed",
+          "prompt": "Show me the latest activities I've filed in Salesforce this week.",
+          "agent": "sa-agent"
+        },
+        {
+          "id": "sa-highlight",
+          "label": "SA Highlight",
+          "prompt": "Generate a highlight summary of my SA activities for leadership review.",
+          "agent": "sa-agent"
+        },
+        {
+          "id": "log-thought-leadership",
+          "label": "Log Thought Leadership",
+          "prompt": "Help me log a thought leadership activity in Salesforce.",
+          "agent": "sa-agent"
+        }
+      ]
     }
   ],
   "globalPrompts": [
     {
-      "id": "daily",
-      "label": "Daily Overview",
-      "prompt": "/daily",
-      "agent": "sa-agent"
-    },
-    {
-      "id": "activity-log",
-      "label": "Log Activity",
-      "prompt": "/activity",
-      "agent": "sa-agent"
-    },
-    {
-      "id": "sfdc-update",
-      "label": "SFDC Update",
-      "prompt": "Check my Salesforce tasks and opportunities that need updates this week.",
+      "id": "log-insight",
+      "label": "Log Insight",
+      "prompt": "Help me log a customer insight or technical discovery to Salesforce.",
       "agent": "sa-agent"
     }
   ]

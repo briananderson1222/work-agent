@@ -89,6 +89,7 @@ export interface AppConfig {
   defaultModel: string;
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
+  defaultChatFontSize?: number;
 }
 
 export interface TemplateVariable {
