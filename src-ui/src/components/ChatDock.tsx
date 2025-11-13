@@ -6,9 +6,23 @@ interface ChatDockProps {
   apiBase: string;
   availableModels: any[];
   onRequestAuth?: () => void;
+  // Optional: Pass existing sessions from App.tsx for now
+  externalSessions?: ChatSession[];
+  externalActiveSessionId?: string | null;
+  onSessionChange?: (sessions: ChatSession[]) => void;
+  onActiveSessionChange?: (sessionId: string | null) => void;
 }
 
-export function ChatDock({ agents, apiBase, availableModels, onRequestAuth }: ChatDockProps) {
+export function ChatDock({ 
+  agents, 
+  apiBase, 
+  availableModels, 
+  onRequestAuth,
+  externalSessions,
+  externalActiveSessionId,
+  onSessionChange,
+  onActiveSessionChange
+}: ChatDockProps) {
   // Chat dock state
   const [isDockCollapsed, setIsDockCollapsed] = useState(() => {
     const saved = localStorage.getItem('chatDockCollapsed');
