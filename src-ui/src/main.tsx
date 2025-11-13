@@ -8,6 +8,7 @@ import { WorkspacesProvider } from './contexts/WorkspacesContext';
 import { AgentsProvider } from './contexts/AgentsContext';
 import { WorkflowsProvider } from './contexts/WorkflowsContext';
 import { ConversationsProvider } from './contexts/ConversationsContext';
+import { ActiveChatsProvider } from './contexts/ActiveChatsContext';
 import { StatsProvider } from './contexts/StatsContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3141';
@@ -20,9 +21,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <AgentsProvider>
             <WorkflowsProvider>
               <ConversationsProvider>
-                <StatsProvider>
-                  <App />
-                </StatsProvider>
+                <ActiveChatsProvider>
+                  <StatsProvider>
+                    <App />
+                  </StatsProvider>
+                </ActiveChatsProvider>
               </ConversationsProvider>
             </WorkflowsProvider>
           </AgentsProvider>

@@ -23,6 +23,8 @@ import { useWorkspaces, useWorkspace } from './contexts/WorkspacesContext';
 import { useAgents } from './contexts/AgentsContext';
 import { useWorkflows } from './contexts/WorkflowsContext';
 import { useConversationStatus } from './contexts/ConversationsContext';
+import { useActiveChatActions } from './contexts/ActiveChatsContext';
+import { useDerivedSessions, useEnrichedSession } from './hooks/useDerivedSessions';
 import { WorkspaceRenderer } from './workspaces';
 import { AgentEditorView } from './views/AgentEditorView';
 import { WorkspaceEditorView } from './views/WorkspaceEditorView';
@@ -30,6 +32,7 @@ import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { SettingsView } from './views/SettingsView';
 import { useAwsAuth } from './hooks/useAwsAuth';
+import { useStreamingMessage } from './hooks/useStreamingMessage';
 import { setAuthCallback, apiRequest } from './lib/apiClient';
 import { getAgentIcon } from './utils/workspace';
 import { getModelCapabilities } from './utils/modelCapabilities';
@@ -216,11 +219,44 @@ function App() {
     show: boolean;
     onSelect: (slug: string) => void;
   } | null>(null);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('session');
   });
+  
+  const [ephemeralMessages, setEphemeralMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [streamingMessages, setStreamingMessages] = useState<Record<string, ChatMessage>>({});
+  
+  // Derive sessions from contexts (includes both backend conversations and draft sessions)
+  const baseSessions = useDerivedSessions(API_BASE, selectedAgent);
+  const { initChat, updateChat, clearInput, removeChat } = useActiveChatActions();
+  const conversationActions = useConversationStatus(selectedAgent || '', activeSessionId || '');
+  
+  // Enrich the active session with full data (messages, status, UI state)
+  const baseActiveSession = baseSessions.find(s => s.id === activeSessionId) || null;
+  const enrichedActiveSession = useEnrichedSession(
+    API_BASE,
+    selectedAgent,
+    activeSessionId,
+    baseActiveSession
+  );
+  
+  // Combine base sessions with enriched active session and ephemeral messages
+  const sessions = useMemo(() => {
+    const allSessions = enrichedActiveSession 
+      ? baseSessions.map(s => s.id === activeSessionId ? enrichedActiveSession : s)
+      : baseSessions;
+    
+    // Merge ephemeral messages into sessions (prepend so user message shows before streaming assistant message)
+    return allSessions.map(s => {
+      const ephemeral = ephemeralMessages[s.id];
+      if (ephemeral && ephemeral.length > 0) {
+        return { ...s, messages: [...ephemeral, ...s.messages] };
+      }
+      return s;
+    });
+  }, [baseSessions, enrichedActiveSession, activeSessionId, ephemeralMessages]);
   const [isDockCollapsed, setIsDockCollapsed] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('dock') !== 'open';
@@ -244,6 +280,7 @@ function App() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
   const workflowCatalog = useWorkflows(API_BASE);
+  const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastSessionId, setToastSessionId] = useState<string | null>(null);
   const [showPinDialog, setShowPinDialog] = useState(false);
@@ -336,9 +373,7 @@ function App() {
     };
   }, []);
   const [pendingPromptSend, setPendingPromptSend] = useState<{ sessionId: string; prompt: string } | null>(null);
-  const [loadedAgents, setLoadedAgents] = useState<Set<string>>(new Set());
   const [messageQueue, setMessageQueue] = useState<Map<string, string[]>>(new Map());
-  const [ephemeralMessages, setEphemeralMessages] = useState<Record<string, ChatMessage[]>>({});
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   const [newChatSearch, setNewChatSearch] = useState('');
@@ -522,11 +557,7 @@ function App() {
     isDockCollapsedRef.current = isDockCollapsed;
   }, [isDockCollapsed]);
 
-  useEffect(() => {
-    if (selectedAgent && agents.length > 0 && !loadedAgents.has(selectedAgent)) {
-      loadSessionsForAgent(selectedAgent);
-    }
-  }, [selectedAgent, agents, loadedAgents]);
+  // Sessions are loaded automatically via ConversationsContext
 
   useEffect(() => {
     if (pendingPromptSend) {
@@ -570,12 +601,7 @@ function App() {
         if (firstUserMsg?.content) {
           const autoTitle = firstUserMsg.content.slice(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '');
           
-          // Update locally
-          updateSession(session.id, (current) => ({
-            ...current,
-            title: autoTitle,
-            hasAutoTitle: true,
-          }));
+          // Title will be updated via ConversationsContext after server update
           
           // Update on server
           fetch(`${API_BASE}/agents/${session.agentSlug}/conversations/${session.conversationId}`, {
@@ -588,68 +614,7 @@ function App() {
     });
   }, [sessions.map(s => `${s.id}:${s.messages.length}`).join(',')]);
 
-  useEffect(() => {
-    const loadMessagesForActiveSession = async () => {
-      if (!activeSessionId) return;
-      const session = sessions.find(s => s.id === activeSessionId);
-      if (!session || session.messages.length > 0) return;
-      
-      // Skip loading if no conversationId (new chat)
-      if (!session.conversationId) return;
-      
-      try {
-        const response = await fetch(`${API_BASE}/agents/${session.agentSlug}/conversations/${session.conversationId}/messages`);
-        if (response.ok) {
-          const payload = await response.json();
-          const messages = payload.data || [];
-          
-          // Only update if messages are still empty (avoid race condition)
-          setSessions(prev => prev.map(s => 
-            s.id === activeSessionId && s.messages.length === 0
-              ? {
-                  ...s,
-                  messages: messages.map((msg: any) => {
-                    // VoltAgent stores messages with parts array
-                    const textParts = msg.parts?.filter((p: any) => p.type === 'text') || [];
-                    const toolParts = msg.parts?.filter((p: any) => p.type === 'tool-call') || [];
-                    const content = textParts.map((p: any) => p.text).join('');
-                    
-                    const contentParts = [
-                      ...textParts.map((p: any) => ({ type: 'text' as const, content: p.text })),
-                      ...toolParts.map((p: any) => ({ 
-                        type: 'tool' as const, 
-                        tool: {
-                          id: p.toolCallId,
-                          name: p.toolName,
-                          args: p.args,
-                          result: p.result
-                        }
-                      }))
-                    ];
-                    
-                    return {
-                      role: msg.role,
-                      content,
-                      contentParts: contentParts.length > 0 ? contentParts : undefined
-                    };
-                  }),
-                }
-              : s
-          ));
-        } else {
-          // Failed to load conversation, close the session
-          console.error('Failed to load conversation, closing session');
-          removeSession(activeSessionId);
-        }
-      } catch (err) {
-        console.error('Failed to load messages:', err);
-        // Close session on error
-        removeSession(activeSessionId);
-      }
-    };
-    
-    loadMessagesForActiveSession();
-  }, [activeSessionId]);
+  // Messages are loaded automatically via ConversationsContext in useEnrichedSession
 
   useEffect(() => {
     if (!activeSessionId || isDockCollapsed || isUserScrolledUp) return;
@@ -811,13 +776,10 @@ function App() {
 
   useEffect(() => {
     if (!isDockCollapsed && activeSessionId) {
-      updateSession(activeSessionId, (current) => ({
-        ...current,
-        hasUnread: false,
-      }));
+      updateChat(activeSessionId, { hasUnread: false });
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
-  }, [isDockCollapsed, activeSessionId]);
+  }, [isDockCollapsed, activeSessionId, updateChat]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -903,50 +865,7 @@ function App() {
     }
   };
 
-  const loadSessionsForAgent = async (agentSlug: string) => {
-    try {
-      const response = await fetch(`${API_BASE}/agents/${agentSlug}/conversations`);
-      if (!response.ok) return; // Silently fail if endpoint doesn't exist yet
-      
-      const payload = await response.json();
-      const conversations = payload.data || [];
-      
-      // Convert backend conversations to UI sessions
-      const loadedSessions: ChatSession[] = conversations.map((conv: any) => ({
-        id: conv.conversationId,
-        conversationId: conv.conversationId,
-        agentSlug: agentSlug,
-        agentName: agents.find(a => a.slug === agentSlug)?.name || agentSlug,
-        title: conv.title || `${agentSlug} Chat`,
-        source: 'manual' as const,
-        messages: [], // Load messages on demand
-        input: '',
-        queuedMessages: [],
-        status: 'idle' as const,
-        error: null,
-        createdAt: new Date(conv.createdAt).getTime(),
-        updatedAt: new Date(conv.updatedAt).getTime(),
-        hasUnread: false,
-      }));
-      
-      // Merge with existing sessions from other agents
-      setSessions((prev) => {
-        const otherAgentSessions = prev.filter(s => s.agentSlug !== agentSlug);
-        return [...otherAgentSessions, ...loadedSessions];
-      });
-      
-      // Mark this agent as loaded
-      setLoadedAgents((prev) => new Set(prev).add(agentSlug));
-    } catch (err) {
-      console.error('Failed to load sessions:', err);
-    }
-  };
-
-  const updateSession = (sessionId: string, modifier: (session: ChatSession) => ChatSession) => {
-    setSessions((prev) =>
-      prev.map((session) => (session.id === sessionId ? modifier(session) : session))
-    );
-  };
+  // Sessions are loaded automatically via ConversationsContext in useDerivedSessions
 
   const removeSession = (sessionId: string) => {
     const session = sessions.find(s => s.id === sessionId);
@@ -958,14 +877,15 @@ function App() {
       setActiveAbortController(null);
     }
     
-    setSessions((prev) => {
-      const remaining = prev.filter((session) => session.id !== sessionId);
-      if (activeSessionId === sessionId) {
-        const next = remaining[remaining.length - 1]?.id ?? null;
-        setActiveSessionId(next);
-      }
-      return remaining;
-    });
+    // Remove from ActiveChatsContext
+    removeChat(sessionId);
+    
+    // Switch to another session if this was active
+    if (activeSessionId === sessionId) {
+      const remaining = sessions.filter(s => s.id !== sessionId);
+      const next = remaining[remaining.length - 1]?.id ?? null;
+      setActiveSessionId(next);
+    }
   };
 
   const focusSession = (sessionId: string) => {
@@ -974,10 +894,7 @@ function App() {
     setHistoryIndex(-1);
     setShowModelSelector(false);
     setShowCommandAutocomplete(false);
-    updateSession(sessionId, (current) => ({
-      ...current,
-      hasUnread: false,
-    }));
+    updateChat(sessionId, { hasUnread: false });
     setTimeout(() => {
       chatSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, 0);
@@ -987,13 +904,23 @@ function App() {
     agent: AgentSummary,
     options: { title?: string; source: ChatSession['source']; sourceId?: string; conversationId?: string }
   ) => {
-    const sessionId = `${agent.slug}:${generateId()}`;
-    const session: ChatSession = {
-      id: sessionId,
-      conversationId: options.conversationId || '', // Empty until first message
+    const sessionId = options.conversationId || `${agent.slug}:${generateId()}`;
+    const title = options.title || `${agent.name} Chat`;
+    
+    // Initialize UI state in ActiveChatsContext with metadata
+    initChat(sessionId, {
       agentSlug: agent.slug,
       agentName: agent.name,
-      title: options.title || `${agent.name} Chat`,
+      title,
+    });
+    
+    // Return a minimal session object for immediate use
+    const session: ChatSession = {
+      id: sessionId,
+      conversationId: sessionId,
+      agentSlug: agent.slug,
+      agentName: agent.name,
+      title,
       source: options.source,
       sourceId: options.sourceId,
       messages: [],
@@ -1008,7 +935,6 @@ function App() {
       inputHistory: [],
     };
 
-    setSessions((prev) => [...prev, session]);
     return session;
   };
 
@@ -1020,10 +946,7 @@ function App() {
   };
 
   const setSessionInput = (sessionId: string, value: string) => {
-    updateSession(sessionId, (current) => ({
-      ...current,
-      input: value,
-    }));
+    updateChat(sessionId, { input: value });
     
     // Reset dismissed flag when user types after /model 
     if (value.startsWith('/model ') && value.length > 7) {
@@ -1067,7 +990,7 @@ function App() {
       });
       
       // Send expanded prompt as regular message
-      updateSession(sessionId, (current) => ({ ...current, input: expandedPrompt }));
+      updateChat(sessionId, { input: expandedPrompt });
       await sendMessage(sessionId, expandedPrompt);
       return;
     }
@@ -1188,10 +1111,7 @@ function App() {
         ? availableModels.findIndex(m => m.id === session.model)
         : 0;
       
-      updateSession(sessionId, (current) => ({
-        ...current,
-        input: '',
-      }));
+      updateChat(sessionId, { input: '' });
       
       setShowModelSelector(true);
       setSelectedModelIndex(currentModelIndex >= 0 ? currentModelIndex : 0);
@@ -1201,12 +1121,7 @@ function App() {
       const session = sessions.find(s => s.id === sessionId);
       if (session) {
         const newConversationId = `tauri-${session.agentSlug}-${generateId()}`;
-        updateSession(sessionId, (current) => ({
-          ...current,
-          conversationId: newConversationId,
-          messages: [],
-          input: '',
-        }));
+        updateChat(sessionId, { input: '' });
         setEphemeralMessages(prev => ({
           ...prev,
           [sessionId]: [{ role: 'system', content: 'Conversation cleared. Starting fresh with new history.' }]
@@ -1215,10 +1130,7 @@ function App() {
       return;
     } else if (cmd === 'stats') {
       setShowStatsPanel(true);
-      updateSession(sessionId, (current) => ({
-        ...current,
-        input: '',
-      }));
+      updateChat(sessionId, { input: '' });
       return;
     } else if (cmd === 'prompts') {
       const agent = agents.find(a => a.slug === session.agentSlug);
@@ -1233,10 +1145,7 @@ function App() {
       } else {
         responseContent = `No custom slash commands defined for this agent.\n\n[MANAGE_COMMANDS:${session.agentSlug}]`;
       }
-      updateSession(sessionId, (current) => ({
-        ...current,
-        input: '',
-      }));
+      updateChat(sessionId, { input: '' });
     } else {
       responseContent = `Unknown command: ${command}\n\nAvailable:\n• /mcp - List MCP servers\n• /tools - Show tools\n• /model - Change model\n• /prompts - List custom commands\n• /clear or /new - Clear conversation\n• /stats - Show conversation statistics`;
     }
@@ -1248,10 +1157,7 @@ function App() {
     }));
     
     // Clear input
-    updateSession(sessionId, (current) => ({
-      ...current,
-      input: '',
-    }));
+    updateChat(sessionId, { input: '' });
   };
 
   const sendMessage = async (sessionId: string, overrideContent?: string) => {
@@ -1271,28 +1177,24 @@ function App() {
 
     // If already sending, queue the message
     if (session.status === 'sending') {
-      updateSession(sessionId, (current) => ({
-        ...current,
-        queuedMessages: [...(current.queuedMessages || []), text],
-        inputHistory: [...current.inputHistory, text],
-        input: overrideContent ? current.input : '',
-      }));
+      const current = sessions.find(s => s.id === sessionId);
+      if (current) {
+        updateChat(sessionId, { 
+          input: overrideContent ? current.input : '', 
+          queuedMessages: [...(current.queuedMessages || []), text],
+          inputHistory: [...current.inputHistory, text]
+        });
+      }
       return;
     }
 
     // Add to input history only when actually sending (not when queued)
-    updateSession(sessionId, (current) => ({
-      ...current,
-      inputHistory: [...current.inputHistory, text],
-    }));
+    updateChat(sessionId, { inputHistory: [...session.inputHistory, text] });
 
     // Create conversationId on first message if it doesn't exist
     if (!session.conversationId) {
       const newConversationId = `tauri-${session.agentSlug}-${generateId()}`;
-      updateSession(sessionId, (current) => ({
-        ...current,
-        conversationId: newConversationId,
-      }));
+      // REMOVED: updateSession - data comes from ConversationsContext
       // Update session reference
       session.conversationId = newConversationId;
     }
@@ -1304,17 +1206,14 @@ function App() {
       attachments: hasAttachments ? [...session.attachments!] : undefined,
     };
 
-    // Clear ephemeral messages when sending real message
-    updateSession(sessionId, (current) => ({
-      ...current,
-      messages: [...current.messages.filter(m => !m.isEphemeral), userMessage],
-      input: '',
-      attachments: [],
-      status: 'sending',
-      error: null,
-      updatedAt: Date.now(),
-      hasUnread: false,
+    // Add user message to ephemeral (will show immediately)
+    setEphemeralMessages(prev => ({
+      ...prev,
+      [sessionId]: [userMessage]
     }));
+
+    // Clear input and attachments
+    updateChat(sessionId, { input: '', attachments: [], hasUnread: false, error: null });
     focusSession(sessionId);
 
     const abortController = new AbortController();
@@ -1396,7 +1295,7 @@ function App() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      const contentParts: Array<{ type: 'text' | 'tool'; content?: string; tool?: any }> = [];
+      let contentParts: Array<{ type: 'text' | 'tool'; content?: string; tool?: any }> = [];
       let currentTextChunk = '';
       let stepCount = 0;
 
@@ -1424,87 +1323,22 @@ function App() {
                 const errorMsg = data.error || data.errorText || 'Unknown error occurred';
                 console.error('[SSE Error]', errorMsg);
                 
-                updateSession(sessionId, (current) => ({
-                  ...current,
-                  status: 'error',
-                  error: errorMsg,
-                  updatedAt: Date.now(),
-                }));
+                updateChat(sessionId, { error: errorMsg });
                 
                 setActiveAbortController(null);
                 return;
               }
               
-              if (data.type === 'text-delta' && (data.delta || data.text)) {
-                const textDelta = data.delta || data.text;
-                currentTextChunk += textDelta;
-                // Update current text chunk
-                updateSession(sessionId, (current) => {
-                  const messages = [...current.messages];
-                  const lastMsg = messages[messages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    const parts = [...(lastMsg.contentParts || [])];
-                    if (parts.length > 0 && parts[parts.length - 1].type === 'text') {
-                      parts[parts.length - 1].content = currentTextChunk;
-                    } else {
-                      parts.push({ type: 'text', content: currentTextChunk });
-                    }
-                    lastMsg.contentParts = parts;
-                  } else {
-                    messages.push({ 
-                      role: 'assistant', 
-                      content: currentTextChunk,
-                      model: current.model,
-                      contentParts: [{ type: 'text', content: currentTextChunk }]
-                    });
-                  }
-                  return { ...current, messages, updatedAt: Date.now() };
-                });
-              } else if (data.type === 'finish' && data.finishReason === 'tool-calls') {
+              // Handle streaming events
+              const result = handleStreamEvent(sessionId, data, { currentTextChunk, contentParts });
+              if (result.updated) {
+                currentTextChunk = result.currentTextChunk;
+                contentParts = result.contentParts;
+              }
+              
+              if (data.type === 'finish' && data.finishReason === 'tool-calls') {
                 // When finish reason is tool-calls, it means maxSteps was reached
-                updateSession(sessionId, (current) => {
-                  const messages = [...current.messages];
-                  messages.push({
-                    role: 'assistant',
-                    content: '⚠️ Maximum turns reached. The conversation was terminated to prevent excessive tool usage.',
-                    model: current.model,
-                    isEphemeral: true,
-                    showContinue: true,
-                    timestamp: Date.now()
-                  });
-                  return { ...current, messages, updatedAt: Date.now() };
-                });
-              } else if (data.type === 'tool-input-available') {
-                // Finalize current text chunk
-                if (currentTextChunk) {
-                  contentParts.push({ type: 'text', content: currentTextChunk });
-                  currentTextChunk = '';
-                }
-                
-                const toolCall = {
-                  id: data.toolCallId,
-                  name: data.toolName,
-                  args: data.input,
-                };
-                
-                // Add tool call inline
-                updateSession(sessionId, (current) => {
-                  const messages = [...current.messages];
-                  const lastMsg = messages[messages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    const parts = [...(lastMsg.contentParts || [])];
-                    parts.push({ type: 'tool', tool: toolCall });
-                    lastMsg.contentParts = parts;
-                  } else {
-                    messages.push({ 
-                      role: 'assistant', 
-                      content: '',
-                      model: current.model,
-                      contentParts: [{ type: 'tool', tool: toolCall }]
-                    });
-                  }
-                  return { ...current, messages, updatedAt: Date.now() };
-                });
+                // Message will be added via ConversationsContext
               } else if (data.type === 'tool-output-available') {
                 console.log('[Tool Output]', data);
                 
@@ -1529,109 +1363,21 @@ function App() {
                 }
                 
                 // Update tool result
-                updateSession(sessionId, (current) => {
-                  const messages = [...current.messages];
-                  const lastMsg = messages[messages.length - 1];
-                  if (lastMsg?.role === 'assistant' && lastMsg.contentParts) {
-                    const parts = [...lastMsg.contentParts];
-                    // Find the tool call from the end and create new object
-                    for (let i = parts.length - 1; i >= 0; i--) {
-                      if (parts[i].type === 'tool' && parts[i].tool?.id === data.toolCallId) {
-                        parts[i] = {
-                          ...parts[i],
-                          tool: {
-                            ...parts[i].tool!,
-                            result: data.output
-                          }
-                        };
-                        break;
-                      }
-                    }
-                    lastMsg.contentParts = parts;
-                  }
-                  return { ...current, messages, updatedAt: Date.now() };
-                });
+      // REMOVED: updateSession - data comes from ConversationsContext
               } else if (data.type === 'tool-result') {
                 // VoltAgent native tool-result event with output
                 console.log('[Handling tool-result]', { toolCallId: data.toolCallId, hasOutput: !!data.output });
-                updateSession(sessionId, (current) => {
-                  const messages = current.messages.map(msg => {
-                    if (msg.role === 'assistant' && msg.contentParts) {
-                      return {
-                        ...msg,
-                        contentParts: msg.contentParts.map(part => {
-                          if (part.type === 'tool' && part.tool?.id === data.toolCallId) {
-                            console.log('[Updating tool in message]', { toolId: data.toolCallId });
-                            return {
-                              ...part,
-                              tool: {
-                                ...part.tool,
-                                result: data.output
-                              }
-                            };
-                          }
-                          return part;
-                        })
-                      };
-                    }
-                    return msg;
-                  });
-                  return { ...current, messages, updatedAt: Date.now() };
-                });
+      // REMOVED: updateSession - data comes from ConversationsContext
               } else if (data.type === 'ephemeral-message') {
                 console.log('[Ephemeral Message]', data);
                 
                 // Add ephemeral message to UI
-                updateSession(sessionId, (current) => {
-                  const messages = [...current.messages];
-                  messages.push({
-                    role: 'assistant',
-                    content: data.content,
-                    model: current.model,
-                    isEphemeral: true,
-                    timestamp: data.timestamp || Date.now()
-                  });
-                  return { ...current, messages, updatedAt: Date.now() };
-                });
+      // REMOVED: updateSession - data comes from ConversationsContext
               } else if (data.type === 'tool-approval-request') {
                 console.log('[Tool Approval Request]', data);
                 
                 // Add pending tool call to UI
-                updateSession(sessionId, (current) => {
-                  const messages = [...current.messages];
-                  const lastMsg = messages[messages.length - 1];
-                  if (lastMsg?.role === 'assistant') {
-                    const parts = [...(lastMsg.contentParts || [])];
-                    parts.push({ 
-                      type: 'tool', 
-                      tool: {
-                        id: data.approvalId,
-                        name: data.toolName,
-                        args: data.toolArgs || {},
-                        needsApproval: true,
-                        description: data.toolDescription,
-                      }
-                    });
-                    lastMsg.contentParts = parts;
-                  } else {
-                    messages.push({ 
-                      role: 'assistant', 
-                      content: '',
-                      model: current.model,
-                      contentParts: [{ 
-                        type: 'tool', 
-                        tool: {
-                          id: data.approvalId,
-                          name: data.toolName,
-                          args: data.toolArgs || {},
-                          needsApproval: true,
-                          description: data.toolDescription,
-                        }
-                      }]
-                    });
-                  }
-                  return { ...current, messages, updatedAt: Date.now() };
-                });
+      // REMOVED: updateSession - data comes from ConversationsContext
               }
             } catch (e) {
               console.error('Failed to parse SSE chunk:', e);
@@ -1656,32 +1402,17 @@ function App() {
         sessionTitle: session.title 
       });
 
-      updateSession(sessionId, (current) => {
-        const queue = current.queuedMessages || [];
-        const hasQueued = queue.length > 0;
-
-        // Process next queued message after state update
-        if (hasQueued) {
-          const [nextMessage, ...remaining] = queue;
-          setTimeout(() => sendMessage(sessionId, nextMessage), 100);
-          
-          return {
-            ...current,
-            queuedMessages: remaining,
-            status: 'sending',
-            error: null,
-            updatedAt: Date.now(),
-            hasUnread: shouldMarkUnread ? true : false,
-          };
-        }
-
-        return {
-          ...current,
-          status: 'idle',
-          error: null,
-          updatedAt: Date.now(),
-          hasUnread: shouldMarkUnread ? true : false,
-        };
+      updateChat(sessionId, { 
+        hasUnread: shouldMarkUnread, 
+        error: null
+      });
+      clearStreamingMessage(sessionId);
+      
+      // Clear ephemeral messages (user message now in backend)
+      setEphemeralMessages(prev => {
+        const updated = { ...prev };
+        delete updated[sessionId];
+        return updated;
       });
       
       setActiveAbortController(null);
@@ -1697,11 +1428,7 @@ function App() {
       setActiveAbortController(null);
       
       if (err.name === 'AbortError') {
-        updateSession(sessionId, (current) => ({
-          ...current,
-          status: 'idle',
-          updatedAt: Date.now(),
-        }));
+      // REMOVED: updateSession - data comes from ConversationsContext
         setEphemeralMessages(prev => ({
           ...prev,
           [sessionId]: [{ role: 'system', content: 'Request cancelled' }]
@@ -1733,14 +1460,7 @@ function App() {
       
       const shouldMarkUnread = sessionId !== activeSessionId || isDockCollapsed;
       console.log('[Setting Error State]', { sessionId, errorMessage, shouldMarkUnread });
-      updateSession(sessionId, (current) => ({
-        ...current,
-        status: 'error',
-        error: errorMessage,
-        messages: [...current.messages, { role: 'system', content: `Error: ${errorMessage}` }],
-        updatedAt: Date.now(),
-        hasUnread: shouldMarkUnread ? true : false,
-      }));
+      updateChat(sessionId, { hasUnread: shouldMarkUnread, error: errorMessage });
       if (shouldMarkUnread) {
         showToast(`Message failed for ${session.agentName} (${session.title})`, sessionId);
       }
@@ -1813,13 +1533,7 @@ function App() {
             const normalizeId = (id: string) => id?.replace(/^us\./, '') || '';
             const isAlreadyActive = normalizeId(currentModel) === normalizeId(selectedModel.id) || currentModel === selectedModel.id;
             
-            updateSession(activeSessionId, (current) => ({
-              ...current,
-              input: '',
-              model: selectedModel.id,
-              inputHistory: [...current.inputHistory, `/model ${selectedModel.name}`],
-              messages: isAlreadyActive ? current.messages : [...current.messages, { role: 'system', content: `Model changed to **${selectedModel.name}**` }],
-            }));
+            updateChat(activeSessionId, { input: '', inputHistory: [...current.inputHistory, `/model ${selectedModel.name}`] });
             setShowModelSelector(false);
           }
         }
@@ -1853,10 +1567,7 @@ function App() {
           
           // If selecting /model, insert it with space to trigger model selector
           if (selectedCmd === '/model') {
-            updateSession(activeSessionId, (current) => ({
-              ...current,
-              input: '/model ',
-            }));
+            updateChat(activeSessionId, { input: '/model ' });
             setShowModelSelector(true);
             setSelectedModelIndex(0);
           } else {
@@ -1879,10 +1590,7 @@ function App() {
       const selection = window.getSelection();
       if (!selection || selection.toString().length === 0) {
         event.preventDefault();
-        updateSession(activeSessionId, (current) => ({
-          ...current,
-          input: '',
-        }));
+        updateChat(activeSessionId, { input: '' });
         setShowModelSelector(false);
         setShowCommandAutocomplete(false);
         return;
@@ -1893,10 +1601,7 @@ function App() {
     if (showModelSelector && event.key === 'Backspace') {
       if (activeSession?.input === '/model ') {
         event.preventDefault();
-        updateSession(activeSessionId!, (current) => ({
-          ...current,
-          input: '/model',
-        }));
+        updateChat(activeSessionId!, { input: '/model' });
         setShowModelSelector(false);
         setShowCommandAutocomplete(true);
         setSelectedCommandIndex(0);
@@ -1988,7 +1693,7 @@ function App() {
       hasUnread: false,
     };
 
-    setSessions((prev) => [...prev, session]);
+    // Session will appear in derived sessions after first message
     setActiveSessionId(sessionId);
     setIsDockCollapsed(false);
     setPendingPromptSend({ sessionId, prompt: prompt.prompt });
@@ -2190,7 +1895,7 @@ function App() {
           historyIndex: -1,
         };
         
-        setSessions(prev => [...prev, session]);
+        // Session will appear in derived sessions from ConversationsContext
         focusSession(sessionId);
       }
     } catch (error) {
@@ -2634,10 +2339,7 @@ function App() {
                         agents={agents}
                         chatDockRef={chatSectionRef}
                         onTitleUpdate={(sessionId, newTitle) => {
-                          updateSession(sessionId, (current) => ({
-                            ...current,
-                            title: newTitle,
-                          }));
+      // REMOVED: updateSession - data comes from ConversationsContext
                         }}
                         onDelete={(sessionId) => {
                           removeSession(sessionId);
@@ -3037,16 +2739,12 @@ function App() {
                                                   setActiveAbortController(null);
                                                   
                                                   // Update session status to cancelled
-                                                  updateSession(activeSession.id, (current) => {
-                                                    return { ...current, status: 'cancelled', updatedAt: Date.now() };
-                                                  });
+      // REMOVED: updateSession - data comes from ConversationsContext
                                                 }
                                                 
                                                 // Resume loading indicator for approved tools
                                                 if (approved) {
-                                                  updateSession(activeSession.id, (current) => {
-                                                    return { ...current, status: 'sending', updatedAt: Date.now() };
-                                                  });
+      // REMOVED: updateSession - data comes from ConversationsContext
                                                 }
                                                 
                                                 try {
@@ -3057,56 +2755,17 @@ function App() {
                                                   });
                                                   
                                                   // Remove needsApproval flag
-                                                  updateSession(activeSession.id, (current) => {
-                                                    const messages = [...current.messages];
-                                                    const msgIdx = messages.findIndex(m => m.contentParts?.some(p => p.tool?.id === part.tool!.id));
-                                                    if (msgIdx >= 0 && messages[msgIdx].contentParts) {
-                                                      const parts = [...messages[msgIdx].contentParts!];
-                                                      const partIdx = parts.findIndex(p => p.tool?.id === part.tool!.id);
-                                                      if (partIdx >= 0 && parts[partIdx].tool) {
-                                                        parts[partIdx].tool!.needsApproval = false;
-                                                        // Mark as cancelled if denied
-                                                        if (!approved) {
-                                                          parts[partIdx].tool!.cancelled = true;
-                                                        }
-                                                      }
-                                                      messages[msgIdx].contentParts = parts;
-                                                    }
-                                                    return { ...current, messages };
-                                                  });
+      // REMOVED: updateSession - data comes from ConversationsContext
 
                                                   // Add ephemeral feedback message
                                                   if (!approved) {
                                                     // Add ephemeral message for denial
-                                                    updateSession(activeSession.id, (current) => {
-                                                      const messages = [...current.messages];
-                                                      messages.push({
-                                                        role: 'assistant',
-                                                        content: `I understand you've denied the ${part.tool!.name} tool. Could you help me understand what you'd prefer I do instead? For example:
-- Should I try a different approach?
-- Do you need more information about what this tool does?
-- Would you like me to suggest alternative ways to help you?`,
-                                                        model: current.model,
-                                                        isEphemeral: true,
-                                                        timestamp: Date.now()
-                                                      });
-                                                      return { ...current, messages, updatedAt: Date.now() };
-                                                    });
+      // REMOVED: updateSession - data comes from ConversationsContext
                                                   }
                                                 } catch (err) {
                                                   console.error('Failed to send approval:', err);
                                                   // Add ephemeral error message
-                                                  updateSession(activeSession.id, (current) => {
-                                                    const messages = [...current.messages];
-                                                    messages.push({
-                                                      role: 'assistant',
-                                                      content: 'There was an error processing your approval. The tool request may have timed out. Please try your request again.',
-                                                      model: current.model,
-                                                      isEphemeral: true,
-                                                      timestamp: Date.now()
-                                                    });
-                                                    return { ...current, messages, updatedAt: Date.now() };
-                                                  });
+      // REMOVED: updateSession - data comes from ConversationsContext
                                                 }
                                               }}
                                             />
@@ -3129,10 +2788,7 @@ function App() {
                                     {msg.showContinue && (
                                       <button
                                         onClick={() => {
-                                          updateSession(activeSession.id, (current) => ({
-                                            ...current,
-                                            input: 'continue',
-                                          }));
+                                          updateChat(activeSession.id, { input: 'continue' });
                                           sendMessage(activeSession.id, 'continue');
                                         }}
                                         style={{
@@ -3334,13 +2990,7 @@ function App() {
                                           const normalizeId = (id: string) => id?.replace(/^us\./, '') || '';
                                           const isAlreadyActive = normalizeId(currentModel) === normalizeId(model.id) || currentModel === model.id;
                                           
-                                          updateSession(activeSessionId, (current) => ({
-                                            ...current,
-                                            input: '',
-                                            model: model.id,
-                                            inputHistory: [...current.inputHistory, `/model ${model.name}`],
-                                            messages: isAlreadyActive ? current.messages : [...current.messages, { role: 'system', content: `Model changed to **${model.name}**` }],
-                                          }));
+                                          updateChat(activeSessionId, { input: '', inputHistory: [...current.inputHistory, `/model ${model.name}`] });
                                           setShowModelSelector(false);
                                         }
                                       }}
@@ -3369,10 +3019,7 @@ function App() {
                                         
                                         // If selecting /model, insert it with space to trigger model selector
                                         if (cmd.cmd === '/model') {
-                                          updateSession(activeSessionId, (current) => ({
-                                            ...current,
-                                            input: '/model ',
-                                          }));
+                                          updateChat(activeSessionId, { input: '/model ' });
                                           setShowModelSelector(true);
                                           setSelectedModelIndex(0);
                                         } else {
@@ -3409,10 +3056,7 @@ function App() {
                               {activeSession.input && (
                                 <button
                                   onClick={() => {
-                                    updateSession(activeSession.id, (current) => ({
-                                      ...current,
-                                      input: '',
-                                    }));
+                                    updateChat(activeSession.id, { input: '' });
                                     setShowModelSelector(false);
                                     setShowCommandAutocomplete(false);
                                   }}
@@ -3448,16 +3092,12 @@ function App() {
                             <FileAttachmentInput
                               attachments={activeSession.attachments || []}
                               onAdd={(newAttachments) => {
-                                updateSession(activeSession.id, (current) => ({
-                                  ...current,
-                                  attachments: [...(current.attachments || []), ...newAttachments],
-                                }));
+                                const current = activeSession.attachments || [];
+                                updateChat(activeSession.id, { attachments: [...current, ...newAttachments] });
                               }}
                               onRemove={(id) => {
-                                updateSession(activeSession.id, (current) => ({
-                                  ...current,
-                                  attachments: (current.attachments || []).filter(a => a.id !== id),
-                                }));
+                                const current = activeSession.attachments || [];
+                                updateChat(activeSession.id, { attachments: current.filter(a => a.id !== id) });
                               }}
                               disabled={activeSession.status === 'sending'}
                               supportsImages={true}

@@ -278,6 +278,57 @@ Silent invocations (`/invoke` endpoint) bypass approval.
 - `ConversationsContext` - Conversation history
 - `ToolsContext` - Available tools
 
+**Prefer state management over business logic in components:**
+- **Keep components thin**: Components should primarily handle rendering and user interactions
+- **Move logic to contexts**: Data fetching, transformations, and business rules belong in context stores
+- **Use custom hooks**: Encapsulate complex state logic in hooks that components can consume
+- **Avoid inline calculations**: Move data transformations to the store or custom hooks
+- **Single responsibility**: Components render UI, contexts manage state and logic
+
+**Example - Bad (logic in component):**
+```typescript
+function MyComponent() {
+  const [data, setData] = useState(null);
+  
+  useEffect(() => {
+    fetch('/api/data').then(r => r.json()).then(setData);
+  }, []);
+  
+  const processedData = data?.items
+    .filter(i => i.active)
+    .map(i => ({ ...i, label: i.name.toUpperCase() }));
+  
+  return <div>{processedData?.map(...)}</div>;
+}
+```
+
+**Example - Good (logic in context):**
+```typescript
+// In context/store
+class DataStore {
+  private data = new Map();
+  
+  async fetch() {
+    const response = await fetch('/api/data');
+    const result = await response.json();
+    this.data.set('items', this.processItems(result.items));
+    this.notify();
+  }
+  
+  private processItems(items) {
+    return items
+      .filter(i => i.active)
+      .map(i => ({ ...i, label: i.name.toUpperCase() }));
+  }
+}
+
+// In component
+function MyComponent() {
+  const { items } = useData();
+  return <div>{items?.map(...)}</div>;
+}
+```
+
 **Simple UI state (NOT API data):**
 - Use `useState` for component-local state (toggles, form inputs, etc.)
 - Use `useReducer` for complex component state machines

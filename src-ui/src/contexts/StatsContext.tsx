@@ -113,7 +113,7 @@ export function useStats(agentSlug: string, conversationId: string, apiBase: str
   );
 
   useEffect(() => {
-    if (shouldFetch) {
+    if (shouldFetch && agentSlug) {
       fetchStats(agentSlug, conversationId, apiBase);
     }
   }, [agentSlug, conversationId, apiBase, shouldFetch, fetchStats]);

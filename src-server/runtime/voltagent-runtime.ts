@@ -714,6 +714,11 @@ export class WorkAgentRuntime {
             try {
               const slug = c.req.param('slug');
               const conversationId = c.req.param('conversationId');
+              
+              if (!slug || slug === 'undefined') {
+                return c.json({ success: false, error: 'Invalid agent slug' }, 400);
+              }
+              
               const spec = await this.configLoader.loadAgent(slug);
               const modelId = spec.model || this.appConfig.defaultModel;
               
