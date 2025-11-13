@@ -50,14 +50,16 @@ export function useStreamingMessage() {
       
       newContentParts.push({ type: 'tool', tool: toolCall });
       
-      // Update with tool call
-      updateChat(sessionId, {
+      // Save tool call to persistent state
+      updateChat(sessionId, (prev) => ({
+        ...prev,
+        toolCalls: [...(prev.toolCalls || []), toolCall],
         streamingMessage: {
           role: 'assistant',
           content: newContentParts.map(p => p.type === 'text' ? p.content : '').join(''),
           contentParts: newContentParts,
         }
-      });
+      }));
       
       return { 
         updated: true,

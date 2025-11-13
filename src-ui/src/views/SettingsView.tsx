@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { AgentIcon } from '../components/AgentIcon';
+import { ThemeToggle } from '../components/ThemeToggle';
 import type { AppConfig } from '../types';
 import { getWorkspaceIcon } from '../utils/workspace';
 import { useAppData } from '../contexts/AppDataContext';
@@ -223,6 +224,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
         <div className="management-view__header">
           <h2>Settings</h2>
           <div className="management-view__header-actions">
+            <ThemeToggle />
             <button
               type="button"
               className="button button--secondary"

@@ -15,6 +15,7 @@ import { SessionManagementMenu } from './components/SessionManagementMenu';
 import { PinDialog } from './components/PinDialog';
 import { ConversationStats, ContextPercentage } from './components/ConversationStats';
 import { FileAttachmentInput } from './components/FileAttachmentInput';
+import { ChatDock } from './components/ChatDock';
 import { SessionTab } from './components/SessionTab';
 import { useAppData } from './contexts/AppDataContext';
 import { useApiBase } from './contexts/ApiBaseContext';
@@ -2001,6 +2002,13 @@ function App() {
           )}
         </div>
 
+        <ChatDock
+          agents={agents}
+          apiBase={API_BASE}
+          availableModels={availableModels}
+          onRequestAuth={handleAuthError}
+        />
+
         {toastMessage && (
           <div 
             className="toast" 
@@ -2120,6 +2128,15 @@ function App() {
               />
             </div>
 
+            {/* New ChatDock component - will replace old implementation below */}
+            <ChatDock
+              agents={agents}
+              apiBase={API_BASE}
+              availableModels={availableModels}
+              onRequestAuth={handleAuthError}
+            />
+
+            {/* OLD IMPLEMENTATION - TO BE REMOVED */}
             <div
               className={`chat-dock ${isDockCollapsed ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''}`}
               style={{ 
@@ -2127,7 +2144,8 @@ function App() {
                   ? '43px' 
                   : isDockMaximized 
                     ? `${window.innerHeight - 107}px` 
-                    : `${dockHeight}px`
+                    : `${dockHeight}px`,
+                display: 'none' // Hide old implementation
               }}
               ref={chatSectionRef}
             >

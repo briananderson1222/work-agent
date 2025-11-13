@@ -1294,24 +1294,17 @@ export class WorkAgentRuntime {
                     elicitation,
                   };
                   
-                  this.logger.info('[Chat] Calling streamText with context', {
-                    hasElicitation: !!operationContext.elicitation,
-                    elicitationType: typeof operationContext.elicitation,
-                    contextKeys: Object.keys(operationContext),
-                    conversationId: operationContext.conversationId,
-                    userId: operationContext.userId
-                  });
-                  
-                  // Log what's in memory before the call
-                  if (agent.memory && operationContext.conversationId) {
-                    const conv = await agent.memory.getConversation(operationContext.conversationId);
-                    this.logger.info('[Chat] Memory state before call', {
-                      conversationId: operationContext.conversationId,
-                      messageCount: conv?.messages?.length || 0,
-                      hasMessages: !!conv?.messages,
-                      conversationExists: !!conv,
-                      createdAt: conv?.createdAt,
-                    });
+                  // Ensure conversation exists before streaming
+                  if (agent.memory && operationContext.conversationId && operationContext.userId) {
+                    const existing = await agent.memory.getConversation(operationContext.conversationId);
+                    if (!existing) {
+                      await agent.memory.createConversation({
+                        id: operationContext.conversationId,
+                        resourceId: slug,
+                        userId: operationContext.userId,
+                        title: 'New Conversation',
+                      });
+                    }
                   }
                   
                   const result = await agent.streamText(input, operationContext);

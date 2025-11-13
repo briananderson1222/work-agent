@@ -352,3 +352,39 @@ This makes SDK data easily accessible and automatically synchronized across all 
 - **Conversation scoping**: Each agent has isolated memory via `userId: agent:<slug>:user:<id>`
 - **Session cleanup**: Old sessions persist in NDJSON files
 - **Working memory**: Use `.work-agent/agents/<slug>/memory/working/` for temporary state
+
+## Component Architecture
+
+### ChatDock Component
+
+The ChatDock is a persistent component that renders across all app views (workspace, agents, tools, workflows, settings). It manages its own state and provides a consistent chat interface regardless of navigation.
+
+**Key Principles:**
+- **Always rendered**: ChatDock is rendered once at the app level, not conditionally per view
+- **Self-contained state**: Manages its own collapse/expand, height, sessions, and messages
+- **Persists across navigation**: State is preserved when switching between views
+- **Independent of view logic**: Does not depend on workspace or management view state
+
+**Implementation:**
+```typescript
+// In App.tsx - rendered once for entire app
+<ChatDock
+  agents={agents}
+  apiBase={API_BASE}
+  availableModels={availableModels}
+  onRequestAuth={handleAuthError}
+/>
+```
+
+**State Management:**
+- Dock UI state (collapsed, maximized, height) persisted to localStorage
+- Session state managed internally with React state
+- Integrates with ConversationsContext for persistence
+
+**Benefits:**
+- Chat sessions don't reset when navigating between views
+- Consistent UX across all pages
+- Cleaner separation of concerns
+- Easier to test and maintain
+
+### Memory Management

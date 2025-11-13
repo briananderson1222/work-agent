@@ -211,11 +211,87 @@ body {
 .app-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 24px;
-  padding: 16px 24px;
+  padding: 12px 24px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-primary);
+}
+
+.header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-primary);
+}
+
+.header-nav {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.header-nav-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.header-nav-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+}
+
+.header-nav-btn.is-active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-secondary);
+}
+
+.header-hamburger {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 20px;
+  padding: 8px;
+}
+
+@media (max-width: 768px) {
+  .header-hamburger {
+    display: block !important;
+  }
+  
+  .header-nav {
+    display: none;
+    position: absolute;
+    top: 60px;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    flex-direction: column;
+    padding: 8px;
+    z-index: 1000;
+  }
+  
+  .header-nav--open {
+    display: flex !important;
+  }
+  
+  .header-nav .header-nav-btn {
+    width: 100%;
+    text-align: left;
+  }
+  
+  .header-divider {
+    display: none;
+  }
 }
 
 .theme-toggle {
@@ -1479,6 +1555,11 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  padding-bottom: 43px; /* Space for collapsed chat dock */
+}
+
+.main-content--full.has-chat-dock {
+  padding-bottom: var(--chat-dock-height, 300px);
 }
 
 .management-view {

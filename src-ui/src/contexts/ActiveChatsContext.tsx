@@ -12,6 +12,10 @@ type ChatUIState = {
   agentSlug?: string;
   agentName?: string;
   title?: string;
+  // Ephemeral messages (user message before backend confirms, system messages)
+  ephemeralMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }>;
+  // Tool calls from this conversation (persisted across refreshes)
+  toolCalls?: Array<{ id: string; name: string; args: any; result?: any; state?: string; error?: string }>;
   // Streaming message being built in real-time
   streamingMessage?: {
     role: 'assistant';
@@ -77,6 +81,27 @@ class ActiveChatsStore {
       this.notify();
     }
   }
+
+  addEphemeralMessage(conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }) {
+    if (this.chats[conversationId]) {
+      const current = this.chats[conversationId].ephemeralMessages || [];
+      this.chats[conversationId] = {
+        ...this.chats[conversationId],
+        ephemeralMessages: [...current, message],
+      };
+      this.notify();
+    }
+  }
+
+  clearEphemeralMessages(conversationId: string) {
+    if (this.chats[conversationId]) {
+      this.chats[conversationId] = {
+        ...this.chats[conversationId],
+        ephemeralMessages: [],
+      };
+      this.notify();
+    }
+  }
 }
 
 const activeChatsStore = new ActiveChatsStore();
@@ -86,6 +111,8 @@ type ActiveChatsContextType = {
   updateChat: (conversationId: string, updates: Partial<ChatUIState>) => void;
   removeChat: (conversationId: string) => void;
   clearInput: (conversationId: string) => void;
+  addEphemeralMessage: (conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }) => void;
+  clearEphemeralMessages: (conversationId: string) => void;
   getAllChats: () => Record<string, ChatUIState>;
 };
 
@@ -108,12 +135,20 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
     activeChatsStore.clearInput(conversationId);
   }, []);
 
+  const addEphemeralMessage = useCallback((conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }) => {
+    activeChatsStore.addEphemeralMessage(conversationId, message);
+  }, []);
+
+  const clearEphemeralMessages = useCallback((conversationId: string) => {
+    activeChatsStore.clearEphemeralMessages(conversationId);
+  }, []);
+
   const getAllChats = useCallback(() => {
     return activeChatsStore.getSnapshot();
   }, []);
 
   return (
-    <ActiveChatsContext.Provider value={{ initChat, updateChat, removeChat, clearInput, getAllChats }}>
+    <ActiveChatsContext.Provider value={{ initChat, updateChat, removeChat, clearInput, addEphemeralMessage, clearEphemeralMessages, getAllChats }}>
       {children}
     </ActiveChatsContext.Provider>
   );

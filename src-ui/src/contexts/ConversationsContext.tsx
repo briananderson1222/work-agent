@@ -61,7 +61,11 @@ class ConversationsStore {
         const result = await response.json();
         
         if (result.success) {
-          this.conversations[agentSlug] = result.data;
+          // Map backend format (resourceId) to frontend format (agentSlug)
+          this.conversations[agentSlug] = result.data.map((conv: any) => ({
+            ...conv,
+            agentSlug: conv.resourceId || agentSlug,
+          }));
           this.notify();
         }
       } catch (error) {
@@ -87,7 +91,37 @@ class ConversationsStore {
         const result = await response.json();
         
         if (result.success) {
-          this.messages[key] = result.data;
+          // Parse backend message format: { role, parts: [{ type, text }] } -> { role, content, contentParts }
+          this.messages[key] = result.data.map((m: any) => {
+            const textContent = m.parts?.map((p: any) => p.text || p.content).filter(Boolean).join('\n') || '';
+            
+            // Map parts to contentParts format for rendering
+            const contentParts = m.parts?.map((p: any) => {
+              if (p.type === 'text') {
+                return { type: 'text', content: p.text };
+              } else if (p.type?.startsWith('tool-')) {
+                // VoltAgent stores tool calls as typed parts: tool-{toolName}
+                return { 
+                  type: 'tool', 
+                  tool: { 
+                    id: p.toolCallId, 
+                    name: p.type.replace('tool-', ''),
+                    args: p.input,
+                    result: p.output,
+                    state: p.state || 'success'
+                  } 
+                };
+              }
+              return null;
+            }).filter(Boolean);
+            
+            return {
+              role: m.role,
+              content: textContent,
+              contentParts: contentParts?.length > 0 ? contentParts : undefined,
+              timestamp: m.timestamp,
+            };
+          });
           this.notify();
         }
       } catch (error) {
@@ -101,6 +135,13 @@ class ConversationsStore {
     return promise;
   }
 
+  async refreshMessages(apiBase: string, agentSlug: string, conversationId: string) {
+    const key = `messages:${agentSlug}:${conversationId}`;
+    // Clear cache and refetch
+    this.fetching.delete(key);
+    return this.fetchMessages(apiBase, agentSlug, conversationId);
+  }
+
   async deleteConversation(apiBase: string, agentSlug: string, conversationId: string) {
     try {
       const response = await fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}`, {
@@ -111,6 +152,7 @@ class ConversationsStore {
       if (result.success) {
         this.conversations[agentSlug] = (this.conversations[agentSlug] || []).filter(c => c.id !== conversationId);
         delete this.messages[`messages:${agentSlug}:${conversationId}`];
+        delete this.statuses[`${agentSlug}:${conversationId}`];
         this.notify();
       }
     } catch (error) {
@@ -120,11 +162,12 @@ class ConversationsStore {
   }
 }
 
-const conversationsStore = new ConversationsStore();
+export const conversationsStore = new ConversationsStore();
 
 type ConversationsContextType = {
   fetchConversations: (apiBase: string, agentSlug: string) => Promise<void>;
   fetchMessages: (apiBase: string, agentSlug: string, conversationId: string) => Promise<void>;
+  refreshMessages: (apiBase: string, agentSlug: string, conversationId: string) => Promise<void>;
   deleteConversation: (apiBase: string, agentSlug: string, conversationId: string) => Promise<void>;
   setStatus: (agentSlug: string, conversationId: string, status: ConversationStatus) => void;
 };
@@ -140,6 +183,10 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
     return conversationsStore.fetchMessages(apiBase, agentSlug, conversationId);
   }, []);
 
+  const refreshMessages = useCallback((apiBase: string, agentSlug: string, conversationId: string) => {
+    return conversationsStore.refreshMessages(apiBase, agentSlug, conversationId);
+  }, []);
+
   const deleteConversation = useCallback((apiBase: string, agentSlug: string, conversationId: string) => {
     return conversationsStore.deleteConversation(apiBase, agentSlug, conversationId);
   }, []);
@@ -149,7 +196,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ConversationsContext.Provider value={{ fetchConversations, fetchMessages, deleteConversation, setStatus }}>
+    <ConversationsContext.Provider value={{ fetchConversations, fetchMessages, refreshMessages, deleteConversation, setStatus }}>
       {children}
     </ConversationsContext.Provider>
   );
@@ -209,6 +256,8 @@ export function useConversationActions() {
   }
   return {
     deleteConversation: context.deleteConversation,
+    refreshMessages: context.refreshMessages,
+    setStatus: context.setStatus,
   };
 }
 
