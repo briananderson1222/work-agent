@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -15,23 +16,15 @@ export function ThemeToggle() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'h') {
-        e.preventDefault();
-        toggleTheme();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleTheme]);
+  useKeyboardShortcut('theme.toggle', 'h', ['cmd'], 'Toggle theme', toggleTheme);
+  const shortcut = useShortcutDisplay('theme.toggle');
 
   return (
     <button
       type="button"
       className="theme-toggle"
       onClick={toggleTheme}
-      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode (⌘H)`}
+      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode (${shortcut})`}
     >
       {theme === 'dark' ? '☀️' : '🌙'}
     </button>

@@ -1,4 +1,5 @@
 import { WorkspaceSelector } from './WorkspaceSelector';
+import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { NavigationView } from '../types';
 
 interface HeaderProps {
@@ -22,6 +23,8 @@ export function Header({
   onToggleSettings,
   onNavigate,
 }: HeaderProps) {
+  const settingsShortcut = useShortcutDisplay('app.settings');
+  
   return (
     <header className="app-toolbar">
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -49,23 +52,23 @@ export function Header({
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'agents' ? 'is-active' : ''}`}
-            onClick={() => onNavigate('agents')}
+            onClick={() => onNavigate({ type: 'agents' })}
             title="Agents"
           >
             Agents
           </button>
           <button
             type="button"
-            className={`header-nav-btn ${currentView?.type === 'workflows' ? 'is-active' : ''}`}
-            onClick={() => onNavigate('workflows')}
+            className={`header-nav-btn ${currentView?.type === 'prompts' ? 'is-active' : ''}`}
+            onClick={() => onNavigate({ type: 'prompts' })}
             title="Prompts"
           >
             Prompts
           </button>
           <button
             type="button"
-            className={`header-nav-btn ${currentView?.type === 'tools' ? 'is-active' : ''}`}
-            onClick={() => onNavigate('tools')}
+            className={`header-nav-btn ${currentView?.type === 'integrations' ? 'is-active' : ''}`}
+            onClick={() => onNavigate({ type: 'integrations' })}
             title="Integrations"
           >
             Integrations
@@ -90,7 +93,7 @@ export function Header({
           type="button"
           className="button button--secondary app-toolbar__settings"
           onClick={onToggleSettings}
-          title="Settings (⌘,)"
+          title={`Settings (${settingsShortcut})`}
         >
           ⚙
         </button>

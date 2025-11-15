@@ -418,9 +418,21 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   // Message Operations
   // ===========================================================================
 
-  async addMessage(message: UIMessage, userId: string, conversationId: string): Promise<void> {
+  async addMessage(message: UIMessage, userId: string, conversationId: string, context?: any): Promise<void> {
     const resourceId = await this.resolveResourceId(conversationId, userId);
     await mkdir(this.getSessionsDir(resourceId), { recursive: true });
+
+    // Check if operation was aborted and append cancellation notice to assistant messages
+    const abortController = context?.abortController;
+    if (abortController?.signal.aborted && message.role === 'assistant') {
+      message = {
+        ...message,
+        parts: [
+          ...message.parts,
+          { type: 'text', text: '\n\n---\n\n_⚠️ Response cancelled by user_' }
+        ]
+      };
+    }
 
     const messagesPath = this.getMessagesPath(resourceId, conversationId);
     await appendFile(messagesPath, JSON.stringify(message) + '\n', 'utf-8');
@@ -502,6 +514,32 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
         }
       })
     );
+  }
+
+  async removeLastMessage(userId: string, conversationId: string): Promise<void> {
+    const resourceId = await this.resolveResourceId(conversationId, userId);
+    const path = this.getMessagesPath(resourceId, conversationId);
+    
+    if (!existsSync(path)) {
+      return;
+    }
+
+    // Read all lines except the last one
+    const lines: string[] = [];
+    const fileStream = createReadStream(path);
+    const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+    
+    for await (const line of rl) {
+      if (line.trim()) {
+        lines.push(line);
+      }
+    }
+    
+    // Remove last line and rewrite file
+    if (lines.length > 0) {
+      lines.pop();
+      await writeFile(path, lines.join('\n') + (lines.length > 0 ? '\n' : ''));
+    }
   }
 
   // ===========================================================================

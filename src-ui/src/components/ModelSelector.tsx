@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAppData } from '../contexts/AppDataContext';
+import { useModels } from '../contexts/ModelsContext';
+import { useApiBase } from '../contexts/ConfigContext';
 
 interface ModelSelectorProps {
   value: string;
@@ -8,7 +9,8 @@ interface ModelSelectorProps {
 }
 
 export function ModelSelector({ value, onChange, placeholder = 'Select a model...' }: ModelSelectorProps) {
-  const { models } = useAppData();
+  const { apiBase } = useApiBase();
+  const models = useModels(apiBase);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);

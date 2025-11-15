@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { AgentSummary, Tool } from '../types';
 import { getAgentIcon } from '../utils/workspace';
 import { AgentIcon } from '../components/AgentIcon';
-import { useAppData } from '../contexts/AppDataContext';
+import { useModels } from '../contexts/ModelsContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
@@ -34,7 +34,7 @@ type FormStep = 'basic' | 'model' | 'tools' | 'commands';
 const FORM_STEPS: readonly FormStep[] = ['basic', 'model', 'tools', 'commands'] as const;
 
 export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: AgentEditorViewProps) {
-  const { models: availableModels } = useAppData();
+  const availableModels = useModels(apiBase);
   const [currentStep, setCurrentStep] = useState<FormStep>(initialTab || 'basic');
   const [expandedCommands, setExpandedCommands] = useState<Record<string, boolean>>({});
   

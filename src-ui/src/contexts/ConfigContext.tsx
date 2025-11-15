@@ -22,6 +22,10 @@ type ConfigData = {
 export const CONFIG_DEFAULTS = {
   defaultChatFontSize: 14,
   region: 'us-east-1',
+  userId: 'default-user', // Static userId until auth is implemented
+  apiBase: typeof window !== 'undefined' 
+    ? (window as any).__API_BASE__ || import.meta.env.VITE_API_BASE || 'http://localhost:3141'
+    : 'http://localhost:3141',
 } as const;
 
 class ConfigStore {
@@ -133,6 +137,8 @@ export function useConfig(apiBase: string, shouldFetch: boolean = true): ConfigD
 
   return config;
 }
+
+export { useApiBase } from './ApiBaseContext';
 
 export function useConfigActions() {
   const context = useContext(ConfigContext);

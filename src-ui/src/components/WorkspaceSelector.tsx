@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { WorkspaceMetadata } from '../types';
 import { getWorkspaceIcon } from '../utils/workspace';
 
@@ -19,6 +20,7 @@ export function WorkspaceSelector({
   onEditWorkspace,
   onSettings,
 }: WorkspaceSelectorProps) {
+  const newWorkspaceShortcut = useShortcutDisplay('app.newWorkspace');
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -158,11 +160,11 @@ export function WorkspaceSelector({
               }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              title="New (⌘N)"
+              title={`New (${newWorkspaceShortcut})`}
             >
               <span style={{ fontSize: '16px' }}>+</span>
               <span>New</span>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>⌘N</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{newWorkspaceShortcut}</span>
             </button>
           </div>
 

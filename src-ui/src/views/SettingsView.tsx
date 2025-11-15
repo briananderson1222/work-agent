@@ -4,7 +4,7 @@ import { AgentIcon } from '../components/AgentIcon';
 import { ThemeToggle } from '../components/ThemeToggle';
 import type { AppConfig } from '../types';
 import { getWorkspaceIcon } from '../utils/workspace';
-import { useAppData } from '../contexts/AppDataContext';
+import { useModels } from '../contexts/ModelsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
@@ -23,7 +23,7 @@ export interface SettingsViewProps {
 }
 
 export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAgent, onEditWorkspace, onCreateWorkspace, chatFontSize = 14, onChatFontSizeChange }: SettingsViewProps) {
-  const { models: availableModels } = useAppData();
+  const availableModels = useModels(apiBase);
   const { apiBase: currentApiBase, setApiBase, resetToDefault, isCustom } = useApiBase();
   const [activeTab, setActiveTab] = useState<'general' | 'agents' | 'workspaces' | 'prompts' | 'notifications' | 'advanced' | 'debug'>(() => {
     const hash = window.location.hash.slice(1);

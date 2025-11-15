@@ -112,6 +112,7 @@ export interface ChatSession {
   attachments: FileAttachment[];
   queuedMessages: string[];
   status: ChatSessionStatus;
+  isThinking?: boolean;
   error?: string | null;
   createdAt: number;
   updatedAt: number;
@@ -119,6 +120,7 @@ export interface ChatSession {
   model?: string;
   inputHistory: string[];
   attachments?: FileAttachment[];
+  abortController?: AbortController;
 }
 
 export interface Tool {
@@ -163,6 +165,9 @@ export interface TemplateVariable {
 
 export type NavigationView =
   | { type: 'workspace' }
+  | { type: 'agents' }
+  | { type: 'prompts' }
+  | { type: 'integrations' }
   | { type: 'agent-new' }
   | { type: 'agent-edit'; slug: string; initialTab?: 'basic' | 'model' | 'tools' | 'commands' }
   | { type: 'tools'; slug: string }

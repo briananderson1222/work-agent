@@ -471,13 +471,7 @@ export class ConfigLoader {
 
       try {
         const config = await this.loadWorkspace(entry.name);
-        workspaces.push({
-          slug: config.slug,
-          name: config.name,
-          icon: config.icon,
-          description: config.description,
-          tabCount: config.tabs.length
-        });
+        workspaces.push(config);
       } catch (error) {
         console.error(`Failed to load workspace '${entry.name}':`, error);
       }

@@ -58,7 +58,7 @@ export class WorkAgentRuntime {
    * Initialize the runtime
    */
   async initialize(): Promise<void> {
-    this.logger.info('Initializing Work Agent Runtime...');
+    this.logger.debug('Initializing Work Agent Runtime...');
 
     // Load app configuration
     this.appConfig = await this.configLoader.loadAppConfig();
@@ -69,7 +69,7 @@ export class WorkAgentRuntime {
 
     // Initialize Bedrock model catalog
     this.modelCatalog = new BedrockModelCatalog(this.appConfig.region);
-    this.logger.info('Bedrock model catalog initialized');
+    this.logger.debug('Bedrock model catalog initialized');
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
@@ -151,10 +151,11 @@ export class WorkAgentRuntime {
                 // Load full agent spec to get prompt, description, icon, commands, tools
                 const spec = await this.configLoader.loadAgent(metadata.slug);
                 
-                console.log('[Agent Enrichment] Agent:', metadata.slug);
-                console.log('[Agent Enrichment] Spec loaded:', !!spec);
-                console.log('[Agent Enrichment] Spec.tools:', spec.tools);
-                console.log('[Agent Enrichment] Spec keys:', Object.keys(spec));
+                this.logger.debug('[Agent Enrichment] Loading spec', { 
+                  agent: metadata.slug,
+                  hasSpec: !!spec,
+                  hasTools: !!spec.tools
+                });
                 
                 return {
                   ...agent,
@@ -169,17 +170,10 @@ export class WorkAgentRuntime {
                 };
               }));
               
-              this.logger.debug('Enriched agents response', { 
+              this.logger.debug('[Agent Enrichment] Enriched agents', { 
                 count: enrichedAgents.length,
-                sample: enrichedAgents[0] 
+                agents: enrichedAgents.map(a => ({ slug: a.slug, hasToolsConfig: !!a.toolsConfig }))
               });
-              
-              console.log('[Agent Enrichment] Final enriched agents:', JSON.stringify(enrichedAgents.map(a => ({
-                slug: a.slug,
-                name: a.name,
-                hasToolsConfig: !!a.toolsConfig,
-                toolsConfig: a.toolsConfig
-              })), null, 2));
               
               return c.json({ success: true, data: enrichedAgents });
             } catch (error: any) {
@@ -709,6 +703,51 @@ export class WorkAgentRuntime {
             }
           });
 
+          // Conversation context management
+          app.post('/api/agents/:slug/conversations/:conversationId/context', async (c) => {
+            try {
+              const slug = c.req.param('slug');
+              const conversationId = c.req.param('conversationId');
+              const adapter = this.memoryAdapters.get(slug);
+              
+              if (!adapter) {
+                return c.json({ success: false, error: 'Agent not found' }, 404);
+              }
+
+              const { action, content } = await c.req.json();
+              
+              switch (action) {
+                case 'add-system-message':
+                  if (!content) {
+                    return c.json({ success: false, error: 'content is required for add-system-message' }, 400);
+                  }
+                  
+                  // Inject as user message with special prefix for UI treatment
+                  await adapter.addMessage(
+                    {
+                      id: crypto.randomUUID(),
+                      role: 'user',
+                      parts: [{ type: 'text', text: `[SYSTEM_EVENT] ${content}` }]
+                    } as any,
+                    `agent:${slug}`,
+                    conversationId
+                  );
+                  
+                  return c.json({ success: true, message: 'System event added' });
+                
+                case 'clear-history':
+                  await adapter.clearMessages(`agent:${slug}`, conversationId);
+                  return c.json({ success: true, message: 'Conversation history cleared' });
+                
+                default:
+                  return c.json({ success: false, error: `Unknown action: ${action}` }, 400);
+              }
+            } catch (error: any) {
+              this.logger.error('Failed to manage conversation context', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
           // Get conversation statistics
           app.get('/agents/:slug/conversations/:conversationId/stats', async (c) => {
             try {
@@ -945,7 +984,7 @@ export class WorkAgentRuntime {
               
               // Execute tool
               const toolStart = performance.now();
-              console.log('[Tool args]', JSON.stringify(toolArgs));
+              this.logger.debug('[Tool] Args', { toolName, args: toolArgs });
               const toolResult = await (tool as any).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
               
@@ -964,7 +1003,7 @@ export class WorkAgentRuntime {
                 }
               }
               
-              console.log('[Unwrapped result]', JSON.stringify(unwrappedResult));
+              this.logger.debug('[Tool] Result', { toolName, result: unwrappedResult });
               
               // Check if the MCP tool returned an error
               if (unwrappedResult?.success === false && unwrappedResult?.error) {
@@ -1237,6 +1276,8 @@ export class WorkAgentRuntime {
               c.header('Connection', 'keep-alive');
 
               return stream(c, async (streamWriter) => {
+                let conversationId: string | undefined; // Declare outside try for catch block access
+                
                 try {
                   // Elicitation handler for tool approval
                   const elicitation = async (request: any) => {
@@ -1294,52 +1335,163 @@ export class WorkAgentRuntime {
                     elicitation,
                   };
                   
+                  // Generate conversationId if not provided (new conversation)
+                  const isNewConversation = !operationContext.conversationId;
+                  if (isNewConversation && operationContext.userId) {
+                    operationContext.conversationId = `${operationContext.userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+                  }
+                  
+                  // Create AbortController tied to client connection
+                  const abortController = new AbortController();
+                  conversationId = operationContext.conversationId;
+                  
+                  // Listen for client disconnect and abort operation
+                  c.req.raw.signal?.addEventListener('abort', () => {
+                    this.logger.debug('Client disconnected, aborting operation', { conversationId });
+                    abortController.abort('Client disconnected');
+                  });
+                  
+                  // Pass abort signal to VoltAgent (it will create its own controller that listens to this)
+                  operationContext.abortSignal = abortController.signal;
+                  this.logger.debug('Abort signal configured', { conversationId });
+                  
                   // Ensure conversation exists before streaming
                   if (agent.memory && operationContext.conversationId && operationContext.userId) {
                     const existing = await agent.memory.getConversation(operationContext.conversationId);
                     if (!existing) {
+                      // Use provided title or generate from first 50 chars of user message
+                      const title = operationContext.title || (input.length > 50 ? input.substring(0, 50) + '...' : input);
                       await agent.memory.createConversation({
                         id: operationContext.conversationId,
                         resourceId: slug,
                         userId: operationContext.userId,
-                        title: 'New Conversation',
+                        title,
                       });
                     }
                   }
                   
                   const result = await agent.streamText(input, operationContext);
+                  
+                  // Prevent unhandled rejections when stream is aborted mid-flight
+                  const suppressAbortError = (err: any) => 
+                    abortController.signal.aborted ? undefined : Promise.reject(err);
+                  
+                  result.text?.catch(suppressAbortError);
+                  result.usage?.catch(suppressAbortError);
+                  result.finishReason?.catch(suppressAbortError);
+                  
+                  // Helper to save standalone cancellation message
+                  const saveCancellationMessage = async () => {
+                    if (agent.memory && operationContext.conversationId && operationContext.userId) {
+                      await agent.memory.addMessage(
+                        {
+                          id: crypto.randomUUID(),
+                          role: 'assistant',
+                          parts: [{ type: 'text', text: '_⚠️ Response cancelled by user_' }]
+                        },
+                        operationContext.userId,
+                        operationContext.conversationId
+                      );
+                    }
+                  };
+                  
+                  this.logger.info('Agent stream started', { 
+                    conversationId: operationContext.conversationId,
+                    isNewConversation 
+                  });
 
-                  for await (const chunk of result.fullStream) {
-                    // Emit tool-input-available for tool calls that VoltAgent might not emit
-                    if (chunk.type === 'tool-call' && chunk.toolName) {
-                      await streamWriter.write(`data: ${JSON.stringify({
-                        type: 'tool-input-available',
-                        toolCallId: chunk.toolCallId,
-                        toolName: chunk.toolName,
-                        input: chunk.input || {}
-                      })}\n\n`);
-                    }
-                    
-                    // Emit tool-output-available for tool results
-                    if (chunk.type === 'tool-result' && chunk.toolCallId) {
-                      await streamWriter.write(`data: ${JSON.stringify({
-                        type: 'tool-output-available',
-                        toolCallId: chunk.toolCallId,
-                        output: chunk.result
-                      })}\n\n`);
-                    }
-                    
-                    await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                  // Send conversationId as first event for new conversations
+                  if (isNewConversation && operationContext.conversationId) {
+                    const conversation = await agent.memory?.getConversation(operationContext.conversationId);
+                    await streamWriter.write(`data: ${JSON.stringify({
+                      type: 'conversation-started',
+                      conversationId: operationContext.conversationId,
+                      title: conversation?.title || 'New Conversation'
+                    })}\n\n`);
                   }
-                  await streamWriter.write('data: [DONE]\n\n');
+
+                  let completionReason = 'completed';
+                  let hasOutput = false;
+                  
+                  try {
+                    for await (const chunk of result.fullStream) {
+                      // Track if any text or tool output was generated
+                      if (chunk.type === 'text-delta' || chunk.type === 'tool-result') {
+                        hasOutput = true;
+                      }
+                      
+                      // Check for error chunks
+                      if (chunk.type === 'error') {
+                        completionReason = 'error';
+                      }
+                      
+                      // Emit tool-input-available for tool calls that VoltAgent might not emit
+                      if (chunk.type === 'tool-call' && chunk.toolName) {
+                        this.logger.debug('Tool call initiated', { 
+                          toolName: chunk.toolName, 
+                          conversationId: operationContext.conversationId 
+                        });
+                        await streamWriter.write(`data: ${JSON.stringify({
+                          type: 'tool-input-available',
+                          toolCallId: chunk.toolCallId,
+                          toolName: chunk.toolName,
+                          input: chunk.input || {}
+                        })}\n\n`);
+                      }
+                      
+                      // Emit tool-output-available for tool results
+                      if (chunk.type === 'tool-result' && chunk.toolCallId) {
+                        this.logger.debug('Tool result received', { 
+                          toolCallId: chunk.toolCallId, 
+                          conversationId: operationContext.conversationId 
+                        });
+                        await streamWriter.write(`data: ${JSON.stringify({
+                          type: 'tool-output-available',
+                          toolCallId: chunk.toolCallId,
+                          output: chunk.result
+                        })}\n\n`);
+                      }
+                      
+                      // Capture finish reason
+                      if (chunk.type === 'finish' && chunk.finishReason) {
+                        completionReason = chunk.finishReason;
+                      }
+                      
+                      await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                    }
+                    
+                    // Check if aborted
+                    if (abortController.signal.aborted) {
+                      completionReason = 'aborted';
+                      // Only save cancellation message if no output was generated
+                      // (adapter already appends cancellation notice to partial messages)
+                      if (!hasOutput) await saveCancellationMessage();
+                    }
+                    
+                    await streamWriter.write('data: [DONE]\n\n');
+                  } catch (streamError: any) {
+                    // Check if aborted
+                    if (abortController.signal.aborted) {
+                      completionReason = 'aborted';
+                      this.logger.debug('Stream aborted by client', { conversationId });
+                      // Only save cancellation message if no output was generated
+                      if (!hasOutput) await saveCancellationMessage();
+                      return;
+                    }
+                    
+                    completionReason = 'error';
+                    throw streamError;
+                  } finally {
+                    this.logger.info('Agent stream completed', { 
+                      conversationId: operationContext.conversationId,
+                      reason: completionReason
+                    });
+                  }
                 } catch (error: any) {
                   this.logger.error('Stream error occurred', {
                     agentId: slug,
                     modelName: agent.model?.modelId,
-                    operationId: operationContext?.operationId,
-                    userId: operationContext?.userId,
-                    conversationId: operationContext?.conversationId,
-                    executionId: operationContext?.executionId,
+                    conversationId: conversationId,
                     agentName: slug,
                     error,
                   });
@@ -1365,7 +1517,7 @@ export class WorkAgentRuntime {
       }),
     });
 
-    this.logger.info('Work Agent Runtime initialized', { port: this.port });
+    this.logger.debug('Work Agent Runtime initialized', { port: this.port });
   }
 
   /**
@@ -1530,30 +1682,27 @@ export class WorkAgentRuntime {
         if (!context.metadata) context.metadata = {};
         context.metadata.toolCallCount = (context.metadata.toolCallCount || 0) + 1;
         
-        this.logger.info('[onToolStart] Tool execution starting', {
+        this.logger.debug('Tool execution starting', {
           toolName: tool.name,
           conversationId: context.conversationId,
-          autoApproveList: autoApprove,
         });
-
+        
         // Check if this is a silent invocation (no conversationId means silent mode)
         const isSilentInvocation = !context.conversationId;
         
         if (isSilentInvocation) {
-          this.logger.info('[onToolStart] Silent invocation - skipping approval check');
           return;
         }
 
         // Check if tool is in autoApprove list
         const isAutoApproved = this.matchesToolPattern(tool.name, autoApprove);
         
-        this.logger.info('[onToolStart] Tool execution', {
+        this.logger.info('[Tool] Executing', {
           toolName: tool.name,
           isAutoApproved,
-          autoApproveList: autoApprove,
         });
       },
-      onEnd: async ({ context, output, agent }) => {
+      onEnd: async ({ context, output, agent, error }) => {
         // Only track stats for conversations (not silent invocations)
         if (!context.conversationId || !output) {
           return;
@@ -1567,25 +1716,26 @@ export class WorkAgentRuntime {
           const conversation = await memory.getConversation(context.conversationId);
           if (!conversation) return;
 
-          // Extract usage data
+          // Extract usage data (may be undefined if aborted)
           const usage = 'usage' in output ? output.usage : undefined;
-          if (!usage) return;
 
           // Count tool calls from context metadata (tracked in onToolStart)
           const toolCallCount = context.metadata?.toolCallCount || 0;
 
-          this.logger.info('[Debug] Tool call count from metadata:', toolCallCount);
-
-          // Log actual usage from VoltAgent
+          // Log stats (even if usage is incomplete due to abortion)
           this.logger.info('[Usage Stats]', {
             conversationId: context.conversationId,
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            totalTokens: usage.totalTokens,
+            promptTokens: usage?.promptTokens || 0,
+            completionTokens: usage?.completionTokens || 0,
+            totalTokens: usage?.totalTokens || 0,
             messageCount: conversation.messages?.length || 0,
             stepCount: context.steps?.length || 0,
             toolCallCount,
+            aborted: !usage,
           });
+
+          // Only update conversation stats if we have usage data
+          if (!usage) return;
 
           // Get existing stats or initialize
           const existingStats = conversation.metadata?.stats || {
@@ -1813,7 +1963,7 @@ export class WorkAgentRuntime {
       return tool;
     }
 
-    this.logger.info('[Wrapper] Wrapping tool with elicitation', { toolName: tool.name });
+    this.logger.debug('[Wrapper] Wrapping tool with elicitation', { toolName: tool.name });
 
     // Wrap the execute function
     const originalExecute = tool.execute;
@@ -1848,7 +1998,12 @@ export class WorkAgentRuntime {
           });
 
           if (!approved) {
-            throw new Error(`Tool '${tool.name}' was denied by user`);
+            // Return a clear message to the LLM instead of throwing an error
+            return {
+              success: false,
+              error: 'USER_DENIED',
+              message: `I requested permission to use this tool, but the user explicitly denied the request. I should ask what I should do differently.`
+            };
           }
         } else {
           this.logger.warn('[Wrapper] No elicitation function available - tool will execute without approval', { 

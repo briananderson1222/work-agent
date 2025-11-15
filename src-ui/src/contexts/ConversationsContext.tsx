@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { CONFIG_DEFAULTS } from './ConfigContext';
 
 export type ConversationStatus = 'idle' | 'streaming' | 'processing';
 
@@ -95,22 +96,13 @@ class ConversationsStore {
           this.messages[key] = result.data.map((m: any) => {
             const textContent = m.parts?.map((p: any) => p.text || p.content).filter(Boolean).join('\n') || '';
             
-            // Map parts to contentParts format for rendering
+            // Keep parts in AI SDK format (tool parts are already correct)
             const contentParts = m.parts?.map((p: any) => {
               if (p.type === 'text') {
                 return { type: 'text', content: p.text };
               } else if (p.type?.startsWith('tool-')) {
-                // VoltAgent stores tool calls as typed parts: tool-{toolName}
-                return { 
-                  type: 'tool', 
-                  tool: { 
-                    id: p.toolCallId, 
-                    name: p.type.replace('tool-', ''),
-                    args: p.input,
-                    result: p.output,
-                    state: p.state || 'success'
-                  } 
-                };
+                // Keep AI SDK format: { type: 'tool-{name}', toolCallId, state, input, output }
+                return p;
               }
               return null;
             }).filter(Boolean);
@@ -160,6 +152,141 @@ class ConversationsStore {
       throw error;
     }
   }
+
+  async sendMessage(
+    apiBase: string,
+    agentSlug: string,
+    conversationId: string | undefined,
+    content: string,
+    title: string | undefined,
+    onStreamEvent: (data: any, state: any) => any,
+    onConversationStarted?: (conversationId: string, title?: string) => void,
+    onError?: (error: Error) => void,
+    signal?: AbortSignal
+  ): Promise<string | undefined> {
+    console.log('[ConversationsContext.sendMessage] Received signal:', signal);
+    const key = conversationId ? `${agentSlug}:${conversationId}` : `${agentSlug}:temp`;
+    this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
+
+    try {
+      const payload = {
+        input: content,
+        options: {
+          userId: CONFIG_DEFAULTS.userId,
+          ...(conversationId ? { conversationId } : {}),
+          ...(title ? { title } : {}),
+        },
+      };
+      
+      const response = await fetch(`${apiBase}/api/agents/${agentSlug}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      // Track if we've been aborted
+      let aborted = false;
+      
+      // Set up abort listener to cancel reader immediately
+      const abortHandler = async () => {
+        console.log('[ConversationsContext] Abort signal received, canceling reader');
+        aborted = true;
+        try {
+          await reader.cancel();
+        } catch (e) {
+          console.log('[ConversationsContext] Reader cancel error (expected):', e);
+        }
+      };
+      signal?.addEventListener('abort', abortHandler);
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let state = { currentTextChunk: '', contentParts: [], pendingApprovals: new Map() };
+      let newConversationId = conversationId;
+
+      try {
+        while (true) {
+          // Check abort before reading
+          if (aborted || signal?.aborted) {
+            console.log('[ConversationsContext] Aborting stream loop');
+            break;
+          }
+          
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.trim() || !line.startsWith('data: ')) continue;
+            
+            const dataStr = line.slice(6);
+            if (dataStr === '[DONE]') break;
+            
+            const data = JSON.parse(dataStr);
+            
+            // Handle conversation-started event
+            if (data.type === 'conversation-started' && data.conversationId) {
+              newConversationId = data.conversationId;
+              onConversationStarted?.(data.conversationId, data.title);
+              continue;
+            }
+            
+            const result = onStreamEvent(data, state);
+            // Always update state to preserve pendingApprovals
+            state = { 
+              currentTextChunk: result.currentTextChunk, 
+              contentParts: result.contentParts,
+              pendingApprovals: result.pendingApprovals
+            };
+          }
+        }
+      } catch (error) {
+        // If aborted, exit gracefully
+        if (aborted || signal?.aborted || (error as Error).name === 'AbortError') {
+          console.log('[ConversationsContext] Stream aborted via error');
+          return;
+        }
+        throw error;
+      } finally {
+        signal?.removeEventListener('abort', abortHandler);
+        try {
+          reader.releaseLock();
+        } catch (e) {
+          // Reader might already be released
+        }
+      }
+
+      this.setStatus(agentSlug, newConversationId || 'temp', 'idle');
+      
+      // Refresh messages for the conversation
+      if (newConversationId) {
+        await this.refreshMessages(apiBase, agentSlug, newConversationId);
+      }
+      
+      return newConversationId;
+    } catch (error) {
+      console.error('Send message error:', error);
+      this.setStatus(agentSlug, conversationId || 'temp', 'idle');
+      
+      // Don't call onError for aborted requests
+      if (error instanceof Error && error.name !== 'AbortError') {
+        onError?.(error);
+      }
+      
+      throw error;
+    }
+  }
 }
 
 export const conversationsStore = new ConversationsStore();
@@ -169,6 +296,15 @@ type ConversationsContextType = {
   fetchMessages: (apiBase: string, agentSlug: string, conversationId: string) => Promise<void>;
   refreshMessages: (apiBase: string, agentSlug: string, conversationId: string) => Promise<void>;
   deleteConversation: (apiBase: string, agentSlug: string, conversationId: string) => Promise<void>;
+  sendMessage: (
+    apiBase: string,
+    agentSlug: string,
+    conversationId: string | undefined,
+    content: string,
+    onStreamEvent: (data: any, state: any) => any,
+    onConversationStarted?: (conversationId: string) => void,
+    onError?: (error: Error) => void
+  ) => Promise<string | undefined>;
   setStatus: (agentSlug: string, conversationId: string, status: ConversationStatus) => void;
 };
 
@@ -191,12 +327,26 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
     return conversationsStore.deleteConversation(apiBase, agentSlug, conversationId);
   }, []);
 
+  const sendMessage = useCallback((
+    apiBase: string,
+    agentSlug: string,
+    conversationId: string | undefined,
+    content: string,
+    title: string | undefined,
+    onStreamEvent: (data: any, state: any) => any,
+    onConversationStarted?: (conversationId: string, title?: string) => void,
+    onError?: (error: Error) => void,
+    signal?: AbortSignal
+  ) => {
+    return conversationsStore.sendMessage(apiBase, agentSlug, conversationId, content, title, onStreamEvent, onConversationStarted, onError, signal);
+  }, []);
+
   const setStatus = useCallback((agentSlug: string, conversationId: string, status: ConversationStatus) => {
     conversationsStore.setStatus(agentSlug, conversationId, status);
   }, []);
 
   return (
-    <ConversationsContext.Provider value={{ fetchConversations, fetchMessages, refreshMessages, deleteConversation, setStatus }}>
+    <ConversationsContext.Provider value={{ fetchConversations, fetchMessages, refreshMessages, deleteConversation, sendMessage, setStatus }}>
       {children}
     </ConversationsContext.Provider>
   );
@@ -255,8 +405,11 @@ export function useConversationActions() {
     throw new Error('useConversationActions must be used within ConversationsProvider');
   }
   return {
+    fetchConversations: context.fetchConversations,
+    fetchMessages: context.fetchMessages,
     deleteConversation: context.deleteConversation,
     refreshMessages: context.refreshMessages,
+    sendMessage: context.sendMessage,
     setStatus: context.setStatus,
   };
 }

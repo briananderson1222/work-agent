@@ -69,10 +69,7 @@ class WorkspacesStore {
   }
 
   async fetchOne(apiBase: string, slug: string) {
-    if (this.fetching.has(slug)) {
-      return this.fetching.get(slug);
-    }
-
+    // Always fetch fresh data, don't use cached promise
     const promise = (async () => {
       try {
         const response = await fetch(`${apiBase}/workspaces/${slug}`);
@@ -89,12 +86,9 @@ class WorkspacesStore {
         }
       } catch (error) {
         console.error(`Failed to fetch workspace ${slug}:`, error);
-      } finally {
-        this.fetching.delete(slug);
       }
     })();
 
-    this.fetching.set(slug, promise);
     return promise;
   }
 
@@ -239,6 +233,7 @@ export function useWorkspace(apiBase: string, slug: string, shouldFetch: boolean
   );
 
   useEffect(() => {
+    // Always fetch when slug changes to get latest data
     if (shouldFetch && slug) {
       fetchWorkspace(apiBase, slug);
     }

@@ -694,9 +694,7 @@ export default function SADashboard(props: SADashboardProps) {
           }
           
           const getNameForEmail = (email) => {
-            const name = emailToName[email] || null;
-            console.log('getNameForEmail:', email, '->', name);
-            return name;
+            return emailToName[email] || null;
           };
           const mapAttendees = (list, isOptional = false) => (list || []).map(a => {
             const email = typeof a === 'string' ? a : a.email;

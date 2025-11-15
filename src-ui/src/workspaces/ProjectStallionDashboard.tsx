@@ -70,6 +70,16 @@ export function ProjectStallionDashboard({ agent, onLaunchPrompt, onShowChat }: 
 
   const selectedEvent = events.find((event) => event.id === selectedId) ?? null;
 
+  if (!agent) {
+    return (
+      <div className="workspace-dashboard">
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <p>Loading agent...</p>
+        </div>
+      </div>
+    );
+  }
+
   const handleRecommendedPrompt = () => {
     if (selectedEvent?.recommendedPrompt && onLaunchPrompt) {
       onLaunchPrompt(selectedEvent.recommendedPrompt);
