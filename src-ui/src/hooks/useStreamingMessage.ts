@@ -1,8 +1,10 @@
 import { useCallback } from 'react';
 import { useActiveChatActions, activeChatsStore } from '../contexts/ActiveChatsContext';
+import { useToast } from '../contexts/ToastContext';
 
 export function useStreamingMessage(apiBase: string) {
   const { updateChat } = useActiveChatActions();
+  const { showToast } = useToast();
   
   const handleStreamEvent = useCallback((
     sessionId: string,
@@ -54,6 +56,10 @@ export function useStreamingMessage(apiBase: string) {
         argsKey,
         toolArgs: data.toolArgs
       });
+      
+      // Show toast notification
+      const agentName = chatState?.agentName || 'Agent';
+      showToast(`${agentName} is requesting approval to use ${data.toolName}`, sessionId);
       
       return {
         updated: false,
@@ -175,7 +181,7 @@ export function useStreamingMessage(apiBase: string) {
       contentParts: state.contentParts,
       pendingApprovals: state.pendingApprovals
     };
-  }, [updateChat]);
+  }, [updateChat, showToast]);
   
   const clearStreamingMessage = useCallback((sessionId: string) => {
     updateChat(sessionId, { streamingMessage: undefined, isProcessingStep: false });
