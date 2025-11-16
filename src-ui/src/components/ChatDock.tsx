@@ -3,9 +3,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SessionManagementMenu } from './SessionManagementMenu';
 import { SessionPickerModal } from './SessionPickerModal';
-import { ConversationStats } from './ConversationStats';
+import { ConversationStats, ContextPercentage } from './ConversationStats';
 import { FileAttachmentInput } from './FileAttachmentInput';
 import { SlashCommandSelector } from './SlashCommandSelector';
+import { ModelSelector } from './ModelSelector';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useSlashCommands } from '../hooks/useSlashCommands';
 import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
@@ -17,6 +18,7 @@ import { useNavigation } from '../contexts/NavigationContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useToolApproval } from '../hooks/useToolApproval';
+import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { getAgentIcon } from '../utils/workspace';
 import { getModelCapabilities } from '../utils/modelCapabilities';
 import type { AgentSummary, ChatSession, ChatMessage, FileAttachment } from '../types';
@@ -213,6 +215,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const appConfig = useConfig(apiBase);
   const defaultFontSize = appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
   const handleToolApproval = useToolApproval(apiBase);
+  const handleSlashCommand = useSlashCommandHandler(apiBase);
   
   // Chat dock UI state (height and dragging only - open/maximized from navigation)
   const [dockHeight, setDockHeight] = useState(400);
@@ -234,9 +237,13 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const [newChatSelectedIndex, setNewChatSelectedIndex] = useState(0);
   const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
   const [commandQuery, setCommandQuery] = useState<string | null>(null);
+  const [modelQuery, setModelQuery] = useState<string | null>(null);
   
   // Session state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  
+  // Track removing messages for animation
+  const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
   
   // Derive sessions from contexts (includes messages for all sessions)
   const sessions = useDerivedSessions(apiBase, selectedAgent);
@@ -277,8 +284,14 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       } else {
         showToast(`Error: ${error.message}`, 'error');
       }
-    }
+    },
+    handleSlashCommand
   );
+
+  // Wrapper for backward compatibility - now just calls sendMessage directly
+  const handleSendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string) => {
+    await sendMessage(sessionId, agentSlug, conversationId, content);
+  }, [sendMessage]);
   
   // Cancel message handler
   const cancelMessage = useCancelMessage();
@@ -349,7 +362,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   }, [agents, sessions, focusSession, openConversationAction, setActiveChat, setDockState]);
   
   const executeCommand = useCallback(async (command: SlashCommand, sessionId: string) => {
+    console.log('[ChatDock] executeCommand called:', command.cmd, 'sessionId:', sessionId);
     const cmdName = command.cmd.slice(1);
+    console.log('[ChatDock] cmdName:', cmdName);
     
     clearInput(sessionId);
     setCommandQuery(null);
@@ -394,14 +409,18 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       }
         
       case 'tools': {
+        console.log('[ChatDock] Executing tools command');
         try {
           const agent = agents.find(a => a.slug === activeSession?.agentSlug);
+          console.log('[ChatDock] Found agent:', agent?.slug);
           const response = await fetch(`${apiBase}/agents/${agent?.slug}`);
           const data = await response.json();
           const agentData = data.data;
+          console.log('[ChatDock] Agent data:', agentData);
           
           const tools = agentData?.tools || [];
           const autoApproveList = agentData?.autoApprove || [];
+          console.log('[ChatDock] Tools count:', tools.length);
           
           if (tools.length > 0) {
             const sortedTools = [...tools].sort((a: any, b: any) => {
@@ -423,7 +442,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
             });
             
             const content = `**Available Tools (${tools.length}):**\n\n${toolLines.join('\n')}\n\n✓ = Auto-approved`;
+            console.log('[ChatDock] About to call addEphemeralMessage with content length:', content.length);
             addEphemeralMessage(sessionId, { role: 'system', content });
+            console.log('[ChatDock] addEphemeralMessage called');
           } else {
             addEphemeralMessage(sessionId, { role: 'system', content: 'No tools available for this agent.' });
           }
@@ -433,9 +454,29 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         break;
       }
         
-      case 'model':
-        addEphemeralMessage(sessionId, { role: 'system', content: 'Model switching coming soon. Use the model selector in the header.' });
+      case 'model': {
+        console.log('[ChatDock] Executing model command');
+        // Model switching is handled by typing /model <query> in the input
+        // This case is for when user just types /model without a query
+        const agent = agents.find(a => a.slug === activeSession?.agentSlug);
+        if (!agent) {
+          addEphemeralMessage(sessionId, { role: 'system', content: 'No agent selected.' });
+          break;
+        }
+        
+        const currentModelId = typeof agent.model === 'string' ? agent.model : agent.model?.modelId || 'default';
+        const modelName = currentModelId.includes('claude-3-7-sonnet') ? 'Claude 3.7 Sonnet' :
+                         currentModelId.includes('claude-3-5-sonnet-20241022') ? 'Claude 3.5 Sonnet v2' :
+                         currentModelId.includes('claude-3-5-sonnet') ? 'Claude 3.5 Sonnet' :
+                         currentModelId.includes('claude-3-opus') ? 'Claude 3 Opus' :
+                         currentModelId.includes('claude-3-haiku') ? 'Claude 3 Haiku' : currentModelId;
+        
+        addEphemeralMessage(sessionId, { 
+          role: 'system', 
+          content: `**Current Model:** ${modelName}\n\nTo switch models, type \`/model\` followed by a model name (e.g., \`/model sonnet\`, \`/model haiku\`)` 
+        });
         break;
+      }
         
       case 'prompts': {
         const agent = agents.find(a => a.slug === activeSession?.agentSlug);
@@ -455,7 +496,19 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           const agent = agents.find(a => a.slug === activeSession?.agentSlug);
           const customCmd = agent?.commands?.[cmdName];
           if (customCmd) {
-            sendMessage(sessionId, activeSession!.agentSlug, activeSession!.conversationId, customCmd.prompt);
+            // Add ephemeral message explaining the prompt launch
+            addEphemeralMessage(sessionId, { 
+              role: 'system', 
+              content: `🚀 Launching prompt: **${customCmd.description || cmdName}**` 
+            });
+            
+            // Send the prompt
+            await sendMessage(
+              sessionId,
+              activeSession!.agentSlug,
+              activeSession!.conversationId,
+              customCmd.prompt
+            );
           }
         } else {
           showToast(`Unknown command: ${command.cmd}`, 'error');
@@ -507,7 +560,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     if (!isUserScrolledUp && messagesContainerRef.current && activeSession) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-  }, [activeSession?.messages, isUserScrolledUp]);
+  }, [activeSession?.messages, ephemeralMessages, isUserScrolledUp]);
   
   // Ctrl+C to cancel active request
   useEffect(() => {
@@ -573,6 +626,17 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       }
     }, [sessions, focusSession]));
   }
+
+  // Cancel ongoing request with Ctrl+C
+  useKeyboardShortcut('dock.cancel', 'c', ['ctrl'], 'Cancel request', useCallback(() => {
+    if (activeSession?.abortController) {
+      cancelMessage(activeSession.id);
+      addEphemeralMessage(activeSession.id, {
+        role: 'system',
+        content: 'User canceled the ongoing request.'
+      });
+    }
+  }, [activeSession, cancelMessage, addEphemeralMessage]));
   
   return (
     <>
@@ -840,6 +904,17 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                     const agent = agents.find(a => a.slug === session.agentSlug);
                     const agentIcon = agent ? getAgentIcon(agent) : null;
                     
+                    // Build tooltip content
+                    const tooltipParts = [
+                      `Title: ${session.title}`,
+                      `Agent: ${session.agentName}`,
+                      `Messages: ${session.messages.length}`,
+                    ];
+                    if (session.conversationId) {
+                      tooltipParts.push(`Conversation: ${session.conversationId.slice(-6)}`);
+                    }
+                    const tooltip = tooltipParts.join('\n');
+                    
                     return (
                     <button
                       type="button"
@@ -853,7 +928,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         session.id === activeSessionId ? 'is-active' : ''
                       } ${session.hasUnread ? 'has-unread' : ''} ${session.status === 'sending' ? 'is-processing' : ''}`}
                       onClick={() => focusSession(session.id)}
-                      title={`Switch to tab (⌘${idx + 1})`}
+                      title={tooltip}
                     >
                       {agentIcon && (
                         <div style={{
@@ -1075,14 +1150,98 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       setIsUserScrolledUp(!isAtBottom);
                     }}
                   >
-                    {activeSession.messages.length === 0 && ephemeralMessages.length === 0 ? (
+                    {activeSession.messages.length === 0 ? (
                       <div className="empty-state">
                         <h3>Start a conversation</h3>
                         <p>Type a message below to chat with {activeSession.agentName}</p>
+                        <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginTop: '8px' }}>
+                          💡 Type <code style={{ 
+                            padding: '2px 6px', 
+                            background: 'var(--bg-tertiary)', 
+                            borderRadius: '3px',
+                            fontFamily: 'monospace'
+                          }}>/</code> to see available commands
+                        </p>
                       </div>
                     ) : (
                       <>
                         {activeSession.messages.map((msg, idx) => {
+                          // Handle ephemeral messages with special styling
+                          if (msg.ephemeral) {
+                            return (
+                              <div 
+                                key={msg.id || `ephemeral-${idx}`}
+                                className={`message system ephemeral-message ${removingMessages.has(msg.id) ? 'removing' : ''}`}
+                                style={{
+                                  padding: '12px 40px 12px 12px',
+                                  background: 'var(--bg-secondary)',
+                                  border: '1px solid var(--border-primary)',
+                                  borderRadius: '6px',
+                                  marginTop: '8px',
+                                  marginBottom: '0',
+                                  position: 'relative',
+                                  fontSize: `${chatFontSize}px`
+                                }}
+                              >
+                                <button
+                                  onClick={() => {
+                                    setRemovingMessages(prev => new Set(prev).add(msg.id));
+                                    setTimeout(() => {
+                                      const updated = ephemeralMessages.filter(m => m.id !== msg.id);
+                                      if (updated.length === 0) {
+                                        clearEphemeralMessages(activeSession.id);
+                                      } else {
+                                        updateChat(activeSession.id, { ephemeralMessages: updated });
+                                      }
+                                      setRemovingMessages(prev => {
+                                        const next = new Set(prev);
+                                        next.delete(msg.id);
+                                        return next;
+                                      });
+                                    }, 300);
+                                  }}
+                                  style={{
+                                    position: 'absolute',
+                                    top: '8px',
+                                    right: '8px',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '18px',
+                                    color: 'var(--text-muted)',
+                                    padding: '4px',
+                                    lineHeight: 1,
+                                  }}
+                                  title="Dismiss"
+                                >
+                                  ×
+                                </button>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                                {msg.action && (
+                                  <button
+                                    onClick={() => {
+                                      msg.action.handler();
+                                      clearEphemeralMessages(activeSession.id);
+                                    }}
+                                    style={{
+                                      marginTop: '12px',
+                                      padding: '8px 16px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      background: 'var(--color-primary)',
+                                      color: 'white',
+                                      cursor: 'pointer',
+                                      fontSize: '13px',
+                                      fontWeight: 500
+                                    }}
+                                  >
+                                    {msg.action.label}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          }
+                          
                           const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
                           
                           // Check if this is a system event message
@@ -1109,7 +1268,17 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                           }
                           
                           return (
-                            <div key={`${activeSession.id}-msg-${idx}`} className={`message ${msg.role}`} style={{ position: 'relative' }}>
+                            <div 
+                              key={`${activeSession.id}-msg-${idx}`} 
+                              className={`message ${msg.role}`} 
+                              style={{ 
+                                position: 'relative',
+                                ...(msg.role === 'user' && msg.fromPrompt ? {
+                                  background: 'var(--bg-tertiary)',
+                                  borderLeft: '3px solid var(--accent-primary, #0066cc)'
+                                } : {})
+                              }}
+                            >
                               {msg.role === 'assistant' && textContent && (
                                 <button
                                   onClick={() => {
@@ -1118,9 +1287,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                   }}
                                   style={{
                                     position: 'absolute',
-                                    bottom: '8px',
-                                    right: '8px',
-                                    padding: '4px',
+                                    bottom: '5px',
+                                    right: '5px',
+                                    padding: '0.25rem',
                                     background: 'var(--bg-secondary)',
                                     border: '1px solid var(--border-primary)',
                                     borderRadius: '4px',
@@ -1165,12 +1334,10 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                               )}
                               {msg.contentParts && msg.contentParts.length > 0 ? (
                                 (() => {
-                                  console.log('[ChatDock] Rendering contentParts:', msg.contentParts);
                                   return msg.contentParts.map((part, i) => {
                                     if (part.type === 'text' && part.content) {
                                       return <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>;
                                     } else if (part.type === 'tool' || part.type?.startsWith('tool-')) {
-                                      console.log('[ChatDock] Rendering tool part:', part);
                                       // Only pass onApprove for streaming messages (last message from assistant)
                                       const isStreamingMessage = idx === activeSession.messages.length - 1 && msg.role === 'assistant';
                                       return (
@@ -1319,107 +1486,212 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       ))}
                     </div>
                   )}
-                  <div className="chat-input" style={{ position: 'relative' }}>
-                    {commandQuery !== null && (
+                  <div className="chat-input" style={{ display: 'flex', alignItems: 'stretch', position: 'relative' }}>
+                    {modelQuery !== null && activeSession && (
+                      <ModelSelector
+                        query={modelQuery}
+                        models={availableModels}
+                        currentModel={activeSession.model || agents.find(a => a.slug === activeSession.agentSlug)?.model}
+                        onSelect={(model) => {
+                          const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                          const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                          const normalizeId = (id: any) => {
+                            if (typeof id !== 'string') return '';
+                            return id.replace(/^us\./, '');
+                          };
+                          const currentModelStr = activeSession.model || agentModelId || '';
+                          const isAlreadyActive = normalizeId(currentModelStr) === normalizeId(model.id);
+                          
+                          updateChat(activeSession.id, { 
+                            input: '',
+                            model: model.id
+                          });
+                          
+                          if (!isAlreadyActive) {
+                            addEphemeralMessage(activeSession.id, { 
+                              role: 'system', 
+                              content: `Model changed to **${model.name}**` 
+                            });
+                          }
+                          
+                          setModelQuery(null);
+                        }}
+                        onClose={() => {
+                          setModelQuery(null);
+                          clearInput(activeSession.id);
+                        }}
+                      />
+                    )}
+                    {commandQuery !== null && activeSession && (
                       <SlashCommandSelector
                         query={commandQuery}
                         commands={slashCommands}
-                        onSelect={(command) => executeCommand(command, activeSession.id)}
+                        onSelect={(command) => {
+                          console.log('[ChatDock] onSelect called with command:', command.cmd, 'sessionId:', activeSession.id);
+                          executeCommand(command, activeSession.id);
+                        }}
                         onClose={() => {
                           setCommandQuery(null);
                           clearInput(activeSession.id);
                         }}
                       />
                     )}
-                    <textarea
-                      ref={textareaRef}
-                      placeholder={agent ? `Message ${activeSession.agentName}...` : 'Agent not available'}
-                      value={activeSession.input || ''}
-                      disabled={!agent}
-                      onChange={(e) => {
-                        let value = e.target.value;
-                        
-                        // Strip [SYSTEM_EVENT] prefix if user tries to type it
-                        if (value.includes('[SYSTEM_EVENT]')) {
-                          value = value.replace(/\[SYSTEM_EVENT\]\s*/g, '');
+                    <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
+                      <textarea
+                        ref={textareaRef}
+                        placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+                        value={activeSession.input || ''}
+                        disabled={!agent}
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          
+                          // Strip [SYSTEM_EVENT] prefix if user tries to type it
+                          if (value.includes('[SYSTEM_EVENT]')) {
+                            value = value.replace(/\[SYSTEM_EVENT\]\s*/g, '');
                         }
                         
                         updateChat(activeSession.id, { input: value });
                         
+                        // Update model query
+                        if (value.startsWith('/model ')) {
+                          setModelQuery(value.slice(7)); // Remove '/model '
+                          setCommandQuery(null);
+                        }
                         // Update command query
-                        if (value.startsWith('/') && !value.includes(' ')) {
+                        else if (value.startsWith('/') && !value.includes(' ')) {
                           setCommandQuery(value.slice(1));
+                          setModelQuery(null);
                         } else {
                           setCommandQuery(null);
+                          setModelQuery(null);
                         }
                       }}
                       onKeyDown={async (e) => {
-                        // Command selector handles its own keyboard events
-                        if (commandQuery !== null) return;
+                        // Handle Escape to dismiss autocomplete
+                        if (e.key === 'Escape' && (commandQuery !== null || modelQuery !== null)) {
+                          e.preventDefault();
+                          setCommandQuery(null);
+                          setModelQuery(null);
+                          return;
+                        }
+                        
+                        // Selectors handle their own keyboard events
+                        if (commandQuery !== null || modelQuery !== null) return;
                         
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           if (activeSession.input?.trim()) {
-                            await sendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
+                            await handleSendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
                           }
                         }
                       }}
-                      style={{ fontSize: `${chatFontSize}px` }}
+                      style={{ fontSize: `${chatFontSize}px`, flex: 1, resize: 'none', minHeight: 0 }}
                     />
-                    <FileAttachmentInput
-                      attachments={activeSession.attachments || []}
-                      onAdd={(files) => {
-                        const existing = activeSession.attachments || [];
-                        updateChat(activeSession.id, { attachments: [...existing, ...files] });
-                      }}
-                      onRemove={(id) => {
-                        const newAttachments = activeSession.attachments?.filter(a => a.id !== id) || [];
-                        updateChat(activeSession.id, { attachments: newAttachments });
-                      }}
-                      disabled={!agent || activeSession.status === 'sending'}
-                      supportsImages={true}
-                      supportsFiles={true}
-                    />
-                    {activeSession.abortController ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            console.log('[Cancel Button] Clicked for session:', activeSession.id);
-                            cancelMessage(activeSession.id);
-                            showToast('Request cancelled');
+                    {activeSession.input && (
+                      <button
+                        onClick={() => clearInput(activeSession.id)}
+                        style={{
+                          position: 'absolute',
+                          right: '20px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '18px',
+                          color: 'var(--text-muted)',
+                          padding: '4px',
+                          lineHeight: '1',
+                          zIndex: 1
+                        }}
+                        title="Clear input"
+                      >
+                        ×
+                      </button>
+                    )}
+                    </div>
+                    <div className="chat-controls">
+                      <div className="chat-controls-row">
+                        <FileAttachmentInput
+                          attachments={activeSession.attachments || []}
+                          onAdd={(files) => {
+                            const existing = activeSession.attachments || [];
+                            updateChat(activeSession.id, { attachments: [...existing, ...files] });
                           }}
-                          style={{ background: 'var(--color-danger)' }}
-                        >
-                          Cancel
-                        </button>
-                        {activeSession.input?.trim() && (
+                          onRemove={(id) => {
+                            const newAttachments = activeSession.attachments?.filter(a => a.id !== id) || [];
+                            updateChat(activeSession.id, { attachments: newAttachments });
+                          }}
+                          disabled={!agent || activeSession.status === 'sending'}
+                          supportsImages={true}
+                          supportsFiles={true}
+                          style={{ flex: '0 0 25%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        />
+                        {activeSession.abortController ? (
+                          <button
+                            onClick={() => {
+                              console.log('[Cancel Button] Clicked for session:', activeSession.id);
+                              cancelMessage(activeSession.id);
+                              addEphemeralMessage(activeSession.id, {
+                                role: 'system',
+                                content: 'User canceled the ongoing request.'
+                              });
+                            }}
+                            className="send-button"
+                            style={{ 
+                              background: 'var(--error-bg)',
+                              padding: 0,
+                              border: '1px solid var(--error-border)',
+                              color: 'var(--error-text)',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              fontWeight: 500,
+                              flex: '0 0 75%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        ) : (
                           <button
                             onClick={async () => {
                               if (activeSession.input?.trim()) {
-                                const content = activeSession.input.trim();
-                                updateChat(activeSession.id, { 
-                                  queuedMessages: [...(activeSession.queuedMessages || []), content],
-                                  input: ''
-                                });
+                                await handleSendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
                               }
                             }}
+                            disabled={!activeSession.input?.trim()}
+                            className="send-button"
+                            style={{
+                              padding: 0,
+                              border: 'none',
+                              background: activeSession.input?.trim() ? 'var(--color-primary)' : 'var(--bg-tertiary)',
+                              color: activeSession.input?.trim() ? 'white' : 'var(--text-muted)',
+                              cursor: activeSession.input?.trim() ? 'pointer' : 'not-allowed',
+                              fontSize: '13px',
+                              fontWeight: 500,
+                              opacity: activeSession.input?.trim() ? 1 : 0.5,
+                              flex: '0 0 75%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
                           >
-                            Queue
+                            Send
                           </button>
                         )}
-                      </>
-                    ) : (
-                      <button
-                        onClick={async () => {
-                          if (activeSession.input?.trim()) {
-                            await sendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
-                          }
-                        }}
-                        disabled={!activeSession.input?.trim()}
-                      >
-                        Send
-                      </button>
-                    )}
+                      </div>
+                      {activeSession.conversationId && (
+                        <ContextPercentage
+                          agentSlug={activeSession.agentSlug}
+                          conversationId={activeSession.conversationId}
+                          apiBase={apiBase}
+                          messageCount={activeSession.messages.length}
+                          onClick={() => setShowStatsPanel(true)}
+                        />
+                      )}
+                    </div>
                   </div>
                       </>
                     );
@@ -1543,13 +1815,15 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       {/* Session Picker Modal */}
       {showSessionPicker && (
         <SessionPickerModal
+          isOpen={showSessionPicker}
           apiBase={apiBase}
           agents={agents}
+          activeConversationIds={sessions.map(s => s.conversationId).filter(Boolean) as string[]}
           onSelect={(conversationId, agentSlug) => {
             openConversation(conversationId, agentSlug);
             setShowSessionPicker(false);
           }}
-          onCancel={() => setShowSessionPicker(false)}
+          onClose={() => setShowSessionPicker(false)}
         />
       )}
     </>

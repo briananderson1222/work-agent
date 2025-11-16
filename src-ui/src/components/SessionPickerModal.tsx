@@ -20,9 +20,10 @@ interface SessionPickerModalProps {
   onSelect: (conversationId: string, agentSlug: string) => void;
   apiBase: string;
   agents: Array<{ slug: string; name: string }>;
+  activeConversationIds?: string[];
 }
 
-export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents }: SessionPickerModalProps) {
+export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents, activeConversationIds = [] }: SessionPickerModalProps) {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [conversations, setConversations] = useState<ConversationMetadata[]>([]);
@@ -171,6 +172,7 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents 
           ) : (
             filteredConversations.map((conv, idx) => {
               const agent = agents.find(a => a.slug === conv.agentSlug);
+              const isActive = activeConversationIds.includes(conv.id);
               return (
                 <button
                   key={conv.id}
@@ -192,7 +194,13 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents 
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
-                    <div style={{ fontWeight: 600, flex: 1 }}>
+                    <div style={{ fontWeight: 600, flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {isActive && (
+                        <span style={{ 
+                          fontSize: '10px', 
+                          color: idx === selectedIndex ? 'white' : 'var(--accent-primary, #0066cc)'
+                        }}>●</span>
+                      )}
                       {conv.title || 'Untitled Conversation'}
                     </div>
                     <div style={{ 

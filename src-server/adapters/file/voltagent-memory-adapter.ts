@@ -422,20 +422,26 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     const resourceId = await this.resolveResourceId(conversationId, userId);
     await mkdir(this.getSessionsDir(resourceId), { recursive: true });
 
+    // Add timestamp to metadata
+    const messageWithTimestamp = {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        timestamp: Date.now(),
+      }
+    };
+
     // Check if operation was aborted and append cancellation notice to assistant messages
     const abortController = context?.abortController;
-    if (abortController?.signal.aborted && message.role === 'assistant') {
-      message = {
-        ...message,
-        parts: [
-          ...message.parts,
-          { type: 'text', text: '\n\n---\n\n_⚠️ Response cancelled by user_' }
-        ]
-      };
+    if (abortController?.signal.aborted && messageWithTimestamp.role === 'assistant') {
+      messageWithTimestamp.parts = [
+        ...messageWithTimestamp.parts,
+        { type: 'text', text: '\n\n---\n\n_⚠️ Response cancelled by user_' }
+      ];
     }
 
     const messagesPath = this.getMessagesPath(resourceId, conversationId);
-    await appendFile(messagesPath, JSON.stringify(message) + '\n', 'utf-8');
+    await appendFile(messagesPath, JSON.stringify(messageWithTimestamp) + '\n', 'utf-8');
     await this.touchConversation(conversationId);
   }
 

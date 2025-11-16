@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
-import { useActiveChatActions } from '../contexts/ActiveChatsContext';
+import { useActiveChatActions, activeChatsStore } from '../contexts/ActiveChatsContext';
 
-export function useStreamingMessage() {
+export function useStreamingMessage(apiBase: string) {
   const { updateChat } = useActiveChatActions();
   
   const handleStreamEvent = useCallback((
@@ -21,6 +21,29 @@ export function useStreamingMessage() {
     
     // Track tools that need approval with their approvalId
     if (data.type === 'tool-approval-request') {
+      const chatState = activeChatsStore.getSnapshot()[sessionId];
+      const sessionAutoApprove = chatState?.sessionAutoApprove || [];
+      
+      // If tool is in session autoApprove list, automatically approve it
+      if (sessionAutoApprove.includes(data.toolName)) {
+        console.log('[useStreamingMessage] Auto-approving tool from session list:', data.toolName);
+        
+        // Send approval immediately
+        fetch(`${apiBase}/tool-approval/${data.approvalId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approved: true }),
+        }).catch(err => console.error('Failed to auto-approve tool:', err));
+        
+        // Don't add to pendingApprovals since it's auto-approved
+        return {
+          updated: false,
+          currentTextChunk: state.currentTextChunk,
+          contentParts: state.contentParts,
+          pendingApprovals: state.pendingApprovals
+        };
+      }
+      
       const pendingApprovals = new Map(state.pendingApprovals || []);
       const argsKey = JSON.stringify(data.toolArgs);
       pendingApprovals.set(argsKey, data.approvalId);

@@ -111,7 +111,7 @@ class ConversationsStore {
               role: m.role,
               content: textContent,
               contentParts: contentParts?.length > 0 ? contentParts : undefined,
-              timestamp: m.timestamp,
+              timestamp: m.metadata?.timestamp || m.timestamp,
             };
           });
           this.notify();

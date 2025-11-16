@@ -5,6 +5,7 @@ import { useWorkspace } from '../contexts/WorkspacesContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useCreateChatSession } from '../contexts/ActiveChatsContext';
 import { useSendMessage } from '../contexts/ActiveChatsContext';
+import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { WorkspaceRenderer } from '../workspaces';
 import { SDKAdapter } from '../core/SDKAdapter';
 
@@ -16,7 +17,14 @@ export function WorkspaceView() {
   const workspace = useWorkspace(apiBase, selectedWorkspace || '', !!selectedWorkspace);
   const [activeTabId, setActiveTabId] = useState<string>('');
   const createChatSession = useCreateChatSession();
-  const sendMessage = useSendMessage(apiBase);
+  const slashCommandHandler = useSlashCommandHandler(apiBase);
+  
+  // Wrap slash command handler to match useSendMessage signature
+  const handleSlashCommand = useCallback(async (sessionId: string, content: string) => {
+    return await slashCommandHandler(sessionId, content);
+  }, [slashCommandHandler]);
+  
+  const sendMessage = useSendMessage(apiBase, undefined, undefined, handleSlashCommand);
 
   // Set initial tab when workspace loads
   useEffect(() => {

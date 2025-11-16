@@ -33,12 +33,36 @@ export function useDerivedSessions(apiBase: string, agentSlug: string | null): C
       // Get status from ActiveChatsContext (UI state)
       const sessionStatus = chatState.status || 'idle';
       
-      // Always use chatState.messages - backend replaces them when complete
-      const messages = chatState.messages || [];
+      // Get messages from backend
+      const messagesKey = chatState.conversationId ? `messages:${chatState.agentSlug}:${chatState.conversationId}` : null;
+      const backendMessages = messagesKey ? conversationsSnapshot.messages[messagesKey] || [] : [];
+      
+      // Get optimistic messages (user's message before backend confirms)
+      // Only show optimistic messages that are newer than what backend has
+      const optimisticMessages = (chatState.messages || [])
+        .slice(backendMessages.length) // Only messages after backend count
+        .map(m => ({
+          ...m,
+          timestamp: m.timestamp || Date.now(),
+          optimistic: true,
+        }));
+      
+      // Merge all message sources
+      const messages = [...backendMessages, ...optimisticMessages];
       
       console.log('[useDerivedSessions]', { chatId, status: sessionStatus, messagesCount: messages.length, hasStreaming: !!chatState.streamingMessage });
       
-      const allMessages = [...messages];
+      // Merge backend and ephemeral messages, sort by timestamp
+      const ephemeralMessages = chatState.ephemeralMessages || [];
+      
+      // Assign sequential timestamps to backend messages that don't have them
+      const messagesWithTimestamps = messages.map((m, index) => ({
+        ...m,
+        timestamp: m.timestamp || index + 1, // Sequential: 1, 2, 3... (before any real timestamps)
+      }));
+      
+      const allMessages = [...messagesWithTimestamps, ...ephemeralMessages]
+        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       
       // Add streaming message (assistant response in progress)
       if (chatState.streamingMessage) {

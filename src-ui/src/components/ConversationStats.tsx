@@ -246,43 +246,37 @@ export function ContextPercentage({ agentSlug, conversationId, apiBase, messageC
   return (
     <div 
       onClick={onClick}
+      className="context-indicator"
       style={{ 
-        position: 'absolute',
-        bottom: '-18px',
-        left: '0',
-        right: '0',
-        fontSize: '10px', 
-        color: 'var(--text-muted)', 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '6px',
         pointerEvents: onClick ? 'auto' : 'none',
         cursor: onClick ? 'pointer' : 'default'
       }}
     >
-      <span>Context:</span>
-      <div style={{ 
-        flex: 1, 
-        maxWidth: '80px',
-        height: '3px', 
-        background: 'var(--border-primary)', 
-        borderRadius: '2px',
-        overflow: 'hidden'
-      }}>
+      <div className="context-indicator-content">
+        <span>Context:</span>
         <div style={{ 
-          width: `${Math.min(percentage, 100)}%`, 
-          height: '100%', 
-          background: percentage > 80 ? '#ef4444' : percentage > 50 ? '#f59e0b' : '#10b981',
-          transition: 'width 0.3s'
-        }} />
+          flex: 1, 
+          maxWidth: '80px',
+          height: '3px', 
+          background: 'var(--border-primary)', 
+          borderRadius: '2px',
+          overflow: 'hidden'
+        }}>
+          <div style={{ 
+            width: `${Math.min(percentage, 100)}%`, 
+            height: '100%', 
+            background: percentage > 80 ? '#ef4444' : percentage > 50 ? '#f59e0b' : '#10b981',
+            transition: 'width 0.3s'
+          }} />
+        </div>
+        <span>{percentage.toFixed(1)}%</span>
+        {isActive && (
+          <span style={{ 
+            fontSize: '8px',
+            animation: 'pulse 1.5s ease-in-out infinite'
+          }}>●</span>
+        )}
       </div>
-      <span>{percentage.toFixed(1)}%</span>
-      {isActive && (
-        <span style={{ 
-          fontSize: '8px',
-          animation: 'pulse 1.5s ease-in-out infinite'
-        }}>●</span>
-      )}
     </div>
   );
 }

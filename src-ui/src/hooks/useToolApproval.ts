@@ -16,6 +16,15 @@ export function useToolApproval(apiBase: string) {
 
     const approved = action !== 'deny';
 
+    // For 'trust', add tool to session-specific autoApprove list
+    if (action === 'trust') {
+      const sessionAutoApprove = [...(state.sessionAutoApprove || [])];
+      if (!sessionAutoApprove.includes(toolName)) {
+        sessionAutoApprove.push(toolName);
+      }
+      updateChat(sessionId, { sessionAutoApprove });
+    }
+
     // Update tool call state immediately
     const updatedParts = state.streamingMessage.contentParts.map(part => {
       if (part.type === 'tool' && part.tool?.approvalId === approvalId) {

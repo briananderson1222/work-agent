@@ -22,7 +22,12 @@ type ChatUIState = {
   // Optimistic messages (shown immediately, replaced when backend responds)
   messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }>;
   // Ephemeral messages (user message before backend confirms, system messages)
-  ephemeralMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }>;
+  ephemeralMessages?: Array<{ 
+    role: 'user' | 'assistant' | 'system'; 
+    content: string; 
+    attachments?: any[]; 
+    action?: { label: string; handler: () => void };
+  }>;
   // Tool calls from this conversation (persisted across refreshes)
   toolCalls?: Array<{ id: string; name: string; args: any; result?: any; state?: string; error?: string }>;
   // Streaming message being built in real-time
@@ -31,6 +36,8 @@ type ChatUIState = {
     content: string;
     contentParts?: Array<{ type: 'text' | 'tool'; content?: string; tool?: any }>;
   };
+  // Session-specific autoApprove list (tools trusted for this session only)
+  sessionAutoApprove?: string[];
 };
 
 type ActiveChatsMap = Record<string, ChatUIState>; // keyed by conversationId
@@ -49,7 +56,7 @@ class ActiveChatsStore {
     try {
       const stored = sessionStorage.getItem(this.STORAGE_KEY);
       if (stored) {
-        const minimal: Array<{ sessionId: string; conversationId: string; agentSlug: string }> = JSON.parse(stored);
+        const minimal: Array<{ sessionId: string; conversationId: string; agentSlug: string; sessionAutoApprove?: string[]; ephemeralMessages?: any[] }> = JSON.parse(stored);
         // Initialize minimal chat states - everything else will be derived reactively
         for (const session of minimal) {
           this.chats[session.sessionId] = {
@@ -60,6 +67,8 @@ class ActiveChatsStore {
             hasUnread: false,
             agentSlug: session.agentSlug,
             conversationId: session.conversationId,
+            sessionAutoApprove: session.sessionAutoApprove || [],
+            ephemeralMessages: session.ephemeralMessages || [],
           };
         }
         this.snapshot = this.chats;
@@ -78,6 +87,8 @@ class ActiveChatsStore {
           sessionId,
           conversationId: chat.conversationId!,
           agentSlug: chat.agentSlug!,
+          sessionAutoApprove: chat.sessionAutoApprove || [],
+          ephemeralMessages: chat.ephemeralMessages || [],
         }));
       sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(minimal));
     } catch (e) {
@@ -137,12 +148,19 @@ class ActiveChatsStore {
     }
   }
 
-  addEphemeralMessage(conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }) {
+  addEphemeralMessage(conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }, backendMessageCount?: number) {
     if (this.chats[conversationId]) {
       const current = this.chats[conversationId].ephemeralMessages || [];
+      
       this.chats[conversationId] = {
         ...this.chats[conversationId],
-        ephemeralMessages: [...current, message],
+        ephemeralMessages: [...current, { 
+          ...message, 
+          id: `ephemeral-${Date.now()}-${Math.random()}`,
+          timestamp: Date.now(),
+          ephemeral: true,
+          insertAfterCount: backendMessageCount ?? 0, // Store how many backend messages existed
+        }],
       };
       this.notify();
     }
@@ -305,12 +323,12 @@ export function useAllActiveChats(): Record<string, ChatUIState> {
   );
 }
 
-export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSessionId: string) => void, onError?: (error: Error) => void) {
-  const { updateChat, clearInput, assignConversationId } = useActiveChatActions();
+export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSessionId: string) => void, onError?: (error: Error) => void, handleSlashCommand?: (sessionId: string, content: string) => Promise<boolean | string | 'CLEAR'>) {
+  const { updateChat, clearInput, assignConversationId, addEphemeralMessage } = useActiveChatActions();
   const { sendMessage: sendToServer } = useConversationActions();
-  const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage();
+  const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage(apiBase);
 
-  return useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string) => {
+  const sendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string) => {
     const allChats = activeChatsStore.getSnapshot();
     const currentState = allChats[sessionId];
     
@@ -321,6 +339,23 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
         queuedMessages: [...(currentState.queuedMessages || []), content]
       });
       return;
+    }
+    
+    // Handle slash commands if handler provided
+    if (content.startsWith('/') && handleSlashCommand) {
+      const result = await handleSlashCommand(sessionId, content);
+      if (result === true || result === 'CLEAR') {
+        // Command handled, don't send to backend
+        return;
+      } else if (typeof result === 'string' && result !== 'CLEAR') {
+        // Custom command expanded, show notification
+        addEphemeralMessage(sessionId, {
+          role: 'system',
+          content: `Slash command **${content}** was sent as user message`
+        });
+        // Use the expanded prompt
+        content = result;
+      }
     }
     
     console.log('[useSendMessage] Starting send:', {
@@ -398,10 +433,23 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
         });
         
         clearStreamingMessage(sessionId);
+        
+        // Check if last message indicates maxTurns was reached
+        const lastMessage = backendMessages[backendMessages.length - 1];
+        const shouldShowContinue = lastMessage?.finishReason === 'tool-calls';
+        
         updateChat(sessionId, { 
           status: 'idle',
           abortController: undefined,
-          messages: backendMessages.map(m => ({ role: m.role, content: m.content, contentParts: m.contentParts }))
+          messages: backendMessages.map(m => ({ role: m.role, content: m.content, contentParts: m.contentParts })),
+          ephemeralMessages: shouldShowContinue ? [{
+            role: 'system',
+            content: '⚠️ **Maximum turns reached.** The conversation was terminated to prevent excessive tool usage.',
+            action: {
+              label: 'Continue',
+              handler: () => sendMessage(sessionId, agentSlug, newConversationId, 'continue')
+            }
+          }] : []
         });
         
         // Process next queued message if any
@@ -428,7 +476,9 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
       updateChat(sessionId, { status: 'error', error: err.message, abortController: undefined });
       clearStreamingMessage(sessionId);
     }
-  }, [apiBase, updateChat, clearInput, assignConversationId, sendToServer, handleStreamEvent, clearStreamingMessage, onActiveSessionChange, onError]);
+  }, [apiBase, updateChat, clearInput, assignConversationId, sendToServer, handleStreamEvent, clearStreamingMessage, onActiveSessionChange, onError, addEphemeralMessage, handleSlashCommand]);
+  
+  return sendMessage;
 }
 
 export function useCancelMessage() {

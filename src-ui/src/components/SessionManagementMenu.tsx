@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ConfirmModal } from './ConfirmModal';
+import { ContextPercentage } from './ConversationStats';
 
 interface Conversation {
   id: string;
@@ -11,6 +12,7 @@ interface Conversation {
     stats?: {
       turns?: number;
       totalTokens?: number;
+      contextWindowPercentage?: number;
     };
   };
 }
@@ -383,6 +385,7 @@ export function SessionManagementMenu({
               ) : (
                 conversations.map((conv) => {
                   const isActive = sessions.some(s => s.conversationId === conv.id && s.id === activeSessionId);
+                  const hasActiveChat = sessions.some(s => s.conversationId === conv.id);
                   return (
                     <div
                       key={conv.id}
@@ -414,7 +417,7 @@ export function SessionManagementMenu({
                           }}
                         />
                       ) : (
-                        <div style={{ position: 'relative' }}>
+                        <div style={{ position: 'relative', paddingBottom: '18px' }}>
                           <div
                             onClick={() => handleSelectConversation(conv)}
                             style={{
@@ -426,16 +429,27 @@ export function SessionManagementMenu({
                               fontWeight: isActive ? 600 : 400,
                               fontSize: '13px',
                               marginBottom: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
                             }}>
-                              {conv.title || 'Untitled'}
-                              {' '}
-                              <span style={{ 
-                                fontSize: '10px',
-                                color: 'var(--text-muted)',
-                                fontWeight: 400,
-                                fontFamily: 'monospace',
-                              }}>
-                                {getShortId(conv.id)}
+                              {hasActiveChat && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  color: 'var(--accent-primary, #0066cc)'
+                                }}>●</span>
+                              )}
+                              <span>
+                                {conv.title || 'Untitled'}
+                                {' '}
+                                <span style={{ 
+                                  fontSize: '10px',
+                                  color: 'var(--text-muted)',
+                                  fontWeight: 400,
+                                  fontFamily: 'monospace',
+                                }}>
+                                  {getShortId(conv.id)}
+                                </span>
                               </span>
                             </div>
                             <div style={{ 
@@ -452,20 +466,42 @@ export function SessionManagementMenu({
                                   <span>{conv.metadata.stats.turns} messages</span>
                                 </>
                               )}
-                              {conv.metadata?.stats?.totalTokens && (
-                                <>
-                                  <span>•</span>
-                                  <span>{conv.metadata.stats.totalTokens.toLocaleString()} tokens</span>
-                                </>
-                              )}
                             </div>
-                            <div style={{ 
-                              fontSize: '11px', 
-                              color: 'var(--text-muted)',
-                              textAlign: 'right',
-                            }}>
-                              {formatDate(conv.updatedAt)}
-                            </div>
+                            {conv.metadata?.stats?.contextWindowPercentage !== undefined && (
+                              <div style={{ 
+                                fontSize: '10px', 
+                                color: 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}>
+                                <span>Context:</span>
+                                <div style={{ 
+                                  flex: 1, 
+                                  maxWidth: '80px',
+                                  height: '3px', 
+                                  background: 'var(--border-primary)', 
+                                  borderRadius: '2px',
+                                  overflow: 'hidden'
+                                }}>
+                                  <div style={{ 
+                                    width: `${Math.min(conv.metadata.stats.contextWindowPercentage, 100)}%`, 
+                                    height: '100%', 
+                                    background: conv.metadata.stats.contextWindowPercentage > 80 ? '#ef4444' : conv.metadata.stats.contextWindowPercentage > 50 ? '#f59e0b' : '#10b981',
+                                  }} />
+                                </div>
+                                <span>{conv.metadata.stats.contextWindowPercentage.toFixed(1)}%</span>
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ 
+                            position: 'absolute',
+                            bottom: '0',
+                            right: '0',
+                            fontSize: '11px', 
+                            color: 'var(--text-muted)',
+                          }}>
+                            {formatDate(conv.updatedAt)}
                           </div>
                           <div style={{
                             position: 'absolute',
