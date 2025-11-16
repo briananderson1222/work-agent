@@ -1,0 +1,34 @@
+{
+  "name": "@work-agent/minimal-workspace",
+  "version": "1.0.0",
+  "description": "Minimal workspace plugin example for Work Agent",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "plugin.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "postinstall": "node scripts/install-plugin.js"
+  },
+  "peerDependencies": {
+    "@stallion-ai/sdk": "^0.4.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@stallion-ai/sdk": "^0.4.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "work-agent",
+    "workspace",
+    "plugin",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}

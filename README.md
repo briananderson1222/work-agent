@@ -641,6 +641,124 @@ If you prefer to migrate manually:
 
 If you need to rollback, restore files from the backup directory created by the migration script.
 
+## 🔌 Plugin Development
+
+Work Agent uses a plugin architecture that separates custom workspaces from the core application. Plugins are distributed as npm packages and automatically discovered at runtime.
+
+### Quick Start
+
+```bash
+# Install an example plugin
+npm install ../examples/minimal-workspace
+
+# Or from npm (when published)
+npm install @work-agent/sa-dashboard
+```
+
+### Creating a Plugin
+
+1. **Create plugin structure:**
+
+```bash
+mkdir my-workspace
+cd my-workspace
+npm init -y
+```
+
+2. **Add plugin manifest (`plugin.json`):**
+
+```json
+{
+  "name": "my-workspace",
+  "version": "1.0.0",
+  "type": "workspace",
+  "sdkVersion": "^0.4.0",
+  "displayName": "My Workspace",
+  "entrypoint": "./index.tsx",
+  "capabilities": ["chat", "navigation"],
+  "permissions": ["navigation.dock"]
+}
+```
+
+3. **Create component (`src/index.tsx`):**
+
+```typescript
+import { useAgents, useNavigation, useToast } from '@stallion-ai/sdk';
+import type { WorkspaceComponentProps } from '@stallion-ai/sdk';
+
+export default function MyWorkspace({ workspace }: WorkspaceComponentProps) {
+  const agents = useAgents();
+  const { setDockState } = useNavigation();
+  const { showToast } = useToast();
+
+  return (
+    <div>
+      <h1>{workspace?.name}</h1>
+      <button onClick={() => setDockState(true)}>Open Chat</button>
+    </div>
+  );
+}
+```
+
+4. **Build and install:**
+
+```bash
+npm run build
+npm link
+cd ../work-agent
+npm link my-workspace
+```
+
+### SDK API
+
+Plugins access core functionality via `@stallion-ai/sdk`:
+
+```typescript
+import {
+  // Contexts
+  useAgents,           // List all agents
+  useWorkspaces,       // List all workspaces
+  useConversations,    // Get conversation history
+  useModels,           // Available models
+  
+  // Chat operations
+  useCreateChatSession,  // Create new chat
+  useSendMessage,        // Send message to agent
+  
+  // Navigation
+  useNavigation,       // Control dock, navigate views
+  useToast,            // Show notifications
+  
+  // Slash commands
+  useSlashCommandHandler,  // Handle slash commands
+  
+  // Types
+  WorkspaceComponentProps,
+  AgentSummary,
+  Message,
+} from '@stallion-ai/sdk';
+```
+
+### Plugin Installation
+
+Plugins install automatically via postinstall script:
+
+```json
+{
+  "scripts": {
+    "postinstall": "node scripts/install-plugin.js"
+  }
+}
+```
+
+The script copies built files to `src-ui/src/workspaces/` or `src-ui/src/plugins/`.
+
+### Documentation
+
+- **[Plugin Architecture](./PLUGIN_ARCHITECTURE.md)** - Complete plugin system documentation
+- **[Example Plugin](./examples/minimal-workspace/)** - Minimal workspace example
+- **[Agent Development Guide](./AGENTS.md)** - Component patterns and best practices
+
 ## 🏢 Production Deployment
 
 For production, you can:
@@ -656,6 +774,7 @@ The architecture supports clean adapter swaps without changing agent logic.
 - **VoltAgent Docs**: https://voltagent.dev/docs/
 - **Amazon Bedrock**: https://aws.amazon.com/bedrock/
 - **Model Context Protocol**: https://modelcontextprotocol.io/
+- **Plugin Architecture**: [PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md)
 
 ## 🤝 Contributing
 
@@ -664,6 +783,7 @@ Contributions welcome! This is a VoltAgent-first implementation demonstrating:
 - Dynamic agent loading from configuration files
 - MCP lifecycle management
 - Agent switching without server restarts
+- Plugin architecture with npm-based distribution
 
 ## 📄 License
 

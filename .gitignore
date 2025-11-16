@@ -15,3 +15,9 @@ dist-desktop/
 src-desktop/target/
 src-desktop/Cargo.lock
 src-desktop/binaries/
+
+# Plugins and workspaces (installed via npm)
+src-ui/src/workspaces/
+src-ui/src/plugins/
+!src-ui/src/workspaces/.gitkeep
+!src-ui/src/plugins/.gitkeep
