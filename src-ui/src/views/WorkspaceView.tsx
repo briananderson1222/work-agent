@@ -8,16 +8,33 @@ import { useSendMessage } from '../contexts/ActiveChatsContext';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { WorkspaceRenderer } from '../workspaces';
 import { SDKAdapter } from '../core/SDKAdapter';
+import { pluginRegistry } from '../core/PluginRegistry';
+import { WorkspaceNavigationProvider } from '@stallion-ai/sdk';
 
 export function WorkspaceView() {
   const { apiBase } = useApiBase();
-  const { selectedWorkspace, setDockState } = useNavigation();
+  const { selectedWorkspace, activeTab, setDockState, setWorkspaceTab } = useNavigation();
   
   const agents = useAgents(apiBase);
   const workspace = useWorkspace(apiBase, selectedWorkspace || '', !!selectedWorkspace);
-  const [activeTabId, setActiveTabId] = useState<string>('');
   const createChatSession = useCreateChatSession();
   const slashCommandHandler = useSlashCommandHandler(apiBase);
+  
+  // Set active tab via NavigationContext
+  const setActiveTabId = useCallback((tabId: string) => {
+    if (selectedWorkspace) {
+      setWorkspaceTab(selectedWorkspace, tabId);
+    }
+  }, [selectedWorkspace, setWorkspaceTab]);
+  
+  const activeTabId = activeTab || '';
+  
+  const [pluginsLoaded, setPluginsLoaded] = useState(false);
+  
+  // Initialize plugin registry
+  useEffect(() => {
+    pluginRegistry.initialize().then(() => setPluginsLoaded(true));
+  }, []);
   
   // Wrap slash command handler to match useSendMessage signature
   const handleSlashCommand = useCallback(async (sessionId: string, content: string) => {
@@ -35,7 +52,7 @@ export function WorkspaceView() {
     }
   }, [workspace?.slug, workspace?.tabs]);
 
-  const activeTab = workspace?.tabs?.find((t: any) => t.id === activeTabId);
+  const activeTabObject = workspace?.tabs?.find((t: any) => t.id === activeTabId);
   const agent = agents.find(a => a.slug === workspace?.defaultAgent);
 
   const handleLaunchPrompt = useCallback(async (prompt: any) => {
@@ -65,17 +82,24 @@ export function WorkspaceView() {
   }
 
   return (
-    <SDKAdapter apiBase={apiBase}>
-      <WorkspaceRenderer
-        workspace={workspace}
-        activeTab={activeTab}
-        activeTabId={activeTabId}
-        onTabChange={setActiveTabId}
-        agent={agent || null}
-        componentId={activeTab?.component}
-        onLaunchPrompt={handleLaunchPrompt}
-        onShowChat={() => setDockState(true)}
-      />
+    <SDKAdapter workspace={workspace}>
+      <WorkspaceNavigationProvider activeTabId={activeTabId} workspaceSlug={workspace?.slug}>
+        {pluginsLoaded ? (
+          <WorkspaceRenderer
+            workspace={workspace}
+            activeTab={activeTabObject}
+            activeTabId={activeTabId}
+            onTabChange={setActiveTabId}
+            agent={agent || null}
+            componentId={activeTabObject?.component}
+            onLaunchPrompt={handleLaunchPrompt}
+            onShowChat={() => setDockState(true)}
+            pluginRegistry={pluginRegistry}
+          />
+        ) : (
+          <div>Loading plugins...</div>
+        )}
+      </WorkspaceNavigationProvider>
     </SDKAdapter>
   );
 }

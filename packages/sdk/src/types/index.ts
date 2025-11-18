@@ -2,6 +2,8 @@
  * SDK Types - Shared types for plugin development
  */
 
+import type { ReactElement } from 'react';
+
 // Plugin Manifest
 export interface PluginManifest {
   name: string;
@@ -74,6 +76,7 @@ export interface WorkspaceConfig {
   icon?: string;
   description?: string;
   defaultAgent?: string;
+  availableAgents?: string[];
   tabs?: WorkspaceTab[];
   globalPrompts?: AgentQuickPrompt[];
 }
@@ -213,4 +216,51 @@ export interface WorkspaceComponentProps {
 }
 
 // Plugin Component Type
-export type WorkspaceComponent = (props: WorkspaceComponentProps) => JSX.Element;
+export type WorkspaceComponent = (props: WorkspaceComponentProps) => ReactElement;
+
+// Agent API Types
+export interface Agent extends AgentSummary {}
+
+export interface InvokeOptions {
+  conversationId?: string;
+  userId?: string;
+  model?: string;
+  tools?: string[];
+  maxSteps?: number;
+  signal?: AbortSignal;
+}
+
+export interface InvokeResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  toolCalls?: any[];
+}
+
+// Event Handler Types
+export type EventHandler<T = any> = (event: T) => void;
+
+// Tool Types
+export interface Tool {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+// Keyboard Types
+export interface KeyboardCommand {
+  key: string;
+  modifiers?: string[];
+  handler: () => void;
+}
+
+// Window Types
+export interface WindowOptions {
+  title?: string;
+  width?: number;
+  height?: number;
+  url?: string;
+}
+
+// Permission Types
+export type Permission = string;

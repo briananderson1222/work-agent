@@ -27,12 +27,12 @@ export class PluginRegistry {
 
     // Discover workspaces
     await this.discoverPlugins('/src/workspaces', 'workspace');
-    
+
     // Discover components
     await this.discoverPlugins('/src/plugins', 'component');
 
     this.initialized = true;
-    
+
   }
 
   /**
@@ -56,28 +56,50 @@ export class PluginRegistry {
             continue;
           }
 
-          // Load the component
+          // Load the component module
           const componentPath = path.replace('/plugin.json', `/${pluginManifest.entrypoint}`);
-          const component = await this.loadComponent(componentPath);
+          const module = await this.loadComponentModule(componentPath);
 
-          if (!component) {
+          if (!module) {
             console.warn(`[PluginRegistry] Failed to load component for ${pluginManifest.name}`);
             continue;
           }
 
-          // Register the plugin
-          const registered: RegisteredPlugin = {
-            manifest: pluginManifest,
-            component,
-            path,
-          };
+          // Register named exports if available (e.g., { components: { 'id': Component } })
+          if (module.components && typeof module.components === 'object') {
+            for (const [componentId, component] of Object.entries(module.components)) {
+              const registered: RegisteredPlugin = {
+                manifest: pluginManifest,
+                component: component as WorkspaceComponent,
+                path,
+              };
 
-          if (type === 'workspace') {
-            this.workspaces.set(pluginManifest.name, registered);
-          } else {
-            this.components.set(pluginManifest.name, registered);
+              if (type === 'workspace') {
+                this.workspaces.set(componentId, registered);
+              } else {
+                this.components.set(componentId, registered);
+              }
+
+              console.log(`[PluginRegistry] Registered ${type}: ${componentId}`);
+            }
           }
 
+          // Also register default export
+          if (module.default) {
+            const registered: RegisteredPlugin = {
+              manifest: pluginManifest,
+              component: module.default,
+              path,
+            };
+
+            if (type === 'workspace') {
+              this.workspaces.set(pluginManifest.name, registered);
+            } else {
+              this.components.set(pluginManifest.name, registered);
+            }
+
+            console.log(`[PluginRegistry] Registered ${type} default: ${pluginManifest.name}`);
+          }
         } catch (error) {
           console.error(`[PluginRegistry] Error loading plugin at ${path}:`, error);
         }
@@ -90,11 +112,11 @@ export class PluginRegistry {
   /**
    * Load a component module
    */
-  private async loadComponent(path: string): Promise<WorkspaceComponent | null> {
+  private async loadComponentModule(path: string): Promise<any | null> {
     try {
-      // Use dynamic import to load the component
+      // Use dynamic import to load the component module
       const module = await import(/* @vite-ignore */ path);
-      return module.default || null;
+      return module;
     } catch (error) {
       console.error(`[PluginRegistry] Error loading component from ${path}:`, error);
       return null;
@@ -186,15 +208,15 @@ export class PluginRegistry {
     if (!plugin) return false;
 
     const requiredVersion = plugin.manifest.sdkVersion;
-    
+
     // Simple semver check (can be enhanced with a proper semver library)
     const required = requiredVersion.replace(/[\^~]/, '');
     const current = currentSDKVersion;
-    
+
     // For now, just check major version compatibility
     const requiredMajor = required.split('.')[0];
     const currentMajor = current.split('.')[0];
-    
+
     return requiredMajor === currentMajor;
   }
 }

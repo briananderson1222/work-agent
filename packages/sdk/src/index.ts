@@ -3,6 +3,9 @@ export * from './types';
 
 // Re-export context hooks
 export {
+  // SDK access
+  useSDK,
+  
   // Agent management
   useAgents,
   useAgent,
@@ -37,6 +40,9 @@ export {
   // Toast notifications
   useToast,
   
+  // Notifications
+  useNotifications,
+  
   // Slash commands
   useSlashCommandHandler,
   useSlashCommands,
@@ -63,10 +69,23 @@ export {
   sendMessage,
   streamMessage,
   invokeAgent,
+  transformTool,
+  fetchConfig,
+  _setWorkspaceContext,
+  _setApiBase,
 } from './api';
+
+export {
+  resolveAgentName,
+  parseAgentSlug,
+  isWorkspaceAgent,
+} from './agentResolver';
 
 // Re-export components
 export {
   SDKProvider,
   WorkspaceProvider,
+  WorkspaceNavigationProvider,
+  useWorkspaceNavigation,
+  SDKContext,
 } from './providers';

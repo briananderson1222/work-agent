@@ -8,11 +8,11 @@ export class WorkspaceAPI {
   }
 
   hasCapability(capability: string): boolean {
-    return this.manifest.capabilities.includes(capability);
+    return this.manifest.capabilities?.includes(capability) ?? false;
   }
 
   async requestPermission(permission: string): Promise<boolean> {
-    if (this.manifest.permissions.includes(permission)) {
+    if (this.manifest.permissions?.includes(permission)) {
       return true;
     }
     // Permission dialog would be shown by core
@@ -20,6 +20,6 @@ export class WorkspaceAPI {
   }
 
   getPermissions(): string[] {
-    return this.manifest.permissions;
+    return this.manifest.permissions ?? [];
   }
 }

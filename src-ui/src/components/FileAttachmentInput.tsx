@@ -115,8 +115,6 @@ export function FileAttachmentInput({
       <button
         ref={attachButtonRef}
         onClick={() => fileInputRef.current?.click()}
-        onMouseEnter={() => attachments.length > 0 && setShowPreview(true)}
-        onMouseLeave={() => setShowPreview(false)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();

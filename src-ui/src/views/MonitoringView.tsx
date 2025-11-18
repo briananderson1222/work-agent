@@ -28,6 +28,11 @@ export function MonitoringView() {
       key: 'tool',
       type: 'tool' as const,
       getOptions: () => [...new Set(events.map(e => e.toolCallId).filter(Boolean))] as string[]
+    },
+    {
+      key: 'trace',
+      type: 'trace' as const,
+      getOptions: () => [...new Set(events.map(e => (e as any).traceId).filter(Boolean))] as string[]
     }
   ], [stats, events]);
   
@@ -48,6 +53,7 @@ export function MonitoringView() {
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [selectedToolCallId, setSelectedToolCallId] = useState<string | null>(null);
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<'now' | 'today' | 'week' | 'month' | 'all'>('now');
   const [newEventIds, setNewEventIds] = useState<Set<string>>(new Set());
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -108,6 +114,15 @@ export function MonitoringView() {
       setSelectedToolCallId(null);
     } else {
       setSelectedToolCallId(toolCallId);
+    }
+  };
+
+  const handleTraceClick = (traceId: string) => {
+    // Toggle filter on trace ID
+    if (selectedTraceId === traceId) {
+      setSelectedTraceId(null);
+    } else {
+      setSelectedTraceId(traceId);
     }
   };
 
@@ -190,6 +205,8 @@ export function MonitoringView() {
     // Check tool call ID filter
     const toolCallIdToFilter = parsed.filters.tool?.[0] || selectedToolCallId;
     if (toolCallIdToFilter && event.toolCallId !== toolCallIdToFilter) return false;
+    // Check trace ID filter
+    if (selectedTraceId && (event as any).traceId !== selectedTraceId) return false;
     if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.type)) return false;
     if (parsed.text && !JSON.stringify(event).toLowerCase().includes(parsed.text.toLowerCase())) return false;
     return true;
@@ -397,7 +414,7 @@ export function MonitoringView() {
               </button>
             </div>
             
-            {(selectedAgents.length > 0 || selectedConversation || selectedToolCallId) && (
+            {(selectedAgents.length > 0 || selectedConversation || selectedToolCallId || selectedTraceId) && (
               <div className="active-filters-inline">
                 {selectedAgents.map(agent => (
                   <span 
@@ -436,6 +453,18 @@ export function MonitoringView() {
                     <button onClick={() => setSelectedToolCallId(null)}>×</button>
                   </span>
                 )}
+                {selectedTraceId && (
+                  <span 
+                    className="filter-badge-inline"
+                    style={{ 
+                      borderLeft: `3px solid var(--color-primary)`,
+                      background: `color-mix(in srgb, var(--color-primary) 15%, var(--bg-tertiary))`
+                    }}
+                  >
+                    trace:...{selectedTraceId.slice(-8)}
+                    <button onClick={() => setSelectedTraceId(null)}>×</button>
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -458,7 +487,20 @@ export function MonitoringView() {
                     background: `color-mix(in srgb, ${agentColor} 8%, var(--bg-secondary))`
                   } : undefined}
                 >
-                  <div className="log-timestamp">{new Date(event.timestamp).toLocaleTimeString()}</div>
+                  <div 
+                    className="log-timestamp" 
+                    title={new Date(event.timestamp).toLocaleString('en-US', { 
+                      dateStyle: 'full', 
+                      timeStyle: 'long' 
+                    })}
+                  >
+                    {new Date(event.timestamp).toLocaleTimeString()}
+                    {(event as any).timestampMs && (
+                      <span style={{ fontSize: '0.7em', opacity: 0.6, marginLeft: '0.25rem' }}>
+                        .{String((event as any).timestampMs % 1000).padStart(3, '0')}
+                      </span>
+                    )}
+                  </div>
                   <div className="log-type">{event.type.toUpperCase()}</div>
                   {event.agentSlug && <div className="log-agent">{event.agentSlug}</div>}
                   
@@ -498,14 +540,37 @@ export function MonitoringView() {
                       </span>
                     )}
                     
+                    {(event as any).traceId && (
+                      <span className="log-inline">
+                        <span className="meta-label">Trace:</span>
+                        <button
+                          className={`pill-button ${selectedTraceId === (event as any).traceId ? 'selected' : ''}`}
+                          onClick={() => handleTraceClick((event as any).traceId)}
+                          title="Filter by trace ID"
+                          style={{ 
+                            background: 'var(--color-primary)',
+                            borderColor: 'var(--color-primary)',
+                            color: 'white',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          ...{(event as any).traceId.slice(-8)}
+                        </button>
+                      </span>
+                    )}
+                    
                     {event.toolName && (
                       <span className="log-inline">
                         <span className="meta-label">Tool:</span>
                         <span className="pill-badge tool-badge">{event.toolName}</span>
-                        {((event as any).step !== undefined || (event as any).toolCallNumber !== undefined) && (
+                        {(event as any).requiresApproval && (
+                          <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--warning-primary)' }}>
+                            🔒 Requires Approval
+                          </span>
+                        )}
+                        {(event as any).toolCallNumber !== undefined && (
                           <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            {(event as any).step !== undefined && `Step ${(event as any).step}`}
-                            {(event as any).toolCallNumber !== undefined && ` #${(event as any).toolCallNumber}`}
+                            Call #{(event as any).toolCallNumber}
                           </span>
                         )}
                       </span>
@@ -544,18 +609,6 @@ export function MonitoringView() {
                           <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                             (Hit max steps limit: {(event as any).steps}/{(event as any).maxSteps})
                           </span>
-                        )}
-                      </span>
-                    )}
-                    
-                    {((event as any).steps !== undefined || (event as any).toolCallCount !== undefined) && (
-                      <span className="log-inline">
-                        <span className="meta-label">Stats:</span>
-                        {(event as any).steps !== undefined && (
-                          <span className="pill-badge">{(event as any).steps} steps</span>
-                        )}
-                        {(event as any).toolCallCount !== undefined && (
-                          <span className="pill-badge" style={{ marginLeft: '0.25rem' }}>{(event as any).toolCallCount} tool calls</span>
                         )}
                       </span>
                     )}
@@ -670,6 +723,78 @@ export function MonitoringView() {
                                     <div style={{ fontWeight: 500, color: 'var(--event-tool-call)' }}>{tool.name}</div>
                                   </div>
                                 ))}
+                              </div>
+                            </details>
+                          )}
+                          {(event as any).usage && (
+                            <details className="log-details">
+                              <summary>Usage & Stats</summary>
+                              <div style={{ padding: '0.5rem 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem', fontSize: '0.9em' }}>
+                                {/* Character Counts */}
+                                {(event as any).inputChars !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)' }}>Input:</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).inputChars.toLocaleString()} chars</div>
+                                  </>
+                                )}
+                                
+                                {(event as any).outputChars !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)' }}>Output:</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).outputChars.toLocaleString()} chars</div>
+                                  </>
+                                )}
+                                
+                                {(event as any).inputChars !== undefined && (event as any).outputChars !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Total:</div>
+                                    <div style={{ fontFamily: 'monospace', fontWeight: 500 }}>{((event as any).inputChars + (event as any).outputChars).toLocaleString()} chars</div>
+                                  </>
+                                )}
+                                
+                                {/* Token Usage */}
+                                {(event as any).usage?.promptTokens !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Prompt Tokens:</div>
+                                    <div style={{ fontFamily: 'monospace', marginTop: '0.5rem' }}>{(event as any).usage.promptTokens.toLocaleString()}</div>
+                                  </>
+                                )}
+                                
+                                {(event as any).usage?.completionTokens !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)' }}>Completion Tokens:</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).usage.completionTokens.toLocaleString()}</div>
+                                  </>
+                                )}
+                                
+                                {(event as any).usage?.totalTokens !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Total Tokens:</div>
+                                    <div style={{ fontFamily: 'monospace', fontWeight: 500 }}>{(event as any).usage.totalTokens.toLocaleString()}</div>
+                                  </>
+                                )}
+                                
+                                {/* Execution Stats */}
+                                {(event as any).steps !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Steps Taken:</div>
+                                    <div style={{ fontFamily: 'monospace', marginTop: '0.5rem' }}>{(event as any).steps}</div>
+                                  </>
+                                )}
+                                
+                                {(event as any).maxSteps !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)' }}>Max Steps:</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).maxSteps}</div>
+                                  </>
+                                )}
+                                
+                                {(event as any).toolCallCount !== undefined && (
+                                  <>
+                                    <div style={{ color: 'var(--text-secondary)' }}>Tool Calls:</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).toolCallCount}</div>
+                                  </>
+                                )}
                               </div>
                             </details>
                           )}

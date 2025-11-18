@@ -59,7 +59,7 @@ export class AgentsAPI {
     if (!res.ok) throw new Error(`Failed to invoke agent: ${res.statusText}`);
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Request failed');
-    return { output: data.response, toolCalls: data.toolCalls };
+    return { success: true, output: data.response, toolCalls: data.toolCalls };
   }
 
   async transform(slug: string, toolName: string, toolArgs: any, transformFn: string): Promise<any> {

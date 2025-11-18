@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { apiRequest } from '../lib/apiClient';
-import type { AgentWorkspaceProps } from './index';
+import { useToast, transformTool, useNavigation, useSendMessage, useWorkspaceNavigation, invokeAgent, useNotifications } from '@stallion-ai/sdk';
+import '../../plugins/shared/workspace.css';
 
 const CalendarEventSchema = z.object({
   events: z.array(z.object({
@@ -46,61 +46,6 @@ interface SFDCContext {
   opportunities?: any[];
   tasks?: any[];
 }
-
-const API_BASE = 'http://localhost:3141';
-
-async function streamInvoke(
-  agentSlug: string,
-  prompt: string,
-  options: {
-    tools?: string[];
-    maxSteps?: number;
-    schema?: z.ZodType<any>;
-    onChunk?: (text: string) => void;
-  } = {}
-): Promise<any> {
-  const requestStart = performance.now();
-  
-  const response = await fetch(`${API_BASE}/agents/${agentSlug}/invoke/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      silent: true,
-      tools: options.tools,
-      maxSteps: options.maxSteps ?? 10,
-      schema: options.schema ? zodToJsonSchema(options.schema) : undefined,
-    }),
-  });
-
-  const fetchTime = performance.now() - requestStart;
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-
-  const parseStart = performance.now();
-  const data = await response.json();
-  
-  if (!data.success) {
-    throw new Error(data.error || 'Request failed');
-  }
-
-  // Log usage to see how many steps were taken
-  if (data.usage) {
-  }
-  
-  // Log debug info
-  if (data.debug) {
-  }
-  
-  // Log trace if available
-  if (data.trace) {
-  }
-
-  return data.response;
-}
-
 
 function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
   const today = new Date().toISOString().split('T')[0];
@@ -182,32 +127,16 @@ function detectMeetingProvider(location?: string): { provider: string; url: stri
   return null;
 }
 
-export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat }: AgentWorkspaceProps) {
-  // Load config for notification settings
-  const [notificationConfig, setNotificationConfig] = useState<{ enabled: boolean; thresholds: number[] }>({
-    enabled: true,
-    thresholds: [30, 10, 1]
-  });
+interface CalendarProps {
+  activeTab?: any; // Will be defined when this tab is active
+}
 
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/config/app`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.config?.meetingNotifications) {
-            setNotificationConfig({
-              enabled: data.config.meetingNotifications.enabled !== false,
-              thresholds: data.config.meetingNotifications.thresholds || [30, 10, 1]
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load notification config:', err);
-      }
-    };
-    loadConfig();
-  }, []);
+export function Calendar({ activeTab }: CalendarProps) {
+  const { showToast } = useToast();
+  const { notify } = useNotifications();
+  const { setDockState } = useNavigation();
+  const { getTabState, setTabState } = useWorkspaceNavigation();
+  const sendMessage = useSendMessage();
 
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
@@ -217,16 +146,11 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     return `${year}-${month}-${day}`;
   };
 
-  // Parse initial state from URL hash
+  // Parse initial state from sessionStorage (no hash)
   const initialState = useMemo(() => {
-    let hash = window.location.hash.slice(1);
-    
-    // Fallback to sessionStorage if hash is empty
-    if (!hash) {
-      hash = sessionStorage.getItem('sa-dashboard-hash') || '';
-    }
-    
-    const params = new URLSearchParams(hash);
+    // Get stored state from WorkspaceNavigationProvider
+    const storedState = activeTab ? getTabState('calendar') : '';
+    const params = new URLSearchParams(storedState);
     const dateStr = params.get('date');
     const date = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
     
@@ -237,7 +161,41 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
       filterExpanded: params.get('filterExpanded') === 'true',
       allDayExpanded: params.get('allDayExpanded') === 'true' // Default to false (collapsed)
     };
-  }, []);
+  }, [activeTab]);
+
+  // Restore state when tab becomes active
+  useEffect(() => {
+    if (activeTab) {
+      const storedState = getTabState('calendar');
+      console.log('[Calendar] Restoring state from provider:', storedState);
+      if (storedState) {
+        const params = new URLSearchParams(storedState);
+        
+        const dateStr = params.get('date');
+        if (dateStr) {
+          const date = new Date(dateStr + 'T00:00:00');
+          if (!isNaN(date.getTime())) {
+            console.log('[Calendar] Restoring date:', date);
+            setSelectedDate(date);
+            setViewMonth(date);
+          }
+        }
+        
+        const categories = params.get('categories')?.split(',').filter(Boolean) || [];
+        console.log('[Calendar] Restoring categories:', categories);
+        setSelectedCategories(new Set(categories));
+        
+        const eventId = params.get('event');
+        if (eventId) {
+          console.log('[Calendar] Restoring event:', eventId);
+          setSelectedEventId(eventId);
+        }
+        
+        setFilterExpanded(params.get('filterExpanded') === 'true');
+        setAllDayExpanded(params.get('allDayExpanded') === 'true');
+      }
+    }
+  }, [activeTab, getTabState]);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
@@ -274,18 +232,21 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     const updateTime = () => setCurrentTime(new Date());
     const msUntilNextMinute = 60000 - (Date.now() % 60000);
     
+    let interval: NodeJS.Timeout;
     const timeout = setTimeout(() => {
       updateTime();
-      const interval = setInterval(updateTime, 60000);
-      return () => clearInterval(interval);
+      interval = setInterval(updateTime, 60000);
     }, msUntilNextMinute);
     
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
   }, [isToday]);
 
   // Check for upcoming meeting notifications
   const upcomingNotification = useMemo(() => {
-    if (isToday || todayEvents.length === 0 || !notificationConfig.enabled) return null;
+    if (!isToday || todayEvents.length === 0) return null;
     
     const now = new Date();
     const upcomingMeeting = todayEvents
@@ -293,32 +254,23 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
       .find(e => {
         const start = new Date(e.start);
         const minutesUntil = Math.round((start.getTime() - now.getTime()) / 60000);
-        return minutesUntil > 0 && minutesUntil <= Math.max(...notificationConfig.thresholds);
+        return minutesUntil > 0 && minutesUntil <= 30; // Notify within 30 minutes
       });
     
     if (!upcomingMeeting) return null;
     
     const start = new Date(upcomingMeeting.start);
     const minutesUntil = Math.round((start.getTime() - now.getTime()) / 60000);
-    
-    // Find the appropriate threshold
-    const threshold = notificationConfig.thresholds
-      .sort((a, b) => a - b)
-      .find(t => minutesUntil <= t);
-    
-    if (!threshold) return null;
-    
-    const notificationId = `${upcomingMeeting.meetingId}-${threshold}`;
+    const notificationId = `${upcomingMeeting.meetingId}-${minutesUntil}`;
     
     if (dismissedNotifications.has(notificationId)) return null;
     
     return {
       meeting: upcomingMeeting,
       minutesUntil,
-      threshold,
       notificationId
     };
-  }, [isToday, todayEvents, currentTime, dismissedNotifications, notificationConfig]);
+  }, [isToday, todayEvents, currentTime, dismissedNotifications]);
 
   // Update URL hash when state changes (skip on initial mount)
   useEffect(() => {
@@ -340,10 +292,10 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     if (allDayExpanded) {
       params.set('allDayExpanded', 'true');
     }
-    const hashString = params.toString();
-    window.history.pushState(null, '', `#${hashString}`);
-    sessionStorage.setItem('sa-dashboard-hash', hashString);
-  }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, isInitialMount]);
+    const stateString = params.toString();
+    console.log('[Calendar] Saving state to provider:', stateString);
+    setTabState('calendar', stateString);
+  }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, isInitialMount, setTabState]);
 
   const selectedEvent = events.find((e) => e.meetingId === selectedEventId) ?? null;
   
@@ -415,52 +367,32 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     const apiStartTime = performance.now();
     try {
       // Use pure transformation (no LLM, instant)
-      const data = await apiRequest<{ success: boolean; response: { events: CalendarEvent[] }; error?: any }>(
-        `${API_BASE}/agents/sa-agent/invoke/transform`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            toolName: 'sat-outlook_calendar_view',
-            toolArgs: { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-            transform: `(data) => ({
-              events: data.map(e => ({
-                meetingId: e.meetingId,
-                meetingChangeKey: e.meetingChangeKey,
-                subject: e.subject,
-                start: e.start,
-                end: e.end,
-                location: e.location || '',
-                organizer: e.organizer?.name || '',
-                status: e.status,
-                isCanceled: e.isCanceled || false,
-                categories: e.categories || [],
-                isAllDay: e.isAllDay || false
-              }))
-            })`,
-          }),
-        }
-      );
+      const data = await transformTool('work-agent', 'sat-outlook_calendar_view', {
+        view: 'day',
+        start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0]
+      }, `(data) => ({
+        events: data.map(e => ({
+          meetingId: e.meetingId,
+          meetingChangeKey: e.meetingChangeKey,
+          subject: e.subject,
+          start: e.start,
+          end: e.end,
+          location: e.location || '',
+          organizer: e.organizer?.name || '',
+          status: e.status,
+          isCanceled: e.isCanceled || false,
+          categories: e.categories || [],
+          isAllDay: e.isAllDay || false
+        }))
+      })`);
       
-      if (!data.success) {
-        const errorStr = JSON.stringify(data.error);
-        
-        if (errorStr.includes('Form action URL not found') || 
-            errorStr.includes('Midway') || 
-            errorStr.includes('authentication') ||
-            errorStr.includes('mwinit')) {
-          // Auth errors are now handled by apiRequest, but retry if needed
-          return fetchEvents(dateStr, preserveEventId);
-        }
-        throw new Error(data.error);
-      }
-
       const apiTime = performance.now() - apiStartTime;
       
-      const parsedEvents = data.response.events;
+      const parsedEvents = data.events;
       
       if (parsedEvents.length === 0) {
-        setError(`No events parsed. Agent response: ${response.substring(0, 300)}...`);
+        setEvents([]);
+        setSelectedEventId(null);
       } else {
         setEvents(parsedEvents);
         
@@ -505,37 +437,27 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
       }
       
       try {
-        const data = await apiRequest<{ success: boolean; response: { events: CalendarEvent[] } }>(
-          `${API_BASE}/agents/sa-agent/invoke/transform`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              toolName: 'sat-outlook_calendar_view',
-              toolArgs: { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-              transform: `(data) => ({
-                events: data.map(e => ({
-                  meetingId: e.meetingId,
-                  meetingChangeKey: e.meetingChangeKey,
-                  subject: e.subject,
-                  start: e.start,
-                  end: e.end,
-                  location: e.location || '',
-                  organizer: e.organizer?.name || '',
-                  status: e.status,
-                  isCanceled: e.isCanceled || false,
-                  categories: e.categories || [],
-                  isAllDay: e.isAllDay || false
-                }))
-              })`,
-            }),
-          }
-        );
+        const data = await transformTool('work-agent', 'sat-outlook_calendar_view', {
+          view: 'day',
+          start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0]
+        }, `(data) => ({
+          events: data.map(e => ({
+            meetingId: e.meetingId,
+            meetingChangeKey: e.meetingChangeKey,
+            subject: e.subject,
+            start: e.start,
+            end: e.end,
+            location: e.location || '',
+            organizer: e.organizer?.name || '',
+            status: e.status,
+            isCanceled: e.isCanceled || false,
+            categories: e.categories || [],
+            isAllDay: e.isAllDay || false
+          }))
+        })`);
         
-        if (data.success) {
-          setTodayEvents(data.response.events);
-          setCache(cacheKey, data.response.events);
-        }
+        setTodayEvents(data.events);
+        setCache(cacheKey, data.events);
       } catch (err) {
         console.error('Failed to fetch today events:', err);
       }
@@ -547,31 +469,14 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     return () => clearInterval(interval);
   }, []);
   
-  useEffect(() => {
-    const handlePopState = () => {
-      const hash = window.location.hash.slice(1);
-      const params = new URLSearchParams(hash);
-      
-      const dateStr = params.get('date');
-      if (dateStr) {
-        const date = new Date(dateStr + 'T00:00:00');
-        setSelectedDate(date);
-        setViewMonth(date);
-      }
-      
-      const categories = params.get('categories')?.split(',').filter(Boolean) || [];
-      setSelectedCategories(new Set(categories));
-      
-      const eventId = params.get('event');
-      setSelectedEventId(eventId);
-      
-      setFilterExpanded(params.get('filterExpanded') === 'true');
-      setAllDayExpanded(params.get('allDayExpanded') === 'true');
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  // Removed popstate listener - WorkspaceNavigationProvider handles hash restoration
+  // useEffect(() => {
+  //   const handlePopState = () => {
+  //     // Provider handles this now
+  //   };
+  //   window.addEventListener('popstate', handlePopState);
+  //   return () => window.removeEventListener('popstate', handlePopState);
+  // }, [activeTab]);
 
   // Auto-fetch meeting details when event is selected
   useEffect(() => {
@@ -651,62 +556,37 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     setLoadingDetails(true);
     
     try {
-      const data = await apiRequest<{ success: boolean; response: any; error?: any }>(
-        `${API_BASE}/agents/sa-agent/invoke/transform`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            toolName: 'sat-outlook_calendar_meeting',
-            toolArgs: { 
-              operation: 'read',
-              meetingId: meetingId, 
-              meetingChangeKey: event.meetingChangeKey 
-            },
-            transform: `(data) => {
-              const meeting = data.success ? data.content : data;
-              const normalizeStatus = (status) => {
-                if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
-                if (status === 'Accept' || status === 'Accepted') return 'Accepted';
-                if (status === 'Decline' || status === 'Declined') return 'Declined';
-                return status;
-              };
-              const mapAttendees = (list) => (list || []).map(a => ({
-                email: typeof a === 'string' ? a : a.email,
-                status: normalizeStatus(a.responseStatus)
-              }));
-              return {
-                meetingId: meeting.meetingId,
-                meetingChangeKey: meeting.changeKey,
-                subject: meeting.subject,
-                body: meeting.body || '',
-                attendees: [...mapAttendees(meeting.attendees), ...mapAttendees(meeting.optionalAttendees || [])],
-                start: meeting.start,
-                end: meeting.end,
-                location: meeting.location || '',
-                organizer: meeting.organizer || '',
-                responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
-              };
-            }`,
-          }),
-        }
-      );
+      const data = await transformTool('work-agent', 'sat-outlook_calendar_meeting', {
+        operation: 'read',
+        meetingId: meetingId, 
+        meetingChangeKey: event.meetingChangeKey 
+      }, `(data) => {
+        const meeting = data.success ? data.content : data;
+        const normalizeStatus = (status) => {
+          if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
+          if (status === 'Accept' || status === 'Accepted') return 'Accepted';
+          if (status === 'Decline' || status === 'Declined') return 'Declined';
+          return status;
+        };
+        const mapAttendees = (list) => (list || []).map(a => ({
+          email: typeof a === 'string' ? a : a.email,
+          status: normalizeStatus(a.responseStatus)
+        }));
+        return {
+          meetingId: meeting.meetingId,
+          meetingChangeKey: meeting.changeKey,
+          subject: meeting.subject,
+          body: meeting.body || '',
+          attendees: [...mapAttendees(meeting.attendees), ...mapAttendees(meeting.optionalAttendees || [])],
+          start: meeting.start,
+          end: meeting.end,
+          location: meeting.location || '',
+          organizer: meeting.organizer || '',
+          responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
+        };
+      }`);
       
-      if (!data.success) {
-        // Check for auth errors
-        const errorStr = JSON.stringify(data.error);
-        
-        if (errorStr.includes('Form action URL not found') || 
-            errorStr.includes('Midway') || 
-            errorStr.includes('authentication') ||
-            errorStr.includes('mwinit')) {
-          // Auth errors are now handled by apiRequest, but retry if needed
-          return fetchMeetingDetails(meetingId);
-        }
-        throw new Error(data.error);
-      }
-
-      const details = data.response;
+      const details = data;
       setMeetingDetails(details);
       setCache(cacheKey, details);
     } catch (err) {
@@ -739,41 +619,17 @@ ${selectedEvent.categories?.length ? `Categories: ${selectedEvent.categories.joi
 ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}
     `.trim();
     
-    let partialText = '';
     
     try {
-      const response = await streamInvoke('sa-agent', `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:\n\n${meetingContext}\n\nReturn JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
-        tools: ['sat-sfdc_search_accounts', 'sat-sfdc_get_opportunities_for_account', 'sat-sfdc_list_user_tasks'],
-        onChunk: (text) => {
-          partialText += text;
-          // Try to parse and update UI progressively
-          try {
-            const jsonMatch = partialText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const context = JSON.parse(jsonMatch[0]);
-              setSfdcContext(context);
-            }
-          } catch {
-            // Ignore parse errors for partial JSON
-          }
-        },
-      });
-
-      // Final parse
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const context = JSON.parse(jsonMatch[0]);
-          setSfdcContext(context);
-          setCache(cacheKey, context);
-        } else {
-          setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
-        }
-      } catch {
-        setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
-      }
+      const response = await invokeAgent('work-agent', `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:\n\n${meetingContext}\n\nReturn JSON: {"accounts": [], "opportunities": [], "tasks": []}`);
+      
+      // Parse response
+      const context = typeof response === 'string' ? JSON.parse(response) : response;
+      setSfdcContext(context);
+      setCache(cacheKey, context);
     } catch (err) {
       console.error('Failed to fetch SFDC context:', err);
+      setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
     } finally {
       setLoadingSFDC(false);
     }
@@ -796,8 +652,8 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
             <strong style={{ color: 'var(--color-primary)' }}>
-              {upcomingNotification.threshold === 1 ? 'Meeting starting in 1 minute!' :
-               `Meeting in ${upcomingNotification.threshold} minutes`}
+              {upcomingNotification.minutesUntil === 1 ? 'Meeting starting in 1 minute!' :
+               `Meeting in ${upcomingNotification.minutesUntil} minutes`}
             </strong>
             <button
               onClick={() => setDismissedNotifications(prev => new Set(prev).add(upcomingNotification.notificationId))}
@@ -857,24 +713,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
           </div>
         </div>
       )}
-      <header className="workspace-dashboard__header">
-        <div>
-          <h2>SA Workspace</h2>
-          <p>Calendar, Email, and Salesforce integration</p>
-        </div>
-        <div className="workspace-dashboard__actions">
-          <button 
-            className="workspace-dashboard__action" 
-            onClick={handleRefresh}
-            type="button"
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-          <button className="workspace-dashboard__action" onClick={() => onShowChat?.()} type="button">
-            Open Chat
-          </button>
-        </div>
-      </header>
+
 
       <div className="workspace-dashboard__content">
         <aside className="workspace-dashboard__calendar">

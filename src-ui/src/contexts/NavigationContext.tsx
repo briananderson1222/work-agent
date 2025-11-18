@@ -31,8 +31,32 @@ class NavigationStore {
   }
 
   private handlePopState = () => {
-    this.state = this.parseUrl();
-    this.notify();
+    const newState = this.parseUrl();
+    
+    // Only notify if non-hash parts of the URL changed
+    const oldUrl = new URL(window.location.href);
+    oldUrl.pathname = this.state.pathname;
+    oldUrl.search = new URLSearchParams({
+      ...(this.state.selectedAgent && { agent: this.state.selectedAgent }),
+      ...(this.state.selectedWorkspace && { workspace: this.state.selectedWorkspace }),
+      ...(this.state.activeConversation && { conversation: this.state.activeConversation }),
+      ...(this.state.activeChat && { chat: this.state.activeChat }),
+      ...(this.state.activeTab && { tab: this.state.activeTab }),
+      ...(this.state.isDockOpen && { dock: 'open' }),
+      ...(this.state.isDockMaximized && { maximize: 'true' }),
+      ...(this.state.fontSize && { fontSize: this.state.fontSize.toString() }),
+    }).toString();
+    
+    const currentUrl = new URL(window.location.href);
+    
+    // Compare URLs without hash
+    if (oldUrl.pathname !== currentUrl.pathname || oldUrl.search !== currentUrl.search) {
+      this.state = newState;
+      this.notify();
+    } else {
+      // Hash-only change - update state silently without notifying
+      this.state = newState;
+    }
   };
 
   private parseUrl(): NavigationState {
@@ -58,10 +82,17 @@ class NavigationStore {
     const agentMatch = pathname.match(/^\/agents?\/([^/]+)/);
     if (agentMatch) selectedAgent = agentMatch[1];
     
-    // Extract workspace from path or query
+    // Extract workspace and tab from path or query
     let selectedWorkspace = params.get('workspace');
-    const workspaceMatch = pathname.match(/^\/workspaces?\/([^/]+)/);
-    if (workspaceMatch) selectedWorkspace = workspaceMatch[1];
+    let activeTab = params.get('tab'); // Fallback to query param for backward compatibility
+    
+    const workspaceMatch = pathname.match(/^\/workspaces?\/([^/]+)(?:\/([^/]+))?/);
+    if (workspaceMatch) {
+      selectedWorkspace = workspaceMatch[1];
+      if (workspaceMatch[2]) {
+        activeTab = workspaceMatch[2]; // Tab from path takes precedence
+      }
+    }
 
     return {
       pathname,
@@ -69,7 +100,7 @@ class NavigationStore {
       selectedWorkspace,
       activeConversation: params.get('conversation'),
       activeChat: params.get('chat'),
-      activeTab: params.get('tab'),
+      activeTab,
       isDockOpen: params.get('dock') === 'open',
       isDockMaximized: params.get('maximize') === 'true',
       fontSize: params.get('fontSize') ? parseInt(params.get('fontSize')!, 10) : null,
@@ -92,6 +123,7 @@ class NavigationStore {
   // Navigation methods
   navigate(pathname: string, params?: Record<string, string | null>) {
     const url = new URL(window.location.href);
+    const currentHash = url.hash; // Preserve the hash
     url.pathname = pathname;
     
     if (params) {
@@ -104,6 +136,7 @@ class NavigationStore {
       });
     }
     
+    url.hash = currentHash; // Restore the hash
     window.history.pushState({}, '', url.toString());
     this.state = this.parseUrl();
     this.notify();
@@ -111,6 +144,7 @@ class NavigationStore {
 
   updateParams(params: Record<string, string | null>) {
     const url = new URL(window.location.href);
+    const currentHash = url.hash; // Preserve the hash
     
     Object.entries(params).forEach(([key, value]) => {
       if (value === null) {
@@ -120,6 +154,7 @@ class NavigationStore {
       }
     });
     
+    url.hash = currentHash; // Restore the hash
     window.history.replaceState({}, '', url.toString());
     this.state = this.parseUrl();
     this.notify();
@@ -142,12 +177,24 @@ class NavigationStore {
     }
   }
 
+  setWorkspaceTab(workspaceSlug: string, tabId: string | null) {
+    if (tabId) {
+      this.navigate(`/workspaces/${workspaceSlug}/${tabId}`);
+    } else {
+      this.navigate(`/workspaces/${workspaceSlug}`);
+    }
+  }
+
   setConversation(id: string | null) {
     this.updateParams({ conversation: id });
   }
 
   setActiveChat(id: string | null) {
     this.updateParams({ chat: id });
+  }
+
+  setActiveTab(tabId: string | null) {
+    this.updateParams({ tab: tabId });
   }
 
   setDockState(open: boolean, maximized?: boolean) {
@@ -168,6 +215,7 @@ const NavigationContext = createContext<{
   updateParams: (params: Record<string, string | null>) => void;
   setAgent: (slug: string | null) => void;
   setWorkspace: (slug: string | null) => void;
+  setWorkspaceTab: (workspaceSlug: string, tabId: string | null) => void;
   setConversation: (id: string | null) => void;
   setActiveChat: (id: string | null) => void;
   setDockState: (open: boolean, maximized?: boolean) => void;
@@ -190,6 +238,10 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     navigationStore.setWorkspace(slug);
   }, []);
 
+  const setWorkspaceTab = useCallback((workspaceSlug: string, tabId: string | null) => {
+    navigationStore.setWorkspaceTab(workspaceSlug, tabId);
+  }, []);
+
   const setConversation = useCallback((id: string | null) => {
     navigationStore.setConversation(id);
   }, []);
@@ -208,6 +260,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
       updateParams,
       setAgent,
       setWorkspace,
+      setWorkspaceTab,
       setConversation,
       setActiveChat,
       setDockState,

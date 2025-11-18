@@ -693,8 +693,8 @@ body {
 
 .workspace-panel {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
   padding: 0 1.5rem;
 }
 

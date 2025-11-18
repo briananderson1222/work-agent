@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import type { AgentWorkspaceProps } from './index';
+import { useToast, transformTool, useNavigation, useSendMessage, useWorkspaceNavigation, invokeAgent, useNotifications } from '@stallion-ai/sdk';
+import '../../plugins/shared/workspace.css';
 
 const CalendarEventSchema = z.object({
   events: z.array(z.object({
@@ -45,70 +46,6 @@ interface SFDCContext {
   opportunities?: any[];
   tasks?: any[];
 }
-
-const API_BASE = 'http://localhost:3141';
-
-async function streamInvoke(
-  agentSlug: string,
-  prompt: string,
-  options: {
-    tools?: string[];
-    maxSteps?: number;
-    schema?: z.ZodType<any>;
-    onChunk?: (text: string) => void;
-  } = {}
-): Promise<any> {
-  const requestStart = performance.now();
-  console.log(`[streamInvoke] Starting request to ${agentSlug}`);
-  console.log(`[streamInvoke] Tools filter:`, options.tools);
-  console.log(`[streamInvoke] Prompt length:`, prompt.length);
-  
-  const response = await fetch(`${API_BASE}/agents/${agentSlug}/invoke/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      silent: true,
-      tools: options.tools,
-      maxSteps: options.maxSteps ?? 10,
-      schema: options.schema ? zodToJsonSchema(options.schema) : undefined,
-    }),
-  });
-
-  const fetchTime = performance.now() - requestStart;
-  console.log(`[streamInvoke] Fetch completed in ${fetchTime.toFixed(2)}ms`);
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-
-  const parseStart = performance.now();
-  const data = await response.json();
-  console.log(`[streamInvoke] JSON parse took ${(performance.now() - parseStart).toFixed(2)}ms`);
-  
-  if (!data.success) {
-    throw new Error(data.error || 'Request failed');
-  }
-
-  // Log usage to see how many steps were taken
-  if (data.usage) {
-    console.log(`[${agentSlug}] Usage:`, data.usage);
-  }
-  
-  // Log debug info
-  if (data.debug) {
-    console.log(`[${agentSlug}] Debug:`, data.debug);
-  }
-  
-  // Log trace if available
-  if (data.trace) {
-    console.log(`[${agentSlug}] Trace:`, data.trace);
-  }
-
-  console.log(`[streamInvoke] Total time: ${(performance.now() - requestStart).toFixed(2)}ms`);
-  return data.response;
-}
-
 
 function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
   const today = new Date().toISOString().split('T')[0];
@@ -166,7 +103,41 @@ function formatOrganizerName(organizer?: { name: string; email: string }): strin
   return organizer.name;
 }
 
-export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat }: AgentWorkspaceProps) {
+function detectMeetingProvider(location?: string): { provider: string; url: string } | null {
+  if (!location) return null;
+  
+  const lowerLocation = location.toLowerCase();
+  
+  if (lowerLocation.includes('zoom.us')) {
+    return { provider: 'Zoom', url: location };
+  }
+  if (lowerLocation.includes('teams.microsoft.com') || lowerLocation.includes('teams.live.com')) {
+    return { provider: 'Teams', url: location };
+  }
+  if (lowerLocation.includes('chime.aws')) {
+    return { provider: 'Chime', url: location };
+  }
+  if (lowerLocation.includes('meet.google.com')) {
+    return { provider: 'Google Meet', url: location };
+  }
+  if (lowerLocation.includes('webex.com')) {
+    return { provider: 'Webex', url: location };
+  }
+  
+  return null;
+}
+
+interface CalendarProps {
+  activeTab?: any; // Will be defined when this tab is active
+}
+
+export function Calendar({ activeTab }: CalendarProps) {
+  const { showToast } = useToast();
+  const { notify } = useNotifications();
+  const { setDockState } = useNavigation();
+  const { getTabState, setTabState } = useWorkspaceNavigation();
+  const sendMessage = useSendMessage();
+
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
     const year = date.getFullYear();
@@ -175,16 +146,11 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     return `${year}-${month}-${day}`;
   };
 
-  // Parse initial state from URL hash
+  // Parse initial state from sessionStorage (no hash)
   const initialState = useMemo(() => {
-    let hash = window.location.hash.slice(1);
-    
-    // Fallback to sessionStorage if hash is empty
-    if (!hash) {
-      hash = sessionStorage.getItem('sa-dashboard-hash') || '';
-    }
-    
-    const params = new URLSearchParams(hash);
+    // Get stored state from WorkspaceNavigationProvider
+    const storedState = activeTab ? getTabState('calendar') : '';
+    const params = new URLSearchParams(storedState);
     const dateStr = params.get('date');
     const date = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
     
@@ -195,9 +161,44 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
       filterExpanded: params.get('filterExpanded') === 'true',
       allDayExpanded: params.get('allDayExpanded') === 'true' // Default to false (collapsed)
     };
-  }, []);
+  }, [activeTab]);
+
+  // Restore state when tab becomes active
+  useEffect(() => {
+    if (activeTab) {
+      const storedState = getTabState('calendar');
+      console.log('[Calendar] Restoring state from provider:', storedState);
+      if (storedState) {
+        const params = new URLSearchParams(storedState);
+        
+        const dateStr = params.get('date');
+        if (dateStr) {
+          const date = new Date(dateStr + 'T00:00:00');
+          if (!isNaN(date.getTime())) {
+            console.log('[Calendar] Restoring date:', date);
+            setSelectedDate(date);
+            setViewMonth(date);
+          }
+        }
+        
+        const categories = params.get('categories')?.split(',').filter(Boolean) || [];
+        console.log('[Calendar] Restoring categories:', categories);
+        setSelectedCategories(new Set(categories));
+        
+        const eventId = params.get('event');
+        if (eventId) {
+          console.log('[Calendar] Restoring event:', eventId);
+          setSelectedEventId(eventId);
+        }
+        
+        setFilterExpanded(params.get('filterExpanded') === 'true');
+        setAllDayExpanded(params.get('allDayExpanded') === 'true');
+      }
+    }
+  }, [activeTab, getTabState]);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialState.eventId);
   const [meetingDetails, setMeetingDetails] = useState<MeetingDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -214,7 +215,62 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
   const [allDayExpanded, setAllDayExpanded] = useState(initialState.allDayExpanded);
   const [isInitialMount, setIsInitialMount] = useState(true);
   const [contentExpanded, setContentExpanded] = useState(false);
+  const [calendarCollapsed, setCalendarCollapsed] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
+  const [hidePastEvents, setHidePastEvents] = useState(false);
+  const [hideCanceledEvents, setHideCanceledEvents] = useState(false);
+  const [isNowLineVisible, setIsNowLineVisible] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
+
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
+
+  // Update current time every minute when viewing today
+  useEffect(() => {
+    if (!isToday) return;
+    
+    const updateTime = () => setCurrentTime(new Date());
+    const msUntilNextMinute = 60000 - (Date.now() % 60000);
+    
+    let interval: NodeJS.Timeout;
+    const timeout = setTimeout(() => {
+      updateTime();
+      interval = setInterval(updateTime, 60000);
+    }, msUntilNextMinute);
+    
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, [isToday]);
+
+  // Check for upcoming meeting notifications
+  const upcomingNotification = useMemo(() => {
+    if (!isToday || todayEvents.length === 0) return null;
+    
+    const now = new Date();
+    const upcomingMeeting = todayEvents
+      .filter(e => !e.isAllDay)
+      .find(e => {
+        const start = new Date(e.start);
+        const minutesUntil = Math.round((start.getTime() - now.getTime()) / 60000);
+        return minutesUntil > 0 && minutesUntil <= 30; // Notify within 30 minutes
+      });
+    
+    if (!upcomingMeeting) return null;
+    
+    const start = new Date(upcomingMeeting.start);
+    const minutesUntil = Math.round((start.getTime() - now.getTime()) / 60000);
+    const notificationId = `${upcomingMeeting.meetingId}-${minutesUntil}`;
+    
+    if (dismissedNotifications.has(notificationId)) return null;
+    
+    return {
+      meeting: upcomingMeeting,
+      minutesUntil,
+      notificationId
+    };
+  }, [isToday, todayEvents, currentTime, dismissedNotifications]);
 
   // Update URL hash when state changes (skip on initial mount)
   useEffect(() => {
@@ -236,10 +292,10 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     if (allDayExpanded) {
       params.set('allDayExpanded', 'true');
     }
-    const hashString = params.toString();
-    window.history.pushState(null, '', `#${hashString}`);
-    sessionStorage.setItem('sa-dashboard-hash', hashString);
-  }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, isInitialMount]);
+    const stateString = params.toString();
+    console.log('[Calendar] Saving state to provider:', stateString);
+    setTabState('calendar', stateString);
+  }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, isInitialMount, setTabState]);
 
   const selectedEvent = events.find((e) => e.meetingId === selectedEventId) ?? null;
   
@@ -259,10 +315,20 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
         }
         return e.categories?.some(cat => selectedCategories.has(cat));
       });
+  
+  let visibleEvents = (hidePastEvents && isToday)
+    ? filteredEvents.filter(e => new Date(e.end) > currentTime)
+    : filteredEvents;
+  
+  if (hideCanceledEvents) {
+    visibleEvents = visibleEvents.filter(e => !e.subject.startsWith('Canceled:'));
+  }
+
+  const hasCanceledEvents = events.some(e => e.subject.startsWith('Canceled:'));
+  console.log('Debug - Total events:', events.length, 'Has canceled:', hasCanceledEvents, 'Canceled events:', events.filter(e => e.subject.startsWith('Canceled:')).map(e => e.subject));
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
     const startTime = performance.now();
-    console.log('fetchCalendarData called with date:', date);
     setLoading(true);
     setError(null);
     setRawResponse(''); // Clear previous
@@ -274,125 +340,78 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     }
     
     const dateStr = date.toISOString().split('T')[0];
-    console.log('Fetching events for:', dateStr);
     
     // Check cache first
     const cacheKey = `sa-calendar-${dateStr}`;
-    console.log('Cache key:', cacheKey);
     const cached = getFromCache<CalendarEvent[]>(cacheKey);
-    console.log('Cached data:', cached);
     if (cached) {
-      console.log('Using cached data');
-      console.log('preserveEventId param:', preserveEventId);
       setEvents(cached);
       
       // Only auto-select if not preserving a selection
       if (preserveEventId) {
-        console.log('Restoring preserved selection:', preserveEventId);
         setSelectedEventId(preserveEventId);
       } else {
+        // Select active event, or next upcoming event, or first non-all-day, or first event
+        const now = new Date();
+        const activeEvent = cached.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
+        const upcomingEvent = cached.find(e => !e.isAllDay && new Date(e.start) > now);
         const firstNonAllDay = cached.find(e => !e.isAllDay);
-        const eventId = firstNonAllDay?.meetingId || cached[0]?.meetingId;
-        console.log('Auto-selecting first event:', eventId);
+        const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || cached[0]?.meetingId;
         setSelectedEventId(eventId);
       }
       
       setLoading(false);
-      console.log(`Cache hit - total time: ${(performance.now() - startTime).toFixed(2)}ms`);
       return;
     }
     
-    console.log('Making API request...');
     const apiStartTime = performance.now();
     try {
       // Use pure transformation (no LLM, instant)
-      const response = await fetch(`${API_BASE}/agents/sa-agent/invoke/transform`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'sat-outlook_calendar_view',
-          toolArgs: { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-          transform: `(data) => ({
-            events: data.map(e => ({
-              meetingId: e.meetingId,
-              meetingChangeKey: e.meetingChangeKey,
-              subject: e.subject,
-              start: e.start,
-              end: e.end,
-              location: e.location || '',
-              organizer: e.organizer?.name || '',
-              status: e.status,
-              isCanceled: e.isCanceled || false,
-              categories: e.categories || [],
-              isAllDay: e.isAllDay || false
-            }))
-          })`,
-        }),
-      });
+      const data = await transformTool('work-agent', 'sat-outlook_calendar_view', {
+        view: 'day',
+        start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0]
+      }, `(data) => ({
+        events: data.map(e => ({
+          meetingId: e.meetingId,
+          meetingChangeKey: e.meetingChangeKey,
+          subject: e.subject,
+          start: e.start,
+          end: e.end,
+          location: e.location || '',
+          organizer: e.organizer?.name || '',
+          status: e.status,
+          isCanceled: e.isCanceled || false,
+          categories: e.categories || [],
+          isAllDay: e.isAllDay || false
+        }))
+      })`);
       
-      if (response.status === 401) {
-        console.log('[401 Auth Error in Calendar View] Calling onRequestAuth');
-        if (onRequestAuth) {
-          const success = await onRequestAuth();
-          if (success) {
-            return fetchEvents(dateStr, preserveEventId);
-          }
-        }
-        throw new Error('Authentication required');
-      }
-      
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      console.log('[Calendar View Response]', data);
-      
-      if (!data.success) {
-        console.log('[Calendar View Error]', data.error);
-        const errorStr = JSON.stringify(data.error);
-        
-        if (errorStr.includes('Form action URL not found') || 
-            errorStr.includes('Midway') || 
-            errorStr.includes('authentication') ||
-            errorStr.includes('mwinit')) {
-          console.log('[Auth Error Detected in Calendar View]');
-          if (onRequestAuth) {
-            const success = await onRequestAuth();
-            if (success) {
-              // Retry
-              return fetchEvents(dateStr, preserveEventId);
-            }
-          }
-        }
-        throw new Error(data.error);
-      }
-
       const apiTime = performance.now() - apiStartTime;
-      console.log(`API request completed in ${apiTime.toFixed(2)}ms`);
       
-      const parsedEvents = data.response.events;
-      console.log(`Received ${parsedEvents.length} events`);
+      const parsedEvents = data.events;
       
       if (parsedEvents.length === 0) {
-        setError(`No events parsed. Agent response: ${response.substring(0, 300)}...`);
+        setEvents([]);
+        setSelectedEventId(null);
       } else {
         setEvents(parsedEvents);
         
-        console.log('API response - preserveEventId param:', preserveEventId);
         // Only auto-select if not preserving a selection
         if (preserveEventId) {
-          console.log('Restoring preserved selection from API:', preserveEventId);
           setSelectedEventId(preserveEventId);
         } else {
+          // Select active event, or next upcoming event, or first non-all-day, or first event
+          const now = new Date();
+          const activeEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
+          const upcomingEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) > now);
           const firstNonAllDay = parsedEvents.find(e => !e.isAllDay);
-          const eventId = firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
-          console.log('Auto-selecting first event from API:', eventId);
+          const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
           setSelectedEventId(eventId);
         }
         
         setCache(cacheKey, parsedEvents);
       }
-      console.log(`Total time: ${(performance.now() - startTime).toFixed(2)}ms`);
     } catch (err) {
-      console.log(`Error after ${(performance.now() - startTime).toFixed(2)}ms:`, err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -404,38 +423,64 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
-  // Listen for browser back/forward navigation
+  // Always fetch today's events for notifications
   useEffect(() => {
-    const handlePopState = () => {
-      const hash = window.location.hash.slice(1);
-      const params = new URLSearchParams(hash);
+    const fetchTodayEvents = async () => {
+      const today = new Date();
+      const dateStr = formatLocalDate(today);
+      const cacheKey = `sa-calendar-${dateStr}`;
       
-      const dateStr = params.get('date');
-      if (dateStr) {
-        const date = new Date(dateStr + 'T00:00:00');
-        setSelectedDate(date);
-        setViewMonth(date);
+      const cached = getFromCache<CalendarEvent[]>(cacheKey);
+      if (cached) {
+        setTodayEvents(cached);
+        return;
       }
       
-      const categories = params.get('categories')?.split(',').filter(Boolean) || [];
-      setSelectedCategories(new Set(categories));
-      
-      const eventId = params.get('event');
-      setSelectedEventId(eventId);
-      
-      setFilterExpanded(params.get('filterExpanded') === 'true');
-      setAllDayExpanded(params.get('allDayExpanded') === 'true');
+      try {
+        const data = await transformTool('work-agent', 'sat-outlook_calendar_view', {
+          view: 'day',
+          start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0]
+        }, `(data) => ({
+          events: data.map(e => ({
+            meetingId: e.meetingId,
+            meetingChangeKey: e.meetingChangeKey,
+            subject: e.subject,
+            start: e.start,
+            end: e.end,
+            location: e.location || '',
+            organizer: e.organizer?.name || '',
+            status: e.status,
+            isCanceled: e.isCanceled || false,
+            categories: e.categories || [],
+            isAllDay: e.isAllDay || false
+          }))
+        })`);
+        
+        setTodayEvents(data.events);
+        setCache(cacheKey, data.events);
+      } catch (err) {
+        console.error('Failed to fetch today events:', err);
+      }
     };
     
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    fetchTodayEvents();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchTodayEvents, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
+  
+  // Removed popstate listener - WorkspaceNavigationProvider handles hash restoration
+  // useEffect(() => {
+  //   const handlePopState = () => {
+  //     // Provider handles this now
+  //   };
+  //   window.addEventListener('popstate', handlePopState);
+  //   return () => window.removeEventListener('popstate', handlePopState);
+  // }, [activeTab]);
 
   // Auto-fetch meeting details when event is selected
   useEffect(() => {
-    console.log('Auto-fetch effect triggered:', { selectedEventId, eventsLength: events.length });
     if (selectedEventId && events.length > 0) {
-      console.log('Fetching meeting details for:', selectedEventId);
       fetchMeetingDetails(selectedEventId);
       
       // Scroll to selected event
@@ -459,7 +504,26 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events]);
+  }, [events.length, initialState.eventId]);
+
+  // Track now line visibility
+  useEffect(() => {
+    const nowLine = document.querySelector('.calendar-now-line');
+    if (!nowLine) {
+      setIsNowLineVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsNowLineVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(nowLine);
+    return () => observer.disconnect();
+  }, [events, selectedDate, hidePastEvents]);
 
   const handleRefresh = () => {
     // Clear all cache
@@ -492,86 +556,37 @@ export function SADashboard({ agent, onLaunchPrompt, onShowChat, onRequestAuth, 
     setLoadingDetails(true);
     
     try {
-      const response = await fetch(`${API_BASE}/agents/sa-agent/invoke/transform`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'sat-outlook_calendar_meeting',
-          toolArgs: { 
-            operation: 'read',
-            meetingId: meetingId, 
-            meetingChangeKey: event.meetingChangeKey 
-          },
-          transform: `(data) => {
-            const meeting = data.success ? data.content : data;
-            const normalizeStatus = (status) => {
-              if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
-              if (status === 'Accept' || status === 'Accepted') return 'Accepted';
-              if (status === 'Decline' || status === 'Declined') return 'Declined';
-              return status;
-            };
-            const mapAttendees = (list) => (list || []).map(a => ({
-              email: typeof a === 'string' ? a : a.email,
-              status: normalizeStatus(a.responseStatus)
-            }));
-            return {
-              meetingId: meeting.meetingId,
-              meetingChangeKey: meeting.changeKey,
-              subject: meeting.subject,
-              body: meeting.body || '',
-              attendees: [...mapAttendees(meeting.attendees), ...mapAttendees(meeting.optionalAttendees || [])],
-              start: meeting.start,
-              end: meeting.end,
-              location: meeting.location || '',
-              organizer: meeting.organizer || '',
-              responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
-            };
-          }`,
-        }),
-      });
+      const data = await transformTool('work-agent', 'sat-outlook_calendar_meeting', {
+        operation: 'read',
+        meetingId: meetingId, 
+        meetingChangeKey: event.meetingChangeKey 
+      }, `(data) => {
+        const meeting = data.success ? data.content : data;
+        const normalizeStatus = (status) => {
+          if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
+          if (status === 'Accept' || status === 'Accepted') return 'Accepted';
+          if (status === 'Decline' || status === 'Declined') return 'Declined';
+          return status;
+        };
+        const mapAttendees = (list) => (list || []).map(a => ({
+          email: typeof a === 'string' ? a : a.email,
+          status: normalizeStatus(a.responseStatus)
+        }));
+        return {
+          meetingId: meeting.meetingId,
+          meetingChangeKey: meeting.changeKey,
+          subject: meeting.subject,
+          body: meeting.body || '',
+          attendees: [...mapAttendees(meeting.attendees), ...mapAttendees(meeting.optionalAttendees || [])],
+          start: meeting.start,
+          end: meeting.end,
+          location: meeting.location || '',
+          organizer: meeting.organizer || '',
+          responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
+        };
+      }`);
       
-      if (response.status === 401) {
-        console.log('[401 Auth Error in Meeting Details] Calling onRequestAuth');
-        if (onRequestAuth) {
-          const success = await onRequestAuth();
-          if (success) {
-            return fetchMeetingDetails(meetingId);
-          }
-        }
-        throw new Error('Authentication required');
-      }
-      
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      console.log('[Meeting Details Response]', data);
-      
-      if (!data.success) {
-        console.log('[Meeting Details Error]', data.error);
-        // Check for auth errors
-        const errorStr = JSON.stringify(data.error);
-        console.log('[Error String]', errorStr);
-        
-        if (errorStr.includes('Form action URL not found') || 
-            errorStr.includes('Midway') || 
-            errorStr.includes('authentication') ||
-            errorStr.includes('mwinit')) {
-          console.log('[Auth Error Detected] Calling onRequestAuth');
-          // Trigger auth via parent component
-          if (onRequestAuth) {
-            const success = await onRequestAuth();
-            console.log('[Auth Result]', success);
-            if (success) {
-              // Retry
-              return fetchMeetingDetails(meetingId);
-            }
-          } else {
-            console.log('[No onRequestAuth handler]');
-          }
-        }
-        throw new Error(data.error);
-      }
-
-      const details = data.response;
+      const details = data;
       setMeetingDetails(details);
       setCache(cacheKey, details);
     } catch (err) {
@@ -604,41 +619,17 @@ ${selectedEvent.categories?.length ? `Categories: ${selectedEvent.categories.joi
 ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}
     `.trim();
     
-    let partialText = '';
     
     try {
-      const response = await streamInvoke('sa-agent', `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:\n\n${meetingContext}\n\nReturn JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
-        tools: ['sat-sfdc_search_accounts', 'sat-sfdc_get_opportunities_for_account', 'sat-sfdc_list_user_tasks'],
-        onChunk: (text) => {
-          partialText += text;
-          // Try to parse and update UI progressively
-          try {
-            const jsonMatch = partialText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const context = JSON.parse(jsonMatch[0]);
-              setSfdcContext(context);
-            }
-          } catch {
-            // Ignore parse errors for partial JSON
-          }
-        },
-      });
-
-      // Final parse
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const context = JSON.parse(jsonMatch[0]);
-          setSfdcContext(context);
-          setCache(cacheKey, context);
-        } else {
-          setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
-        }
-      } catch {
-        setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
-      }
+      const response = await invokeAgent('work-agent', `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:\n\n${meetingContext}\n\nReturn JSON: {"accounts": [], "opportunities": [], "tasks": []}`);
+      
+      // Parse response
+      const context = typeof response === 'string' ? JSON.parse(response) : response;
+      setSfdcContext(context);
+      setCache(cacheKey, context);
     } catch (err) {
       console.error('Failed to fetch SFDC context:', err);
+      setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
     } finally {
       setLoadingSFDC(false);
     }
@@ -646,29 +637,101 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
 
   return (
     <div className="workspace-dashboard">
-      <header className="workspace-dashboard__header">
-        <div>
-          <h2>SA Workspace</h2>
-          <p>Calendar, Email, and Salesforce integration</p>
+      {upcomingNotification && (
+        <div style={{
+          position: 'fixed',
+          top: '1rem',
+          right: '1rem',
+          zIndex: 1000,
+          background: 'var(--color-bg-secondary)',
+          border: '2px solid var(--color-primary)',
+          borderRadius: '8px',
+          padding: '1rem',
+          maxWidth: '400px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+            <strong style={{ color: 'var(--color-primary)' }}>
+              {upcomingNotification.minutesUntil === 1 ? 'Meeting starting in 1 minute!' :
+               `Meeting in ${upcomingNotification.minutesUntil} minutes`}
+            </strong>
+            <button
+              onClick={() => setDismissedNotifications(prev => new Set(prev).add(upcomingNotification.notificationId))}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                fontSize: '1.2rem',
+                padding: 0,
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <button
+              onClick={() => {
+                setSelectedDate(new Date());
+                setViewMonth(new Date());
+                setTimeout(() => {
+                  setSelectedEventId(upcomingNotification.meeting.meetingId);
+                  fetchMeetingDetails(upcomingNotification.meeting.meetingId);
+                  setSfdcContext(null);
+                }, 100);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                padding: 0,
+                font: 'inherit',
+                textAlign: 'left'
+              }}
+            >
+              {upcomingNotification.meeting.subject}
+            </button>
+          </div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+            {new Date(upcomingNotification.meeting.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            {upcomingNotification.threshold === 1 && upcomingNotification.meeting.location && (
+              <>
+                {' • '}
+                <a
+                  href={upcomingNotification.meeting.location}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                >
+                  Join Meeting
+                </a>
+              </>
+            )}
+          </div>
         </div>
-        <div className="workspace-dashboard__actions">
-          <button 
-            className="workspace-dashboard__action" 
-            onClick={handleRefresh}
-            disabled={loading}
-            type="button"
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-          <button className="workspace-dashboard__action" onClick={() => onShowChat?.()} type="button">
-            Open Chat
-          </button>
-        </div>
-      </header>
+      )}
+
 
       <div className="workspace-dashboard__content">
         <aside className="workspace-dashboard__calendar">
-          <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'var(--color-bg-secondary)', borderRadius: '4px', maxWidth: '260px' }}>
+          <div style={{ position: 'sticky', top: 0, background: 'var(--color-bg)', paddingBottom: '1rem' }}>
+            <div className="calendar-widget" style={{ 
+              padding: '0.75rem', 
+              background: 'var(--color-bg-secondary)', 
+              borderRadius: '4px', 
+              maxWidth: '260px', 
+              marginLeft: 'auto', 
+              marginRight: 'auto',
+              maxHeight: calendarCollapsed ? '0' : '500px',
+              opacity: calendarCollapsed ? '0' : '1',
+              overflow: 'hidden',
+              transition: 'max-height 0.3s ease, opacity 0.2s ease',
+              paddingTop: calendarCollapsed ? '0' : '0.75rem',
+              paddingBottom: calendarCollapsed ? '0' : '0.75rem'
+            }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <button 
                 onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))}
@@ -707,7 +770,6 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                     <button
                       key={day}
                       onClick={() => {
-                        console.log('Date clicked:', date);
                         setSelectedDate(date);
                       }}
                       disabled={loading}
@@ -733,16 +795,86 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
               })()}
             </div>
           </div>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-            {loading && <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>}
-            {loading ? 'Loading...' : selectedDate.toDateString() === new Date().toDateString() 
-              ? "Today's Meetings" 
-              : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: calendarCollapsed ? '0' : '0.5rem' }}>
+              <button
+                onClick={() => setCalendarCollapsed(!calendarCollapsed)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  color: 'var(--color-text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title={calendarCollapsed ? 'Expand calendar' : 'Collapse calendar'}
+              >
+                <svg style={{ 
+                  width: '16px', 
+                  height: '16px',
+                  transform: calendarCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                  transition: 'transform 0.2s',
+                }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+          <h3 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {loading && <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>}
+              {loading ? 'Loading...' : selectedDate.toDateString() === new Date().toDateString() 
+                ? "Today's Meetings" 
+                : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </span>
+            {selectedDate.toDateString() !== new Date().toDateString() ? (
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  setSelectedDate(today);
+                  setViewMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+                  // Trigger fetch without preserving selection to use smart selection logic
+                  fetchEvents(formatLocalDate(today), null);
+                }}
+                style={{
+                  background: 'var(--color-primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  fontWeight: 'normal'
+                }}
+              >
+                Today
+              </button>
+            ) : selectedDate.toDateString() === new Date().toDateString() && events.length > 0 && !isNowLineVisible ? (
+              <button
+                onClick={() => {
+                  const nowLine = document.querySelector('.calendar-now-line');
+                  if (nowLine) {
+                    nowLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }}
+                style={{
+                  background: 'var(--color-primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  fontWeight: 'normal'
+                }}
+              >
+                Now
+              </button>
+            ) : null}
           </h3>
           {!loading && allCategories.length > 0 && !(allCategories.length === 1 && allCategories[0] === 'Uncategorized') && (
             <div style={{ 
-              marginBottom: '1rem', 
-              padding: '0.75rem', 
+              marginTop: '0.5rem',
+              padding: '0.125rem 0.75rem', 
               background: 'var(--color-bg-secondary)', 
               borderRadius: '4px',
               border: '1px solid var(--color-border)'
@@ -760,12 +892,13 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <span>Filter by Category</span>
+                  <span>Filter</span>
                   {selectedCategories.size > 0 && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedCategories(new Set());
+                        setHideCanceledEvents(false);
                       }}
                       style={{
                         padding: 0,
@@ -782,7 +915,61 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                     </button>
                   )}
                 </div>
-                <span>{filterExpanded ? '▼' : '▶'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {isToday && (
+                    <button
+                      className="hide-past-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHidePastEvents(!hidePastEvents);
+                      }}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.35rem', 
+                        fontSize: '0.7rem', 
+                        cursor: 'pointer', 
+                        fontWeight: 400,
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '10px',
+                        background: hidePastEvents ? 'var(--color-primary)' : 'transparent',
+                        color: hidePastEvents ? 'white' : 'var(--color-text-secondary)',
+                        border: '1px solid',
+                        borderColor: hidePastEvents ? 'var(--color-primary)' : 'var(--color-border)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      Hide past
+                    </button>
+                  )}
+                  {hasCanceledEvents && (
+                    <button
+                      className="hide-canceled-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHideCanceledEvents(!hideCanceledEvents);
+                      }}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.35rem', 
+                        fontSize: '0.7rem', 
+                        cursor: 'pointer', 
+                        fontWeight: 400,
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '10px',
+                        background: hideCanceledEvents ? 'var(--color-primary)' : 'transparent',
+                        color: hideCanceledEvents ? 'white' : 'var(--color-text-secondary)',
+                        border: '1px solid',
+                        borderColor: hideCanceledEvents ? 'var(--color-primary)' : 'var(--color-border)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      Hide Canceled
+                    </button>
+                  )}
+                  <span>{filterExpanded ? '▼' : '▶'}</span>
+                </div>
               </div>
               
               {!filterExpanded && selectedCategories.size > 0 && (
@@ -844,6 +1031,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
               )}
             </div>
           )}
+          </div>
           {loading ? (
             <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
               <p>Loading events...</p>
@@ -856,19 +1044,47 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
             <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
               <p>{selectedCategories.size === 0 ? 'No events for this date' : 'No events match selected categories'}</p>
             </div>
+          ) : visibleEvents.length === 0 ? (
+            isToday ? (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                <div className="calendar-now-line" style={{ 
+                  margin: '0.5rem 0',
+                  padding: '0.25rem 0.5rem',
+                  borderTop: '2px dotted var(--color-primary)',
+                  fontSize: '0.75rem',
+                  color: 'var(--color-primary)',
+                  fontWeight: 600
+                }}>
+                  Now - {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </div>
+                <div style={{
+                  padding: '0 0.5rem 1rem',
+                  fontSize: '0.85rem',
+                  fontStyle: 'italic',
+                  color: 'var(--color-text-secondary)',
+                  textAlign: 'center'
+                }}>
+                  No more events for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}...
+                </div>
+              </ul>
+            ) : (
+              <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                <p>No upcoming events</p>
+              </div>
+            )
           ) : (
             <>
-              {filteredEvents.filter(e => e.isAllDay).length > 0 && (
+              {visibleEvents.filter(e => e.isAllDay).length > 0 && (
                 <details 
                   open={allDayExpanded} 
                   onToggle={(e) => setAllDayExpanded((e.target as HTMLDetailsElement).open)}
                   style={{ marginBottom: '1rem', border: '1px solid var(--color-border)', borderRadius: '4px', padding: '0.5rem' }}
                 >
                   <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-                    All-Day Events ({filteredEvents.filter(e => e.isAllDay).length})
+                    All-Day Events ({visibleEvents.filter(e => e.isAllDay).length})
                   </summary>
                   <ul style={{ marginTop: '0.5rem' }}>
-                    {filteredEvents.filter(e => e.isAllDay).map((event) => (
+                    {visibleEvents.filter(e => e.isAllDay).map((event) => (
                       <li
                         key={event.meetingId}
                         data-event-id={event.meetingId}
@@ -903,60 +1119,305 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                 </details>
               )}
               
-              {filteredEvents.filter(e => !e.isAllDay).length > 0 && (
+              {visibleEvents.filter(e => !e.isAllDay).length > 0 && (
                 <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                  Events ({filteredEvents.filter(e => !e.isAllDay).length})
+                  Events ({visibleEvents.filter(e => !e.isAllDay).length})
                 </div>
               )}
               
               <ul>
-                {filteredEvents.filter(e => !e.isAllDay).map((event) => (
-                <li
-                  key={event.meetingId}
-                  data-event-id={event.meetingId}
-                  className={`workspace-dashboard__calendar-item ${event.meetingId === selectedEventId ? 'is-active' : ''}`}
-                >
-                  <button type="button" onClick={() => {
-                      setSelectedEventId(event.meetingId);
-                      fetchMeetingDetails(event.meetingId);
-                      setSfdcContext(null); // Clear SFDC context when switching meetings
-                    }}>
-                      <span className="workspace-dashboard__time">
-                        {new Date(event.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        {' - '}
-                        {new Date(event.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                      <span className="workspace-dashboard__title">{event.subject}</span>
-                      {event.categories && event.categories.length > 0 && (
-                        <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-                          {event.categories.map(cat => (
-                            <span key={cat} style={{
-                              fontSize: '0.7rem',
-                              padding: '2px 6px',
-                              borderRadius: '8px',
-                              background: 'var(--color-bg)',
-                              border: '1px solid var(--color-border)',
-                              color: 'var(--color-text-secondary)'
-                            }}>
-                              {cat}
-                            </span>
-                          ))}
+                {(() => {
+                  const nonAllDayEvents = visibleEvents.filter(e => !e.isAllDay);
+                  const result: JSX.Element[] = [];
+                  let activeGroup: JSX.Element[] = [];
+                  let showedIndicator = false;
+                  
+                  nonAllDayEvents.forEach((event, idx) => {
+                    const eventStart = new Date(event.start);
+                    const eventEnd = new Date(event.end);
+                    const prevEvent = idx > 0 ? nonAllDayEvents[idx - 1] : null;
+                    const prevEventEnd = prevEvent ? new Date(prevEvent.end) : null;
+                    
+                    const isActiveEvent = currentTime >= eventStart && currentTime < eventEnd;
+                    const isPrevActive = prevEvent && currentTime >= new Date(prevEvent.start) && currentTime < new Date(prevEvent.end);
+                    
+                    const showTimeLineBefore = isToday && !showedIndicator && (
+                      (idx === 0 && currentTime < eventStart) || // Before first event
+                      (prevEventEnd && currentTime > prevEventEnd && currentTime < eventStart) || // Between events
+                      isActiveEvent // Before first active event only
+                    );
+                    
+                    if (showTimeLineBefore) {
+                      showedIndicator = true;
+                      
+                      let indicatorText = '';
+                      let nextMeetingLink: JSX.Element | null = null;
+                      let joinButton: JSX.Element | null = null;
+                      
+                      if (isActiveEvent) {
+                        const meetingProvider = detectMeetingProvider(event.location);
+                        
+                        indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - `;
+                        
+                        nextMeetingLink = (
+                          <button
+                            onClick={() => {
+                              setSelectedEventId(event.meetingId);
+                              fetchMeetingDetails(event.meetingId);
+                              setSfdcContext(null);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--color-primary)',
+                              textDecoration: 'underline',
+                              cursor: 'pointer',
+                              padding: 0,
+                              font: 'inherit'
+                            }}
+                          >
+                            {event.subject}
+                          </button>
+                        );
+                        
+                        if (meetingProvider) {
+                          joinButton = (
+                            <>
+                              {' in progress • '}
+                              <a
+                                href={meetingProvider.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: 'var(--color-primary)',
+                                  textDecoration: 'underline',
+                                  fontWeight: 600
+                                }}
+                              >
+                                Join Now
+                              </a>
+                            </>
+                          );
+                        } else {
+                          joinButton = <span> in progress</span>;
+                        }
+                      } else {
+                        // Find next meeting (could be filtered out)
+                        const allNonAllDay = events.filter(e => !e.isAllDay);
+                        const nextMeeting = allNonAllDay.find(e => new Date(e.start) > currentTime);
+                        
+                        if (nextMeeting) {
+                          const nextStart = new Date(nextMeeting.start);
+                          const minutesUntil = Math.round((nextStart.getTime() - currentTime.getTime()) / 60000);
+                          const hoursUntil = Math.floor(minutesUntil / 60);
+                          const remainingMinutes = minutesUntil % 60;
+                          
+                          let timeText = '';
+                          if (hoursUntil > 0) {
+                            timeText = `${hoursUntil}h ${remainingMinutes}m`;
+                          } else {
+                            timeText = `${minutesUntil}m`;
+                          }
+                          
+                          const isFiltered = !visibleEvents.some(e => e.meetingId === nextMeeting.meetingId);
+                          
+                          nextMeetingLink = (
+                            <button
+                              onClick={() => {
+                                if (isFiltered) {
+                                  setSelectedCategories(new Set());
+                                  setHidePastEvents(false);
+                                  setHideCanceledEvents(false);
+                                }
+                                setSelectedEventId(nextMeeting.meetingId);
+                                fetchMeetingDetails(nextMeeting.meetingId);
+                                setSfdcContext(null);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--color-primary)',
+                                textDecoration: 'underline',
+                                cursor: 'pointer',
+                                padding: 0,
+                                font: 'inherit'
+                              }}
+                            >
+                              {nextMeeting.subject}
+                            </button>
+                          );
+                          
+                          indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${timeText} until next meeting: `;
+                        } else {
+                          indicatorText = `Now - ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+                        }
+                      }
+                      
+                      result.push(
+                        <div key={`indicator-${event.meetingId}`} className="calendar-now-line" style={{ 
+                          margin: '0.5rem 0 0',
+                          padding: '0.125rem 0.5rem 0',
+                          borderTop: '2px dotted var(--color-primary)',
+                          fontSize: '0.75rem',
+                          color: 'var(--color-primary)',
+                          fontWeight: 600
+                        }}>
+                          {indicatorText}{nextMeetingLink}{joinButton}
                         </div>
-                      )}
-                    </button>
-                  </li>
-                ))}
+                      );
+                    }
+                    
+                    const isSelected = event.meetingId === selectedEventId;
+                    
+                    const eventItem = (
+                      <li
+                        key={event.meetingId}
+                        data-event-id={event.meetingId}
+                        className={`workspace-dashboard__calendar-item ${isSelected ? 'is-active' : ''}`}
+                        style={isActiveEvent ? { marginBottom: '0.5rem' } : undefined}
+                      >
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setSelectedEventId(event.meetingId);
+                            fetchMeetingDetails(event.meetingId);
+                            setSfdcContext(null);
+                          }}
+                          style={isSelected ? {
+                            backgroundColor: 'var(--accent-light)',
+                            border: '2px solid var(--color-accent)',
+                            borderRadius: '4px'
+                          } : undefined}
+                        >
+                          <span className="workspace-dashboard__time">
+                            {new Date(event.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                            {' - '}
+                            {new Date(event.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          </span>
+                          <span className="workspace-dashboard__title">{event.subject}</span>
+                          {event.categories && event.categories.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                              {event.categories.map(cat => (
+                                <span key={cat} style={{
+                                  fontSize: '0.7rem',
+                                  padding: '2px 6px',
+                                  borderRadius: '8px',
+                                  background: 'var(--color-bg)',
+                                  border: '1px solid var(--color-border)',
+                                  color: 'var(--color-text-secondary)'
+                                }}>
+                                  {cat}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </button>
+                      </li>
+                    );
+                    
+                    if (isActiveEvent) {
+                      activeGroup.push(eventItem);
+                    } else {
+                      // If we have accumulated active events, close the group first
+                      if (activeGroup.length > 0) {
+                        result.push(
+                          <div key={`active-group-${activeGroup[0].key}`} className="active-events-group" style={{ border: '2px solid var(--color-primary)', borderRadius: '4px', padding: '0.5rem 0.25rem 0' }}>
+                            {activeGroup}
+                          </div>
+                        );
+                        activeGroup = [];
+                      }
+                      result.push(eventItem);
+                    }
+                  });
+                  
+                  // Close any remaining active group
+                  if (activeGroup.length > 0) {
+                    result.push(
+                      <div key={`active-group-final`} className="active-events-group" style={{ border: '2px solid var(--color-primary)', borderRadius: '4px', padding: '0.5rem 0.25rem 0' }}>
+                        {activeGroup}
+                      </div>
+                    );
+                  }
+                  
+                  return result;
+                })()}
+                {isToday && visibleEvents.filter(e => !e.isAllDay).length > 0 && 
+                 currentTime > new Date(visibleEvents.filter(e => !e.isAllDay)[visibleEvents.filter(e => !e.isAllDay).length - 1].end) && (
+                  <>
+                    <div className="calendar-now-line" style={{ 
+                      margin: '0.5rem 0',
+                      padding: '0.25rem 0.5rem',
+                      borderTop: '2px dotted var(--color-primary)',
+                      fontSize: '0.75rem',
+                      color: 'var(--color-primary)',
+                      fontWeight: 600
+                    }}>
+                      Now - {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    </div>
+                    <div style={{
+                      padding: '0 0.5rem 1rem',
+                      fontSize: '0.85rem',
+                      fontStyle: 'italic',
+                      color: 'var(--color-text-secondary)',
+                      textAlign: 'center'
+                    }}>
+                      No more events for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}...
+                    </div>
+                  </>
+                )}
               </ul>
             </>
           )}
           </aside>
 
           <section className="workspace-dashboard__details">
-              {selectedEvent && (
+              {selectedEvent && (() => {
+                const meetingProvider = detectMeetingProvider(meetingDetails?.location);
+                
+                return (
                 <div className="workspace-dashboard__card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem', gap: '1rem' }}>
-                    <h3>{selectedEvent.subject}</h3>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
+                    <div>
+                      <h3 style={{ minWidth: 'fit-content', marginBottom: '0.5rem' }}>{selectedEvent.subject}</h3>
+                      {meetingDetails?.organizer && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                          <span>
+                            Organized by{' '}
+                            <a href={`mailto:${meetingDetails.organizer}`} style={{ color: 'var(--color-primary)' }}>
+                              {meetingDetails.organizer}
+                            </a>
+                          </span>
+                          {meetingProvider && (
+                            <a
+                              href={meetingProvider.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.25rem 0.5rem',
+                                background: 'var(--color-primary)',
+                                color: 'var(--color-bg)',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                cursor: 'pointer',
+                                transition: 'opacity 0.2s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                            >
+                              Join {meetingProvider.provider} →
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {meetingDetails?.attendees && meetingDetails.attendees.length > 0 && (
                         <>
                           <a
@@ -1016,6 +1477,8 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                           </button>
                         </>
                       )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {new Date(selectedEvent.end) < new Date() && (
                         <button 
                           onClick={() => {
@@ -1048,26 +1511,6 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                       <div style={{ display: 'grid', gridTemplateColumns: sfdcContext ? '3fr 1fr' : '1fr', gap: '1.5rem', marginBottom: '1rem' }}>
                         <div>
                         <p><strong>Time:</strong> {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}</p>
-                        {meetingDetails.location && (
-                          <p>
-                            <strong>Location:</strong>{' '}
-                            {meetingDetails.location.startsWith('http') ? (
-                              <a href={meetingDetails.location} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)' }}>
-                                {meetingDetails.location}
-                              </a>
-                            ) : (
-                              meetingDetails.location
-                            )}
-                          </p>
-                        )}
-                        {meetingDetails.organizer && (
-                          <p>
-                            <strong>Organizer:</strong>{' '}
-                            <a href={`mailto:${meetingDetails.organizer}`} style={{ color: 'var(--color-primary)' }}>
-                              {meetingDetails.organizer}
-                            </a>
-                          </p>
-                        )}
                         {selectedEvent.categories && selectedEvent.categories.length > 0 && (
                           <p><strong>Categories:</strong> {selectedEvent.categories.join(', ')}</p>
                         )}
@@ -1205,9 +1648,8 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
 
                         {sfdcContext && (
                           <div style={{ position: 'sticky', top: '1rem', alignSelf: 'start' }}>
-                            {sfdcContext ? (
-                              <>
-                                <h4 style={{ marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--color-border)' }}>Salesforce Intelligence</h4>
+                            <>
+                              <h4 style={{ marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--color-border)' }}>Salesforce Intelligence</h4>
                                 
                   {sfdcContext.accounts && sfdcContext.accounts.length > 0 && (
                         <details open style={{ marginTop: '0.5rem' }}>
@@ -1502,10 +1944,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                         </details>
                       )}
 
-                              </>
-                            ) : (
-                              <p style={{ fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>No CRM data loaded.</p>
-                            )}
+                            </>
                           </div>
                         )}
                       </div>
@@ -1516,7 +1955,8 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                     </div>
                   )}
                 </div>
-              )}
+              );
+              })()}
             </section>
       </div>
     </div>

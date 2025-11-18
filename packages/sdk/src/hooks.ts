@@ -7,6 +7,14 @@
 
 import { useContext } from 'react';
 import { SDKContext } from './providers';
+import type { AgentSummary } from './types';
+
+// SDK Context Access
+export function useSDK() {
+  const sdk = useContext(SDKContext);
+  if (!sdk) throw new Error('SDK context not available');
+  return { apiBase: sdk.apiBase };
+}
 
 // Agent Management
 export function useAgents() {
@@ -17,7 +25,7 @@ export function useAgents() {
 
 export function useAgent(slug: string) {
   const agents = useAgents();
-  return agents.find(a => a.slug === slug);
+  return agents.find((a: AgentSummary) => a.slug === slug);
 }
 
 // Workspace Management
@@ -124,6 +132,20 @@ export function useToast() {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.toast) throw new Error('ToastContext not available');
   return sdk.contexts.toast.useToast();
+}
+
+// Generic Notification System
+export function useNotifications() {
+  const toast = useToast();
+  
+  return {
+    notify: (message: string, options?: { 
+      type?: 'info' | 'warning' | 'error' | 'success';
+      duration?: number;
+    }) => {
+      toast.showToast(message, options?.type || 'info', options?.duration);
+    },
+  };
 }
 
 // Slash Commands

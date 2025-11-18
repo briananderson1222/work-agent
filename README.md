@@ -648,11 +648,17 @@ Work Agent uses a plugin architecture that separates custom workspaces from the 
 ### Quick Start
 
 ```bash
-# Install an example plugin
-npm install ../examples/minimal-workspace
+# Install a plugin from local directory
+npx tsx scripts/cli-plugin.ts install ./examples/stallion-workspace
 
-# Or from npm (when published)
-npm install @work-agent/sa-dashboard
+# Or install from examples directory
+npx tsx scripts/cli-plugin.ts install ./examples/minimal-workspace
+
+# List installed plugins
+npx tsx scripts/cli-plugin.ts list
+
+# Remove a plugin
+npx tsx scripts/cli-plugin.ts remove stallion-workspace
 ```
 
 ### Creating a Plugin
@@ -741,22 +747,23 @@ import {
 
 ### Plugin Installation
 
-Plugins install automatically via postinstall script:
+Plugins are installed using the CLI tool:
 
-```json
-{
-  "scripts": {
-    "postinstall": "node scripts/install-plugin.js"
-  }
-}
+```bash
+# Install from local directory
+npx tsx scripts/cli-plugin.ts install ./examples/stallion-workspace
+
+# The CLI automatically:
+# - Copies plugin files to .work-agent/plugins/
+# - Installs agent definitions to .work-agent/agents/
+# - Installs workspace configs to .work-agent/workspaces/
+# - Copies UI components to src-ui/src/workspaces/
 ```
-
-The script copies built files to `src-ui/src/workspaces/` or `src-ui/src/plugins/`.
 
 ### Documentation
 
 - **[Plugin Architecture](./PLUGIN_ARCHITECTURE.md)** - Complete plugin system documentation
-- **[Example Plugin](./examples/minimal-workspace/)** - Minimal workspace example
+- **[Example Plugins](./examples/)** - Stallion workspace and minimal workspace examples
 - **[Agent Development Guide](./AGENTS.md)** - Component patterns and best practices
 
 ## 🏢 Production Deployment

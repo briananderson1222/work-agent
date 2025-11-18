@@ -70,6 +70,56 @@ export class WorkAgentRuntime {
   }
 
   /**
+   * Reload agents from disk
+   */
+  async reloadAgents(): Promise<void> {
+    const agentMetadataList = await this.configLoader.listAgents();
+    const currentSlugs = new Set(agentMetadataList.map(m => m.slug));
+    
+    // Remove deleted agents and cleanup MCP servers
+    for (const slug of this.activeAgents.keys()) {
+      if (!currentSlugs.has(slug)) {
+        // Cleanup MCP configs for this agent
+        for (const [key, config] of this.mcpConfigs.entries()) {
+          if (key.startsWith(`${slug}:`)) {
+            await config.close();
+            this.mcpConfigs.delete(key);
+            this.mcpConnectionStatus.delete(key);
+            this.integrationMetadata.delete(key);
+          }
+        }
+        
+        this.activeAgents.delete(slug);
+        this.agentMetadataMap.delete(slug);
+        this.agentSpecs.delete(slug);
+        this.agentTools.delete(slug);
+        this.memoryAdapters.delete(slug);
+        this.logger.info('Agent removed', { agent: slug });
+      }
+    }
+    
+    // Add new agents
+    for (const meta of agentMetadataList) {
+      if (!this.activeAgents.has(meta.slug)) {
+        try {
+          const agent = await this.createVoltAgentInstance(meta.slug);
+          this.activeAgents.set(meta.slug, agent);
+          this.logger.info('Agent added', { agent: meta.slug });
+        } catch (error) {
+          this.logger.error('Failed to add agent', { agent: meta.slug, error });
+        }
+      }
+    }
+    
+    // Update metadata map
+    this.agentMetadataMap = new Map(
+      agentMetadataList.map(meta => [meta.slug, meta])
+    );
+    
+    this.logger.info('Agents reloaded', { count: agentMetadataList.length });
+  }
+
+  /**
    * Initialize the runtime
    */
   async initialize(): Promise<void> {
@@ -158,32 +208,37 @@ export class WorkAgentRuntime {
               if (!this.voltAgent) {
                 return c.json({ success: false, error: 'VoltAgent not initialized' }, 500);
               }
+              await this.reloadAgents();
               const coreAgents = await this.voltAgent.getAgents();
-              const enrichedAgents = await Promise.all(coreAgents.map(async (agent: any) => {
+              const enrichedAgents = (await Promise.all(coreAgents.map(async (agent: any) => {
                 const metadata = this.agentMetadataMap.get(agent.id);
-                if (!metadata) return agent;
+                if (!metadata) return null;
                 
-                // Load full agent spec to get prompt, description, icon, commands, tools
-                const spec = await this.configLoader.loadAgent(metadata.slug);
-                
-                this.logger.debug('[Agent Enrichment] Loading spec', { 
-                  agent: metadata.slug,
-                  hasSpec: !!spec,
-                  hasTools: !!spec.tools
-                });
-                
-                return {
-                  ...agent,
-                  slug: metadata.slug,
-                  name: metadata.name,
-                  prompt: spec.prompt,
-                  description: spec.description,
-                  icon: spec.icon,
-                  commands: spec.commands,
-                  toolsConfig: spec.tools, // Rename to avoid conflict with agent.tools (tool instances)
-                  updatedAt: metadata.updatedAt,
-                };
-              }));
+                try {
+                  const spec = await this.configLoader.loadAgent(metadata.slug);
+                  
+                  this.logger.debug('[Agent Enrichment] Loading spec', { 
+                    agent: metadata.slug,
+                    hasSpec: !!spec,
+                    hasTools: !!spec.tools
+                  });
+                  
+                  return {
+                    ...agent,
+                    slug: metadata.slug,
+                    name: metadata.name,
+                    prompt: spec.prompt,
+                    description: spec.description,
+                    icon: spec.icon,
+                    commands: spec.commands,
+                    toolsConfig: spec.tools,
+                    updatedAt: metadata.updatedAt,
+                  };
+                } catch (error) {
+                  this.logger.warn('Agent spec not found, skipping', { agent: metadata.slug });
+                  return null;
+                }
+              }))).filter(a => a !== null);
               
               this.logger.debug('[Agent Enrichment] Enriched agents', { 
                 count: enrichedAgents.length,
@@ -1612,12 +1667,19 @@ export class WorkAgentRuntime {
                   // Set agent status to running
                   this.agentStatus.set(slug, 'running');
                   
+                  // Generate trace ID for this request
+                  const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+                  
                   // Emit monitoring event
                   const agentStartEvent = {
                     type: 'agent-start',
                     timestamp: new Date().toISOString(),
+                    timestampMs: Date.now(),
                     agentSlug: slug,
                     conversationId: operationContext.conversationId,
+                    userId: operationContext.userId,
+                    traceId,
+                    input: typeof input === 'string' ? input : input?.text || '[complex input]',
                   };
                   this.monitoringEvents.emit('event', agentStartEvent);
                   await this.persistEvent(agentStartEvent);
@@ -1688,6 +1750,7 @@ export class WorkAgentRuntime {
                   let hasEmittedReasoningForCurrentSegment = false;
                   let toolCallCount = 0;
                   let currentStep = 0;
+                  const requestTraceId = traceId; // Capture traceId for use in events
                   
                   try {
                     for await (const chunk of result.fullStream) {
@@ -1701,8 +1764,11 @@ export class WorkAgentRuntime {
                         const reasoningEvent = {
                           type: 'reasoning',
                           timestamp: new Date().toISOString(),
+                          timestampMs: Date.now(),
                           agentSlug: slug,
                           conversationId: operationContext.conversationId,
+                          userId: operationContext.userId,
+                          traceId: requestTraceId,
                           data: currentTextSegment,
                         };
                         this.monitoringEvents.emit('event', reasoningEvent);
@@ -1772,13 +1838,17 @@ export class WorkAgentRuntime {
                         const toolCallEvent = {
                           type: 'tool-call',
                           timestamp: new Date().toISOString(),
+                          timestampMs: Date.now(),
                           agentSlug: slug,
                           conversationId: operationContext.conversationId,
+                          userId: operationContext.userId,
+                          traceId: requestTraceId,
                           toolName: chunk.toolName,
                           toolCallId: chunk.toolCallId,
                           input: chunk.input,
                           step: currentStep,
                           toolCallNumber: toolCallCount,
+                          requiresApproval: chunk.needsApproval || false,
                         };
                         this.monitoringEvents.emit('event', toolCallEvent);
                         await this.persistEvent(toolCallEvent);
@@ -1813,8 +1883,11 @@ export class WorkAgentRuntime {
                         const toolResultEvent = {
                           type: 'tool-result',
                           timestamp: new Date().toISOString(),
+                          timestampMs: Date.now(),
                           agentSlug: slug,
                           conversationId: operationContext.conversationId,
+                          userId: operationContext.userId,
+                          traceId: requestTraceId,
                           toolName: chunk.toolName,
                           toolCallId: chunk.toolCallId,
                           result: chunk.output,
@@ -1876,17 +1949,35 @@ export class WorkAgentRuntime {
                       });
                     }
                     
+                    // Collect usage stats
+                    let usage;
+                    try {
+                      usage = await result.usage;
+                    } catch (e) {
+                      // Usage might not be available
+                    }
+                    
                     // Emit monitoring event
                     const agentCompleteEvent = {
                       type: 'agent-complete',
                       timestamp: new Date().toISOString(),
+                      timestampMs: Date.now(), // High-precision timestamp
                       agentSlug: slug,
                       conversationId: operationContext.conversationId,
+                      userId: operationContext.userId,
+                      traceId: requestTraceId,
                       reason: completionReason,
                       artifacts,
                       steps: currentStep,
                       toolCallCount,
-                      maxSteps: agentSpec.guardrails?.maxSteps,
+                      maxSteps: this.agentSpecs.get(slug)?.guardrails?.maxSteps,
+                      inputChars: typeof input === 'string' ? input.length : (input?.text?.length || 0),
+                      outputChars: finalOutput.length,
+                      usage: usage ? {
+                        promptTokens: usage.promptTokens,
+                        completionTokens: usage.completionTokens,
+                        totalTokens: usage.totalTokens,
+                      } : undefined,
                     };
                     this.monitoringEvents.emit('event', agentCompleteEvent);
                     await this.persistEvent(agentCompleteEvent);
@@ -1995,6 +2086,7 @@ export class WorkAgentRuntime {
         const healthEvent = {
           type: 'agent-health',
           timestamp: new Date().toISOString(),
+          timestampMs: Date.now(),
           agentSlug: slug,
           healthy,
           checks,

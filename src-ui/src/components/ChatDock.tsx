@@ -7,6 +7,7 @@ import { ConversationStats, ContextPercentage } from './ConversationStats';
 import { FileAttachmentInput } from './FileAttachmentInput';
 import { SlashCommandSelector } from './SlashCommandSelector';
 import { ModelSelector } from './ModelSelector';
+import { AgentBadge } from './AgentBadge';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useSlashCommands } from '../hooks/useSlashCommands';
 import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
@@ -77,13 +78,10 @@ function ToolCallDisplay({ toolCall, onApprove }: {
       border: '1px solid var(--color-border)',
       borderRadius: '4px',
     }}>
-      <button 
+      <div 
         className="tool-call__header" 
-        onClick={() => setIsExpanded(!isExpanded)}
         style={{ 
           display: 'block',
-          background: 'none',
-          border: 'none',
           cursor: 'pointer',
           padding: 0,
           color: 'inherit',
@@ -92,7 +90,13 @@ function ToolCallDisplay({ toolCall, onApprove }: {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
-          <span className="tool-call__toggle">{isExpanded ? '▼' : '▶'}</span>
+          <span 
+            className="tool-call__toggle"
+            onClick={() => setIsExpanded(!isExpanded)}
+            style={{ cursor: 'pointer' }}
+          >
+            {isExpanded ? '▼' : '▶'}
+          </span>
           <span className="tool-call__name" style={{ fontWeight: 500 }}>{name}</span>
           {result && !error && <span style={{ color: 'var(--success-primary)' }} title="Success">✓</span>}
           {error && <span style={{ color: 'var(--error-primary)' }} title="Error">✗</span>}
@@ -162,7 +166,7 @@ function ToolCallDisplay({ toolCall, onApprove }: {
           {error && <span className="tool-call__error">⚠️</span>}
         </div>
         <div style={{ fontSize: '0.85em', opacity: 0.7, paddingLeft: '1rem', width: '100%', wordBreak: 'break-word', whiteSpace: 'normal' }}>{argsPreview}</div>
-      </button>
+      </div>
       {isExpanded && (
         <div className="tool-call__details" style={{ marginTop: '0.5rem', fontSize: '0.9em' }}>
           <div className="tool-call__section" style={{ fontSize: '0.85em', opacity: 0.7, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
@@ -946,7 +950,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                             <span className="chat-dock__tab-badge">●</span>
                           )}
                         </div>
-                        <div className="chat-dock__tab-agent">{session.agentName}</div>
+                        <div className="chat-dock__tab-agent">
+                          <AgentBadge agentSlug={session.agentSlug} size="sm" />
+                        </div>
                         {(() => {
                           const agent = agents.find(a => a.slug === session.agentSlug);
                           const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
