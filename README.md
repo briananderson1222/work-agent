@@ -649,16 +649,16 @@ Work Agent uses a plugin architecture that separates custom workspaces from the 
 
 ```bash
 # Install a plugin from local directory
-npx tsx src-server/cli-plugin.ts install ./examples/stallion-workspace
+npx tsx scripts/cli-plugin.ts install ./examples/stallion-workspace
 
 # Or install from examples directory
-npx tsx src-server/cli-plugin.ts install ./examples/minimal-workspace
+npx tsx scripts/cli-plugin.ts install ./examples/minimal-workspace
 
 # List installed plugins
-npx tsx src-server/cli-plugin.ts list
+npx tsx scripts/cli-plugin.ts list
 
 # Remove a plugin
-npx tsx src-server/cli-plugin.ts remove stallion-workspace
+npx tsx scripts/cli-plugin.ts remove stallion-workspace
 ```
 
 ### Creating a Plugin
@@ -751,7 +751,7 @@ Plugins are installed using the CLI tool:
 
 ```bash
 # Install from local directory
-npx tsx src-server/cli-plugin.ts install ./examples/stallion-workspace
+npx tsx scripts/cli-plugin.ts install ./examples/stallion-workspace
 
 # The CLI automatically:
 # - Copies plugin files to .work-agent/plugins/

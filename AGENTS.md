@@ -73,10 +73,10 @@ All plugin changes should be made in the `examples/` directory and reinstalled t
 ```bash
 # 1. Make changes in examples/stallion-workspace/
 # 2. Remove the installed plugin
-npx tsx src-server/cli-plugin.ts remove stallion-workspace
+npx tsx scripts/cli-plugin.ts remove stallion-workspace
 
 # 3. Reinstall from examples
-npx tsx src-server/cli-plugin.ts install ./examples/stallion-workspace
+npx tsx scripts/cli-plugin.ts install ./examples/stallion-workspace
 
 # 4. Test in the UI
 npm run dev:ui
