@@ -66,6 +66,28 @@ Workspaces define UI layout and are separate from agent logic:
 
 ## Plugin/Component Creation
 
+**IMPORTANT: Plugin Development Workflow**
+
+All plugin changes should be made in the `examples/` directory and reinstalled to ensure compatibility:
+
+```bash
+# 1. Make changes in examples/stallion-workspace/
+# 2. Remove the installed plugin
+npx tsx src-server/cli-plugin.ts remove stallion-workspace
+
+# 3. Reinstall from examples
+npx tsx src-server/cli-plugin.ts install ./examples/stallion-workspace
+
+# 4. Test in the UI
+npm run dev:ui
+```
+
+This workflow ensures:
+- Plugin structure is correct and installable
+- All files are properly copied to the UI directory
+- Changes work through the plugin installation process
+- No direct edits to `src-ui/src/workspaces/` that bypass the plugin system
+
 ### Creating a Custom Workspace Component
 
 1. **Define the component in your workspace:**
