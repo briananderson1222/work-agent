@@ -50,25 +50,24 @@ export function useDerivedSessions(apiBase: string, agentSlug: string | null): C
       // Merge all message sources
       const messages = [...backendMessages, ...optimisticMessages];
       
-      console.log('[useDerivedSessions]', { chatId, status: sessionStatus, messagesCount: messages.length, hasStreaming: !!chatState.streamingMessage });
       
       // Merge backend and ephemeral messages, sort by timestamp
       const ephemeralMessages = chatState.ephemeralMessages || [];
       
-      // Assign sequential timestamps to backend messages that don't have them
+      // Preserve backend timestamps, only assign fallback for messages without timestamps
       const messagesWithTimestamps = messages.map((m, index) => ({
         ...m,
-        timestamp: m.timestamp || index + 1, // Sequential: 1, 2, 3... (before any real timestamps)
+        timestamp: m.timestamp || (Date.now() - (messages.length - index) * 1000), // Fallback: recent timestamps in reverse order
       }));
       
-      const allMessages = [...messagesWithTimestamps, ...ephemeralMessages]
-        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      // Include streaming message in timestamp sorting
+      const streamingMessages = chatState.streamingMessage ? [{
+        ...chatState.streamingMessage,
+        timestamp: chatState.streamingMessage.timestamp || Date.now(),
+      }] : [];
       
-      // Add streaming message (assistant response in progress)
-      if (chatState.streamingMessage) {
-        console.log('[useDerivedSessions] Adding streaming message:', chatState.streamingMessage.content?.substring(0, 50));
-        allMessages.push(chatState.streamingMessage as any);
-      }
+      const allMessages = [...messagesWithTimestamps, ...ephemeralMessages, ...streamingMessages]
+        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       
       // Compute isThinking: sending but not actively processing a step
       const isThinking = sessionStatus === 'sending' && !chatState.isProcessingStep;

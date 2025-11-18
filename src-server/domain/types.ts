@@ -15,6 +15,8 @@ export interface AgentSpec {
     temperature?: number;
     topP?: number;
     stopSequences?: string[];
+    maxSteps?: number; // Maximum number of tool call rounds (default: 5)
+  };
   };
   tools?: {
     mcpServers: string[]; // MCP server IDs to load

@@ -168,6 +168,7 @@ export type NavigationView =
   | { type: 'agents' }
   | { type: 'prompts' }
   | { type: 'integrations' }
+  | { type: 'monitoring' }
   | { type: 'agent-new' }
   | { type: 'agent-edit'; slug: string; initialTab?: 'basic' | 'model' | 'tools' | 'commands' }
   | { type: 'tools'; slug: string }

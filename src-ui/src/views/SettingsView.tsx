@@ -170,7 +170,6 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
   };
 
   const handleDeleteAgent = (slug: string, name: string) => {
-    console.log('handleDeleteAgent called with:', { slug, name });
     setDeleteConfirm({ type: 'agent', slug, name });
   };
 

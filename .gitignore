@@ -5,6 +5,7 @@ dist-server/
 dist-desktop/
 .work-agent/agents/*/memory/
 .work-agent/agents/*/workflows/
+.work-agent/monitoring/
 .amazonq/cli-todo-lists/
 *.log
 .DS_Store

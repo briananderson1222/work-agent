@@ -806,7 +806,6 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                       className="button button--primary button--small"
                       onClick={() => {
                         const commandKey = `cmd-${Date.now()}`;
-                        console.log('Adding command:', commandKey);
                         setFormData({
                           ...formData,
                           commands: {

@@ -46,15 +46,12 @@ class StatsStore {
       try {
         // Use empty string for conversationId if not set - backend will return agent-level stats
         const url = `${apiBase}/agents/${agentSlug}/conversations/${conversationId || ''}/stats`;
-        console.log('[StatsStore] Fetching stats:', { url, key });
           
         const response = await fetch(url);
         const result = await response.json();
-        console.log('[StatsStore] Stats response:', { key, result });
         
         if (result.success) {
           this.stats.set(key, result.data);
-          console.log('[StatsStore] Stats stored:', { key, data: result.data });
           this.notify();
         }
       } catch (error) {
@@ -117,7 +114,6 @@ export function useStats(agentSlug: string, conversationId: string, apiBase: str
 
   useEffect(() => {
     if (shouldFetch && agentSlug) {
-      console.log('[useStats] Fetching stats:', { agentSlug, conversationId, key, shouldFetch });
       fetchStats(agentSlug, conversationId, apiBase);
     }
   }, [agentSlug, conversationId, apiBase, shouldFetch, fetchStats]);
@@ -127,7 +123,6 @@ export function useStats(agentSlug: string, conversationId: string, apiBase: str
   }, [agentSlug, conversationId, apiBase, fetchStats]);
 
   const stats = allStats.get(key) || null;
-  console.log('[useStats] Returning stats:', { key, stats, allStatsSize: allStats.size });
 
   return { 
     stats,

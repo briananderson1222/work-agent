@@ -28,7 +28,6 @@ export function useStreamingMessage(apiBase: string) {
       
       // If tool is in session autoApprove list, automatically approve it
       if (sessionAutoApprove.includes(data.toolName)) {
-        console.log('[useStreamingMessage] Auto-approving tool from session list:', data.toolName);
         
         // Send approval immediately
         fetch(`${apiBase}/tool-approval/${data.approvalId}`, {
@@ -49,13 +48,6 @@ export function useStreamingMessage(apiBase: string) {
       const pendingApprovals = new Map(state.pendingApprovals || []);
       const argsKey = JSON.stringify(data.toolArgs);
       pendingApprovals.set(argsKey, data.approvalId);
-      
-      console.log('[useStreamingMessage] tool-approval-request:', {
-        toolName: data.toolName,
-        approvalId: data.approvalId,
-        argsKey,
-        toolArgs: data.toolArgs
-      });
       
       // Show toast notification
       const agentName = chatState?.agentName || 'Agent';
@@ -102,15 +94,6 @@ export function useStreamingMessage(apiBase: string) {
       const argsKey = JSON.stringify(data.input);
       const approvalId = state.pendingApprovals?.get(argsKey);
       const needsApproval = !!approvalId;
-      
-      console.log('[useStreamingMessage] tool-input-available:', {
-        toolName: data.toolName,
-        argsKey,
-        input: data.input,
-        approvalId,
-        needsApproval,
-        pendingApprovalsKeys: Array.from(state.pendingApprovals?.keys() || [])
-      });
       
       newContentParts.push({
         type: 'tool',

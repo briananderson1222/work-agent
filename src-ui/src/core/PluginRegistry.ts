@@ -24,7 +24,6 @@ export class PluginRegistry {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    console.log('[PluginRegistry] Discovering plugins...');
 
     // Discover workspaces
     await this.discoverPlugins('/src/workspaces', 'workspace');
@@ -34,7 +33,6 @@ export class PluginRegistry {
 
     this.initialized = true;
     
-    console.log(`[PluginRegistry] Discovered ${this.workspaces.size} workspaces, ${this.components.size} components`);
   }
 
   /**
@@ -80,7 +78,6 @@ export class PluginRegistry {
             this.components.set(pluginManifest.name, registered);
           }
 
-          console.log(`[PluginRegistry] Registered ${type}: ${pluginManifest.name}`);
         } catch (error) {
           console.error(`[PluginRegistry] Error loading plugin at ${path}:`, error);
         }

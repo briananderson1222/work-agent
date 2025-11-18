@@ -10,9 +10,7 @@ export function useAwsAuth() {
     setError(null);
     
     try {
-      console.log('[Auth] Calling mwinit...');
       await invoke('authenticate_aws', { pin });
-      console.log('[Auth] Success');
       return true;
     } catch (err) {
       console.error('[Auth] Failed:', err);

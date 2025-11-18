@@ -27,7 +27,10 @@ export function Header({
   
   return (
     <header className="app-toolbar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div 
+        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+        onClick={() => onNavigate({ type: 'workspace' })}
+      >
         <img src="/favicon.png" alt="" style={{ width: '20px', height: '20px' }} />
         <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
           Project Stallion
@@ -72,6 +75,14 @@ export function Header({
             title="Integrations"
           >
             Integrations
+          </button>
+          <button
+            type="button"
+            className={`header-nav-btn ${currentView?.type === 'monitoring' ? 'is-active' : ''}`}
+            onClick={() => onNavigate({ type: 'monitoring' })}
+            title="Monitoring"
+          >
+            Monitoring
           </button>
         </nav>
 

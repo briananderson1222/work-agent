@@ -18,7 +18,9 @@ interface ModelSelectorProps {
 export function ModelSelector({ query, models, currentModel, onSelect, onClose }: ModelSelectorProps) {
   // Filter and map models to AutocompleteItem format
   const items = useMemo(() => {
-    const searchTerm = query.toLowerCase();
+    if (!models || !Array.isArray(models)) return [];
+    
+    const searchTerm = (query || '').toLowerCase();
     const filtered = models.filter(m => 
       m.name.toLowerCase().includes(searchTerm) || 
       m.id.toLowerCase().includes(searchTerm) ||

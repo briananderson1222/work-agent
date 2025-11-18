@@ -175,12 +175,10 @@ export function SessionManagementMenu({
     setDeleteConfirm(null);
 
     try {
-      console.log('Deleting conversation:', conv.id, 'for agent:', conv.agentSlug);
       const response = await fetch(`${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`, {
         method: 'DELETE',
       });
 
-      console.log('Delete response:', response.status, response.ok);
       
       if (response.ok) {
         // Remove from local list
@@ -534,7 +532,6 @@ export function SessionManagementMenu({
                             </button>
                             <button
                               onClick={(e) => {
-                                console.log('Delete button clicked!', conv.id);
                                 e.stopPropagation();
                                 handleDelete(conv);
                               }}

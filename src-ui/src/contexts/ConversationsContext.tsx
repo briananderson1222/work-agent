@@ -163,8 +163,7 @@ class ConversationsStore {
     onConversationStarted?: (conversationId: string, title?: string) => void,
     onError?: (error: Error) => void,
     signal?: AbortSignal
-  ): Promise<string | undefined> {
-    console.log('[ConversationsContext.sendMessage] Received signal:', signal);
+  ): Promise<{ conversationId?: string; finishReason?: string }> {
     const key = conversationId ? `${agentSlug}:${conversationId}` : `${agentSlug}:temp`;
     this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
 
@@ -178,9 +177,16 @@ class ConversationsStore {
         },
       };
       
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      
+      // Mark user-initiated cancels with a header (checked before abort)
+      if ((signal as any)?._userInitiated) {
+        headers['X-Abort-Reason'] = 'user-cancel';
+      }
+      
       const response = await fetch(`${apiBase}/api/agents/${agentSlug}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
         signal,
       });
@@ -197,12 +203,10 @@ class ConversationsStore {
       
       // Set up abort listener to cancel reader immediately
       const abortHandler = async () => {
-        console.log('[ConversationsContext] Abort signal received, canceling reader');
         aborted = true;
         try {
           await reader.cancel();
         } catch (e) {
-          console.log('[ConversationsContext] Reader cancel error (expected):', e);
         }
       };
       signal?.addEventListener('abort', abortHandler);
@@ -211,12 +215,12 @@ class ConversationsStore {
       let buffer = '';
       let state = { currentTextChunk: '', contentParts: [], pendingApprovals: new Map() };
       let newConversationId = conversationId;
+      let finishReason: string | undefined;
 
       try {
         while (true) {
           // Check abort before reading
           if (aborted || signal?.aborted) {
-            console.log('[ConversationsContext] Aborting stream loop');
             break;
           }
           
@@ -242,6 +246,11 @@ class ConversationsStore {
               continue;
             }
             
+            // Capture finishReason from finish event
+            if (data.type === 'finish' && data.finishReason) {
+              finishReason = data.finishReason;
+            }
+            
             const result = onStreamEvent(data, state);
             // Always update state to preserve pendingApprovals
             state = { 
@@ -254,7 +263,6 @@ class ConversationsStore {
       } catch (error) {
         // If aborted, exit gracefully
         if (aborted || signal?.aborted || (error as Error).name === 'AbortError') {
-          console.log('[ConversationsContext] Stream aborted via error');
           return;
         }
         throw error;
@@ -274,7 +282,7 @@ class ConversationsStore {
         await this.refreshMessages(apiBase, agentSlug, newConversationId);
       }
       
-      return newConversationId;
+      return { conversationId: newConversationId, finishReason };
     } catch (error) {
       console.error('Send message error:', error);
       this.setStatus(agentSlug, conversationId || 'temp', 'idle');

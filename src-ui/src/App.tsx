@@ -24,6 +24,7 @@ import { WorkspaceEditorView } from './views/WorkspaceEditorView';
 import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { SettingsView } from './views/SettingsView';
+import { MonitoringView } from './views/MonitoringView';
 import { useAwsAuth } from './hooks/useAwsAuth';
 import { setAuthCallback } from './lib/apiClient';
 import { getAgentIcon } from './utils/workspace';
@@ -63,6 +64,7 @@ function App() {
     if (path === '/agents') return { type: 'agents' };
     if (path === '/prompts') return { type: 'prompts' };
     if (path === '/integrations') return { type: 'integrations' };
+    if (path === '/monitoring') return { type: 'monitoring' };
     if (path === '/settings') return { type: 'settings' };
     if (path === '/agents/new') return { type: 'agent-new' };
     if (path.startsWith('/agents/') && path.endsWith('/edit')) {
@@ -93,7 +95,10 @@ function App() {
       const path = window.location.pathname;
       
       // Check path for main app navigation
-      if (path === '/settings') {
+      if (path === '/monitoring') {
+        setCurrentView({ type: 'monitoring' });
+        return;
+      } else if (path === '/settings') {
         setCurrentView({ type: 'settings' });
         return;
       } else if (path === '/agents/new') {
@@ -188,14 +193,12 @@ function App() {
     ];
 
     // Add custom agent commands
-    console.log('Building slash commands, currentAgent:', currentAgent?.slug, 'commands:', currentAgent?.commands);
     if (currentAgent?.commands) {
       const customCommands = Object.values(currentAgent.commands).map((cmd: any) => ({
         cmd: `/${cmd.name}`,
         description: cmd.description || 'Custom command',
         isCustom: true,
       }));
-      console.log('Adding custom commands:', customCommands);
       return [...baseCommands, ...customCommands];
     }
 
@@ -297,10 +300,10 @@ function App() {
 
   // Auto-select first workspace if none selected
   useEffect(() => {
-    if (workspaces.length > 0 && !selectedWorkspace && !selectedAgent) {
+    if (workspaces.length > 0 && !selectedWorkspace && !selectedAgent && currentView.type === 'workspace') {
       setWorkspace(workspaces[0].slug);
     }
-  }, [workspaces, selectedWorkspace, selectedAgent, setWorkspace]);
+  }, [workspaces, selectedWorkspace, selectedAgent, currentView.type, setWorkspace]);
 
   const handleWorkspaceSelect = async (slug: string, preferredTabId?: string) => {
     try {
@@ -338,27 +341,21 @@ function App() {
 
   // Chat functions - handled by ChatDock
   const removeSession = (sessionId: string) => {
-    console.warn('removeSession called but handled by ChatDock');
   };
 
   const focusSession = (sessionId: string) => {
-    console.warn('focusSession called but handled by ChatDock');
   };
 
   const ensureManualSession = (agent: AgentSummary) => {
-    console.warn('ensureManualSession called but handled by ChatDock');
   };
 
   const sendMessage = async (sessionId: string, overrideContent?: string) => {
-    console.warn('sendMessage called but handled by ChatDock');
   };
 
   const openChatForAgent = useCallback((agent: AgentSummary | null) => {
-    console.warn('openChatForAgent called but handled by ChatDock');
   }, []);
 
   const openConversation = async (conversationId: string, agentSlug: string) => {
-    console.warn('openConversation called but handled by ChatDock');
   };
 
   // Navigation functions
@@ -373,6 +370,8 @@ function App() {
     // Update URL based on view type
     if (view.type === 'settings') {
       navigate('/settings');
+    } else if (view.type === 'monitoring') {
+      navigate('/monitoring');
     } else if (view.type === 'agents') {
       navigate('/agents');
     } else if (view.type === 'agent-new') {
@@ -402,12 +401,10 @@ function App() {
 
   // Stub handlers for legacy calls - ChatDock handles all chat operations
   const handleSendToChat = useCallback((text: string, agentSlug?: string, promptLabel?: string) => {
-    console.warn('handleSendToChat called but ChatDock handles all chat operations');
     showToast('Please use the chat dock to send messages');
   }, [showToast]);
 
   const handlePromptSelect = useCallback((prompt: any) => {
-    console.warn('handlePromptSelect called but ChatDock handles all chat operations');
     showToast('Please use the chat dock to send prompts');
   }, [showToast]);
 
@@ -567,6 +564,7 @@ function App() {
               onChatFontSizeChange={() => {}}
             />
           )}
+          {currentView.type === 'monitoring' && <MonitoringView />}
         </div>
 
         <ChatDock onRequestAuth={handleAuthError} />

@@ -60,7 +60,6 @@ function ToolCallDisplay({ toolCall, onApprove }: {
   const needsApproval = tool.needsApproval || toolCall.needsApproval;
   const cancelled = tool.cancelled || toolCall.cancelled;
   
-  console.log('[ToolCallDisplay]', { name, needsApproval, hasOnApprove: !!onApprove, error, result, cancelled });
   
   // Create abbreviated args preview
   const argsPreview = args 
@@ -244,6 +243,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   
   // Track removing messages for animation
   const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
+  const [removingMessageContent, setRemovingMessageContent] = useState<Map<string, any>>(new Map());
   
   // Derive sessions from contexts (includes messages for all sessions)
   const sessions = useDerivedSessions(apiBase, selectedAgent);
@@ -307,6 +307,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const ephemeralMessages = activeChatState?.ephemeralMessages || [];
   const unreadCount = sessions.filter(s => s.hasUnread).length;
   
+  
   // Refs
   const chatSectionRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -362,9 +363,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   }, [agents, sessions, focusSession, openConversationAction, setActiveChat, setDockState]);
   
   const executeCommand = useCallback(async (command: SlashCommand, sessionId: string) => {
-    console.log('[ChatDock] executeCommand called:', command.cmd, 'sessionId:', sessionId);
     const cmdName = command.cmd.slice(1);
-    console.log('[ChatDock] cmdName:', cmdName);
     
     clearInput(sessionId);
     setCommandQuery(null);
@@ -409,18 +408,14 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       }
         
       case 'tools': {
-        console.log('[ChatDock] Executing tools command');
         try {
           const agent = agents.find(a => a.slug === activeSession?.agentSlug);
-          console.log('[ChatDock] Found agent:', agent?.slug);
           const response = await fetch(`${apiBase}/agents/${agent?.slug}`);
           const data = await response.json();
           const agentData = data.data;
-          console.log('[ChatDock] Agent data:', agentData);
           
           const tools = agentData?.tools || [];
           const autoApproveList = agentData?.autoApprove || [];
-          console.log('[ChatDock] Tools count:', tools.length);
           
           if (tools.length > 0) {
             const sortedTools = [...tools].sort((a: any, b: any) => {
@@ -442,9 +437,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
             });
             
             const content = `**Available Tools (${tools.length}):**\n\n${toolLines.join('\n')}\n\n✓ = Auto-approved`;
-            console.log('[ChatDock] About to call addEphemeralMessage with content length:', content.length);
             addEphemeralMessage(sessionId, { role: 'system', content });
-            console.log('[ChatDock] addEphemeralMessage called');
           } else {
             addEphemeralMessage(sessionId, { role: 'system', content: 'No tools available for this agent.' });
           }
@@ -455,7 +448,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       }
         
       case 'model': {
-        console.log('[ChatDock] Executing model command');
         // Model switching is handled by typing /model <query> in the input
         // This case is for when user just types /model without a query
         const agent = agents.find(a => a.slug === activeSession?.agentSlug);
@@ -567,7 +559,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && activeSession?.status === 'sending') {
         e.preventDefault();
-        console.log('[Ctrl+C] Cancelling message for session:', activeSession.id);
         cancelMessage(activeSession.id);
         showToast('Request cancelled');
       }
@@ -1166,12 +1157,16 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                     ) : (
                       <>
                         {activeSession.messages.map((msg, idx) => {
+                          
+                          const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
+                          
                           // Handle ephemeral messages with special styling
                           if (msg.ephemeral) {
+                            const messageId = msg.id || `ephemeral-${idx}`;
                             return (
                               <div 
-                                key={msg.id || `ephemeral-${idx}`}
-                                className={`message system ephemeral-message ${removingMessages.has(msg.id) ? 'removing' : ''}`}
+                                key={messageId}
+                                className={`message system ephemeral-message ${removingMessages.has(messageId) ? 'removing' : ''}`}
                                 style={{
                                   padding: '12px 40px 12px 12px',
                                   background: 'var(--bg-secondary)',
@@ -1180,14 +1175,19 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                   marginTop: '8px',
                                   marginBottom: '0',
                                   position: 'relative',
-                                  fontSize: `${chatFontSize}px`
+                                  fontSize: `${chatFontSize}px`,
+                                  opacity: removingMessages.has(messageId) ? 0 : 1,
+                                  transform: removingMessages.has(messageId) ? 'translateY(-10px)' : 'translateY(0px)',
+                                  transition: 'opacity 0.3s ease, transform 0.3s ease'
                                 }}
                               >
                                 <button
                                   onClick={() => {
-                                    setRemovingMessages(prev => new Set(prev).add(msg.id));
+                                    setRemovingMessages(prev => new Set(prev).add(messageId));
+                                    
+                                    // Wait for animation, then remove from data
                                     setTimeout(() => {
-                                      const updated = ephemeralMessages.filter(m => m.id !== msg.id);
+                                      const updated = ephemeralMessages.filter(m => (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId);
                                       if (updated.length === 0) {
                                         clearEphemeralMessages(activeSession.id);
                                       } else {
@@ -1195,7 +1195,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                       }
                                       setRemovingMessages(prev => {
                                         const next = new Set(prev);
-                                        next.delete(msg.id);
+                                        next.delete(messageId);
                                         return next;
                                       });
                                     }, 300);
@@ -1216,7 +1216,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                 >
                                   ×
                                 </button>
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
                                 {msg.action && (
                                   <button
                                     onClick={() => {
@@ -1241,8 +1241,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                               </div>
                             );
                           }
-                          
-                          const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
                           
                           // Check if this is a system event message
                           const isSystemEvent = msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
@@ -1365,6 +1363,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                             </div>
                           );
                         })}
+                        
                       </>
                     )}
                     {activeSession.isThinking && (
@@ -1527,7 +1526,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         query={commandQuery}
                         commands={slashCommands}
                         onSelect={(command) => {
-                          console.log('[ChatDock] onSelect called with command:', command.cmd, 'sessionId:', activeSession.id);
                           executeCommand(command, activeSession.id);
                         }}
                         onClose={() => {
@@ -1630,7 +1628,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         {activeSession.abortController ? (
                           <button
                             onClick={() => {
-                              console.log('[Cancel Button] Clicked for session:', activeSession.id);
                               cancelMessage(activeSession.id);
                               addEphemeralMessage(activeSession.id, {
                                 role: 'system',

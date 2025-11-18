@@ -8,6 +8,11 @@ import { honoServer } from '@voltagent/server-hono';
 import { createPinoLogger } from '@voltagent/logger';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
+import { EventEmitter } from 'events';
+import { mkdir, appendFile, readdir, readFile } from 'fs/promises';
+import { existsSync, createReadStream } from 'fs';
+import { join } from 'path';
+import { createInterface } from 'readline';
 import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
 import { ConfigLoader } from '../domain/config-loader.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
@@ -30,18 +35,28 @@ export class WorkAgentRuntime {
   private logger: ReturnType<typeof createPinoLogger>;
   private voltAgent?: VoltAgent;
   private mcpConfigs: Map<string, MCPConfiguration> = new Map();
+  private mcpConnectionStatus: Map<string, { connected: boolean; error?: string }> = new Map();
+  private integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }> = new Map();
   private activeAgents: Map<string, Agent> = new Map();
   private agentMetadataMap: Map<string, any> = new Map();
   private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
+  private monitoringEvents = new EventEmitter();
+  private agentStats = new Map<string, { conversationCount: number; messageCount: number; lastUpdated: number }>();
+  private agentStatus = new Map<string, 'idle' | 'running'>();
+  private metricsLog: Array<{ timestamp: number; agentSlug: string; event: string; conversationId?: string; messageCount?: number; cost?: number }> = [];
+  private eventLogPath: string;
+  private persistedEvents: Array<any> = [];
   private modelCatalog?: BedrockModelCatalog;
   private port: number;
   private pendingApprovals: Map<string, { resolve: (approved: boolean) => void; reject: (error: Error) => void }> = new Map();
+  private healthCheckInterval: NodeJS.Timeout | null = null;
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const workAgentDir = options.workAgentDir || '.work-agent';
     this.port = options.port || 3141;
+    this.eventLogPath = `${workAgentDir}/monitoring`;
 
     this.configLoader = new ConfigLoader({
       workAgentDir,
@@ -620,6 +635,228 @@ export class WorkAgentRuntime {
               this.logger.error('Failed to get model info', { error });
               return c.json({ success: false, error: error.message }, 500);
             }
+          });
+
+          // === Monitoring Endpoints ===
+
+          // Get overall system stats
+          app.get('/monitoring/stats', async (c) => {
+            try {
+              const agents = await Promise.all(
+                Array.from(this.activeAgents.entries()).map(async ([slug, agent]) => {
+                  // Use cached stats or initialize
+                  let stats = this.agentStats.get(slug);
+                  if (!stats) {
+                    const adapter = this.memoryAdapters.get(slug);
+                    if (adapter) {
+                      const conversations = await adapter.getConversations(slug);
+                      let totalMessages = 0;
+                      for (const conv of conversations) {
+                        const messages = await adapter.getMessages(conv.userId, conv.id);
+                        totalMessages += messages.length;
+                      }
+                      stats = {
+                        conversationCount: conversations.length,
+                        messageCount: totalMessages,
+                        lastUpdated: Date.now(),
+                      };
+                      this.agentStats.set(slug, stats);
+                    } else {
+                      stats = { conversationCount: 0, messageCount: 0, lastUpdated: Date.now() };
+                    }
+                  }
+
+                  return {
+                    slug,
+                    name: agent.name,
+                    status: this.agentStatus.get(slug) || 'idle',
+                    model: agent.model?.modelId || 'unknown',
+                    conversationCount: stats.conversationCount,
+                    messageCount: stats.messageCount,
+                    cost: 0,
+                    healthy: !!agent.model && this.memoryAdapters.has(slug),
+                  };
+                })
+              );
+
+              const totalCost = agents.reduce((sum, a) => sum + a.cost, 0);
+              const totalMessages = agents.reduce((sum, a) => sum + a.messageCount, 0);
+
+              return c.json({
+                success: true,
+                data: {
+                  agents,
+                  summary: {
+                    totalAgents: agents.length,
+                    activeAgents: 0,
+                    runningAgents: 0,
+                    totalMessages,
+                    totalCost,
+                  },
+                },
+              });
+            } catch (error: any) {
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Get historical metrics with date filtering
+          app.get('/monitoring/metrics', async (c) => {
+            try {
+              const range = c.req.query('range') || 'all';
+              const now = Date.now();
+              let startTime = 0;
+              
+              switch (range) {
+                case 'today':
+                  startTime = now - (24 * 60 * 60 * 1000);
+                  break;
+                case 'week':
+                  startTime = now - (7 * 24 * 60 * 60 * 1000);
+                  break;
+                case 'month':
+                  startTime = now - (30 * 24 * 60 * 60 * 1000);
+                  break;
+                default:
+                  startTime = 0;
+              }
+              
+              const filteredMetrics = this.metricsLog.filter(m => m.timestamp >= startTime);
+              
+              // Aggregate by agent
+              const agentMetrics = new Map<string, { messages: number; conversations: Set<string>; cost: number }>();
+              for (const metric of filteredMetrics) {
+                if (!agentMetrics.has(metric.agentSlug)) {
+                  agentMetrics.set(metric.agentSlug, { messages: 0, conversations: new Set(), cost: 0 });
+                }
+                const stats = agentMetrics.get(metric.agentSlug)!;
+                stats.messages += metric.messageCount || 0;
+                stats.cost += metric.cost || 0;
+                if (metric.conversationId) {
+                  stats.conversations.add(metric.conversationId);
+                }
+              }
+              
+              const summary = Array.from(agentMetrics.entries()).map(([slug, stats]) => ({
+                agentSlug: slug,
+                messageCount: stats.messages,
+                conversationCount: stats.conversations.size,
+                totalCost: stats.cost,
+              }));
+              
+              return c.json({ success: true, data: { range, metrics: summary } });
+            } catch (error: any) {
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Get historical events or stream live events (SSE)
+          app.get('/monitoring/events', (c) => {
+            const startTime = c.req.query('start');
+            const endTime = c.req.query('end');
+            
+            // If time range specified, return historical events as JSON
+            if (startTime || endTime) {
+              const start = startTime ? new Date(startTime).getTime() : 0;
+              const end = endTime ? new Date(endTime).getTime() : Date.now();
+              
+              const filteredEvents = this.persistedEvents.filter(event => {
+                const eventTime = new Date(event.timestamp).getTime();
+                return eventTime >= start && eventTime <= end;
+              });
+              
+              return c.json({ success: true, data: filteredEvents });
+            }
+            
+            // Otherwise, stream live events via SSE
+            c.header('Content-Type', 'text/event-stream');
+            c.header('Cache-Control', 'no-cache');
+            c.header('Connection', 'keep-alive');
+
+            return stream(c, async (streamWriter) => {
+              await streamWriter.write(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() })}\n\n`);
+
+              // Listen for monitoring events
+              const eventHandler = async (event: any) => {
+                try {
+                  await streamWriter.write(`data: ${JSON.stringify(event)}\n\n`);
+                } catch (error) {
+                  // Client disconnected
+                }
+              };
+
+              this.monitoringEvents.on('event', eventHandler);
+
+              // Heartbeat
+              const interval = setInterval(async () => {
+                try {
+                  await streamWriter.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`);
+                } catch (error) {
+                  clearInterval(interval);
+                  this.monitoringEvents.off('event', eventHandler);
+                }
+              }, 30000);
+
+              await new Promise(() => {});
+            });
+          });
+
+          // Agent health check
+          app.get('/agents/:slug/health', async (c) => {
+            const slug = c.req.param('slug');
+            const agent = this.activeAgents.get(slug);
+            
+            if (!agent) {
+              return c.json({ 
+                success: false, 
+                healthy: false, 
+                error: 'Agent not found',
+                checks: { loaded: false }
+              }, 404);
+            }
+
+            const checks: Record<string, boolean> = {
+              loaded: true,
+              hasModel: !!agent.model,
+              hasMemory: this.memoryAdapters.has(slug),
+            };
+
+            // Check integrations (MCP tools)
+            const spec = this.agentSpecs.get(slug);
+            const integrations: Array<{ id: string; type: string; connected: boolean; error?: string; metadata?: any }> = [];
+            
+            if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
+              checks.integrationsConfigured = true;
+              
+              for (const id of spec.tools.mcpServers) {
+                const key = `${slug}:${id}`;
+                const status = this.mcpConnectionStatus.get(key);
+                const metadata = this.integrationMetadata.get(key);
+                
+                integrations.push({
+                  id,
+                  type: metadata?.type || 'mcp',
+                  connected: status?.connected === true,
+                  error: status?.error,
+                  metadata: metadata ? {
+                    transport: metadata.transport,
+                    toolCount: metadata.toolCount,
+                  } : undefined,
+                });
+              }
+              
+              checks.integrationsConnected = integrations.every(i => i.connected);
+            }
+
+            const healthy = Object.values(checks).every(v => v);
+            
+            return c.json({ 
+              success: true, 
+              healthy,
+              checks,
+              integrations,
+              status: this.agentStatus.get(slug) || 'idle'
+            });
           });
 
           // === Conversation Endpoints ===
@@ -1372,6 +1609,37 @@ export class WorkAgentRuntime {
                   
                   const result = await agent.streamText(input, operationContext);
                   
+                  // Set agent status to running
+                  this.agentStatus.set(slug, 'running');
+                  
+                  // Emit monitoring event
+                  const agentStartEvent = {
+                    type: 'agent-start',
+                    timestamp: new Date().toISOString(),
+                    agentSlug: slug,
+                    conversationId: operationContext.conversationId,
+                  };
+                  this.monitoringEvents.emit('event', agentStartEvent);
+                  await this.persistEvent(agentStartEvent);
+                  
+                  // Initialize stats if needed
+                  if (!this.agentStats.has(slug)) {
+                    const adapter = this.memoryAdapters.get(slug);
+                    if (adapter) {
+                      const conversations = await adapter.getConversations(slug);
+                      let totalMessages = 0;
+                      for (const conv of conversations) {
+                        const messages = await adapter.getMessages(conv.userId, conv.id);
+                        totalMessages += messages.length;
+                      }
+                      this.agentStats.set(slug, {
+                        conversationCount: conversations.length,
+                        messageCount: totalMessages,
+                        lastUpdated: Date.now(),
+                      });
+                    }
+                  }
+                  
                   // Prevent unhandled rejections when stream is aborted mid-flight
                   const suppressAbortError = (err: any) => 
                     abortController.signal.aborted ? undefined : Promise.reject(err);
@@ -1412,12 +1680,70 @@ export class WorkAgentRuntime {
 
                   let completionReason = 'completed';
                   let hasOutput = false;
+                  const artifacts: Array<{ type: string; name?: string; content?: any }> = [];
+                  let accumulatedText = '';
+                  let currentTextSegment = '';
+                  let reasoningText = '';
+                  let lastChunkWasToolResult = false;
+                  let hasEmittedReasoningForCurrentSegment = false;
+                  let toolCallCount = 0;
+                  let currentStep = 0;
                   
                   try {
                     for await (const chunk of result.fullStream) {
                       // Track if any text or tool output was generated
                       if (chunk.type === 'text-delta' || chunk.type === 'tool-result') {
                         hasOutput = true;
+                      }
+                      
+                      // When we see a tool call, emit the accumulated text segment as reasoning (only once per segment)
+                      if (chunk.type === 'tool-call' && currentTextSegment && !hasEmittedReasoningForCurrentSegment) {
+                        const reasoningEvent = {
+                          type: 'reasoning',
+                          timestamp: new Date().toISOString(),
+                          agentSlug: slug,
+                          conversationId: operationContext.conversationId,
+                          data: currentTextSegment,
+                        };
+                        this.monitoringEvents.emit('event', reasoningEvent);
+                        await this.persistEvent(reasoningEvent);
+                        reasoningText += currentTextSegment;
+                        hasEmittedReasoningForCurrentSegment = true;
+                      }
+                      
+                      // Track if last chunk was a tool result (resets reasoning flag)
+                      if (chunk.type === 'tool-result') {
+                        lastChunkWasToolResult = true;
+                      }
+                      
+                      // Accumulate text for final output and current segment
+                      const textContent = (chunk as any).textDelta || (chunk as any).text || (chunk as any).delta;
+                      if (chunk.type === 'text-delta' && textContent) {
+                        accumulatedText += textContent;
+                        currentTextSegment += textContent;
+                        
+                        // If we just had a tool result, this is a new reasoning segment
+                        if (lastChunkWasToolResult) {
+                          currentTextSegment = textContent; // Start fresh segment
+                          hasEmittedReasoningForCurrentSegment = false;
+                          lastChunkWasToolResult = false;
+                        }
+                      }
+                      
+                      // Emit thinking events for reasoning-delta (model's internal reasoning)
+                      if (chunk.type === 'reasoning-delta') {
+                        const reasoningContent = (chunk as any).delta;
+                        if (reasoningContent) {
+                          const thinkingEvent = {
+                            type: 'thinking',
+                            timestamp: new Date().toISOString(),
+                            agentSlug: slug,
+                            conversationId: operationContext.conversationId,
+                            data: reasoningContent,
+                          };
+                          this.monitoringEvents.emit('event', thinkingEvent);
+                          await this.persistEvent(thinkingEvent);
+                        }
                       }
                       
                       // Check for error chunks
@@ -1427,10 +1753,36 @@ export class WorkAgentRuntime {
                       
                       // Emit tool-input-available for tool calls that VoltAgent might not emit
                       if (chunk.type === 'tool-call' && chunk.toolName) {
+                        toolCallCount++;
+                        
                         this.logger.debug('Tool call initiated', { 
                           toolName: chunk.toolName, 
-                          conversationId: operationContext.conversationId 
+                          conversationId: operationContext.conversationId,
+                          step: currentStep,
+                          toolCallNumber: toolCallCount
                         });
+                        
+                        artifacts.push({
+                          type: 'tool-call',
+                          name: chunk.toolName,
+                          content: chunk.input,
+                        });
+                        
+                        // Emit monitoring event
+                        const toolCallEvent = {
+                          type: 'tool-call',
+                          timestamp: new Date().toISOString(),
+                          agentSlug: slug,
+                          conversationId: operationContext.conversationId,
+                          toolName: chunk.toolName,
+                          toolCallId: chunk.toolCallId,
+                          input: chunk.input,
+                          step: currentStep,
+                          toolCallNumber: toolCallCount,
+                        };
+                        this.monitoringEvents.emit('event', toolCallEvent);
+                        await this.persistEvent(toolCallEvent);
+                        
                         await streamWriter.write(`data: ${JSON.stringify({
                           type: 'tool-input-available',
                           toolCallId: chunk.toolCallId,
@@ -1441,14 +1793,39 @@ export class WorkAgentRuntime {
                       
                       // Emit tool-output-available for tool results
                       if (chunk.type === 'tool-result' && chunk.toolCallId) {
+                        currentStep++; // Increment step after tool completes
+                        
                         this.logger.debug('Tool result received', { 
                           toolCallId: chunk.toolCallId, 
-                          conversationId: operationContext.conversationId 
+                          conversationId: operationContext.conversationId,
+                          hasOutput: !!chunk.output,
+                          outputType: typeof chunk.output,
+                          step: currentStep
                         });
+                        
+                        artifacts.push({
+                          type: 'tool-result',
+                          name: chunk.toolName,
+                          content: chunk.output,
+                        });
+                        
+                        // Emit monitoring event
+                        const toolResultEvent = {
+                          type: 'tool-result',
+                          timestamp: new Date().toISOString(),
+                          agentSlug: slug,
+                          conversationId: operationContext.conversationId,
+                          toolName: chunk.toolName,
+                          toolCallId: chunk.toolCallId,
+                          result: chunk.output,
+                        };
+                        this.monitoringEvents.emit('event', toolResultEvent);
+                        await this.persistEvent(toolResultEvent);
+                        
                         await streamWriter.write(`data: ${JSON.stringify({
                           type: 'tool-output-available',
                           toolCallId: chunk.toolCallId,
-                          output: chunk.result
+                          output: chunk.output
                         })}\n\n`);
                       }
                       
@@ -1486,6 +1863,53 @@ export class WorkAgentRuntime {
                       conversationId: operationContext.conversationId,
                       reason: completionReason
                     });
+                    
+                    // Set agent status to idle
+                    this.agentStatus.set(slug, 'idle');
+                    
+                    // Add final text output to artifacts (excluding reasoning text)
+                    const finalOutput = accumulatedText.replace(reasoningText, '').trim();
+                    if (finalOutput) {
+                      artifacts.push({
+                        type: 'text',
+                        content: finalOutput,
+                      });
+                    }
+                    
+                    // Emit monitoring event
+                    const agentCompleteEvent = {
+                      type: 'agent-complete',
+                      timestamp: new Date().toISOString(),
+                      agentSlug: slug,
+                      conversationId: operationContext.conversationId,
+                      reason: completionReason,
+                      artifacts,
+                      steps: currentStep,
+                      toolCallCount,
+                      maxSteps: agentSpec.guardrails?.maxSteps,
+                    };
+                    this.monitoringEvents.emit('event', agentCompleteEvent);
+                    await this.persistEvent(agentCompleteEvent);
+                    
+                    // Update cached stats (increment by 2: user message + assistant response)
+                    const stats = this.agentStats.get(slug);
+                    if (stats) {
+                      stats.messageCount += 2;
+                      stats.lastUpdated = Date.now();
+                      if (isNewConversation) {
+                        stats.conversationCount += 1;
+                      }
+                    }
+                    
+                    // Log metrics for historical tracking
+                    this.metricsLog.push({
+                      timestamp: Date.now(),
+                      agentSlug: slug,
+                      event: 'completion',
+                      conversationId: operationContext.conversationId,
+                      messageCount: 2,
+                      cost: 0, // TODO: Calculate from usage
+                    });
                   }
                 } catch (error: any) {
                   this.logger.error('Stream error occurred', {
@@ -1518,6 +1942,169 @@ export class WorkAgentRuntime {
     });
 
     this.logger.debug('Work Agent Runtime initialized', { port: this.port });
+    
+    // Load persisted events from disk
+    await this.loadEventsFromDisk();
+    
+    // Start periodic health checks (every 60 seconds)
+    this.startHealthChecks();
+  }
+
+  /**
+   * Start periodic health checks for all agents
+   */
+  private startHealthChecks() {
+    const interval = 60000; // 60 seconds
+    
+    const runHealthChecks = async () => {
+      for (const [slug, agent] of this.activeAgents.entries()) {
+        const checks: Record<string, boolean> = {
+          loaded: true,
+          hasModel: !!agent.model,
+          hasMemory: this.memoryAdapters.has(slug),
+        };
+
+        const spec = this.agentSpecs.get(slug);
+        const integrations: Array<{ id: string; type: string; connected: boolean; metadata?: any }> = [];
+        
+        // Only check integrations if agent has MCP servers configured
+        if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
+          checks.integrationsConfigured = true;
+          
+          for (const id of spec.tools.mcpServers) {
+            const key = `${slug}:${id}`;
+            const status = this.mcpConnectionStatus.get(key);
+            const metadata = this.integrationMetadata.get(key);
+            
+            integrations.push({
+              id,
+              type: metadata?.type || 'mcp',
+              connected: status?.connected === true,
+              metadata: metadata ? {
+                transport: metadata.transport,
+                toolCount: metadata.toolCount,
+              } : undefined,
+            });
+          }
+          
+          checks.integrationsConnected = integrations.every(i => i.connected);
+        }
+
+        const healthy = Object.values(checks).every(v => v);
+        
+        const healthEvent = {
+          type: 'agent-health',
+          timestamp: new Date().toISOString(),
+          agentSlug: slug,
+          healthy,
+          checks,
+          integrations,
+        };
+        
+        this.monitoringEvents.emit('event', healthEvent);
+        await this.persistEvent(healthEvent);
+      }
+    };
+    
+    // Run initial health check immediately
+    runHealthChecks();
+    
+    // Then run periodically
+    this.healthCheckInterval = setInterval(runHealthChecks, interval);
+    
+    this.logger.debug('Health checks started', { interval });
+  }
+
+  /**
+   * Extract userId from conversationId format: agent:<slug>:user:<id>:timestamp:random
+   */
+  private extractUserId(conversationId: string): string | null {
+    const match = conversationId.match(/^agent:[^:]+:user:([^:]+):/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * Get today's event log file path
+   */
+  private getTodayEventLogPath(): string {
+    const today = new Date().toISOString().split('T')[0];
+    return join(this.eventLogPath, `events-${today}.ndjson`);
+  }
+
+  /**
+   * Load recent events from disk (last 1000 or last 24 hours)
+   */
+  private async loadEventsFromDisk(): Promise<void> {
+    try {
+      // Ensure monitoring directory exists
+      if (!existsSync(this.eventLogPath)) {
+        await mkdir(this.eventLogPath, { recursive: true });
+        this.logger.debug('Created monitoring directory', { path: this.eventLogPath });
+        return;
+      }
+
+      const files = await readdir(this.eventLogPath);
+      const eventFiles = files
+        .filter(f => f.startsWith('events-') && f.endsWith('.ndjson'))
+        .sort()
+        .reverse()
+        .slice(0, 2); // Last 2 days
+
+      const events: any[] = [];
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+      for (const file of eventFiles) {
+        const filePath = join(this.eventLogPath, file);
+        const fileStream = createReadStream(filePath);
+        const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+
+        for await (const line of rl) {
+          if (line.trim()) {
+            try {
+              const event = JSON.parse(line);
+              const eventTime = new Date(event.timestamp).getTime();
+              
+              if (eventTime >= oneDayAgo) {
+                events.push(event);
+              }
+            } catch (err) {
+              this.logger.warn('Failed to parse event line', { line, error: err });
+            }
+          }
+        }
+      }
+
+      // Keep only last 1000 events
+      this.persistedEvents = events.slice(-1000);
+      this.logger.info('Loaded persisted events', { count: this.persistedEvents.length });
+    } catch (error) {
+      this.logger.error('Failed to load events from disk', { error });
+    }
+  }
+
+  /**
+   * Persist event to disk
+   */
+  private async persistEvent(event: any): Promise<void> {
+    try {
+      // Ensure monitoring directory exists
+      if (!existsSync(this.eventLogPath)) {
+        await mkdir(this.eventLogPath, { recursive: true });
+      }
+
+      const logPath = this.getTodayEventLogPath();
+      await appendFile(logPath, JSON.stringify(event) + '\n', 'utf-8');
+      
+      // Add to in-memory cache
+      this.persistedEvents.push(event);
+      
+      // Keep only last 1000 in memory
+      if (this.persistedEvents.length > 1000) {
+        this.persistedEvents = this.persistedEvents.slice(-1000);
+      }
+    } catch (error) {
+      this.logger.error('Failed to persist event', { error, event });
+    }
   }
 
   /**
@@ -1576,6 +2163,7 @@ export class WorkAgentRuntime {
         temperature: spec.guardrails.temperature,
         maxOutputTokens: spec.guardrails.maxTokens,
         topP: spec.guardrails.topP,
+        maxSteps: spec.guardrails.maxSteps,
       }),
     });
 
@@ -1922,10 +2510,41 @@ export class WorkAgentRuntime {
 
       this.mcpConfigs.set(mcpKey, mcpConfig);
       isNewConfig = true;
+      
+      // Set up event listeners for connection status
+      const clients = await mcpConfig.getClients();
+      const client = clients[toolId];
+      
+      if (client) {
+        client.on('connect', () => {
+          this.mcpConnectionStatus.set(mcpKey, { connected: true });
+          this.logger.debug('MCP client connected', { agent: agentSlug, tool: toolId });
+        });
+        
+        client.on('disconnect', () => {
+          this.mcpConnectionStatus.set(mcpKey, { connected: false });
+          this.logger.debug('MCP client disconnected', { agent: agentSlug, tool: toolId });
+        });
+        
+        client.on('error', (error: Error) => {
+          this.mcpConnectionStatus.set(mcpKey, { connected: false, error: error.message });
+          this.logger.error('MCP client error', { agent: agentSlug, tool: toolId, error: error.message });
+        });
+      }
     }
 
     // Get tools from MCP server
     const tools = await mcpConfig.getTools();
+    
+    // Mark as connected after successful getTools
+    this.mcpConnectionStatus.set(mcpKey, { connected: true });
+    
+    // Store integration metadata
+    this.integrationMetadata.set(mcpKey, {
+      type: 'mcp',
+      transport: toolDef.transport,
+      toolCount: tools.length,
+    });
 
     if (isNewConfig) {
       this.logger.info('MCP tools loaded', { 
@@ -1975,15 +2594,14 @@ export class WorkAgentRuntime {
         // Get elicitation from options (VoltAgent passes OperationContext properties directly)
         const elicitation = options?.elicitation;
         
-        this.logger.info('[Wrapper] Tool execute called, requesting approval', { 
+        this.logger.debug('[Wrapper] Tool execute called, requesting approval', { 
           toolName: tool.name,
-          hasElicitation: !!elicitation,
-          elicitationType: typeof elicitation
+          hasElicitation: !!elicitation
         });
 
         // Request approval via elicitation
         if (elicitation) {
-          this.logger.info('[Wrapper] Calling elicitation for approval', { toolName: tool.name });
+          this.logger.debug('[Wrapper] Calling elicitation for approval', { toolName: tool.name });
           
           const approved = await elicitation({
             type: 'tool-approval',
@@ -1992,9 +2610,10 @@ export class WorkAgentRuntime {
             toolArgs: args,
           });
 
-          this.logger.info('[Wrapper] Elicitation response received', { 
+          this.logger.info('[Wrapper] Tool approval decision', { 
             toolName: tool.name, 
-            approved 
+            approved,
+            reason: approved ? 'user_approved' : 'user_denied'
           });
 
           if (!approved) {
@@ -2006,7 +2625,7 @@ export class WorkAgentRuntime {
             };
           }
         } else {
-          this.logger.warn('[Wrapper] No elicitation function available - tool will execute without approval', { 
+          this.logger.info('[Wrapper] Tool auto-approved (no elicitation available)', { 
             toolName: tool.name 
           });
         }

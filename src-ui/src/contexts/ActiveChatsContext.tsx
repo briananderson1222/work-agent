@@ -152,12 +152,21 @@ class ActiveChatsStore {
     if (this.chats[conversationId]) {
       const current = this.chats[conversationId].ephemeralMessages || [];
       
+      // Get the latest timestamp from backend messages (from ConversationsContext)
+      const conversationsSnapshot = conversationsStore.getSnapshot();
+      const messagesKey = `messages:${this.chats[conversationId].agentSlug}:${conversationId}`;
+      const backendMessages = conversationsSnapshot.messages[messagesKey] || [];
+      
+      const latestTimestamp = backendMessages.length > 0 
+        ? Math.max(...backendMessages.map(m => m.timestamp || 0))
+        : Date.now();
+      
       this.chats[conversationId] = {
         ...this.chats[conversationId],
         ephemeralMessages: [...current, { 
           ...message, 
           id: `ephemeral-${Date.now()}-${Math.random()}`,
-          timestamp: Date.now(),
+          timestamp: latestTimestamp + 1, // Ensure it appears after the latest backend message
           ephemeral: true,
           insertAfterCount: backendMessageCount ?? 0, // Store how many backend messages existed
         }],
@@ -334,7 +343,7 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
     
     // If already sending, queue the message instead of aborting
     if (currentState?.status === 'sending') {
-      console.log('[useSendMessage] Already sending, queueing message:', content.substring(0, 50));
+      // Queue message if already sending
       updateChat(sessionId, { 
         queuedMessages: [...(currentState.queuedMessages || []), content]
       });
@@ -358,13 +367,6 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
       }
     }
     
-    console.log('[useSendMessage] Starting send:', {
-      sessionId,
-      agentSlug,
-      conversationId,
-      queuedCount: currentState?.queuedMessages?.length || 0
-    });
-    
     // Add user message to messages array
     const updatedMessages = [
       ...(currentState?.messages || []),
@@ -373,30 +375,20 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
     
     // Create abort controller for this request
     const abortController = new AbortController();
-    console.log('[useSendMessage] Created abort controller:', abortController);
     
     clearInput(sessionId);
     updateChat(sessionId, { status: 'sending', messages: updatedMessages, abortController });
-    
-    // Verify it was stored
-    const updatedState = activeChatsStore.getSnapshot()[sessionId];
-    console.log('[useSendMessage] After updateChat, stored abortController:', {
-      sessionId,
-      hasAbortController: !!updatedState?.abortController,
-      status: updatedState?.status
-    });
 
     // Track the current session ID (will change after migration)
     let currentSessionId = sessionId;
 
     try {
-      console.log('[useSendMessage] Starting send:', { sessionId, agentSlug, conversationId });
       
       // Pass title for new conversations
       const title = !conversationId ? currentState?.title : undefined;
       
       // Delegate to ConversationsContext for server communication
-      const newConversationId = await sendToServer(
+      const result = await sendToServer(
         apiBase,
         agentSlug,
         conversationId,
@@ -405,7 +397,6 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
         (data, state) => handleStreamEvent(currentSessionId, data, state),
         (convId, title) => {
           // Assign conversationId to the session (don't migrate, just update the field)
-          console.log('[useSendMessage] Assigning conversationId:', convId);
           assignConversationId(sessionId, convId);
           if (title) {
             updateChat(sessionId, { title });
@@ -416,47 +407,47 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
         abortController.signal
       );
       
-      console.log('[useSendMessage] Passed signal to sendToServer:', abortController.signal);
+      const newConversationId = result?.conversationId;
+      const finishReason = result?.finishReason;
+      
 
-      console.log('[useSendMessage] Send completed, conversationId:', newConversationId);
       
       // Replace messages with backend truth (use sessionId, not conversationId)
       try {
         const messagesKey = `messages:${agentSlug}:${newConversationId}`;
         const backendMessages = conversationsStore.getSnapshot().messages[messagesKey] || [];
         
-        console.log('[useSendMessage] Replacing messages:', { 
-          sessionId, 
-          messagesKey,
-          backendMessagesCount: backendMessages.length,
-          allKeys: Object.keys(conversationsStore.getSnapshot().messages)
-        });
-        
         clearStreamingMessage(sessionId);
         
-        // Check if last message indicates maxTurns was reached
-        const lastMessage = backendMessages[backendMessages.length - 1];
-        const shouldShowContinue = lastMessage?.finishReason === 'tool-calls';
+        // Check if maxTurns was reached (from streaming finishReason or last message)
+        const shouldShowContinue = finishReason === 'tool-calls' || 
+          (backendMessages[backendMessages.length - 1]?.finishReason === 'tool-calls');
         
-        updateChat(sessionId, { 
+        const updates: Partial<ChatUIState> = { 
           status: 'idle',
           abortController: undefined,
           messages: backendMessages.map(m => ({ role: m.role, content: m.content, contentParts: m.contentParts })),
-          ephemeralMessages: shouldShowContinue ? [{
+        };
+        
+        // Only set ephemeralMessages if we need to show continue button
+        if (shouldShowContinue) {
+          updates.ephemeralMessages = [{
             role: 'system',
-            content: '⚠️ **Maximum turns reached.** The conversation was terminated to prevent excessive tool usage.',
+            content: '🔄 **Conversation paused** - I reached the maximum number of tool calls in this turn. Click Continue to let me keep working.',
             action: {
               label: 'Continue',
               handler: () => sendMessage(sessionId, agentSlug, newConversationId, 'continue')
             }
-          }] : []
-        });
+          }];
+        }
+        
+        updateChat(sessionId, updates);
+        
         
         // Process next queued message if any
         const updatedState = activeChatsStore.getSnapshot()[sessionId];
         if (updatedState?.queuedMessages && updatedState.queuedMessages.length > 0) {
           const [nextMessage, ...remainingQueue] = updatedState.queuedMessages;
-          console.log('[useSendMessage] Processing queued message:', nextMessage.substring(0, 50));
           updateChat(sessionId, { queuedMessages: remainingQueue });
           // Process next message asynchronously
           setTimeout(() => {
@@ -487,26 +478,17 @@ export function useCancelMessage() {
   
   return useCallback((sessionId: string) => {
     const state = activeChatsStore.getSnapshot()[sessionId];
-    console.log('[useCancelMessage] Called for session:', sessionId, {
-      hasState: !!state,
-      hasAbortController: !!state?.abortController,
-      status: state?.status,
-      signalAborted: state?.abortController?.signal.aborted,
-      conversationId: state?.conversationId,
-      agentSlug: state?.agentSlug
-    });
     
     if (state?.abortController && state?.status === 'sending') {
-      console.log('[useCancelMessage] Aborting...');
+      // Mark as user-initiated cancel before aborting
+      (state.abortController as any)._userInitiated = true;
       state.abortController.abort('User cancelled');
-      console.log('[useCancelMessage] After abort, signal.aborted:', state.abortController.signal.aborted);
       
       // Backend will detect the abort and remove incomplete response from memory
       
       // Update UI state
       updateChat(sessionId, { status: 'idle', abortController: undefined });
     } else {
-      console.log('[useCancelMessage] Cannot cancel - conditions not met');
     }
   }, [apiBase, updateChat]);
 }
