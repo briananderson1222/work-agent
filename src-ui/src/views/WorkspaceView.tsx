@@ -29,9 +29,11 @@ export function WorkspaceView() {
   
   const activeTabId = activeTab || '';
   
+  const [pluginsLoaded, setPluginsLoaded] = useState(false);
+  
   // Initialize plugin registry
   useEffect(() => {
-    pluginRegistry.initialize();
+    pluginRegistry.initialize().then(() => setPluginsLoaded(true));
   }, []);
   
   // Wrap slash command handler to match useSendMessage signature
@@ -82,17 +84,21 @@ export function WorkspaceView() {
   return (
     <SDKAdapter>
       <WorkspaceNavigationProvider activeTabId={activeTabId} workspaceSlug={workspace?.slug}>
-        <WorkspaceRenderer
-          workspace={workspace}
-          activeTab={activeTabObject}
-          activeTabId={activeTabId}
-          onTabChange={setActiveTabId}
-          agent={agent || null}
-        componentId={activeTabObject?.component}
-        onLaunchPrompt={handleLaunchPrompt}
-        onShowChat={() => setDockState(true)}
-        pluginRegistry={pluginRegistry}
-      />
+        {pluginsLoaded ? (
+          <WorkspaceRenderer
+            workspace={workspace}
+            activeTab={activeTabObject}
+            activeTabId={activeTabId}
+            onTabChange={setActiveTabId}
+            agent={agent || null}
+            componentId={activeTabObject?.component}
+            onLaunchPrompt={handleLaunchPrompt}
+            onShowChat={() => setDockState(true)}
+            pluginRegistry={pluginRegistry}
+          />
+        ) : (
+          <div>Loading plugins...</div>
+        )}
       </WorkspaceNavigationProvider>
     </SDKAdapter>
   );
