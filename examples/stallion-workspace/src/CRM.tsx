@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from './hooks';
-import '../shared/workspace.css';
+import { useState, useEffect, useCallback } from 'react';
+import { useToast, useSDK, transformTool, useAgents, useSendMessage, useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
+import '../../plugins/shared/workspace.css';
 
 const SALESFORCE_BASE_URL = 'https://aws-crm.lightning.force.com';
 
@@ -38,18 +38,29 @@ interface Task {
   ActivityDate?: string;
   Description?: string;
   Priority?: string;
+  sa_Activity__c?: string;
+  Type?: string;
+  CreatedDate?: string;
+  LastModifiedDate?: string;
 }
 
-interface SFDCAccountManagerProps extends WorkspaceProps {
-  agent?: any;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+interface CRMProps {
   onSendToChat?: (text: string, agent?: string) => void;
+  activeTab?: any; // Will be defined when this tab is active
 }
 
-export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
-  const sdk = useSDK();
-  const agents = useAgents();
-  const agentSlug = 'sa-agent';
-  const { onSendToChat } = props;
+export function CRM({ onSendToChat, activeTab }: CRMProps) {
+  console.log('[CRM] Component render start, activeTab:', !!activeTab);
+  
+  const { showToast } = useToast();
+  const { apiBase } = useSDK();
+  const { getTabState, setTabState } = useWorkspaceNavigation();
+  const agentSlug = 'stallion-workspace:work-agent';
+  const isActive = !!activeTab;
+  
+  console.log('[CRM] After hooks, hash:', window.location.hash);
   
   const [ownerSearch, setOwnerSearch] = useState('');
   const [activeOwnerSearches, setActiveOwnerSearches] = useState<string[]>(() => {
@@ -118,7 +129,7 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
       
       // Search for each owner in parallel
       const searchPromises = owners.map(owner =>
-        agents.transform(agentSlug, 'sat-sfdc_search_accounts',
+        transformTool(apiBase, agentSlug, 'sat-sfdc_search_accounts',
           { owner, ownerFilterType: 'CONTAINS_WORD' },
           `(data) => data || []`
         )
@@ -158,16 +169,21 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
       }
     } catch (error) {
       console.error('Failed to search accounts:', error);
+      setSearchError('Failed to search accounts');
+      showToast('Failed to search accounts', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const loadAccountDetails = async (account: Account, forceRefresh = false) => {
+    console.log('[CRM] loadAccountDetails called for:', account.id);
     setSelectedAccount(account);
     
-    // Update URL hash
-    window.location.hash = `account/${account.id}`;
+    // Save account state to provider - no hash manipulation
+    const accountHash = `account/${account.id}`;
+    console.log('[CRM] Saving account state to provider:', accountHash);
+    setTabState('crm', accountHash);
     
     const oppsCacheKey = getCacheKey('opportunities', account.id);
     const tasksCacheKey = getCacheKey('tasks', account.id);
@@ -189,11 +205,11 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
     try {
       // Load opportunities and tasks in parallel
       const [oppsResult, tasksResult] = await Promise.all([
-        agents.transform(agentSlug, 'sat-sfdc_get_opportunities_for_account',
+        transformTool(apiBase, agentSlug, 'sat-sfdc_get_opportunities_for_account',
           { accountId: account.id },
           `(data) => data.opportunities || data.response || data || []`
         ),
-        agents.transform(agentSlug, 'sat-sfdc_list_user_tasks',
+        transformTool(apiBase, agentSlug, 'sat-sfdc_list_user_tasks',
           { accountId: account.id },
           `(data) => data.tasks || data.records || data || []`
         )
@@ -202,15 +218,12 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
       setOpportunities(oppsResult || []);
       setTasks(tasksResult || []);
       
-      console.log('Final opportunities state:', oppsResult);
-      console.log('Final tasks state:', tasksResult);
-      console.log('Tasks length:', (tasksResult || []).length);
-      
       // Cache results
       sessionStorage.setItem(oppsCacheKey, JSON.stringify(oppsResult || []));
       sessionStorage.setItem(tasksCacheKey, JSON.stringify(tasksResult || []));
     } catch (error) {
       console.error('Failed to load account details:', error);
+      showToast('Failed to load account details', 'error');
     } finally {
       setLoading(false);
     }
@@ -218,7 +231,9 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
 
   // Auto-search on mount if active searches exist
   useEffect(() => {
+    console.log('[CRM] Mount useEffect triggered');
     if (activeOwnerSearches.length > 0) {
+      console.log('[CRM] Loading cached accounts for searches:', activeOwnerSearches);
       // Load all cached results
       const allAccounts = [];
       for (const search of activeOwnerSearches) {
@@ -232,17 +247,17 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
         index === self.findIndex(a => a.id === account.id)
       );
       setAccounts(uniqueAccounts);
+      console.log('[CRM] Set accounts');
       
-      // Restore selected account from URL hash
-      const hash = window.location.hash.slice(1);
-      console.log('Checking hash:', hash);
-      if (hash.startsWith('account/')) {
-        const accountId = hash.replace('account/', '');
-        console.log('Looking for account:', accountId);
+      // Restore selected account from sessionStorage
+      const storedState = getTabState('crm');
+      console.log('[CRM] Checking stored state for account restoration:', storedState);
+      if (storedState && storedState.startsWith('account/')) {
+        const accountId = storedState.replace('account/', '');
         const account = uniqueAccounts.find(a => a.id === accountId);
-        console.log('Found account:', account);
+        console.log('[CRM] Found account for restoration:', !!account, accountId);
         if (account) {
-          loadAccountDetails(account);
+          setSelectedAccount(account);
           // Scroll to the account in the list
           setTimeout(() => {
             const accountElement = document.querySelector(`[data-account-id="${accountId}"]`);
@@ -253,7 +268,28 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
         }
       }
     }
+    console.log('[CRM] Mount useEffect complete');
   }, []); // Empty dependency array - only run on mount
+
+  // Restore selected account from tab navigation state when accounts are loaded
+  useEffect(() => {
+    console.log('[CRM] Account restoration useEffect triggered');
+    console.log('[CRM] Account restoration check:', { accountsLength: accounts.length, selectedAccount: selectedAccount?.id });
+    if (accounts.length > 0 && !selectedAccount) {
+      const state = getTabState('crm');
+      console.log('[CRM] Got tab state:', state);
+      if (state.startsWith('account/')) {
+        const accountId = state.replace('account/', '');
+        const account = accounts.find(a => a.id === accountId);
+        console.log('[CRM] Looking for account:', accountId, 'found:', !!account);
+        if (account) {
+          console.log('[CRM] Restoring selected account:', account.id);
+          setSelectedAccount(account);
+        }
+      }
+    }
+    console.log('[CRM] Account restoration useEffect complete');
+  }, [accounts, selectedAccount, getTabState]);
 
   const handleRefresh = async () => {
     // Clear all account-related cache
@@ -282,7 +318,7 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
         for (const search of activeOwnerSearches) {
           const owners = search.split(',').map(owner => owner.trim()).filter(owner => owner);
           const searchPromises = owners.map(owner =>
-            agents.transform(agentSlug, 'sat-sfdc_search_accounts',
+            transformTool(apiBase, agentSlug, 'sat-sfdc_search_accounts',
               { owner, ownerFilterType: 'CONTAINS_WORD' },
               `(data) => data || []`
             )
@@ -302,6 +338,7 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
         setAccounts(uniqueAccounts);
       } catch (error) {
         console.error('Failed to refresh accounts:', error);
+        showToast('Failed to refresh accounts', 'error');
       } finally {
         setLoading(false);
       }
@@ -425,7 +462,7 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                         // If no more active searches, clear everything
                         if (newActiveSearches.length === 0) {
                           setAccounts([]);
-                          setSelectedAccount(null);
+                          // Don't clear selectedAccount - let it persist via hash
                         } else {
                           // Reload accounts from remaining searches
                           const allAccounts = [];
@@ -581,41 +618,6 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                           color: 'var(--color-text-primary)'
                         }}
                       />
-                      {nameFilter && (
-                        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              padding: '0.25rem 0.5rem',
-                              background: 'var(--color-primary)',
-                              color: 'white',
-                              borderRadius: '12px',
-                              fontSize: '0.7rem',
-                              fontWeight: 500
-                            }}
-                          >
-                            Name: "{nameFilter}"
-                            <button
-                              onClick={() => setNameFilter('')}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'white',
-                                cursor: 'pointer',
-                                padding: 0,
-                                marginLeft: '0.25rem',
-                                fontSize: '0.9rem',
-                                lineHeight: 1
-                              }}
-                              title="Clear filter"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        </div>
-                      )}
                     </div>
                     
                     {allGeos.length > 0 && (
@@ -759,10 +761,10 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                         borderRadius: '12px',
                         background: 'var(--color-bg)',
                         color: 'var(--color-text-secondary)',
-                      border: '1px solid var(--color-border)'
-                    }}>
-                      {account.owner.name}
-                    </span>
+                        border: '1px solid var(--color-border)'
+                      }}>
+                        {account.owner.name}
+                      </span>
                     )}
                     <a
                       href={`${SALESFORCE_BASE_URL}/lightning/r/Account/${account.id}/view`}
@@ -857,71 +859,71 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                         <button
                           onClick={createOpportunity}
                           className="workspace-dashboard__card-action"
-                      >
-                        Create Opportunity
-                      </button>
-                  </div>
-                  {opportunities.length > 0 ? (
-                    <div>
-                      {(showAllOpportunities ? opportunities : opportunities.slice(0, 5)).map((opp) => (
-                        <div key={opp.id} className="workspace-dashboard__card-content">
-                          <div className="workspace-dashboard__card-item">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div className="workspace-dashboard__card-item-title">{opp.name}</div>
-                              <a
-                                href={`${SALESFORCE_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                        >
+                          Create Opportunity
+                        </button>
+                      </div>
+                      {opportunities.length > 0 ? (
+                        <div>
+                          {(showAllOpportunities ? opportunities : opportunities.slice(0, 5)).map((opp) => (
+                            <div key={opp.id} className="workspace-dashboard__card-content">
+                              <div className="workspace-dashboard__card-item">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <div className="workspace-dashboard__card-item-title">{opp.name}</div>
+                                  <a
+                                    href={`${SALESFORCE_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      color: 'var(--color-text-secondary)',
+                                      opacity: 0.6,
+                                      cursor: 'pointer',
+                                      textDecoration: 'none',
+                                      marginLeft: '0.5rem'
+                                    }}
+                                    title="Open in Salesforce"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                      <polyline points="15 3 21 3 21 9"></polyline>
+                                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                  </a>
+                                </div>
+                                <div className="workspace-dashboard__card-item-meta">
+                                  <span>Stage: {opp.stageName}</span>
+                                  {opp.amount && <span> • Amount: ${opp.amount.toLocaleString()}</span>}
+                                  <span> • Close: {new Date(opp.closeDate).toLocaleDateString()}</span>
+                                  <span> • Probability: {opp.probability}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {opportunities.length > 5 && (
+                            <div className="workspace-dashboard__card-content">
+                              <button
+                                onClick={() => setShowAllOpportunities(!showAllOpportunities)}
                                 style={{
-                                  color: 'var(--color-text-secondary)',
-                                  opacity: 0.6,
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--color-primary)',
                                   cursor: 'pointer',
-                                  textDecoration: 'none',
-                                  marginLeft: '0.5rem'
+                                  padding: '0.5rem',
+                                  fontSize: '0.875rem'
                                 }}
-                                title="Open in Salesforce"
                               >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                  <polyline points="15 3 21 3 21 9"></polyline>
-                                  <line x1="10" y1="14" x2="21" y2="3"></line>
-                                </svg>
-                              </a>
+                                {showAllOpportunities ? 'Show less' : `Show ${opportunities.length - 5} more`}
+                              </button>
                             </div>
-                            <div className="workspace-dashboard__card-item-meta">
-                              <span>Stage: {opp.stageName}</span>
-                              {opp.amount && <span> • Amount: ${opp.amount.toLocaleString()}</span>}
-                              <span> • Close: {new Date(opp.closeDate).toLocaleDateString()}</span>
-                              <span> • Probability: {opp.probability}%</span>
-                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="workspace-dashboard__card-content">
+                          <div className="workspace-dashboard__card-item">
+                            <div className="workspace-dashboard__list-item-meta">No opportunities found</div>
                           </div>
                         </div>
-                      ))}
-                      {opportunities.length > 5 && (
-                        <div className="workspace-dashboard__card-content">
-                          <button
-                            onClick={() => setShowAllOpportunities(!showAllOpportunities)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--color-primary)',
-                              cursor: 'pointer',
-                              padding: '0.5rem',
-                              fontSize: '0.875rem'
-                            }}
-                          >
-                            {showAllOpportunities ? 'Show less' : `Show ${opportunities.length - 5} more`}
-                          </button>
-                        </div>
                       )}
-                    </div>
-                  ) : (
-                    <div className="workspace-dashboard__card-content">
-                      <div className="workspace-dashboard__card-item">
-                        <div className="workspace-dashboard__list-item-meta">No opportunities found</div>
-                      </div>
-                    </div>
-                  )}
                     </div>
 
                     {/* Tasks Section */}
@@ -935,84 +937,84 @@ export default function SFDCAccountManager(props: SFDCAccountManagerProps) {
                           Create Task
                         </button>
                       </div>
-                  {tasks.length > 0 ? (
-                    <div>
-                      {(showAllTasks ? tasks : tasks.slice(0, 5)).map((task) => (
-                        <div key={task.id} className="workspace-dashboard__card-content">
-                          <div className="workspace-dashboard__card-item">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div className="workspace-dashboard__card-item-title">{task.subject}</div>
-                              <a
-                                href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.id}/view`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  color: 'var(--color-text-secondary)',
-                                  opacity: 0.6,
-                                  cursor: 'pointer',
-                                  textDecoration: 'none',
-                                  marginLeft: '0.5rem'
-                                }}
-                                title="Open in Salesforce"
-                              >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                  <polyline points="15 3 21 3 21 9"></polyline>
-                                  <line x1="10" y1="14" x2="21" y2="3"></line>
-                                </svg>
-                              </a>
-                            </div>
-                            {task.sa_Activity__c && (
-                              <div style={{ 
-                                fontSize: '0.875rem', 
-                                color: 'var(--color-text-secondary)', 
-                                marginTop: '0.25rem',
-                                fontWeight: '500'
-                              }}>
-                                SA Activity: {task.sa_Activity__c}
+                      {tasks.length > 0 ? (
+                        <div>
+                          {(showAllTasks ? tasks : tasks.slice(0, 5)).map((task) => (
+                            <div key={task.Id} className="workspace-dashboard__card-content">
+                              <div className="workspace-dashboard__card-item">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <div className="workspace-dashboard__card-item-title">{task.Subject}</div>
+                                  <a
+                                    href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.Id}/view`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      color: 'var(--color-text-secondary)',
+                                      opacity: 0.6,
+                                      cursor: 'pointer',
+                                      textDecoration: 'none',
+                                      marginLeft: '0.5rem'
+                                    }}
+                                    title="Open in Salesforce"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                      <polyline points="15 3 21 3 21 9"></polyline>
+                                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                  </a>
+                                </div>
+                                {task.sa_Activity__c && (
+                                  <div style={{ 
+                                    fontSize: '0.875rem', 
+                                    color: 'var(--color-text-secondary)', 
+                                    marginTop: '0.25rem',
+                                    fontWeight: '500'
+                                  }}>
+                                    SA Activity: {task.sa_Activity__c}
+                                  </div>
+                                )}
+                                <div className="workspace-dashboard__card-item-meta">
+                                  <span>Status: {task.Status}</span>
+                                  {task.Type && <span> • Type: {task.Type}</span>}
+                                  {task.ActivityDate && (
+                                    <span> • Due: {new Date(task.ActivityDate).toLocaleDateString()}</span>
+                                  )}
+                                  {task.CreatedDate && (
+                                    <span> • Created: {new Date(task.CreatedDate).toLocaleDateString()}</span>
+                                  )}
+                                  {task.LastModifiedDate && (
+                                    <span> • Modified: {new Date(task.LastModifiedDate).toLocaleDateString()}</span>
+                                  )}
+                                </div>
                               </div>
-                            )}
-                            <div className="workspace-dashboard__card-item-meta">
-                              <span>Status: {task.status}</span>
-                              {task.type && <span> • Type: {task.type}</span>}
-                              {task.activityDate && (
-                                <span> • Due: {new Date(task.activityDate).toLocaleDateString()}</span>
-                              )}
-                              {task.createdDate && (
-                                <span> • Created: {new Date(task.createdDate).toLocaleDateString()}</span>
-                              )}
-                              {task.lastModifiedDate && (
-                                <span> • Modified: {new Date(task.lastModifiedDate).toLocaleDateString()}</span>
-                              )}
                             </div>
+                          ))}
+                          {tasks.length > 5 && (
+                            <div className="workspace-dashboard__card-content">
+                              <button
+                                onClick={() => setShowAllTasks(!showAllTasks)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--color-primary)',
+                                  cursor: 'pointer',
+                                  padding: '0.5rem',
+                                  fontSize: '0.875rem'
+                                }}
+                              >
+                                {showAllTasks ? 'Show less' : `Show ${tasks.length - 5} more`}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="workspace-dashboard__card-content">
+                          <div className="workspace-dashboard__card-item">
+                            <div className="workspace-dashboard__list-item-meta">No tasks found</div>
                           </div>
                         </div>
-                      ))}
-                      {tasks.length > 5 && (
-                        <div className="workspace-dashboard__card-content">
-                          <button
-                            onClick={() => setShowAllTasks(!showAllTasks)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--color-primary)',
-                              cursor: 'pointer',
-                              padding: '0.5rem',
-                              fontSize: '0.875rem'
-                            }}
-                          >
-                            {showAllTasks ? 'Show less' : `Show ${tasks.length - 5} more`}
-                          </button>
-                        </div>
                       )}
-                    </div>
-                  ) : (
-                    <div className="workspace-dashboard__card-content">
-                      <div className="workspace-dashboard__card-item">
-                        <div className="workspace-dashboard__list-item-meta">No tasks found</div>
-                      </div>
-                    </div>
-                  )}
                     </div>
                   </div>
                 </div>

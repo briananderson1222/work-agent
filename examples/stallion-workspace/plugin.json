@@ -5,7 +5,7 @@
   "sdkVersion": "^0.4.0",
   "displayName": "Stallion Workspace",
   "description": "Calendar and CRM workspace with flexible agent support",
-  "entrypoint": "./index.tsx",
+  "entrypoint": "./src/index.tsx",
   "capabilities": ["chat", "navigation", "agents"],
   "permissions": ["navigation.dock", "agents.invoke"],
   "agents": [

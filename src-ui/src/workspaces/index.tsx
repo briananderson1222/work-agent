@@ -10,9 +10,6 @@ import { WorkspaceNavigationProvider } from '@stallion-ai/sdk';
 
 console.log('[WorkspaceRenderer] WorkspaceNavigationProvider imported:', !!WorkspaceNavigationProvider);
 
-// Import stallion-workspace components directly
-import { Calendar, CRM } from './stallion-workspace';
-
 export interface AgentWorkspaceProps {
   agent?: AgentSummary;
   workspace?: WorkspaceConfig;
@@ -33,9 +30,6 @@ const coreRegistry: Record<string, AgentWorkspaceComponent> = {
   'documentation-dashboard': DocumentationDashboard,
   'devops-dashboard': DevOpsDashboard,
   'research-workspace': ResearchWorkspace,
-  // Add stallion-workspace components directly
-  'stallion-workspace-calendar': Calendar,
-  'stallion-workspace-crm': CRM,
 };
 
 const DefaultWorkspace: AgentWorkspaceComponent = ({ workspace, onShowChat }) => (
@@ -51,7 +45,7 @@ const DefaultWorkspace: AgentWorkspaceComponent = ({ workspace, onShowChat }) =>
 export function resolveWorkspaceComponent(componentId?: string): AgentWorkspaceComponent {
   if (!componentId) return DefaultWorkspace;
   
-  // Check core components first (includes stallion-workspace components)
+  // Check core components first
   if (coreRegistry[componentId]) {
     return coreRegistry[componentId];
   }

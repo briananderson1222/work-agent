@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from './hooks';
-import { useConfig } from '../../contexts/ConfigContext';
+import { useToast, useSDK, transformTool, useNavigation, useSendMessage, useWorkspaceNavigation } from '@stallion-ai/sdk';
+import '../../plugins/shared/workspace.css';
 
 const CalendarEventSchema = z.object({
   events: z.array(z.object({
@@ -37,9 +37,8 @@ interface CalendarEvent {
 
 interface MeetingDetails extends CalendarEvent {
   body?: string;
-  attendees?: Array<{email: string, name?: string, status: string, isOptional?: boolean}>;
+  attendees?: Array<{email: string, status: string}>;
   responseStatus?: string;
-  organizerName?: string;
 }
 
 interface SFDCContext {
@@ -48,26 +47,69 @@ interface SFDCContext {
   tasks?: any[];
 }
 
+const apiBase = 'http://localhost:3141';
 
+async function streamInvoke(
+  agentSlug: string,
+  prompt: string,
+  options: {
+    tools?: string[];
+    maxSteps?: number;
+    schema?: z.ZodType<any>;
+    onChunk?: (text: string) => void;
+  } = {}
+): Promise<any> {
+  const requestStart = performance.now();
+  
+  const response = await fetch(`${apiBase}/agents/${agentSlug}/invoke/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt,
+      silent: true,
+      tools: options.tools,
+      maxSteps: options.maxSteps ?? 10,
+      schema: options.schema ? zodToJsonSchema(options.schema) : undefined,
+    }),
+  });
 
-async function ensureStoragePermission(workspace: any): Promise<boolean> {
-  if (!workspace.hasCapability('storage')) {
-    return false;
+  const fetchTime = performance.now() - requestStart;
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
   }
-  return await workspace.requestPermission('storage.session');
+
+  const parseStart = performance.now();
+  const data = await response.json();
+  
+  if (!data.success) {
+    throw new Error(data.error || 'Request failed');
+  }
+
+  // Log usage to see how many steps were taken
+  if (data.usage) {
+  }
+  
+  // Log debug info
+  if (data.debug) {
+  }
+  
+  // Log trace if available
+  if (data.trace) {
+  }
+
+  return data.response;
 }
 
-function getCacheKey(type: 'calendar' | 'sfdc' | 'meeting', identifier?: string): string {
+
+function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
   const today = new Date().toISOString().split('T')[0];
   return type === 'calendar' 
     ? `sa-calendar-${today}` 
-    : `sa-${type}-${identifier}`;
+    : `sa-sfdc-${identifier}`;
 }
 
-async function getFromCache<T>(key: string, workspace: any): Promise<T | null> {
-  const hasPermission = await ensureStoragePermission(workspace);
-  if (!hasPermission) return null;
-  
+function getFromCache<T>(key: string): T | null {
   try {
     const cached = sessionStorage.getItem(key);
     if (cached) {
@@ -84,10 +126,7 @@ async function getFromCache<T>(key: string, workspace: any): Promise<T | null> {
   return null;
 }
 
-async function setCache(key: string, data: any, workspace: any): Promise<void> {
-  const hasPermission = await ensureStoragePermission(workspace);
-  if (!hasPermission) return;
-  
+function setCache(key: string, data: any): void {
   try {
     sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
   } catch {
@@ -119,57 +158,65 @@ function formatOrganizerName(organizer?: { name: string; email: string }): strin
   return organizer.name;
 }
 
-function detectMeetingProviders(location?: string): Array<{ provider: string; url: string }> {
-  if (!location) return [];
+function detectMeetingProvider(location?: string): { provider: string; url: string } | null {
+  if (!location) return null;
   
-  const providers: Array<{ provider: string; url: string }> = [];
+  const lowerLocation = location.toLowerCase();
   
-  // Extract URLs from the location string
-  const urlRegex = /https?:\/\/[^\s]+/g;
-  const urls = location.match(urlRegex) || [];
-  
-  for (const url of urls) {
-    const lowerUrl = url.toLowerCase();
-    
-    if (lowerUrl.includes('zoom.us')) {
-      providers.push({ provider: 'Zoom', url });
-    } else if (lowerUrl.includes('teams.microsoft.com') || lowerUrl.includes('teams.live.com')) {
-      providers.push({ provider: 'Teams', url });
-    } else if (lowerUrl.includes('chime.aws')) {
-      providers.push({ provider: 'Chime', url });
-    } else if (lowerUrl.includes('meet.google.com')) {
-      providers.push({ provider: 'Google Meet', url });
-    } else if (lowerUrl.includes('webex.com')) {
-      providers.push({ provider: 'Webex', url });
-    }
+  if (lowerLocation.includes('zoom.us')) {
+    return { provider: 'Zoom', url: location };
+  }
+  if (lowerLocation.includes('teams.microsoft.com') || lowerLocation.includes('teams.live.com')) {
+    return { provider: 'Teams', url: location };
+  }
+  if (lowerLocation.includes('chime.aws')) {
+    return { provider: 'Chime', url: location };
+  }
+  if (lowerLocation.includes('meet.google.com')) {
+    return { provider: 'Google Meet', url: location };
+  }
+  if (lowerLocation.includes('webex.com')) {
+    return { provider: 'Webex', url: location };
   }
   
-  return providers;
+  return null;
 }
 
-interface SADashboardProps extends WorkspaceProps {
-  agent?: any;
-  onLaunchPrompt?: (prompt: any) => void;
-  onShowChat?: () => void;
-  onRequestAuth?: () => Promise<boolean>;
-  onSendToChat?: (text: string, agent?: string) => void;
+interface CalendarProps {
+  activeTab?: any; // Will be defined when this tab is active
 }
 
-export default function SADashboard(props: SADashboardProps) {
-  const sdk = useSDK();
-  const agents = useAgents();
-  const workspace = useWorkspace();
-  const appConfig = useConfig(sdk.apiBase);
-  
-  // Extract props - SA Dashboard always uses sa-agent
-  const agentSlug = 'sa-agent';
-  const { onLaunchPrompt, onShowChat, onRequestAuth, onSendToChat } = props;
-  
+export function Calendar({ activeTab }: CalendarProps) {
+  const { showToast } = useToast();
+  const { apiBase } = useSDK();
+  const { setDockState } = useNavigation();
+  const { getTabState, setTabState } = useWorkspaceNavigation();
+  const sendMessage = useSendMessage();
   // Load config for notification settings
-  const notificationConfig = useMemo(() => ({
-    enabled: appConfig?.meetingNotifications?.enabled !== false,
-    thresholds: appConfig?.meetingNotifications?.thresholds || [30, 10, 1]
-  }), [appConfig]);
+  const [notificationConfig, setNotificationConfig] = useState<{ enabled: boolean; thresholds: number[] }>({
+    enabled: true,
+    thresholds: [30, 10, 1]
+  });
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await fetch(`${apiBase}/config/app`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.config?.meetingNotifications) {
+            setNotificationConfig({
+              enabled: data.config.meetingNotifications.enabled !== false,
+              thresholds: data.config.meetingNotifications.thresholds || [30, 10, 1]
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load notification config:', err);
+      }
+    };
+    loadConfig();
+  }, []);
 
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
@@ -179,16 +226,11 @@ export default function SADashboard(props: SADashboardProps) {
     return `${year}-${month}-${day}`;
   };
 
-  // Parse initial state from URL hash
+  // Parse initial state from sessionStorage (no hash)
   const initialState = useMemo(() => {
-    let hash = window.location.hash.slice(1);
-    
-    // Fallback to sessionStorage if hash is empty
-    if (!hash) {
-      hash = sessionStorage.getItem('sa-dashboard-hash') || '';
-    }
-    
-    const params = new URLSearchParams(hash);
+    // Get stored state from WorkspaceNavigationProvider
+    const storedState = activeTab ? getTabState('calendar') : '';
+    const params = new URLSearchParams(storedState);
     const dateStr = params.get('date');
     const date = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
     
@@ -197,11 +239,43 @@ export default function SADashboard(props: SADashboardProps) {
       categories: params.get('categories')?.split(',').filter(Boolean) || [],
       eventId: params.get('event') || null,
       filterExpanded: params.get('filterExpanded') === 'true',
-      allDayExpanded: params.get('allDayExpanded') === 'true',
-      hideCanceledEvents: params.get('hideCanceled') === 'true',
-      calendarWidth: parseInt(params.get('calendarWidth') || '320', 10)
+      allDayExpanded: params.get('allDayExpanded') === 'true' // Default to false (collapsed)
     };
-  }, []);
+  }, [activeTab]);
+
+  // Restore state when tab becomes active
+  useEffect(() => {
+    if (activeTab) {
+      const storedState = getTabState('calendar');
+      console.log('[Calendar] Restoring state from provider:', storedState);
+      if (storedState) {
+        const params = new URLSearchParams(storedState);
+        
+        const dateStr = params.get('date');
+        if (dateStr) {
+          const date = new Date(dateStr + 'T00:00:00');
+          if (!isNaN(date.getTime())) {
+            console.log('[Calendar] Restoring date:', date);
+            setSelectedDate(date);
+            setViewMonth(date);
+          }
+        }
+        
+        const categories = params.get('categories')?.split(',').filter(Boolean) || [];
+        console.log('[Calendar] Restoring categories:', categories);
+        setSelectedCategories(new Set(categories));
+        
+        const eventId = params.get('event');
+        if (eventId) {
+          console.log('[Calendar] Restoring event:', eventId);
+          setSelectedEventId(eventId);
+        }
+        
+        setFilterExpanded(params.get('filterExpanded') === 'true');
+        setAllDayExpanded(params.get('allDayExpanded') === 'true');
+      }
+    }
+  }, [activeTab, getTabState]);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
@@ -224,50 +298,12 @@ export default function SADashboard(props: SADashboardProps) {
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [hidePastEvents, setHidePastEvents] = useState(false);
-  const [hideCanceledEvents, setHideCanceledEvents] = useState(initialState.hideCanceledEvents);
+  const [hideCanceledEvents, setHideCanceledEvents] = useState(false);
   const [isNowLineVisible, setIsNowLineVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
-  const [calendarWidth, setCalendarWidth] = useState(initialState.calendarWidth);
-  const [tempCalendarWidth, setTempCalendarWidth] = useState<number | null>(null);
-  const [isResizing, setIsResizing] = useState(false);
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
-
-  // Handle calendar resize
-  useEffect(() => {
-    if (!isResizing) return;
-
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'col-resize';
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const minWidth = 280;
-      const maxWidth = window.innerWidth * 0.5;
-      const newWidth = Math.min(Math.max(e.clientX, minWidth), maxWidth);
-      setTempCalendarWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-      if (tempCalendarWidth !== null) {
-        setCalendarWidth(tempCalendarWidth);
-        setTempCalendarWidth(null);
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-    };
-  }, [isResizing, tempCalendarWidth]);
 
   // Update current time every minute when viewing today
   useEffect(() => {
@@ -342,16 +378,10 @@ export default function SADashboard(props: SADashboardProps) {
     if (allDayExpanded) {
       params.set('allDayExpanded', 'true');
     }
-    if (hideCanceledEvents) {
-      params.set('hideCanceled', 'true');
-    }
-    if (calendarWidth !== 320) {
-      params.set('calendarWidth', String(calendarWidth));
-    }
-    const hashString = params.toString();
-    window.history.pushState(null, '', `#${hashString}`);
-    sessionStorage.setItem('sa-dashboard-hash', hashString);
-  }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, hideCanceledEvents, calendarWidth, isInitialMount]);
+    const stateString = params.toString();
+    console.log('[Calendar] Saving state to provider:', stateString);
+    setTabState('calendar', stateString);
+  }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, isInitialMount, setTabState]);
 
   const selectedEvent = events.find((e) => e.meetingId === selectedEventId) ?? null;
   
@@ -381,33 +411,33 @@ export default function SADashboard(props: SADashboardProps) {
   }
 
   const hasCanceledEvents = events.some(e => e.subject.startsWith('Canceled:'));
+  console.log('Debug - Total events:', events.length, 'Has canceled:', hasCanceledEvents, 'Canceled events:', events.filter(e => e.subject.startsWith('Canceled:')).map(e => e.subject));
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
-    if (!agents) {
-      console.warn('Agents not available yet, skipping calendar fetch');
-      setError('SDK not ready');
-      setLoading(false);
-      return;
-    }
-    
+    const startTime = performance.now();
     setLoading(true);
     setError(null);
-    setEvents([]);
+    setRawResponse(''); // Clear previous
+    setEvents([]); // Clear events list
     
+    // Only clear selectedEventId if not preserving selection
     if (!preserveEventId) {
       setSelectedEventId(null);
     }
     
     const dateStr = date.toISOString().split('T')[0];
-    const cacheKey = `sa-calendar-${dateStr}`;
     
     // Check cache first
-    const cached = await getFromCache<CalendarEvent[]>(cacheKey, workspace);
+    const cacheKey = `sa-calendar-${dateStr}`;
+    const cached = getFromCache<CalendarEvent[]>(cacheKey);
     if (cached) {
       setEvents(cached);
+      
+      // Only auto-select if not preserving a selection
       if (preserveEventId) {
         setSelectedEventId(preserveEventId);
       } else {
+        // Select active event, or next upcoming event, or first non-all-day, or first event
         const now = new Date();
         const activeEvent = cached.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
         const upcomingEvent = cached.find(e => !e.isAllDay && new Date(e.start) > now);
@@ -415,50 +445,59 @@ export default function SADashboard(props: SADashboardProps) {
         const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || cached[0]?.meetingId;
         setSelectedEventId(eventId);
       }
+      
       setLoading(false);
       return;
     }
     
+    const apiStartTime = performance.now();
     try {
-      const result = await agents.transform(agentSlug, 'sat-outlook_calendar_view', 
-        { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-        `(data) => ({
-          events: data.map(e => ({
-            meetingId: e.meetingId,
-            meetingChangeKey: e.meetingChangeKey,
-            subject: e.subject,
-            start: e.start,
-            end: e.end,
-            location: e.location || '',
-            organizer: e.organizer?.name || '',
-            status: e.status,
-            isCanceled: e.isCanceled || false,
-            categories: e.categories || [],
-            isAllDay: e.isAllDay || false
-          }))
-        })`
-      );
+      // Use pure transformation (no LLM, instant)
+      const data = await transformTool(apiBase, 'sa-agent', 'sat-outlook_calendar_view', {
+        view: 'day',
+        start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0]
+      }, `(data) => ({
+        events: data.map(e => ({
+          meetingId: e.meetingId,
+          meetingChangeKey: e.meetingChangeKey,
+          subject: e.subject,
+          start: e.start,
+          end: e.end,
+          location: e.location || '',
+          organizer: e.organizer?.name || '',
+          status: e.status,
+          isCanceled: e.isCanceled || false,
+          categories: e.categories || [],
+          isAllDay: e.isAllDay || false
+        }))
+      })`);
       
-      const parsedEvents = result.events;
+      const apiTime = performance.now() - apiStartTime;
       
-      if (parsedEvents && parsedEvents.length > 0) {
+      const parsedEvents = data.events;
+      
+      if (parsedEvents.length === 0) {
+        setEvents([]);
+        setSelectedEventId(null);
+      } else {
         setEvents(parsedEvents);
         
+        // Only auto-select if not preserving a selection
         if (preserveEventId) {
           setSelectedEventId(preserveEventId);
         } else {
+          // Select active event, or next upcoming event, or first non-all-day, or first event
           const now = new Date();
-          const activeEvent = parsedEvents.find((e: CalendarEvent) => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
-          const upcomingEvent = parsedEvents.find((e: CalendarEvent) => !e.isAllDay && new Date(e.start) > now);
-          const firstNonAllDay = parsedEvents.find((e: CalendarEvent) => !e.isAllDay);
+          const activeEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
+          const upcomingEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) > now);
+          const firstNonAllDay = parsedEvents.find(e => !e.isAllDay);
           const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
           setSelectedEventId(eventId);
         }
         
-        await setCache(cacheKey, parsedEvents, workspace);
+        setCache(cacheKey, parsedEvents);
       }
     } catch (err) {
-      // Let auth errors bubble up to be handled by the SDK/parent
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -473,89 +512,61 @@ export default function SADashboard(props: SADashboardProps) {
   // Always fetch today's events for notifications
   useEffect(() => {
     const fetchTodayEvents = async () => {
-      if (!agents) {
-        console.warn('Agents not available yet, skipping today events fetch');
-        return;
-      }
-      
       const today = new Date();
       const dateStr = formatLocalDate(today);
       const cacheKey = `sa-calendar-${dateStr}`;
       
-      const cached = await getFromCache<CalendarEvent[]>(cacheKey, workspace);
+      const cached = getFromCache<CalendarEvent[]>(cacheKey);
       if (cached) {
         setTodayEvents(cached);
         return;
       }
       
       try {
-        const result = await agents.transform(agentSlug, 'sat-outlook_calendar_view',
-          { view: 'day', start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0] },
-          `(data) => ({
-            events: data.map(e => ({
-              meetingId: e.meetingId,
-              meetingChangeKey: e.meetingChangeKey,
-              subject: e.subject,
-              start: e.start,
-              end: e.end,
-              location: e.location || '',
-              organizer: e.organizer?.name || '',
-              status: e.status,
-              isCanceled: e.isCanceled || false,
-              categories: e.categories || [],
-              isAllDay: e.isAllDay || false
-            }))
-          })`
-        );
+        const data = await transformTool(apiBase, 'sa-agent', 'sat-outlook_calendar_view', {
+          view: 'day',
+          start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0]
+        }, `(data) => ({
+          events: data.map(e => ({
+            meetingId: e.meetingId,
+            meetingChangeKey: e.meetingChangeKey,
+            subject: e.subject,
+            start: e.start,
+            end: e.end,
+            location: e.location || '',
+            organizer: e.organizer?.name || '',
+            status: e.status,
+            isCanceled: e.isCanceled || false,
+            categories: e.categories || [],
+            isAllDay: e.isAllDay || false
+          }))
+        })`);
         
-        if (result.events) {
-          setTodayEvents(result.events);
-          await setCache(cacheKey, result.events, workspace);
-        }
+        setTodayEvents(data.events);
+        setCache(cacheKey, data.events);
       } catch (err) {
         console.error('Failed to fetch today events:', err);
       }
     };
     
     fetchTodayEvents();
+    // Refresh every 5 minutes
     const interval = setInterval(fetchTodayEvents, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [agents, agentSlug, workspace]);
-  
-  useEffect(() => {
-    const handlePopState = () => {
-      const hash = window.location.hash.slice(1);
-      const params = new URLSearchParams(hash);
-      
-      const dateStr = params.get('date');
-      if (dateStr) {
-        const date = new Date(dateStr + 'T00:00:00');
-        setSelectedDate(date);
-        setViewMonth(date);
-      }
-      
-      const categories = params.get('categories')?.split(',').filter(Boolean) || [];
-      setSelectedCategories(new Set(categories));
-      
-      const eventId = params.get('event');
-      setSelectedEventId(eventId);
-      
-      setFilterExpanded(params.get('filterExpanded') === 'true');
-      setAllDayExpanded(params.get('allDayExpanded') === 'true');
-      setHideCanceledEvents(params.get('hideCanceled') === 'true');
-      
-      const width = parseInt(params.get('calendarWidth') || '320', 10);
-      setCalendarWidth(width);
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+  
+  // Removed popstate listener - WorkspaceNavigationProvider handles hash restoration
+  // useEffect(() => {
+  //   const handlePopState = () => {
+  //     // Provider handles this now
+  //   };
+  //   window.addEventListener('popstate', handlePopState);
+  //   return () => window.removeEventListener('popstate', handlePopState);
+  // }, [activeTab]);
 
   // Auto-fetch meeting details when event is selected
   useEffect(() => {
     if (selectedEventId && events.length > 0) {
-      setShowAllAttendees(false); // Reset attendee list expansion
       fetchMeetingDetails(selectedEventId);
       
       // Scroll to selected event
@@ -605,7 +616,7 @@ export default function SADashboard(props: SADashboardProps) {
     const dateStr = formatLocalDate(selectedDate);
     sessionStorage.removeItem(`sa-calendar-${dateStr}`);
     events.forEach(e => {
-      sessionStorage.removeItem(getCacheKey('meeting', `details-${e.meetingId}`));
+      sessionStorage.removeItem(getCacheKey('sfdc', `details-${e.meetingId}`));
       sessionStorage.removeItem(getCacheKey('sfdc', e.meetingId));
     });
     
@@ -620,8 +631,9 @@ export default function SADashboard(props: SADashboardProps) {
       return;
     }
 
-    const cacheKey = getCacheKey('meeting', `details-${meetingId}`);
-    const cached = await getFromCache<MeetingDetails>(cacheKey, workspace);
+    // Check cache first
+    const cacheKey = getCacheKey('sfdc', `details-${meetingId}`);
+    const cached = getFromCache<MeetingDetails>(cacheKey);
     if (cached) {
       setMeetingDetails(cached);
       return;
@@ -630,104 +642,40 @@ export default function SADashboard(props: SADashboardProps) {
     setLoadingDetails(true);
     
     try {
-      const details = await agents.transform(agentSlug, 'sat-outlook_calendar_meeting',
-        { 
-          operation: 'read',
-          meetingId: meetingId, 
-          meetingChangeKey: event.meetingChangeKey 
-        },
-        `(data) => {
-          const meeting = data.success ? data.content : data;
-          
-          const eventData = ${JSON.stringify(event)};
-          const allEvents = ${JSON.stringify(events)};
-          const normalizeStatus = (status) => {
-            if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
-            if (status === 'Accept' || status === 'Accepted') return 'Accepted';
-            if (status === 'Decline' || status === 'Declined') return 'Declined';
-            return status;
-          };
-          
-          // Build email-to-name lookup from all calendar events
-          const emailToName = {};
-          
-          // Add organizer mapping from meeting data
-          if (meeting.organizer && eventData.organizer) {
-            emailToName[meeting.organizer] = eventData.organizer;
-          }
-          
-          // Add current event organizer mapping
-          if (eventData.organizer && eventData.organizerEmail) {
-            emailToName[eventData.organizerEmail] = eventData.organizer;
-            console.log('Mapped organizer:', eventData.organizerEmail, '->', eventData.organizer);
-          }
-          
-          allEvents.forEach(evt => {
-            // Extract from organizer
-            if (evt.organizer && typeof evt.organizer === 'string') {
-              const emailMatch = evt.organizer.match(/([^<]+)<([^>]+)>/);
-              if (emailMatch) {
-                emailToName[emailMatch[2]] = emailMatch[1].trim();
-              }
-            }
-            // Map organizer name to organizerEmail if available
-            if (evt.organizer && evt.organizerEmail) {
-              emailToName[evt.organizerEmail] = evt.organizer;
-            }
-            // Extract from attendees if they have names
-            if (evt.attendees) {
-              evt.attendees.forEach(att => {
-                if (att.name && att.email) {
-                  emailToName[att.email] = att.name;
-                }
-              });
-            }
-          });
-          
-          // Also extract from current meeting data
-          if (meeting.attendees) {
-            meeting.attendees.forEach(att => {
-              if (typeof att === 'object' && att.name && att.email) {
-                emailToName[att.email] = att.name;
-              }
-            });
-          }
-          
-          const getNameForEmail = (email) => {
-            return emailToName[email] || null;
-          };
-          const mapAttendees = (list, isOptional = false) => (list || []).map(a => {
-            const email = typeof a === 'string' ? a : a.email;
-            return {
-              email: email,
-              name: getNameForEmail(email),
-              status: normalizeStatus(a.responseStatus),
-              isOptional: isOptional
-            };
-          });
-          return {
-            meetingId: meeting.meetingId,
-            meetingChangeKey: meeting.changeKey,
-            subject: meeting.subject,
-            body: meeting.body || '',
-            attendees: [
-              ...mapAttendees(meeting.attendees, false), 
-              ...mapAttendees(meeting.optionalAttendees || [], true)
-            ],
-            start: meeting.start,
-            end: meeting.end,
-            location: meeting.location || '',
-            organizer: meeting.organizer || '',
-            organizerName: eventData.organizer || '',
-            responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
-          };
-        }`
-      );
+      const data = await transformTool(apiBase, 'sa-agent', 'sat-outlook_calendar_meeting', {
+        operation: 'read',
+        meetingId: meetingId, 
+        meetingChangeKey: event.meetingChangeKey 
+      }, `(data) => {
+        const meeting = data.success ? data.content : data;
+        const normalizeStatus = (status) => {
+          if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
+          if (status === 'Accept' || status === 'Accepted') return 'Accepted';
+          if (status === 'Decline' || status === 'Declined') return 'Declined';
+          return status;
+        };
+        const mapAttendees = (list) => (list || []).map(a => ({
+          email: typeof a === 'string' ? a : a.email,
+          status: normalizeStatus(a.responseStatus)
+        }));
+        return {
+          meetingId: meeting.meetingId,
+          meetingChangeKey: meeting.changeKey,
+          subject: meeting.subject,
+          body: meeting.body || '',
+          attendees: [...mapAttendees(meeting.attendees), ...mapAttendees(meeting.optionalAttendees || [])],
+          start: meeting.start,
+          end: meeting.end,
+          location: meeting.location || '',
+          organizer: meeting.organizer || '',
+          responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
+        };
+      }`);
       
+      const details = data;
       setMeetingDetails(details);
-      await setCache(cacheKey, details, workspace);
+      setCache(cacheKey, details);
     } catch (err) {
-      // Let auth errors bubble up to be handled by the SDK/parent
       console.error('Failed to fetch meeting details:', err);
     } finally {
       setLoadingDetails(false);
@@ -737,8 +685,9 @@ export default function SADashboard(props: SADashboardProps) {
   const fetchSFDCContext = async () => {
     if (!selectedEvent) return;
     
+    // Check cache first
     const cacheKey = getCacheKey('sfdc', selectedEvent.meetingId);
-    const cached = await getFromCache<SFDCContext>(cacheKey, workspace);
+    const cached = getFromCache<SFDCContext>(cacheKey);
     if (cached) {
       setSfdcContext(cached);
       return;
@@ -746,6 +695,7 @@ export default function SADashboard(props: SADashboardProps) {
     
     setLoadingSFDC(true);
     
+    // Build detailed meeting context
     const meetingContext = `
 Meeting: ${selectedEvent.subject}
 Time: ${new Date(selectedEvent.start).toLocaleString()} - ${new Date(selectedEvent.end).toLocaleTimeString()}
@@ -755,23 +705,33 @@ ${selectedEvent.categories?.length ? `Categories: ${selectedEvent.categories.joi
 ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}
     `.trim();
     
+    let partialText = '';
+    
     try {
-      const response = await agents.stream(agentSlug, `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:
-
-${meetingContext}
-
-Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
+      const response = await streamInvoke('sa-agent', `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:\n\n${meetingContext}\n\nReturn JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
         tools: ['sat-sfdc_search_accounts', 'sat-sfdc_get_opportunities_for_account', 'sat-sfdc_list_user_tasks'],
-        maxSteps: 10
+        onChunk: (text) => {
+          partialText += text;
+          // Try to parse and update UI progressively
+          try {
+            const jsonMatch = partialText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const context = JSON.parse(jsonMatch[0]);
+              setSfdcContext(context);
+            }
+          } catch {
+            // Ignore parse errors for partial JSON
+          }
+        },
       });
 
-      // Parse JSON response
+      // Final parse
       try {
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const context = JSON.parse(jsonMatch[0]);
           setSfdcContext(context);
-          await setCache(cacheKey, context, workspace);
+          setCache(cacheKey, context);
         } else {
           setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
         }
@@ -780,7 +740,6 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
       }
     } catch (err) {
       console.error('Failed to fetch SFDC context:', err);
-      setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
     } finally {
       setLoadingSFDC(false);
     }
@@ -848,61 +807,26 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
             {new Date(upcomingNotification.meeting.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-            {upcomingNotification.threshold === 1 && upcomingNotification.meeting.location && (() => {
-              const providers = detectMeetingProviders(upcomingNotification.meeting.location);
-              return providers.length > 0 ? (
-                <>
-                  {' • '}
-                  {providers.map((provider, idx) => (
-                    <span key={idx}>
-                      {idx > 0 && ' • '}
-                      <a
-                        href={provider.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
-                      >
-                        Join {provider.provider}
-                      </a>
-                    </span>
-                  ))}
-                </>
-              ) : null;
-            })()}
+            {upcomingNotification.threshold === 1 && upcomingNotification.meeting.location && (
+              <>
+                {' • '}
+                <a
+                  href={upcomingNotification.meeting.location}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                >
+                  Join Meeting
+                </a>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      <div className="workspace-dashboard__content" style={{
-        display: 'flex',
-        gridTemplateColumns: 'unset'
-      }}>
-        <aside className="workspace-dashboard__calendar" style={{ 
-          width: `${tempCalendarWidth ?? calendarWidth}px`, 
-          minWidth: '280px', 
-          maxWidth: '50vw',
-          flexShrink: 0,
-          position: 'relative'
-        }}>
-          <div 
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setIsResizing(true);
-            }}
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: '4px',
-              cursor: 'col-resize',
-              background: isResizing ? 'var(--color-primary)' : 'transparent',
-              transition: 'background 0.2s',
-              zIndex: 10
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-border)'}
-            onMouseLeave={(e) => !isResizing && (e.currentTarget.style.background = 'transparent')}
-          />
+
+      <div className="workspace-dashboard__content">
+        <aside className="workspace-dashboard__calendar">
           <div style={{ position: 'sticky', top: 0, background: 'var(--color-bg)', paddingBottom: '1rem' }}>
             <div className="calendar-widget" style={{ 
               padding: '0.75rem', 
@@ -981,30 +905,30 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
               })()}
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: calendarCollapsed ? '0' : '0.5rem' }}>
-            <button
-              onClick={() => setCalendarCollapsed(!calendarCollapsed)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px 8px',
-                color: 'var(--color-text-secondary)',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-              title={calendarCollapsed ? 'Expand calendar' : 'Collapse calendar'}
-            >
-              <svg style={{ 
-                width: '16px', 
-                height: '16px',
-                transform: calendarCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-                transition: 'transform 0.2s',
-              }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          </div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: calendarCollapsed ? '0' : '0.5rem' }}>
+              <button
+                onClick={() => setCalendarCollapsed(!calendarCollapsed)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  color: 'var(--color-text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title={calendarCollapsed ? 'Expand calendar' : 'Collapse calendar'}
+              >
+                <svg style={{ 
+                  width: '16px', 
+                  height: '16px',
+                  transform: calendarCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                  transition: 'transform 0.2s',
+                }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
           <h3 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.5rem' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {loading && <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>}
@@ -1019,7 +943,7 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                   setSelectedDate(today);
                   setViewMonth(new Date(today.getFullYear(), today.getMonth(), 1));
                   // Trigger fetch without preserving selection to use smart selection logic
-                  fetchCalendarData(today, undefined);
+                  fetchEvents(formatLocalDate(today), null);
                 }}
                 style={{
                   background: 'var(--color-primary)',
@@ -1341,64 +1265,52 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                       let joinButton: JSX.Element | null = null;
                       
                       if (isActiveEvent) {
-                        const meetingProviders = detectMeetingProviders(event.location);
-                        const startTime = new Date(event.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                        const endTime = new Date(event.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                        const meetingProvider = detectMeetingProvider(event.location);
                         
-                        indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - in progress`;
-                        
-                        if (meetingProviders.length > 0) {
-                          indicatorText += ' - ';
-                          joinButton = (
-                            <>
-                              {meetingProviders.map((provider, idx) => (
-                                <span key={idx}>
-                                  {idx > 0 && ' '}
-                                  <a
-                                    href={provider.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      display: 'inline-block',
-                                      padding: '2px 6px',
-                                      fontSize: '0.65rem',
-                                      borderRadius: '4px',
-                                      background: 'var(--color-primary)',
-                                      color: 'white',
-                                      textDecoration: 'none',
-                                      fontWeight: 500
-                                    }}
-                                  >
-                                    Join {provider.provider}
-                                  </a>
-                                </span>
-                              ))}
-                            </>
-                          );
-                        }
+                        indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - `;
                         
                         nextMeetingLink = (
-                          <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
-                            <button
-                              onClick={() => {
-                                setSelectedEventId(event.meetingId);
-                                fetchMeetingDetails(event.meetingId);
-                                setSfdcContext(null);
-                              }}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--color-primary)',
-                                textDecoration: 'underline',
-                                cursor: 'pointer',
-                                padding: 0,
-                                font: 'inherit'
-                              }}
-                            >
-                              {`[${startTime} - ${endTime}] ${event.subject}`}
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedEventId(event.meetingId);
+                              fetchMeetingDetails(event.meetingId);
+                              setSfdcContext(null);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--color-primary)',
+                              textDecoration: 'underline',
+                              cursor: 'pointer',
+                              padding: 0,
+                              font: 'inherit'
+                            }}
+                          >
+                            {event.subject}
+                          </button>
                         );
+                        
+                        if (meetingProvider) {
+                          joinButton = (
+                            <>
+                              {' in progress • '}
+                              <a
+                                href={meetingProvider.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: 'var(--color-primary)',
+                                  textDecoration: 'underline',
+                                  fontWeight: 600
+                                }}
+                              >
+                                Join Now
+                              </a>
+                            </>
+                          );
+                        } else {
+                          joinButton = <span> in progress</span>;
+                        }
                       } else {
                         // Find next meeting (could be filtered out)
                         const allNonAllDay = events.filter(e => !e.isAllDay);
@@ -1406,9 +1318,6 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                         
                         if (nextMeeting) {
                           const nextStart = new Date(nextMeeting.start);
-                          const nextEnd = new Date(nextMeeting.end);
-                          const startTime = nextStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                          const endTime = nextEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                           const minutesUntil = Math.round((nextStart.getTime() - currentTime.getTime()) / 60000);
                           const hoursUntil = Math.floor(minutesUntil / 60);
                           const remainingMinutes = minutesUntil % 60;
@@ -1421,67 +1330,34 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                           }
                           
                           const isFiltered = !visibleEvents.some(e => e.meetingId === nextMeeting.meetingId);
-                          const meetingProviders = detectMeetingProviders(nextMeeting.location);
-                          
-                          indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${timeText} until next meeting`;
-                          
-                          if (meetingProviders.length > 0) {
-                            indicatorText += ' - ';
-                            joinButton = (
-                              <>
-                                {meetingProviders.map((provider, idx) => (
-                                  <span key={idx}>
-                                    {idx > 0 && ' '}
-                                    <a
-                                      href={provider.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      style={{
-                                        display: 'inline-block',
-                                        padding: '2px 6px',
-                                        fontSize: '0.65rem',
-                                        borderRadius: '4px',
-                                        background: 'var(--color-primary)',
-                                        color: 'white',
-                                        textDecoration: 'none',
-                                        fontWeight: 500
-                                      }}
-                                    >
-                                      Join {provider.provider}
-                                    </a>
-                                  </span>
-                                ))}
-                              </>
-                            );
-                          }
                           
                           nextMeetingLink = (
-                            <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
-                              <button
-                                onClick={() => {
-                                  if (isFiltered) {
-                                    setSelectedCategories(new Set());
-                                    setHidePastEvents(false);
-                                    setHideCanceledEvents(false);
-                                  }
-                                  setSelectedEventId(nextMeeting.meetingId);
-                                  fetchMeetingDetails(nextMeeting.meetingId);
-                                  setSfdcContext(null);
-                                }}
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: 'var(--color-primary)',
-                                  textDecoration: 'underline',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  font: 'inherit'
-                                }}
-                              >
-                                {`[${startTime} - ${endTime}] ${nextMeeting.subject}`}
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => {
+                                if (isFiltered) {
+                                  setSelectedCategories(new Set());
+                                  setHidePastEvents(false);
+                                  setHideCanceledEvents(false);
+                                }
+                                setSelectedEventId(nextMeeting.meetingId);
+                                fetchMeetingDetails(nextMeeting.meetingId);
+                                setSfdcContext(null);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--color-primary)',
+                                textDecoration: 'underline',
+                                cursor: 'pointer',
+                                padding: 0,
+                                font: 'inherit'
+                              }}
+                            >
+                              {nextMeeting.subject}
+                            </button>
                           );
+                          
+                          indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${timeText} until next meeting: `;
                         } else {
                           indicatorText = `Now - ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
                         }
@@ -1496,7 +1372,7 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                           color: 'var(--color-primary)',
                           fontWeight: 600
                         }}>
-                          {indicatorText}{joinButton}{nextMeetingLink}
+                          {indicatorText}{nextMeetingLink}{joinButton}
                         </div>
                       );
                     }
@@ -1607,82 +1483,47 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
 
           <section className="workspace-dashboard__details">
               {selectedEvent && (() => {
-                const meetingProviders = detectMeetingProviders(meetingDetails?.location);
+                const meetingProvider = detectMeetingProvider(meetingDetails?.location);
                 
                 return (
                 <div className="workspace-dashboard__card">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                        <h3 style={{ minWidth: 'fit-content', margin: 0 }}>{selectedEvent.subject}</h3>
-                        {selectedEvent.categories && selectedEvent.categories.length > 0 && (
-                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                            {selectedEvent.categories.map((category, i) => (
-                              <span
-                                key={i}
-                                style={{
-                                  padding: '0.2rem 0.5rem',
-                                  background: 'var(--color-accent)',
-                                  color: 'white',
-                                  borderRadius: '12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: '500'
-                                }}
-                              >
-                                {category}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <h3 style={{ minWidth: 'fit-content', marginBottom: '0.5rem' }}>{selectedEvent.subject}</h3>
                       {meetingDetails?.organizer && (
-                        <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                            <span>
-                              Organized by{' '}
-                              <a 
-                                href={`mailto:${meetingDetails.organizer}`} 
-                                style={{ color: 'var(--color-primary)' }}
-                                title={meetingDetails.organizer}
-                              >
-                                {meetingDetails.organizerName || meetingDetails.organizer}
-                              </a>
-                            </span>
-                            {meetingProviders.length > 0 && (
-                              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                {meetingProviders.map((provider, idx) => (
-                                  <a
-                                    key={idx}
-                                    href={provider.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '0.25rem',
-                                      padding: '0.25rem 0.5rem',
-                                      background: 'var(--color-primary)',
-                                      color: 'var(--color-bg)',
-                                      border: 'none',
-                                      borderRadius: '4px',
-                                      fontSize: '0.75rem',
-                                      fontWeight: 600,
-                                      textDecoration: 'none',
-                                      cursor: 'pointer',
-                                      transition: 'opacity 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                                  >
-                                    Join {provider.provider} →
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ fontSize: '0.85rem' }}>
-                            {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}
-                          </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                          <span>
+                            Organized by{' '}
+                            <a href={`mailto:${meetingDetails.organizer}`} style={{ color: 'var(--color-primary)' }}>
+                              {meetingDetails.organizer}
+                            </a>
+                          </span>
+                          {meetingProvider && (
+                            <a
+                              href={meetingProvider.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.25rem 0.5rem',
+                                background: 'var(--color-primary)',
+                                color: 'var(--color-bg)',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                cursor: 'pointer',
+                                transition: 'opacity 0.2s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                            >
+                              Join {meetingProvider.provider} →
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1779,19 +1620,18 @@ Return JSON: {"accounts": [], "opportunities": [], "tasks": []}`, {
                     <>
                       <div style={{ display: 'grid', gridTemplateColumns: sfdcContext ? '3fr 1fr' : '1fr', gap: '1.5rem', marginBottom: '1rem' }}>
                         <div>
+                        <p><strong>Time:</strong> {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}</p>
+                        {selectedEvent.categories && selectedEvent.categories.length > 0 && (
+                          <p><strong>Categories:</strong> {selectedEvent.categories.join(', ')}</p>
+                        )}
                         {meetingDetails.attendees && meetingDetails.attendees.length > 0 && (
                           <div>
                             <strong>Attendees ({meetingDetails.attendees.length}):</strong>
                             <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
                               {(showAllAttendees ? meetingDetails.attendees : meetingDetails.attendees.slice(0, 5)).map((a, i) => (
                                 <li key={i}>
-                                  {a.isOptional && <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.85em', marginRight: '0.5rem' }}>(Optional)</span>}
-                                  <a 
-                                    href={`mailto:${a.email}`} 
-                                    style={{ color: 'var(--color-primary)' }}
-                                    title={a.email}
-                                  >
-                                    {a.name || a.email}
+                                  <a href={`mailto:${a.email}`} style={{ color: 'var(--color-primary)' }}>
+                                    {a.email}
                                   </a>
                                   <span 
                                     className={`attendee-status attendee-status--${a.status.toLowerCase().replace(' ', '-')}`}
