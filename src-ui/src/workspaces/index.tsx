@@ -1,10 +1,5 @@
 import type { AgentSummary, AgentQuickPrompt, WorkspaceConfig, WorkspaceTab } from '../types';
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
-import { ProjectStallionDashboard } from './ProjectStallionDashboard';
-import { CodeReviewDashboard } from './CodeReviewDashboard';
-import { DocumentationDashboard } from './DocumentationDashboard';
-import { DevOpsDashboard } from './DevOpsDashboard';
-import { ResearchWorkspace } from './ResearchWorkspace';
 import { pluginRegistry } from '../core/PluginRegistry';
 import { WorkspaceNavigationProvider } from '@stallion-ai/sdk';
 
@@ -24,13 +19,7 @@ export interface AgentWorkspaceProps {
 export type AgentWorkspaceComponent = (props: AgentWorkspaceProps) => JSX.Element;
 
 // Core workspace components (not plugins)
-const coreRegistry: Record<string, AgentWorkspaceComponent> = {
-  'project-stallion-dashboard': ProjectStallionDashboard,
-  'code-review-dashboard': CodeReviewDashboard,
-  'documentation-dashboard': DocumentationDashboard,
-  'devops-dashboard': DevOpsDashboard,
-  'research-workspace': ResearchWorkspace,
-};
+const coreRegistry: Record<string, AgentWorkspaceComponent> = {};
 
 const DefaultWorkspace: AgentWorkspaceComponent = ({ workspace, onShowChat }) => (
   <div className="workspace-default">
