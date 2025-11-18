@@ -19,7 +19,7 @@ export function ModelSelector({ query, models, currentModel, onSelect, onClose }
   // Filter and map models to AutocompleteItem format
   const items = useMemo(() => {
     const searchTerm = (query || '').toLowerCase();
-    const filtered = models.filter(m => 
+    const filtered = (models || []).filter(m => 
       m.name.toLowerCase().includes(searchTerm) || 
       m.id.toLowerCase().includes(searchTerm) ||
       m.originalId.toLowerCase().includes(searchTerm)
