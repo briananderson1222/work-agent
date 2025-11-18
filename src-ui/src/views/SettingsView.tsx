@@ -57,9 +57,12 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
 
   const hasChanges = JSON.stringify(config) !== JSON.stringify(originalConfig);
 
-  // Update hash when tab changes
+  // Update hash when tab changes (only if this view is active)
   useEffect(() => {
-    window.location.hash = activeTab;
+    // Only manage hash if we're in the settings route
+    if (window.location.pathname.includes('/settings')) {
+      window.location.hash = activeTab;
+    }
   }, [activeTab]);
 
   useEffect(() => {

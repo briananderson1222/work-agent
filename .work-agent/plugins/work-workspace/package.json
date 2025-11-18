@@ -1,0 +1,28 @@
+{
+  "name": "@stallion-ai/stallion-workspace",
+  "version": "1.0.0",
+  "description": "Stallion workspace plugin with calendar and CRM components",
+  "main": "src/index.tsx",
+  "type": "module",
+  "scripts": {
+    "build": "echo 'Build handled by stallion CLI'",
+    "postinstall": "node ../../scripts/install-plugin.js"
+  },
+  "peerDependencies": {
+    "@stallion-ai/sdk": "^0.4.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "zod": "^3.22.0",
+    "zod-to-json-schema": "^3.21.0",
+    "dompurify": "^3.0.0"
+  },
+  "keywords": [
+    "stallion-ai",
+    "plugin",
+    "workspace",
+    "calendar",
+    "crm"
+  ],
+  "author": "Stallion AI Team",
+  "license": "MIT"
+}

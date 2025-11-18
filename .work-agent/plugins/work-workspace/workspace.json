@@ -1,0 +1,34 @@
+{
+  "name": "Stallion",
+  "slug": "stallion",
+  "icon": "🐎",
+  "description": "Integrated calendar and CRM workspace with flexible agent support",
+  "availableAgents": [
+    "stallion-workspace:work-agent"
+  ],
+  "defaultAgent": "stallion-workspace:work-agent",
+  "tabs": [
+    {
+      "id": "calendar",
+      "label": "Calendar",
+      "component": "stallion-workspace-calendar"
+    },
+    {
+      "id": "crm",
+      "label": "CRM", 
+      "component": "stallion-workspace-crm"
+    }
+  ],
+  "globalPrompts": [
+    {
+      "id": "daily-summary",
+      "label": "Daily Summary",
+      "prompt": "Summarize today's calendar events and CRM activities"
+    },
+    {
+      "id": "schedule-review",
+      "label": "Schedule Review",
+      "prompt": "Review my schedule and highlight any conflicts or important meetings"
+    }
+  ]
+}

@@ -1,9 +1,11 @@
 {
   "name": "sa-dashboard",
   "version": "1.0.0",
+  "type": "workspace",
   "sdkVersion": "^0.3",
   "displayName": "SA Dashboard",
   "description": "Stallion AI workspace dashboard with calendar and SFDC integration",
+  "entrypoint": "./index.tsx",
   "capabilities": ["chat", "mcp", "storage"],
   "permissions": ["storage.session"],
   "commands": [

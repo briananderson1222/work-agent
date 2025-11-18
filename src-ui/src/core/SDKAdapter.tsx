@@ -1,32 +1,57 @@
-import { ReactNode, useMemo } from 'react';
-import { SDK, SDKProvider, type PluginManifest } from '@stallion-ai/sdk';
+import { ReactNode } from 'react';
+import { SDKProvider, type SDKContextValue } from '@stallion-ai/sdk';
+import { useAgents } from '../contexts/AgentsContext';
+import { useWorkspaces } from '../contexts/WorkspacesContext';
+import { useConversations } from '../contexts/ConversationsContext';
+import { useNavigation } from '../contexts/NavigationContext';
+import { useToast } from '../contexts/ToastContext';
+import { useSendMessage, useCreateChatSession } from '../contexts/ActiveChatsContext';
+import { useApiBase } from '../contexts/ConfigContext';
 
 interface SDKAdapterProps {
   children: ReactNode;
-  apiBase?: string;
   authToken?: string;
 }
 
-const defaultManifest: PluginManifest = {
-  name: 'core',
-  version: '1.0.0',
-  sdkVersion: '^0.3',
-  capabilities: ['chat', 'mcp', 'storage'],
-  permissions: ['storage.session', 'storage.local']
-};
-
-// Detect backend port - use environment variable or default to 3141
-const getApiBase = () => {
-  return import.meta.env.VITE_API_BASE || 'http://localhost:3141';
-};
-
-export function SDKAdapter({ children, apiBase, authToken }: SDKAdapterProps) {
-  const effectiveApiBase = apiBase || getApiBase();
+/**
+ * SDKAdapter - Provides SDK context to plugin components
+ * Injects core app contexts into the SDK for plugin consumption
+ */
+export function SDKAdapter({ children, authToken }: SDKAdapterProps) {
+  // Get API base from the single source of truth
+  const { apiBase } = useApiBase();
   
-  const sdk = useMemo(
-    () => new SDK({ apiBase: effectiveApiBase, authToken }, defaultManifest),
-    [effectiveApiBase, authToken]
-  );
+  // Get all the core contexts
+  const agents = useAgents(apiBase);
+  const workspaces = useWorkspaces(apiBase);
+  const conversations = useConversations();
+  const navigation = useNavigation();
+  const toast = useToast();
+  const sendMessage = useSendMessage(apiBase);
+  const createChatSession = useCreateChatSession();
 
-  return <SDKProvider value={sdk}>{children}</SDKProvider>;
+  // Create SDK context value with injected contexts
+  const sdkValue: SDKContextValue = {
+    apiBase,
+    contexts: {
+      agents: { useAgents: () => agents },
+      workspaces: { useWorkspaces: () => workspaces },
+      conversations: { useConversations: () => conversations },
+      navigation: { useNavigation: () => navigation },
+      toast: { useToast: () => toast },
+      activeChats: { 
+        useSendMessage: () => sendMessage,
+        useCreateChatSession: () => createChatSession 
+      },
+    },
+    hooks: {
+      // Add other hooks as needed
+    }
+  };
+
+  return (
+    <SDKProvider value={sdkValue}>
+      {children}
+    </SDKProvider>
+  );
 }

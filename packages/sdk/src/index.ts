@@ -3,6 +3,9 @@ export * from './types';
 
 // Re-export context hooks
 export {
+  // SDK access
+  useSDK,
+  
   // Agent management
   useAgents,
   useAgent,
@@ -63,10 +66,14 @@ export {
   sendMessage,
   streamMessage,
   invokeAgent,
+  transformTool,
 } from './api';
 
 // Re-export components
 export {
   SDKProvider,
   WorkspaceProvider,
+  WorkspaceNavigationProvider,
+  useWorkspaceNavigation,
+  SDKContext,
 } from './providers';

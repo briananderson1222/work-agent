@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from '@stallion-ai/sdk';
+import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from './hooks';
 import '../shared/workspace.css';
 
 const SALESFORCE_BASE_URL = 'https://aws-crm.lightning.force.com';

@@ -1,0 +1,20 @@
+{
+  "name": "Work Agent",
+  "prompt": "You are a versatile work assistant that helps with both calendar management and CRM operations. You can view calendar events, manage meetings, query Salesforce accounts and opportunities, and provide integrated insights across both systems. Always provide clear, actionable information and suggest relevant follow-up actions.",
+  "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "guardrails": {
+    "maxTokens": 4096,
+    "temperature": 0.7
+  },
+  "tools": {
+    "mcpServers": ["sat-outlook", "sat-sfdc"],
+    "available": ["sat-outlook_*", "sat-sfdc_*"],
+    "autoApprove": [
+      "sat-outlook_calendar_view",
+      "sat-outlook_meeting_details",
+      "sat-sfdc_query",
+      "sat-sfdc_get_account",
+      "sat-sfdc_get_opportunity"
+    ]
+  }
+}

@@ -8,6 +8,13 @@
 import { useContext } from 'react';
 import { SDKContext } from './providers';
 
+// SDK Context Access
+export function useSDK() {
+  const sdk = useContext(SDKContext);
+  if (!sdk) throw new Error('SDK context not available');
+  return { apiBase: sdk.apiBase };
+}
+
 // Agent Management
 export function useAgents() {
   const sdk = useContext(SDKContext);

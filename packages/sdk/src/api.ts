@@ -151,6 +151,38 @@ export async function invokeAgent(
 }
 
 /**
+ * Transform tool data using an agent
+ */
+export async function transformTool(
+  apiBase: string,
+  agentSlug: string,
+  toolName: string,
+  toolArgs: any,
+  transformFn: string
+): Promise<any> {
+  const response = await fetch(`${apiBase}/agents/${agentSlug}/invoke/transform`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      toolName,
+      toolArgs,
+      transform: transformFn
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to transform tool: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error || 'Transform failed');
+  }
+  
+  return data.response;
+}
+
+/**
  * Fetch agent list
  */
 export async function fetchAgents(apiBase: string): Promise<any[]> {

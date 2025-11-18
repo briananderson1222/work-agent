@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from '@stallion-ai/sdk';
+import { useSDK, useAgents, useWorkspace, type WorkspaceProps } from './hooks';
 import { useConfig } from '../../contexts/ConfigContext';
 
 const CalendarEventSchema = z.object({
