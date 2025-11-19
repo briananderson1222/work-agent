@@ -33,7 +33,7 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        onClose();
+        onClose?.();
       }
     };
 
@@ -62,7 +62,7 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
       } else if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        onClose?.();
       }
     };
 
@@ -107,7 +107,7 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
       border: '1px solid var(--border-primary)',
       borderRadius: '4px',
       marginBottom: '4px',
-      maxHeight: '300px',
+      maxHeight: 'min(300px, 40vh)',
       overflowY: 'auto',
       zIndex: 1000,
       boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.1)',

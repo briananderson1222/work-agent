@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { AutocompleteSelector, AutocompleteItem } from './AutocompleteSelector';
+import { useModels } from '../contexts/ModelsContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
 
 export interface Model {
   id: string;
@@ -7,7 +9,8 @@ export interface Model {
   originalId: string;
 }
 
-interface ModelSelectorProps {
+// Autocomplete version for chat interface
+interface ModelSelectorAutocompleteProps {
   query: string;
   models: Model[];
   currentModel?: string;
@@ -15,15 +18,14 @@ interface ModelSelectorProps {
   onClose: () => void;
 }
 
-export function ModelSelector({ query, models, currentModel, onSelect, onClose }: ModelSelectorProps) {
-  // Filter and map models to AutocompleteItem format
+export function ModelSelectorAutocomplete({ query, models, currentModel, onSelect, onClose }: ModelSelectorAutocompleteProps) {
   const items = useMemo(() => {
     const searchTerm = (query || '').toLowerCase();
     const filtered = (models || []).filter(m => 
       m.name.toLowerCase().includes(searchTerm) || 
       m.id.toLowerCase().includes(searchTerm) ||
       m.originalId.toLowerCase().includes(searchTerm)
-    ).slice(0, 10); // Limit to 10 results
+    ).slice(0, 10);
 
     const normalizeId = (id: any) => {
       if (typeof id !== 'string') return '';
@@ -38,14 +40,13 @@ export function ModelSelector({ query, models, currentModel, onSelect, onClose }
       
       return {
         id: model.id,
-        title: `${model.name}${isActive ? ' (active)' : ''}`,
-        description: model.id !== model.originalId ? `ID: ${model.id}` : undefined,
+        title: model.name,
+        description: `ID: ${model.id}${isActive ? ' • Active' : ''}`,
         metadata: model,
         isActive
       };
     });
 
-    // Sort active model first
     return mapped.sort((a, b) => {
       if (a.isActive && !b.isActive) return -1;
       if (!a.isActive && b.isActive) return 1;
@@ -62,3 +63,162 @@ export function ModelSelector({ query, models, currentModel, onSelect, onClose }
     />
   );
 }
+
+// Form input version with dropdown
+interface ModelSelectorProps {
+  value: string;
+  onChange: (modelId: string) => void;
+  placeholder?: string;
+  defaultModel?: string; // Global default model to show as option
+}
+
+export function ModelSelector({ value, onChange, placeholder, defaultModel }: ModelSelectorProps) {
+  const { apiBase } = useApiBase();
+  const models = useModels(apiBase);
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedModel = models.find(m => m.id === value);
+  const defaultModelInfo = defaultModel ? models.find(m => m.id === defaultModel) : null;
+  
+  // Display value: show default model info if no value, otherwise show selected model
+  const displayValue = value 
+    ? (selectedModel?.name || value)
+    : (defaultModelInfo ? `${defaultModelInfo.name} (default)` : placeholder || 'Select a model...');
+
+  const filteredModels = useMemo(() => {
+    let filtered = models;
+    if (search) {
+      const term = search.toLowerCase();
+      filtered = models.filter(m => 
+        m.name.toLowerCase().includes(term) || 
+        m.id.toLowerCase().includes(term)
+      );
+    }
+    
+    // Add default option at the top if we have a default model
+    const options = defaultModel && defaultModelInfo ? [
+      { ...defaultModelInfo, id: '', name: `${defaultModelInfo.name} (default)`, originalId: '' }
+    ] : [];
+    
+    // Sort: selected model first (if not empty), then alphabetically
+    const sorted = filtered.sort((a, b) => {
+      if (value && a.id === value) return -1;
+      if (value && b.id === value) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    
+    return [...options, ...sorted];
+  }, [models, search, value, defaultModel, defaultModelInfo]);
+
+  // Reset selected index when filtered list changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filteredModels.length]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => Math.min(prev + 1, filteredModels.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (filteredModels[selectedIndex]) {
+          onChange(filteredModels[selectedIndex].id);
+          setIsOpen(false);
+          setSearch('');
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsOpen(false);
+        setSearch('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, selectedIndex, filteredModels, onChange]);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={isOpen ? search : displayValue}
+        onChange={(e) => setSearch(e.target.value)}
+        onFocus={() => {
+          setIsOpen(true);
+          setSearch('');
+          setSelectedIndex(0);
+        }}
+        onBlur={() => {
+          setTimeout(() => {
+            setIsOpen(false);
+            setSearch('');
+          }, 200);
+        }}
+        placeholder={placeholder || 'Select a model...'}
+        style={{ width: '100%' }}
+      />
+      {isOpen && filteredModels.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          marginTop: '4px',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-primary)',
+          borderRadius: '4px',
+          maxHeight: '300px',
+          overflowY: 'auto',
+          zIndex: 1000,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+        }}>
+          {filteredModels.map((model, idx) => {
+            const isActive = model.id === value || (!value && model.id === '');
+            const isSelected = idx === selectedIndex;
+            const isDefaultOption = model.id === '';
+            
+            return (
+              <div
+                key={model.id || 'default'}
+                onMouseDown={() => {
+                  onChange(model.id);
+                  setIsOpen(false);
+                  setSearch('');
+                }}
+                onMouseEnter={() => setSelectedIndex(idx)}
+                style={{
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  background: isSelected ? 'var(--bg-hover)' : 'transparent',
+                  borderLeft: isSelected ? '3px solid var(--accent-primary)' : '3px solid transparent',
+                  borderBottom: isDefaultOption ? '1px solid var(--border-primary)' : 'none',
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: '2px' }}>
+                  {model.name}
+                  {isActive && !isDefaultOption && <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--accent-primary)' }}>(active)</span>}
+                </div>
+                {!isDefaultOption && (
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{model.id}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default ModelSelector;

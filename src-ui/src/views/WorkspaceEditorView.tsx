@@ -22,6 +22,8 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
   const [isLoading, setIsLoading] = useState(!!slug);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedTabs, setExpandedTabs] = useState<Set<number>>(new Set());
+  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadAgents();
@@ -94,10 +96,12 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
   };
 
   const addTab = () => {
+    const newIndex = 0;
     setFormData(prev => ({
       ...prev,
-      tabs: [...prev.tabs, { id: `tab-${Date.now()}`, label: 'New Tab', component: 'project-stallion-dashboard' }],
+      tabs: [{ id: `tab-${Date.now()}`, label: 'New Tab', component: 'project-stallion-dashboard' }, ...prev.tabs],
     }));
+    setExpandedTabs(prev => new Set([...prev, newIndex]));
   };
 
   const updateTab = (index: number, updates: Partial<WorkspaceTab>) => {
@@ -119,15 +123,17 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
     if (tabIndex === null) {
       setFormData(prev => ({
         ...prev,
-        globalPrompts: [...(prev.globalPrompts || []), newPrompt],
+        globalPrompts: [newPrompt, ...(prev.globalPrompts || [])],
       }));
+      setExpandedPrompts(prev => new Set([...prev, `global-0`]));
     } else {
       setFormData(prev => ({
         ...prev,
         tabs: prev.tabs.map((tab, i) => 
-          i === tabIndex ? { ...tab, prompts: [...(tab.prompts || []), newPrompt] } : tab
+          i === tabIndex ? { ...tab, prompts: [newPrompt, ...(tab.prompts || [])] } : tab
         ),
       }));
+      setExpandedPrompts(prev => new Set([...prev, `tab-${tabIndex}-0`]));
     }
   };
 
@@ -391,77 +397,144 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
                 No global prompts yet. Add one to make it available across all tabs.
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: '12px' }}>
-                {(formData.globalPrompts || []).map((prompt, i) => (
-                  <div key={i} style={{ 
-                    padding: '16px', 
-                    border: '1px solid var(--border-primary)', 
-                    borderRadius: '6px',
-                    background: 'var(--bg-secondary)',
-                  }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', marginBottom: '12px' }}>
-                      <input
-                        type="text"
-                        placeholder="Prompt Label"
-                        value={prompt.label}
-                        onChange={e => updatePrompt(null, i, { label: e.target.value })}
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {(formData.globalPrompts || []).map((prompt, i) => {
+                  const promptKey = `global-${i}`;
+                  const isExpanded = expandedPrompts.has(promptKey);
+                  const agentName = agents.find(a => a.slug === prompt.agent)?.name;
+                  
+                  return (
+                    <div key={i} style={{ 
+                      border: '1px solid var(--border-primary)', 
+                      borderRadius: '6px',
+                      background: 'var(--bg-secondary)',
+                      overflow: 'hidden',
+                    }}>
+                      {/* Collapsed Header */}
+                      <div 
                         style={{
-                          padding: '8px 10px',
-                          border: '1px solid var(--border-primary)',
-                          borderRadius: '4px',
-                          background: 'var(--bg-primary)',
-                          color: 'var(--text-primary)',
-                          fontSize: '13px',
-                        }}
-                      />
-                      <select
-                        value={prompt.agent || ''}
-                        onChange={e => updatePrompt(null, i, { agent: e.target.value || undefined })}
-                        style={{
-                          padding: '8px 10px',
-                          border: '1px solid var(--border-primary)',
-                          borderRadius: '4px',
-                          background: 'var(--bg-primary)',
-                          color: 'var(--text-primary)',
-                          fontSize: '13px',
+                          padding: '12px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: isExpanded ? 'var(--bg-tertiary)' : 'transparent',
                         }}
                       >
-                        <option value="">Select agent...</option>
-                        {agents.map(a => <option key={a.slug} value={a.slug}>{a.name}</option>)}
-                      </select>
-                      <button
-                        onClick={() => removePrompt(null, i)}
-                        style={{
-                          padding: '8px 12px',
-                          border: 'none',
-                          borderRadius: '4px',
-                          background: 'transparent',
-                          color: 'var(--error-text)',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                        }}
-                      >
-                        Remove
-                      </button>
+                        <div 
+                          onClick={() => setExpandedPrompts(prev => {
+                            const next = new Set(prev);
+                            if (next.has(promptKey)) next.delete(promptKey);
+                            else next.add(promptKey);
+                            return next;
+                          })}
+                          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                        >
+                          <span style={{ fontSize: '14px', fontWeight: 500 }}>
+                            {prompt.label || 'Untitled Prompt'}
+                          </span>
+                          {agentName && (
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              → {agentName}
+                            </span>
+                          )}
+                          {prompt.prompt && !isExpanded && (
+                            <span style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {prompt.prompt.substring(0, 60)}{prompt.prompt.length > 60 ? '...' : ''}
+                            </span>
+                          )}
+                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                            {isExpanded ? '▼' : '▶'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removePrompt(null, i);
+                          }}
+                          style={{
+                            padding: '4px 8px',
+                            border: 'none',
+                            background: 'transparent',
+                            color: 'var(--error-text)',
+                            cursor: 'pointer',
+                            fontSize: '18px',
+                            lineHeight: '1',
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      
+                      {/* Expanded Form */}
+                      {isExpanded && (
+                        <div style={{ padding: '0 16px 16px 16px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', marginBottom: '12px' }}>
+                            <input
+                              type="text"
+                              placeholder="Prompt Label"
+                              value={prompt.label}
+                              onChange={e => updatePrompt(null, i, { label: e.target.value })}
+                              style={{
+                                padding: '8px 10px',
+                                border: '1px solid var(--border-primary)',
+                                borderRadius: '4px',
+                                background: 'var(--bg-primary)',
+                                color: 'var(--text-primary)',
+                                fontSize: '13px',
+                              }}
+                            />
+                            <select
+                              value={prompt.agent || ''}
+                              onChange={e => updatePrompt(null, i, { agent: e.target.value || undefined })}
+                              style={{
+                                padding: '8px 10px',
+                                border: '1px solid var(--border-primary)',
+                                borderRadius: '4px',
+                                background: 'var(--bg-primary)',
+                                color: 'var(--text-primary)',
+                                fontSize: '13px',
+                              }}
+                            >
+                              <option value="">Select agent...</option>
+                              {agents.map(a => <option key={a.slug} value={a.slug}>{a.name}</option>)}
+                            </select>
+                            <button
+                              onClick={() => removePrompt(null, i)}
+                              style={{
+                                padding: '4px 8px',
+                                border: 'none',
+                                borderRadius: '4px',
+                                background: 'transparent',
+                                color: 'var(--error-text)',
+                                cursor: 'pointer',
+                                fontSize: '18px',
+                                lineHeight: '1',
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <textarea
+                            placeholder="Prompt text"
+                            value={prompt.prompt}
+                            onChange={e => updatePrompt(null, i, { prompt: e.target.value })}
+                            rows={3}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              border: '1px solid var(--border-primary)',
+                              borderRadius: '4px',
+                              background: 'var(--bg-primary)',
+                              color: 'var(--text-primary)',
+                              fontSize: '13px',
+                              resize: 'vertical',
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
-                    <textarea
-                      placeholder="Prompt text"
-                      value={prompt.prompt}
-                      onChange={e => updatePrompt(null, i, { prompt: e.target.value })}
-                      rows={2}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        border: '1px solid var(--border-primary)',
-                        borderRadius: '4px',
-                        background: 'var(--bg-primary)',
-                        color: 'var(--text-primary)',
-                        fontSize: '13px',
-                        resize: 'vertical',
-                      }}
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -487,15 +560,78 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
                 + Add Tab
               </button>
             </div>
-            <div style={{ display: 'grid', gap: '16px' }}>
-              {formData.tabs.map((tab, tabIdx) => (
-                <div key={tabIdx} style={{ 
-                  padding: '20px', 
-                  border: '1px solid var(--border-primary)', 
-                  borderRadius: '6px',
-                  background: 'var(--bg-secondary)',
-                }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {formData.tabs.map((tab, tabIdx) => {
+                const isExpanded = expandedTabs.has(tabIdx);
+                const promptCount = (tab.prompts || []).length;
+                
+                return (
+                  <div key={tabIdx} style={{ 
+                    border: '1px solid var(--border-primary)', 
+                    borderRadius: '6px',
+                    background: 'var(--bg-secondary)',
+                    overflow: 'hidden',
+                  }}>
+                    {/* Collapsed Header */}
+                    <div style={{
+                      padding: '12px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: isExpanded ? 'var(--bg-tertiary)' : 'transparent',
+                    }}>
+                      <div
+                        onClick={() => setExpandedTabs(prev => {
+                          const next = new Set(prev);
+                          if (next.has(tabIdx)) next.delete(tabIdx);
+                          else next.add(tabIdx);
+                          return next;
+                        })}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                      >
+                        <span style={{ fontSize: '14px', fontWeight: 500 }}>
+                          {tab.label || 'Untitled Tab'}
+                        </span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          ID: {tab.id}
+                        </span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          {tab.component}
+                        </span>
+                        {promptCount > 0 && (
+                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                            • {promptCount} prompt{promptCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                          {isExpanded ? '▼' : '▶'}
+                        </span>
+                      </div>
+                      {formData.tabs.length > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeTab(tabIdx);
+                          }}
+                          style={{
+                            padding: '4px 8px',
+                            border: 'none',
+                            background: 'transparent',
+                            color: 'var(--error-text)',
+                            cursor: 'pointer',
+                            fontSize: '18px',
+                            lineHeight: '1',
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Expanded Form */}
+                    {isExpanded && (
+                      <div style={{ padding: '0 16px 16px 16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                     <div>
                       <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
                         Tab ID
@@ -589,14 +725,75 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
                       </div>
                     ) : (
                       <div style={{ display: 'grid', gap: '8px' }}>
-                        {(tab.prompts || []).map((prompt, promptIdx) => (
-                          <div key={promptIdx} style={{ 
-                            padding: '12px', 
-                            background: 'var(--bg-primary)', 
-                            border: '1px solid var(--border-primary)',
-                            borderRadius: '4px',
-                          }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', marginBottom: '8px' }}>
+                        {(tab.prompts || []).map((prompt, promptIdx) => {
+                          const promptKey = `tab-${tabIdx}-${promptIdx}`;
+                          const isPromptExpanded = expandedPrompts.has(promptKey);
+                          const agentName = agents.find(a => a.slug === prompt.agent)?.name;
+                          
+                          return (
+                            <div key={promptIdx} style={{ 
+                              background: 'var(--bg-primary)', 
+                              border: '1px solid var(--border-primary)',
+                              borderRadius: '4px',
+                              overflow: 'hidden',
+                            }}>
+                              {/* Collapsed Header */}
+                              <div style={{
+                                padding: '8px 12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: isPromptExpanded ? 'var(--bg-secondary)' : 'transparent',
+                              }}>
+                                <div
+                                  onClick={() => setExpandedPrompts(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(promptKey)) next.delete(promptKey);
+                                    else next.add(promptKey);
+                                    return next;
+                                  })}
+                                  style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                                >
+                                  <span style={{ fontSize: '13px', fontWeight: 500 }}>
+                                    {prompt.label || 'Untitled'}
+                                  </span>
+                                  {agentName && (
+                                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                      → {agentName}
+                                    </span>
+                                  )}
+                                  {prompt.prompt && !isPromptExpanded && (
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {prompt.prompt.substring(0, 40)}{prompt.prompt.length > 40 ? '...' : ''}
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                                    {isPromptExpanded ? '▼' : '▶'}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removePrompt(tabIdx, promptIdx);
+                                  }}
+                                  style={{
+                                    padding: '2px 6px',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: 'var(--error-text)',
+                                    cursor: 'pointer',
+                                    fontSize: '16px',
+                                    lineHeight: '1',
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </div>
+
+                              {/* Expanded Form */}
+                              {isPromptExpanded && (
+                                <div style={{ padding: '0 12px 12px 12px' }}>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                               <input
                                 type="text"
                                 placeholder="Label"
@@ -626,20 +823,6 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
                                 <option value="">Select agent...</option>
                                 {agents.map(a => <option key={a.slug} value={a.slug}>{a.name}</option>)}
                               </select>
-                              <button
-                                onClick={() => removePrompt(tabIdx, promptIdx)}
-                                style={{
-                                  padding: '6px 8px',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  background: 'transparent',
-                                  color: 'var(--error-text)',
-                                  cursor: 'pointer',
-                                  fontSize: '12px',
-                                }}
-                              >
-                                ×
-                              </button>
                             </div>
                             <textarea
                               placeholder="Prompt text"
@@ -657,30 +840,19 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
                                 resize: 'vertical',
                               }}
                             />
-                          </div>
-                        ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
-
-                  {formData.tabs.length > 1 && (
-                    <button 
-                      onClick={() => removeTab(tabIdx)}
-                      style={{
-                        padding: '6px 12px',
-                        border: 'none',
-                        borderRadius: '4px',
-                        background: 'transparent',
-                        color: 'var(--error-text)',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                      }}
-                    >
-                      Remove Tab
-                    </button>
-                  )}
-                </div>
-              ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </section>
         </div>

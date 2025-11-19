@@ -165,10 +165,12 @@ export interface TemplateVariable {
 
 export type NavigationView =
   | { type: 'workspace' }
+  | { type: 'workspaces' }
   | { type: 'agents' }
   | { type: 'prompts' }
   | { type: 'integrations' }
   | { type: 'monitoring' }
+  | { type: 'profile' }
   | { type: 'agent-new' }
   | { type: 'agent-edit'; slug: string; initialTab?: 'basic' | 'model' | 'tools' | 'commands' }
   | { type: 'tools'; slug: string }

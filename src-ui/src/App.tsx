@@ -25,6 +25,7 @@ import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { SettingsView } from './views/SettingsView';
 import { MonitoringView } from './views/MonitoringView';
+import { ProfilePage } from './pages/ProfilePage';
 import { useAwsAuth } from './hooks/useAwsAuth';
 import { setAuthCallback } from './lib/apiClient';
 import { getAgentIcon } from './utils/workspace';
@@ -32,8 +33,6 @@ import type {
   AgentSummary,
   NavigationView,
 } from './types';
-
-import { ApiBaseProvider } from './contexts/ApiBaseContext';
 
 function App() {
   const { apiBase: API_BASE } = useApiBase();
@@ -65,6 +64,7 @@ function App() {
     if (path === '/prompts') return { type: 'prompts' };
     if (path === '/integrations') return { type: 'integrations' };
     if (path === '/monitoring') return { type: 'monitoring' };
+    if (path === '/profile') return { type: 'profile' };
     if (path === '/settings') return { type: 'settings' };
     if (path === '/agents/new') return { type: 'agent-new' };
     if (path.startsWith('/agents/') && path.endsWith('/edit')) {
@@ -412,6 +412,16 @@ function App() {
     showToast('Settings saved successfully');
   };
 
+  const handleAgentSaved = () => {
+    showToast('Agent saved successfully');
+    navigateToView({ type: 'agents' });
+  };
+
+  const handleWorkspaceSaved = () => {
+    showToast('Workspace saved successfully');
+    navigateToWorkspace();
+  };
+
   // Keyboard shortcuts
   useKeyboardShortcut('app.settings', ',', ['cmd'], 'Toggle settings', useCallback(() => {
     if (currentView.type === 'settings') {
@@ -458,31 +468,156 @@ function App() {
         )}
 
         <div className="main-content main-content--full">
+          {currentView.type === 'workspaces' && (
+            <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>Workspaces</h1>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    Manage workspace configurations and layouts
+                  </p>
+                </div>
+                <button className="button button--primary" onClick={() => navigateToView({ type: 'workspace-new' })}>
+                  + New Workspace
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                {workspaces.map((workspace) => (
+                  <div
+                    key={workspace.slug}
+                    style={{
+                      background: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '8px',
+                      padding: '20px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onClick={() => navigateToView({ type: 'workspace-edit', slug: workspace.slug })}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{ fontSize: '32px' }}>
+                        {workspace.icon || '📋'}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>{workspace.name}</h3>
+                      </div>
+                    </div>
+                    {workspace.description && (
+                      <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        {workspace.description}
+                      </p>
+                    )}
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      {workspace.tabs?.length || 0} tabs
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {currentView.type === 'agents' && (
             <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h1 style={{ margin: 0 }}>Agents</h1>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>Agents</h1>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    Manage AI agents with custom prompts, models, and tools
+                  </p>
+                </div>
                 <button className="button button--primary" onClick={() => navigateToView({ type: 'agent-new' })}>
                   + New Agent
                 </button>
               </div>
-              <div style={{ display: 'grid', gap: '12px' }}>
-                {agents.map(agent => (
-                  <div key={agent.slug} style={{ 
-                    padding: '16px', 
-                    border: '1px solid var(--border-primary)', 
-                    borderRadius: '8px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
-                      {agent.description && <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{agent.description}</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                {agents.map((agent) => (
+                  <div
+                    key={agent.slug || agent.id}
+                    style={{
+                      background: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--color-border)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                    onClick={() => navigateToView({ type: 'agent-edit', slug: agent.slug || agent.id })}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'var(--color-primary)',
+                        color: 'var(--bg-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: getAgentIcon(agent).isCustomIcon ? '24px' : '18px',
+                        fontWeight: 600,
+                        flexShrink: 0,
+                      }}>
+                        {getAgentIcon(agent).display}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                          {agent.slug}
+                        </div>
+                      </div>
                     </div>
-                    <button className="button button--secondary" onClick={() => navigateToView({ type: 'agent-edit', slug: agent.slug })}>
-                      Edit
-                    </button>
+                    {agent.description && (
+                      <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                        {agent.description.length > 100 ? `${agent.description.substring(0, 100)}...` : agent.description}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto' }}>
+                      {(() => {
+                        const modelId = agent.model || appConfig.defaultModel;
+                        if (!modelId) return null;
+                        
+                        const isInherited = !agent.model;
+                        const modelInfo = availableModels.find(m => m.id === modelId);
+                        
+                        // Extract model name from ID if not found in list
+                        let displayName = 'model';
+                        if (modelInfo) {
+                          displayName = modelInfo.name;
+                        } else if (typeof modelId === 'string') {
+                          // Extract from ID like "anthropic.claude-3-5-sonnet-20240620-v1:0"
+                          const parts = modelId.split('.');
+                          if (parts.length > 1) {
+                            const modelPart = parts[1].split('-')[0]; // Get "claude"
+                            displayName = modelPart.charAt(0).toUpperCase() + modelPart.slice(1);
+                          }
+                        }
+                        
+                        return (
+                          <div style={{
+                            fontSize: '12px',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            background: 'var(--color-bg)',
+                            color: 'var(--text-secondary)',
+                          }}>
+                            {displayName}
+                            {isInherited && <span style={{ marginLeft: '4px', opacity: 0.7 }}>(default)</span>}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -490,14 +625,34 @@ function App() {
           )}
           {currentView.type === 'prompts' && (
             <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-              <h1>Prompts</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Manage global prompts and quick actions.</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>Global Prompts</h1>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    Create reusable prompts for workspaces and agent commands
+                  </p>
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
+                <p>Prompts management coming soon.</p>
+              </div>
             </div>
           )}
           {currentView.type === 'integrations' && (
             <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-              <h1>Integrations</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Manage MCP tools and integrations.</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>Integrations</h1>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    Manage MCP tools and integrations
+                  </p>
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔌</div>
+                <p>Integrations management coming soon.</p>
+              </div>
             </div>
           )}
           {currentView.type === 'agent-new' && (
@@ -564,6 +719,7 @@ function App() {
               onChatFontSizeChange={() => {}}
             />
           )}
+          {currentView.type === 'profile' && <ProfilePage />}
           {currentView.type === 'monitoring' && <MonitoringView />}
         </div>
 
@@ -631,12 +787,4 @@ function App() {
   return null;
 }
 
-function AppWithSDK() {
-  return (
-    <ApiBaseProvider>
-      <App />
-    </ApiBaseProvider>
-  );
-}
-
-export default AppWithSDK;
+export default App;

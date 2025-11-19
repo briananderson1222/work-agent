@@ -656,20 +656,6 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
           {activeTab === 'general' && (
             <div className="settings-panel">
               <div className="form-group">
-                <label htmlFor="apiEndpoint">API Endpoint</label>
-                <input
-                  id="apiEndpoint"
-                  type="text"
-                  value={config.apiEndpoint || ''}
-                  onChange={(e) => setConfig({ ...config, apiEndpoint: e.target.value })}
-                  placeholder="http://localhost:3141"
-                />
-                <span className="form-help">
-                  Base URL for the backend API. Leave empty to use default.
-                </span>
-              </div>
-
-              <div className="form-group">
                 <label htmlFor="defaultModel">Default Model</label>
                 <ModelSelector
                   value={config.defaultModel || ''}

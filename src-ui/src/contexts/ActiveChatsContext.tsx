@@ -56,14 +56,14 @@ class ActiveChatsStore {
     try {
       const stored = sessionStorage.getItem(this.STORAGE_KEY);
       if (stored) {
-        const minimal: Array<{ sessionId: string; conversationId: string; agentSlug: string; sessionAutoApprove?: string[]; ephemeralMessages?: any[] }> = JSON.parse(stored);
+        const minimal: Array<{ sessionId: string; conversationId: string; agentSlug: string; sessionAutoApprove?: string[]; ephemeralMessages?: any[]; inputHistory?: string[] }> = JSON.parse(stored);
         // Initialize minimal chat states - everything else will be derived reactively
         for (const session of minimal) {
           this.chats[session.sessionId] = {
             input: '',
             attachments: [],
             queuedMessages: [],
-            inputHistory: [],
+            inputHistory: session.inputHistory || [],
             hasUnread: false,
             agentSlug: session.agentSlug,
             conversationId: session.conversationId,
@@ -89,6 +89,7 @@ class ActiveChatsStore {
           agentSlug: chat.agentSlug!,
           sessionAutoApprove: chat.sessionAutoApprove || [],
           ephemeralMessages: chat.ephemeralMessages || [],
+          inputHistory: chat.inputHistory || [],
         }));
       sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(minimal));
     } catch (e) {
@@ -217,6 +218,17 @@ class ActiveChatsStore {
       this.notify();
     }
   }
+
+  addToInputHistory(sessionId: string, input: string) {
+    if (this.chats[sessionId]) {
+      const history = this.chats[sessionId].inputHistory || [];
+      this.chats[sessionId] = { 
+        ...this.chats[sessionId], 
+        inputHistory: [...history, input] 
+      };
+      this.notify();
+    }
+  }
 }
 
 export const activeChatsStore = new ActiveChatsStore();
@@ -232,6 +244,7 @@ type ActiveChatsContextType = {
   removeQueuedMessage: (sessionId: string, index: number) => void;
   editQueuedMessage: (sessionId: string, index: number, newContent: string) => void;
   clearQueue: (sessionId: string) => void;
+  addToInputHistory: (sessionId: string, input: string) => void;
   getAllChats: () => Record<string, ChatUIState>;
 };
 
@@ -282,6 +295,10 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
     activeChatsStore.clearQueue(sessionId);
   }, []);
 
+  const addToInputHistory = useCallback((sessionId: string, input: string) => {
+    activeChatsStore.addToInputHistory(sessionId, input);
+  }, []);
+
   return (
     <ActiveChatsContext.Provider value={{ 
       initChat, 
@@ -294,6 +311,7 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
       removeQueuedMessage,
       editQueuedMessage,
       clearQueue,
+      addToInputHistory,
       getAllChats 
     }}>
       {children}
@@ -533,6 +551,7 @@ export function useOpenConversation(apiBase: string) {
 
 export function useRehydrateSessions(apiBase: string) {
   const { fetchMessages, fetchConversations } = useConversationActions();
+  const { updateChat } = useActiveChatActions();
 
   return useCallback(async () => {
     const allChats = activeChatsStore.getSnapshot();
@@ -550,13 +569,33 @@ export function useRehydrateSessions(apiBase: string) {
       fetchConversations(apiBase, slug);
     }
     
-    // Fetch messages for each conversation
-    for (const chat of Object.values(allChats)) {
+    // Fetch messages for each conversation and rebuild input history
+    for (const [sessionId, chat] of Object.entries(allChats)) {
       if (chat.conversationId && chat.agentSlug) {
-        fetchMessages(apiBase, chat.agentSlug, chat.conversationId);
+        await fetchMessages(apiBase, chat.agentSlug, chat.conversationId);
+        
+        // Rebuild input history from conversation messages + sessionStorage slash commands
+        const messagesKey = `messages:${chat.agentSlug}:${chat.conversationId}`;
+        const backendMessages = conversationsStore.getSnapshot().messages[messagesKey] || [];
+        
+        // Get user messages from backend (these are the actual sent messages)
+        const userMessages = backendMessages
+          .filter(m => m.role === 'user')
+          .map(m => m.content);
+        
+        // Get slash commands from sessionStorage (already stored)
+        const storedSlashCommands = (chat.inputHistory || [])
+          .filter(input => input.startsWith('/'));
+        
+        // Combine: user messages from backend + slash commands from storage
+        // Keep them in order they were added (append slash commands at end)
+        const mergedHistory = [...userMessages, ...storedSlashCommands];
+        
+        // Update the session with merged history
+        updateChat(sessionId, { inputHistory: mergedHistory });
       }
     }
-  }, [apiBase, fetchMessages, fetchConversations]);
+  }, [apiBase, fetchMessages, fetchConversations, updateChat]);
 }
 
 export type { ChatUIState };

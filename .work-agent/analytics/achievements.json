@@ -1,0 +1,19 @@
+{
+  "first-message": {
+    "unlocked": true,
+    "unlockedAt": "2025-11-19T05:57:43.214Z"
+  },
+  "conversationalist": {
+    "unlocked": false
+  },
+  "power-user": {
+    "unlocked": false
+  },
+  "model-explorer": {
+    "unlocked": false
+  },
+  "cost-conscious": {
+    "unlocked": false,
+    "unlockedAt": "2025-11-19T06:23:09.110Z"
+  }
+}

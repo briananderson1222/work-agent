@@ -3,6 +3,7 @@ import type { AgentSummary, Tool } from '../types';
 import { getAgentIcon } from '../utils/workspace';
 import { AgentIcon } from '../components/AgentIcon';
 import { useModels } from '../contexts/ModelsContext';
+import { useConfig } from '../contexts/ConfigContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
@@ -35,6 +36,7 @@ const FORM_STEPS: readonly FormStep[] = ['basic', 'model', 'tools', 'commands'] 
 
 export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: AgentEditorViewProps) {
   const availableModels = useModels(apiBase);
+  const appConfig = useConfig(apiBase);
   const [currentStep, setCurrentStep] = useState<FormStep>(initialTab || 'basic');
   const [expandedCommands, setExpandedCommands] = useState<Record<string, boolean>>({});
   
@@ -71,7 +73,6 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
   const [isCreatingTool, setIsCreatingTool] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'failed' | null>(null);
-  const [appConfig, setAppConfig] = useState<{ region?: string; defaultModel?: string; defaultMaxTurns?: number } | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   const isEditMode = !!slug;
@@ -81,19 +82,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
       loadAgent(slug);
     }
     loadTools();
-    loadAppConfig();
   }, [slug]);
-
-  const loadAppConfig = async () => {
-    try {
-      const response = await fetch(`${apiBase}/config/app`);
-      if (!response.ok) throw new Error('Failed to load app config');
-      const data = await response.json();
-      setAppConfig(data.data);
-    } catch (err) {
-      console.error('Failed to load app config:', err);
-    }
-  };
 
   const loadAgent = async (agentSlug: string) => {
     try {
@@ -148,7 +137,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
     }
 
     if (step === 'model') {
-      if (!formData.modelId.trim()) errors.modelId = 'Model ID is required';
+      // modelId is optional - empty means use default model
     }
 
     setValidationErrors(errors);
@@ -185,13 +174,13 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         name: formData.name,
         description: formData.description,
         prompt: formData.prompt,
-        model: formData.modelId || undefined,
-        region: formData.region || undefined,
-        guardrails: formData.guardrails || undefined,
-        maxTurns: formData.maxTurns ? parseInt(formData.maxTurns) : undefined,
-        tools: formData.tools.length > 0 ? { use: formData.tools } : undefined,
-        icon: formData.icon || undefined,
-        commands: formData.commands && Object.keys(formData.commands).length > 0 ? formData.commands : undefined,
+        model: formData.modelId || null,
+        region: formData.region || null,
+        guardrails: formData.guardrails || null,
+        maxTurns: formData.maxTurns ? parseInt(formData.maxTurns) : null,
+        tools: formData.tools.length > 0 ? { use: formData.tools } : null,
+        icon: formData.icon || null,
+        commands: formData.commands && Object.keys(formData.commands).length > 0 ? formData.commands : null,
       };
 
       const url = isEditMode ? `${apiBase}/agents/${slug}` : `${apiBase}/agents`;
@@ -580,6 +569,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   value={formData.modelId}
                   onChange={(modelId) => setFormData({ ...formData, modelId })}
                   placeholder="Select a model..."
+                  defaultModel={appConfig.defaultModel}
                 />
                 {validationErrors.modelId && (
                   <span className="form-error">{validationErrors.modelId}</span>

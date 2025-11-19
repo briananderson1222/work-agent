@@ -28,6 +28,7 @@ import type { UIMessage } from 'ai';
 
 export interface FileVoltAgentMemoryAdapterOptions {
   workAgentDir: string;
+  usageAggregator?: any;
 }
 
 type SerializedSuspension = Omit<NonNullable<WorkflowStateEntry['suspension']>, 'suspendedAt'> & {
@@ -46,11 +47,13 @@ type WorkflowStateJson = Omit<WorkflowStateEntry, 'createdAt' | 'updatedAt' | 's
  */
 export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   private workAgentDir: string;
+  private usageAggregator?: any;
   private conversationCache = new Map<string, Conversation>();
   private conversationResourceCache = new Map<string, string>();
 
   constructor(options: FileVoltAgentMemoryAdapterOptions) {
     this.workAgentDir = options.workAgentDir;
+    this.usageAggregator = options.usageAggregator;
   }
 
   /**
@@ -422,27 +425,39 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     const resourceId = await this.resolveResourceId(conversationId, userId);
     await mkdir(this.getSessionsDir(resourceId), { recursive: true });
 
-    // Add timestamp to metadata
-    const messageWithTimestamp = {
+    // Add timestamp and analytics metadata
+    const messageWithMetadata = {
       ...message,
       metadata: {
         ...message.metadata,
         timestamp: Date.now(),
+        modelMetadata: context?.modelMetadata,
+        usage: context?.usage,
+        model: context?.model,
       }
     };
 
     // Check if operation was aborted and append cancellation notice to assistant messages
     const abortController = context?.abortController;
-    if (abortController?.signal.aborted && messageWithTimestamp.role === 'assistant') {
-      messageWithTimestamp.parts = [
-        ...messageWithTimestamp.parts,
+    if (abortController?.signal.aborted && messageWithMetadata.role === 'assistant') {
+      messageWithMetadata.parts = [
+        ...messageWithMetadata.parts,
         { type: 'text', text: '\n\n---\n\n_⚠️ Response cancelled by user_' }
       ];
     }
 
     const messagesPath = this.getMessagesPath(resourceId, conversationId);
-    await appendFile(messagesPath, JSON.stringify(messageWithTimestamp) + '\n', 'utf-8');
+    await appendFile(messagesPath, JSON.stringify(messageWithMetadata) + '\n', 'utf-8');
     await this.touchConversation(conversationId);
+
+    // Update analytics if aggregator is available and message has usage data
+    if (this.usageAggregator && messageWithMetadata.metadata?.usage && messageWithMetadata.role === 'assistant') {
+      try {
+        await this.usageAggregator.incrementalUpdate(messageWithMetadata, resourceId, conversationId);
+      } catch (error) {
+        console.error('[Analytics] Failed to update usage stats:', error);
+      }
+    }
   }
 
   async addMessages(messages: UIMessage[], userId: string, conversationId: string): Promise<void> {

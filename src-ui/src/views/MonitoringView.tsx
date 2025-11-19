@@ -6,7 +6,7 @@ import { useSearchAutocomplete, parseSearchQuery } from '../hooks/useSearchAutoc
 import type { AgentStats, MonitoringEvent } from '../contexts/MonitoringContext';
 
 export function MonitoringView() {
-  const { stats, events, clearEvents } = useMonitoring();
+  const { stats, events, clearEvents, setTimeRange } = useMonitoring();
   const { setConversation, setActiveChat } = useNavigation();
   const { showToast } = useToast();
   const [autoFollow, setAutoFollow] = useState(true);
@@ -54,12 +54,137 @@ export function MonitoringView() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [selectedToolCallId, setSelectedToolCallId] = useState<string | null>(null);
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<'now' | 'today' | 'week' | 'month' | 'all'>('now');
+  const [timeMode, setTimeMode] = useState<'relative' | 'absolute'>('absolute');
+  const [relativeTime, setRelativeTime] = useState<'5m' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d'>('5m');
+  const [absoluteStart, setAbsoluteStart] = useState<string>('');
+  const [absoluteEnd, setAbsoluteEnd] = useState<string>('');
+  const [isLiveMode, setIsLiveMode] = useState(true);
+  const [clearTime, setClearTime] = useState<Date | null>(null);
+  const [elapsedLabel, setElapsedLabel] = useState<string>('');
+  
+  const handleClearAll = () => {
+    clearEvents();
+    const now = new Date();
+    setClearTime(now);
+    setTimeRange(now, now, true);
+    setIsLiveMode(true);
+    setTimeMode('absolute');
+    // Update absolute inputs
+    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+    setAbsoluteStart(localDateTime);
+    setAbsoluteEnd(localDateTime);
+  };
+  
+  // Update absolute end time when in live mode
+  useEffect(() => {
+    if (!isLiveMode) return;
+    
+    const updateEndTime = () => {
+      const now = new Date();
+      const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+      setAbsoluteEnd(localDateTime);
+    };
+    
+    updateEndTime();
+    const interval = setInterval(updateEndTime, 1000);
+    return () => clearInterval(interval);
+  }, [isLiveMode]);
+  
+  // Update elapsed time label
+  useEffect(() => {
+    const startTime = clearTime || (timeMode === 'absolute' && absoluteStart ? new Date(absoluteStart) : null);
+    if (!startTime || !isLiveMode) return;
+    
+    const updateLabel = () => {
+      const elapsed = Date.now() - startTime.getTime();
+      const seconds = Math.floor(elapsed / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      
+      if (days > 0) {
+        setElapsedLabel(`Last ${days} day${days > 1 ? 's' : ''}`);
+      } else if (hours > 0) {
+        setElapsedLabel(`Last ${hours} hour${hours > 1 ? 's' : ''}`);
+      } else if (minutes > 0) {
+        setElapsedLabel(`Last ${minutes} min`);
+      } else {
+        setElapsedLabel(`Last ${seconds} sec`);
+      }
+    };
+    
+    updateLabel();
+    const interval = setInterval(updateLabel, 1000);
+    return () => clearInterval(interval);
+  }, [clearTime, timeMode, absoluteStart, isLiveMode]);
+  
+  // When switching to absolute mode, initialize start time from current relative time
+  const handleTimeModeChange = (mode: 'relative' | 'absolute') => {
+    if (mode === 'absolute' && !absoluteStart) {
+      const ms = relativeTime === '5m' ? 5 * 60 * 1000 
+        : relativeTime === '15m' ? 15 * 60 * 1000
+        : relativeTime === '1h' ? 60 * 60 * 1000
+        : relativeTime === '6h' ? 6 * 60 * 60 * 1000
+        : relativeTime === '24h' ? 24 * 60 * 60 * 1000
+        : relativeTime === '7d' ? 7 * 24 * 60 * 60 * 1000
+        : 30 * 24 * 60 * 60 * 1000;
+      const start = new Date(Date.now() - ms);
+      const localDateTime = new Date(start.getTime() - start.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+      setAbsoluteStart(localDateTime);
+    }
+    setTimeMode(mode);
+  };
+  const [showTimeControls, setShowTimeControls] = useState(false);
   const [newEventIds, setNewEventIds] = useState<Set<string>>(new Set());
   const [showScrollButton, setShowScrollButton] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
   const logStreamRef = useRef<HTMLDivElement>(null);
   const prevEventCountRef = useRef(events.length);
+
+  // Initialize with default time range
+  useEffect(() => {
+    const ms = 5 * 60 * 1000; // 5 minutes
+    const now = new Date();
+    const start = new Date(now.getTime() - ms);
+    setTimeRange(start, now, isLiveMode);
+    
+    // Set absolute inputs
+    const localStart = new Date(start.getTime() - start.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+    const localEnd = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+    setAbsoluteStart(localStart);
+    setAbsoluteEnd(localEnd);
+    setTimeMode('relative');
+  }, []); // Only run on mount
+  
+  // Update time range when live mode changes
+  useEffect(() => {
+    if (timeMode === 'relative') {
+      const ms = relativeTime === '5m' ? 5 * 60 * 1000 
+        : relativeTime === '15m' ? 15 * 60 * 1000
+        : relativeTime === '1h' ? 60 * 60 * 1000
+        : relativeTime === '6h' ? 6 * 60 * 60 * 1000
+        : relativeTime === '24h' ? 24 * 60 * 60 * 1000
+        : relativeTime === '7d' ? 7 * 24 * 60 * 60 * 1000
+        : 30 * 24 * 60 * 60 * 1000;
+      const now = new Date();
+      const start = new Date(now.getTime() - ms);
+      setTimeRange(start, now, isLiveMode);
+    } else if (absoluteStart) {
+      const start = new Date(absoluteStart);
+      const end = absoluteEnd ? new Date(absoluteEnd) : new Date();
+      setTimeRange(start, end, isLiveMode);
+    }
+  }, [isLiveMode]);
 
   // Track new events for animation
   useEffect(() => {
@@ -178,7 +303,7 @@ export function MonitoringView() {
   };
 
   const syncFiltersFromQuery = (query: string) => {
-    const parsed = parseSearchQuery(query, ['agent', 'conversation', 'tool']);
+    const parsed = parseSearchQuery(query, ['agent', 'conversation', 'tool', 'trace']);
     if (parsed.filters.agent) {
       setSelectedAgents(parsed.filters.agent);
     }
@@ -188,14 +313,15 @@ export function MonitoringView() {
     if (parsed.filters.tool?.[0]) {
       setSelectedToolCallId(parsed.filters.tool[0]);
     }
-    // Clear filter text from input, keep only the text search
-    if (parsed.text !== query) {
-      setSearchQuery(parsed.text);
+    if (parsed.filters.trace?.[0]) {
+      setSelectedTraceId(parsed.filters.trace[0]);
     }
+    // Update search query to only contain text (remove filter syntax)
+    setSearchQuery(parsed.text);
   };
 
   const filteredEvents = events.filter(event => {
-    const parsed = parseSearchQuery(searchQuery, ['agent', 'conversation', 'tool']);
+    const parsed = parseSearchQuery(searchQuery, ['agent', 'conversation', 'tool', 'trace']);
     // Check both parsed query agents and selectedAgents from sidebar clicks
     const agentsToFilter = parsed.filters.agent || selectedAgents;
     if (agentsToFilter.length > 0 && !agentsToFilter.includes(event.agentSlug || '')) return false;
@@ -206,11 +332,14 @@ export function MonitoringView() {
     const toolCallIdToFilter = parsed.filters.tool?.[0] || selectedToolCallId;
     if (toolCallIdToFilter && event.toolCallId !== toolCallIdToFilter) return false;
     // Check trace ID filter
-    if (selectedTraceId && (event as any).traceId !== selectedTraceId) return false;
+    const traceIdToFilter = parsed.filters.trace?.[0] || selectedTraceId;
+    if (traceIdToFilter && (event as any).traceId !== traceIdToFilter) return false;
     if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.type)) return false;
-    if (parsed.text && !JSON.stringify(event).toLowerCase().includes(parsed.text.toLowerCase())) return false;
+    // Only apply text filter if it's not just a filter key with colon
+    const isIncompleteFilter = /^(agent|conversation|tool|trace):$/.test(parsed.text.trim());
+    if (parsed.text && !isIncompleteFilter && !JSON.stringify(event).toLowerCase().includes(parsed.text.toLowerCase())) return false;
     return true;
-  }).reverse(); // Newest at bottom
+  }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()); // Oldest to newest
 
   const toggleEventType = (group: string) => {
     const groupTypes = eventTypeGroups[group as keyof typeof eventTypeGroups];
@@ -230,7 +359,7 @@ export function MonitoringView() {
       {/* Header Stats */}
       <div className="monitoring-header">
         <div className="monitoring-title">
-          <h1>MULTI-AGENT MONITORING</h1>
+          <h1>MONITORING</h1>
           <div className="status-badge">
             <span className="status-dot"></span>
             Connected
@@ -246,29 +375,208 @@ export function MonitoringView() {
             <span className="stat-label">Running:</span>
             <span className="stat-value">{stats?.summary.runningAgents || 0}</span>
           </div>
-          <div className="stat-item">
-            <span className="stat-label">Messages:</span>
-            <span className="stat-value">{stats?.summary.totalMessages || 0}</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-label">Cost:</span>
-            <span className="stat-value">${stats?.summary.totalCost.toFixed(2) || '0.00'}</span>
-          </div>
         </div>
 
         <div className="monitoring-actions">
-          <select 
-            value={dateRange} 
-            onChange={(e) => setDateRange(e.target.value as any)}
-            className="date-range-select"
+          <div className="time-filter-wrapper">
+            <button 
+              onClick={() => {
+                setShowTimeControls(!showTimeControls);
+                // Don't change tab if already open, otherwise set based on current mode
+                if (!showTimeControls) {
+                  if (timeMode === 'relative' && !clearTime && !absoluteStart) {
+                    // Stay in relative mode
+                  } else if (clearTime || absoluteStart) {
+                    setTimeMode('absolute');
+                  }
+                }
+              }}
+              className="time-filter-button"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <span>
+                  {(clearTime || (timeMode === 'absolute' && absoluteStart)) && isLiveMode
+                    ? elapsedLabel
+                    : clearTime 
+                      ? 'Custom Range'
+                      : timeMode === 'relative' 
+                        ? `Last ${relativeTime === '5m' ? '5 min' : relativeTime === '15m' ? '15 min' : relativeTime === '1h' ? '1 hour' : relativeTime === '6h' ? '6 hours' : relativeTime === '24h' ? '24 hours' : relativeTime === '7d' ? '7 days' : '30 days'}` 
+                        : 'Custom Range'}
+                </span>
+                {(() => {
+                  if (clearTime && !isLiveMode) {
+                    // Show fixed range when cleared but not live
+                    return (
+                      <span style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '2px' }}>
+                        {clearTime.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} → {new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    );
+                  } else if (timeMode === 'relative' && !clearTime) {
+                    // Show relative range
+                    const ms = relativeTime === '5m' ? 5 * 60 * 1000 
+                      : relativeTime === '15m' ? 15 * 60 * 1000
+                      : relativeTime === '1h' ? 60 * 60 * 1000
+                      : relativeTime === '6h' ? 6 * 60 * 60 * 1000
+                      : relativeTime === '24h' ? 24 * 60 * 60 * 1000
+                      : relativeTime === '7d' ? 7 * 24 * 60 * 60 * 1000
+                      : 30 * 24 * 60 * 60 * 1000;
+                    const start = new Date(Date.now() - ms);
+                    return (
+                      <span style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '2px' }}>
+                        {start.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} → {isLiveMode ? 'now' : new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    );
+                  } else if (timeMode === 'absolute' && absoluteStart && !clearTime) {
+                    // Show absolute range
+                    return (
+                      <span style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '2px' }}>
+                        {new Date(absoluteStart).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} → {absoluteEnd ? new Date(absoluteEnd).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'now'}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            </button>
+            
+            {showTimeControls && (
+              <div className="time-controls-dropdown">
+                <div className="time-mode-tabs">
+                  <button 
+                    className={timeMode === 'relative' ? 'active' : ''}
+                    onClick={() => handleTimeModeChange('relative')}
+                  >
+                    Relative
+                  </button>
+                  <button 
+                    className={timeMode === 'absolute' ? 'active' : ''}
+                    onClick={() => handleTimeModeChange('absolute')}
+                  >
+                    Absolute
+                  </button>
+                </div>
+                
+                {timeMode === 'relative' ? (
+                  <div className="relative-time-options">
+                    {[
+                      { value: '5m', label: 'Last 5 minutes', ms: 5 * 60 * 1000 },
+                      { value: '15m', label: 'Last 15 minutes', ms: 15 * 60 * 1000 },
+                      { value: '1h', label: 'Last 1 hour', ms: 60 * 60 * 1000 },
+                      { value: '6h', label: 'Last 6 hours', ms: 6 * 60 * 60 * 1000 },
+                      { value: '24h', label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000 },
+                      { value: '7d', label: 'Last 7 days', ms: 7 * 24 * 60 * 60 * 1000 },
+                      { value: '30d', label: 'Last 30 days', ms: 30 * 24 * 60 * 60 * 1000 },
+                    ].map(option => {
+                      const now = new Date();
+                      const start = new Date(now.getTime() - option.ms);
+                      return (
+                        <button
+                          key={option.value}
+                          className={relativeTime === option.value ? 'active' : ''}
+                          onClick={() => {
+                            setRelativeTime(option.value as any);
+                            setTimeMode('relative');
+                            const now = new Date();
+                            const start = new Date(now.getTime() - option.ms);
+                            setTimeRange(start, now, isLiveMode);
+                            setClearTime(null);
+                            setShowTimeControls(false);
+                          }}
+                        >
+                          <div className="option-label">{option.label}</div>
+                          <div className="option-time">{start.toLocaleString()} → now</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="absolute-time-inputs">
+                    <label>
+                      Start
+                      <input 
+                        type="datetime-local" 
+                        value={absoluteStart}
+                        onChange={(e) => setAbsoluteStart(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      End
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input 
+                          type="datetime-local" 
+                          value={absoluteEnd}
+                          onChange={(e) => {
+                            setAbsoluteEnd(e.target.value);
+                            if (isLiveMode) setIsLiveMode(false);
+                          }}
+                          disabled={isLiveMode}
+                          placeholder="Leave empty for now"
+                          style={{ 
+                            flex: 1,
+                            opacity: isLiveMode ? 0.6 : 1,
+                            cursor: isLiveMode ? 'not-allowed' : 'text'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date();
+                            const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                              .toISOString()
+                              .slice(0, 16);
+                            setAbsoluteEnd(localDateTime);
+                            if (isLiveMode) setIsLiveMode(false);
+                          }}
+                          disabled={isLiveMode}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '4px',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            cursor: isLiveMode ? 'not-allowed' : 'pointer',
+                            opacity: isLiveMode ? 0.6 : 1,
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          Now
+                        </button>
+                      </div>
+                    </label>
+                    <button 
+                      className="apply-button"
+                      onClick={() => {
+                        if (absoluteStart) {
+                          const start = new Date(absoluteStart);
+                          const end = absoluteEnd ? new Date(absoluteEnd) : new Date();
+                          setTimeRange(start, end, isLiveMode);
+                          setClearTime(null);
+                        }
+                        setShowTimeControls(false);
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setIsLiveMode(!isLiveMode)}
+            className={`live-mode-toggle ${isLiveMode ? 'active' : ''}`}
+            title={isLiveMode ? 'Live mode: streaming real-time events' : 'Historical mode: fixed time range'}
           >
-            <option value="now">Now (Live)</option>
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="all">All Time</option>
-          </select>
-          <button onClick={clearEvents} className="btn-secondary">CLEAR ALL</button>
+            <span className="live-dot"></span>
+            LIVE
+          </button>
+          <button onClick={handleClearAll} className="btn-secondary">CLEAR ALL</button>
         </div>
       </div>
 
@@ -277,11 +585,29 @@ export function MonitoringView() {
         <div className="monitoring-sidebar">
           <div className="sidebar-header">
             <h3>AGENTS</h3>
-            <span className="agent-count">{stats?.agents.length || 0} Total</span>
+            <span className="agent-count">
+              {(() => {
+                const activeCount = stats?.agents.length || 0;
+                const historicalSlugs = [...new Set(filteredEvents.map(e => e.agentSlug).filter(Boolean))];
+                const historicalCount = historicalSlugs.filter(slug => !stats?.agents.some(a => a.slug === slug)).length;
+                return `${activeCount} Active${historicalCount > 0 ? ` • ${historicalCount} Historical` : ''}`;
+              })()}
+            </span>
           </div>
           
           <div className="agent-list">
-            {stats?.agents.map(agent => (
+            {/* Active Agents */}
+            {stats?.agents.map(agent => {
+              const runningConversations = events
+                .filter(e => e.agentSlug === agent.slug && e.type === 'agent-start' && e.conversationId)
+                .reduce((acc, e) => {
+                  if (e.conversationId && !acc.some(c => c.id === e.conversationId)) {
+                    acc.push({ id: e.conversationId, color: getConversationColor(e.conversationId) });
+                  }
+                  return acc;
+                }, [] as Array<{ id: string; color: string }>);
+              
+              return (
               <div 
                 key={agent.slug} 
                 className={`agent-card status-${agent.status} ${selectedAgents.includes(agent.slug) ? 'selected' : ''}`}
@@ -303,22 +629,22 @@ export function MonitoringView() {
                   </span>
                   <span className={`agent-status ${agent.status}`}>{agent.status.toUpperCase()}</span>
                 </div>
-                {agent.status === 'running' && (
-                  <div className="active-conversations">
-                    {events
-                      .filter(e => e.agentSlug === agent.slug && e.type === 'agent-start' && e.conversationId)
-                      .slice(0, 3)
-                      .map((e, idx) => (
-                        <div 
-                          key={idx} 
-                          className="conversation-pill"
-                          style={{ background: getConversationColor(e.conversationId!) }}
-                          title={e.conversationId}
-                        >
-                          {e.conversationId!.split(':').pop()?.substring(0, 6)}...
-                        </div>
-                      ))
-                    }
+                {agent.status === 'running' && runningConversations.length > 0 && (
+                  <div className="running-conversations">
+                    <div className="conversations-label">Active Chats</div>
+                    {runningConversations.map((conv, idx) => (
+                      <div 
+                        key={idx} 
+                        className="conversation-item"
+                        style={{ borderLeftColor: conv.color }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConversationClick(conv.id, agent.slug);
+                        }}
+                      >
+                        <span className="conversation-id">{conv.id.split(':').pop()?.substring(0, 8)}...</span>
+                      </div>
+                    ))}
                   </div>
                 )}
                 <div className="agent-meta">
@@ -336,7 +662,63 @@ export function MonitoringView() {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
+            
+            {/* Historical Agents (from events but not currently loaded) */}
+            {(() => {
+              const historicalSlugs = [...new Set(filteredEvents.map(e => e.agentSlug).filter(Boolean))]
+                .filter(slug => !stats?.agents.some(a => a.slug === slug));
+              
+              if (historicalSlugs.length === 0) return null;
+              
+              return (
+                <>
+                  <div style={{ 
+                    padding: '0.75rem 0.5rem 0.5rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    borderTop: '1px solid var(--border-primary)',
+                    marginTop: '0.5rem'
+                  }}>
+                    Historical
+                  </div>
+                  {historicalSlugs.map(slug => {
+                    const eventCount = filteredEvents.filter(e => e.agentSlug === slug).length;
+                    return (
+                      <div 
+                        key={slug} 
+                        className={`agent-card ${selectedAgents.includes(slug) ? 'selected' : ''}`}
+                        onClick={(e) => handleAgentClick(slug, e)}
+                        style={{ 
+                          borderLeftColor: getAgentColor(slug),
+                          background: selectedAgents.includes(slug) 
+                            ? `color-mix(in srgb, ${getAgentColor(slug)} 10%, var(--bg-secondary))`
+                            : undefined,
+                          opacity: 0.7
+                        }}
+                      >
+                        <div className="agent-header">
+                          <span className="agent-name">{slug}</span>
+                          <span className="agent-status" style={{ background: 'var(--text-tertiary)', color: 'var(--bg-secondary)' }}>
+                            HISTORICAL
+                          </span>
+                        </div>
+                        <div className="agent-meta">
+                          <div className="meta-item">
+                            <span className="meta-label">Events:</span>
+                            <span className="meta-value">{eventCount}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -368,6 +750,7 @@ export function MonitoringView() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
+                  onBlur={() => syncFiltersFromQuery(searchQuery)}
                   className="search-input"
                 />
                 {searchQuery && (
@@ -487,24 +870,40 @@ export function MonitoringView() {
                     background: `color-mix(in srgb, ${agentColor} 8%, var(--bg-secondary))`
                   } : undefined}
                 >
-                  <div 
-                    className="log-timestamp" 
-                    title={new Date(event.timestamp).toLocaleString('en-US', { 
-                      dateStyle: 'full', 
-                      timeStyle: 'long' 
-                    })}
-                  >
-                    {new Date(event.timestamp).toLocaleTimeString()}
-                    {(event as any).timestampMs && (
-                      <span style={{ fontSize: '0.7em', opacity: 0.6, marginLeft: '0.25rem' }}>
-                        .{String((event as any).timestampMs % 1000).padStart(3, '0')}
-                      </span>
-                    )}
-                  </div>
-                  <div className="log-type">{event.type.toUpperCase()}</div>
-                  {event.agentSlug && <div className="log-agent">{event.agentSlug}</div>}
-                  
-                  <div className="log-data">
+                  <div className="log-row">
+                    <div className="log-timestamp-col">
+                      <div 
+                        className="log-timestamp" 
+                        title={event.timestamp ? new Date(event.timestamp).toLocaleString('en-US', { 
+                          dateStyle: 'full', 
+                          timeStyle: 'long' 
+                        }) : 'No timestamp'}
+                      >
+                        {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : '-'}
+                        {(event as any).timestampMs && (
+                          <span style={{ fontSize: '0.7em', opacity: 0.6, marginLeft: '0.25rem' }}>
+                            .{String((event as any).timestampMs % 1000).padStart(3, '0')}
+                          </span>
+                        )}
+                      </div>
+                      {(event as any).traceId && (
+                        <button
+                          className={`trace-pill ${selectedTraceId === (event as any).traceId ? 'selected' : ''}`}
+                          onClick={() => handleTraceClick((event as any).traceId)}
+                          title={`Trace ID: ${(event as any).traceId}\nClick to filter`}
+                          style={selectedTraceId === (event as any).traceId && agentColor ? {
+                            borderColor: agentColor,
+                            color: agentColor
+                          } : undefined}
+                        >
+                          {(event as any).traceId.slice(-8)}
+                        </button>
+                      )}
+                    </div>
+                    <div className="log-type">{event.type.toUpperCase()}</div>
+                    <div className="log-agent">{event.agentSlug || '-'}</div>
+                    
+                    <div className="log-data">
                     {event.conversationId && (
                       <span className="log-inline">
                         <span className="meta-label">Conversation:</span>
@@ -536,25 +935,6 @@ export function MonitoringView() {
                           }}
                         >
                           ...{event.toolCallId.slice(-6)}
-                        </button>
-                      </span>
-                    )}
-                    
-                    {(event as any).traceId && (
-                      <span className="log-inline">
-                        <span className="meta-label">Trace:</span>
-                        <button
-                          className={`pill-button ${selectedTraceId === (event as any).traceId ? 'selected' : ''}`}
-                          onClick={() => handleTraceClick((event as any).traceId)}
-                          title="Filter by trace ID"
-                          style={{ 
-                            background: 'var(--color-primary)',
-                            borderColor: 'var(--color-primary)',
-                            color: 'white',
-                            fontSize: '0.75rem'
-                          }}
-                        >
-                          ...{(event as any).traceId.slice(-8)}
                         </button>
                       </span>
                     )}
@@ -612,8 +992,11 @@ export function MonitoringView() {
                         )}
                       </span>
                     )}
-                    
-                    {(event as any).data && (
+                  </div>
+                  </div>
+                  
+                  {/* Collapsible sections */}
+                  {(event as any).data && (
                       <details className="log-details" style={{ marginTop: '0.75rem' }}>
                         <summary>
                           Output
@@ -663,10 +1046,10 @@ export function MonitoringView() {
                       </details>
                     )}
                     
-                    {event.input && Object.keys(event.input).length > 0 && (
+                    {event.input && (typeof event.input === 'string' || Object.keys(event.input).length > 0) && (
                       <details className="log-details">
-                        <summary>Input ({Object.keys(event.input).length} params)</summary>
-                        <pre>{JSON.stringify(event.input, null, 2)}</pre>
+                        <summary>Input ({typeof event.input === 'string' ? event.input.length + ' chars' : Object.keys(event.input).length + ' params'})</summary>
+                        <pre>{typeof event.input === 'string' ? event.input : JSON.stringify(event.input, null, 2)}</pre>
                       </details>
                     )}
                     
@@ -801,7 +1184,6 @@ export function MonitoringView() {
                         </>
                       );
                     })()}
-                  </div>
                 </div>
               );
               })
@@ -860,13 +1242,19 @@ export function MonitoringView() {
           width: 8px;
           height: 8px;
           border-radius: 50%;
-          background: var(--success);
-          animation: pulse 2s infinite;
+          background: var(--health-success);
+          animation: statusPulse 2s ease-in-out infinite;
         }
 
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
+        @keyframes statusPulse {
+          0%, 100% { 
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% { 
+            opacity: 0.5;
+            transform: scale(0.85);
+          }
         }
 
         .monitoring-stats {
@@ -893,6 +1281,141 @@ export function MonitoringView() {
           display: flex;
           gap: 0.5rem;
           align-items: center;
+        }
+
+        .time-filter-wrapper {
+          position: relative;
+        }
+
+        .time-filter-button {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 1rem;
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-primary);
+          border-radius: 4px;
+          color: var(--text-primary);
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .time-filter-button:hover {
+          background: var(--bg-hover);
+        }
+
+        .time-controls-dropdown {
+          position: absolute;
+          top: calc(100% + 0.5rem);
+          right: 0;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-primary);
+          border-radius: 6px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+          z-index: 100;
+          min-width: 250px;
+        }
+
+        .time-mode-tabs {
+          display: flex;
+          border-bottom: 1px solid var(--border-primary);
+        }
+
+        .time-mode-tabs button {
+          flex: 1;
+          padding: 0.75rem;
+          background: none;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .time-mode-tabs button.active {
+          color: var(--accent-primary);
+          border-bottom: 2px solid var(--accent-primary);
+        }
+
+        .relative-time-options {
+          display: flex;
+          flex-direction: column;
+          padding: 0.5rem;
+        }
+
+        .relative-time-options button {
+          padding: 0.75rem;
+          background: none;
+          border: none;
+          color: var(--text-primary);
+          font-size: 0.875rem;
+          text-align: left;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+
+        .relative-time-options button .option-label {
+          font-weight: 600;
+        }
+
+        .relative-time-options button .option-time {
+          font-size: 0.75rem;
+          color: var(--text-secondary);
+          margin-top: 0.25rem;
+        }
+
+        .relative-time-options button:hover {
+          background: var(--bg-tertiary);
+        }
+
+        .relative-time-options button.active {
+          background: var(--accent-primary);
+          color: white;
+        }
+
+        .absolute-time-inputs {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          padding: 1rem;
+        }
+
+        .absolute-time-inputs label {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: var(--text-secondary);
+        }
+
+        .absolute-time-inputs input {
+          padding: 0.5rem;
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-primary);
+          border-radius: 4px;
+          color: var(--text-primary);
+          font-size: 0.875rem;
+        }
+
+        .apply-button {
+          padding: 0.5rem 1rem;
+          background: var(--accent-primary);
+          border: none;
+          border-radius: 4px;
+          color: white;
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .apply-button:hover {
+          opacity: 0.9;
         }
 
         .active-filters {
@@ -926,17 +1449,6 @@ export function MonitoringView() {
 
         .filter-badge button:hover {
           opacity: 0.8;
-        }
-
-        .date-range-select {
-          padding: 0.5rem 1rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          border-radius: 4px;
-          color: var(--text-primary);
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
         }
 
         .monitoring-content {
@@ -1011,6 +1523,16 @@ export function MonitoringView() {
 
         .agent-card.status-running {
           border-left-color: var(--success);
+          animation: pulseBackground 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseBackground {
+          0%, 100% {
+            background: var(--bg-tertiary);
+          }
+          50% {
+            background: color-mix(in srgb, var(--success) 15%, var(--bg-tertiary));
+          }
         }
 
         .agent-header {
@@ -1090,13 +1612,54 @@ export function MonitoringView() {
           gap: 0.25rem;
         }
 
-        .active-conversations {
-          display: flex;
-          gap: 0.25rem;
-          flex-wrap: wrap;
-          margin-top: 0.5rem;
-          padding-top: 0.5rem;
+        .running-conversations {
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
           border-top: 1px solid var(--border-primary);
+          animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            max-height: 0;
+          }
+          to {
+            opacity: 1;
+            max-height: 200px;
+          }
+        }
+
+        .conversations-label {
+          font-size: 0.7rem;
+          font-weight: 600;
+          color: var(--text-secondary);
+          text-transform: uppercase;
+          margin-bottom: 0.5rem;
+          letter-spacing: 0.5px;
+        }
+
+        .conversation-item {
+          display: flex;
+          align-items: center;
+          padding: 0.5rem;
+          margin-bottom: 0.25rem;
+          background: var(--bg-secondary);
+          border-left: 3px solid var(--border-primary);
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .conversation-item:hover {
+          background: var(--bg-hover);
+          transform: translateX(2px);
+        }
+
+        .conversation-id {
+          font-family: 'Monaco', 'Menlo', monospace;
+          font-size: 0.75rem;
+          color: var(--text-primary);
         }
 
         .conversation-pill {
@@ -1358,6 +1921,54 @@ export function MonitoringView() {
           border-color: var(--accent-primary);
         }
 
+        .live-mode-toggle {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.375rem 0.625rem;
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-primary);
+          color: var(--text-secondary);
+          border-radius: 4px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .live-mode-toggle:hover {
+          background: var(--bg-hover);
+        }
+
+        .live-mode-toggle.active {
+          background: var(--health-success);
+          color: white;
+          border-color: var(--health-success);
+        }
+
+        .live-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: currentColor;
+        }
+
+        .live-mode-toggle.active .live-dot {
+          animation: livePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes livePulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.4;
+            transform: scale(0.8);
+          }
+        }
+
         .log-stream {
           flex: 1;
           overflow-y: auto;
@@ -1400,7 +2011,7 @@ export function MonitoringView() {
 
         .log-entry {
           display: flex;
-          gap: 1rem;
+          flex-direction: column;
           padding: 0.75rem;
           margin-bottom: 0.5rem;
           background: var(--bg-secondary);
@@ -1409,6 +2020,79 @@ export function MonitoringView() {
           word-wrap: break-word;
           overflow-wrap: break-word;
           max-width: 100%;
+        }
+
+        .log-trace {
+          display: flex;
+          align-items: center;
+        }
+
+        .trace-pill {
+          padding: 0.25rem 0.5rem;
+          background: var(--color-primary);
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 0.7rem;
+          font-weight: 600;
+          font-family: 'Monaco', 'Menlo', monospace;
+          cursor: pointer;
+          transition: all 0.2s;
+          opacity: 0.7;
+          white-space: nowrap;
+        }
+
+        .trace-pill:hover {
+          opacity: 1;
+          transform: translateY(-1px);
+        }
+
+        .trace-pill.selected {
+          opacity: 1;
+          box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--color-primary);
+        }
+
+        .log-row {
+          display: grid;
+          grid-template-columns: 120px 140px 180px 1fr;
+          gap: 1rem;
+          align-items: start;
+        }
+
+        .log-timestamp-col {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .log-timestamp {
+          color: var(--text-secondary);
+          white-space: nowrap;
+        }
+
+        .trace-pill {
+          padding: 0.125rem 0.375rem;
+          background: transparent;
+          color: var(--text-tertiary);
+          border: 1px solid var(--border-primary);
+          border-radius: 8px;
+          font-size: 0.65rem;
+          font-weight: 600;
+          font-family: 'Monaco', 'Menlo', monospace;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+          align-self: flex-start;
+        }
+
+        .trace-pill:hover {
+          border-color: var(--text-secondary);
+          color: var(--text-secondary);
+        }
+
+        .trace-pill.selected {
+          border-width: 1.5px;
+          font-weight: 700;
         }
 
         .log-entry.new-event {
@@ -1465,12 +2149,11 @@ export function MonitoringView() {
 
         .log-type {
           font-weight: 600;
-          min-width: 120px;
           padding: 0.25rem 0.5rem;
           border-radius: 4px;
           font-size: 0.75rem;
-          align-self: flex-start;
           text-align: center;
+          white-space: nowrap;
         }
 
         .event-agent-start .log-type,
@@ -1504,10 +2187,11 @@ export function MonitoringView() {
         .log-agent {
           color: var(--accent-primary);
           font-weight: 500;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
 
         .log-data {
-          flex: 1;
           display: flex;
           flex-wrap: wrap;
           align-items: center;
@@ -1522,8 +2206,10 @@ export function MonitoringView() {
         }
 
         .log-details {
-          width: 100%;
-          margin-top: 0.5rem;
+          grid-column: 1 / -1;
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
+          border-top: 1px solid var(--border-primary);
         }
 
         .log-details summary {

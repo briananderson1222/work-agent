@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SessionManagementMenu } from './SessionManagementMenu';
@@ -6,12 +6,12 @@ import { SessionPickerModal } from './SessionPickerModal';
 import { ConversationStats, ContextPercentage } from './ConversationStats';
 import { FileAttachmentInput } from './FileAttachmentInput';
 import { SlashCommandSelector } from './SlashCommandSelector';
-import { ModelSelector } from './ModelSelector';
+import { ModelSelectorAutocomplete } from './ModelSelector';
 import { AgentBadge } from './AgentBadge';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useSlashCommands } from '../hooks/useSlashCommands';
 import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
-import { useActiveChatActions, useActiveChatState, useSendMessage, useCreateChatSession, useCancelMessage, useOpenConversation, useRehydrateSessions, activeChatsStore } from '../contexts/ActiveChatsContext';
+import { useActiveChatActions, useActiveChatState, useSendMessage, useCreateChatSession, useCancelMessage, useOpenConversation, useRehydrateSessions } from '../contexts/ActiveChatsContext';
 import { useConversationStatus, useConversationActions } from '../contexts/ConversationsContext';
 import { useToast } from '../contexts/ToastContext';
 import { useApiBase, useConfig, CONFIG_DEFAULTS } from '../contexts/ConfigContext';
@@ -21,8 +21,8 @@ import { useModels } from '../contexts/ModelsContext';
 import { useToolApproval } from '../hooks/useToolApproval';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { getAgentIcon } from '../utils/workspace';
-import { getModelCapabilities } from '../utils/modelCapabilities';
-import type { AgentSummary, ChatSession, ChatMessage, FileAttachment } from '../types';
+import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
+import type { AgentSummary } from '../types';
 import type { SlashCommand } from '../hooks/useSlashCommands';
 
 function ToolCallDisplay({ toolCall, onApprove }: { 
@@ -242,6 +242,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const [commandQuery, setCommandQuery] = useState<string | null>(null);
   const [modelQuery, setModelQuery] = useState<string | null>(null);
   
+  // History navigation index (local UI state only)
+  const [historyIndex, setHistoryIndex] = useState<Map<string, number>>(new Map());
+  
   // Session state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   
@@ -251,9 +254,23 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   
   // Derive sessions from contexts (includes messages for all sessions)
   const sessions = useDerivedSessions(apiBase, selectedAgent);
-  const { initChat, updateChat, clearInput, removeChat, addEphemeralMessage, clearEphemeralMessages } = useActiveChatActions();
+  const { initChat, updateChat, clearInput, removeChat, addEphemeralMessage, clearEphemeralMessages, addToInputHistory } = useActiveChatActions();
   const openConversationAction = useOpenConversation(apiBase);
   const rehydrateSessions = useRehydrateSessions(apiBase);
+  
+  // Wrap slash command handler with callbacks (after updateChat is available)
+  const wrappedSlashCommandHandler = useCallback(async (sessionId: string, command: string) => {
+    return handleSlashCommand(
+      sessionId, 
+      command,
+      () => {
+        // Set input to /model with space to trigger autocomplete
+        updateChat(sessionId, { input: '/model ' });
+        setModelQuery('');
+      },
+      () => setShowStatsPanel(true)
+    );
+  }, [handleSlashCommand, updateChat]);
   
   // Rehydrate sessions on mount
   useEffect(() => {
@@ -289,13 +306,17 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         showToast(`Error: ${error.message}`, 'error');
       }
     },
-    handleSlashCommand
+    wrappedSlashCommandHandler
   );
 
   // Wrapper for backward compatibility - now just calls sendMessage directly
   const handleSendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string) => {
+    // Save to history
+    addToInputHistory(sessionId, content);
+    setHistoryIndex(prev => new Map(prev).set(sessionId, -1));
+    
     await sendMessage(sessionId, agentSlug, conversationId, content);
-  }, [sendMessage]);
+  }, [sendMessage, addToInputHistory]);
   
   // Cancel message handler
   const cancelMessage = useCancelMessage();
@@ -305,6 +326,12 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
   const activeChatState = useActiveChatState(activeSessionId);
+  
+  // Check if current model supports attachments
+  const currentModelId = activeSession?.model || agents.find(a => a.slug === activeSession?.agentSlug)?.model;
+  const modelSupportsAttachments = useModelSupportsAttachments(
+    typeof currentModelId === 'string' ? currentModelId : currentModelId?.modelId
+  );
   
   // Get slash commands for current agent
   const slashCommands = useSlashCommands(activeSession?.agentSlug || null);
@@ -330,6 +357,17 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setActiveChat(sessionId);
     setDockState(true, isDockMaximized);
     updateChat(sessionId, { hasUnread: false });
+    
+    // Scroll to bottom after session is focused
+    setTimeout(() => {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+        setIsUserScrolledUp(false);
+      }
+    }, 100);
   }, [updateChat, setDockState, isDockMaximized, setActiveChat]);
   
   const removeSession = useCallback((sessionId: string) => {
@@ -347,6 +385,17 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setActiveSessionId(sessionId);
     setActiveChat(sessionId);
     setDockState(true, false);
+    
+    // Scroll to bottom after chat is opened
+    setTimeout(() => {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+        setIsUserScrolledUp(false);
+      }
+    }, 100);
   }, [createChatSession, setDockState, setActiveChat]);
   
   const openConversation = useCallback(async (conversationId: string, agentSlug: string) => {
@@ -364,10 +413,24 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setActiveSessionId(sessionId);
     setActiveChat(sessionId);
     setDockState(true, false);
+    
+    // Scroll to bottom after conversation is opened
+    setTimeout(() => {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+        setIsUserScrolledUp(false);
+      }
+    }, 100);
   }, [agents, sessions, focusSession, openConversationAction, setActiveChat, setDockState]);
   
   const executeCommand = useCallback(async (command: SlashCommand, sessionId: string) => {
     const cmdName = command.cmd.slice(1);
+    
+    // Save to history before clearing input
+    addToInputHistory(sessionId, command.cmd);
     
     clearInput(sessionId);
     setCommandQuery(null);
@@ -510,7 +573,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           showToast(`Unknown command: ${command.cmd}`, 'error');
         }
     }
-  }, [clearInput, updateChat, showToast, agents, activeSession, sendMessage, apiBase, addEphemeralMessage]);
+  }, [clearInput, updateChat, showToast, agents, activeSession, sendMessage, apiBase, addEphemeralMessage, addToInputHistory]);
   
   // Drag to resize
   useEffect(() => {
@@ -595,6 +658,17 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       initChat(newSessionId, selectedAgent, null);
       setActiveSessionId(newSessionId);
       setActiveChat(newSessionId);
+      
+      // Scroll to bottom after chat is created
+      setTimeout(() => {
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.scrollTo({
+            top: messagesContainerRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+          setIsUserScrolledUp(false);
+        }
+      }, 100);
     }
   }, [selectedAgent, initChat, setActiveChat]));
 
@@ -1493,7 +1567,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                   )}
                   <div className="chat-input" style={{ display: 'flex', alignItems: 'stretch', position: 'relative' }}>
                     {modelQuery !== null && activeSession && (
-                      <ModelSelector
+                      <ModelSelectorAutocomplete
                         query={modelQuery}
                         models={availableModels}
                         currentModel={activeSession.model || agents.find(a => a.slug === activeSession.agentSlug)?.model}
@@ -1556,6 +1630,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         
                         updateChat(activeSession.id, { input: value });
                         
+                        // Reset history index when user types
+                        setHistoryIndex(prev => new Map(prev).set(activeSession.id, -1));
+                        
                         // Update model query
                         if (value.startsWith('/model ')) {
                           setModelQuery(value.slice(7)); // Remove '/model '
@@ -1581,6 +1658,38 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         
                         // Selectors handle their own keyboard events
                         if (commandQuery !== null || modelQuery !== null) return;
+                        
+                        // Handle arrow up/down for history navigation
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          const history = activeChatState?.inputHistory || [];
+                          if (history.length === 0) return;
+                          
+                          const currentIndex = historyIndex.get(activeSession.id) ?? -1;
+                          const newIndex = currentIndex === -1 ? history.length - 1 : Math.max(0, currentIndex - 1);
+                          
+                          setHistoryIndex(prev => new Map(prev).set(activeSession.id, newIndex));
+                          updateChat(activeSession.id, { input: history[newIndex] });
+                          return;
+                        }
+                        
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          const history = activeChatState?.inputHistory || [];
+                          const currentIndex = historyIndex.get(activeSession.id) ?? -1;
+                          
+                          if (currentIndex === -1) return;
+                          
+                          const newIndex = currentIndex + 1;
+                          if (newIndex >= history.length) {
+                            setHistoryIndex(prev => new Map(prev).set(activeSession.id, -1));
+                            updateChat(activeSession.id, { input: '' });
+                          } else {
+                            setHistoryIndex(prev => new Map(prev).set(activeSession.id, newIndex));
+                            updateChat(activeSession.id, { input: history[newIndex] });
+                          }
+                          return;
+                        }
                         
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -1626,9 +1735,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                             const newAttachments = activeSession.attachments?.filter(a => a.id !== id) || [];
                             updateChat(activeSession.id, { attachments: newAttachments });
                           }}
-                          disabled={!agent || activeSession.status === 'sending'}
-                          supportsImages={true}
-                          supportsFiles={true}
+                          disabled={!agent || activeSession.status === 'sending' || !modelSupportsAttachments}
+                          supportsImages={modelSupportsAttachments}
+                          supportsFiles={modelSupportsAttachments}
                           style={{ flex: '0 0 25%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         />
                         {activeSession.abortController ? (

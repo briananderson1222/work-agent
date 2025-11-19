@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { ModelsProvider } from './contexts/ModelsContext';
+import { ModelCapabilitiesProvider } from './contexts/ModelCapabilitiesContext';
 import { ConfigProvider } from './contexts/ConfigContext';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { WorkspacesProvider } from './contexts/WorkspacesContext';
@@ -11,6 +12,8 @@ import { WorkflowsProvider } from './contexts/WorkflowsContext';
 import { ConversationsProvider } from './contexts/ConversationsContext';
 import { ActiveChatsProvider } from './contexts/ActiveChatsContext';
 import { StatsProvider } from './contexts/StatsContext';
+import { AnalyticsProvider } from './contexts/AnalyticsContext';
+import { ApiBaseProvider } from './contexts/ApiBaseContext';
 import { ToastProvider, ToastContainer } from './contexts/ToastContext';
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext';
 
@@ -35,31 +38,37 @@ const SDKProvider = ({ children }: { children: React.ReactNode }) => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider>
-      <NavigationProvider>
-        <KeyboardShortcutsProvider>
-          <ToastProvider>
-            <ModelsProvider>
-              <WorkspacesProvider>
-                <AgentsProvider>
-                  <WorkflowsProvider>
-                    <ConversationsProvider>
-                      <ActiveChatsProvider>
-                        <StatsProvider>
-                          <SDKProvider>
-                            <App />
-                            <ToastContainer />
-                          </SDKProvider>
-                        </StatsProvider>
-                      </ActiveChatsProvider>
-                    </ConversationsProvider>
-                  </WorkflowsProvider>
-                </AgentsProvider>
-              </WorkspacesProvider>
-            </ModelsProvider>
-          </ToastProvider>
-        </KeyboardShortcutsProvider>
-      </NavigationProvider>
-    </ConfigProvider>
+    <ApiBaseProvider>
+      <ConfigProvider>
+        <NavigationProvider>
+          <KeyboardShortcutsProvider>
+            <ToastProvider>
+              <ModelsProvider>
+                <ModelCapabilitiesProvider apiBase={API_BASE}>
+                  <WorkspacesProvider>
+                  <AgentsProvider>
+                    <WorkflowsProvider>
+                      <ConversationsProvider>
+                        <ActiveChatsProvider>
+                          <StatsProvider>
+                            <AnalyticsProvider>
+                              <SDKProvider>
+                                <App />
+                                <ToastContainer />
+                              </SDKProvider>
+                            </AnalyticsProvider>
+                          </StatsProvider>
+                        </ActiveChatsProvider>
+                      </ConversationsProvider>
+                    </WorkflowsProvider>
+                  </AgentsProvider>
+                </WorkspacesProvider>
+                </ModelCapabilitiesProvider>
+              </ModelsProvider>
+            </ToastProvider>
+          </KeyboardShortcutsProvider>
+        </NavigationProvider>
+      </ConfigProvider>
+    </ApiBaseProvider>
   </React.StrictMode>
 );

@@ -11,19 +11,53 @@
     {
       "id": "calendar",
       "label": "Calendar",
-      "component": "stallion-workspace-calendar"
+      "component": "stallion-workspace-calendar",
+      "prompts": [
+        {
+          "id": "daily-overview",
+          "label": "Daily Overview",
+          "prompt": "/daily",
+          "agent": "stallion-workspace:work-agent"
+        },
+        {
+          "id": "log-activity",
+          "label": "Log Activity",
+          "prompt": "/activity",
+          "agent": "stallion-workspace:work-agent"
+        }
+      ]
     },
     {
       "id": "crm",
       "label": "CRM", 
-      "component": "stallion-workspace-crm"
+      "component": "stallion-workspace-crm",
+      "prompts": [
+        {
+          "id": "sa-highlight",
+          "label": "SA Highlight",
+          "prompt": "/highlight",
+          "agent": "stallion-workspace:work-agent"
+        },
+        {
+          "id": "sa-insight",
+          "label": "SA Insight",
+          "prompt": "/insight",
+          "agent": "stallion-workspace:work-agent"
+        },
+        {
+          "id": "log-activity-crm",
+          "label": "Log Activity",
+          "prompt": "/activity",
+          "agent": "stallion-workspace:work-agent"
+        }
+      ]
     }
   ],
   "globalPrompts": [
     {
       "id": "daily-summary",
       "label": "Daily Summary",
-      "prompt": "Summarize today's calendar events and CRM activities"
+      "prompt": "/daily"
     },
     {
       "id": "schedule-review",

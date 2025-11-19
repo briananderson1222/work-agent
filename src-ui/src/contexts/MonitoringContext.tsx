@@ -87,7 +87,9 @@ class MonitoringStore {
 
   async fetchStats() {
     try {
-      const response = await fetch(`${this.apiBase}/monitoring/stats`);
+      const response = await fetch(`${this.apiBase}/monitoring/stats`, {
+        headers: { 'x-user-id': 'default-user' }
+      });
       const result = await response.json();
       if (result.success) {
         this.stats = result.data;
@@ -104,7 +106,9 @@ class MonitoringStore {
       if (start) params.set('start', start.toISOString());
       if (end) params.set('end', end.toISOString());
       
-      const response = await fetch(`${this.apiBase}/monitoring/events?${params}`);
+      const response = await fetch(`${this.apiBase}/monitoring/events?${params}`, {
+        headers: { 'x-user-id': 'default-user' }
+      });
       const result = await response.json();
       
       if (result.success) {
@@ -154,10 +158,29 @@ class MonitoringStore {
     this.fetchHistoricalEvents(start, end);
   }
 
-  connectEventStream() {
+  setTimeRange(start?: Date, end?: Date, isLive: boolean = false) {
+    if (isLive) {
+      this.isLiveMode = true;
+      this.dateRange = start ? { start, end } : null;
+      this.disconnect();
+      this.connectEventStream(start);
+    } else {
+      this.isLiveMode = false;
+      this.dateRange = { start, end };
+      this.disconnect();
+      this.fetchHistoricalEvents(start, end);
+    }
+  }
+
+  connectEventStream(startFrom?: Date) {
     if (this.eventSource) return;
 
-    this.eventSource = new EventSource(`${this.apiBase}/monitoring/events`);
+    // Load historical data from specified start time or last 5 minutes
+    const now = new Date();
+    const start = startFrom || new Date(now.getTime() - 5 * 60 * 1000);
+    this.fetchHistoricalEvents(start, now);
+
+    this.eventSource = new EventSource(`${this.apiBase}/monitoring/events?userId=default-user`);
     
     this.eventSource.onmessage = (event) => {
       try {
@@ -263,5 +286,6 @@ export function useMonitoring() {
     clearEvents: () => store.clearEvents(),
     refresh: () => store.fetchStats(),
     setDateRange: (range: 'now' | 'today' | 'week' | 'month' | 'all') => store.setDateRange(range),
+    setTimeRange: (start?: Date, end?: Date, isLive?: boolean) => store.setTimeRange(start, end, isLive),
   };
 }

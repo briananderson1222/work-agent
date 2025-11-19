@@ -17,6 +17,7 @@ import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-ad
 import { ConfigLoader } from '../domain/config-loader.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import { UsageAggregator } from '../analytics/usage-aggregator.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
 
 export interface WorkAgentRuntimeOptions {
@@ -49,6 +50,7 @@ export class WorkAgentRuntime {
   private eventLogPath: string;
   private persistedEvents: Array<any> = [];
   private modelCatalog?: BedrockModelCatalog;
+  private usageAggregator?: UsageAggregator;
   private port: number;
   private pendingApprovals: Map<string, { resolve: (approved: boolean) => void; reject: (error: Error) => void }> = new Map();
   private healthCheckInterval: NodeJS.Timeout | null = null;
@@ -136,6 +138,10 @@ export class WorkAgentRuntime {
     this.modelCatalog = new BedrockModelCatalog(this.appConfig.region);
     this.logger.debug('Bedrock model catalog initialized');
 
+    // Initialize usage aggregator
+    this.usageAggregator = new UsageAggregator(this.configLoader.getWorkAgentDir());
+    this.logger.debug('Usage aggregator initialized');
+
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
     this.logger.info('Found agents', { count: agentMetadataList.length });
@@ -163,6 +169,9 @@ export class WorkAgentRuntime {
       keys: Array.from(this.agentMetadataMap.keys()),
       sample: this.agentMetadataMap.get(agentMetadataList[0]?.slug)
     });
+
+    // Import routes before configuring app
+    const modelsRoute = await import('../routes/models.js');
 
     // Initialize VoltAgent with all agents and server
     this.voltAgent = new VoltAgent({
@@ -202,6 +211,49 @@ export class WorkAgentRuntime {
             })
           );
 
+          // Models capabilities and pricing endpoints
+          app.route('/api/models', modelsRoute.default);
+
+          // Analytics endpoints
+          app.get('/api/analytics/usage', async (c) => {
+            try {
+              if (!this.usageAggregator) {
+                return c.json({ success: false, error: 'Analytics not initialized' }, 500);
+              }
+              const stats = await this.usageAggregator.loadStats();
+              return c.json({ data: stats });
+            } catch (error: any) {
+              this.logger.error('Failed to fetch usage stats', { error: error.message });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          app.get('/api/analytics/achievements', async (c) => {
+            try {
+              if (!this.usageAggregator) {
+                return c.json({ success: false, error: 'Analytics not initialized' }, 500);
+              }
+              const achievements = await this.usageAggregator.getAchievements();
+              return c.json({ data: achievements });
+            } catch (error: any) {
+              this.logger.error('Failed to fetch achievements', { error: error.message });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          app.post('/api/analytics/rescan', async (c) => {
+            try {
+              if (!this.usageAggregator) {
+                return c.json({ success: false, error: 'Analytics not initialized' }, 500);
+              }
+              const stats = await this.usageAggregator.fullRescan();
+              return c.json({ data: stats, message: 'Full rescan completed' });
+            } catch (error: any) {
+              this.logger.error('Failed to rescan analytics', { error: error.message });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
           // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
           app.get('/api/agents', async (c) => {
             try {
@@ -229,6 +281,10 @@ export class WorkAgentRuntime {
                     name: metadata.name,
                     prompt: spec.prompt,
                     description: spec.description,
+                    model: spec.model,
+                    region: spec.region,
+                    guardrails: spec.guardrails,
+                    maxTurns: spec.maxTurns,
                     icon: spec.icon,
                     commands: spec.commands,
                     toolsConfig: spec.tools,
@@ -806,19 +862,18 @@ export class WorkAgentRuntime {
           });
 
           // Get historical events or stream live events (SSE)
-          app.get('/monitoring/events', (c) => {
+          app.get('/monitoring/events', async (c) => {
             const startTime = c.req.query('start');
             const endTime = c.req.query('end');
+            const userId = c.req.query('userId') || c.req.header('x-user-id') || 'default-user';
             
             // If time range specified, return historical events as JSON
             if (startTime || endTime) {
               const start = startTime ? new Date(startTime).getTime() : 0;
               const end = endTime ? new Date(endTime).getTime() : Date.now();
               
-              const filteredEvents = this.persistedEvents.filter(event => {
-                const eventTime = new Date(event.timestamp).getTime();
-                return eventTime >= start && eventTime <= end;
-              });
+              // Always query from disk to ensure complete results
+              const filteredEvents = await this.queryEventsFromDisk(start, end, userId);
               
               return c.json({ success: true, data: filteredEvents });
             }
@@ -833,6 +888,11 @@ export class WorkAgentRuntime {
 
               // Listen for monitoring events
               const eventHandler = async (event: any) => {
+                // Filter by userId
+                if (event.userId && event.userId !== userId) {
+                  return;
+                }
+                
                 try {
                   await streamWriter.write(`data: ${JSON.stringify(event)}\n\n`);
                 } catch (error) {
@@ -2083,11 +2143,16 @@ export class WorkAgentRuntime {
 
         const healthy = Object.values(checks).every(v => v);
         
+        // Generate trace ID for health check
+        const traceId = `health:${slug}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+        
         const healthEvent = {
           type: 'agent-health',
           timestamp: new Date().toISOString(),
           timestampMs: Date.now(),
           agentSlug: slug,
+          userId: 'default-user', // Health checks are system-level but we need userId for filtering
+          traceId,
           healthy,
           checks,
           integrations,
@@ -2125,6 +2190,46 @@ export class WorkAgentRuntime {
 
   /**
    * Load recent events from disk (last 1000 or last 24 hours)
+   */
+  /**
+   * Query events from disk for a specific time range
+   */
+  private async queryEventsFromDisk(start: number, end: number, userId: string): Promise<any[]> {
+    const events: any[] = [];
+    
+    try {
+      const eventFiles = await readdir(this.eventLogPath);
+      const logFiles = eventFiles.filter(f => f.startsWith('events-') && f.endsWith('.ndjson'));
+      
+      for (const file of logFiles) {
+        const filePath = join(this.eventLogPath, file);
+        const fileStream = createReadStream(filePath);
+        const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+
+        for await (const line of rl) {
+          if (line.trim()) {
+            try {
+              const event = JSON.parse(line);
+              const eventTime = new Date(event.timestamp).getTime();
+              
+              if (eventTime >= start && eventTime <= end && event.userId === userId) {
+                events.push(event);
+              }
+            } catch (err) {
+              this.logger.warn('Failed to parse event line', { line, error: err });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to query events from disk', { error, start, end });
+    }
+    
+    return events;
+  }
+
+  /**
+   * Load events from disk for the last 24 hours
    */
   private async loadEventsFromDisk(): Promise<void> {
     try {
@@ -2215,6 +2320,7 @@ export class WorkAgentRuntime {
     // Create memory adapter
     const memoryAdapter = new FileVoltAgentMemoryAdapter({
       workAgentDir: this.configLoader.getWorkAgentDir(),
+      usageAggregator: this.usageAggregator,
     });
     const memory = new Memory({
       storage: memoryAdapter,
@@ -2526,6 +2632,63 @@ export class WorkAgentRuntime {
               modelStats,
             },
           });
+
+          // Enrich the last assistant message with model metadata and usage
+          try {
+            const adapter = this.memoryAdapters.get(agentSlug);
+            if (!adapter) {
+              this.logger.warn('No adapter found for agent', { agent: agentSlug });
+              return;
+            }
+
+            const messages = await adapter.getMessages(`agent:${agentSlug}`, context.conversationId);
+            const lastMessage = messages[messages.length - 1];
+            
+            if (lastMessage && lastMessage.role === 'assistant') {
+              // Get model capabilities
+              const models = await this.modelCatalog?.listModels();
+              const modelInfo = models?.find(m => m.modelId === modelId);
+              
+              // Get pricing
+              const pricing = await this.modelCatalog?.getModelPricing(this.appConfig.region);
+              const pricingInfo = pricing?.find(p => 
+                p.modelId === modelId || 
+                modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-'))
+              );
+
+              // Remove and re-add with metadata
+              await adapter.removeLastMessage(`agent:${agentSlug}`, context.conversationId);
+              await adapter.addMessage(
+                lastMessage,
+                `agent:${agentSlug}`,
+                context.conversationId,
+                {
+                  model: modelId,
+                  modelMetadata: modelInfo ? {
+                    capabilities: {
+                      inputModalities: modelInfo.inputModalities,
+                      outputModalities: modelInfo.outputModalities,
+                      supportsStreaming: modelInfo.responseStreamingSupported,
+                    },
+                    pricing: pricingInfo ? {
+                      inputTokenPrice: pricingInfo.inputTokenPrice,
+                      outputTokenPrice: pricingInfo.outputTokenPrice,
+                      currency: 'USD',
+                      region: this.appConfig.region,
+                    } : undefined,
+                  } : undefined,
+                  usage: {
+                    inputTokens: usage.promptTokens || 0,
+                    outputTokens: usage.completionTokens || 0,
+                    totalTokens: usage.totalTokens || 0,
+                    estimatedCost: cost,
+                  },
+                }
+              );
+            }
+          } catch (error) {
+            this.logger.error('Failed to enrich message with model metadata', { error });
+          }
         } catch (error) {
           this.logger.error('Failed to update conversation stats', { error });
         }

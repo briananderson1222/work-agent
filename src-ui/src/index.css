@@ -244,7 +244,7 @@ body {
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 12px 24px;
+  padding: 4px 24px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-primary);
 }
@@ -1676,7 +1676,6 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 43px; /* Space for collapsed chat dock */
 }
 
 .main-content--full.has-chat-dock {
@@ -2502,7 +2501,6 @@ body {
 
 .app-toolbar__settings {
   margin-left: auto;
-  font-size: 18px;
 }
 
 @keyframes spin {
