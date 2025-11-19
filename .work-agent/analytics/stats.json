@@ -1,30 +1,31 @@
 {
   "lifetime": {
-    "totalMessages": 73,
-    "totalSessions": 8,
-    "totalInputTokens": 325616,
-    "totalOutputTokens": 3795,
-    "totalCost": 1.033773,
+    "totalMessages": 1,
+    "totalSessions": 0,
+    "totalInputTokens": 24496,
+    "totalOutputTokens": 138,
+    "totalCost": 0.075558,
     "uniqueAgents": [
       "default",
       "stallion-workspace:work-agent"
     ],
-    "firstMessageDate": "2025-11-18",
+    "totalConversations": null,
+    "firstMessageDate": "2025-11-19",
     "lastMessageDate": "2025-11-19"
   },
   "byModel": {
     "anthropic.claude-3-5-sonnet-20240620-v1:0": {
-      "messages": 73,
-      "inputTokens": 325616,
-      "outputTokens": 3795,
-      "cost": 1.033773
+      "messages": 1,
+      "inputTokens": 24496,
+      "outputTokens": 138,
+      "cost": 0.075558
     }
   },
   "byAgent": {
     "stallion-workspace:work-agent": {
-      "sessions": 8,
-      "messages": 73,
-      "cost": 1.033773
+      "conversations": 0,
+      "messages": 1,
+      "cost": 0.075558
     }
   }
 }

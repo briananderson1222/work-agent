@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { UsageStatsPanel } from '../components/UsageStatsPanel';
 import { AchievementsBadge } from '../components/AchievementsBadge';
 import { useAnalytics } from '../contexts/AnalyticsContext';
@@ -5,13 +6,19 @@ import { getInitials } from '../utils/workspace';
 import './ProfilePage.css';
 
 export function ProfilePage() {
-  const { usageStats } = useAnalytics();
+  const { usageStats, refresh } = useAnalytics();
   const totalMessages = usageStats?.lifetime.totalMessages || 0;
   const totalCost = usageStats?.lifetime.totalCost || 0;
   
   // Get user name from environment or default
   const userName = 'Default User';
   const userInitials = getInitials(userName);
+
+  // Refresh analytics when profile page loads
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="profile-page">

@@ -31,6 +31,9 @@ export function UsageStatsPanel() {
 
   const { lifetime, byModel, byAgent } = usageStats;
   const avgCostPerMessage = lifetime.totalMessages > 0 ? lifetime.totalCost / lifetime.totalMessages : 0;
+  
+  // Backward compatibility: old stats use totalSessions, new use totalConversations
+  const totalConversations = (lifetime as any).totalConversations ?? (lifetime as any).totalSessions ?? 0;
 
   return (
     <div className="usage-stats-panel">
@@ -51,7 +54,7 @@ export function UsageStatsPanel() {
 
       <div className="usage-stats-cards">
         <StatCard icon="💬" label="Messages" value={lifetime.totalMessages.toLocaleString()} color="var(--accent-primary)" />
-        <StatCard icon="📁" label="Sessions" value={lifetime.totalSessions.toLocaleString()} color="var(--accent-secondary)" />
+        <StatCard icon="📁" label="Conversations" value={totalConversations.toLocaleString()} color="var(--accent-secondary)" />
         <StatCard icon="💰" label="Total Cost" value={`$${lifetime.totalCost.toFixed(2)}`} color="var(--accent-warning)" />
         <StatCard icon="📈" label="Avg/Message" value={`$${avgCostPerMessage.toFixed(4)}`} color="var(--accent-success)" />
       </div>

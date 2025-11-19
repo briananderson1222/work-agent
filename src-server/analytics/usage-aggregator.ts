@@ -6,7 +6,7 @@ import { createInterface } from 'readline';
 export interface UsageStats {
   lifetime: {
     totalMessages: number;
-    totalSessions: number;
+    totalConversations: number;
     totalInputTokens: number;
     totalOutputTokens: number;
     totalCost: number;
@@ -21,7 +21,7 @@ export interface UsageStats {
     cost: number;
   }>;
   byAgent: Record<string, {
-    sessions: number;
+    conversations: number;
     messages: number;
     cost: number;
   }>;
@@ -72,7 +72,7 @@ export class UsageAggregator {
     return {
       lifetime: {
         totalMessages: 0,
-        totalSessions: 0,
+        totalConversations: 0,
         totalInputTokens: 0,
         totalOutputTokens: 0,
         totalCost: 0,
@@ -129,7 +129,7 @@ export class UsageAggregator {
 
     // Update by-agent stats
     if (!stats.byAgent[agentSlug]) {
-      stats.byAgent[agentSlug] = { sessions: 0, messages: 0, cost: 0 };
+      stats.byAgent[agentSlug] = { conversations: 0, messages: 0, cost: 0 };
     }
     stats.byAgent[agentSlug].messages++;
     if (usage) {
@@ -141,13 +141,18 @@ export class UsageAggregator {
   }
 
   async fullRescan(): Promise<UsageStats> {
-    const stats = this.getEmptyStats();
+    // Load existing stats instead of starting from zero
+    const stats = await this.loadStats();
     const agentsDir = join(this.workAgentDir, 'agents');
     
     if (!existsSync(agentsDir)) {
       await this.saveStats(stats);
       return stats;
     }
+
+    // Track what we've seen in current files
+    const seenMessages = new Set<string>();
+    const currentStats = this.getEmptyStats();
 
     const agents = await readdir(agentsDir, { withFileTypes: true });
     const sessionCounts = new Map<string, Set<string>>();
@@ -203,39 +208,39 @@ export class UsageAggregator {
             const modelId = message.metadata?.model || agentModel;
             const timestamp = message.metadata?.timestamp;
 
-            stats.lifetime.totalMessages++;
+            currentStats.lifetime.totalMessages++;
             if (usage) {
-              stats.lifetime.totalInputTokens += usage.inputTokens || 0;
-              stats.lifetime.totalOutputTokens += usage.outputTokens || 0;
-              stats.lifetime.totalCost += usage.estimatedCost || 0;
+              currentStats.lifetime.totalInputTokens += usage.inputTokens || 0;
+              currentStats.lifetime.totalOutputTokens += usage.outputTokens || 0;
+              currentStats.lifetime.totalCost += usage.estimatedCost || 0;
             }
 
             if (timestamp) {
               const date = new Date(timestamp).toISOString().split('T')[0];
-              if (!stats.lifetime.firstMessageDate || date < stats.lifetime.firstMessageDate) {
-                stats.lifetime.firstMessageDate = date;
+              if (!currentStats.lifetime.firstMessageDate || date < currentStats.lifetime.firstMessageDate) {
+                currentStats.lifetime.firstMessageDate = date;
               }
-              if (!stats.lifetime.lastMessageDate || date > stats.lifetime.lastMessageDate) {
-                stats.lifetime.lastMessageDate = date;
+              if (!currentStats.lifetime.lastMessageDate || date > currentStats.lifetime.lastMessageDate) {
+                currentStats.lifetime.lastMessageDate = date;
               }
             }
 
-            if (!stats.byModel[modelId]) {
-              stats.byModel[modelId] = { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0 };
+            if (!currentStats.byModel[modelId]) {
+              currentStats.byModel[modelId] = { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0 };
             }
-            stats.byModel[modelId].messages++;
+            currentStats.byModel[modelId].messages++;
             if (usage) {
-              stats.byModel[modelId].inputTokens += usage.inputTokens || 0;
-              stats.byModel[modelId].outputTokens += usage.outputTokens || 0;
-              stats.byModel[modelId].cost += usage.estimatedCost || 0;
+              currentStats.byModel[modelId].inputTokens += usage.inputTokens || 0;
+              currentStats.byModel[modelId].outputTokens += usage.outputTokens || 0;
+              currentStats.byModel[modelId].cost += usage.estimatedCost || 0;
             }
 
-            if (!stats.byAgent[agentSlug]) {
-              stats.byAgent[agentSlug] = { sessions: 0, messages: 0, cost: 0 };
+            if (!currentStats.byAgent[agentSlug]) {
+              currentStats.byAgent[agentSlug] = { conversations: 0, messages: 0, cost: 0 };
             }
-            stats.byAgent[agentSlug].messages++;
+            currentStats.byAgent[agentSlug].messages++;
             if (usage) {
-              stats.byAgent[agentSlug].cost += usage.estimatedCost || 0;
+              currentStats.byAgent[agentSlug].cost += usage.estimatedCost || 0;
             }
           } catch (error) {
             console.error(`Failed to parse message in ${file}:`, error);
@@ -244,12 +249,58 @@ export class UsageAggregator {
       }
     }
 
-    stats.lifetime.uniqueAgents = Array.from(sessionCounts.keys());
-    stats.lifetime.totalSessions = Array.from(sessionCounts.values()).reduce((sum, set) => sum + set.size, 0);
+    currentStats.lifetime.uniqueAgents = Array.from(sessionCounts.keys());
+    currentStats.lifetime.totalConversations = Array.from(sessionCounts.values()).reduce((sum, set) => sum + set.size, 0);
 
     for (const [agent, sessions] of sessionCounts) {
-      if (stats.byAgent[agent]) {
-        stats.byAgent[agent].sessions = sessions.size;
+      if (currentStats.byAgent[agent]) {
+        currentStats.byAgent[agent].conversations = sessions.size;
+      }
+    }
+
+    // Merge: keep the higher values (existing stats may include deleted conversations)
+    stats.lifetime.totalMessages = Math.max(stats.lifetime.totalMessages, currentStats.lifetime.totalMessages);
+    stats.lifetime.totalConversations = Math.max(stats.lifetime.totalConversations, currentStats.lifetime.totalConversations);
+    stats.lifetime.totalInputTokens = Math.max(stats.lifetime.totalInputTokens, currentStats.lifetime.totalInputTokens);
+    stats.lifetime.totalOutputTokens = Math.max(stats.lifetime.totalOutputTokens, currentStats.lifetime.totalOutputTokens);
+    stats.lifetime.totalCost = Math.max(stats.lifetime.totalCost, currentStats.lifetime.totalCost);
+    
+    // Merge unique agents
+    const allAgents = new Set([...stats.lifetime.uniqueAgents, ...currentStats.lifetime.uniqueAgents]);
+    stats.lifetime.uniqueAgents = Array.from(allAgents);
+    
+    // Keep earliest first date and latest last date
+    if (currentStats.lifetime.firstMessageDate) {
+      if (!stats.lifetime.firstMessageDate || currentStats.lifetime.firstMessageDate < stats.lifetime.firstMessageDate) {
+        stats.lifetime.firstMessageDate = currentStats.lifetime.firstMessageDate;
+      }
+    }
+    if (currentStats.lifetime.lastMessageDate) {
+      if (!stats.lifetime.lastMessageDate || currentStats.lifetime.lastMessageDate > stats.lifetime.lastMessageDate) {
+        stats.lifetime.lastMessageDate = currentStats.lifetime.lastMessageDate;
+      }
+    }
+    
+    // Merge by-model stats (keep higher values)
+    for (const [modelId, modelStats] of Object.entries(currentStats.byModel)) {
+      if (!stats.byModel[modelId]) {
+        stats.byModel[modelId] = modelStats;
+      } else {
+        stats.byModel[modelId].messages = Math.max(stats.byModel[modelId].messages, modelStats.messages);
+        stats.byModel[modelId].inputTokens = Math.max(stats.byModel[modelId].inputTokens, modelStats.inputTokens);
+        stats.byModel[modelId].outputTokens = Math.max(stats.byModel[modelId].outputTokens, modelStats.outputTokens);
+        stats.byModel[modelId].cost = Math.max(stats.byModel[modelId].cost, modelStats.cost);
+      }
+    }
+    
+    // Merge by-agent stats (keep higher values)
+    for (const [agentSlug, agentStats] of Object.entries(currentStats.byAgent)) {
+      if (!stats.byAgent[agentSlug]) {
+        stats.byAgent[agentSlug] = agentStats;
+      } else {
+        stats.byAgent[agentSlug].conversations = Math.max(stats.byAgent[agentSlug].sessions, agentStats.sessions);
+        stats.byAgent[agentSlug].messages = Math.max(stats.byAgent[agentSlug].messages, agentStats.messages);
+        stats.byAgent[agentSlug].cost = Math.max(stats.byAgent[agentSlug].cost, agentStats.cost);
       }
     }
 
