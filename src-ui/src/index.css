@@ -39,7 +39,7 @@
   --event-tool-call: #f59e0b;
   --event-tool-result: #10b981;
   --event-agent-health: #06b6d4;
-  --event-thinking: #8b5cf6;
+  --event-planning: #8b5cf6;
   --event-reasoning: #ec4899;
   
   --overlay-bg: rgba(0, 0, 0, 0.2);
@@ -98,7 +98,7 @@
   --event-tool-call: #d97706;
   --event-tool-result: #059669;
   --event-agent-health: #0891b2;
-  --event-thinking: #7c3aed;
+  --event-planning: #7c3aed;
   --event-reasoning: #db2777;
   
   --overlay-bg: rgba(0, 0, 0, 0.05);
@@ -691,15 +691,21 @@ body {
   position: relative;
 }
 
+.content-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  padding-bottom: var(--chat-dock-height, 49px);
+}
+
+/* Legacy class names for backward compatibility */
 .workspace-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 0 1.5rem;
-}
-
-.workspace-panel.has-chat-dock {
-  /* Padding is set dynamically via inline style to match chat-dock height */
 }
 
 .workspace-default {
@@ -1160,7 +1166,7 @@ body {
 }
 
 .message a {
-  color: var(--accent-primary);
+  color: var(--text-link);
   text-decoration: underline;
 }
 
@@ -1330,7 +1336,20 @@ body {
 
 .chat-controls-row > *:hover:not(:disabled) {
   background: var(--bg-hover);
-  border-color: var(--border-secondary);
+  border-color: var(--accent-primary);
+}
+
+.chat-controls-row > *:focus {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+.chat-controls-row button:focus,
+.chat-controls-row button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  z-index: 1;
 }
 
 .chat-controls button:hover:not(:disabled) {
@@ -1371,7 +1390,7 @@ body {
   font-size: 10px;
   color: var(--text-muted);
   white-space: nowrap;
-  padding: 8px;
+  padding: 4px 8px;
 }
 
 .command-autocomplete {
@@ -1505,6 +1524,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 0 1rem;
+  min-height: 3rem;
 }
 
 .workspace-dashboard__header h2 {
@@ -1604,7 +1625,6 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   border-radius: 12px;
-  padding: 20px;
   padding-bottom: 10px;
   display: flex;
   flex-direction: column;
@@ -1672,16 +1692,6 @@ body {
 }
 
 /* Management Views */
-.main-content--full {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.main-content--full.has-chat-dock {
-  padding-bottom: var(--chat-dock-height, 300px);
-}
-
 .management-view {
   display: flex;
   flex-direction: column;
@@ -1746,10 +1756,13 @@ body {
   background: var(--accent-primary);
   color: white;
   border-color: var(--accent-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .button--primary:hover:not(:disabled) {
-  background: var(--accent-darker);
+  background: var(--accent-darker, #0052a3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
 }
 
 .button--secondary {
@@ -2054,7 +2067,8 @@ body {
 .agent-editor {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .agent-editor__steps {
@@ -2063,6 +2077,7 @@ body {
   padding: 0 24px;
   border-bottom: 1px solid var(--border-primary);
   background: var(--bg-secondary);
+  flex-shrink: 0;
 }
 
 .step-indicator {
@@ -2089,21 +2104,17 @@ body {
 .agent-editor__content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 100px;
+  min-height: 0;
 }
 
 .agent-editor__actions {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   display: flex;
   justify-content: center;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 12px 24px;
   border-top: 1px solid var(--border-primary);
   background: var(--bg-secondary);
-  z-index: 100;
+  flex-shrink: 0;
 }
 
 .tool-grid {

@@ -3,12 +3,16 @@ import { useMonitoring } from '../contexts/MonitoringContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 import { useSearchAutocomplete, parseSearchQuery } from '../hooks/useSearchAutocomplete';
+import { useModels } from '../contexts/ModelsContext';
+import { useApiBase } from '../contexts/ConfigContext';
 import type { AgentStats, MonitoringEvent } from '../contexts/MonitoringContext';
 
 export function MonitoringView() {
   const { stats, events, clearEvents, setTimeRange } = useMonitoring();
   const { setConversation, setActiveChat } = useNavigation();
   const { showToast } = useToast();
+  const { apiBase } = useApiBase();
+  const models = useModels(apiBase);
   const [autoFollow, setAutoFollow] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -43,7 +47,7 @@ export function MonitoringView() {
     'Agent': ['agent-start', 'agent-complete'],
     'Tool': ['tool-call', 'tool-result'],
     'Reasoning': ['reasoning'],
-    'Thinking': ['thinking'],
+    'Planning': ['planning'],
     'Health': ['agent-health']
   };
   
@@ -650,7 +654,7 @@ export function MonitoringView() {
                 <div className="agent-meta">
                   <div className="meta-item">
                     <span className="meta-label">Model:</span>
-                    <span className="meta-value">{typeof agent.model === 'string' ? agent.model.split('.')[1]?.toUpperCase() || agent.model : 'N/A'}</span>
+                    <span className="meta-value">{models.find(m => m.id === agent.model)?.name || agent.model || 'N/A'}</span>
                   </div>
                   <div className="meta-item">
                     <span className="meta-label">Messages:</span>
@@ -1738,9 +1742,9 @@ export function MonitoringView() {
           border-color: var(--event-tool-call);
         }
 
-        .event-filter[data-type="thinking"].active {
-          background: var(--event-thinking);
-          border-color: var(--event-thinking);
+        .event-filter[data-type="planning"].active {
+          background: var(--event-planning);
+          border-color: var(--event-planning);
         }
 
         .event-filter[data-type="reasoning"].active {
@@ -2132,9 +2136,9 @@ export function MonitoringView() {
         }
 
         .log-entry.event-text-delta,
-        .log-entry.event-thinking {
-          border-left-color: var(--event-thinking);
-          background: color-mix(in srgb, var(--event-thinking) 5%, var(--bg-secondary));
+        .log-entry.event-planning {
+          border-left-color: var(--event-planning);
+          background: color-mix(in srgb, var(--event-planning) 5%, var(--bg-secondary));
         }
 
         .log-entry.event-reasoning {
@@ -2174,8 +2178,8 @@ export function MonitoringView() {
         }
 
         .event-text-delta .log-type,
-        .event-thinking .log-type {
-          background: var(--event-thinking);
+        .event-planning .log-type {
+          background: var(--event-planning);
           color: white;
         }
 

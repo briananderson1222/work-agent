@@ -5,7 +5,7 @@ import { useWorkspaces } from '../contexts/WorkspacesContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
-import { useSendMessage, useCreateChatSession } from '../contexts/ActiveChatsContext';
+import { useSendMessage, useCreateChatSession, useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useApiBase } from '../contexts/ConfigContext';
 import type { WorkspaceConfig } from '../types';
 
@@ -40,6 +40,7 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
   const toast = useToast();
   const sendMessage = useSendMessage(apiBase);
   const createChatSession = useCreateChatSession();
+  const activeChatActions = useActiveChatActions();
 
   // Create SDK context value with injected contexts
   const sdkValue: SDKContextValue = {
@@ -50,9 +51,11 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
       conversations: { useConversations: () => conversations },
       navigation: { useNavigation: () => navigation },
       toast: { useToast: () => toast },
+      config: { useApiBase: () => ({ apiBase }) },
       activeChats: { 
         useSendMessage: () => sendMessage,
-        useCreateChatSession: () => createChatSession 
+        useCreateChatSession: () => createChatSession,
+        useActiveChatActions: () => activeChatActions
       },
     },
     hooks: {

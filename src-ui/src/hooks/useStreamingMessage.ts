@@ -1,174 +1,53 @@
 import { useCallback } from 'react';
 import { useActiveChatActions, activeChatsStore } from '../contexts/ActiveChatsContext';
 import { useToast } from '../contexts/ToastContext';
+import { useToolApproval } from './useToolApproval';
+import type { StreamState, HandlerContext } from './streaming/types';
+import { StepHandler } from './streaming/StepHandler';
+import { ReasoningHandler } from './streaming/ReasoningHandler';
+import { TextDeltaHandler } from './streaming/TextDeltaHandler';
+import { ToolApprovalHandler } from './streaming/ToolApprovalHandler';
+import { ToolLifecycleHandler } from './streaming/ToolLifecycleHandler';
+import { createNoOpResult } from './streaming/stateHelpers';
 
-export function useStreamingMessage(apiBase: string) {
+export function useStreamingMessage(apiBase: string, onNavigateToChat?: (sessionId: string) => void) {
   const { updateChat } = useActiveChatActions();
-  const { showToast } = useToast();
-  
+  const { showToolApproval } = useToast();
+  const handleToolApproval = useToolApproval(apiBase);
+
   const handleStreamEvent = useCallback((
     sessionId: string,
     data: any,
-    state: {
-      currentTextChunk: string;
-      contentParts: Array<{ type: 'text' | 'tool'; content?: string; tool?: any }>;
-      pendingApprovals?: Map<string, string>; // JSON.stringify(toolArgs) -> approvalId
-    }
+    state: StreamState
   ) => {
-    if (data.type === 'start-step') {
-      updateChat(sessionId, { isProcessingStep: true });
-    } else if (data.type === 'finish-step') {
-      updateChat(sessionId, { isProcessingStep: false });
-    }
-    
-    // Track tools that need approval with their approvalId
-    if (data.type === 'tool-approval-request') {
-      const chatState = activeChatsStore.getSnapshot()[sessionId];
-      const sessionAutoApprove = chatState?.sessionAutoApprove || [];
-      
-      // If tool is in session autoApprove list, automatically approve it
-      if (sessionAutoApprove.includes(data.toolName)) {
-        
-        // Send approval immediately
-        fetch(`${apiBase}/tool-approval/${data.approvalId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ approved: true }),
-        }).catch(err => console.error('Failed to auto-approve tool:', err));
-        
-        // Don't add to pendingApprovals since it's auto-approved
-        return {
-          updated: false,
-          currentTextChunk: state.currentTextChunk,
-          contentParts: state.contentParts,
-          pendingApprovals: state.pendingApprovals
-        };
-      }
-      
-      const pendingApprovals = new Map(state.pendingApprovals || []);
-      const argsKey = JSON.stringify(data.toolArgs);
-      pendingApprovals.set(argsKey, data.approvalId);
-      
-      // Show toast notification
-      const agentName = chatState?.agentName || 'Agent';
-      showToast(`${agentName} is requesting approval to use ${data.toolName}`, sessionId);
-      
-      return {
-        updated: false,
-        currentTextChunk: state.currentTextChunk,
-        contentParts: state.contentParts,
-        pendingApprovals
-      };
-    }
-    
-    if (data.type === 'text-delta' && (data.delta || data.text)) {
-      const textDelta = data.delta || data.text;
-      const newTextChunk = state.currentTextChunk + textDelta;
-      
-      updateChat(sessionId, {
-        streamingMessage: {
-          role: 'assistant',
-          content: newTextChunk,
-          contentParts: state.contentParts.length > 0 
-            ? [...state.contentParts, { type: 'text', content: newTextChunk }] 
-            : undefined,
-        },
-        isProcessingStep: true
-      });
-      
-      return { 
-        updated: true, 
-        currentTextChunk: newTextChunk,
-        contentParts: state.contentParts,
-        pendingApprovals: state.pendingApprovals
-      };
-    }
-    
-    if (data.type === 'tool-input-available') {
-      const newContentParts = [...state.contentParts];
-      
-      if (state.currentTextChunk) {
-        newContentParts.push({ type: 'text', content: state.currentTextChunk });
-      }
-      
-      const argsKey = JSON.stringify(data.input);
-      const approvalId = state.pendingApprovals?.get(argsKey);
-      const needsApproval = !!approvalId;
-      
-      newContentParts.push({
-        type: 'tool',
-        tool: {
-          id: data.toolCallId,
-          name: data.toolName,
-          args: data.input,
-          needsApproval,
-          approvalId,
-        }
-      });
-      
-      updateChat(sessionId, {
-        streamingMessage: {
-          role: 'assistant',
-          content: newContentParts.map(p => p.type === 'text' ? p.content : '').join(''),
-          contentParts: newContentParts,
-        }
-      });
-      
-      return { 
-        updated: true,
-        currentTextChunk: '',
-        contentParts: newContentParts,
-        pendingApprovals: state.pendingApprovals
-      };
-    }
-    
-    if (data.type === 'tool-output-available' || data.type === 'tool-result') {
-      const toolCallId = data.toolCallId;
-      const output = data.output || data.result;
-      const error = data.error;
-      
-      const newContentParts = state.contentParts.map(part => {
-        if (part.type === 'tool' && part.tool?.id === toolCallId) {
-          return {
-            ...part,
-            tool: {
-              ...part.tool,
-              result: output,
-              error: error,
-              state: error ? 'error' : 'complete'
-            }
-          };
-        }
-        return part;
-      });
-      
-      updateChat(sessionId, {
-        streamingMessage: {
-          role: 'assistant',
-          content: newContentParts.map(p => p.type === 'text' ? p.content : '').join(''),
-          contentParts: newContentParts,
-        }
-      });
-      
-      return {
-        updated: true,
-        currentTextChunk: state.currentTextChunk,
-        contentParts: newContentParts,
-        pendingApprovals: state.pendingApprovals
-      };
-    }
-    
-    return { 
-      updated: false,
-      currentTextChunk: state.currentTextChunk,
-      contentParts: state.contentParts,
-      pendingApprovals: state.pendingApprovals
+    // Build handler context
+    const context: HandlerContext = {
+      sessionId,
+      updateChat,
+      apiBase,
+      showToolApproval,
+      handleToolApproval,
+      onNavigateToChat,
+      activeChatsStore,
     };
-  }, [updateChat, showToast]);
-  
+
+    // Create handlers (order matters - first match wins)
+    const handlers = [
+      new StepHandler(context),
+      new ReasoningHandler(context),
+      new ToolApprovalHandler(context),
+      new TextDeltaHandler(context),
+      new ToolLifecycleHandler(context),
+    ];
+
+    // Find and execute handler
+    const handler = handlers.find(h => h.canHandle(data));
+    return handler ? handler.handle(data, state) : createNoOpResult(state);
+  }, [updateChat, showToolApproval, handleToolApproval, onNavigateToChat]);
+
   const clearStreamingMessage = useCallback((sessionId: string) => {
     updateChat(sessionId, { streamingMessage: undefined, isProcessingStep: false });
   }, [updateChat]);
-  
+
   return { handleStreamEvent, clearStreamingMessage };
 }

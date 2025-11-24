@@ -1,8 +1,11 @@
 import { useCallback } from 'react';
+import { log } from '@/utils/logger';
 import { useActiveChatActions, activeChatsStore } from '../contexts/ActiveChatsContext';
+import { useToast } from '../contexts/ToastContext';
 
 export function useToolApproval(apiBase: string) {
   const { updateChat } = useActiveChatActions();
+  const { dismissToast } = useToast();
 
   return useCallback(async (
     sessionId: string,
@@ -16,6 +19,12 @@ export function useToolApproval(apiBase: string) {
 
     const approved = action !== 'deny';
 
+    // Dismiss the toast for this approval
+    const toastId = state.streamingMessage.approvalToasts?.get(approvalId);
+    if (toastId) {
+      dismissToast(toastId);
+    }
+
     // For 'trust', add tool to session-specific autoApprove list
     if (action === 'trust') {
       const sessionAutoApprove = [...(state.sessionAutoApprove || [])];
@@ -24,6 +33,10 @@ export function useToolApproval(apiBase: string) {
       }
       updateChat(sessionId, { sessionAutoApprove });
     }
+
+    // Remove from pending approvals
+    const pendingApprovals = (state.pendingApprovals || []).filter(id => id !== approvalId);
+    updateChat(sessionId, { pendingApprovals });
 
     // Update tool call state immediately
     const updatedParts = state.streamingMessage.contentParts.map(part => {
@@ -34,6 +47,7 @@ export function useToolApproval(apiBase: string) {
             ...part.tool,
             needsApproval: false,
             cancelled: !approved,
+            approvalStatus: action === 'trust' ? 'auto-approved' : (approved ? 'user-approved' : 'user-denied'),
           }
         };
       }
@@ -46,7 +60,7 @@ export function useToolApproval(apiBase: string) {
         contentParts: updatedParts,
       }
     });
-
+    
     // Send approval to backend (same for 'once' and 'trust')
     try {
       await fetch(`${apiBase}/tool-approval/${approvalId}`, {
@@ -55,7 +69,7 @@ export function useToolApproval(apiBase: string) {
         body: JSON.stringify({ approved }),
       });
     } catch (err) {
-      console.error('Failed to send tool approval:', err);
+      log.api('Failed to send tool approval:', err);
     }
-  }, [apiBase, updateChat]);
+  }, [apiBase, updateChat, dismissToast]);
 }

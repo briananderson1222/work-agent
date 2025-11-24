@@ -1,9 +1,12 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore } from 'react';
+import { log } from '@/utils/logger';
 
 interface Model {
   id: string;
   name: string;
   originalId: string;
+  isInferenceProfile?: boolean;
+  profileType?: string;
 }
 
 class ModelsStore {
@@ -36,15 +39,13 @@ class ModelsStore {
         if (data.success) {
           const processedModels = data.data
             .filter((m: any) => m.outputModalities.includes('TEXT'))
-            .map((m: any) => {
-              const needsPrefix = m.inferenceTypesSupported?.length === 1 && 
-                                  m.inferenceTypesSupported[0] === 'INFERENCE_PROFILE';
-              return {
-                id: needsPrefix ? `us.${m.modelId}` : m.modelId,
-                name: m.modelName || m.modelId,
-                originalId: m.modelId,
-              };
-            });
+            .map((m: any) => ({
+              id: m.modelId,
+              name: m.modelName || m.modelId,
+              originalId: m.modelId,
+              isInferenceProfile: m.isInferenceProfile || false,
+              profileType: m.profileType
+            }));
           
           // Add suffix to duplicate names
           const nameCounts = new Map<string, number>();
@@ -54,10 +55,14 @@ class ModelsStore {
           
           processedModels.forEach((m: any) => {
             if (nameCounts.get(m.name)! > 1) {
-              const parts = m.originalId.split(':');
-              const suffix = parts[parts.length - 1];
-              if (suffix && suffix !== '0' && isNaN(Number(suffix))) {
-                m.name = `${m.name} (${suffix})`;
+              if (m.isInferenceProfile) {
+                m.name = `${m.name} (Cross-Region)`;
+              } else {
+                const parts = m.originalId.split(':');
+                const suffix = parts[parts.length - 1];
+                if (suffix && suffix !== '0' && isNaN(Number(suffix))) {
+                  m.name = `${m.name} (${suffix})`;
+                }
               }
             }
           });
@@ -66,7 +71,7 @@ class ModelsStore {
           this.notify();
         }
       } catch (error) {
-        console.error('Failed to load models:', error);
+        log.api('Failed to load models:', error);
       } finally {
         this.fetching.delete(apiBase);
       }

@@ -19,7 +19,7 @@ export async function openResearchUrl(url: string, title: string): Promise<void>
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('open_research_url', { url, title });
   } catch (error) {
-    console.error('Failed to open research URL in Tauri:', error);
+    log.api('Failed to open research URL in Tauri:', error);
     // Fallback: open in new browser tab
     window.open(url, '_blank', 'noopener,noreferrer');
   }

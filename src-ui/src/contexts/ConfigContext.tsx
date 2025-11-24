@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { log } from '@/utils/logger';
 
 type ConfigData = {
   apiEndpoint?: string;
@@ -61,7 +62,7 @@ class ConfigStore {
           this.notify();
         }
       } catch (error) {
-        console.error('Failed to fetch config:', error);
+        log.api('Failed to fetch config:', error);
       } finally {
         this.fetching = null;
       }
@@ -84,7 +85,7 @@ class ConfigStore {
         this.notify();
       }
     } catch (error) {
-      console.error('Failed to update config:', error);
+      log.api('Failed to update config:', error);
       throw error;
     }
   }

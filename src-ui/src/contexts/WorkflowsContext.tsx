@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { log } from '@/utils/logger';
 
 type WorkflowMetadata = {
   id: string;
@@ -43,7 +44,7 @@ class WorkflowsStore {
           this.notify();
         }
       } catch (error) {
-        console.error('Failed to fetch workflows:', error);
+        log.api('Failed to fetch workflows:', error);
       } finally {
         this.fetching.delete(key);
       }
@@ -71,7 +72,7 @@ class WorkflowsStore {
           this.notify();
         }
       } catch (error) {
-        console.error(`Failed to fetch workflows for agent ${agentSlug}:`, error);
+        log.api(`Failed to fetch workflows for agent ${agentSlug}:`, error);
       } finally {
         this.fetching.delete(agentSlug);
       }

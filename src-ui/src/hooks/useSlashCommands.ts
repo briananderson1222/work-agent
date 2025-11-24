@@ -8,27 +8,41 @@ export interface SlashCommand {
   aliases?: string[];
   isCustom?: boolean;
   handler?: (args: string[]) => void | Promise<void>;
+  currentModel?: string;
 }
 
-const BUILTIN_COMMANDS: SlashCommand[] = [
-  { cmd: '/mcp', description: 'List MCP servers for this agent' },
-  { cmd: '/tools', description: 'Show available tools and auto-approved list' },
-  { cmd: '/model', description: 'List and select model for this conversation' },
-  { cmd: '/prompts', description: 'List custom slash commands for this agent' },
-  { cmd: '/clear', aliases: ['/new'], description: 'Clear conversation and start fresh' },
-  { cmd: '/stats', description: 'Show conversation statistics' },
-];
+function getModelDisplayName(modelId: string): string {
+  if (modelId.includes('claude-3-7-sonnet')) return 'Claude 3.7 Sonnet';
+  if (modelId.includes('claude-3-5-sonnet-20241022')) return 'Claude 3.5 Sonnet v2';
+  if (modelId.includes('claude-3-5-sonnet')) return 'Claude 3.5 Sonnet';
+  if (modelId.includes('claude-3-opus')) return 'Claude 3 Opus';
+  if (modelId.includes('claude-3-haiku')) return 'Claude 3 Haiku';
+  return modelId;
+}
 
 export function useSlashCommands(agentSlug: string | null) {
   const { apiBase } = useApiBase();
   const agents = useAgents(apiBase);
   
   return useMemo(() => {
-    if (!agentSlug) return BUILTIN_COMMANDS;
+    const currentAgent = agentSlug ? agents.find(a => a.slug === agentSlug) : null;
+    const currentModelId = currentAgent 
+      ? (typeof currentAgent.model === 'string' ? currentAgent.model : currentAgent.model?.modelId || 'default')
+      : 'default';
+    const modelDisplayName = getModelDisplayName(currentModelId);
+
+    const BUILTIN_COMMANDS: SlashCommand[] = [
+      { cmd: '/mcp', description: 'List MCP servers for this agent' },
+      { cmd: '/tools', description: 'Show available tools and auto-approved list' },
+      { cmd: '/model', description: `Select model override (agent default: ${modelDisplayName})`, currentModel: modelDisplayName },
+      { cmd: '/prompts', description: 'List custom slash commands for this agent' },
+      { cmd: '/clear', aliases: ['/new'], description: 'Clear conversation and start fresh' },
+      { cmd: '/stats', description: 'Show conversation statistics' },
+    ];
     
-    const currentAgent = agents.find(a => a.slug === agentSlug);
+    if (!agentSlug || !currentAgent) return BUILTIN_COMMANDS;
     
-    if (!currentAgent?.commands) {
+    if (!currentAgent.commands) {
       return BUILTIN_COMMANDS;
     }
     

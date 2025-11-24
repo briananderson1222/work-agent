@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { useToast, transformTool, useNavigation, useSendMessage, useWorkspaceNavigation, invokeAgent, useNotifications } from '@stallion-ai/sdk';
+import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
 import '../../plugins/shared/workspace.css';
 
 const CalendarEventSchema = z.object({
@@ -134,9 +134,22 @@ interface CalendarProps {
 export function Calendar({ activeTab }: CalendarProps) {
   const { showToast } = useToast();
   const { notify } = useNotifications();
-  const { setDockState } = useNavigation();
+  const { setDockState, setActiveChat } = useNavigation();
   const { getTabState, setTabState } = useWorkspaceNavigation();
-  const sendMessage = useSendMessage();
+  const { apiBase } = useApiBase();
+  const createChatSession = useCreateChatSession();
+  const sendMessage = useSendMessage(apiBase);
+  const agents = useAgents();
+  
+  const sendToChat = (message: string) => {
+    const resolvedSlug = resolveAgentName('work-agent');
+    const agent = agents.find(a => a.slug === resolvedSlug);
+    if (!agent) return;
+    const sessionId = createChatSession(resolvedSlug, agent.name);
+    setDockState(true);
+    setActiveChat(sessionId);
+    sendMessage(sessionId, resolvedSlug, undefined, message);
+  };
 
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
@@ -167,7 +180,6 @@ export function Calendar({ activeTab }: CalendarProps) {
   useEffect(() => {
     if (activeTab) {
       const storedState = getTabState('calendar');
-      console.log('[Calendar] Restoring state from provider:', storedState);
       if (storedState) {
         const params = new URLSearchParams(storedState);
         
@@ -175,19 +187,16 @@ export function Calendar({ activeTab }: CalendarProps) {
         if (dateStr) {
           const date = new Date(dateStr + 'T00:00:00');
           if (!isNaN(date.getTime())) {
-            console.log('[Calendar] Restoring date:', date);
             setSelectedDate(date);
             setViewMonth(date);
           }
         }
         
         const categories = params.get('categories')?.split(',').filter(Boolean) || [];
-        console.log('[Calendar] Restoring categories:', categories);
         setSelectedCategories(new Set(categories));
         
         const eventId = params.get('event');
         if (eventId) {
-          console.log('[Calendar] Restoring event:', eventId);
           setSelectedEventId(eventId);
         }
         
@@ -293,7 +302,6 @@ export function Calendar({ activeTab }: CalendarProps) {
       params.set('allDayExpanded', 'true');
     }
     const stateString = params.toString();
-    console.log('[Calendar] Saving state to provider:', stateString);
     setTabState('calendar', stateString);
   }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, isInitialMount, setTabState]);
 
@@ -325,7 +333,6 @@ export function Calendar({ activeTab }: CalendarProps) {
   }
 
   const hasCanceledEvents = events.some(e => e.subject.startsWith('Canceled:'));
-  console.log('Debug - Total events:', events.length, 'Has canceled:', hasCanceledEvents, 'Canceled events:', events.filter(e => e.subject.startsWith('Canceled:')).map(e => e.subject));
 
   const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
     const startTime = performance.now();
@@ -463,10 +470,12 @@ export function Calendar({ activeTab }: CalendarProps) {
       }
     };
     
-    fetchTodayEvents();
-    // Refresh every 5 minutes
+    const timeout = setTimeout(fetchTodayEvents, 100);
     const interval = setInterval(fetchTodayEvents, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, []);
   
   // Removed popstate listener - WorkspaceNavigationProvider handles hash restoration
@@ -1418,88 +1427,21 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {meetingDetails?.attendees && meetingDetails.attendees.length > 0 && (
-                        <>
-                          <a
-                            href={`mailto:${meetingDetails.attendees.map(a => a.email).join(';')}?subject=${encodeURIComponent(meetingDetails.subject)}`}
-                            style={{
-                              padding: '0.4rem 0.8rem',
-                              background: 'var(--color-bg-secondary)',
-                              color: 'var(--color-text)',
-                              border: '1px solid var(--color-border)',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.85rem',
-                              textDecoration: 'none',
-                              display: 'inline-block',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            Email All
-                          </a>
-                          <button
-                            onClick={() => {
-                              const attendeeList = meetingDetails.attendees!.map(a => a.email).join(', ');
-                              const prompt = `Draft an email to the following attendees about "${meetingDetails.subject}":\n\nAttendees: ${attendeeList}\n\nMeeting: ${meetingDetails.subject}\nTime: ${new Date(meetingDetails.start).toLocaleString()} - ${new Date(meetingDetails.end).toLocaleTimeString()}\nLocation: ${meetingDetails.location || 'Not specified'}`;
-                              onSendToChat?.(prompt);
-                            }}
-                            style={{
-                              padding: '0.4rem 0.8rem',
-                              background: 'var(--color-bg-secondary)',
-                              color: 'var(--color-text)',
-                              border: '1px solid var(--color-border)',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.85rem',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            Draft via Chat
-                          </button>
-                          <button
-                            onClick={() => {
-                              const attendeeList = meetingDetails.attendees!.map(a => a.email).join(', ');
-                              const prompt = `Schedule a follow-up meeting for "${meetingDetails.subject}" with the same attendees:\n\nAttendees: ${attendeeList}\n\nOriginal meeting was on ${new Date(meetingDetails.start).toLocaleString()}. Please help me find a suitable time and draft the meeting invite.`;
-                              onSendToChat?.(prompt);
-                            }}
-                            style={{
-                              padding: '0.4rem 0.8rem',
-                              background: 'var(--color-bg-secondary)',
-                              color: 'var(--color-text)',
-                              border: '1px solid var(--color-border)',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.85rem',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            Schedule Follow-up
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {new Date(selectedEvent.end) < new Date() && (
-                        <button 
-                          onClick={() => {
-                            onLaunchPrompt?.({
-                              id: `meeting-notes-${selectedEvent.meetingId}`,
-                              label: 'Check email for meeting notes',
-                              prompt: `Search my email for meeting notes or follow-ups related to: "${selectedEvent.subject}"`
-                            });
-                            onShowChat?.();
-                          }}
-                          className="workspace-dashboard__action"
-                        >
-                          Fetch Meeting Summary
-                        </button>
-                      )}
                       <button 
                         onClick={fetchSFDCContext}
                         disabled={loadingSFDC}
                         className="workspace-dashboard__action"
                       >
                         {loadingSFDC ? 'Loading...' : 'Enrich with Salesforce'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const meetingInfo = `Meeting: ${meetingDetails.subject}\nTime: ${new Date(meetingDetails.start).toLocaleString()} - ${new Date(meetingDetails.end).toLocaleTimeString()}\nLocation: ${meetingDetails.location || 'Not specified'}${meetingDetails.attendees ? `\nAttendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}`;
+                          sendToChat(`I need to log an SA activity for this meeting:\n\n${meetingInfo}\n\nWorkflow:\n- Search my email for meeting notes or follow-ups related to "${meetingDetails.subject}"\n- Use the attendee list and meeting subject to identify the relevant Salesforce account\n- Find any related opportunities for this account\n- Present matching accounts/opportunities as a numbered list for me to choose from\n- Help me create the SA activity log with the meeting notes and context`);
+                        }}
+                        className="workspace-dashboard__action"
+                      >
+                        Log Activity
                       </button>
                     </div>
                   </div>

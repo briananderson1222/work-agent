@@ -25,6 +25,7 @@ import type {
   WorkflowStateEntry,
 } from '@voltagent/core';
 import type { UIMessage } from 'ai';
+import { parseReasoningFromMessage } from '../../utils/reasoning-parser.js';
 
 export interface FileVoltAgentMemoryAdapterOptions {
   workAgentDir: string;
@@ -425,15 +426,19 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     const resourceId = await this.resolveResourceId(conversationId, userId);
     await mkdir(this.getSessionsDir(resourceId), { recursive: true });
 
+    // Parse reasoning blocks from message text before saving
+    const parsedMessage = parseReasoningFromMessage(message);
+
     // Add timestamp and analytics metadata
     const messageWithMetadata = {
-      ...message,
+      ...parsedMessage,
       metadata: {
-        ...message.metadata,
+        ...parsedMessage.metadata,
         timestamp: Date.now(),
         modelMetadata: context?.modelMetadata,
         usage: context?.usage,
         model: context?.model,
+        traceId: context?.traceId,
       }
     };
 

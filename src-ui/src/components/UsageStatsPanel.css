@@ -109,6 +109,12 @@
   padding: 0.75rem;
   border-radius: 0.5rem;
   background-color: var(--bg-tertiary);
+  transition: all 0.2s ease;
+}
+
+.usage-breakdown-item:hover {
+  background-color: var(--bg-secondary);
+  transform: translateX(4px);
 }
 
 .usage-breakdown-header {
@@ -196,4 +202,135 @@
   color: var(--bg-primary);
   border: none;
   cursor: pointer;
+}
+
+
+/* Drill-down modal */
+.drill-down-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.drill-down-modal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.drill-down-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.drill-down-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.drill-down-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.drill-down-close:hover {
+  background: var(--bg-secondary);
+}
+
+.drill-down-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.drill-down-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.drill-down-section {
+  margin-bottom: 24px;
+}
+
+.drill-down-section:last-child {
+  margin-bottom: 0;
+}
+
+.drill-down-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.drill-down-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drill-down-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.drill-down-list-name {
+  font-weight: 500;
+}
+
+.drill-down-list-stats {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.drill-down-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.drill-down-details div {
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+}
+
+.drill-down-details strong {
+  color: var(--text-secondary);
+  margin-right: 8px;
 }

@@ -17,6 +17,10 @@ export interface AgentSpec {
     stopSequences?: string[];
     maxSteps?: number; // Maximum number of tool call rounds (default: 5)
   };
+  streaming?: {
+    useNewPipeline?: boolean; // Feature flag for new streaming architecture
+    enableThinking?: boolean; // Send thinking blocks to client
+    debugStreaming?: boolean; // Enable debug logging
   };
   tools?: {
     mcpServers: string[]; // MCP server IDs to load
@@ -24,7 +28,22 @@ export interface AgentSpec {
     autoApprove?: string[]; // tools that execute without user confirmation in chat mode
     aliases?: Record<string, string>; // alias → tool ID
   };
+  commands?: Record<string, SlashCommand>; // Custom slash commands
   ui?: AgentUIConfig;
+}
+
+export interface SlashCommand {
+  name: string;
+  description?: string;
+  prompt: string;
+  params?: SlashCommandParam[];
+}
+
+export interface SlashCommandParam {
+  name: string;
+  description?: string;
+  required?: boolean;
+  default?: string;
 }
 
 export interface AgentUIConfig {

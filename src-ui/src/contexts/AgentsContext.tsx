@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { log } from '@/utils/logger';
 
 type AgentData = {
   slug: string;
@@ -47,7 +48,7 @@ class AgentsStore {
           this.notify();
         }
       } catch (error) {
-        console.error('Failed to fetch agents:', error);
+        log.api('Failed to fetch agents:', error);
       } finally {
         this.fetching.delete(key);
       }
@@ -77,7 +78,7 @@ class AgentsStore {
           this.notify();
         }
       } catch (error) {
-        console.error(`Failed to fetch agent ${slug}:`, error);
+        log.api(`Failed to fetch agent ${slug}:`, error);
       } finally {
         this.fetching.delete(slug);
       }
@@ -101,7 +102,7 @@ class AgentsStore {
         this.notify();
       }
     } catch (error) {
-      console.error('Failed to create agent:', error);
+      log.api('Failed to create agent:', error);
       throw error;
     }
   }
@@ -121,7 +122,7 @@ class AgentsStore {
         this.notify();
       }
     } catch (error) {
-      console.error(`Failed to update agent ${slug}:`, error);
+      log.api(`Failed to update agent ${slug}:`, error);
       throw error;
     }
   }
@@ -138,7 +139,7 @@ class AgentsStore {
         this.notify();
       }
     } catch (error) {
-      console.error(`Failed to delete agent ${slug}:`, error);
+      log.api(`Failed to delete agent ${slug}:`, error);
       throw error;
     }
   }

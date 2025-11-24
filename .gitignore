@@ -23,3 +23,4 @@ src-ui/src/workspaces/
 src-ui/src/plugins/
 !src-ui/src/workspaces/.gitkeep
 !src-ui/src/plugins/.gitkeep
+.bedrock-debug-*.json

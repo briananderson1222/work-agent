@@ -50,6 +50,17 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
     }
   }, [messageCount, refetch]);
 
+  // Poll for updates while modal is open (every 2 seconds)
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const interval = setInterval(() => {
+      refetch();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isVisible, refetch]);
+
   useEffect(() => {
     if (!isVisible) return;
 
@@ -138,28 +149,28 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
                   </div>
                   <span style={{ fontWeight: 600 }}>{stats.contextWindowPercentage.toFixed(1)}%</span>
                 </div>
-                {(stats.systemPromptTokens || stats.mcpServerTokens || stats.userMessageTokens || stats.assistantMessageTokens || stats.contextFilesTokens) && (
+                {(stats.systemPromptTokens !== undefined || stats.mcpServerTokens !== undefined || stats.userMessageTokens !== undefined || stats.assistantMessageTokens !== undefined) && (
                   <div style={{ fontSize: '11px', paddingTop: '8px', borderTop: '1px solid var(--border-primary)' }}>
-                    <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Token Breakdown</div>
-                    {stats.systemPromptTokens !== undefined && stats.systemPromptTokens > 0 && (
+                    <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Context Breakdown</div>
+                    {stats.systemPromptTokens !== undefined && (
                       <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
                         <span>System Prompt:</span>
                         <span style={{ fontWeight: 600 }}>{stats.systemPromptTokens.toLocaleString()}</span>
                       </div>
                     )}
-                    {stats.mcpServerTokens !== undefined && stats.mcpServerTokens > 0 && (
+                    {stats.mcpServerTokens !== undefined && (
                       <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
                         <span>MCP Tools:</span>
                         <span style={{ fontWeight: 600 }}>{stats.mcpServerTokens.toLocaleString()}</span>
                       </div>
                     )}
-                    {stats.userMessageTokens !== undefined && stats.userMessageTokens > 0 && (
+                    {stats.userMessageTokens !== undefined && (
                       <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
                         <span>User Messages:</span>
                         <span style={{ fontWeight: 600 }}>{stats.userMessageTokens.toLocaleString()}</span>
                       </div>
                     )}
-                    {stats.assistantMessageTokens !== undefined && stats.assistantMessageTokens > 0 && (
+                    {stats.assistantMessageTokens !== undefined && (
                       <div style={{ marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
                         <span>Assistant Messages:</span>
                         <span style={{ fontWeight: 600 }}>{stats.assistantMessageTokens.toLocaleString()}</span>
@@ -177,16 +188,52 @@ export function ConversationStats({ agentSlug, conversationId, apiBase, isVisibl
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
               <div>
-                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Consumed Tokens</div>
+                <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Total LLM Consumption</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  Tokens sent/received across all API calls
+                </div>
                 <div style={{ marginBottom: '4px' }}>In: {stats.inputTokens.toLocaleString()}</div>
                 <div style={{ marginBottom: '4px' }}>Out: {stats.outputTokens.toLocaleString()}</div>
                 <div>Total: {stats.totalTokens.toLocaleString()}</div>
               </div>
               <div>
-                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Usage</div>
+                <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Per Turn Averages</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  Average tokens per conversation turn
+                </div>
+                {stats.turns > 0 && (
+                  <>
+                    <div style={{ marginBottom: '4px' }}>
+                      User: {Math.round((stats.userMessageTokens || 0) / stats.turns).toLocaleString()}
+                    </div>
+                    <div style={{ marginBottom: '4px' }}>
+                      Assistant: {Math.round((stats.assistantMessageTokens || 0) / stats.turns).toLocaleString()}
+                    </div>
+                    <div>
+                      Total In: {Math.round(stats.inputTokens / stats.turns).toLocaleString()}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Activity</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  Conversation activity metrics
+                </div>
                 <div style={{ marginBottom: '4px' }}>Turns: {stats.turns}</div>
-                <div style={{ marginBottom: '4px' }}>Tool Calls: {stats.toolCalls}</div>
-                <div>Cost: ${stats.estimatedCost.toFixed(4)}</div>
+                <div>Tool Calls: {stats.toolCalls}</div>
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Cost</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  Total and per-turn cost
+                </div>
+                <div style={{ marginBottom: '4px' }}>Total: ${stats.estimatedCost.toFixed(4)}</div>
+                {stats.turns > 0 && (
+                  <div>Per Turn: ${(stats.estimatedCost / stats.turns).toFixed(4)}</div>
+                )}
               </div>
             </div>
             {stats.modelStats && Object.keys(stats.modelStats).length > 0 && (
@@ -244,12 +291,26 @@ export function ContextPercentage({ agentSlug, conversationId, apiBase, messageC
   if (percentage === null) return null;
 
   return (
-    <div 
+    <button 
       onClick={onClick}
+      disabled={!onClick}
       className="context-indicator"
       style={{ 
         pointerEvents: onClick ? 'auto' : 'none',
-        cursor: onClick ? 'pointer' : 'default'
+        cursor: onClick ? 'pointer' : 'default',
+        background: 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)',
+        transition: 'background 0.2s',
+        border: 'none',
+        width: '100%',
+        padding: 0,
+      }}
+      onMouseEnter={(e) => {
+        if (onClick) {
+          e.currentTarget.style.background = 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.2)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)';
       }}
     >
       <div className="context-indicator-content">
@@ -277,6 +338,6 @@ export function ContextPercentage({ agentSlug, conversationId, apiBase, messageC
           }}>●</span>
         )}
       </div>
-    </div>
+    </button>
   );
 }

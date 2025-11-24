@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { log } from '@/utils/logger';
 
 type WorkspaceData = {
   slug: string;
@@ -58,7 +59,7 @@ class WorkspacesStore {
           this.notify();
         }
       } catch (error) {
-        console.error('Failed to fetch workspaces:', error);
+        log.api('Failed to fetch workspaces:', error);
       } finally {
         this.fetching.delete(key);
       }
@@ -85,7 +86,7 @@ class WorkspacesStore {
           this.notify();
         }
       } catch (error) {
-        console.error(`Failed to fetch workspace ${slug}:`, error);
+        log.api(`Failed to fetch workspace ${slug}:`, error);
       }
     })();
 
@@ -106,7 +107,7 @@ class WorkspacesStore {
         this.notify();
       }
     } catch (error) {
-      console.error('Failed to create workspace:', error);
+      log.api('Failed to create workspace:', error);
       throw error;
     }
   }
@@ -126,7 +127,7 @@ class WorkspacesStore {
         this.notify();
       }
     } catch (error) {
-      console.error(`Failed to update workspace ${slug}:`, error);
+      log.api(`Failed to update workspace ${slug}:`, error);
       throw error;
     }
   }
@@ -143,7 +144,7 @@ class WorkspacesStore {
         this.notify();
       }
     } catch (error) {
-      console.error(`Failed to delete workspace ${slug}:`, error);
+      log.api(`Failed to delete workspace ${slug}:`, error);
       throw error;
     }
   }

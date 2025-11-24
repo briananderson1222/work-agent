@@ -1,4 +1,4 @@
-import { BedrockClient, ListFoundationModelsCommand } from "@aws-sdk/client-bedrock";
+import { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } from "@aws-sdk/client-bedrock";
 import { PricingClient, GetProductsCommand } from "@aws-sdk/client-pricing";
 
 export interface BedrockModel {
@@ -11,6 +11,15 @@ export interface BedrockModel {
   responseStreamingSupported: boolean;
   customizationsSupported: string[];
   inferenceTypesSupported: string[];
+}
+
+export interface InferenceProfile {
+  inferenceProfileId: string;
+  inferenceProfileArn: string;
+  inferenceProfileName: string;
+  type: string;
+  status: string;
+  models: Array<{ modelArn: string }>;
 }
 
 export interface ModelPricing {
@@ -26,6 +35,7 @@ export class BedrockModelCatalog {
   private bedrockClient: BedrockClient;
   private pricingClient: PricingClient;
   private modelsCache: BedrockModel[] | null = null;
+  private profilesCache: InferenceProfile[] | null = null;
   private pricingCache: Map<string, ModelPricing[]> = new Map();
 
   constructor(region: string = "us-east-1") {
@@ -52,6 +62,24 @@ export class BedrockModelCatalog {
     }));
 
     return this.modelsCache;
+  }
+
+  async listInferenceProfiles(): Promise<InferenceProfile[]> {
+    if (this.profilesCache) return this.profilesCache;
+
+    const command = new ListInferenceProfilesCommand({});
+    const response = await this.bedrockClient.send(command);
+
+    this.profilesCache = (response.inferenceProfileSummaries || []).map((profile) => ({
+      inferenceProfileId: profile.inferenceProfileId!,
+      inferenceProfileArn: profile.inferenceProfileArn!,
+      inferenceProfileName: profile.inferenceProfileName!,
+      type: profile.type!,
+      status: profile.status!,
+      models: profile.models || [],
+    }));
+
+    return this.profilesCache;
   }
 
   async getModelPricing(region: string = "us-east-1"): Promise<ModelPricing[]> {
@@ -130,8 +158,12 @@ export class BedrockModelCatalog {
   }
 
   async validateModelId(modelId: string): Promise<boolean> {
-    const models = await this.listModels();
-    return models.some((m) => m.modelId === modelId);
+    const [models, profiles] = await Promise.all([
+      this.listModels(),
+      this.listInferenceProfiles()
+    ]);
+    return models.some((m) => m.modelId === modelId) || 
+           profiles.some((p) => p.inferenceProfileId === modelId);
   }
 
   async getModelInfo(modelId: string): Promise<BedrockModel | undefined> {
@@ -139,8 +171,29 @@ export class BedrockModelCatalog {
     return models.find((m) => m.modelId === modelId);
   }
 
+  async resolveModelId(modelId: string): Promise<string> {
+    // If already an inference profile ID (has region prefix), return as-is
+    if (modelId.match(/^(us|eu|ap|sa|ca|af|me)\./)) {
+      return modelId;
+    }
+
+    // Check if this model requires inference profile
+    const model = await this.getModelInfo(modelId);
+    if (model?.inferenceTypesSupported?.length === 1 && model.inferenceTypesSupported[0] === 'INFERENCE_PROFILE') {
+      // Find corresponding inference profile (default to us. prefix)
+      const profiles = await this.listInferenceProfiles();
+      const profile = profiles.find(p => p.inferenceProfileId === `us.${modelId}`);
+      if (profile) {
+        return profile.inferenceProfileId;
+      }
+    }
+
+    return modelId;
+  }
+
   clearCache() {
     this.modelsCache = null;
+    this.profilesCache = null;
     this.pricingCache.clear();
   }
 }

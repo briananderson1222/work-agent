@@ -5,6 +5,7 @@ export interface AutocompleteItem {
   title: string;
   description?: string;
   metadata?: any; // For passing additional data
+  badge?: string; // Optional badge text
 }
 
 interface AutocompleteSelectorProps {
@@ -12,13 +13,15 @@ interface AutocompleteSelectorProps {
   onSelect: (item: AutocompleteItem) => void;
   onClose: () => void;
   emptyMessage?: string;
+  maxHeight?: string;
 }
 
-export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 'No results found' }: AutocompleteSelectorProps) {
+export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 'No results found', maxHeight }: AutocompleteSelectorProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedIndexRef = useRef(0);
   const itemsRef = useRef<AutocompleteItem[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Update refs
   selectedIndexRef.current = selectedIndex;
@@ -28,6 +31,27 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
   useEffect(() => {
     setSelectedIndex(0);
   }, [items.length]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    const selectedElement = itemRefs.current.get(selectedIndex);
+    if (selectedElement && containerRef.current) {
+      const container = containerRef.current;
+      const elementTop = selectedElement.offsetTop;
+      const elementBottom = elementTop + selectedElement.offsetHeight;
+      const containerScrollTop = container.scrollTop;
+      const containerHeight = container.clientHeight;
+
+      // Scroll up if element is above visible area
+      if (elementTop < containerScrollTop) {
+        container.scrollTop = elementTop;
+      }
+      // Scroll down if element is below visible area
+      else if (elementBottom > containerScrollTop + containerHeight) {
+        container.scrollTop = elementBottom - containerHeight;
+      }
+    }
+  }, [selectedIndex]);
 
   // Click outside to close
   useEffect(() => {
@@ -107,7 +131,7 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
       border: '1px solid var(--border-primary)',
       borderRadius: '4px',
       marginBottom: '4px',
-      maxHeight: 'min(300px, 40vh)',
+      maxHeight: maxHeight || 'min(300px, 40vh)',
       overflowY: 'auto',
       zIndex: 1000,
       boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.1)',
@@ -115,6 +139,10 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
       {items.map((item, idx) => (
         <div
           key={item.id}
+          ref={(el) => {
+            if (el) itemRefs.current.set(idx, el);
+            else itemRefs.current.delete(idx);
+          }}
           onClick={() => onSelect(item)}
           onMouseEnter={() => setSelectedIndex(idx)}
           style={{
@@ -125,8 +153,20 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
             borderLeft: idx === selectedIndex ? '3px solid var(--accent-primary, #0066cc)' : '3px solid transparent',
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: item.description ? '4px' : '0' }}>
-            {item.title}
+          <div style={{ fontWeight: 600, marginBottom: item.description ? '4px' : '0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>{item.title}</span>
+            {item.badge && (
+              <span style={{
+                fontSize: '11px',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                background: 'var(--accent-primary)',
+                color: 'white',
+                fontWeight: 500,
+              }}>
+                {item.badge}
+              </span>
+            )}
           </div>
           {item.description && (
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>

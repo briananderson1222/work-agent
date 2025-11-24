@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { log } from '@/utils/logger';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { AgentIcon } from '../components/AgentIcon';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -95,7 +96,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
       const data = await response.json();
       setAgents(data.data || []);
     } catch (err: any) {
-      console.error('Failed to load agents:', err);
+      log.api('Failed to load agents:', err);
     }
   };
 
@@ -106,7 +107,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
       const data = await response.json();
       setWorkspaces(data.data || []);
     } catch (err: any) {
-      console.error('Failed to load workspaces:', err);
+      log.api('Failed to load workspaces:', err);
     }
   };
 
@@ -182,7 +183,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
 
   const confirmDelete = async () => {
     if (!deleteConfirm || !deleteConfirm.slug) {
-      console.error('Delete confirmation missing slug:', deleteConfirm);
+      log.api('Delete confirmation missing slug:', deleteConfirm);
       setError('Cannot delete: missing identifier');
       setDeleteConfirm(null);
       return;

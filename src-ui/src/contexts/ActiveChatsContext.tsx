@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore } from 'react';
+import { log } from '@/utils/logger';
 import { useConversationActions, conversationsStore } from './ConversationsContext';
 import { useStreamingMessage } from '../hooks/useStreamingMessage';
 import { useApiBase } from './ConfigContext';
@@ -9,6 +10,8 @@ type ChatUIState = {
   attachments: FileAttachment[];
   queuedMessages: string[];
   inputHistory: string[];
+  historyIndex?: number; // Current position in input history (-1 = not navigating)
+  savedInput?: string; // Original unsent text before navigating history
   status?: 'idle' | 'sending' | 'error';
   isProcessingStep?: boolean;
   error?: string | null;
@@ -20,13 +23,14 @@ type ChatUIState = {
   title?: string;
   conversationId?: string; // Backend conversation ID (set after first message)
   // Optimistic messages (shown immediately, replaced when backend responds)
-  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }>;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[]; traceId?: string }>;
   // Ephemeral messages (user message before backend confirms, system messages)
   ephemeralMessages?: Array<{ 
     role: 'user' | 'assistant' | 'system'; 
     content: string; 
     attachments?: any[]; 
     action?: { label: string; handler: () => void };
+    traceId?: string;
   }>;
   // Tool calls from this conversation (persisted across refreshes)
   toolCalls?: Array<{ id: string; name: string; args: any; result?: any; state?: string; error?: string }>;
@@ -38,6 +42,8 @@ type ChatUIState = {
   };
   // Session-specific autoApprove list (tools trusted for this session only)
   sessionAutoApprove?: string[];
+  // Pending tool approvals (approvalId -> toolName)
+  pendingApprovals?: string[];
 };
 
 type ActiveChatsMap = Record<string, ChatUIState>; // keyed by conversationId
@@ -47,6 +53,7 @@ class ActiveChatsStore {
   private listeners = new Set<() => void>();
   private snapshot = this.chats;
   private readonly STORAGE_KEY = 'activeChats';
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.loadFromStorage();
@@ -56,7 +63,7 @@ class ActiveChatsStore {
     try {
       const stored = sessionStorage.getItem(this.STORAGE_KEY);
       if (stored) {
-        const minimal: Array<{ sessionId: string; conversationId: string; agentSlug: string; sessionAutoApprove?: string[]; ephemeralMessages?: any[]; inputHistory?: string[] }> = JSON.parse(stored);
+        const minimal: Array<{ sessionId: string; conversationId: string; agentSlug: string; model?: string; sessionAutoApprove?: string[]; ephemeralMessages?: any[]; inputHistory?: string[] }> = JSON.parse(stored);
         // Initialize minimal chat states - everything else will be derived reactively
         for (const session of minimal) {
           this.chats[session.sessionId] = {
@@ -67,6 +74,7 @@ class ActiveChatsStore {
             hasUnread: false,
             agentSlug: session.agentSlug,
             conversationId: session.conversationId,
+            model: session.model,
             sessionAutoApprove: session.sessionAutoApprove || [],
             ephemeralMessages: session.ephemeralMessages || [],
           };
@@ -74,7 +82,7 @@ class ActiveChatsStore {
         this.snapshot = this.chats;
       }
     } catch (e) {
-      console.warn('Failed to load active chats from sessionStorage:', e);
+      log.debug('Failed to load active chats from sessionStorage:', e);
     }
   }
 
@@ -87,15 +95,26 @@ class ActiveChatsStore {
           sessionId,
           conversationId: chat.conversationId!,
           agentSlug: chat.agentSlug!,
+          model: chat.model,
           sessionAutoApprove: chat.sessionAutoApprove || [],
           ephemeralMessages: chat.ephemeralMessages || [],
           inputHistory: chat.inputHistory || [],
         }));
       sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(minimal));
     } catch (e) {
-      console.warn('Failed to save active chats to sessionStorage:', e);
+      log.debug('Failed to save active chats to sessionStorage:', e);
     }
   }
+
+  private debouncedSave = () => {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+    }
+    this.saveTimer = setTimeout(() => {
+      this.saveToStorage();
+      this.saveTimer = null;
+    }, 300);
+  };
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -106,9 +125,11 @@ class ActiveChatsStore {
     return this.snapshot;
   };
 
-  private notify = () => {
+  private notify = (persist = false) => {
     this.snapshot = { ...this.chats };
-    this.saveToStorage();
+    if (persist) {
+      this.debouncedSave();
+    }
     this.listeners.forEach(listener => listener());
   };
 
@@ -122,20 +143,28 @@ class ActiveChatsStore {
         hasUnread: false,
         ...metadata,
       };
-      this.notify();
+      this.notify(true);
     }
   }
 
   updateChat(conversationId: string, updates: Partial<ChatUIState>) {
     if (this.chats[conversationId]) {
+      // If updating input and not navigating history, reset historyIndex
+      if ('input' in updates && !('historyIndex' in updates)) {
+        updates = { ...updates, historyIndex: -1 };
+      }
       this.chats[conversationId] = { ...this.chats[conversationId], ...updates };
-      this.notify();
+      
+      // Only persist if updating conversationId, model, sessionAutoApprove, or ephemeralMessages
+      const shouldPersist = 'conversationId' in updates || 'model' in updates || 
+        'sessionAutoApprove' in updates || 'ephemeralMessages' in updates;
+      this.notify(shouldPersist);
     }
   }
 
   removeChat(conversationId: string) {
     delete this.chats[conversationId];
-    this.notify();
+    this.notify(true);
   }
 
   clearInput(conversationId: string) {
@@ -145,8 +174,86 @@ class ActiveChatsStore {
         input: '',
         attachments: [],
       };
-      this.notify();
+      this.notify(false); // Don't persist input clearing
     }
+  }
+
+  navigateHistoryUp(conversationId: string) {
+    const chat = this.chats[conversationId];
+    if (!chat) {
+      return;
+    }
+
+    const history = chat.inputHistory || [];
+    if (history.length === 0) {
+      return;
+    }
+    
+    const currentIndex = chat.historyIndex ?? -1;
+    
+    // First time pressing up - save current input
+    if (currentIndex === -1) {
+      const savedInput = chat.input || '';
+      const newIndex = history.length - 1;
+      
+      
+      this.chats[conversationId] = {
+        ...chat,
+        input: history[newIndex],
+        historyIndex: newIndex,
+        savedInput,
+      };
+    } else {
+      // Already navigating - go to previous
+      if (currentIndex === 0) {
+        return;
+      }
+      const newIndex = currentIndex - 1;
+      
+      
+      this.chats[conversationId] = {
+        ...chat,
+        input: history[newIndex],
+        historyIndex: newIndex,
+      };
+    }
+    this.notify(false); // Don't persist navigation
+  }
+
+  navigateHistoryDown(conversationId: string) {
+    const chat = this.chats[conversationId];
+    if (!chat) {
+      return;
+    }
+
+    const currentIndex = chat.historyIndex ?? -1;
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const history = chat.inputHistory || [];
+    const newIndex = currentIndex + 1;
+    
+    // Reached the end - restore saved input or clear
+    if (newIndex >= history.length) {
+      const restoredInput = chat.savedInput || '';
+      
+      
+      this.chats[conversationId] = {
+        ...chat,
+        input: restoredInput,
+        historyIndex: -1,
+        savedInput: undefined,
+      };
+    } else {
+      
+      this.chats[conversationId] = {
+        ...chat,
+        input: history[newIndex],
+        historyIndex: newIndex,
+      };
+    }
+    this.notify(false); // Don't persist navigation
   }
 
   addEphemeralMessage(conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }, backendMessageCount?: number) {
@@ -172,7 +279,7 @@ class ActiveChatsStore {
           insertAfterCount: backendMessageCount ?? 0, // Store how many backend messages existed
         }],
       };
-      this.notify();
+      this.notify(true); // Persist ephemeral messages
     }
   }
 
@@ -182,7 +289,7 @@ class ActiveChatsStore {
         ...this.chats[conversationId],
         ephemeralMessages: [],
       };
-      this.notify();
+      this.notify(true); // Persist clearing
     }
   }
 
@@ -190,7 +297,7 @@ class ActiveChatsStore {
     // Just update the conversationId field, don't migrate the session
     if (this.chats[sessionId]) {
       this.chats[sessionId] = { ...this.chats[sessionId], conversationId };
-      this.notify();
+      this.notify(true); // Persist conversation assignment
     }
   }
 
@@ -199,7 +306,7 @@ class ActiveChatsStore {
       const queued = [...(this.chats[sessionId].queuedMessages || [])];
       queued.splice(index, 1);
       this.chats[sessionId] = { ...this.chats[sessionId], queuedMessages: queued };
-      this.notify();
+      this.notify(false); // Don't persist queue changes
     }
   }
 
@@ -208,14 +315,14 @@ class ActiveChatsStore {
       const queued = [...(this.chats[sessionId].queuedMessages || [])];
       queued[index] = newContent;
       this.chats[sessionId] = { ...this.chats[sessionId], queuedMessages: queued };
-      this.notify();
+      this.notify(false); // Don't persist queue changes
     }
   }
 
   clearQueue(sessionId: string) {
     if (this.chats[sessionId]) {
       this.chats[sessionId] = { ...this.chats[sessionId], queuedMessages: [] };
-      this.notify();
+      this.notify(false); // Don't persist queue clearing
     }
   }
 
@@ -224,9 +331,11 @@ class ActiveChatsStore {
       const history = this.chats[sessionId].inputHistory || [];
       this.chats[sessionId] = { 
         ...this.chats[sessionId], 
-        inputHistory: [...history, input] 
+        inputHistory: [...history, input],
+        historyIndex: -1, // Reset to top
+        savedInput: undefined, // Clear saved input
       };
-      this.notify();
+      this.notify(true); // Persist input history changes
     }
   }
 }
@@ -235,7 +344,7 @@ export const activeChatsStore = new ActiveChatsStore();
 
 type ActiveChatsContextType = {
   initChat: (conversationId: string, metadata?: { agentSlug: string; agentName: string; title: string }) => void;
-  updateChat: (conversationId: string, updates: Partial<ChatUIState>) => void;
+  updateChat: (conversationId: string, updates: Partial<ChatUIState>, sync?: boolean) => void;
   removeChat: (conversationId: string) => void;
   clearInput: (conversationId: string) => void;
   addEphemeralMessage: (conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }) => void;
@@ -245,6 +354,8 @@ type ActiveChatsContextType = {
   editQueuedMessage: (sessionId: string, index: number, newContent: string) => void;
   clearQueue: (sessionId: string) => void;
   addToInputHistory: (sessionId: string, input: string) => void;
+  navigateHistoryUp: (conversationId: string) => void;
+  navigateHistoryDown: (conversationId: string) => void;
   getAllChats: () => Record<string, ChatUIState>;
 };
 
@@ -255,8 +366,8 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
     activeChatsStore.initChat(conversationId, metadata);
   }, []);
 
-  const updateChat = useCallback((conversationId: string, updates: Partial<ChatUIState>) => {
-    activeChatsStore.updateChat(conversationId, updates);
+  const updateChat = useCallback((conversationId: string, updates: Partial<ChatUIState>, sync?: boolean) => {
+    activeChatsStore.updateChat(conversationId, updates, sync);
   }, []);
 
   const removeChat = useCallback((conversationId: string) => {
@@ -299,6 +410,14 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
     activeChatsStore.addToInputHistory(sessionId, input);
   }, []);
 
+  const navigateHistoryUp = useCallback((conversationId: string) => {
+    activeChatsStore.navigateHistoryUp(conversationId);
+  }, []);
+
+  const navigateHistoryDown = useCallback((conversationId: string) => {
+    activeChatsStore.navigateHistoryDown(conversationId);
+  }, []);
+
   return (
     <ActiveChatsContext.Provider value={{ 
       initChat, 
@@ -312,6 +431,8 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
       editQueuedMessage,
       clearQueue,
       addToInputHistory,
+      navigateHistoryUp,
+      navigateHistoryDown,
       getAllChats 
     }}>
       {children}
@@ -353,7 +474,7 @@ export function useAllActiveChats(): Record<string, ChatUIState> {
 export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSessionId: string) => void, onError?: (error: Error) => void, handleSlashCommand?: (sessionId: string, content: string) => Promise<boolean | string | 'CLEAR'>) {
   const { updateChat, clearInput, assignConversationId, addEphemeralMessage } = useActiveChatActions();
   const { sendMessage: sendToServer } = useConversationActions();
-  const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage(apiBase);
+  const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage(apiBase, onActiveSessionChange);
 
   const sendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string) => {
     const allChats = activeChatsStore.getSnapshot();
@@ -405,6 +526,9 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
       // Pass title for new conversations
       const title = !conversationId ? currentState?.title : undefined;
       
+      // Get model override from chat state
+      const model = currentState?.model;
+      
       // Delegate to ConversationsContext for server communication
       const result = await sendToServer(
         apiBase,
@@ -422,7 +546,8 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
           onActiveSessionChange?.(sessionId);
         },
         onError,
-        abortController.signal
+        abortController.signal,
+        model
       );
       
       const newConversationId = result?.conversationId;
@@ -473,7 +598,7 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
           }, 100);
         }
       } catch (replaceError) {
-        console.error('[useSendMessage] Error replacing messages:', replaceError);
+        log.api('[useSendMessage] Error replacing messages:', replaceError);
         // At least clear the status
         clearStreamingMessage(sessionId);
         updateChat(sessionId, { status: 'idle', abortController: undefined });

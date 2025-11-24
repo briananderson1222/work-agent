@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { log } from '@/utils/logger';
 import { ConfirmModal } from './ConfirmModal';
 import { ContextPercentage } from './ConversationStats';
 
@@ -89,7 +90,7 @@ export function SessionManagementMenu({
             allConversations.push(...agentConvos);
           }
         } catch (error) {
-          console.error(`Failed to load conversations for ${agent.slug}:`, error);
+          log.api(`Failed to load conversations for ${agent.slug}:`, error);
         }
       }
       
@@ -100,7 +101,7 @@ export function SessionManagementMenu({
       
       setConversations(allConversations);
     } catch (error) {
-      console.error('Failed to load conversations:', error);
+      log.api('Failed to load conversations:', error);
     } finally {
       setLoading(false);
     }
@@ -161,7 +162,7 @@ export function SessionManagementMenu({
         setRenamingId(null);
       }
     } catch (error) {
-      console.error('Failed to rename conversation:', error);
+      log.api('Failed to rename conversation:', error);
     }
   };
 
@@ -191,11 +192,11 @@ export function SessionManagementMenu({
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Delete failed:', errorData);
+        log.api('Delete failed:', errorData);
         alert(`Failed to delete conversation: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Failed to delete conversation:', error);
+      log.api('Failed to delete conversation:', error);
       alert('Failed to delete conversation. Check console for details.');
     }
   };
@@ -220,7 +221,7 @@ export function SessionManagementMenu({
       // Clear local list
       setConversations([]);
     } catch (error) {
-      console.error('Failed to clear all conversations:', error);
+      log.api('Failed to clear all conversations:', error);
       alert('Failed to clear all conversations. Check console for details.');
     }
   };

@@ -298,7 +298,7 @@ export class UsageAggregator {
       if (!stats.byAgent[agentSlug]) {
         stats.byAgent[agentSlug] = agentStats;
       } else {
-        stats.byAgent[agentSlug].conversations = Math.max(stats.byAgent[agentSlug].sessions, agentStats.sessions);
+        stats.byAgent[agentSlug].conversations = Math.max(stats.byAgent[agentSlug].conversations || 0, agentStats.conversations || 0);
         stats.byAgent[agentSlug].messages = Math.max(stats.byAgent[agentSlug].messages, agentStats.messages);
         stats.byAgent[agentSlug].cost = Math.max(stats.byAgent[agentSlug].cost, agentStats.cost);
       }

@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
+import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
 
 export interface AgentStats {
@@ -96,7 +97,7 @@ class MonitoringStore {
         this.notify();
       }
     } catch (error) {
-      console.error('Failed to fetch monitoring stats:', error);
+      log.api('Failed to fetch monitoring stats:', error);
     }
   }
 
@@ -116,7 +117,7 @@ class MonitoringStore {
         this.notify();
       }
     } catch (error) {
-      console.error('Failed to fetch historical events:', error);
+      log.api('Failed to fetch historical events:', error);
     }
   }
 
@@ -214,12 +215,12 @@ class MonitoringStore {
         
         this.notify();
       } catch (error) {
-        console.error('Failed to parse event:', error);
+        log.api('Failed to parse event:', error);
       }
     };
 
     this.eventSource.onerror = () => {
-      console.error('EventSource error, reconnecting...');
+      log.api('EventSource error, reconnecting...');
       this.disconnect();
       setTimeout(() => this.connectEventStream(), 5000);
     };
@@ -232,7 +233,7 @@ class MonitoringStore {
     this.heartbeatCheckInterval = setInterval(() => {
       const timeSinceHeartbeat = Date.now() - this.lastHeartbeat;
       if (timeSinceHeartbeat > 60000 && this.stats) { // 60 seconds without heartbeat
-        console.warn('No heartbeat for 60s, resetting running agents to idle');
+        log.debug('No heartbeat for 60s, resetting running agents to idle');
         this.stats.agents.forEach(agent => {
           if (agent.status === 'running') {
             agent.status = 'idle';

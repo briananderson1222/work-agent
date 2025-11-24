@@ -1,31 +1,43 @@
 {
   "lifetime": {
-    "totalMessages": 1,
+    "totalMessages": 179,
     "totalSessions": 0,
-    "totalInputTokens": 24496,
-    "totalOutputTokens": 138,
-    "totalCost": 0.075558,
+    "totalInputTokens": 7578899,
+    "totalOutputTokens": 94096,
+    "totalCost": 17.267558399999995,
     "uniqueAgents": [
       "default",
-      "stallion-workspace:work-agent"
+      "stallion-workspace:work-agent",
+      "test-nova-limited-tools"
     ],
-    "totalConversations": null,
+    "totalConversations": 3,
     "firstMessageDate": "2025-11-19",
-    "lastMessageDate": "2025-11-19"
+    "lastMessageDate": "2025-11-24"
   },
   "byModel": {
     "anthropic.claude-3-5-sonnet-20240620-v1:0": {
-      "messages": 1,
-      "inputTokens": 24496,
-      "outputTokens": 138,
-      "cost": 0.075558
+      "messages": 92,
+      "inputTokens": 4762127,
+      "outputTokens": 36157,
+      "cost": 14.828735999999997
+    },
+    "us.amazon.nova-pro-v1:0": {
+      "messages": 87,
+      "inputTokens": 2816772,
+      "outputTokens": 57939,
+      "cost": 2.4388224000000007
     }
   },
   "byAgent": {
     "stallion-workspace:work-agent": {
+      "conversations": 3,
+      "messages": 92,
+      "cost": 14.828735999999997
+    },
+    "test-nova-limited-tools": {
       "conversations": 0,
-      "messages": 1,
-      "cost": 0.075558
+      "messages": 87,
+      "cost": 2.4388224000000007
     }
   }
 }

@@ -6,6 +6,7 @@
  */
 
 import type { PluginManifest, WorkspaceComponent } from '@stallion-ai/sdk';
+import { log } from '@/utils/logger';
 
 interface RegisteredPlugin {
   manifest: PluginManifest;
@@ -23,16 +24,13 @@ export class PluginRegistry {
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
-
+    this.initialized = true;
 
     // Discover workspaces
     await this.discoverPlugins('/src/workspaces', 'workspace');
 
     // Discover components
     await this.discoverPlugins('/src/plugins', 'component');
-
-    this.initialized = true;
-
   }
 
   /**
@@ -52,7 +50,7 @@ export class PluginRegistry {
 
           // Validate manifest
           if (!this.validateManifest(pluginManifest)) {
-            console.warn(`[PluginRegistry] Invalid manifest at ${path}`);
+            log.plugin(`[PluginRegistry] Invalid manifest at ${path}`);
             continue;
           }
 
@@ -61,7 +59,7 @@ export class PluginRegistry {
           const module = await this.loadComponentModule(componentPath);
 
           if (!module) {
-            console.warn(`[PluginRegistry] Failed to load component for ${pluginManifest.name}`);
+            log.plugin(`[PluginRegistry] Failed to load component for ${pluginManifest.name}`);
             continue;
           }
 
@@ -79,8 +77,6 @@ export class PluginRegistry {
               } else {
                 this.components.set(componentId, registered);
               }
-
-              console.log(`[PluginRegistry] Registered ${type}: ${componentId}`);
             }
           }
 
@@ -98,14 +94,14 @@ export class PluginRegistry {
               this.components.set(pluginManifest.name, registered);
             }
 
-            console.log(`[PluginRegistry] Registered ${type} default: ${pluginManifest.name}`);
+            log.plugin(`Found workspace: ${pluginManifest.name}`);
           }
         } catch (error) {
-          console.error(`[PluginRegistry] Error loading plugin at ${path}:`, error);
+          log.api(`[PluginRegistry] Error loading plugin at ${path}:`, error);
         }
       }
     } catch (error) {
-      console.error(`[PluginRegistry] Error discovering plugins in ${baseDir}:`, error);
+      log.api(`[PluginRegistry] Error discovering plugins in ${baseDir}:`, error);
     }
   }
 
@@ -118,7 +114,7 @@ export class PluginRegistry {
       const module = await import(/* @vite-ignore */ path);
       return module;
     } catch (error) {
-      console.error(`[PluginRegistry] Error loading component from ${path}:`, error);
+      log.api(`[PluginRegistry] Error loading component from ${path}:`, error);
       return null;
     }
   }

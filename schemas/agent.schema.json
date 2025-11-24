@@ -18,16 +18,26 @@
       "minLength": 1
     },
     "model": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "Bedrock model ID (optional, falls back to defaultModel)"
     },
     "region": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "AWS region override (optional)",
       "pattern": "^[a-z]{2}-[a-z]+-[0-9]{1}$"
     },
+    "icon": {
+      "type": ["string", "null"],
+      "description": "Icon emoji or identifier (optional, falls back to name abbreviation)"
+    },
+    "maxSteps": {
+      "type": ["integer", "null"],
+      "description": "Maximum conversation steps (optional, falls back to global default)",
+      "minimum": 1,
+      "maximum": 100
+    },
     "guardrails": {
-      "type": "object",
+      "type": ["object", "null"],
       "description": "Model inference parameters",
       "properties": {
         "maxTokens": {
@@ -55,7 +65,7 @@
       "additionalProperties": false
     },
     "tools": {
-      "type": "object",
+      "type": ["object", "null"],
       "description": "Tool configuration",
       "properties": {
         "mcpServers": {
@@ -85,6 +95,25 @@
           "additionalProperties": {
             "type": "string"
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    "streaming": {
+      "type": ["object", "null"],
+      "description": "Streaming pipeline configuration",
+      "properties": {
+        "useNewPipeline": {
+          "type": "boolean",
+          "description": "Enable new streaming architecture (default: false)"
+        },
+        "enableThinking": {
+          "type": "boolean",
+          "description": "Send thinking blocks to client (default: true)"
+        },
+        "debugStreaming": {
+          "type": "boolean",
+          "description": "Enable debug logging (default: false)"
         }
       },
       "additionalProperties": false

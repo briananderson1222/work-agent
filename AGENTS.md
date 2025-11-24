@@ -64,6 +64,59 @@ Workspaces define UI layout and are separate from agent logic:
 - Tab state: Hash-based within workspace component
 - Example: `/workspaces/my-workspace#tab=custom`
 
+**IMPORTANT: State Persistence in Workspace Components**
+
+When building workspace components that are installed via the plugin system, **always use the WorkspaceNavigation context** for state persistence:
+
+```typescript
+import { useWorkspaceNavigation } from '@stallion-ai/sdk';
+
+function MyWorkspaceComponent() {
+  const { getTabState, setTabState } = useWorkspaceNavigation();
+  
+  // Save state
+  const params = new URLSearchParams();
+  params.set('filter', 'active');
+  params.set('selectedId', '123');
+  setTabState('my-tab', params.toString());
+  
+  // Load state
+  const state = getTabState('my-tab');
+  const params = new URLSearchParams(state);
+  const filter = params.get('filter');
+  const selectedId = params.get('selectedId');
+}
+```
+
+**Why this matters:**
+- State persists across page refreshes
+- Works correctly with the plugin installation process
+- Integrates with the workspace navigation system
+- Avoids conflicts with other workspace components
+
+**Common pattern for complex state:**
+```typescript
+// Save multiple values
+const saveState = () => {
+  const params = new URLSearchParams();
+  params.set('mode', mode);
+  params.set('filters', JSON.stringify(activeFilters));
+  params.set('selectedItem', selectedItem?.id || '');
+  setTabState('my-component', params.toString());
+};
+
+// Load on mount
+useEffect(() => {
+  const state = getTabState('my-component');
+  const params = new URLSearchParams(state);
+  setMode(params.get('mode') || 'default');
+  const filters = params.get('filters');
+  if (filters) setActiveFilters(JSON.parse(filters));
+  const itemId = params.get('selectedItem');
+  if (itemId) restoreSelectedItem(itemId);
+}, []);
+```
+
 ## Plugin/Component Creation
 
 **IMPORTANT: Plugin Development Workflow**
@@ -87,6 +140,25 @@ This workflow ensures:
 - All files are properly copied to the UI directory
 - Changes work through the plugin installation process
 - No direct edits to `src-ui/src/workspaces/` that bypass the plugin system
+
+**CRITICAL: SDK-Only Imports**
+
+Workspace components MUST only import from `@stallion-ai/sdk`. Never import directly from core application code:
+
+```typescript
+// ✅ CORRECT - Import from SDK
+import { useAgents, useNavigation, log } from '@stallion-ai/sdk';
+
+// ❌ WRONG - Never import from core
+import { log } from '@/utils/logger';
+import { useAgents } from '@/contexts/AgentsContext';
+```
+
+This ensures:
+- Plugins remain portable and decoupled from core implementation
+- SDK provides a stable API contract
+- Core refactoring doesn't break plugins
+- Plugins can be distributed as standalone packages
 
 ### Creating a Custom Workspace Component
 
@@ -249,6 +321,47 @@ UI sends requests via:
 4. Result returned to agent
 
 Silent invocations (`/invoke` endpoint) bypass approval.
+
+## Debugging
+
+### Frontend Logging
+
+The frontend uses the `debug` package for structured logging with namespaces:
+
+```typescript
+import { log } from '@/utils/logger';
+
+// Use appropriate namespace
+log.context('Agent loaded:', agent);
+log.api('Fetching conversations');
+log.chat('Message sent:', message);
+log.workflow('Workflow started:', workflowId);
+log.plugin('Plugin registered:', pluginName);
+log.auth('Auth error:', error);
+```
+
+**Enable/disable logs in browser console:**
+
+```javascript
+// Enable all logs
+localStorage.debug = 'app:*'
+
+// Enable specific namespace
+localStorage.debug = 'app:api,app:chat'
+
+// Disable all logs
+localStorage.debug = ''
+
+// Then refresh the page
+```
+
+**Available namespaces:**
+- `app:context` - Context providers and state management
+- `app:api` - API calls and responses
+- `app:chat` - Chat interactions and messages
+- `app:workflow` - Workflow execution
+- `app:plugin` - Plugin loading and registration
+- `app:auth` - Authentication and authorization
 
 ## Best Practices
 

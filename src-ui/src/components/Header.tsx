@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import { getInitials, getWorkspaceIcon } from '../utils/workspace';
 import { WorkspaceAutocomplete } from './WorkspaceAutocomplete';
+import { NotificationHistory } from './NotificationHistory';
 import type { NavigationView } from '../types';
 
 interface HeaderProps {
@@ -29,14 +30,10 @@ export function Header({
   const userName = 'Default User';
   const userInitials = getInitials(userName);
   const [showWorkspaceAutocomplete, setShowWorkspaceAutocomplete] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [workspaceQuery, setWorkspaceQuery] = useState('');
 
   // Debug logging
-  console.log('Header:', { 
-    viewType: currentView?.type, 
-    workspace: selectedWorkspace,
-    shouldShow: currentView?.type === 'workspace' && !!selectedWorkspace
-  });
 
   const handleWorkspaceIndicatorClick = () => {
     // If only one workspace, do nothing (already in it)
@@ -96,7 +93,13 @@ export function Header({
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'workspaces' ? 'is-active' : ''}`}
-            onClick={handleWorkspaceButtonClick}
+            onClick={() => {
+              if (currentView?.type === 'workspaces') {
+                onNavigate({ type: 'workspace' });
+              } else {
+                onNavigate({ type: 'workspaces' });
+              }
+            }}
             title="Workspaces"
           >
             Workspaces
@@ -104,7 +107,13 @@ export function Header({
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'agents' ? 'is-active' : ''}`}
-            onClick={() => onNavigate({ type: 'agents' })}
+            onClick={() => {
+              if (currentView?.type === 'agents') {
+                onNavigate({ type: 'workspace' });
+              } else {
+                onNavigate({ type: 'agents' });
+              }
+            }}
             title="Agents"
           >
             Agents
@@ -112,7 +121,13 @@ export function Header({
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'prompts' ? 'is-active' : ''}`}
-            onClick={() => onNavigate({ type: 'prompts' })}
+            onClick={() => {
+              if (currentView?.type === 'prompts') {
+                onNavigate({ type: 'workspace' });
+              } else {
+                onNavigate({ type: 'prompts' });
+              }
+            }}
             title="Prompts"
           >
             Prompts
@@ -120,7 +135,13 @@ export function Header({
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'integrations' ? 'is-active' : ''}`}
-            onClick={() => onNavigate({ type: 'integrations' })}
+            onClick={() => {
+              if (currentView?.type === 'integrations') {
+                onNavigate({ type: 'workspace' });
+              } else {
+                onNavigate({ type: 'integrations' });
+              }
+            }}
             title="Integrations"
           >
             Integrations
@@ -128,7 +149,13 @@ export function Header({
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'monitoring' ? 'is-active' : ''}`}
-            onClick={() => onNavigate({ type: 'monitoring' })}
+            onClick={() => {
+              if (currentView?.type === 'monitoring') {
+                onNavigate({ type: 'workspace' });
+              } else {
+                onNavigate({ type: 'monitoring' });
+              }
+            }}
             title="Monitoring"
           >
             Monitoring
@@ -149,10 +176,36 @@ export function Header({
 
         <div className="header-divider" />
 
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={() => setShowNotifications(!showNotifications)}
+            title="Notifications"
+            style={{ fontSize: '14px', padding: '6px 12px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+          </button>
+          <NotificationHistory 
+            isOpen={showNotifications}
+            onClose={() => setShowNotifications(false)}
+            onViewAll={() => onNavigate({ type: 'notifications' })}
+          />
+        </div>
+
         <button
           type="button"
           className={`button button--secondary ${currentView?.type === 'profile' ? 'is-active' : ''}`}
-          onClick={() => onNavigate({ type: 'profile' })}
+          onClick={() => {
+            if (currentView?.type === 'profile') {
+              onNavigate({ type: 'workspace' });
+            } else {
+              onNavigate({ type: 'profile' });
+            }
+          }}
           title="Profile"
           style={{ fontSize: '14px', padding: '6px 12px', fontWeight: 600 }}
         >

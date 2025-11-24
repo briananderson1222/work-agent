@@ -2,6 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { useConversations, useMessages, useConversationStatus, conversationsStore } from '../contexts/ConversationsContext';
 import { useActiveChatState, useAllActiveChats } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
+import { useAgentTools } from './useAgentTools';
 import type { ChatSession } from '../types';
 
 // Hook to get all open tabs (with messages loaded from backend)

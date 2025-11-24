@@ -1,0 +1,25 @@
+{
+  "name": "Test Nova Limited Tools",
+  "prompt": "You are a helpful assistant that can check calendars.",
+  "model": "us.amazon.nova-pro-v1:0",
+  "guardrails": {
+    "maxTokens": 4096,
+    "temperature": 0.7
+  },
+  "streaming": {
+    "useNewPipeline": true,
+    "enableThinking": true,
+    "debugStreaming": true
+  },
+  "tools": {
+    "mcpServers": [
+      "sat-outlook"
+    ],
+    "available": [
+      "sat-outlook_calendar_view"
+    ],
+    "autoApprove": [
+      "sat-outlook_calendar_view"
+    ]
+  }
+}

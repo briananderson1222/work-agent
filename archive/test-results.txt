@@ -1,0 +1,53 @@
+🔍 Comprehensive Test Matrix
+
+Testing combinations of:
+  - Tool name (with/without hyphen)
+  - Schema complexity (simple/complex)
+  - Prompt type (generic/calendar-specific)
+  - Streaming mode (on/off)
+
+
+🧪 1. Baseline (simple everything)... ✅ PASS
+
+🧪 2. Add hyphen to name... ❌ CRASH
+
+🧪 3. Production name (with hyphen)... ✅ PASS
+
+🧪 4. Production name + complex schema... ❌ CRASH
+
+🧪 5. Production name + schema + description... ✅ PASS
+
+🧪 6. Full production + calendar prompt... ❌ CRASH
+
+🧪 7. Same as #6 but NON-STREAMING... ❌ ERROR: Model produced invalid sequence as part of ToolUse. Please refer to the model tool use troubleshooting guide.
+
+🧪 8. Same as #6 but NO HYPHEN... ✅ PASS
+
+🧪 9. Hyphen in different position... ❌ CRASH
+
+🧪 10. Hyphen + calendar prompt + SIMPLE schema... ❌ CRASH
+
+
+📊 Summary:
+
+✅ 1. Baseline (simple everything)
+❌ 2. Add hyphen to name
+✅ 3. Production name (with hyphen)
+❌ 4. Production name + complex schema
+✅ 5. Production name + schema + description
+❌ 6. Full production + calendar prompt
+❌ 7. Same as #6 but NON-STREAMING
+✅ 8. Same as #6 but NO HYPHEN
+❌ 9. Hyphen in different position
+❌ 10. Hyphen + calendar prompt + SIMPLE schema
+
+
+🔍 Analysis:
+Found 5 crashes. Looking for pattern...
+
+Crashed tests:
+  - 2. Add hyphen to name
+  - 4. Production name + complex schema
+  - 6. Full production + calendar prompt
+  - 9. Hyphen in different position
+  - 10. Hyphen + calendar prompt + SIMPLE schema

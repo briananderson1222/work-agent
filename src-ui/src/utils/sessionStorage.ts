@@ -1,3 +1,5 @@
+import { log } from '@/utils/logger';
+
 const ACTIVE_SESSIONS_KEY = 'work-agent:active-sessions';
 
 export interface PersistedSession {
@@ -19,7 +21,7 @@ export function setActiveSessions(sessions: PersistedSession[]): void {
   try {
     sessionStorage.setItem(ACTIVE_SESSIONS_KEY, JSON.stringify(sessions));
   } catch (error) {
-    console.error('Failed to persist sessions:', error);
+    log.debug('Failed to persist sessions:', error);
   }
 }
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { log } from '@/utils/logger';
 import { CONFIG_DEFAULTS } from './ConfigContext';
 
 export type ConversationStatus = 'idle' | 'streaming' | 'processing';
@@ -16,6 +17,7 @@ type MessageData = {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
+  traceId?: string;
 };
 
 type ConversationsMap = Record<string, ConversationData[]>;
@@ -50,9 +52,9 @@ class ConversationsStore {
     this.notify();
   }
 
-  async fetchConversations(apiBase: string, agentSlug: string) {
+  async fetchConversations(apiBase: string, agentSlug: string, force = false) {
     const key = `conversations:${agentSlug}`;
-    if (this.fetching.has(key)) {
+    if (!force && this.fetching.has(key)) {
       return this.fetching.get(key);
     }
 
@@ -70,7 +72,7 @@ class ConversationsStore {
           this.notify();
         }
       } catch (error) {
-        console.error(`Failed to fetch conversations for ${agentSlug}:`, error);
+        log.api(`Failed to fetch conversations for ${agentSlug}:`, error);
       } finally {
         this.fetching.delete(key);
       }
@@ -88,21 +90,49 @@ class ConversationsStore {
 
     const promise = (async () => {
       try {
-        const response = await fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}/messages`);
-        const result = await response.json();
+        // Fetch messages and tool mappings in parallel
+        const [messagesResponse, toolsResponse] = await Promise.all([
+          fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}/messages`),
+          fetch(`${apiBase}/agents/${agentSlug}/tools`)
+        ]);
+        
+        const result = await messagesResponse.json();
+        const toolsResult = await toolsResponse.json();
+        
+        // Build tool mappings
+        const toolMappings: Record<string, { server?: string; toolName?: string; originalName?: string }> = {};
+        if (toolsResult.success) {
+          toolsResult.data.forEach((tool: any) => {
+            toolMappings[tool.name] = {
+              server: tool.server,
+              toolName: tool.toolName,
+              originalName: tool.originalName,
+            };
+          });
+        }
         
         if (result.success) {
           // Parse backend message format: { role, parts: [{ type, text }] } -> { role, content, contentParts }
           this.messages[key] = result.data.map((m: any) => {
             const textContent = m.parts?.map((p: any) => p.text || p.content).filter(Boolean).join('\n') || '';
             
-            // Keep parts in AI SDK format (tool parts are already correct)
+            // Keep parts in AI SDK format and enrich tool parts
             const contentParts = m.parts?.map((p: any) => {
               if (p.type === 'text') {
                 return { type: 'text', content: p.text };
+              } else if (p.type === 'reasoning') {
+                return { type: 'reasoning', content: p.text };
               } else if (p.type?.startsWith('tool-')) {
-                // Keep AI SDK format: { type: 'tool-{name}', toolCallId, state, input, output }
-                return p;
+                // Enrich tool parts with server and toolName from mappings
+                const toolName = p.type.replace('tool-', '');
+                const mapping = toolMappings[toolName] || {};
+                
+                return {
+                  ...p,
+                  server: p.server || mapping.server,
+                  toolName: p.toolName || mapping.toolName || toolName,
+                  originalName: p.originalName || mapping.originalName,
+                };
               }
               return null;
             }).filter(Boolean);
@@ -112,12 +142,13 @@ class ConversationsStore {
               content: textContent,
               contentParts: contentParts?.length > 0 ? contentParts : undefined,
               timestamp: m.metadata?.timestamp || m.timestamp,
+              traceId: m.metadata?.traceId,
             };
           });
           this.notify();
         }
       } catch (error) {
-        console.error(`Failed to fetch messages for ${conversationId}:`, error);
+        log.api(`Failed to fetch messages for ${conversationId}:`, error);
       } finally {
         this.fetching.delete(key);
       }
@@ -148,7 +179,7 @@ class ConversationsStore {
         this.notify();
       }
     } catch (error) {
-      console.error(`Failed to delete conversation ${conversationId}:`, error);
+      log.api(`Failed to delete conversation ${conversationId}:`, error);
       throw error;
     }
   }
@@ -162,7 +193,8 @@ class ConversationsStore {
     onStreamEvent: (data: any, state: any) => any,
     onConversationStarted?: (conversationId: string, title?: string) => void,
     onError?: (error: Error) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    model?: string
   ): Promise<{ conversationId?: string; finishReason?: string }> {
     const key = conversationId ? `${agentSlug}:${conversationId}` : `${agentSlug}:temp`;
     this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
@@ -174,6 +206,7 @@ class ConversationsStore {
           userId: CONFIG_DEFAULTS.userId,
           ...(conversationId ? { conversationId } : {}),
           ...(title ? { title } : {}),
+          ...(model ? { model } : {}),
         },
       };
       
@@ -213,7 +246,7 @@ class ConversationsStore {
 
       const decoder = new TextDecoder();
       let buffer = '';
-      let state = { currentTextChunk: '', contentParts: [], pendingApprovals: new Map() };
+      let state = { currentTextChunk: '', contentParts: [], pendingApprovals: new Map(), reasoningChunks: [] };
       let newConversationId = conversationId;
       let finishReason: string | undefined;
 
@@ -238,6 +271,7 @@ class ConversationsStore {
             if (dataStr === '[DONE]') break;
             
             const data = JSON.parse(dataStr);
+            log.chat(`Stream event: ${data.type}`);
             
             // Handle conversation-started event
             if (data.type === 'conversation-started' && data.conversationId) {
@@ -252,11 +286,13 @@ class ConversationsStore {
             }
             
             const result = onStreamEvent(data, state);
-            // Always update state to preserve pendingApprovals
+            // Always update state to preserve all fields
             state = { 
               currentTextChunk: result.currentTextChunk, 
               contentParts: result.contentParts,
-              pendingApprovals: result.pendingApprovals
+              pendingApprovals: result.pendingApprovals,
+              reasoningChunks: result.reasoningChunks,
+              currentReasoningChunk: result.currentReasoningChunk
             };
           }
         }
@@ -277,14 +313,25 @@ class ConversationsStore {
 
       this.setStatus(agentSlug, newConversationId || 'temp', 'idle');
       
-      // Refresh messages for the conversation
+      // Refresh messages and update conversation timestamp
       if (newConversationId) {
         await this.refreshMessages(apiBase, agentSlug, newConversationId);
+        
+        // Update conversation timestamp locally
+        const conversations = this.conversations[agentSlug] || [];
+        const convIndex = conversations.findIndex(c => c.id === newConversationId);
+        if (convIndex >= 0) {
+          conversations[convIndex] = {
+            ...conversations[convIndex],
+            updatedAt: new Date().toISOString()
+          };
+          this.notify();
+        }
       }
       
       return { conversationId: newConversationId, finishReason };
     } catch (error) {
-      console.error('Send message error:', error);
+      log.api('Send message error:', error);
       this.setStatus(agentSlug, conversationId || 'temp', 'idle');
       
       // Don't call onError for aborted requests
@@ -344,9 +391,10 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
     onStreamEvent: (data: any, state: any) => any,
     onConversationStarted?: (conversationId: string, title?: string) => void,
     onError?: (error: Error) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    model?: string
   ) => {
-    return conversationsStore.sendMessage(apiBase, agentSlug, conversationId, content, title, onStreamEvent, onConversationStarted, onError, signal);
+    return conversationsStore.sendMessage(apiBase, agentSlug, conversationId, content, title, onStreamEvent, onConversationStarted, onError, signal, model);
   }, []);
 
   const setStatus = useCallback((agentSlug: string, conversationId: string, status: ConversationStatus) => {

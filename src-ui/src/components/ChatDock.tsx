@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SessionManagementMenu } from './SessionManagementMenu';
@@ -20,24 +20,55 @@ import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useToolApproval } from '../hooks/useToolApproval';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
-import { getAgentIcon } from '../utils/workspace';
+import { getAgentIcon, getAgentIconStyle, getUserIconStyle, getInitials } from '../utils/workspace';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
 import type { AgentSummary } from '../types';
 import type { SlashCommand } from '../hooks/useSlashCommands';
 
-function ToolCallDisplay({ toolCall, onApprove }: { 
+function ReasoningSection({ content, fontSize, show }: { content: string; fontSize: number; show: boolean }) {
+  if (!show) return null;
+  
+  return (
+    <div 
+      style={{ 
+        display: 'block', 
+        margin: '0.5rem 0',
+        padding: '0.5rem',
+        background: 'var(--color-bg-secondary)',
+        border: '1px solid var(--color-border)',
+        borderRadius: '4px',
+        fontSize: `${fontSize}px`,
+      }}
+    >
+      <div style={{
+        fontSize: '0.85em',
+        color: 'var(--text-secondary)',
+        fontStyle: 'italic',
+        whiteSpace: 'pre-wrap',
+        lineHeight: '1.5'
+      }}>
+        {content}
+      </div>
+    </div>
+  );
+}
+
+function ToolCallDisplay({ toolCall, onApprove, showDetails = true }: { 
   toolCall: { 
     type: string; // 'tool-{name}' format
     toolCallId?: string;
     tool?: {
       id: string;
       name: string;
+      server?: string;
+      toolName?: string;
       args: any;
       result?: any;
       error?: string;
       state?: string;
       needsApproval?: boolean;
       cancelled?: boolean;
+      approvalStatus?: 'auto-approved' | 'user-approved' | 'user-denied';
     };
     input?: any; 
     output?: any; 
@@ -46,21 +77,27 @@ function ToolCallDisplay({ toolCall, onApprove }: {
     // Streaming-only metadata
     needsApproval?: boolean;
     cancelled?: boolean;
+    approvalStatus?: 'auto-approved' | 'user-approved' | 'user-denied';
   }; 
   onApprove?: (action: 'once' | 'trust' | 'deny') => void;
+  showDetails?: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!showDetails) return null;
   
   // Handle both formats: direct properties or nested tool object
   const tool = toolCall.tool || toolCall;
   const id = tool.id || toolCall.toolCallId || '';
-  const name = tool.name || toolCall.type?.replace('tool-', '') || '';
+  const server = tool.server || toolCall.server;
+  const toolName = tool.toolName || toolCall.toolName || tool.name || toolCall.type?.replace('tool-', '') || '';
+  const originalName = tool.originalName || toolCall.originalName; // The actual original name (e.g., sat-outlook_calendar_view)
   const args = tool.args || toolCall.input;
   const result = tool.result || toolCall.output;
   const error = tool.error || toolCall.errorText;
   const needsApproval = tool.needsApproval || toolCall.needsApproval;
   const cancelled = tool.cancelled || toolCall.cancelled;
-  
+  const approvalStatus = tool.approvalStatus || toolCall.approvalStatus;
   
   // Create abbreviated args preview
   const argsPreview = args 
@@ -70,34 +107,84 @@ function ToolCallDisplay({ toolCall, onApprove }: {
     : 'no args';
 
   return (
-    <div className="tool-call" style={{ 
-      display: 'block', 
-      margin: '0.5rem 0',
-      padding: '0.5rem',
-      background: 'var(--color-bg-secondary)',
-      border: '1px solid var(--color-border)',
-      borderRadius: '4px',
-    }}>
+    <div 
+      className="tool-call" 
+      style={{ 
+        display: 'block', 
+        margin: '0.5rem 0',
+        padding: '0.5rem',
+        background: 'var(--color-bg-secondary)',
+        border: '1px solid var(--color-border)',
+        borderRadius: '4px',
+        cursor: 'pointer',
+      }}
+      onClick={() => setIsExpanded(!isExpanded)}
+    >
       <div 
         className="tool-call__header" 
         style={{ 
           display: 'block',
-          cursor: 'pointer',
           padding: 0,
           color: 'inherit',
           textAlign: 'left',
           width: '100%'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
-          <span 
-            className="tool-call__toggle"
-            onClick={() => setIsExpanded(!isExpanded)}
-            style={{ cursor: 'pointer' }}
-          >
+        <div 
+          style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}
+        >
+          <span className="tool-call__toggle">
             {isExpanded ? '▼' : '▶'}
           </span>
-          <span className="tool-call__name" style={{ fontWeight: 500 }}>{name}</span>
+          {server && (
+            <span style={{ 
+              fontSize: '0.7em',
+              padding: '2px 6px',
+              background: 'var(--color-bg-tertiary)',
+              color: 'var(--text-secondary)',
+              borderRadius: '3px',
+              fontFamily: 'monospace'
+            }}>
+              {server}
+            </span>
+          )}
+          <span className="tool-call__name" style={{ fontWeight: 500 }}>{toolName}</span>
+          {approvalStatus === 'auto-approved' && (
+            <span style={{ 
+              fontSize: '0.7em',
+              padding: '2px 6px',
+              background: 'var(--color-bg-tertiary)',
+              color: 'var(--text-secondary)',
+              borderRadius: '3px',
+              marginLeft: '0.25rem'
+            }}>
+              Auto-approved
+            </span>
+          )}
+          {approvalStatus === 'user-approved' && (
+            <span style={{ 
+              fontSize: '0.7em',
+              padding: '2px 6px',
+              background: 'var(--success-secondary)',
+              color: 'var(--success-primary)',
+              borderRadius: '3px',
+              marginLeft: '0.25rem'
+            }}>
+              User approved
+            </span>
+          )}
+          {approvalStatus === 'user-denied' && (
+            <span style={{ 
+              fontSize: '0.7em',
+              padding: '2px 6px',
+              background: 'var(--error-secondary)',
+              color: 'var(--error-primary)',
+              borderRadius: '3px',
+              marginLeft: '0.25rem'
+            }}>
+              User denied
+            </span>
+          )}
           {result && !error && <span style={{ color: 'var(--success-primary)' }} title="Success">✓</span>}
           {error && <span style={{ color: 'var(--error-primary)' }} title="Error">✗</span>}
           {needsApproval && onApprove && !error && !result && !cancelled && (
@@ -169,10 +256,25 @@ function ToolCallDisplay({ toolCall, onApprove }: {
       </div>
       {isExpanded && (
         <div className="tool-call__details" style={{ marginTop: '0.5rem', fontSize: '0.9em' }}>
-          <div className="tool-call__section" style={{ fontSize: '0.85em', opacity: 0.7, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+          <div className="tool-call__section" style={{ fontSize: '0.85em', opacity: 0.7, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <span>
               <strong>ID:</strong> <span style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>{id}</span>
             </span>
+            {server && (
+              <span>
+                <strong>Server:</strong> <span style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>{server}</span>
+              </span>
+            )}
+            {toolName && (
+              <span>
+                <strong>Tool:</strong> <span style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>{toolName}</span>
+              </span>
+            )}
+            {originalName && originalName !== `${server}_${toolName}` && (
+              <span>
+                <strong>Original Name:</strong> <span style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>{originalName}</span>
+              </span>
+            )}
             {(result || error) && (
               <span>
                 <strong>Status:</strong>{' '}
@@ -226,6 +328,12 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const [previousDockOpen, setPreviousDockOpen] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   
+  // Update CSS variable for content-view padding
+  useEffect(() => {
+    const height = !isDockOpen ? 43 : isDockMaximized ? window.innerHeight - 107 : dockHeight;
+    document.documentElement.style.setProperty('--chat-dock-height', `${height}px`);
+  }, [isDockOpen, isDockMaximized, dockHeight]);
+  
   // Chat UI state
   const [chatFontSize, setChatFontSize] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -233,6 +341,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     return querySize ? parseInt(querySize, 10) : defaultFontSize;
   });
   const [showStatsPanel, setShowStatsPanel] = useState(false);
+  const [showReasoning, setShowReasoning] = useState(true);
+  const [showToolDetails, setShowToolDetails] = useState(true);
+  const [showChatSettings, setShowChatSettings] = useState(false);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
@@ -254,7 +365,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   
   // Derive sessions from contexts (includes messages for all sessions)
   const sessions = useDerivedSessions(apiBase, selectedAgent);
-  const { initChat, updateChat, clearInput, removeChat, addEphemeralMessage, clearEphemeralMessages, addToInputHistory } = useActiveChatActions();
+  const { initChat, updateChat, clearInput, removeChat, addEphemeralMessage, clearEphemeralMessages, addToInputHistory, navigateHistoryUp, navigateHistoryDown } = useActiveChatActions();
   const openConversationAction = useOpenConversation(apiBase);
   const rehydrateSessions = useRehydrateSessions(apiBase);
   
@@ -386,8 +497,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setActiveChat(sessionId);
     setDockState(true, false);
     
-    // Scroll to bottom after chat is opened
+    // Focus the textarea after chat is opened
     setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
       if (messagesContainerRef.current) {
         messagesContainerRef.current.scrollTo({
           top: messagesContainerRef.current.scrollHeight,
@@ -432,7 +546,10 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     // Save to history before clearing input
     addToInputHistory(sessionId, command.cmd);
     
-    clearInput(sessionId);
+    // Don't clear input for /model - we need to set it to trigger autocomplete
+    if (cmdName !== 'model') {
+      clearInput(sessionId);
+    }
     setCommandQuery(null);
     
     switch (cmdName) {
@@ -515,25 +632,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       }
         
       case 'model': {
-        // Model switching is handled by typing /model <query> in the input
-        // This case is for when user just types /model without a query
-        const agent = agents.find(a => a.slug === activeSession?.agentSlug);
-        if (!agent) {
-          addEphemeralMessage(sessionId, { role: 'system', content: 'No agent selected.' });
-          break;
-        }
-        
-        const currentModelId = typeof agent.model === 'string' ? agent.model : agent.model?.modelId || 'default';
-        const modelName = currentModelId.includes('claude-3-7-sonnet') ? 'Claude 3.7 Sonnet' :
-                         currentModelId.includes('claude-3-5-sonnet-20241022') ? 'Claude 3.5 Sonnet v2' :
-                         currentModelId.includes('claude-3-5-sonnet') ? 'Claude 3.5 Sonnet' :
-                         currentModelId.includes('claude-3-opus') ? 'Claude 3 Opus' :
-                         currentModelId.includes('claude-3-haiku') ? 'Claude 3 Haiku' : currentModelId;
-        
-        addEphemeralMessage(sessionId, { 
-          role: 'system', 
-          content: `**Current Model:** ${modelName}\n\nTo switch models, type \`/model\` followed by a model name (e.g., \`/model sonnet\`, \`/model haiku\`)` 
-        });
+        // Trigger model autocomplete
+        updateChat(sessionId, { input: '/model ' });
+        setModelQuery('');
         break;
       }
         
@@ -624,7 +725,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   // Ctrl+C to cancel active request
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && activeSession?.status === 'sending') {
+      if (e.ctrlKey && e.key === 'c' && activeSession?.status === 'sending') {
         e.preventDefault();
         cancelMessage(activeSession.id);
         showToast('Request cancelled');
@@ -713,9 +814,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         className={`chat-dock ${!isDockOpen ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''}`}
         style={{ 
           height: !isDockOpen 
-            ? '43px' 
+            ? '49px' 
             : isDockMaximized 
-              ? `${window.innerHeight - 107}px` 
+              ? `calc(100vh - 46px)` 
               : `${dockHeight}px`
         }}
         ref={chatSectionRef}
@@ -746,9 +847,34 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               borderBottom: '2px solid var(--color-primary)'
             })
           }}>
-          <div className="chat-dock__title" style={{ flex: 1 }}>
+          <div className="chat-dock__title" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>Chat Dock</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>{toggleDockShortcut}</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{toggleDockShortcut}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowChatSettings(prev => !prev);
+              }}
+              title="Chat settings"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                opacity: 1,
+                transition: 'opacity 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+            >
+              <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
           </div>
           <div className="chat-dock__header-actions" onClick={(e) => e.stopPropagation()}>
             {(() => {
@@ -1001,17 +1127,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                     >
                       {agentIcon && (
                         <div style={{
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '50%',
-                          backgroundColor: 'var(--color-primary)',
-                          color: 'var(--bg-primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: agentIcon.isCustomIcon ? '12px' : '9px',
-                          fontWeight: 600,
-                          flexShrink: 0,
+                          ...getAgentIconStyle(agent!, 20),
                           marginRight: '8px'
                         }}>
                           {agentIcon.display}
@@ -1097,73 +1213,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setChatFontSize(prev => Math.max(10, prev - 1));
-                    }}
-                    disabled={chatFontSize <= 10}
-                    title="Decrease font size"
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid var(--border-primary)',
-                      color: 'var(--text-primary)',
-                      cursor: chatFontSize <= 10 ? 'not-allowed' : 'pointer',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      lineHeight: 1,
-                      opacity: chatFontSize <= 10 ? 0.3 : 1
-                    }}
-                  >
-                    A−
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setChatFontSize(defaultFontSize);
-                    }}
-                    title="Reset font size"
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid var(--border-primary)',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      lineHeight: 1,
-                      opacity: chatFontSize === defaultFontSize ? 0.5 : 1
-                    }}
-                  >
-                    A
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setChatFontSize(prev => Math.min(24, prev + 1));
-                    }}
-                    disabled={chatFontSize >= 24}
-                    title="Increase font size"
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid var(--border-primary)',
-                      color: 'var(--text-primary)',
-                      cursor: chatFontSize >= 24 ? 'not-allowed' : 'pointer',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      lineHeight: 1,
-                      opacity: chatFontSize >= 24 ? 0.3 : 1
-                    }}
-                  >
-                    A+
-                  </button>
-                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', minWidth: '32px', textAlign: 'center' }}>
-                    {Math.round((chatFontSize / defaultFontSize) * 100)}%
-                  </span>
-                </div>
                 <button
                   type="button"
                   className="chat-dock__new"
@@ -1348,15 +1397,77 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                           return (
                             <div 
                               key={`${activeSession.id}-msg-${idx}`} 
-                              className={`message ${msg.role}`} 
                               style={{ 
-                                position: 'relative',
-                                ...(msg.role === 'user' && msg.fromPrompt ? {
-                                  background: 'var(--bg-tertiary)',
-                                  borderLeft: '3px solid var(--accent-primary, #0066cc)'
-                                } : {})
+                                display: 'flex',
+                                gap: '8px',
+                                alignItems: 'flex-start',
+                                flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                                marginBottom: '12px'
                               }}
                             >
+                              <div style={{ 
+                                ...(msg.role === 'assistant' 
+                                  ? (() => {
+                                      const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                                      return agent ? getAgentIconStyle(agent, 20) : {
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '20px',
+                                        height: '20px',
+                                        borderRadius: '50%',
+                                        background: 'var(--accent-primary)',
+                                        fontSize: '11px',
+                                        flexShrink: 0,
+                                        color: 'var(--text-primary)',
+                                      };
+                                    })()
+                                  : getUserIconStyle({ name: 'Default User' }, 20)),
+                                marginTop: '4px'
+                              }}>
+                                {msg.role === 'assistant' 
+                                  ? (() => {
+                                      const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                                      return agent?.icon || getInitials(agent?.name || 'AI');
+                                    })()
+                                  : getInitials('Default User')
+                                }
+                              </div>
+                              <div 
+                                className={`message ${msg.role}`} 
+                                style={{ 
+                                  position: 'relative',
+                                  maxWidth: '70%',
+                                  ...(msg.role === 'user' && msg.fromPrompt ? {
+                                    background: 'var(--bg-tertiary)',
+                                    borderLeft: '3px solid var(--accent-primary, #0066cc)'
+                                  } : {})
+                                }}
+                              >
+                              {msg.traceId && (
+                                <a
+                                  href={`/monitoring?filters=${encodeURIComponent(JSON.stringify({ trace: [msg.traceId] }))}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    position: 'absolute',
+                                    top: '8px',
+                                    right: '8px',
+                                    fontSize: '0.65em',
+                                    color: 'var(--text-muted)',
+                                    textDecoration: 'none',
+                                    opacity: 0.4,
+                                    fontFamily: 'monospace',
+                                    letterSpacing: '0.5px',
+                                    transition: 'opacity 0.2s',
+                                  }}
+                                  onMouseOver={(e) => (e.currentTarget.style.opacity = '0.7')}
+                                  onMouseOut={(e) => (e.currentTarget.style.opacity = '0.4')}
+                                  title={`Trace: ${msg.traceId}`}
+                                >
+                                  {msg.traceId.slice(-8)}
+                                </a>
+                              )}
                               {msg.role === 'assistant' && textContent && (
                                 <button
                                   onClick={() => {
@@ -1413,15 +1524,18 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                               {msg.contentParts && msg.contentParts.length > 0 ? (
                                 (() => {
                                   return msg.contentParts.map((part, i) => {
-                                    if (part.type === 'text' && part.content) {
+                                    if (part.type === 'reasoning' && part.content) {
+                                      return <ReasoningSection key={i} content={part.content} fontSize={chatFontSize} show={showReasoning} />;
+                                    } else if (part.type === 'text' && part.content) {
                                       return <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>;
                                     } else if (part.type === 'tool' || part.type?.startsWith('tool-')) {
-                                      // Only pass onApprove for streaming messages (last message from assistant)
+                                      // Tool parts are already enriched by ConversationsContext
                                       const isStreamingMessage = idx === activeSession.messages.length - 1 && msg.role === 'assistant';
                                       return (
                                         <ToolCallDisplay 
                                           key={i} 
-                                          toolCall={part} 
+                                          toolCall={part}
+                                          showDetails={showToolDetails}
                                           onApprove={isStreamingMessage && part.tool?.needsApproval ? (action) => {
                                             handleToolApproval(
                                               activeSession.id,
@@ -1440,21 +1554,142 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                               ) : (
                                 textContent && <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
                               )}
+                              {/* Show loading/approval indicators at the end of last assistant message when it has content */}
+                              {msg.role === 'assistant' && idx === activeSession.messages.length - 1 && (
+                                <>
+                                  {activeSession.isThinking && textContent && (
+                                    <div style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: '8px', 
+                                      color: 'var(--text-muted)',
+                                      marginTop: '8px'
+                                    }}>
+                                      <span className="loading-dots">
+                                        <span style={{ animationDelay: '0s' }}>●</span>
+                                        <span style={{ animationDelay: '0.2s' }}>●</span>
+                                        <span style={{ animationDelay: '0.4s' }}>●</span>
+                                      </span>
+                                    </div>
+                                  )}
+                                  {activeSession.pendingApprovals && activeSession.pendingApprovals.length > 0 && (
+                                    <div style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: '8px', 
+                                      color: 'var(--warning-primary, orange)',
+                                      marginTop: '8px',
+                                      padding: '8px',
+                                      background: 'var(--warning-bg, rgba(255, 165, 0, 0.1))',
+                                      borderRadius: '4px',
+                                      fontSize: '0.9em'
+                                    }}>
+                                      <span>⏸</span>
+                                      <span>Awaiting tool approval ({activeSession.pendingApprovals.length})</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              </div>
                             </div>
                           );
                         })}
                         
+                        {/* Render streaming message being built in real-time */}
+                        {activeSession.streamingMessage && (
+                          <div style={{ 
+                            display: 'flex',
+                            gap: '8px',
+                            alignItems: 'flex-start',
+                            marginBottom: '12px'
+                          }}>
+                            <div style={{ 
+                              ...(() => {
+                                const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                                return agent ? getAgentIconStyle(agent, 20) : {
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '20px',
+                                  height: '20px',
+                                  borderRadius: '50%',
+                                  background: 'var(--accent-primary)',
+                                  fontSize: '11px',
+                                  flexShrink: 0,
+                                  color: 'var(--text-primary)',
+                                };
+                              })(),
+                              marginTop: '4px'
+                            }}>
+                              {(() => {
+                                const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                                return agent?.icon || getInitials(agent?.name || 'AI');
+                              })()}
+                            </div>
+                            <div className="message assistant" style={{ maxWidth: '70%', fontSize: `${chatFontSize}px` }}>
+                              {activeSession.streamingMessage.contentParts && activeSession.streamingMessage.contentParts.length > 0 ? (
+                                activeSession.streamingMessage.contentParts.map((part, i) => {
+                                  if (part.type === 'text' && part.content) {
+                                    return <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>;
+                                  } else if (part.type === 'tool' || part.type?.startsWith('tool-')) {
+                                    return (
+                                      <ToolCallDisplay 
+                                        key={i} 
+                                        toolCall={part}
+                                        showDetails={showToolDetails}
+                                      />
+                                    );
+                                  }
+                                  return null;
+                                })
+                              ) : (
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeSession.streamingMessage.content}</ReactMarkdown>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
                       </>
                     )}
-                    {activeSession.isThinking && (
-                      <div className="message assistant">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
-                          <span className="loading-dots">
-                            <span style={{ animationDelay: '0s' }}>●</span>
-                            <span style={{ animationDelay: '0.2s' }}>●</span>
-                            <span style={{ animationDelay: '0.4s' }}>●</span>
-                          </span>
-                          <span>Thinking...</span>
+                    {/* Show loading indicator in new bubble when starting a new response */}
+                    {activeSession.isThinking && (!activeSession.messages.length || activeSession.messages[activeSession.messages.length - 1]?.role !== 'assistant' || !activeSession.messages[activeSession.messages.length - 1]?.content) && (
+                      <div style={{ 
+                        display: 'flex',
+                        gap: '8px',
+                        alignItems: 'flex-start',
+                        marginBottom: '12px'
+                      }}>
+                        <div style={{ 
+                          ...(() => {
+                            const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                            return agent ? getAgentIconStyle(agent, 20) : {
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              background: 'var(--accent-primary)',
+                              fontSize: '11px',
+                              flexShrink: 0,
+                              color: 'var(--text-primary)',
+                            };
+                          })(),
+                          marginTop: '4px'
+                        }}>
+                          {(() => {
+                            const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                            return agent?.icon || getInitials(agent?.name || 'AI');
+                          })()}
+                        </div>
+                        <div className="message assistant" style={{ maxWidth: '70%' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
+                            <span className="loading-dots">
+                              <span style={{ animationDelay: '0s' }}>●</span>
+                              <span style={{ animationDelay: '0.2s' }}>●</span>
+                              <span style={{ animationDelay: '0.4s' }}>●</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1570,16 +1805,14 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       <ModelSelectorAutocomplete
                         query={modelQuery}
                         models={availableModels}
-                        currentModel={activeSession.model || agents.find(a => a.slug === activeSession.agentSlug)?.model}
+                        currentModel={activeChatState?.model || agents.find(a => a.slug === activeSession.agentSlug)?.model}
+                        agentDefaultModel={agents.find(a => a.slug === activeSession.agentSlug)?.model}
+                        maxHeight={`calc(${dockHeight}px - 200px)`}
                         onSelect={(model) => {
                           const agent = agents.find(a => a.slug === activeSession.agentSlug);
                           const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                          const normalizeId = (id: any) => {
-                            if (typeof id !== 'string') return '';
-                            return id.replace(/^us\./, '');
-                          };
-                          const currentModelStr = activeSession.model || agentModelId || '';
-                          const isAlreadyActive = normalizeId(currentModelStr) === normalizeId(model.id);
+                          const currentModelStr = activeChatState?.model || agentModelId || '';
+                          const isAlreadyActive = currentModelStr === model.id;
                           
                           updateChat(activeSession.id, { 
                             input: '',
@@ -1605,6 +1838,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       <SlashCommandSelector
                         query={commandQuery}
                         commands={slashCommands}
+                        maxHeight={`calc(${dockHeight}px - 200px)`}
                         onSelect={(command) => {
                           executeCommand(command, activeSession.id);
                         }}
@@ -1620,6 +1854,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
                         value={activeSession.input || ''}
                         disabled={!agent}
+                        tabIndex={0}
                         onChange={(e) => {
                           let value = e.target.value;
                           
@@ -1659,35 +1894,22 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         // Selectors handle their own keyboard events
                         if (commandQuery !== null || modelQuery !== null) return;
                         
+                        // Allow Tab to navigate to chat controls
+                        if (e.key === 'Tab' && !e.shiftKey) {
+                          // Let default tab behavior work
+                          return;
+                        }
+                        
                         // Handle arrow up/down for history navigation
                         if (e.key === 'ArrowUp') {
                           e.preventDefault();
-                          const history = activeChatState?.inputHistory || [];
-                          if (history.length === 0) return;
-                          
-                          const currentIndex = historyIndex.get(activeSession.id) ?? -1;
-                          const newIndex = currentIndex === -1 ? history.length - 1 : Math.max(0, currentIndex - 1);
-                          
-                          setHistoryIndex(prev => new Map(prev).set(activeSession.id, newIndex));
-                          updateChat(activeSession.id, { input: history[newIndex] });
+                          navigateHistoryUp(activeSession.id);
                           return;
                         }
                         
                         if (e.key === 'ArrowDown') {
                           e.preventDefault();
-                          const history = activeChatState?.inputHistory || [];
-                          const currentIndex = historyIndex.get(activeSession.id) ?? -1;
-                          
-                          if (currentIndex === -1) return;
-                          
-                          const newIndex = currentIndex + 1;
-                          if (newIndex >= history.length) {
-                            setHistoryIndex(prev => new Map(prev).set(activeSession.id, -1));
-                            updateChat(activeSession.id, { input: '' });
-                          } else {
-                            setHistoryIndex(prev => new Map(prev).set(activeSession.id, newIndex));
-                            updateChat(activeSession.id, { input: history[newIndex] });
-                          }
+                          navigateHistoryDown(activeSession.id);
                           return;
                         }
                         
@@ -1749,6 +1971,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                 content: 'User canceled the ongoing request.'
                               });
                             }}
+                            tabIndex={0}
                             className="send-button"
                             style={{ 
                               background: 'var(--error-bg)',
@@ -1773,7 +1996,14 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                 await handleSendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
                               }
                             }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && activeSession.input?.trim()) {
+                                e.preventDefault();
+                                handleSendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
+                              }
+                            }}
                             disabled={!activeSession.input?.trim()}
+                            tabIndex={0}
                             className="send-button"
                             style={{
                               padding: 0,
@@ -1783,7 +2013,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                               cursor: activeSession.input?.trim() ? 'pointer' : 'not-allowed',
                               fontSize: '13px',
                               fontWeight: 500,
-                              opacity: activeSession.input?.trim() ? 1 : 0.5,
+                              opacity: activeSession.input?.trim() ? 1 : 0.25,
                               flex: '0 0 75%',
                               display: 'flex',
                               alignItems: 'center',
@@ -1794,6 +2024,73 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                           </button>
                         )}
                       </div>
+                      <button 
+                        onClick={() => {
+                          updateChat(activeSession.id, { input: '/model ' });
+                          setModelQuery('');
+                          if (textareaRef.current) {
+                            textareaRef.current.focus();
+                          }
+                        }}
+                        onMouseEnter={(e) => {
+                          const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                          const currentModelId = activeChatState?.model;
+                          const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
+                          e.currentTarget.style.background = isOverride 
+                            ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.25)' 
+                            : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                          const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                          const currentModelId = activeChatState?.model;
+                          const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
+                          e.currentTarget.style.background = isOverride 
+                            ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)' 
+                            : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)';
+                        }}
+                        style={{
+                          fontSize: '10px',
+                          color: (() => {
+                            const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                            const currentModelId = activeChatState?.model;
+                            const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
+                            return isOverride ? 'var(--accent-yellow)' : 'var(--text-muted)';
+                          })(),
+                          padding: '4px 8px',
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          fontWeight: (() => {
+                            const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                            const currentModelId = activeChatState?.model;
+                            const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
+                            return isOverride ? 600 : 400;
+                          })(),
+                          borderBottom: '1px solid var(--border-primary)',
+                          border: 'none',
+                          width: '100%',
+                          background: (() => {
+                            const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                            const currentModelId = activeChatState?.model;
+                            const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
+                            return isOverride 
+                              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)' 
+                              : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)';
+                          })(),
+                          transition: 'background 0.2s',
+                        }}
+                        title={(() => {
+                          const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                          const currentModelId = activeChatState?.model;
+                          const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
+                          return isOverride ? "Model override active - click to change" : "Click to change model";
+                        })()}
+                      >
+                        {(() => {
+                          const modelId = activeChatState?.model || agent?.model;
+                          const modelInfo = availableModels.find(m => m.id === modelId);
+                          return modelInfo?.name || 'Default Model';
+                        })()}
+                      </button>
                       {activeSession.conversationId && (
                         <ContextPercentage
                           agentSlug={activeSession.agentSlug}
@@ -1925,6 +2222,144 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       })()}
 
       {/* Session Picker Modal */}
+      {showChatSettings && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}
+          onClick={() => setShowChatSettings(false)}
+        >
+          <div 
+            style={{
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-primary)',
+              borderRadius: '8px',
+              padding: '24px',
+              minWidth: '400px',
+              maxWidth: '500px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: 600 }}>Chat Settings</h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                Font Size
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => setChatFontSize(prev => Math.max(10, prev - 1))}
+                  disabled={chatFontSize <= 10}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border-primary)',
+                    color: 'var(--text-primary)',
+                    cursor: chatFontSize <= 10 ? 'not-allowed' : 'pointer',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    opacity: chatFontSize <= 10 ? 0.3 : 1
+                  }}
+                >
+                  A−
+                </button>
+                <button
+                  onClick={() => setChatFontSize(defaultFontSize)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border-primary)',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    opacity: chatFontSize === defaultFontSize ? 0.5 : 1
+                  }}
+                >
+                  A
+                </button>
+                <button
+                  onClick={() => setChatFontSize(prev => Math.min(24, prev + 1))}
+                  disabled={chatFontSize >= 24}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border-primary)',
+                    color: 'var(--text-primary)',
+                    cursor: chatFontSize >= 24 ? 'not-allowed' : 'pointer',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    opacity: chatFontSize >= 24 ? 0.3 : 1
+                  }}
+                >
+                  A+
+                </button>
+                <span style={{ fontSize: '14px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                  {chatFontSize}px ({Math.round((chatFontSize / defaultFontSize) * 100)}%)
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showReasoning}
+                  onChange={(e) => setShowReasoning(e.target.checked)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: 500 }}>Show reasoning</span>
+              </label>
+              <p style={{ margin: '4px 0 0 24px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Display model reasoning steps in chat messages
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showToolDetails}
+                  onChange={(e) => setShowToolDetails(e.target.checked)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: 500 }}>Show tool details</span>
+              </label>
+              <p style={{ margin: '4px 0 0 24px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Allow expanding tool calls to view arguments and results
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+              <button
+                onClick={() => setShowChatSettings(false)}
+                style={{
+                  background: 'var(--accent-primary)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  fontWeight: 500
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSessionPicker && (
         <SessionPickerModal
           isOpen={showSessionPicker}

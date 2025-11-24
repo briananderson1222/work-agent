@@ -9,36 +9,65 @@ export function getInitials(name: string): string {
     .toUpperCase();
 }
 
-export function getWorkspaceIcon(workspace: { name: string; icon?: string }): {
-  display: string;
-  isCustomIcon: boolean;
-} {
-  if (workspace.icon) {
+type IconEntity = { name: string; icon?: string };
+
+function getIcon(entity: IconEntity): { display: string; isCustomIcon: boolean } {
+  if (entity.icon) {
     return {
-      display: workspace.icon,
+      display: entity.icon,
       isCustomIcon: true,
     };
   }
   
   return {
-    display: getInitials(workspace.name),
+    display: getInitials(entity.name),
     isCustomIcon: false,
   };
 }
 
-export function getAgentIcon(agent: { name: string; icon?: string }): {
-  display: string;
-  isCustomIcon: boolean;
-} {
-  if (agent.icon) {
+function getIconStyle(entity: IconEntity, size: number = 48, variant: 'default' | 'user' = 'default') {
+  const iconInfo = getIcon(entity);
+  const baseStyle = {
+    width: `${size}px`,
+    height: `${size}px`,
+    borderRadius: variant === 'user' ? '50%' : `${size / 4}px`,
+    background: 'var(--color-primary)',
+    color: 'var(--text-primary)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: iconInfo.isCustomIcon ? `${size / 2}px` : `${size / 2.67}px`,
+    fontWeight: 600,
+    flexShrink: 0,
+  };
+  
+  if (variant === 'user') {
     return {
-      display: agent.icon,
-      isCustomIcon: true,
+      ...baseStyle,
+      background: 'var(--bg-tertiary)',
+      border: '1px solid var(--border-primary)',
     };
   }
   
-  return {
-    display: getInitials(agent.name),
-    isCustomIcon: false,
-  };
+  return baseStyle;
+}
+
+export function getWorkspaceIcon(workspace: IconEntity) {
+  return getIcon(workspace);
+}
+
+export function getWorkspaceIconStyle(workspace: IconEntity, size: number = 48) {
+  return getIconStyle(workspace, size);
+}
+
+export function getAgentIcon(agent: IconEntity) {
+  return getIcon(agent);
+}
+
+export function getAgentIconStyle(agent: IconEntity, size: number = 48) {
+  return getIconStyle(agent, size);
+}
+
+export function getUserIconStyle(user: IconEntity, size: number = 20) {
+  return getIconStyle(user, size, 'user');
 }

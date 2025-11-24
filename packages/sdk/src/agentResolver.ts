@@ -1,9 +1,20 @@
 import type { WorkspaceConfig } from './types';
 
+// Internal workspace context (set by WorkspaceProvider)
+let _currentWorkspace: WorkspaceConfig | undefined;
+
+/**
+ * Set current workspace context
+ * @internal Called by WorkspaceProvider
+ */
+export function _setWorkspaceContext(workspace: WorkspaceConfig | undefined) {
+  _currentWorkspace = workspace;
+}
+
 /**
  * Resolve agent name within workspace context
  * - If name contains ':', use as-is (explicit namespace)
- * - Otherwise, check workspace's available agents for matching short name
+ * - Otherwise, check current workspace's available agents for matching short name
  * - Falls back to global agent if not found in workspace
  */
 export function resolveAgentName(
@@ -14,8 +25,11 @@ export function resolveAgentName(
     return agentName;
   }
 
-  if (workspace?.availableAgents) {
-    const match = workspace.availableAgents.find(a => 
+  // Use provided workspace or fall back to current context
+  const activeWorkspace = workspace || _currentWorkspace;
+
+  if (activeWorkspace?.availableAgents) {
+    const match = activeWorkspace.availableAgents.find(a => 
       a.endsWith(`:${agentName}`)
     );
     if (match) return match;

@@ -71,8 +71,9 @@ export interface ChatMessage {
   isEphemeral?: boolean;
   showContinue?: boolean;
   timestamp?: number;
+  traceId?: string;
   contentParts?: Array<{
-    type: 'text' | 'image' | 'file' | 'tool';
+    type: 'text' | 'image' | 'file' | 'tool' | 'reasoning';
     content?: string;
     image?: string;
     mediaType?: string;
@@ -171,6 +172,7 @@ export type NavigationView =
   | { type: 'integrations' }
   | { type: 'monitoring' }
   | { type: 'profile' }
+  | { type: 'notifications' }
   | { type: 'agent-new' }
   | { type: 'agent-edit'; slug: string; initialTab?: 'basic' | 'model' | 'tools' | 'commands' }
   | { type: 'tools'; slug: string }

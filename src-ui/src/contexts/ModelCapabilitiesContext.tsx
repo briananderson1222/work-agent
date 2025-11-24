@@ -1,4 +1,5 @@
 import { createContext, useContext, useSyncExternalStore, ReactNode } from 'react';
+import { log } from '@/utils/logger';
 
 type ModelCapability = {
   modelId: string;
@@ -51,7 +52,7 @@ class ModelCapabilitiesStore {
       }
     } catch (error: any) {
       this.error = error.message;
-      console.error('Failed to fetch model capabilities:', error);
+      log.api('Failed to fetch model capabilities:', error);
     } finally {
       this.loading = false;
       this.notify();

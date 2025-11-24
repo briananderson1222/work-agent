@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { log } from '@/utils/logger';
 
 type StatsData = {
   contextWindowPercentage?: number;
@@ -55,7 +56,7 @@ class StatsStore {
           this.notify();
         }
       } catch (error) {
-        console.error('[StatsStore] Failed to fetch stats:', error);
+        log.api('[StatsStore] Failed to fetch stats:', error);
       } finally {
         this.fetching.delete(key);
       }

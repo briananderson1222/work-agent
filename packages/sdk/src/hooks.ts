@@ -28,6 +28,25 @@ export function useAgent(slug: string) {
   return agents.find((a: AgentSummary) => a.slug === slug);
 }
 
+export function useResolveAgent(agentSlug: string) {
+  const workspaces = useWorkspaces();
+  const navigation = useNavigation();
+  const currentWorkspace = workspaces.find((w: any) => w.slug === navigation.selectedWorkspace);
+  
+  if (agentSlug.includes(':')) {
+    return agentSlug;
+  }
+  
+  if (currentWorkspace?.availableAgents) {
+    const match = currentWorkspace.availableAgents.find((a: string) => 
+      a.endsWith(`:${agentSlug}`)
+    );
+    if (match) return match;
+  }
+  
+  return agentSlug;
+}
+
 // Workspace Management
 export function useWorkspaces() {
   const sdk = useContext(SDKContext);

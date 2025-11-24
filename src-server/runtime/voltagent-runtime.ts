@@ -18,7 +18,30 @@ import { ConfigLoader } from '../domain/config-loader.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { UsageAggregator } from '../analytics/usage-aggregator.js';
+import { normalizeToolName, parseToolName } from '../utils/tool-name-normalizer.js';
+import { StreamPipeline } from './streaming/StreamPipeline.js';
+import { ReasoningHandler } from './streaming/handlers/ReasoningHandler.js';
+import { ElicitationHandler } from './streaming/handlers/ElicitationHandler.js';
+import { TextDeltaHandler } from './streaming/handlers/TextDeltaHandler.js';
+import { ToolCallHandler } from './streaming/handlers/ToolCallHandler.js';
+import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';
+import { MetadataHandler } from './streaming/handlers/MetadataHandler.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
+import { InjectableStream } from './streaming/InjectableStream.js';
+
+/**
+ * Check if tool name matches any auto-approve pattern
+ * Supports wildcards: "tool_*" matches "tool_read", "tool_write", etc.
+ */
+function isAutoApproved(toolName: string, patterns: string[]): boolean {
+  return patterns.some(pattern => {
+    if (pattern === '*') return true;
+    const regexPattern = pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*');
+    return new RegExp(`^${regexPattern}$`).test(toolName);
+  });
+}
 
 export interface WorkAgentRuntimeOptions {
   workAgentDir?: string;
@@ -43,6 +66,9 @@ export class WorkAgentRuntime {
   private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
+  private agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }> = new Map(); // Cache fixed token counts per agent
+  private toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }> = new Map(); // Tool name mapping with parsed data
+  private toolNameReverseMapping: Map<string, string> = new Map(); // Original -> Normalized for O(1) lookup
   private monitoringEvents = new EventEmitter();
   private agentStats = new Map<string, { conversationCount: number; messageCount: number; lastUpdated: number }>();
   private agentStatus = new Map<string, 'idle' | 'running'>();
@@ -68,6 +94,13 @@ export class WorkAgentRuntime {
     this.logger = createPinoLogger({
       name: 'work-agent',
       level: options.logLevel || 'info',
+    });
+    
+    // Log versions for debugging
+    this.logger.info('Work Agent Runtime initializing', {
+      voltagentCore: '1.1.37',
+      aiSdkBedrock: '3.0.56',
+      nodeVersion: process.version
     });
   }
 
@@ -106,6 +139,7 @@ export class WorkAgentRuntime {
         try {
           const agent = await this.createVoltAgentInstance(meta.slug);
           this.activeAgents.set(meta.slug, agent);
+          this.voltAgent?.registerAgent(agent);
           this.logger.info('Agent added', { agent: meta.slug });
         } catch (error) {
           this.logger.error('Failed to add agent', { agent: meta.slug, error });
@@ -332,7 +366,15 @@ export class WorkAgentRuntime {
               const slug = c.req.param('slug');
               const updates = await c.req.json();
 
-              const updated = await this.configLoader.updateAgent(slug, updates);
+              // Remove null values to allow unsetting optional fields
+              const filtered = Object.entries(updates).reduce((acc, [key, value]) => {
+                if (value !== null) {
+                  acc[key] = value;
+                }
+                return acc;
+              }, {} as any);
+
+              const updated = await this.configLoader.updateAgent(slug, filtered);
 
               // Reload agents to reflect changes
               await this.initialize();
@@ -410,6 +452,7 @@ export class WorkAgentRuntime {
           });
 
           // Get agent tools with full schemas
+          // Get agent tools with full schemas
           app.get('/agents/:slug/tools', async (c) => {
             try {
               const slug = c.req.param('slug');
@@ -419,15 +462,22 @@ export class WorkAgentRuntime {
                 return c.json({ success: false, error: 'Agent not found or not active' }, 404);
               }
 
-              const state = await agent.getState();
-              const tools = state.tools.map((tool: any) => ({
-                id: tool.id || tool.name,
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.parameters
-              }));
+              const tools = this.agentTools.get(slug) || [];
+              const toolsData = tools.map((tool: any) => {
+                const mapping = this.toolNameMapping.get(tool.name);
+                
+                return {
+                  id: tool.id || tool.name,
+                  name: tool.name,
+                  originalName: mapping?.original || tool.name,
+                  server: mapping?.server || null,
+                  toolName: mapping?.tool || tool.name,
+                  description: tool.description,
+                  parameters: tool.parameters
+                };
+              });
 
-              return c.json({ success: true, data: tools });
+              return c.json({ success: true, data: toolsData });
             } catch (error: any) {
               this.logger.error('Failed to get agent tools', { error });
               return c.json({ success: false, error: error.message }, 500);
@@ -692,8 +742,45 @@ export class WorkAgentRuntime {
               if (!this.modelCatalog) {
                 return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
               }
-              const models = await this.modelCatalog.listModels();
-              return c.json({ success: true, data: models });
+              
+              const [models, profiles] = await Promise.all([
+                this.modelCatalog.listModels(),
+                this.modelCatalog.listInferenceProfiles()
+              ]);
+              
+              // Filter models to only include those with ON_DEMAND support
+              // Exclude PROVISIONED-only models (they require capacity reservation)
+              const onDemandModels = models.filter(m => 
+                m.inferenceTypesSupported?.includes('ON_DEMAND')
+              );
+              
+              // Create set of base model IDs that have inference profiles
+              const profileBaseIds = new Set(
+                profiles.map(p => p.inferenceProfileId.replace(/^(us|eu|ap|sa|ca|af|me)\./, ''))
+              );
+              
+              // Filter out base models that have inference profile equivalents
+              const filteredModels = onDemandModels.filter(m => !profileBaseIds.has(m.modelId));
+              
+              const combinedModels = [
+                ...filteredModels,
+                ...profiles.map(p => ({
+                  modelId: p.inferenceProfileId,
+                  modelArn: p.inferenceProfileArn,
+                  modelName: p.inferenceProfileName,
+                  providerName: 'AWS',
+                  inputModalities: [],
+                  outputModalities: ['TEXT'],
+                  responseStreamingSupported: true,
+                  customizationsSupported: [],
+                  inferenceTypesSupported: ['INFERENCE_PROFILE'],
+                  isInferenceProfile: true,
+                  profileType: p.type,
+                  status: p.status
+                }))
+              ];
+              
+              return c.json({ success: true, data: combinedModels });
             } catch (error: any) {
               this.logger.error('Failed to list Bedrock models', { error });
               return c.json({ success: false, error: error.message }, 500);
@@ -948,6 +1035,22 @@ export class WorkAgentRuntime {
                 const status = this.mcpConnectionStatus.get(key);
                 const metadata = this.integrationMetadata.get(key);
                 
+                // Get tools for this MCP server with original names
+                const agentTools = this.agentTools.get(slug) || [];
+                const serverTools = agentTools
+                  .filter(t => t.name.startsWith(id.replace(/-/g, ''))) // Match by server prefix
+                  .map(t => {
+                    const mapping = this.toolNameMapping.get(t.name);
+                    
+                    return {
+                      name: t.name,
+                      originalName: mapping?.original || t.name,
+                      server: mapping?.server || null,
+                      toolName: mapping?.tool || t.name,
+                      description: (t as any).description
+                    };
+                  });
+                
                 integrations.push({
                   id,
                   type: metadata?.type || 'mcp',
@@ -956,6 +1059,7 @@ export class WorkAgentRuntime {
                   metadata: metadata ? {
                     transport: metadata.transport,
                     toolCount: metadata.toolCount,
+                    tools: serverTools
                   } : undefined,
                 });
               }
@@ -1174,10 +1278,28 @@ export class WorkAgentRuntime {
               
               const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, stats.contextTokens || stats.totalTokens);
 
-              // Get token breakdown from stats or use calculated values
+              // Get token breakdown from stats or calculate on-the-fly
               const breakdown = stats.tokenBreakdown || {};
-              const userMessageTokens = breakdown.userMessageTokens || 0;
-              const assistantMessageTokens = breakdown.assistantMessageTokens || 0;
+              let userMessageTokens = breakdown.userMessageTokens;
+              let assistantMessageTokens = breakdown.assistantMessageTokens;
+              
+              // If breakdown doesn't exist, calculate user message tokens from conversation
+              if (userMessageTokens === undefined) {
+                const userMessages = conversation.messages?.filter(m => m.role === 'user') || [];
+                userMessageTokens = userMessages.reduce((sum, m) => {
+                  const content = typeof m.content === 'string' 
+                    ? m.content 
+                    : Array.isArray(m.content) 
+                      ? m.content.map((p: any) => p.text || '').join('') 
+                      : '';
+                  return sum + Math.ceil(content.length / 4);
+                }, 0);
+              }
+              
+              // If assistant tokens not in breakdown, use outputTokens
+              if (assistantMessageTokens === undefined) {
+                assistantMessageTokens = stats.outputTokens || 0;
+              }
 
               return c.json({ 
                 success: true, 
@@ -1215,9 +1337,10 @@ export class WorkAgentRuntime {
               // Don't pass userId/conversationId to avoid loading empty conversation history
               const options: any = {};
               if (model) {
+                const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
                   appConfig: this.appConfig, 
-                  agentSpec: { model } as any 
+                  agentSpec: { model: resolvedModel } as any 
                 });
               }
               
@@ -1265,7 +1388,14 @@ export class WorkAgentRuntime {
               }
               
               const allTools = this.agentTools.get(slug) || [];
-              const tool = allTools.find(t => t.name === toolName);
+              
+              // Try to find tool by normalized name first, then by original name
+              let tool = allTools.find(t => t.name === toolName);
+              if (!tool) {
+                const normalized = this.getNormalizedToolName(toolName);
+                tool = allTools.find(t => t.name === normalized);
+              }
+              
               if (!tool) {
                 return c.json({ success: false, error: `Tool ${toolName} not found` }, 404);
               }
@@ -1329,7 +1459,14 @@ export class WorkAgentRuntime {
               }
               
               const allTools = this.agentTools.get(slug) || [];
-              const tool = allTools.find(t => t.name === toolName);
+              
+              // Try to find tool by normalized name first, then by original name
+              let tool = allTools.find(t => t.name === toolName);
+              if (!tool) {
+                const normalized = this.getNormalizedToolName(toolName);
+                tool = allTools.find(t => t.name === normalized);
+              }
+              
               if (!tool) {
                 return c.json({ success: false, error: `Tool ${toolName} not found` }, 404);
               }
@@ -1421,9 +1558,10 @@ export class WorkAgentRuntime {
               const options: any = { maxSteps, maxOutputTokens: 2000 };
               if (model) {
                 const modelStart = performance.now();
+                const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
                   appConfig: this.appConfig, 
-                  agentSpec: { model } as any 
+                  agentSpec: { model: resolvedModel } as any 
                 });
                 console.log(`Model creation: ${(performance.now() - modelStart).toFixed(2)}ms`);
               }
@@ -1587,13 +1725,17 @@ export class WorkAgentRuntime {
                 
                 if (!cachedAgent) {
                   try {
-                    // Get the original agent spec to preserve region and other settings
+                    // Get the original agent spec and tools
                     const originalSpec = this.agentSpecs.get(slug);
+                    const originalTools = this.agentTools.get(slug);
+                    const originalMemory = agent.memory;
+                    const originalHooks = agent.hooks;
                     
+                    const resolvedModel = await this.modelCatalog.resolveModelId(modelOverride);
                     const newModel = createBedrockProvider({
                       appConfig: this.appConfig,
                       agentSpec: { 
-                        model: modelOverride,
+                        model: resolvedModel,
                         region: originalSpec?.region || this.appConfig.region
                       } as any
                     });
@@ -1602,6 +1744,9 @@ export class WorkAgentRuntime {
                       ...agent,
                       name: cacheKey,
                       model: newModel,
+                      tools: originalTools,
+                      memory: originalMemory,
+                      hooks: originalHooks,
                     });
                     
                     this.activeAgents.set(cacheKey, cachedAgent);
@@ -1626,48 +1771,86 @@ export class WorkAgentRuntime {
               c.header('Content-Type', 'text/event-stream');
               c.header('Cache-Control', 'no-cache');
               c.header('Connection', 'keep-alive');
+              c.header('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
               return stream(c, async (streamWriter) => {
-                let conversationId: string | undefined; // Declare outside try for catch block access
+                let conversationId: string | undefined;
+                let operationContext: any = {};
+                let completionReason = 'completed';
+                let hasOutput = false;
+                let accumulatedText = '';
+                let reasoningText = '';
+                let toolCallCount = 0;
+                let currentStep = 0;
+                let requestTraceId = '';
+                let isNewConversation = false;
+                let result: any;
+                const artifacts: Array<{ type: string; name?: string; content?: any }> = [];
                 
                 try {
-                  // Elicitation handler for tool approval
+                  // Create injectable stream for elicitation
+                  const injectableStream = new InjectableStream();
+                  
+                  // Get auto-approve list from agent spec
+                  const agentSpec = this.agentSpecs.get(slug);
+                  const autoApprove = agentSpec?.tools?.autoApprove || [];
+                  
+                  // Elicitation callback that injects events instead of writing directly
                   const elicitation = async (request: any) => {
                     if (request.type === 'tool-approval') {
+                      const toolName = request.toolName;
+                      
+                      // Check if auto-approved (check both normalized and original names)
+                      const isApproved = isAutoApproved(toolName, autoApprove);
+                      
+                      // Also check if the original (non-normalized) name matches
+                      const toolMapping = Array.from(this.toolNameMapping.values()).find(
+                        m => m.normalized === toolName
+                      );
+                      const isApprovedOriginal = toolMapping ? isAutoApproved(toolMapping.original, autoApprove) : false;
+                      
+                      if (isApproved || isApprovedOriginal) {
+                        this.logger.info('[Elicitation] Auto-approved, returning true immediately', { 
+                          toolName,
+                          originalName: toolMapping?.original,
+                          matched: isApproved ? 'normalized' : 'original'
+                        });
+                        return true;
+                      }
+                      
+                      // Not auto-approved - inject approval request into stream
                       const approvalId = `approval-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                       
-                      this.logger.info('[Elicitation] Sending approval request', {
+                      // Parse tool name for UI display
+                      const { server, tool } = parseToolName(toolName);
+                      
+                      this.logger.info('[Elicitation] NOT auto-approved, injecting approval request', {
                         approvalId,
-                        toolName: request.toolName,
+                        toolName,
+                        originalName: toolMapping?.original,
+                        autoApproveList: autoApprove
                       });
                       
-                      // Send approval request to UI
-                      await streamWriter.write(`data: ${JSON.stringify({
+                      // Inject event (will appear at next chunk boundary)
+                      injectableStream.inject({
                         type: 'tool-approval-request',
                         approvalId,
-                        toolName: request.toolName,
+                        toolName,
+                        server,
+                        tool,
                         toolDescription: request.toolDescription,
                         toolArgs: request.toolArgs,
-                      })}\n\n`);
+                      } as any);
                       
-                      // Wait for response with timeout
+                      // Wait for user approval
                       return new Promise<boolean>((resolve, reject) => {
-                        this.logger.info('[Elicitation] Waiting for approval response', { approvalId });
                         this.pendingApprovals.set(approvalId, { resolve, reject });
                         
-                        const timeout = setTimeout(async () => {
+                        const timeout = setTimeout(() => {
                           if (this.pendingApprovals.has(approvalId)) {
                             this.pendingApprovals.delete(approvalId);
                             this.logger.warn('[Elicitation] Approval timeout', { approvalId });
-                            
-                            // Send timeout message to UI
-                            await streamWriter.write(`data: ${JSON.stringify({
-                              type: 'ephemeral-message',
-                              content: `Tool approval timed out for ${request.toolName}. The request was automatically denied. Please try again if you'd like to use this tool.`,
-                              timestamp: Date.now()
-                            })}\n\n`);
-                            
-                            resolve(false); // Deny on timeout
+                            resolve(false);
                           }
                         }, 60000);
                         
@@ -1681,14 +1864,14 @@ export class WorkAgentRuntime {
                     }
                     return false;
                   };
-
-                  const operationContext: any = {
+                  
+                  operationContext = {
                     ...restOptions,
                     elicitation,
                   };
                   
                   // Generate conversationId if not provided (new conversation)
-                  const isNewConversation = !operationContext.conversationId;
+                  isNewConversation = !operationContext.conversationId;
                   if (isNewConversation && operationContext.userId) {
                     operationContext.conversationId = `${operationContext.userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
                   }
@@ -1722,13 +1905,14 @@ export class WorkAgentRuntime {
                     }
                   }
                   
-                  const result = await agent.streamText(input, operationContext);
+                  // Generate trace ID for this request (before streamText so it's available in message metadata)
+                  const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+                  operationContext.traceId = traceId;
+                  
+                  result = await agent.streamText(input, operationContext);
                   
                   // Set agent status to running
                   this.agentStatus.set(slug, 'running');
-                  
-                  // Generate trace ID for this request
-                  const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
                   
                   // Emit monitoring event
                   const agentStartEvent = {
@@ -1800,267 +1984,89 @@ export class WorkAgentRuntime {
                     })}\n\n`);
                   }
 
-                  let completionReason = 'completed';
-                  let hasOutput = false;
-                  const artifacts: Array<{ type: string; name?: string; content?: any }> = [];
-                  let accumulatedText = '';
+                  // Initialize streaming state variables
+                  completionReason = 'completed';
+                  hasOutput = false;
+                  accumulatedText = '';
                   let currentTextSegment = '';
-                  let reasoningText = '';
+                  reasoningText = '';
                   let lastChunkWasToolResult = false;
                   let hasEmittedReasoningForCurrentSegment = false;
-                  let toolCallCount = 0;
-                  let currentStep = 0;
-                  const requestTraceId = traceId; // Capture traceId for use in events
+                  toolCallCount = 0;
+                  currentStep = 0;
+                  requestTraceId = traceId; // Capture traceId for use in events
+                  let thinkingBuffer = ''; // Buffer for incomplete thinking tags
+                  let inThinkingBlock = false; // Track if we're currently in a <thinking> block
+                  let currentReasoningContent = ''; // Accumulate reasoning for monitoring event
+                  const recentChunks: any[] = []; // Track last 10 chunks for debugging
+                  let suppressTextStart = false; // Suppress text-start if response begins with <thinking>
                   
-                  try {
-                    for await (const chunk of result.fullStream) {
-                      // Track if any text or tool output was generated
-                      if (chunk.type === 'text-delta' || chunk.type === 'tool-result') {
-                        hasOutput = true;
-                      }
-                      
-                      // When we see a tool call, emit the accumulated text segment as reasoning (only once per segment)
-                      if (chunk.type === 'tool-call' && currentTextSegment && !hasEmittedReasoningForCurrentSegment) {
-                        const reasoningEvent = {
-                          type: 'reasoning',
-                          timestamp: new Date().toISOString(),
-                          timestampMs: Date.now(),
-                          agentSlug: slug,
-                          conversationId: operationContext.conversationId,
-                          userId: operationContext.userId,
-                          traceId: requestTraceId,
-                          data: currentTextSegment,
-                        };
-                        this.monitoringEvents.emit('event', reasoningEvent);
-                        await this.persistEvent(reasoningEvent);
-                        reasoningText += currentTextSegment;
-                        hasEmittedReasoningForCurrentSegment = true;
-                      }
-                      
-                      // Track if last chunk was a tool result (resets reasoning flag)
-                      if (chunk.type === 'tool-result') {
-                        lastChunkWasToolResult = true;
-                      }
-                      
-                      // Accumulate text for final output and current segment
-                      const textContent = (chunk as any).textDelta || (chunk as any).text || (chunk as any).delta;
-                      if (chunk.type === 'text-delta' && textContent) {
-                        accumulatedText += textContent;
-                        currentTextSegment += textContent;
-                        
-                        // If we just had a tool result, this is a new reasoning segment
-                        if (lastChunkWasToolResult) {
-                          currentTextSegment = textContent; // Start fresh segment
-                          hasEmittedReasoningForCurrentSegment = false;
-                          lastChunkWasToolResult = false;
-                        }
-                      }
-                      
-                      // Emit thinking events for reasoning-delta (model's internal reasoning)
-                      if (chunk.type === 'reasoning-delta') {
-                        const reasoningContent = (chunk as any).delta;
-                        if (reasoningContent) {
-                          const thinkingEvent = {
-                            type: 'thinking',
-                            timestamp: new Date().toISOString(),
-                            agentSlug: slug,
-                            conversationId: operationContext.conversationId,
-                            data: reasoningContent,
-                          };
-                          this.monitoringEvents.emit('event', thinkingEvent);
-                          await this.persistEvent(thinkingEvent);
-                        }
-                      }
-                      
-                      // Check for error chunks
-                      if (chunk.type === 'error') {
-                        completionReason = 'error';
-                      }
-                      
-                      // Emit tool-input-available for tool calls that VoltAgent might not emit
-                      if (chunk.type === 'tool-call' && chunk.toolName) {
-                        toolCallCount++;
-                        
-                        this.logger.debug('Tool call initiated', { 
-                          toolName: chunk.toolName, 
-                          conversationId: operationContext.conversationId,
-                          step: currentStep,
-                          toolCallNumber: toolCallCount
-                        });
-                        
-                        artifacts.push({
-                          type: 'tool-call',
-                          name: chunk.toolName,
-                          content: chunk.input,
-                        });
-                        
-                        // Emit monitoring event
-                        const toolCallEvent = {
-                          type: 'tool-call',
-                          timestamp: new Date().toISOString(),
-                          timestampMs: Date.now(),
-                          agentSlug: slug,
-                          conversationId: operationContext.conversationId,
-                          userId: operationContext.userId,
-                          traceId: requestTraceId,
-                          toolName: chunk.toolName,
-                          toolCallId: chunk.toolCallId,
-                          input: chunk.input,
-                          step: currentStep,
-                          toolCallNumber: toolCallCount,
-                          requiresApproval: chunk.needsApproval || false,
-                        };
-                        this.monitoringEvents.emit('event', toolCallEvent);
-                        await this.persistEvent(toolCallEvent);
-                        
-                        await streamWriter.write(`data: ${JSON.stringify({
-                          type: 'tool-input-available',
-                          toolCallId: chunk.toolCallId,
-                          toolName: chunk.toolName,
-                          input: chunk.input || {}
-                        })}\n\n`);
-                      }
-                      
-                      // Emit tool-output-available for tool results
-                      if (chunk.type === 'tool-result' && chunk.toolCallId) {
-                        currentStep++; // Increment step after tool completes
-                        
-                        this.logger.debug('Tool result received', { 
-                          toolCallId: chunk.toolCallId, 
-                          conversationId: operationContext.conversationId,
-                          hasOutput: !!chunk.output,
-                          outputType: typeof chunk.output,
-                          step: currentStep
-                        });
-                        
-                        artifacts.push({
-                          type: 'tool-result',
-                          name: chunk.toolName,
-                          content: chunk.output,
-                        });
-                        
-                        // Emit monitoring event
-                        const toolResultEvent = {
-                          type: 'tool-result',
-                          timestamp: new Date().toISOString(),
-                          timestampMs: Date.now(),
-                          agentSlug: slug,
-                          conversationId: operationContext.conversationId,
-                          userId: operationContext.userId,
-                          traceId: requestTraceId,
-                          toolName: chunk.toolName,
-                          toolCallId: chunk.toolCallId,
-                          result: chunk.output,
-                        };
-                        this.monitoringEvents.emit('event', toolResultEvent);
-                        await this.persistEvent(toolResultEvent);
-                        
-                        await streamWriter.write(`data: ${JSON.stringify({
-                          type: 'tool-output-available',
-                          toolCallId: chunk.toolCallId,
-                          output: chunk.output
-                        })}\n\n`);
-                      }
-                      
-                      // Capture finish reason
-                      if (chunk.type === 'finish' && chunk.finishReason) {
-                        completionReason = chunk.finishReason;
-                      }
-                      
-                      await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
-                    }
-                    
-                    // Check if aborted
-                    if (abortController.signal.aborted) {
-                      completionReason = 'aborted';
-                      // Only save cancellation message if no output was generated
-                      // (adapter already appends cancellation notice to partial messages)
-                      if (!hasOutput) await saveCancellationMessage();
-                    }
-                    
-                    await streamWriter.write('data: [DONE]\n\n');
-                  } catch (streamError: any) {
-                    // Check if aborted
-                    if (abortController.signal.aborted) {
-                      completionReason = 'aborted';
-                      this.logger.debug('Stream aborted by client', { conversationId });
-                      // Only save cancellation message if no output was generated
-                      if (!hasOutput) await saveCancellationMessage();
-                      return;
-                    }
-                    
-                    completionReason = 'error';
-                    throw streamError;
-                  } finally {
-                    this.logger.info('Agent stream completed', { 
-                      conversationId: operationContext.conversationId,
-                      reason: completionReason
-                    });
-                    
-                    // Set agent status to idle
-                    this.agentStatus.set(slug, 'idle');
-                    
-                    // Add final text output to artifacts (excluding reasoning text)
-                    const finalOutput = accumulatedText.replace(reasoningText, '').trim();
-                    if (finalOutput) {
-                      artifacts.push({
-                        type: 'text',
-                        content: finalOutput,
-                      });
-                    }
-                    
-                    // Collect usage stats
-                    let usage;
-                    try {
-                      usage = await result.usage;
-                    } catch (e) {
-                      // Usage might not be available
-                    }
-                    
-                    // Emit monitoring event
-                    const agentCompleteEvent = {
-                      type: 'agent-complete',
-                      timestamp: new Date().toISOString(),
-                      timestampMs: Date.now(), // High-precision timestamp
-                      agentSlug: slug,
-                      conversationId: operationContext.conversationId,
-                      userId: operationContext.userId,
-                      traceId: requestTraceId,
-                      reason: completionReason,
-                      artifacts,
-                      steps: currentStep,
-                      toolCallCount,
-                      maxSteps: this.agentSpecs.get(slug)?.guardrails?.maxSteps,
-                      inputChars: typeof input === 'string' ? input.length : (input?.text?.length || 0),
-                      outputChars: finalOutput.length,
-                      usage: usage ? {
-                        promptTokens: usage.promptTokens,
-                        completionTokens: usage.completionTokens,
-                        totalTokens: usage.totalTokens,
-                      } : undefined,
-                    };
-                    this.monitoringEvents.emit('event', agentCompleteEvent);
-                    await this.persistEvent(agentCompleteEvent);
-                    
-                    // Update cached stats (increment by 2: user message + assistant response)
-                    const stats = this.agentStats.get(slug);
-                    if (stats) {
-                      stats.messageCount += 2;
-                      stats.lastUpdated = Date.now();
-                      if (isNewConversation) {
-                        stats.conversationCount += 1;
-                      }
-                    }
-                    
-                    // Log metrics for historical tracking
-                    this.metricsLog.push({
-                      timestamp: Date.now(),
-                      agentSlug: slug,
-                      event: 'completion',
-                      conversationId: operationContext.conversationId,
-                      messageCount: 2,
-                      cost: 0, // TODO: Calculate from usage
-                    });
+                  // Use DEBUG_STREAMING env var for debug logging
+                  const debugStreaming = process.env.DEBUG_STREAMING === 'true';
+                  
+                  // Initialize StreamPipeline
+                  const pipeline = new StreamPipeline(abortController.signal);
+                  const completionHandler = new CompletionHandler();
+                  const metadataHandler = new MetadataHandler(this.monitoringEvents, {
+                    slug,
+                    conversationId: operationContext.conversationId,
+                    userId: operationContext.userId,
+                    traceId,
+                  });
+                  
+                  // Add handlers in order (elicitation handled via callback + injectable stream)
+                  pipeline
+                    .use(new ReasoningHandler({ enableThinking: true, debug: debugStreaming }))
+                    .use(new TextDeltaHandler({ debug: debugStreaming }))
+                    .use(new ToolCallHandler({ debug: debugStreaming }))
+                    .use(metadataHandler)
+                    .use(completionHandler);
+                  
+                  // Log model and tool configuration for debugging
+                  const agentTools = this.agentTools.get(slug) || [];
+                  this.logger.debug('Stream starting', {
+                    conversationId,
+                    model: agent.model?.modelId,
+                    toolCount: agentTools.length,
+                    toolNames: agentTools.map(t => t.name).slice(0, 5),
+                    maxTokens: agent.model?.settings?.maxTokens,
+                    temperature: agent.model?.settings?.temperature,
+                    debugStreaming
+                  });
+                  
+                  // Wrap fullStream with injectable stream
+                  // ReasoningHandler buffers all chunks during thinking, so approval-request
+                  // will be held until reasoning-end is emitted
+                  const wrappedStream = injectableStream.wrap(result.fullStream);
+                  
+                  // Run pipeline and write chunks to stream
+                  let chunkCount = 0;
+                  for await (const chunk of pipeline.run(wrappedStream)) {
+                    chunkCount++;
+                    console.log(`[STREAM ${chunkCount}] ${chunk.type} at ${new Date().toISOString()}`);
+                    await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                    // Tiny delay to ensure write is flushed before next chunk
+                    await new Promise(resolve => setImmediate(resolve));
+                  }
+                  console.log(`[STREAM COMPLETE] Total chunks: ${chunkCount}`);
+                  
+                  // Write [DONE] marker
+                  await streamWriter.write('data: [DONE]\n\n');
+                  
+                  // Get completion state from handlers
+                  const results = await pipeline.finalize();
+                  
+                  // Extract completion state for finally block
+                  if (results.completion) {
+                    hasOutput = results.completion.hasOutput;
+                    completionReason = results.completion.completionReason;
+                    accumulatedText = results.completion.accumulatedText;
+                  }
+                  
+                  // Check if aborted
+                  if (abortController.signal.aborted) {
+                    completionReason = 'aborted';
+                    if (!hasOutput) await saveCancellationMessage();
                   }
                 } catch (error: any) {
                   this.logger.error('Stream error occurred', {
@@ -2078,6 +2084,78 @@ export class WorkAgentRuntime {
                     errorText: error.message,
                     statusCode: isCredentialError ? 401 : undefined
                   })}\n\n`);
+                  await streamWriter.write('data: [DONE]\n\n');
+                } finally {
+                  // Agent stream completed
+                  this.logger.info('Agent stream completed', { 
+                    conversationId: operationContext.conversationId,
+                    reason: completionReason
+                  });
+                  
+                  // Set agent status to idle
+                  this.agentStatus.set(slug, 'idle');
+                  
+                  // Add final text output to artifacts (excluding reasoning text)
+                  const finalOutput = accumulatedText.replace(reasoningText, '').trim();
+                  if (finalOutput) {
+                    artifacts.push({
+                      type: 'text',
+                      content: finalOutput,
+                    });
+                  }
+                  
+                  // Collect usage stats
+                  let usage;
+                  try {
+                    usage = await result.usage;
+                  } catch (e) {
+                    // Usage might not be available
+                  }
+                  
+                  // Emit monitoring event
+                  const agentCompleteEvent = {
+                    type: 'agent-complete',
+                    timestamp: new Date().toISOString(),
+                    timestampMs: Date.now(), // High-precision timestamp
+                    agentSlug: slug,
+                    conversationId: operationContext.conversationId,
+                    userId: operationContext.userId,
+                    traceId: requestTraceId,
+                    reason: completionReason,
+                    artifacts,
+                    steps: currentStep,
+                    toolCallCount,
+                    maxSteps: this.agentSpecs.get(slug)?.guardrails?.maxSteps,
+                    inputChars: typeof input === 'string' ? input.length : (input?.text?.length || 0),
+                    outputChars: finalOutput.length,
+                    usage: usage ? {
+                      promptTokens: usage.promptTokens,
+                      completionTokens: usage.completionTokens,
+                      totalTokens: usage.totalTokens,
+                    } : undefined,
+                  };
+                  this.monitoringEvents.emit('event', agentCompleteEvent);
+                  await this.persistEvent(agentCompleteEvent);
+                  
+                  // Update cached stats (increment by 2: user message + assistant response)
+                  const stats = this.agentStats.get(slug);
+                  if (stats) {
+                    stats.messageCount += 2;
+                    stats.lastUpdated = Date.now();
+                    if (isNewConversation) {
+                      stats.conversationCount += 1;
+                    }
+                  }
+                  
+                  // Log metrics for historical tracking
+                  this.metricsLog.push({
+                    timestamp: Date.now(),
+                    agentSlug: slug,
+                    event: 'completion',
+                    conversationId: operationContext.conversationId,
+                    messageCount: 2,
+                    cost: 0, // TODO: Calculate from usage
+                  });
                 }
               });
             } catch (error: any) {
@@ -2315,7 +2393,7 @@ export class WorkAgentRuntime {
     this.agentSpecs.set(agentSlug, spec);
 
     // Create Bedrock provider
-    const model = this.createBedrockModel(spec);
+    const model = await this.createBedrockModel(spec);
 
     // Create memory adapter
     const memoryAdapter = new FileVoltAgentMemoryAdapter({
@@ -2334,6 +2412,28 @@ export class WorkAgentRuntime {
     
     // Cache tools for runtime filtering
     this.agentTools.set(agentSlug, tools);
+
+    // Calculate and cache fixed token counts (system prompt + tools)
+    // These don't change unless the agent is reloaded
+    const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
+    const toolsJson = JSON.stringify(tools.map((t: any) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters
+    })));
+    const mcpServerTokens = Math.ceil(toolsJson.length / 4);
+    
+    this.agentFixedTokens.set(agentSlug, {
+      systemPromptTokens,
+      mcpServerTokens
+    });
+    
+    this.logger.info('[Agent Initialized]', {
+      agent: agentSlug,
+      systemPromptTokens,
+      mcpServerTokens,
+      totalFixedTokens: systemPromptTokens + mcpServerTokens
+    });
 
     // Create hooks for tool approval (if autoApprove is configured)
     const hooks = this.createToolApprovalHooks(spec);
@@ -2371,10 +2471,11 @@ export class WorkAgentRuntime {
   /**
    * Create Bedrock model instance
    */
-  private createBedrockModel(spec: AgentSpec) {
+  private async createBedrockModel(spec: AgentSpec) {
+    const resolvedModel = await this.modelCatalog.resolveModelId(spec.model || this.appConfig.defaultModel);
     return createBedrockProvider({
       appConfig: this.appConfig,
-      agentSpec: spec,
+      agentSpec: { ...spec, model: resolvedModel },
     });
   }
 
@@ -2435,20 +2536,25 @@ export class WorkAgentRuntime {
    * Check if tool name matches any pattern in the list
    */
   private matchesToolPattern(toolName: string, patterns: string[]): boolean {
+    // Get original name if this is a normalized name
+    const mapping = this.toolNameMapping.get(toolName);
+    const originalName = mapping?.original || toolName;
+    
     for (const pattern of patterns) {
-      // Exact match
-      if (pattern === toolName) return true;
+      // Exact match (check both normalized and original)
+      if (pattern === toolName || pattern === originalName) return true;
       
-      // Wildcard pattern (e.g., "sat-outlook_*")
+      // Wildcard pattern (e.g., "sat-outlook_*" or "satOutlook_*")
       if (pattern.endsWith('_*')) {
         const prefix = pattern.slice(0, -2);
-        if (toolName.startsWith(`${prefix}_`)) return true;
+        if (toolName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}_`)) return true;
       }
       
       // Legacy slash pattern support (e.g., "sat-outlook/*")
       if (pattern.endsWith('/*')) {
         const prefix = pattern.slice(0, -2);
-        if (toolName.startsWith(`${prefix}_`) || toolName.startsWith(`${prefix}/`)) return true;
+        if (toolName.startsWith(`${prefix}_`) || toolName.startsWith(`${prefix}/`) ||
+            originalName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}/`)) return true;
       }
     }
     
@@ -2545,34 +2651,66 @@ export class WorkAgentRuntime {
           const newOutputTokens = existingStats.outputTokens + (usage.completionTokens || 0);
           const newInputTokens = existingStats.inputTokens + (usage.promptTokens || 0);
           
-          // Estimate system prompt + tools tokens (calculate once, store in breakdown)
-          const agentTools = this.agentTools.get(agentSlug) || [];
+          // Get fixed token counts from cache (calculated once at agent initialization)
+          const fixedTokens = this.agentFixedTokens.get(agentSlug);
+          const systemPromptTokens = fixedTokens?.systemPromptTokens || 0;
+          const mcpServerTokens = fixedTokens?.mcpServerTokens || 0;
           
-          // Use stored breakdown values if available, otherwise calculate
+          // Get existing breakdown for incremental calculation
           const existingBreakdown = existingStats.tokenBreakdown || {};
-          const systemPromptTokens = existingBreakdown.systemPromptTokens || Math.ceil((agentSpec.prompt?.length || 0) / 4);
-          const toolsJson = JSON.stringify(agentTools.map((t: any) => ({
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters
-          })));
-          const mcpServerTokens = existingBreakdown.mcpServerTokens || Math.ceil(toolsJson.length / 4);
           
           // Context = system prompt + tools + all user messages + all assistant responses
-          // Get updated conversation to include the latest user message
-          const updatedConversation = await memory.getConversation(context.conversationId);
-          const userMessageTokens = updatedConversation?.messages
-            ?.filter(m => m.role === 'user')
-            .reduce((sum, m) => {
-              // Handle both string content and array of content parts
-              const content = typeof m.content === 'string' 
-                ? m.content 
-                : Array.isArray(m.content) 
-                  ? m.content.map((p: any) => p.text || '').join('') 
-                  : '';
-              return sum + Math.ceil(content.length / 4);
-            }, 0) || 0;
+          // Optimize: only calculate new user message tokens, not all messages
+          const existingUserMessageTokens = existingBreakdown.userMessageTokens || 0;
+          
+          // Get the latest conversation state (should include the new message)
+          const latestConversation = await memory.getConversation(context.conversationId);
+          const userMessages = latestConversation?.messages?.filter(m => m.role === 'user') || [];
+          
+          this.logger.info('[Token Calculation Debug]', {
+            conversationId: context.conversationId,
+            totalMessages: latestConversation?.messages?.length || 0,
+            userMessageCount: userMessages.length,
+            existingUserMessageTokens,
+            turn: existingStats.turns + 1,
+          });
+          
+          // Find the latest user message (should be the last one added)
+          const latestUserMessage = userMessages[userMessages.length - 1];
+          
+          let newUserMessageTokens = 0;
+          if (latestUserMessage) {
+            const content = typeof latestUserMessage.content === 'string' 
+              ? latestUserMessage.content 
+              : Array.isArray(latestUserMessage.content) 
+                ? latestUserMessage.content.map((p: any) => p.text || '').join('') 
+                : '';
+            newUserMessageTokens = Math.ceil(content.length / 4);
+            
+            this.logger.info('[New User Message]', {
+              conversationId: context.conversationId,
+              contentLength: content.length,
+              tokens: newUserMessageTokens,
+            });
+          } else {
+            this.logger.warn('[No User Message Found]', {
+              conversationId: context.conversationId,
+              userMessageCount: userMessages.length,
+            });
+          }
+          
+          const userMessageTokens = existingUserMessageTokens + newUserMessageTokens;
           const assistantMessageTokens = newOutputTokens;
+          
+          this.logger.info('[Token Breakdown]', {
+            conversationId: context.conversationId,
+            turn: existingStats.turns + 1,
+            newUserMessageTokens,
+            totalUserMessageTokens: userMessageTokens,
+            systemPromptTokens,
+            mcpServerTokens,
+            assistantMessageTokens,
+          });
           
           const contextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + assistantMessageTokens;
 
@@ -2738,6 +2876,21 @@ export class WorkAgentRuntime {
   }
 
   /**
+   * Get original tool name from normalized name
+   */
+  private getOriginalToolName(normalizedName: string): string {
+    const mapping = this.toolNameMapping.get(normalizedName);
+    return mapping?.original || normalizedName;
+  }
+
+  /**
+   * Get normalized tool name from original name
+   */
+  private getNormalizedToolName(originalName: string): string {
+    return this.toolNameReverseMapping.get(originalName) || originalName;
+  }
+
+  /**
    * Create MCP tools for a tool definition
    */
   private async createMCPTools(
@@ -2791,6 +2944,36 @@ export class WorkAgentRuntime {
     // Get tools from MCP server
     const tools = await mcpConfig.getTools();
     
+    // Normalize tool names for Nova compatibility and store mapping with parsed data
+    const normalizedTools = tools.map(tool => {
+      const normalized = normalizeToolName(tool.name);
+      
+      // Store mapping with parsed data if name changed
+      if (normalized !== tool.name) {
+        const parsed = parseToolName(tool.name);
+        this.toolNameMapping.set(normalized, {
+          original: tool.name,
+          normalized: normalized,
+          server: parsed.server,
+          tool: parsed.tool
+        });
+        this.toolNameReverseMapping.set(tool.name, normalized);
+        
+        this.logger.debug('Tool name normalized', {
+          agent: agentSlug,
+          original: tool.name,
+          normalized: normalized,
+          server: parsed.server,
+          tool: parsed.tool
+        });
+      }
+      
+      return {
+        ...tool,
+        name: normalized
+      };
+    });
+    
     // Mark as connected after successful getTools
     this.mcpConnectionStatus.set(mcpKey, { connected: true });
     
@@ -2798,21 +2981,21 @@ export class WorkAgentRuntime {
     this.integrationMetadata.set(mcpKey, {
       type: 'mcp',
       transport: toolDef.transport,
-      toolCount: tools.length,
+      toolCount: normalizedTools.length,
     });
 
     if (isNewConfig) {
       this.logger.info('MCP tools loaded', { 
         agent: agentSlug, 
         tool: toolId, 
-        count: tools.length,
-        sampleNames: tools.slice(0, 3).map(t => t.name)
+        count: normalizedTools.length,
+        sampleNames: normalizedTools.slice(0, 3).map(t => t.name)
       });
     }
 
     // Always wrap tools with elicitation for approval (agent config may have changed)
     const spec = await this.configLoader.loadAgent(agentSlug);
-    const wrappedTools = tools.map(tool => this.wrapToolWithElicitation(tool, spec));
+    const wrappedTools = normalizedTools.map(tool => this.wrapToolWithElicitation(tool, spec));
 
     return wrappedTools;
   }
@@ -3032,6 +3215,7 @@ export class WorkAgentRuntime {
     // Load new agent
     const agent = await this.createVoltAgentInstance(targetSlug);
     this.activeAgents.set(targetSlug, agent);
+    this.voltAgent?.registerAgent(agent);
 
     this.logger.info('Agent switched successfully', { agent: targetSlug });
     return agent;

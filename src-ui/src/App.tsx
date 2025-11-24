@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { log } from '@/utils/logger';
 import type { KeyboardEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentSelector } from './components/AgentSelector';
 import { Header } from './components/Header';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { AgentSelectorModal } from './components/AgentSelectorModal';
 import { PinDialog } from './components/PinDialog';
 import { ShortcutsCheatsheet } from './components/ShortcutsCheatsheet';
@@ -28,7 +30,7 @@ import { MonitoringView } from './views/MonitoringView';
 import { ProfilePage } from './pages/ProfilePage';
 import { useAwsAuth } from './hooks/useAwsAuth';
 import { setAuthCallback } from './lib/apiClient';
-import { getAgentIcon } from './utils/workspace';
+import { getAgentIcon, getAgentIconStyle } from './utils/workspace';
 import type {
   AgentSummary,
   NavigationView,
@@ -65,6 +67,7 @@ function App() {
     if (path === '/integrations') return { type: 'integrations' };
     if (path === '/monitoring') return { type: 'monitoring' };
     if (path === '/profile') return { type: 'profile' };
+    if (path === '/notifications') return { type: 'notifications' };
     if (path === '/settings') return { type: 'settings' };
     if (path === '/agents/new') return { type: 'agent-new' };
     if (path.startsWith('/agents/') && path.endsWith('/edit')) {
@@ -95,7 +98,22 @@ function App() {
       const path = window.location.pathname;
       
       // Check path for main app navigation
-      if (path === '/monitoring') {
+      if (path === '/agents') {
+        setCurrentView({ type: 'agents' });
+        return;
+      } else if (path === '/prompts') {
+        setCurrentView({ type: 'prompts' });
+        return;
+      } else if (path === '/integrations') {
+        setCurrentView({ type: 'integrations' });
+        return;
+      } else if (path === '/profile') {
+        setCurrentView({ type: 'profile' });
+        return;
+      } else if (path === '/notifications') {
+        setCurrentView({ type: 'notifications' });
+        return;
+      } else if (path === '/monitoring') {
         setCurrentView({ type: 'monitoring' });
         return;
       } else if (path === '/settings') {
@@ -324,7 +342,7 @@ function App() {
         window.history.replaceState(null, '', newPath + window.location.search);
       }
     } catch (error) {
-      console.error('Failed to load workspace:', error);
+      log.api('Failed to load workspace:', error);
     }
   };
 
@@ -368,12 +386,29 @@ function App() {
     setCurrentView(view);
     
     // Update URL based on view type
-    if (view.type === 'settings') {
+    if (view.type === 'workspace') {
+      // Navigate to current workspace or home
+      if (selectedWorkspace) {
+        navigate(`/workspaces/${selectedWorkspace}`);
+      } else {
+        navigate('/');
+      }
+    } else if (view.type === 'workspaces') {
+      navigate('/workspaces');
+    } else if (view.type === 'agents') {
+      navigate('/agents');
+    } else if (view.type === 'prompts') {
+      navigate('/prompts');
+    } else if (view.type === 'integrations') {
+      navigate('/integrations');
+    } else if (view.type === 'profile') {
+      navigate('/profile');
+    } else if (view.type === 'notifications') {
+      navigate('/notifications');
+    } else if (view.type === 'settings') {
       navigate('/settings');
     } else if (view.type === 'monitoring') {
       navigate('/monitoring');
-    } else if (view.type === 'agents') {
-      navigate('/agents');
     } else if (view.type === 'agent-new') {
       navigate('/agents/new');
     } else if (view.type === 'agent-edit' && 'slug' in view) {
@@ -440,34 +475,27 @@ function App() {
   }, []));
 
 
-  // Render management views
-  if (currentView.type !== 'workspace') {
+  // Render current view content
+  const renderViewContent = () => {
+    if (currentView.type === 'workspace') {
+      return (
+        <>
+          {managementNotice && (
+            <div className="management-notice">
+              <span>{managementNotice}</span>
+              <button type="button" onClick={() => setManagementNotice(null)}>
+                Close
+              </button>
+            </div>
+          )}
+          <WorkspaceView />
+        </>
+      );
+    }
+
+    // Management views
     return (
-      <div className="app">
-        <Header
-          workspaces={workspaces}
-          selectedWorkspace={selectedWorkspaceData}
-          currentView={currentView}
-          onWorkspaceSelect={handleWorkspaceSelect}
-          onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
-          onEditWorkspace={(slug) => navigateToView({ type: 'workspace-edit', slug })}
-          onNavigate={navigateToView}
-          onToggleSettings={() => {
-            if (currentView.type === 'settings') {
-              navigateToWorkspace();
-            } else {
-              navigateToView({ type: 'settings' });
-            }
-          }}
-        />
-
-        {globalError && (
-          <div className="global-error">
-            <span>{globalError}</span>
-          </div>
-        )}
-
-        <div className="main-content main-content--full">
+      <>
           {currentView.type === 'workspaces' && (
             <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -530,8 +558,19 @@ function App() {
                   + New Agent
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                {agents.map((agent) => (
+              
+              {(() => {
+                const workspaceAgents = agents.filter(a => (a.slug || a.id).includes(':'));
+                const standaloneAgents = agents.filter(a => !(a.slug || a.id).includes(':'));
+                
+                return (
+                  <>
+                    <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Agents
+                    </h2>
+                    {standaloneAgents.length > 0 ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+                        {standaloneAgents.map((agent) => (
                   <div
                     key={agent.slug || agent.id}
                     style={{
@@ -556,19 +595,7 @@ function App() {
                     onClick={() => navigateToView({ type: 'agent-edit', slug: agent.slug || agent.id })}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
-                      <div style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '12px',
-                        background: 'var(--color-primary)',
-                        color: 'var(--bg-primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: getAgentIcon(agent).isCustomIcon ? '24px' : '18px',
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}>
+                      <div style={getAgentIconStyle(agent, 48)}>
                         {getAgentIcon(agent).display}
                       </div>
                       <div style={{ flex: 1 }}>
@@ -591,15 +618,13 @@ function App() {
                         const isInherited = !agent.model;
                         const modelInfo = availableModels.find(m => m.id === modelId);
                         
-                        // Extract model name from ID if not found in list
                         let displayName = 'model';
                         if (modelInfo) {
                           displayName = modelInfo.name;
                         } else if (typeof modelId === 'string') {
-                          // Extract from ID like "anthropic.claude-3-5-sonnet-20240620-v1:0"
                           const parts = modelId.split('.');
                           if (parts.length > 1) {
-                            const modelPart = parts[1].split('-')[0]; // Get "claude"
+                            const modelPart = parts[1].split('-')[0];
                             displayName = modelPart.charAt(0).toUpperCase() + modelPart.slice(1);
                           }
                         }
@@ -620,7 +645,127 @@ function App() {
                     </div>
                   </div>
                 ))}
-              </div>
+                        </div>
+                    ) : (
+                      <div style={{ 
+                        padding: '40px 20px', 
+                        textAlign: 'center', 
+                        background: 'var(--color-bg-secondary)', 
+                        border: '1px dashed var(--border-primary)', 
+                        borderRadius: '12px',
+                        marginBottom: '32px'
+                      }}>
+                        <div style={{ fontSize: '48px', marginBottom: '12px' }}>🤖</div>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                          No standalone agents yet
+                        </p>
+                        <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)' }}>
+                          Create an agent to get started with custom AI assistants
+                        </p>
+                        <button 
+                          className="button button--primary" 
+                          onClick={() => navigateToView({ type: 'agent-new' })}
+                          style={{ fontSize: '13px', padding: '8px 16px' }}
+                        >
+                          + Create Agent
+                        </button>
+                      </div>
+                    )}
+                    
+                    {workspaceAgents.length > 0 && (
+                      <>
+                        <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          Workspace Agents
+                        </h2>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                          {workspaceAgents.map((agent) => {
+                            const owningWorkspace = (agent.slug || agent.id).split(':')[0];
+                            
+                            return (
+                  <div
+                    key={agent.slug || agent.id}
+                    style={{
+                      background: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--color-border)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                    onClick={() => navigateToView({ type: 'agent-edit', slug: agent.slug || agent.id })}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
+                      <div style={getAgentIconStyle(agent, 48)}>
+                        {getAgentIcon(agent).display}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                          {agent.slug}
+                        </div>
+                      </div>
+                    </div>
+                    {agent.description && (
+                      <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                        {agent.description.length > 100 ? `${agent.description.substring(0, 100)}...` : agent.description}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', alignItems: 'center' }}>
+                      {(() => {
+                        const modelId = agent.model || appConfig.defaultModel;
+                        if (!modelId) return null;
+                        
+                        const isInherited = !agent.model;
+                        const modelInfo = availableModels.find(m => m.id === modelId);
+                        
+                        let displayName = 'model';
+                        if (modelInfo) {
+                          displayName = modelInfo.name;
+                        } else if (typeof modelId === 'string') {
+                          const parts = modelId.split('.');
+                          if (parts.length > 1) {
+                            const modelPart = parts[1].split('-')[0];
+                            displayName = modelPart.charAt(0).toUpperCase() + modelPart.slice(1);
+                          }
+                        }
+                        
+                        return (
+                          <div style={{
+                            fontSize: '12px',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            background: 'var(--color-bg)',
+                            color: 'var(--text-secondary)',
+                          }}>
+                            {displayName}
+                            {isInherited && <span style={{ marginLeft: '4px', opacity: 0.7 }}>(default)</span>}
+                          </div>
+                        );
+                      })()}
+                      <div style={{ marginLeft: 'auto', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', background: 'var(--accent-primary)', color: 'var(--bg-primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {owningWorkspace}
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })}
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
           {currentView.type === 'prompts' && (
@@ -720,17 +865,13 @@ function App() {
             />
           )}
           {currentView.type === 'profile' && <ProfilePage />}
+          {currentView.type === 'notifications' && <NotificationsPage />}
           {currentView.type === 'monitoring' && <MonitoringView />}
-        </div>
-
-        <ChatDock onRequestAuth={handleAuthError} />
-      </div>
+        </>
     );
-  }
+  };
 
-  // Workspace view
-  if (currentView.type === 'workspace') {
-    return (
+  return (
     <div className="app">
       <Header
         workspaces={workspaces}
@@ -749,15 +890,6 @@ function App() {
         }}
       />
 
-      {managementNotice && (
-        <div className="management-notice">
-          <span>{managementNotice}</span>
-          <button type="button" onClick={() => setManagementNotice(null)}>
-            Close
-          </button>
-        </div>
-      )}
-
       {globalError && (
         <div className="global-error">
           <span>{globalError}</span>
@@ -770,21 +902,14 @@ function App() {
       />
 
       <div className="main-content">
-        <div 
-          className={`workspace-panel ${isDockOpen ? 'has-chat-dock' : ''}`}
-          style={{ paddingBottom: isDockOpen ? '400px' : '43px' }}
-        >
-          <WorkspaceView />
+        <div className="content-view">
+          {renderViewContent()}
         </div>
       </div>
 
       <ChatDock onRequestAuth={handleAuthError} />
     </div>
-    );
-  }
-
-  // This should never be reached
-  return null;
+  );
 }
 
 export default App;

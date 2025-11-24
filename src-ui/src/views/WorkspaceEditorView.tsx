@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { log } from '@/utils/logger';
 import type { WorkspaceConfig, WorkspaceTab, WorkspacePrompt, AgentSummary } from '../types';
 import { getWorkspaceIcon } from '../utils/workspace';
 
@@ -49,7 +50,7 @@ export function WorkspaceEditorView({ apiBase, slug, onBack, onSaved }: Workspac
       const data = await res.json();
       setAgents(data.data || []);
     } catch (err: any) {
-      console.error('Failed to load agents:', err);
+      log.api('Failed to load agents:', err);
     }
   };
 

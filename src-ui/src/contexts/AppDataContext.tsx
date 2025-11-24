@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { log } from '@/utils/logger';
 
 interface Model {
   id: string;
@@ -57,7 +58,7 @@ export function AppDataProvider({ children, apiBase }: { children: ReactNode; ap
         setModels(processedModels);
       }
     } catch (error) {
-      console.error('Failed to load models:', error);
+      log.api('Failed to load models:', error);
     } finally {
       setIsLoadingModels(false);
     }

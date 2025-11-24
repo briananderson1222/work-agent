@@ -2,8 +2,7 @@ import type { AgentSummary, AgentQuickPrompt, WorkspaceConfig, WorkspaceTab } fr
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
 import { pluginRegistry } from '../core/PluginRegistry';
 import { WorkspaceNavigationProvider } from '@stallion-ai/sdk';
-
-console.log('[WorkspaceRenderer] WorkspaceNavigationProvider imported:', !!WorkspaceNavigationProvider);
+import { log } from '@/utils/logger';
 
 export interface AgentWorkspaceProps {
   agent?: AgentSummary;
@@ -20,6 +19,7 @@ export type AgentWorkspaceComponent = (props: AgentWorkspaceProps) => JSX.Elemen
 
 // Core workspace components (not plugins)
 const coreRegistry: Record<string, AgentWorkspaceComponent> = {};
+const loggedComponents = new Set<string>();
 
 const DefaultWorkspace: AgentWorkspaceComponent = ({ workspace, onShowChat }) => (
   <div className="workspace-default">
@@ -42,6 +42,10 @@ export function resolveWorkspaceComponent(componentId?: string): AgentWorkspaceC
   // Check plugin registry as fallback
   const pluginComponent = pluginRegistry.getWorkspace(componentId);
   if (pluginComponent) {
+    if (!loggedComponents.has(componentId)) {
+      log.plugin(`Loaded workspace component: ${componentId}`);
+      loggedComponents.add(componentId);
+    }
     return pluginComponent as AgentWorkspaceComponent;
   }
   
@@ -54,6 +58,7 @@ interface WorkspaceRendererProps extends AgentWorkspaceProps {
   loading?: boolean;
   activeTabId?: string;
   onTabChange?: (tabId: string) => void;
+  refreshKey?: number;
 }
 
 export function WorkspaceRenderer({ 
@@ -65,10 +70,9 @@ export function WorkspaceRenderer({
   activeTabId,
   onTabChange,
   onLaunchPrompt,
+  refreshKey = 0,
   ...props 
 }: WorkspaceRendererProps) {
-  console.log('[WorkspaceRenderer] Rendering with:', { activeTabId, workspaceSlug: workspace?.slug });
-  
   try {
     return (
       <>
@@ -103,6 +107,7 @@ export function WorkspaceRenderer({
               className={`workspace-tab-content ${!isActive ? 'hidden' : ''}`}
             >
               <Component 
+                key={`${tab.id}-${refreshKey}`}
                 workspace={workspace} 
                 activeTab={isActive ? tab : undefined} 
                 onLaunchPrompt={onLaunchPrompt} 
@@ -115,13 +120,13 @@ export function WorkspaceRenderer({
         // Fallback for workspaces without tabs
         (() => {
           const Component = resolveWorkspaceComponent(componentId);
-          return <Component workspace={workspace} activeTab={activeTab} onLaunchPrompt={onLaunchPrompt} {...props} />;
+          return <Component key={refreshKey} workspace={workspace} activeTab={activeTab} onLaunchPrompt={onLaunchPrompt} {...props} />;
         })()
       )}
       </>
     );
   } catch (error) {
-    console.error('[WorkspaceRenderer] Error rendering WorkspaceNavigationProvider:', error);
+    log.api('Error rendering workspace:', error);
     return <div>Error loading workspace navigation</div>;
   }
 }

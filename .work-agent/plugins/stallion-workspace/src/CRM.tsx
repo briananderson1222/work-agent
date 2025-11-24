@@ -1,8 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useToast, transformTool, useAgents, useSendMessage, useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useToast, transformTool, useAgents, useCreateChatSession, useNavigation, useWorkspaceNavigation, useActiveChatActions, resolveAgentName, Button, Pill, useSendMessage, useApiBase } from '@stallion-ai/sdk';
 import '../../plugins/shared/workspace.css';
 
 const SALESFORCE_BASE_URL = 'https://aws-crm.lightning.force.com';
+
+// Feature flags
+const ENABLE_MY_ACCOUNTS = false;
+
+interface AutocompleteItem {
+  id: string;
+  title: string;
+  description?: string;
+  metadata?: any;
+  badge?: string;
+}
 
 interface Account {
   id: string;
@@ -15,6 +26,10 @@ interface Account {
       tShirtSize?: string;
     };
   };
+  _sources?: Array<{
+    type: 'owner' | 'territory';
+    label: string;
+  }>;
 }
 
 interface Opportunity {
@@ -47,25 +62,194 @@ interface Task {
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 interface CRMProps {
-  onSendToChat?: (text: string, agent?: string) => void;
   activeTab?: any; // Will be defined when this tab is active
 }
 
-export function CRM({ onSendToChat, activeTab }: CRMProps) {
-  console.log('[CRM] Component render start, activeTab:', !!activeTab);
-  
+export function CRM({ activeTab }: CRMProps) {
   const { showToast } = useToast();
   const { getTabState, setTabState } = useWorkspaceNavigation();
+  const createChatSession = useCreateChatSession();
+  const { setDockState, setActiveChat } = useNavigation();
+  const { updateChat } = useActiveChatActions();
+  const { apiBase } = useApiBase();
+  const sendMessage = useSendMessage(apiBase);
+  const agents = useAgents();
   const agentSlug = 'work-agent';
-  const isActive = !!activeTab;
   
-  console.log('[CRM] After hooks, hash:', window.location.hash);
+  const sendToChat = useCallback((message: string) => {
+    const resolvedSlug = resolveAgentName(agentSlug);
+    const agent = agents.find(a => a.slug === resolvedSlug);
+    if (!agent) return;
+    const sessionId = createChatSession(resolvedSlug, agent.name);
+    setDockState(true);
+    setActiveChat(sessionId);
+    sendMessage(sessionId, resolvedSlug, undefined, message);
+  }, [agents, agentSlug, createChatSession, setDockState, setActiveChat, sendMessage]);
   
-  const [ownerSearch, setOwnerSearch] = useState('');
-  const [activeOwnerSearches, setActiveOwnerSearches] = useState<string[]>(() => {
-    const stored = localStorage.getItem('sfdc-active-owner-searches');
-    return stored ? JSON.parse(stored) : [];
-  });
+  // Parse initial state
+  const initialState = useMemo(() => {
+    const storedState = activeTab ? getTabState('crm') : '';
+    const params = new URLSearchParams(storedState);
+    const filters = params.get('filters') ? JSON.parse(params.get('filters')!) : [];
+    return {
+      mode: 'search' as 'my-accounts' | 'search',
+      searchType: (params.get('searchType') as 'owner' | 'territory') || 'owner',
+      activeFilters: filters
+    };
+  }, [activeTab]);
+  
+  const [mode, setMode] = useState<'my-accounts' | 'search'>('search');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchType, setSearchType] = useState<'owner' | 'territory'>(initialState.searchType);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [autocompleteItems, setAutocompleteItems] = useState<AutocompleteItem[]>([]);
+  const [activeFilters, setActiveFilters] = useState<Array<{
+    type: 'owner' | 'territory' | 'error';
+    label: string;
+    value?: string;
+    id?: string;
+    error?: string;
+  }>>(initialState.activeFilters);
+  const [isInitialMount, setIsInitialMount] = useState(true);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const hasRestoredRef = useRef(false);
+  
+  // Restore state when tab becomes active
+  useEffect(() => {
+    if (activeTab) {
+      const storedState = getTabState('crm');
+      if (storedState) {
+        const params = new URLSearchParams(storedState);
+        setMode((params.get('mode') as 'my-accounts' | 'search') || 'my-accounts');
+        setSearchType((params.get('searchType') as 'owner' | 'territory') || 'owner');
+        const filters = params.get('filters');
+        if (filters) {
+          setActiveFilters(JSON.parse(filters));
+        }
+      }
+    }
+  }, [activeTab, getTabState]);
+  
+  // Persist state changes
+  useEffect(() => {
+    if (isInitialMount) {
+      setIsInitialMount(false);
+      return;
+    }
+    const currentState = getTabState('crm');
+    const params = new URLSearchParams(currentState);
+    params.set('mode', mode);
+    params.set('searchType', searchType);
+    if (activeFilters.length > 0) {
+      params.set('filters', JSON.stringify(activeFilters));
+    } else {
+      params.delete('filters');
+    }
+    // Preserve selectedAccount if it exists
+    const stateString = params.toString();
+    setTabState('crm', stateString);
+  }, [mode, searchType, activeFilters, isInitialMount, setTabState, getTabState]);
+
+  // Auto-load my accounts on mount
+  useEffect(() => {
+    if (ENABLE_MY_ACCOUNTS && mode === 'my-accounts' && accounts.length === 0 && activeFilters.length === 0) {
+      loadMyAccounts();
+    }
+  }, [mode]);
+
+  // Restore accounts from filters on mount
+  useEffect(() => {
+    if (hasRestoredRef.current) return;
+    
+    if (activeFilters.length > 0 && accounts.length === 0) {
+      hasRestoredRef.current = true;
+      setIsRestoring(true);
+      // Re-fetch accounts based on restored filters
+      const reloadFromFilters = async () => {
+        for (const filter of activeFilters) {
+          if (filter.type === 'owner' && filter.value) {
+            await searchAccounts(filter.value);
+          } else if (filter.type === 'territory' && filter.id) {
+            await loadTerritoryAccounts(filter.id, filter.label);
+          }
+        }
+        setIsRestoring(false);
+      };
+      reloadFromFilters();
+    }
+  }, []);
+
+  const loadMyAccounts = async () => {
+    const cacheKey = getCacheKey('accounts', 'my-accounts');
+    const cached = sessionStorage.getItem(cacheKey);
+    
+    if (cached) {
+      setAccounts(JSON.parse(cached));
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const result = await transformTool(agentSlug, 'sat-sfdc_search_accounts',
+        {},
+        `(data) => data || []`
+      );
+      setAccounts(result || []);
+      sessionStorage.setItem(cacheKey, JSON.stringify(result || []));
+    } catch (error) {
+      console.error('Failed to load my accounts:', error);
+      showToast('Failed to load accounts', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Debounced territory search
+  useEffect(() => {
+    if (!searchInput.trim() || searchType !== 'territory') {
+      setShowAutocomplete(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const territories = await transformTool(agentSlug, 'sat-sfdc_search_territories',
+          { queryTerm: searchInput },
+          `(data) => data.territories || data || []`
+        );
+        
+        const items: AutocompleteItem[] = (territories || []).map((t: any) => ({
+          id: t.id,
+          title: t.name,
+          description: t.id,
+          metadata: t
+        }));
+        
+        setAutocompleteItems(items);
+        setShowAutocomplete(true);
+      } catch (error) {
+        console.error('Failed to search territories:', error);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, searchType]);
+
+  // Owner search hint
+  useEffect(() => {
+    if (!searchInput.trim() || searchType !== 'owner') {
+      setShowAutocomplete(false);
+      return;
+    }
+
+    setAutocompleteItems([{
+      id: 'owner-example',
+      title: searchInput,
+      description: 'Press Enter to search (format: First Last)',
+      badge: 'Owner'
+    }]);
+    setShowAutocomplete(true);
+  }, [searchInput, searchType]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -73,11 +257,32 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
   const [showAllOpportunities, setShowAllOpportunities] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
+  const [loadingTasks, setLoadingTasks] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [filterExpanded, setFilterExpanded] = useState(false);
   const [selectedGeos, setSelectedGeos] = useState<Set<string>>(new Set());
   const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set());
   const [nameFilter, setNameFilter] = useState('');
+  const [showCreateOppModal, setShowCreateOppModal] = useState(false);
+  const [showLogActivityModal, setShowLogActivityModal] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
+  const [showAiPreview, setShowAiPreview] = useState(false);
+  const [aiGeneratedText, setAiGeneratedText] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [oppFormData, setOppFormData] = useState({
+    name: '',
+    stageName: 'Prospecting',
+    closeDate: '',
+    amount: '',
+    probability: '10'
+  });
+  const [activityFormData, setActivityFormData] = useState({
+    subject: '',
+    activityDate: new Date().toISOString().split('T')[0],
+    description: '',
+    saActivity: ''
+  });
 
   const getCacheKey = (type: string, key: string) => `sfdc-${type}-${key}`;
 
@@ -99,34 +304,127 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
     return true;
   });
 
-  const searchAccounts = async (forceRefresh = false) => {
-    if (!ownerSearch.trim()) return;
+  const handleAutocompleteSelect = async (item: AutocompleteItem) => {
+    if (searchType === 'territory') {
+      await loadTerritoryAccounts(item.id, item.title);
+    } else {
+      await searchAccounts(searchInput);
+    }
+    setSearchInput('');
+    setShowAutocomplete(false);
+  };
+
+  const loadTerritoryAccounts = async (territoryId: string, territoryName: string, forceRefresh = false) => {
+    const cacheKey = getCacheKey('territory-accounts', territoryId);
     
-    const searchValue = ownerSearch; // Store before clearing
-    const cacheKey = getCacheKey('accounts', searchValue);
-    
-    // Check cache first unless forcing refresh
     if (!forceRefresh) {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
-        setAccounts(JSON.parse(cached));
-        setOwnerSearch(''); // Clear search box
+        const newAccounts = JSON.parse(cached).map((acc: Account) => ({
+          ...acc,
+          _sources: [{ type: 'territory' as const, label: territoryName }]
+        }));
+        setAccounts(prev => {
+          const combined = [...prev, ...newAccounts];
+          return combined.reduce((acc, curr) => {
+            const existing = acc.find(a => a.id === curr.id);
+            if (existing) {
+              existing._sources = [...(existing._sources || []), ...(curr._sources || [])];
+            } else {
+              acc.push(curr);
+            }
+            return acc;
+          }, [] as Account[]);
+        });
         
-        // Add to active searches
-        const newActiveSearches = [...new Set([...activeOwnerSearches, searchValue])];
-        setActiveOwnerSearches(newActiveSearches);
-        localStorage.setItem('sfdc-active-owner-searches', JSON.stringify(newActiveSearches));
+        setActiveFilters(prev => {
+          if (isRestoring || prev.some(f => f.type === 'territory' && f.id === territoryId)) {
+            return prev;
+          }
+          return [...prev, { type: 'territory', label: territoryName, id: territoryId }];
+        });
         return;
       }
     }
     
     setLoading(true);
-    setSearchError(null);
     try {
-      // Split by comma and trim whitespace
-      const owners = searchValue.split(',').map(owner => owner.trim()).filter(owner => owner);
+      const result = await transformTool(agentSlug, 'sat-sfdc_list_territory_accounts',
+        { territoryId },
+        `(data) => data.accounts || data || []`
+      );
       
-      // Search for each owner in parallel
+      const newAccounts = (result || []).map((acc: Account) => ({
+        ...acc,
+        _sources: [{ type: 'territory' as const, label: territoryName }]
+      }));
+      setAccounts(prev => {
+        const combined = [...prev, ...newAccounts];
+        return combined.reduce((acc, curr) => {
+          const existing = acc.find(a => a.id === curr.id);
+          if (existing) {
+            existing._sources = [...(existing._sources || []), ...(curr._sources || [])];
+          } else {
+            acc.push(curr);
+          }
+          return acc;
+        }, [] as Account[]);
+      });
+      
+      sessionStorage.setItem(cacheKey, JSON.stringify(result || []));
+      setActiveFilters(prev => {
+        if (isRestoring || prev.some(f => f.type === 'territory' && f.id === territoryId)) {
+          return prev;
+        }
+        return [...prev, { type: 'territory', label: territoryName, id: territoryId }];
+      });
+    } catch (error) {
+      console.error('Failed to load territory accounts:', error);
+      showToast('Failed to load territory accounts', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const searchAccounts = async (ownerSearch: string, forceRefresh = false) => {
+    if (!ownerSearch.trim()) return;
+    
+    const cacheKey = getCacheKey('accounts', ownerSearch);
+    
+    if (!forceRefresh) {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const newAccounts = JSON.parse(cached).map((acc: Account) => ({
+          ...acc,
+          _sources: [{ type: 'owner' as const, label: ownerSearch }]
+        }));
+        setAccounts(prev => {
+          const combined = [...prev, ...newAccounts];
+          return combined.reduce((acc, curr) => {
+            const existing = acc.find(a => a.id === curr.id);
+            if (existing) {
+              existing._sources = [...(existing._sources || []), ...(curr._sources || [])];
+            } else {
+              acc.push(curr);
+            }
+            return acc;
+          }, [] as Account[]);
+        });
+        setActiveFilters(prev => {
+          if (isRestoring || prev.some(f => f.type === 'owner' && f.value === ownerSearch)) {
+            return prev;
+          }
+          const updated = [...prev, { type: 'owner', label: ownerSearch, value: ownerSearch }];
+          return updated;
+        });
+        return;
+      }
+    }
+    
+    setLoading(true);
+    try {
+      const owners = ownerSearch.split(',').map(owner => owner.trim()).filter(owner => owner);
+      
       const searchPromises = owners.map(owner =>
         transformTool(agentSlug, 'sat-sfdc_search_accounts',
           { owner, ownerFilterType: 'CONTAINS_WORD' },
@@ -135,40 +433,50 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
       );
       
       const results = await Promise.all(searchPromises);
+      const newAccounts = results.flat().map((acc: Account) => ({
+        ...acc,
+        _sources: [{ type: 'owner' as const, label: ownerSearch }]
+      }));
       
-      // Combine new results with existing accounts
-      const newAccounts = results.flat();
-      const combinedAccounts = [...accounts, ...newAccounts];
+      setAccounts(prev => {
+        const combined = [...prev, ...newAccounts];
+        return combined.reduce((acc, curr) => {
+          const existing = acc.find(a => a.id === curr.id);
+          if (existing) {
+            existing._sources = [...(existing._sources || []), ...(curr._sources || [])];
+          } else {
+            acc.push(curr);
+          }
+          return acc;
+        }, [] as Account[]);
+      });
       
-      // Remove duplicates by id
-      const uniqueAccounts = combinedAccounts.filter((account, index, self) => 
-        index === self.findIndex(a => a.id === account.id)
-      );
-      
-      setAccounts(uniqueAccounts);
-      
-      // Check if any owner returned no results
       const emptyOwners = owners.filter((owner, index) => !results[index] || results[index].length === 0);
       if (emptyOwners.length > 0) {
-        setSearchError(`No accounts found for: ${emptyOwners.join(', ')}`);
-      } else {
-        setSearchError(null); // Clear any previous error
+        setActiveFilters(prev => [...prev, { 
+          type: 'error', 
+          label: `No accounts: ${emptyOwners.join(', ')}`,
+          error: emptyOwners.join(', ')
+        }]);
       }
       
-      // Cache and save to localStorage if we got any results
       if (newAccounts.length > 0) {
-        sessionStorage.setItem(cacheKey, JSON.stringify(newAccounts));
-        
-        // Add new searches to active list (avoid duplicates)
-        const newActiveSearches = [...new Set([...activeOwnerSearches, searchValue])];
-        setActiveOwnerSearches(newActiveSearches);
-        localStorage.setItem('sfdc-active-owner-searches', JSON.stringify(newActiveSearches));
-        
-        setOwnerSearch(''); // Clear search box after successful search
+        sessionStorage.setItem(cacheKey, JSON.stringify(results.flat()));
+        setActiveFilters(prev => {
+          if (isRestoring || prev.some(f => f.type === 'owner' && f.value === ownerSearch)) {
+            return prev;
+          }
+          const updated = [...prev, { type: 'owner', label: ownerSearch, value: ownerSearch }];
+          return updated;
+        });
       }
     } catch (error) {
       console.error('Failed to search accounts:', error);
-      setSearchError('Failed to search accounts');
+      setActiveFilters(prev => [...prev, { 
+        type: 'error', 
+        label: `Failed to search: ${ownerSearch}`,
+        error: ownerSearch
+      }]);
       showToast('Failed to search accounts', 'error');
     } finally {
       setLoading(false);
@@ -176,13 +484,25 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
   };
 
   const loadAccountDetails = async (account: Account, forceRefresh = false) => {
-    console.log('[CRM] loadAccountDetails called for:', account.id);
+    
+    // Clear previous account data immediately
+    setOpportunities([]);
+    setTasks([]);
     setSelectedAccount(account);
     
-    // Save account state to provider - no hash manipulation
-    const accountHash = `account/${account.id}`;
-    console.log('[CRM] Saving account state to provider:', accountHash);
-    setTabState('crm', accountHash);
+    // Scroll account into view
+    setTimeout(() => {
+      const accountElement = document.querySelector(`[data-account-id="${account.id}"]`);
+      if (accountElement) {
+        accountElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 100);
+    
+    // Save account state to provider - preserve existing state
+    const currentState = getTabState('crm');
+    const params = new URLSearchParams(currentState);
+    params.set('selectedAccount', account.id);
+    setTabState('crm', params.toString());
     
     const oppsCacheKey = getCacheKey('opportunities', account.id);
     const tasksCacheKey = getCacheKey('tasks', account.id);
@@ -199,7 +519,8 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
       }
     }
     
-    setLoading(true);
+    setLoadingOpportunities(true);
+    setLoadingTasks(true);
     
     try {
       // Load opportunities and tasks in parallel
@@ -207,11 +528,11 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
         transformTool(agentSlug, 'sat-sfdc_get_opportunities_for_account',
           { accountId: account.id },
           `(data) => data.opportunities || data.response || data || []`
-        ),
+        ).finally(() => setLoadingOpportunities(false)),
         transformTool(agentSlug, 'sat-sfdc_list_user_tasks',
           { accountId: account.id },
           `(data) => data.tasks || data.records || data || []`
-        )
+        ).finally(() => setLoadingTasks(false))
       ]);
 
       setOpportunities(oppsResult || []);
@@ -223,99 +544,74 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
     } catch (error) {
       console.error('Failed to load account details:', error);
       showToast('Failed to load account details', 'error');
-    } finally {
-      setLoading(false);
+      setLoadingOpportunities(false);
+      setLoadingTasks(false);
     }
   };
 
-  // Auto-search on mount if active searches exist
+  // Auto-load on mount - restore selected account only
   useEffect(() => {
-    console.log('[CRM] Mount useEffect triggered');
-    if (activeOwnerSearches.length > 0) {
-      console.log('[CRM] Loading cached accounts for searches:', activeOwnerSearches);
-      // Load all cached results
-      const allAccounts = [];
-      for (const search of activeOwnerSearches) {
-        const cached = sessionStorage.getItem(getCacheKey('accounts', search));
-        if (cached) {
-          allAccounts.push(...JSON.parse(cached));
-        }
-      }
-      // Remove duplicates
-      const uniqueAccounts = allAccounts.filter((account, index, self) => 
-        index === self.findIndex(a => a.id === account.id)
-      );
-      setAccounts(uniqueAccounts);
-      console.log('[CRM] Set accounts');
-      
-      // Restore selected account from sessionStorage
-      const storedState = getTabState('crm');
-      console.log('[CRM] Checking stored state for account restoration:', storedState);
-      if (storedState && storedState.startsWith('account/')) {
-        const accountId = storedState.replace('account/', '');
-        const account = uniqueAccounts.find(a => a.id === accountId);
-        console.log('[CRM] Found account for restoration:', !!account, accountId);
+    
+    const storedState = getTabState('crm');
+    const params = new URLSearchParams(storedState);
+    const accountId = params.get('selectedAccount');
+    if (accountId) {
+      setTimeout(() => {
+        const account = accounts.find(a => a.id === accountId);
         if (account) {
           setSelectedAccount(account);
-          // Scroll to the account in the list
-          setTimeout(() => {
-            const accountElement = document.querySelector(`[data-account-id="${accountId}"]`);
-            if (accountElement) {
-              accountElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-          }, 100);
+          const accountElement = document.querySelector(`[data-account-id="${accountId}"]`);
+          if (accountElement) {
+            accountElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
         }
-      }
+      }, 100);
     }
-    console.log('[CRM] Mount useEffect complete');
   }, []); // Empty dependency array - only run on mount
 
   // Restore selected account from tab navigation state when accounts are loaded
   useEffect(() => {
-    console.log('[CRM] Account restoration useEffect triggered');
-    console.log('[CRM] Account restoration check:', { accountsLength: accounts.length, selectedAccount: selectedAccount?.id });
     if (accounts.length > 0 && !selectedAccount) {
       const state = getTabState('crm');
-      console.log('[CRM] Got tab state:', state);
-      if (state.startsWith('account/')) {
-        const accountId = state.replace('account/', '');
+      const params = new URLSearchParams(state);
+      const accountId = params.get('selectedAccount');
+      if (accountId) {
         const account = accounts.find(a => a.id === accountId);
-        console.log('[CRM] Looking for account:', accountId, 'found:', !!account);
         if (account) {
-          console.log('[CRM] Restoring selected account:', account.id);
-          setSelectedAccount(account);
+          loadAccountDetails(account);
         }
       }
     }
-    console.log('[CRM] Account restoration useEffect complete');
   }, [accounts, selectedAccount, getTabState]);
 
   const handleRefresh = async () => {
-    // Clear all account-related cache
-    activeOwnerSearches.forEach(search => {
-      sessionStorage.removeItem(getCacheKey('accounts', search));
+    // Clear all caches
+    activeFilters.forEach(filter => {
+      if (filter.type === 'owner' && filter.value) {
+        sessionStorage.removeItem(getCacheKey('accounts', filter.value));
+      } else if (filter.type === 'territory' && filter.id) {
+        sessionStorage.removeItem(getCacheKey('territory-accounts', filter.id));
+      }
     });
     
-    // Clear account details cache
     accounts.forEach(account => {
       sessionStorage.removeItem(getCacheKey('account-details', account.id));
       sessionStorage.removeItem(getCacheKey('opportunities', account.id));
       sessionStorage.removeItem(getCacheKey('tasks', account.id));
     });
     
-    // Clear current state
     setAccounts([]);
     setOpportunities([]);
     setTasks([]);
     setSearchError(null);
     
-    // Refetch all active owner searches
-    if (activeOwnerSearches.length > 0) {
-      setLoading(true);
-      try {
-        const allAccounts = [];
-        for (const search of activeOwnerSearches) {
-          const owners = search.split(',').map(owner => owner.trim()).filter(owner => owner);
+    // Refetch all active filters
+    setLoading(true);
+    try {
+      const allAccounts = [];
+      for (const filter of activeFilters) {
+        if (filter.type === 'owner' && filter.value) {
+          const owners = filter.value.split(',').map(owner => owner.trim()).filter(owner => owner);
           const searchPromises = owners.map(owner =>
             transformTool(agentSlug, 'sat-sfdc_search_accounts',
               { owner, ownerFilterType: 'CONTAINS_WORD' },
@@ -323,56 +619,633 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
             )
           );
           const results = await Promise.all(searchPromises);
-          const searchAccounts = results.flat();
-          allAccounts.push(...searchAccounts);
-          
-          // Cache the results
-          sessionStorage.setItem(getCacheKey('accounts', search), JSON.stringify(searchAccounts));
+          const accounts = results.flat();
+          allAccounts.push(...accounts);
+          sessionStorage.setItem(getCacheKey('accounts', filter.value), JSON.stringify(accounts));
+        } else if (filter.type === 'territory' && filter.id) {
+          const result = await transformTool(agentSlug, 'sat-sfdc_list_territory_accounts',
+            { territoryId: filter.id },
+            `(data) => data.accounts || data || []`
+          );
+          const accounts = result || [];
+          allAccounts.push(...accounts);
+          sessionStorage.setItem(getCacheKey('territory-accounts', filter.id), JSON.stringify(accounts));
         }
-        
-        // Remove duplicates and set accounts
-        const uniqueAccounts = allAccounts.filter((account, index, self) =>
-          index === self.findIndex(a => a.id === account.id)
-        );
-        setAccounts(uniqueAccounts);
-      } catch (error) {
-        console.error('Failed to refresh accounts:', error);
-        showToast('Failed to refresh accounts', 'error');
-      } finally {
-        setLoading(false);
       }
+      const uniqueAccounts = allAccounts.filter((account, index, self) =>
+        index === self.findIndex(a => a.id === account.id)
+      );
+      setAccounts(uniqueAccounts);
+    } catch (error) {
+      console.error('Failed to refresh accounts:', error);
+      showToast('Failed to refresh accounts', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
   const createOpportunity = () => {
     if (!selectedAccount) return;
-    onSendToChat?.(`Create a new opportunity for account ${selectedAccount.name}`, agentSlug);
+    setOppFormData({
+      name: '',
+      stageName: 'Prospecting',
+      closeDate: '',
+      amount: '',
+      probability: '10'
+    });
+    setShowCreateOppModal(true);
+  };
+
+  const handleCreateOpportunity = async () => {
+    if (!selectedAccount || !oppFormData.name || !oppFormData.closeDate) return;
+    
+    setLoading(true);
+    try {
+      await transformTool(agentSlug, 'sat-sfdc_create_opportunity',
+        {
+          name: oppFormData.name,
+          accountId: selectedAccount.id,
+          stageName: oppFormData.stageName,
+          closeDate: oppFormData.closeDate,
+          amount: oppFormData.amount ? parseFloat(oppFormData.amount) : undefined,
+          probability: parseInt(oppFormData.probability)
+        },
+        `(data) => data`
+      );
+      
+      showToast('Opportunity created successfully', 'success');
+      setShowCreateOppModal(false);
+      await loadAccountDetails(selectedAccount, true);
+    } catch (error) {
+      console.error('Failed to create opportunity:', error);
+      showToast('Failed to create opportunity', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const createTask = () => {
     if (!selectedAccount) return;
-    onSendToChat?.(`Create a new task for account ${selectedAccount.name}`, agentSlug);
+    sendToChat(`Create a new task for account ${selectedAccount.name}`);
   };
 
   return (
+    <>
+      {/* Create Opportunity Modal */}
+      {showCreateOppModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }} onClick={() => setShowCreateOppModal(false)}>
+          <div style={{
+            background: 'var(--color-bg)',
+            padding: '1.5rem',
+            borderRadius: '8px',
+            width: '500px',
+            maxWidth: '90vw',
+            border: '1px solid var(--color-border)'
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, color: 'var(--color-text)' }}>Create Opportunity</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--color-text)' }}>Name *</label>
+                <input
+                  type="text"
+                  value={oppFormData.name}
+                  onChange={(e) => setOppFormData({...oppFormData, name: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    background: 'var(--color-bg)',
+                    color: 'var(--color-text)',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--color-text)' }}>Stage *</label>
+                <select
+                  value={oppFormData.stageName}
+                  onChange={(e) => setOppFormData({...oppFormData, stageName: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    background: 'var(--color-bg)',
+                    color: 'var(--color-text)',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <option>Prospecting</option>
+                  <option>Qualification</option>
+                  <option>Proposal</option>
+                  <option>Negotiation</option>
+                  <option>Closed Won</option>
+                  <option>Closed Lost</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--color-text)' }}>Close Date *</label>
+                <input
+                  type="date"
+                  value={oppFormData.closeDate}
+                  onChange={(e) => setOppFormData({...oppFormData, closeDate: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    background: 'var(--color-bg)',
+                    color: 'var(--color-text)',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--color-text)' }}>Amount</label>
+                <input
+                  type="number"
+                  value={oppFormData.amount}
+                  onChange={(e) => setOppFormData({...oppFormData, amount: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    background: 'var(--color-bg)',
+                    color: 'var(--color-text)',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                <Button variant="ghost" onClick={() => setShowCreateOppModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleCreateOpportunity}
+                  disabled={!oppFormData.name || !oppFormData.closeDate}
+                  loading={loading}
+                >
+                  Create
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Log SA Activity Modal */}
+      {showLogActivityModal && selectedOpportunity && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setShowLogActivityModal(false)}>
+          <div style={{
+            background: 'var(--bg-primary)',
+            borderRadius: '12px',
+            width: '600px',
+            maxWidth: '90vw',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            border: '1px solid var(--border-primary)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid var(--border-primary)',
+              background: 'var(--bg-secondary)'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Log SA Activity
+              </h3>
+            </div>
+
+            {/* Context Section */}
+            <div style={{
+              padding: '1.5rem',
+              background: 'var(--bg-tertiary)',
+              borderBottom: '1px solid var(--border-primary)'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Account:</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{selectedAccount?.name}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Opportunity:</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{selectedOpportunity.name}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Stage:</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{selectedOpportunity.stageName}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Form */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  Subject <span style={{ color: 'var(--color-error)' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={activityFormData.subject}
+                  onChange={(e) => setActivityFormData({...activityFormData, subject: e.target.value})}
+                  placeholder="Brief summary of the activity"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '6px',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  SA Activity <span style={{ color: 'var(--color-error)' }}>*</span>
+                </label>
+                <select
+                  value={activityFormData.saActivity}
+                  onChange={(e) => setActivityFormData({...activityFormData, saActivity: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '6px',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <option value="">Select activity type...</option>
+                  <option>Architecture Review [Architecture]</option>
+                  <option>Demo [Architecture]</option>
+                  <option>Prototype/PoC/Pilot [Architecture]</option>
+                  <option>Well Architected [Architecture]</option>
+                  <option>Meeting / Office Hours [Management]</option>
+                  <option>Account Planning [Management]</option>
+                  <option>Immersion Day [Workshops]</option>
+                  <option>GameDay [Workshops]</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  Activity Date <span style={{ color: 'var(--color-error)' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  value={activityFormData.activityDate}
+                  onChange={(e) => setActivityFormData({...activityFormData, activityDate: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '6px',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                    Description
+                  </label>
+                  <button
+                    onClick={async () => {
+                      setIsGeneratingAi(true);
+                      try {
+                        const prompt = `Generate a professional activity description for this SA activity:
+Subject: ${activityFormData.subject || 'Not provided'}
+Activity Type: ${activityFormData.saActivity || 'Not provided'}
+Account: ${selectedAccount?.name}
+Opportunity: ${selectedOpportunity.name}
+${activityFormData.description ? `Current description: ${activityFormData.description}` : ''}
+
+Provide a concise, professional description (2-3 sentences) suitable for Salesforce activity logging.`;
+                        
+                        const sessionId = await createChatSession(agentSlug);
+                        const response = await fetch(`${apiBase}/agents/${agentSlug}/text`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            input: prompt,
+                            conversationId: sessionId,
+                            userId: `agent:${agentSlug}:user:temp`
+                          })
+                        });
+                        const data = await response.json();
+                        setAiGeneratedText(data.output);
+                        setShowAiPreview(true);
+                      } catch (error) {
+                        showToast('Failed to generate description', 'error');
+                      } finally {
+                        setIsGeneratingAi(false);
+                      }
+                    }}
+                    disabled={isGeneratingAi || !activityFormData.subject}
+                    style={{
+                      padding: '0.375rem 0.75rem',
+                      fontSize: '0.75rem',
+                      border: '1px solid var(--border-primary)',
+                      borderRadius: '4px',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: isGeneratingAi || !activityFormData.subject ? 'not-allowed' : 'pointer',
+                      opacity: isGeneratingAi || !activityFormData.subject ? 0.5 : 1
+                    }}
+                  >
+                    {isGeneratingAi ? '✨ Generating...' : '✨ AI Assist'}
+                  </button>
+                </div>
+                <textarea
+                  value={activityFormData.description}
+                  onChange={(e) => setActivityFormData({...activityFormData, description: e.target.value})}
+                  rows={4}
+                  placeholder="Detailed description of the activity and outcomes"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '6px',
+                    resize: 'vertical',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.875rem',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '1.5rem',
+              borderTop: '1px solid var(--border-primary)',
+              display: 'flex',
+              gap: '0.75rem',
+              justifyContent: 'flex-end',
+              background: 'var(--bg-secondary)'
+            }}>
+              <Button variant="ghost" onClick={() => setShowLogActivityModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  if (!activityFormData.subject || !activityFormData.saActivity) return;
+                  setLoading(true);
+                  try {
+                    await transformTool(agentSlug, 'sat-sfdc_create_sa_activity',
+                      {
+                        opportunityId: selectedOpportunity.id,
+                        subject: activityFormData.subject,
+                        saActivity: activityFormData.saActivity,
+                        activityDate: activityFormData.activityDate,
+                        description: activityFormData.description,
+                        status: 'Completed'
+                      },
+                      `(data) => data`
+                    );
+                    showToast('Activity logged successfully', 'success');
+                    setShowLogActivityModal(false);
+                    if (selectedAccount) await loadAccountDetails(selectedAccount, true);
+                  } catch (error) {
+                    console.error('Failed to log activity:', error);
+                    showToast('Failed to log activity', 'error');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={!activityFormData.subject || !activityFormData.saActivity}
+                loading={loading}
+              >
+                  Log Activity
+                </Button>
+              </div>
+            </div>
+          </div>
+      )}
+
+      {/* AI Preview Modal */}
+      {showAiPreview && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001,
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setShowAiPreview(false)}>
+          <div style={{
+            background: 'var(--bg-primary)',
+            borderRadius: '12px',
+            width: '500px',
+            maxWidth: '90vw',
+            border: '1px solid var(--border-primary)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid var(--border-primary)',
+              background: 'var(--bg-secondary)'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                AI Generated Description
+              </h3>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              <textarea
+                value={aiGeneratedText}
+                onChange={(e) => setAiGeneratedText(e.target.value)}
+                rows={6}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: '6px',
+                  resize: 'vertical',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.875rem',
+                  fontFamily: 'inherit'
+                }}
+              />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: 0 }}>
+                Review and edit the generated text before applying
+              </p>
+            </div>
+            <div style={{
+              padding: '1.5rem',
+              borderTop: '1px solid var(--border-primary)',
+              display: 'flex',
+              gap: '0.75rem',
+              justifyContent: 'flex-end',
+              background: 'var(--bg-secondary)'
+            }}>
+              <Button variant="ghost" onClick={() => setShowAiPreview(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setActivityFormData({...activityFormData, description: aiGeneratedText});
+                  setShowAiPreview(false);
+                }}
+              >
+                Apply
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="workspace-container">
       <div className="workspace-dashboard__content">
         <aside className="workspace-dashboard__sidebar">
           <div className="workspace-dashboard__sidebar-header">
             <h3>Accounts</h3>
-            <div className="workspace-dashboard__search" style={{ position: 'relative' }}>
+            
+            {/* Mode Toggle */}
+            {ENABLE_MY_ACCOUNTS && (
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <button
+                onClick={() => {
+                  setMode('my-accounts');
+                  setAccounts([]);
+                  setActiveFilters([]);
+                  loadMyAccounts();
+                }}
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  fontSize: '0.875rem',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '6px',
+                  background: mode === 'my-accounts' ? 'var(--color-primary)' : 'var(--color-bg)',
+                  color: mode === 'my-accounts' ? 'white' : 'var(--color-text-primary)',
+                  cursor: 'pointer',
+                  fontWeight: mode === 'my-accounts' ? 600 : 400
+                }}
+              >
+                My Accounts
+              </button>
+              <button
+                onClick={() => {
+                  setMode('search');
+                  setAccounts([]);
+                  setActiveFilters([]);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  fontSize: '0.875rem',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '6px',
+                  background: mode === 'search' ? 'var(--color-primary)' : 'var(--color-bg)',
+                  color: mode === 'search' ? 'white' : 'var(--color-text-primary)',
+                  cursor: 'pointer',
+                  fontWeight: mode === 'search' ? 600 : 400
+                }}
+              >
+                Search
+              </button>
+            </div>
+            )}
+
+            {/* Search Controls */}
+            <>
+              {/* Search Type Selector */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <button
+                    onClick={() => setSearchType('owner')}
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      fontSize: '0.75rem',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '6px',
+                      background: searchType === 'owner' ? '#0d6efd' : 'var(--color-bg)',
+                      color: searchType === 'owner' ? 'white' : 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                      fontWeight: searchType === 'owner' ? 600 : 400
+                    }}
+                  >
+                    By Owner
+                  </button>
+                  <button
+                    onClick={() => setSearchType('territory')}
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      fontSize: '0.75rem',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '6px',
+                      background: searchType === 'territory' ? '#198754' : 'var(--color-bg)',
+                      color: searchType === 'territory' ? 'white' : 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                      fontWeight: searchType === 'territory' ? 600 : 400
+                    }}
+                  >
+                    By Territory
+                  </button>
+                </div>
+
+            {/* Search Input with Autocomplete */}
+            <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
               <input
                 type="text"
-                placeholder="Owner name (First Last)..."
-                value={ownerSearch}
-                onChange={(e) => {
-                  setOwnerSearch(e.target.value);
-                  if (searchError) setSearchError(null); // Clear error when typing
+                placeholder={searchType === 'owner' ? 'First Last...' : 'Territory name...'}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && searchInput.trim()) {
+                    if (searchType === 'owner') {
+                      searchAccounts(searchInput);
+                      setSearchInput('');
+                      setShowAutocomplete(false);
+                    }
+                  }
                 }}
-                onKeyPress={(e) => e.key === 'Enter' && searchAccounts()}
                 style={{
                   width: '100%',
-                  padding: '0.5rem 4rem 0.5rem 0.75rem',
+                  padding: '0.5rem 0.75rem',
                   fontSize: '0.875rem',
                   border: '1px solid var(--color-border)',
                   borderRadius: '6px',
@@ -382,120 +1255,137 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
                   transition: 'border-color 0.2s'
                 }}
                 onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
-                onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
-              />
-              {ownerSearch && (
-                <button
-                  onClick={() => {
-                    setOwnerSearch('');
-                    if (searchError) setSearchError(null);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    right: '2.5rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-text-secondary)',
-                    cursor: 'pointer',
-                    padding: '0.25rem',
-                    fontSize: '1rem',
-                    lineHeight: 1,
-                    opacity: 0.6
-                  }}
-                  title="Clear"
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
-                >
-                  ×
-                </button>
-              )}
-              <button
-                onClick={searchAccounts}
-                disabled={loading || !ownerSearch.trim()}
-                style={{
-                  position: 'absolute',
-                  right: '0.5rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'var(--color-primary)',
-                  border: 'none',
-                  color: 'white',
-                  cursor: ownerSearch.trim() ? 'pointer' : 'not-allowed',
-                  padding: '0.25rem 0.5rem',
-                  fontSize: '0.875rem',
-                  borderRadius: '4px',
-                  opacity: ownerSearch.trim() ? 1 : 0.5
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'var(--color-border)';
+                  setTimeout(() => setShowAutocomplete(false), 200);
                 }}
-                title="Search"
-              >
-                →
-              </button>
-            </div>
-            {accounts.length > 0 && activeOwnerSearches.length > 0 && (
-              <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                {activeOwnerSearches.map((search, idx) => (
-                  <span
-                    key={idx}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      padding: '0.25rem 0.5rem',
-                      background: 'var(--color-primary)',
-                      color: 'white',
-                      borderRadius: '12px',
-                      fontSize: '0.7rem',
-                      fontWeight: 500
-                    }}
-                  >
-                    Owner: "{search}"
-                    <button
-                      onClick={async () => {
-                        // Remove this search from active list
-                        const newActiveSearches = activeOwnerSearches.filter(s => s !== search);
-                        setActiveOwnerSearches(newActiveSearches);
-                        localStorage.setItem('sfdc-active-owner-searches', JSON.stringify(newActiveSearches));
-                        
-                        // If no more active searches, clear everything
-                        if (newActiveSearches.length === 0) {
-                          setAccounts([]);
-                          // Don't clear selectedAccount - let it persist via hash
-                        } else {
-                          // Reload accounts from remaining searches
-                          const allAccounts = [];
-                          for (const s of newActiveSearches) {
-                            const cached = sessionStorage.getItem(getCacheKey('accounts', s));
-                            if (cached) {
-                              allAccounts.push(...JSON.parse(cached));
-                            }
-                          }
-                          // Remove duplicates
-                          const uniqueAccounts = allAccounts.filter((account, index, self) => 
-                            index === self.findIndex(a => a.id === account.id)
-                          );
-                          setAccounts(uniqueAccounts);
-                        }
-                      }}
+              />
+              
+              {showAutocomplete && autocompleteItems.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '4px',
+                  marginTop: '4px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  zIndex: 1000,
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                }}>
+                  {autocompleteItems.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleAutocompleteSelect(item)}
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'white',
+                        padding: '8px 10px',
                         cursor: 'pointer',
-                        padding: 0,
-                        marginLeft: '0.25rem',
-                        fontSize: '0.9rem',
-                        lineHeight: 1
+                        borderBottom: idx < autocompleteItems.length - 1 ? '1px solid var(--color-border)' : 'none',
                       }}
-                      title="Remove this owner filter"
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-bg-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
+                      <div style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: item.description ? '2px' : '0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{item.title}</span>
+                        {item.badge && (
+                          <span style={{
+                            fontSize: '0.65rem',
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            background: 'var(--color-primary)',
+                            color: 'white',
+                            fontWeight: 500,
+                          }}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                          {item.description}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Active Filters */}
+            {activeFilters.length > 0 && (
+              <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                {activeFilters.map((filter, idx) => {
+                  const getFilterColor = () => {
+                    if (filter.type === 'error') return '#dc3545';
+                    if (filter.type === 'owner') return '#0d6efd';
+                    if (filter.type === 'territory') return '#198754';
+                    return 'var(--color-primary)';
+                  };
+                  
+                  return (
+                    <span
+                      key={idx}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.25rem 0.5rem',
+                        background: getFilterColor(),
+                        color: 'white',
+                        borderRadius: '12px',
+                        fontSize: '0.7rem',
+                        fontWeight: 500
+                      }}
+                    >
+                      {filter.label}
+                      <button
+                        onClick={() => {
+                          const newFilters = activeFilters.filter((_, i) => i !== idx);
+                          setActiveFilters(newFilters);
+                          
+                          if (filter.type !== 'error' && newFilters.filter(f => f.type !== 'error').length === 0) {
+                            setAccounts([]);
+                          } else if (filter.type !== 'error') {
+                            const allAccounts = [];
+                            for (const f of newFilters.filter(f => f.type !== 'error')) {
+                              let cached = null;
+                              if (f.type === 'owner' && f.value) {
+                                cached = sessionStorage.getItem(getCacheKey('accounts', f.value));
+                              } else if (f.type === 'territory' && f.id) {
+                                cached = sessionStorage.getItem(getCacheKey('territory-accounts', f.id));
+                              }
+                              if (cached) {
+                                allAccounts.push(...JSON.parse(cached));
+                              }
+                            }
+                            const uniqueAccounts = allAccounts.filter((account, index, self) => 
+                              index === self.findIndex(a => a.id === account.id)
+                            );
+                            setAccounts(uniqueAccounts);
+                          }
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'white',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: '0.9rem',
+                          lineHeight: 1
+                        }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
               </div>
             )}
+            </>
             
             {/* Filter Bar */}
             {accounts.length > 0 && (
@@ -724,9 +1614,26 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
                   className={`workspace-dashboard__list-item ${
                     selectedAccount?.id === account.id ? 'is-active' : ''
                   }`}
-                  style={{ position: 'relative' }}
+                  style={{ position: 'relative', paddingBottom: '0.5rem' }}
                 >
-                  <div className="workspace-dashboard__list-item-title">
+                  {/* Owner pill - top left */}
+                  {account.owner?.name && (
+                    <div style={{ position: 'absolute', top: '0.25rem', left: '0.5rem' }}>
+                      <span style={{
+                        fontSize: '0.65rem',
+                        padding: '2px 6px',
+                        borderRadius: '12px',
+                        background: account._sources?.some(s => s.type === 'owner') ? '#0d6efd' : 'transparent',
+                        color: account._sources?.some(s => s.type === 'owner') ? 'white' : 'var(--color-text-secondary)',
+                        border: '1px solid #0d6efd',
+                        fontWeight: 500
+                      }}>
+                        {account.owner.name}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="workspace-dashboard__list-item-title" style={{ marginTop: '0.75rem' }}>
                     {account.name}
                   </div>
                   <div className="workspace-dashboard__list-item-meta">
@@ -745,6 +1652,35 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
                       </a>
                     )}
                   </div>
+                  {/* Metadata Pills */}
+                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                    {account.geo_Text__c && (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        padding: '2px 6px',
+                        borderRadius: '12px',
+                        background: 'transparent',
+                        color: '#6c757d',
+                        border: '1px solid #6c757d',
+                        fontWeight: 500
+                      }}>
+                        {account.geo_Text__c}
+                      </span>
+                    )}
+                    {account.awsci_customer?.customerRevenue?.tShirtSize && (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        padding: '2px 6px',
+                        borderRadius: '12px',
+                        background: 'transparent',
+                        color: '#6c757d',
+                        border: '1px solid #6c757d',
+                        fontWeight: 500
+                      }}>
+                        {account.awsci_customer.customerRevenue.tShirtSize}
+                      </span>
+                    )}
+                  </div>
                   <div style={{
                     position: 'absolute',
                     top: '0.25rem',
@@ -753,18 +1689,37 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
                     alignItems: 'center',
                     gap: '0.25rem'
                   }}>
-                    {account.owner?.name && (
-                      <span style={{
-                        fontSize: '0.65rem',
-                        padding: '2px 6px',
-                        borderRadius: '12px',
-                        background: 'var(--color-bg)',
-                        color: 'var(--color-text-secondary)',
-                        border: '1px solid var(--color-border)'
-                      }}>
-                        {account.owner.name}
-                      </span>
-                    )}
+                    {account._sources?.map((source, idx) => {
+                      const getSourceColor = () => {
+                        if (source.type === 'owner') return '#0d6efd';
+                        if (source.type === 'territory') return '#198754';
+                        return 'var(--color-primary)';
+                      };
+                      
+                      // Skip owner source since it's shown in top left
+                      if (source.type === 'owner') {
+                        return null;
+                      }
+                      
+                      // For territory, show last 11 chars of territory name
+                      if (source.type === 'territory') {
+                        const shortName = source.label.slice(-11);
+                        return (
+                          <span key={idx} style={{
+                            fontSize: '0.65rem',
+                            padding: '2px 6px',
+                            borderRadius: '12px',
+                            background: getSourceColor(),
+                            color: 'white',
+                            fontWeight: 500
+                          }} title={source.label}>
+                            {shortName}
+                          </span>
+                        );
+                      }
+                      
+                      return null;
+                    })}
                     <a
                       href={`${SALESFORCE_BASE_URL}/lightning/r/Account/${account.id}/view`}
                       target="_blank"
@@ -792,7 +1747,9 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
               <div className="workspace-dashboard__empty">
                 <div>
                   <div className="workspace-dashboard__empty-title">No Accounts</div>
-                  <div className="workspace-dashboard__empty-subtitle">Search for accounts by owner name to get started</div>
+                  <div className="workspace-dashboard__empty-subtitle">
+                    Search for accounts by {searchType === 'owner' ? 'owner name' : 'territory'}
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -855,39 +1812,102 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
                     <div style={{ flex: 1 }}>
                       <div className="workspace-dashboard__card-header">
                         <h3 className="workspace-dashboard__card-title">Opportunities</h3>
-                        <button
-                          onClick={createOpportunity}
-                          className="workspace-dashboard__card-action"
-                        >
-                          Create Opportunity
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() => sendToChat(`Help me create a new opportunity for account ${selectedAccount?.name}`)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--color-text-secondary)',
+                              opacity: 0.6,
+                              cursor: 'pointer',
+                              padding: '0.25rem'
+                            }}
+                            title="Send to chat"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={createOpportunity}
+                            className="workspace-dashboard__card-action"
+                          >
+                            Create Opportunity
+                          </button>
+                        </div>
                       </div>
-                      {opportunities.length > 0 ? (
+                      {loadingOpportunities ? (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                          Loading opportunities...
+                        </div>
+                      ) : opportunities.length > 0 ? (
                         <div>
                           {(showAllOpportunities ? opportunities : opportunities.slice(0, 5)).map((opp) => (
                             <div key={opp.id} className="workspace-dashboard__card-content">
                               <div className="workspace-dashboard__card-item">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                   <div className="workspace-dashboard__card-item-title">{opp.name}</div>
-                                  <a
-                                    href={`${SALESFORCE_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      color: 'var(--color-text-secondary)',
-                                      opacity: 0.6,
-                                      cursor: 'pointer',
-                                      textDecoration: 'none',
-                                      marginLeft: '0.5rem'
-                                    }}
-                                    title="Open in Salesforce"
-                                  >
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                      <polyline points="15 3 21 3 21 9"></polyline>
-                                      <line x1="10" y1="14" x2="21" y2="3"></line>
-                                    </svg>
-                                  </a>
+                                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedOpportunity(opp);
+                                        setActivityFormData({
+                                          subject: '',
+                                          activityDate: new Date().toISOString().split('T')[0],
+                                          description: '',
+                                          saActivity: ''
+                                        });
+                                        setShowLogActivityModal(true);
+                                      }}
+                                      style={{
+                                        padding: '0.25rem 0.5rem',
+                                        fontSize: '0.75rem',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: '4px',
+                                        background: 'var(--color-bg)',
+                                        color: 'var(--color-text-primary)',
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Log SA Activity"
+                                    >
+                                      Log Activity
+                                    </button>
+                                    <button
+                                      onClick={() => sendToChat(`Help me log an SA activity for opportunity "${opp.name}" (Opportunity ID: ${opp.id}, Account ID: ${selectedAccount?.id})`)}
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: 'var(--color-text-secondary)',
+                                        opacity: 0.6,
+                                        cursor: 'pointer',
+                                        padding: '0.25rem'
+                                      }}
+                                      title="Send to chat"
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                      </svg>
+                                    </button>
+                                    <a
+                                      href={`${SALESFORCE_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        color: 'var(--color-text-secondary)',
+                                        opacity: 0.6,
+                                        cursor: 'pointer',
+                                        textDecoration: 'none'
+                                      }}
+                                      title="Open in Salesforce"
+                                    >
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                      </svg>
+                                    </a>
+                                  </div>
                                 </div>
                                 <div className="workspace-dashboard__card-item-meta">
                                   <span>Stage: {opp.stageName}</span>
@@ -929,39 +1949,78 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
                     <div style={{ flex: 1 }}>
                       <div className="workspace-dashboard__card-header">
                         <h3 className="workspace-dashboard__card-title">Tasks ({tasks.length})</h3>
-                        <button
-                          onClick={createTask}
-                          className="workspace-dashboard__card-action"
-                        >
-                          Create Task
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() => sendToChat(`Help me create a new task for account ${selectedAccount?.name}`)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--color-text-secondary)',
+                              opacity: 0.6,
+                              cursor: 'pointer',
+                              padding: '0.25rem'
+                            }}
+                            title="Send to chat"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={createTask}
+                            className="workspace-dashboard__card-action"
+                          >
+                            Create Task
+                          </button>
+                        </div>
                       </div>
-                      {tasks.length > 0 ? (
+                      {loadingTasks ? (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                          Loading tasks...
+                        </div>
+                      ) : tasks.length > 0 ? (
                         <div>
                           {(showAllTasks ? tasks : tasks.slice(0, 5)).map((task) => (
                             <div key={task.Id} className="workspace-dashboard__card-content">
                               <div className="workspace-dashboard__card-item">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                   <div className="workspace-dashboard__card-item-title">{task.Subject}</div>
-                                  <a
-                                    href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.Id}/view`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      color: 'var(--color-text-secondary)',
-                                      opacity: 0.6,
-                                      cursor: 'pointer',
-                                      textDecoration: 'none',
-                                      marginLeft: '0.5rem'
-                                    }}
-                                    title="Open in Salesforce"
-                                  >
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                      <polyline points="15 3 21 3 21 9"></polyline>
-                                      <line x1="10" y1="14" x2="21" y2="3"></line>
-                                    </svg>
-                                  </a>
+                                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <button
+                                      onClick={() => sendToChat(`Help me with task "${task.Subject}" (Task ID: ${task.Id}, Account ID: ${selectedAccount?.id})`)}
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: 'var(--color-text-secondary)',
+                                        opacity: 0.6,
+                                        cursor: 'pointer',
+                                        padding: '0.25rem'
+                                      }}
+                                      title="Send to chat"
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                      </svg>
+                                    </button>
+                                    <a
+                                      href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.Id}/view`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        color: 'var(--color-text-secondary)',
+                                        opacity: 0.6,
+                                        cursor: 'pointer',
+                                        textDecoration: 'none'
+                                      }}
+                                      title="Open in Salesforce"
+                                    >
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                      </svg>
+                                    </a>
+                                  </div>
                                 </div>
                                 {task.sa_Activity__c && (
                                   <div style={{ 
@@ -1023,12 +2082,15 @@ export function CRM({ onSendToChat, activeTab }: CRMProps) {
             <div className="workspace-dashboard__empty">
               <div>
                 <div className="workspace-dashboard__empty-title">Select an Account</div>
-                <div className="workspace-dashboard__empty-subtitle">Search for accounts by owner name and click to view details</div>
+                <div className="workspace-dashboard__empty-subtitle">
+                  Search for accounts by {searchType === 'owner' ? 'owner name' : 'territory'}
+                </div>
               </div>
             </div>
           )}
         </section>
       </div>
     </div>
+    </>
   );
 }

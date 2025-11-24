@@ -1,6 +1,10 @@
 // Re-export all types
 export * from './types';
 
+// Re-export components
+export { Button, Pill } from './components';
+export type { ButtonProps, PillProps } from './components';
+
 // Re-export context hooks
 export {
   // SDK access

@@ -5,7 +5,7 @@
  * relying on React hooks (useful for event handlers, etc.)
  */
 
-import { resolveAgentName } from './agentResolver';
+import { resolveAgentName, _setWorkspaceContext as _setWorkspaceContextResolver } from './agentResolver';
 import type { WorkspaceConfig } from './types';
 
 // Internal context for API configuration
@@ -26,6 +26,7 @@ export function _setApiBase(apiBase: string) {
  */
 export function _setWorkspaceContext(workspace: WorkspaceConfig | undefined) {
   _currentWorkspace = workspace;
+  _setWorkspaceContextResolver(workspace);
 }
 
 /**
@@ -40,7 +41,16 @@ function _resolveAgent(agentSlug: string): string {
  * Get current API base
  * @internal
  */
-function _getApiBase(): string {
+async function _getApiBase(): Promise<string> {
+  // TODO: This polling approach is a workaround for race condition between SDKProvider useEffect
+  // and component useEffect calls. Consider using a Promise-based initialization pattern or
+  // React Context to ensure API base is available before components can call SDK functions.
+  let attempts = 0;
+  while (!_apiBase && attempts < 50) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+    attempts++;
+  }
+  
   if (!_apiBase) {
     throw new Error('API base not configured. Ensure SDKProvider is mounted.');
   }
@@ -85,7 +95,7 @@ export async function sendMessage(
   content: string,
   options: SendMessageOptions = {}
 ): Promise<any> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
   const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/text`, {
     method: 'POST',
@@ -116,7 +126,7 @@ export async function streamMessage(
   content: string,
   options: StreamMessageOptions = {}
 ): Promise<void> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
   const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/stream`, {
     method: 'POST',
@@ -171,7 +181,7 @@ export async function invokeAgent(
   content: string,
   options: SendMessageOptions = {}
 ): Promise<any> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
   const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/invoke`, {
     method: 'POST',
@@ -203,7 +213,7 @@ export async function transformTool(
   toolArgs: any,
   transformFn: string
 ): Promise<any> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
   const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/invoke/transform`, {
     method: 'POST',
@@ -231,7 +241,7 @@ export async function transformTool(
  * Fetch agent list
  */
 export async function fetchAgents(): Promise<any[]> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const response = await fetch(`${apiBase}/agents`);
   
   if (!response.ok) {
@@ -245,7 +255,7 @@ export async function fetchAgents(): Promise<any[]> {
  * Fetch workspace list
  */
 export async function fetchWorkspaces(): Promise<any[]> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const response = await fetch(`${apiBase}/workspaces`);
   
   if (!response.ok) {
@@ -261,7 +271,7 @@ export async function fetchWorkspaces(): Promise<any[]> {
 export async function fetchConversations(
   agentSlug?: string
 ): Promise<any[]> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const resolvedAgent = agentSlug ? _resolveAgent(agentSlug) : undefined;
   const url = resolvedAgent
     ? `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/conversations`
@@ -282,7 +292,7 @@ export async function fetchConversations(
 export async function fetchConversationMessages(
   conversationId: string
 ): Promise<any[]> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const response = await fetch(`${apiBase}/conversations/${conversationId}/messages`);
   
   if (!response.ok) {
@@ -296,7 +306,7 @@ export async function fetchConversationMessages(
  * Fetch app configuration
  */
 export async function fetchConfig(): Promise<any> {
-  const apiBase = _getApiBase();
+  const apiBase = await _getApiBase();
   const response = await fetch(`${apiBase}/config/app`);
   
   if (!response.ok) {

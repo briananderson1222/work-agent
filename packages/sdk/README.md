@@ -1,6 +1,6 @@
 # @stallion-ai/sdk
 
-SDK for building Work Agent workspace plugins.
+SDK for building Work Agent workspace plugins with consistent UI components and API access.
 
 ## Installation
 
@@ -8,73 +8,172 @@ SDK for building Work Agent workspace plugins.
 npm install @stallion-ai/sdk
 ```
 
-## Usage
+## UI Components
 
-```typescript
-import { useSDK, useAgents, type WorkspaceProps } from '@stallion-ai/sdk';
+The SDK provides pre-built, theme-aware components for consistent styling across workspaces.
 
-export default function MyWorkspace(props: WorkspaceProps) {
-  const sdk = useSDK();
-  const agents = useAgents();
+### Button
 
-  const handleInvoke = async () => {
-    const result = await agents.invoke(props.agentSlug, 'Hello', {
-      tools: ['my-tool'],
-      maxSteps: 5
-    });
-    console.log(result.output);
-  };
+```tsx
+import { Button } from '@stallion-ai/sdk';
 
-  return <button onClick={handleInvoke}>Invoke</button>;
+function MyComponent() {
+  return (
+    <>
+      <Button variant="primary" onClick={handleClick}>
+        Primary Action
+      </Button>
+      
+      <Button variant="secondary" size="sm">
+        Secondary
+      </Button>
+      
+      <Button variant="success" loading={isLoading}>
+        Save Changes
+      </Button>
+      
+      <Button variant="ghost" disabled>
+        Disabled
+      </Button>
+    </>
+  );
 }
 ```
 
-## API Reference
+**Props:**
+- `variant`: `'primary' | 'secondary' | 'success' | 'ghost'` (default: `'primary'`)
+- `size`: `'sm' | 'md' | 'lg'` (default: `'md'`)
+- `loading`: `boolean` - Shows loading state
+- All standard button HTML attributes
 
-### AgentsAPI
+### Pill
 
-- `list()` - List all agents
-- `get(slug)` - Get agent by slug
-- `invoke(slug, prompt, options)` - Invoke agent with prompt
-- `streamInvoke(slug, prompt, options)` - Stream agent response
-- `sendToChat(slug, message)` - Send message to chat dock
-- `cancel(slug)` - Cancel agent execution
+```tsx
+import { Pill } from '@stallion-ai/sdk';
 
-### ToolsAPI
+function MyComponent() {
+  return (
+    <>
+      <Pill variant="primary">Active</Pill>
+      
+      <Pill variant="success">Completed</Pill>
+      
+      <Pill variant="warning">Pending</Pill>
+      
+      <Pill variant="error">Failed</Pill>
+      
+      <Pill 
+        variant="default" 
+        removable 
+        onRemove={() => console.log('removed')}
+      >
+        Removable Tag
+      </Pill>
+    </>
+  );
+}
+```
 
-- `list()` - List all tools
-- `get(id)` - Get tool by ID
-- `invoke(id, input)` - Invoke tool
-- `getSchema(id)` - Get tool schema
+**Props:**
+- `variant`: `'default' | 'primary' | 'success' | 'warning' | 'error'` (default: `'default'`)
+- `size`: `'sm' | 'md'` (default: `'md'`)
+- `removable`: `boolean` - Shows remove button
+- `onRemove`: `() => void` - Called when remove button is clicked
+- All standard span HTML attributes
 
-### EventsAPI
+## Hooks
 
-- `on(event, handler)` - Subscribe to event
-- `once(event, handler)` - Subscribe once
-- `emit(event, data)` - Emit event
-- `off(event, handler)` - Unsubscribe
+### Agent Management
 
-### KeyboardAPI
+```tsx
+import { useAgents, useAgent } from '@stallion-ai/sdk';
 
-- `registerCommand(command)` - Register keyboard shortcut
+const agents = useAgents();
+const agent = useAgent('my-agent');
+```
 
-### WindowAPI
+### Chat Operations
 
-- `open(options)` - Open new window (Tauri or browser)
+```tsx
+import { useSendMessage, useCreateChatSession } from '@stallion-ai/sdk';
 
-### WorkspaceAPI
+const sendMessage = useSendMessage();
+const createSession = useCreateChatSession();
 
-- `getManifest()` - Get plugin manifest
-- `hasCapability(capability)` - Check capability
-- `requestPermission(permission)` - Request permission
-- `getPermissions()` - Get granted permissions
+// Send a message
+sendMessage('Hello, agent!');
 
-## React Hooks
+// Create a new chat session
+createSession('my-agent');
+```
 
-- `useSDK()` - Access full SDK
-- `useAgents()` - Access AgentsAPI
-- `useTools()` - Access ToolsAPI
-- `useEvents()` - Access EventsAPI
-- `useKeyboard()` - Access KeyboardAPI
-- `useWindow()` - Access WindowAPI
-- `useWorkspace()` - Access WorkspaceAPI
+### Navigation
+
+```tsx
+import { useNavigation, useDockState } from '@stallion-ai/sdk';
+
+const { setDockState } = useNavigation();
+const [isDockOpen] = useDockState();
+
+// Open chat dock
+setDockState(true);
+```
+
+### Notifications
+
+```tsx
+import { useToast, useNotifications } from '@stallion-ai/sdk';
+
+const { showToast } = useToast();
+const { notify } = useNotifications();
+
+showToast('Success!', 'success');
+notify({ title: 'New message', message: 'You have a new message' });
+```
+
+### Tool Invocation
+
+```tsx
+import { transformTool, invokeAgent } from '@stallion-ai/sdk';
+
+// Transform tool output
+const result = await transformTool(
+  'my-agent',
+  'tool-name',
+  { param: 'value' },
+  '(data) => data.items'
+);
+
+// Invoke agent silently
+const response = await invokeAgent('my-agent', 'Do something');
+```
+
+## Workspace Navigation
+
+```tsx
+import { useWorkspaceNavigation } from '@stallion-ai/sdk';
+
+const { getTabState, setTabState } = useWorkspaceNavigation();
+
+// Save state
+setTabState('my-tab', 'key=value&other=data');
+
+// Restore state
+const state = getTabState('my-tab');
+```
+
+## Theme Variables
+
+All components use CSS variables for theming:
+
+- `--color-primary` - Primary brand color
+- `--color-success` - Success state color
+- `--color-warning` - Warning state color
+- `--color-error` - Error state color
+- `--color-bg` - Background color
+- `--color-bg-secondary` - Secondary background
+- `--color-text` - Primary text color
+- `--color-text-secondary` - Secondary text color
+- `--color-border` - Border color
+
+Components automatically adapt to light/dark mode.

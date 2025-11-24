@@ -102,9 +102,7 @@ let hashRestoreTimeout: NodeJS.Timeout | null = null;
 
 const restoreHashIfCleared = () => {
   const currentHash = window.location.hash.slice(1);
-  console.log('[WorkspaceNavigation] Global restore check:', { lastSetHash, currentHash });
   if (lastSetHash && currentHash !== lastSetHash) {
-    console.log('[WorkspaceNavigation] Global: Hash was cleared, restoring:', lastSetHash);
     window.location.hash = lastSetHash;
   }
 };
@@ -115,7 +113,6 @@ export function WorkspaceNavigationProvider({
   workspaceSlug 
 }: WorkspaceNavigationProviderProps) {
   const [instanceId] = useState(() => Math.random().toString(36).substr(2, 9));
-  console.log('[WorkspaceNavigationProvider] Render - Instance:', instanceId, 'with:', { activeTabId, workspaceSlug });
   
   // IMMEDIATE hash restoration - before any state initialization
   if (activeTabId && workspaceSlug) {
@@ -124,7 +121,6 @@ export function WorkspaceNavigationProvider({
     const currentHash = window.location.hash.slice(1);
     
     if (stored && !currentHash) {
-      console.log('[WorkspaceNavigation] IMMEDIATE restore on render:', stored);
       window.location.hash = stored;
     }
   }
@@ -134,9 +130,7 @@ export function WorkspaceNavigationProvider({
 
   // Log mount/unmount
   useEffect(() => {
-    console.log('[WorkspaceNavigationProvider] MOUNTED - Instance:', instanceId);
     return () => {
-      console.log('[WorkspaceNavigationProvider] UNMOUNTED - Instance:', instanceId);
     };
   }, [instanceId]);
 
@@ -146,9 +140,7 @@ export function WorkspaceNavigationProvider({
       const key = `workspace-${workspaceSlug}-tab-${activeTabId}`;
       const stored = sessionStorage.getItem(key);
       const currentHash = window.location.hash.slice(1);
-      console.log('[WorkspaceNavigation] Mount restore check:', { key, stored, currentHash, instanceId });
       if (stored && !currentHash) {
-        console.log('[WorkspaceNavigation] Restoring hash on mount:', stored);
         window.location.hash = stored;
       }
     }
@@ -157,8 +149,6 @@ export function WorkspaceNavigationProvider({
   // Debug: Track all hash changes
   useEffect(() => {
     const handleHashChange = () => {
-      console.log('[WorkspaceNavigation] Hash changed to:', window.location.hash);
-      console.trace('[WorkspaceNavigation] Hash change stack trace');
     };
     
     window.addEventListener('hashchange', handleHashChange);
@@ -167,26 +157,21 @@ export function WorkspaceNavigationProvider({
 
   // Handle tab switching - restore hash for the active tab
   useEffect(() => {
-    console.log('[WorkspaceNavigation] Tab change effect running:', { previousActiveTab, activeTabId, currentHash: window.location.hash, isInitialized });
     
     // Skip on first mount - let existing hash remain
     if (!isInitialized) {
-      console.log('[WorkspaceNavigation] Skipping first mount, setting initialized');
       setPreviousActiveTab(activeTabId);
       setIsInitialized(true);
       return;
     }
     
     if (previousActiveTab !== activeTabId && activeTabId) {
-      console.log('[WorkspaceNavigation] Tab changed, restoring hash for active tab');
       // Always restore the active tab's hash when switching tabs
       const key = `workspace-${workspaceSlug}-tab-${activeTabId}`;
       const stored = sessionStorage.getItem(key);
       if (stored) {
-        console.log('[WorkspaceNavigation] Restoring hash for active tab:', stored);
         window.location.hash = stored;
       } else {
-        console.log('[WorkspaceNavigation] No stored hash for tab, clearing hash');
         window.location.hash = '';
       }
       setPreviousActiveTab(activeTabId);
@@ -194,28 +179,21 @@ export function WorkspaceNavigationProvider({
   }, [activeTabId, previousActiveTab, workspaceSlug, isInitialized]);
 
   const getTabState = useCallback((tabId: string): string => {
-    console.log('[WorkspaceNavigation] getTabState called for:', tabId, 'activeTabId:', activeTabId);
     // Always use sessionStorage as source of truth
     const key = `workspace-${workspaceSlug}-tab-${tabId}`;
     const stored = sessionStorage.getItem(key);
-    console.log('[WorkspaceNavigation] Returning stored state:', stored);
     return stored || '';
   }, [activeTabId, workspaceSlug]);
 
   const setTabState = useCallback((tabId: string, state: string) => {
-    console.log('[WorkspaceNavigation] setTabState called:', { tabId, state, activeTabId });
     
     // Always save to sessionStorage first
     const key = `workspace-${workspaceSlug}-tab-${tabId}`;
     sessionStorage.setItem(key, state);
-    console.log('[WorkspaceNavigation] Saved to sessionStorage:', key, state);
     
     if (tabId === activeTabId) {
       // Active tab also updates URL hash
-      console.log('[WorkspaceNavigation] Setting hash for active tab:', state);
-      console.log('[WorkspaceNavigation] Hash BEFORE setting:', window.location.hash);
       window.location.hash = state;
-      console.log('[WorkspaceNavigation] Hash AFTER setting:', window.location.hash);
       
       // Global restoration mechanism - use requestAnimationFrame for after render
       lastSetHash = state;
@@ -243,12 +221,10 @@ export function WorkspaceNavigationProvider({
 }
 
 export function useWorkspaceNavigation() {
-  console.log('[useWorkspaceNavigation] Hook called');
   const context = useContext(WorkspaceNavigationContext);
   if (!context) {
-    console.error('[useWorkspaceNavigation] No context found!');
+    // Context validation
     throw new Error('useWorkspaceNavigation must be used within WorkspaceNavigationProvider');
   }
-  console.log('[useWorkspaceNavigation] Context found, returning functions');
   return context;
 }

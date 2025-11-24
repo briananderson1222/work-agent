@@ -2,6 +2,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import { AutocompleteSelector, AutocompleteItem } from './AutocompleteSelector';
 import { useModels } from '../contexts/ModelsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useModelCapabilities } from '../contexts/ModelCapabilitiesContext';
 
 export interface Model {
   id: string;
@@ -14,45 +15,69 @@ interface ModelSelectorAutocompleteProps {
   query: string;
   models: Model[];
   currentModel?: string;
+  agentDefaultModel?: string | { modelId: string };
   onSelect: (model: Model) => void;
   onClose: () => void;
+  maxHeight?: string;
 }
 
-export function ModelSelectorAutocomplete({ query, models, currentModel, onSelect, onClose }: ModelSelectorAutocompleteProps) {
+export function ModelSelectorAutocomplete({ query, models, currentModel, agentDefaultModel, onSelect, onClose, maxHeight }: ModelSelectorAutocompleteProps) {
+  const { capabilities } = useModelCapabilities();
+  
   const items = useMemo(() => {
     const searchTerm = (query || '').toLowerCase();
     const filtered = (models || []).filter(m => 
       m.name.toLowerCase().includes(searchTerm) || 
       m.id.toLowerCase().includes(searchTerm) ||
       m.originalId.toLowerCase().includes(searchTerm)
-    ).slice(0, 10);
+    );
 
     const normalizeId = (id: any) => {
       if (typeof id !== 'string') return '';
       return id.replace(/^us\./, '');
     };
     const currentModelStr = typeof currentModel === 'string' ? currentModel : '';
+    const agentDefaultModelStr = typeof agentDefaultModel === 'string' 
+      ? agentDefaultModel 
+      : typeof agentDefaultModel === 'object' && agentDefaultModel?.modelId
+      ? agentDefaultModel.modelId
+      : '';
 
     const mapped = filtered.map(model => {
       const isActive = normalizeId(currentModelStr) === normalizeId(model.id) || 
                        currentModelStr === model.id ||
                        currentModelStr === model.originalId;
       
+      const isAgentDefault = normalizeId(agentDefaultModelStr) === normalizeId(model.id) ||
+                             agentDefaultModelStr === model.id ||
+                             agentDefaultModelStr === model.originalId;
+      
+      const capability = capabilities.find(c => c.modelId === model.id);
+      const modalities = [];
+      if (capability?.supportsImages) modalities.push('📷');
+      if (capability?.supportsVideo) modalities.push('🎥');
+      if (capability?.supportsAudio) modalities.push('🎵');
+      const modalityStr = modalities.length > 0 ? ` • ${modalities.join(' ')}` : '';
+      
       return {
         id: model.id,
         title: model.name,
-        description: `ID: ${model.id}${isActive ? ' • Active' : ''}`,
+        description: `ID: ${model.id}${modalityStr}`,
+        badge: isActive ? 'Active' : isAgentDefault ? 'Agent Default' : undefined,
         metadata: model,
-        isActive
+        isActive,
+        isAgentDefault
       };
     });
 
     return mapped.sort((a, b) => {
       if (a.isActive && !b.isActive) return -1;
       if (!a.isActive && b.isActive) return 1;
+      if (a.isAgentDefault && !b.isAgentDefault) return -1;
+      if (!a.isAgentDefault && b.isAgentDefault) return 1;
       return 0;
     });
-  }, [query, models, currentModel]);
+  }, [query, models, currentModel, agentDefaultModel, capabilities]);
 
   return (
     <AutocompleteSelector
@@ -60,6 +85,7 @@ export function ModelSelectorAutocomplete({ query, models, currentModel, onSelec
       onSelect={(item) => onSelect(item.metadata)}
       onClose={onClose}
       emptyMessage="No models found"
+      maxHeight={maxHeight}
     />
   );
 }

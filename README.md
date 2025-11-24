@@ -230,6 +230,28 @@ Create `.work-agent/tools/files/tool.json`:
 
 Reference the tool in your agent's `tools.use` array.
 
+### Tool Name Normalization
+
+Work Agent automatically normalizes MCP tool names for compatibility with Amazon Bedrock's Nova models, which don't support hyphens in tool names. This normalization is completely transparent:
+
+**How it works:**
+- Tool names like `sat-outlook_calendar_view` are normalized to `satOutlook_calendarView` when sent to Bedrock
+- Original names are preserved and displayed in the UI as `[sat-outlook] calendar_view`
+- The server badge and tool name are shown separately for clarity
+
+**Benefits:**
+- Nova models work without crashes (`NGHTTP2_INTERNAL_ERROR` prevented)
+- Clean, readable tool names in the UI
+- No configuration needed - works automatically
+- Backward compatible with all existing tools
+
+**Example:**
+```
+Original:   sat-outlook_calendar_view
+Normalized: satOutlook_calendarView (sent to Bedrock)
+Displayed:  [sat-outlook] calendar_view (shown in UI)
+```
+
 ## 🔄 Agent Switching
 
 Work Agent supports **dynamic agent switching** - no server restart needed:
@@ -422,13 +444,15 @@ VoltAgent Runtime (Built-In)
 ├─ Memory system (custom file adapter)
 ├─ Tool registry (MCP + built-in)
 ├─ Workflow engine (VoltAgent)
+├─ Streaming pipeline (handler-based)
 └─ Hono HTTP server
 
 Custom Layer (Work Agent)
 ├─ ConfigLoader (load agents/tools from files)
 ├─ WorkAgentRuntime (manages VoltAgent)
 ├─ FileVoltAgentMemoryAdapter (StorageAdapter impl)
-└─ MCP lifecycle management
+├─ MCP lifecycle management
+└─ Streaming handlers (ReasoningHandler, TextDeltaHandler, etc.)
 ```
 
 ## 🔧 Configuration
@@ -454,6 +478,11 @@ Custom Layer (Work Agent)
     maxTokens?: number;
     temperature?: number;
     topP?: number;
+  };
+  streaming?: {
+    useNewPipeline?: boolean;    // Enable new streaming architecture (default: false)
+    enableThinking?: boolean;    // Send thinking blocks to client (default: true)
+    debugStreaming?: boolean;    // Enable debug logging (default: false)
   };
   tools?: {
     mcpServers: string[];        // MCP server IDs to load
@@ -586,7 +615,7 @@ Work Agent integrates with **VoltOps Console** for full observability:
    - Token usage
    - Execution traces
 
-## 🧪 Development
+## 🛠️ Development
 
 ```bash
 # Install dependencies
@@ -612,6 +641,27 @@ npm run cli           # Interactive CLI
 npm run test          # Run tests
 npm run clean         # Remove build artifacts
 ```
+
+### Frontend Debugging
+
+The frontend uses the `debug` package for structured logging. Control log output in the browser console:
+
+```javascript
+// Enable all logs
+localStorage.debug = 'app:*'
+
+// Enable specific namespaces
+localStorage.debug = 'app:api,app:chat'
+
+// Disable all logs
+localStorage.debug = ''
+
+// Then refresh the page
+```
+
+Available namespaces: `app:context`, `app:api`, `app:chat`, `app:workflow`, `app:plugin`, `app:auth`
+
+See [AGENTS.md](./AGENTS.md#debugging) for detailed debugging documentation.
 
 ## 🔄 Migrating from Agent UI Metadata to Workspaces
 
@@ -662,6 +712,10 @@ npx tsx scripts/cli-plugin.ts remove stallion-workspace
 ```
 
 ### Creating a Plugin
+
+**CRITICAL: Workspace components MUST only import from `@stallion-ai/sdk`**
+
+Never import directly from core application code (e.g., `@/utils/logger`, `@/contexts/*`). This ensures plugins remain portable and decoupled from core implementation.
 
 1. **Create plugin structure:**
 

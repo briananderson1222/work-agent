@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { log } from '@/utils/logger';
 import { useState } from 'react';
 
 export function useAwsAuth() {
@@ -13,7 +14,7 @@ export function useAwsAuth() {
       await invoke('authenticate_aws', { pin });
       return true;
     } catch (err) {
-      console.error('[Auth] Failed:', err);
+      log.api('[Auth] Failed:', err);
       setError(err as string);
       return false;
     } finally {

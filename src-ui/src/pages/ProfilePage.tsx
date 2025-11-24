@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { UsageStatsPanel } from '../components/UsageStatsPanel';
 import { AchievementsBadge } from '../components/AchievementsBadge';
 import { useAnalytics } from '../contexts/AnalyticsContext';
-import { getInitials } from '../utils/workspace';
+import { getInitials, getUserIconStyle } from '../utils/workspace';
 import './ProfilePage.css';
 
 export function ProfilePage() {
@@ -26,14 +26,22 @@ export function ProfilePage() {
         {/* Hero Section */}
         <div className="profile-hero">
           <div className="profile-hero-content">
-            <div className="profile-avatar">
+            <div style={{
+              ...getUserIconStyle({ name: userName }, 120),
+              fontSize: '3rem',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+            }}>
               {userInitials}
-              {totalMessages > 0 && (
-                <div className="profile-avatar-badge">✓</div>
-              )}
             </div>
             <div className="profile-hero-info">
-              <h1 className="profile-hero-title">{userName}'s Profile</h1>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                <h1 className="profile-hero-title">{userName}</h1>
+                {usageStats?.lifetime.firstMessageDate && (
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    📅 Joined {new Date(usageStats.lifetime.firstMessageDate).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
               <p className="profile-hero-subtitle">
                 {totalMessages === 0 ? 'Start your journey with your first message' : 
                  totalMessages === 1 ? '🎉 You\'ve sent your first message!' :

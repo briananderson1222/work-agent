@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { log } from '@/utils/logger';
 
 interface ConversationMetadata {
   id: string;
@@ -53,7 +54,7 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents,
             allConversations.push(...agentConvos);
           }
         } catch (error) {
-          console.error(`Failed to load conversations for ${agent.slug}:`, error);
+          log.api(`Failed to load conversations for ${agent.slug}:`, error);
         }
       }
       
@@ -64,7 +65,7 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents,
       
       setConversations(allConversations);
     } catch (error) {
-      console.error('Failed to load conversations:', error);
+      log.api('Failed to load conversations:', error);
     } finally {
       setLoading(false);
     }
