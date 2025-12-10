@@ -1,6 +1,37 @@
 // Simple mock SDK hooks for stallion-workspace components
 // These provide the minimal interface needed for the components to work
 
+import { useState, useEffect } from 'react';
+import { transformTool } from '@stallion-ai/sdk';
+
+let cachedUserDetails: { alias: string; sfdcId: string } | null = null;
+
+export function useUserDetails(agentSlug: string) {
+  const [userDetails, setUserDetails] = useState<{ alias: string; sfdcId: string } | null>(cachedUserDetails);
+  const [loading, setLoading] = useState(!cachedUserDetails);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (cachedUserDetails) return;
+
+    const fetchUserDetails = async () => {
+      try {
+        const details = await transformTool(agentSlug, 'sat-sfdc_get_my_personal_details', {}, '(data) => data');
+        cachedUserDetails = details;
+        setUserDetails(details);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch user details'));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserDetails();
+  }, [agentSlug]);
+
+  return { userDetails, loading, error };
+}
+
 export function useAgents() {
   // Return a mock agents array
   return [

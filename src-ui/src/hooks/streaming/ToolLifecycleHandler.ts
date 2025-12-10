@@ -54,16 +54,16 @@ export class ToolLifecycleHandler extends StreamEventHandler {
       },
     });
 
-    this.updateChat({
-      streamingMessage: this.createStreamingMessage(
-        newContentParts.map(p => (p.type === 'text' ? p.content : '')).join(''),
-        newContentParts
-      ),
-    });
+    const streamingMessage = this.createStreamingMessage(
+      newContentParts.map(p => (p.type === 'text' ? p.content : '')).join(''),
+      newContentParts
+    );
+    this.updateChat({ streamingMessage });
 
     return createResult(state, {
       currentTextChunk: '',
       contentParts: newContentParts,
+      streamingMessage,
     });
   }
 
@@ -87,15 +87,15 @@ export class ToolLifecycleHandler extends StreamEventHandler {
       return part;
     });
 
-    this.updateChat({
-      streamingMessage: this.createStreamingMessage(
-        newContentParts.map(p => (p.type === 'text' ? p.content : '')).join(''),
-        newContentParts
-      ),
-    });
+    const streamingMessage = this.createStreamingMessage(
+      newContentParts.map(p => (p.type === 'text' ? p.content : '')).join(''),
+      newContentParts
+    );
+    this.updateChat({ streamingMessage });
 
     return createResult(state, {
       contentParts: newContentParts,
+      streamingMessage,
     });
   }
 }

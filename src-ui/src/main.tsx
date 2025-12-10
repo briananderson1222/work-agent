@@ -11,6 +11,7 @@ import { AgentsProvider } from './contexts/AgentsContext';
 import { WorkflowsProvider } from './contexts/WorkflowsContext';
 import { ConversationsProvider } from './contexts/ConversationsContext';
 import { ActiveChatsProvider } from './contexts/ActiveChatsContext';
+import { StreamingProvider } from './contexts/StreamingContext';
 import { StatsProvider } from './contexts/StatsContext';
 import { AnalyticsProvider } from './contexts/AnalyticsContext';
 import { ApiBaseProvider } from './contexts/ApiBaseContext';
@@ -51,14 +52,16 @@ pluginRegistry.initialize().then(() => {
                       <WorkflowsProvider>
                         <ConversationsProvider>
                           <ActiveChatsProvider>
-                            <StatsProvider>
-                              <AnalyticsProvider>
-                                <SDKProvider>
-                                  <App />
-                                  <NotificationContainer />
-                                </SDKProvider>
-                              </AnalyticsProvider>
-                            </StatsProvider>
+                            <StreamingProvider>
+                              <StatsProvider>
+                                <AnalyticsProvider>
+                                  <SDKProvider>
+                                    <App />
+                                    <NotificationContainer />
+                                  </SDKProvider>
+                                </AnalyticsProvider>
+                              </StatsProvider>
+                            </StreamingProvider>
                           </ActiveChatsProvider>
                         </ConversationsProvider>
                       </WorkflowsProvider>

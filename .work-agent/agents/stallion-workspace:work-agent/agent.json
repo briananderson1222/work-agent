@@ -60,6 +60,8 @@
       "sat-sfdc_fetch_territory_details",
       "sat-sfdc_search_users",
       "sat-sfdc_get_my_personal_details",
+      "sat-sfdc_list_user_assigned_territories",
+      "sat-sfdc_list_user_assigned_accounts",
       "sat-sfdc_fetch_customer_influence_details",
       "sat-sfdc_fetch_pfr_details"
     ]

@@ -10,6 +10,7 @@ export interface AgentSpec {
   prompt: string; // system instructions
   model?: string; // falls back to app.defaultModel
   region?: string;
+  maxTurns?: number; // Maximum conversation turns before requiring continue
   guardrails?: {
     maxTokens?: number;
     temperature?: number;
@@ -108,6 +109,7 @@ export interface ToolDef {
 export interface AppConfig {
   region: string;
   defaultModel: string;
+  defaultMaxTurns?: number;
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
   defaultChatFontSize?: number;

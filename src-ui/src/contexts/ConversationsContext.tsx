@@ -271,7 +271,13 @@ class ConversationsStore {
             if (dataStr === '[DONE]') break;
             
             const data = JSON.parse(dataStr);
-            log.chat(`Stream event: ${data.type}`);
+            const timestamp = new Date().toISOString();
+            log.chat(`Stream event: ${data.type} at ${timestamp}`);
+            
+            // DEBUG: Log text-delta reception timing
+            if (data.type === 'text-delta') {
+              console.log(`[STREAM DEBUG] Frontend received text-delta at ${timestamp}, text: "${(data.delta || data.text)?.substring(0, 30)}"`);
+            }
             
             // Handle conversation-started event
             if (data.type === 'conversation-started' && data.conversationId) {
@@ -286,6 +292,12 @@ class ConversationsStore {
             }
             
             const result = onStreamEvent(data, state);
+            
+            // DEBUG: Log state update timing
+            if (data.type === 'text-delta') {
+              console.log(`[STREAM DEBUG] State updated at ${new Date().toISOString()}, content length: ${result.currentTextChunk.length}`);
+            }
+            
             // Always update state to preserve all fields
             state = { 
               currentTextChunk: result.currentTextChunk, 

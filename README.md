@@ -832,6 +832,10 @@ The architecture supports clean adapter swaps without changing agent logic.
 
 ## 📚 Learn More
 
+- **API Documentation**: 
+  - [API.md](./API.md) - Complete REST API reference with usage indicators
+  - [ENDPOINTS_IN_USE.md](./ENDPOINTS_IN_USE.md) - Active endpoint usage report
+  - [API_SUMMARY.md](./API_SUMMARY.md) - Quick reference and endpoint counts
 - **VoltAgent Docs**: https://voltagent.dev/docs/
 - **Amazon Bedrock**: https://aws.amazon.com/bedrock/
 - **Model Context Protocol**: https://modelcontextprotocol.io/

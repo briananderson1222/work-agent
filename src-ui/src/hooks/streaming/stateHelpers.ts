@@ -23,7 +23,7 @@ export function createNoOpResult(state: StreamState): HandlerResult {
  */
 export function createResult(
   state: StreamState,
-  updates: Partial<StreamState> & { updated?: boolean }
+  updates: Partial<StreamState> & { updated?: boolean; streamingMessage?: any }
 ): HandlerResult {
   return {
     updated: updates.updated ?? true,
@@ -32,6 +32,7 @@ export function createResult(
     pendingApprovals: updates.pendingApprovals ?? state.pendingApprovals,
     reasoningChunks: updates.reasoningChunks ?? state.reasoningChunks,
     currentReasoningChunk: updates.currentReasoningChunk ?? state.currentReasoningChunk,
+    streamingMessage: updates.streamingMessage,
   };
 }
 

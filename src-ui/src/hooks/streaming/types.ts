@@ -44,6 +44,11 @@ export interface HandlerResult {
   approvalToasts?: Map<string, string>; // approvalId -> toastId
   reasoningChunks?: string[];
   currentReasoningChunk?: string;
+  streamingMessage?: {
+    role: 'assistant';
+    content: string;
+    contentParts?: ContentPart[];
+  };
 }
 
 export interface HandlerContext {

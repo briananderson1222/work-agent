@@ -38,15 +38,6 @@ export function WorkspaceView() {
   
   const sendMessage = useSendMessage(apiBase, undefined, undefined, handleSlashCommand);
 
-  // Set initial tab when workspace loads
-  useEffect(() => {
-    if (workspace?.tabs && workspace.tabs.length > 0) {
-      if (!activeTabId || !workspace.tabs.find(t => t.id === activeTabId)) {
-        setActiveTabId(workspace.tabs[0].id);
-      }
-    }
-  }, [workspace?.slug, workspace?.tabs]);
-
   const activeTabObject = workspace?.tabs?.find((t: any) => t.id === activeTabId);
   const agent = agents.find(a => a.slug === workspace?.defaultAgent);
 

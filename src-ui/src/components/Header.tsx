@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
-import { getInitials, getWorkspaceIcon } from '../utils/workspace';
+import { getInitials } from '../utils/workspace';
+import { WorkspaceIcon } from './WorkspaceIcon';
 import { WorkspaceAutocomplete } from './WorkspaceAutocomplete';
 import { NotificationHistory } from './NotificationHistory';
 import type { NavigationView } from '../types';
@@ -80,7 +81,7 @@ export function Header({
             title={workspaces.length > 1 ? "Switch workspace" : selectedWorkspace.name}
             style={{ fontSize: '14px', padding: '6px 12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <span>{getWorkspaceIcon(selectedWorkspace).display}</span>
+            <WorkspaceIcon workspace={selectedWorkspace} size={24} />
             <span>{selectedWorkspace.name}</span>
           </button>
         </>

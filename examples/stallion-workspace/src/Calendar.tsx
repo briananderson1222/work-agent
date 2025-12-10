@@ -2,8 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
-import '../../plugins/shared/workspace.css';
+import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
+import { useSalesContext } from './useSalesContext';
+import './workspace.css';
+
+const SFDC_BASE_URL = 'https://aws-crm.lightning.force.com';
 
 const CalendarEventSchema = z.object({
   events: z.array(z.object({
@@ -45,6 +48,8 @@ interface SFDCContext {
   accounts?: any[];
   opportunities?: any[];
   tasks?: any[];
+  suggestedKeyword?: string;
+  selectedAccountId?: string;
 }
 
 function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
@@ -103,28 +108,27 @@ function formatOrganizerName(organizer?: { name: string; email: string }): strin
   return organizer.name;
 }
 
-function detectMeetingProvider(location?: string): { provider: string; url: string } | null {
-  if (!location) return null;
-  
-  const lowerLocation = location.toLowerCase();
-  
-  if (lowerLocation.includes('zoom.us')) {
-    return { provider: 'Zoom', url: location };
-  }
-  if (lowerLocation.includes('teams.microsoft.com') || lowerLocation.includes('teams.live.com')) {
-    return { provider: 'Teams', url: location };
-  }
-  if (lowerLocation.includes('chime.aws')) {
-    return { provider: 'Chime', url: location };
-  }
-  if (lowerLocation.includes('meet.google.com')) {
-    return { provider: 'Google Meet', url: location };
-  }
-  if (lowerLocation.includes('webex.com')) {
-    return { provider: 'Webex', url: location };
-  }
-  
-  return null;
+function detectMeetingProvider(location?: string, body?: string): { provider: string; url: string } | null {
+  const providers = [
+    { name: 'Teams', patterns: ['teams.microsoft.com', 'teams.live.com'], regex: /https?:\/\/[^\s<]+teams\.(microsoft|live)\.com[^\s<]*/i },
+    { name: 'Zoom', patterns: ['zoom.us'], regex: /https?:\/\/[^\s<]+zoom\.us[^\s<]*/i },
+    { name: 'Chime', patterns: ['chime.aws'], regex: /https?:\/\/[^\s<]+chime\.aws[^\s<]*/i },
+    { name: 'Google Meet', patterns: ['meet.google.com'], regex: /https?:\/\/meet\.google\.com[^\s<]*/i },
+    { name: 'Webex', patterns: ['webex.com'], regex: /https?:\/\/[^\s<]+webex\.com[^\s<]*/i },
+  ];
+
+  const checkText = (text: string) => {
+    const lowerText = text.toLowerCase();
+    for (const provider of providers) {
+      if (provider.patterns.some(p => lowerText.includes(p))) {
+        const match = text.match(provider.regex);
+        if (match) return { provider: provider.name, url: match[0] };
+      }
+    }
+    return null;
+  };
+
+  return checkText(location || '') || checkText(body || '');
 }
 
 interface CalendarProps {
@@ -132,6 +136,9 @@ interface CalendarProps {
 }
 
 export function Calendar({ activeTab }: CalendarProps) {
+  // Load sales context (personal details, territories, accounts)
+  const salesContext = useSalesContext();
+  
   const { showToast } = useToast();
   const { notify } = useNotifications();
   const { setDockState, setActiveChat } = useNavigation();
@@ -231,8 +238,37 @@ export function Calendar({ activeTab }: CalendarProps) {
   const [isNowLineVisible, setIsNowLineVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
+  const [showLogActivityModal, setShowLogActivityModal] = useState(false);
+  const [selectedSfdcItem, setSelectedSfdcItem] = useState<{type: 'account' | 'opportunity', data: any} | null>(null);
+  const [activityFormData, setActivityFormData] = useState({
+    subject: '',
+    saActivity: '',
+    activityDate: new Date().toISOString().split('T')[0],
+    description: ''
+  });
+  const [loadingActivityPrefill, setLoadingActivityPrefill] = useState(false);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [submittingActivity, setSubmittingActivity] = useState(false);
+  const [opportunityKeyword, setOpportunityKeyword] = useState('');
+  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
+  const [hideClosedOpportunities, setHideClosedOpportunities] = useState(true);
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
+
+  // Initialize opportunity keyword when SFDC context loads
+  useEffect(() => {
+    if (sfdcContext?.suggestedKeyword && !opportunityKeyword) {
+      setOpportunityKeyword(sfdcContext.suggestedKeyword);
+    }
+  }, [sfdcContext?.suggestedKeyword]);
+
+  // Prefill activity data when account/opportunity is selected
+  // TODO: Re-enable once backend /invoke endpoint is fixed to handle empty conversation
+  // useEffect(() => {
+  //   if (selectedSfdcItem) {
+  //     prefillActivityData(selectedSfdcItem);
+  //   }
+  // }, [selectedSfdcItem]);
 
   // Update current time every minute when viewing today
   useEffect(() => {
@@ -535,12 +571,11 @@ export function Calendar({ activeTab }: CalendarProps) {
   }, [events, selectedDate, hidePastEvents]);
 
   const handleRefresh = () => {
-    // Clear all cache
-    const dateStr = formatLocalDate(selectedDate);
-    sessionStorage.removeItem(`sa-calendar-${dateStr}`);
-    events.forEach(e => {
-      sessionStorage.removeItem(getCacheKey('sfdc', `details-${e.meetingId}`));
-      sessionStorage.removeItem(getCacheKey('sfdc', e.meetingId));
+    // Clear all calendar-related cache
+    Object.keys(sessionStorage).forEach(key => {
+      if (key.startsWith('sa-calendar-') || key.startsWith('sa-sfdc-')) {
+        sessionStorage.removeItem(key);
+      }
     });
     
     // Reload the page - hash will be preserved and everything will restore correctly
@@ -605,42 +640,242 @@ export function Calendar({ activeTab }: CalendarProps) {
     }
   };
 
-  const fetchSFDCContext = async () => {
+  const fetchSFDCContext = async (loadAllAccounts = false) => {
     if (!selectedEvent) return;
-    
-    // Check cache first
-    const cacheKey = getCacheKey('sfdc', selectedEvent.meetingId);
-    const cached = getFromCache<SFDCContext>(cacheKey);
-    if (cached) {
-      setSfdcContext(cached);
-      return;
-    }
     
     setLoadingSFDC(true);
     
-    // Build detailed meeting context
-    const meetingContext = `
-Meeting: ${selectedEvent.subject}
-Time: ${new Date(selectedEvent.start).toLocaleString()} - ${new Date(selectedEvent.end).toLocaleTimeString()}
-${selectedEvent.organizer ? `Organizer: ${selectedEvent.organizer}` : ''}
-${selectedEvent.location ? `Location: ${selectedEvent.location}` : ''}
-${selectedEvent.categories?.length ? `Categories: ${selectedEvent.categories.join(', ')}` : ''}
-${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}
-    `.trim();
-    
-    
     try {
-      const response = await invokeAgent('work-agent', `Based on this meeting information, find related Salesforce accounts, opportunities, and tasks:\n\n${meetingContext}\n\nReturn JSON: {"accounts": [], "opportunities": [], "tasks": []}`);
+      let matchedAccounts = [];
+      let suggestedKeyword = '';
       
-      // Parse response
-      const context = typeof response === 'string' ? JSON.parse(response) : response;
+      if (loadAllAccounts) {
+        // Load all user's accounts
+        matchedAccounts = salesContext?.myAccounts?.map(atm => atm.account) || [];
+      } else {
+        // Build meeting context
+        const meetingContext = `
+Meeting: ${selectedEvent.subject}
+Organizer: ${selectedEvent.organizer || 'Unknown'}
+Attendees: ${meetingDetails?.attendees?.map(a => a.email).join(', ') || 'None'}
+Categories: ${selectedEvent.categories?.join(', ') || 'None'}
+        `.trim();
+        
+        // Build account list with IDs for matching
+        const myAccountsList = salesContext?.myAccounts
+          ?.map(atm => `${atm.account.name} (${atm.account.id})`)
+          .join('\n') || '';
+        
+        // Use LLM to match accounts and extract single keyword
+        const analysisResult = await invoke({
+          prompt: `Analyze this meeting and match it to customer accounts:\n\n${meetingContext}\n\nMy assigned accounts:\n${myAccountsList}\n\nTasks:\n1. Match meeting to accounts ONLY if there is clear evidence in the meeting subject, attendee emails, or categories. Look for:\n   - Company name in meeting subject\n   - Attendee email domains matching account names\n   - Direct mentions in categories\n   Return ONLY accounts with strong evidence of relevance. When in doubt, exclude the account.\n\n2. Extract ONE keyword from meeting subject for opportunity search. CRITICAL RULES:\n   - Return exactly ONE word or ONE compound word\n   - Examples: "Migration", "Modernization", "DataLake", "MIG"\n   - Extract ONLY the core technical/project term\n   - "MIG Welding Workshop" → "MIG"\n   - "Cloud Migration Planning" → "Migration"\n   - Exclude company names\n   - If no clear keyword exists, return empty string\n\nReturn matched accounts and single keyword.`,
+          schema: {
+            type: 'object',
+            properties: {
+              matchedAccounts: { 
+                type: 'array', 
+                items: { 
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    id: { type: 'string' }
+                  },
+                  required: ['name', 'id']
+                },
+                description: 'Matched accounts with name and Salesforce ID'
+              },
+              keyword: {
+                type: 'string',
+                description: 'Single keyword for opportunity search. Empty string if none.'
+              }
+            },
+            required: ['matchedAccounts', 'keyword']
+          },
+          maxSteps: 1,
+          model: 'us.amazon.nova-lite-v1:0'
+        });
+        
+        const matchedAccountsFromLLM = analysisResult.matchedAccounts || [];
+        suggestedKeyword = analysisResult.keyword || '';
+        
+        console.log('[SFDC] Matched accounts from LLM:', matchedAccountsFromLLM);
+        console.log('[SFDC] Suggested keyword:', suggestedKeyword);
+        
+        // Build full account objects from matched IDs
+        matchedAccounts = salesContext?.myAccounts
+          ?.filter(atm => matchedAccountsFromLLM.some(ma => ma.id === atm.account.id))
+          .map(atm => atm.account) || [];
+        
+        console.log('[SFDC] Matched accounts:', matchedAccounts.map(a => a.name));
+      }
+      
+      const context = {
+        accounts: matchedAccounts,
+        opportunities: [],
+        tasks: [],
+        suggestedKeyword
+      };
+      
       setSfdcContext(context);
-      setCache(cacheKey, context);
+      
+      // Auto-select first account if available
+      if (matchedAccounts.length > 0) {
+        const firstAccount = matchedAccounts[0];
+        const item = { type: 'account' as const, data: firstAccount };
+        setSelectedSfdcItem(item);
+        fetchTasksForItem(item);
+        prefillActivityData(item);
+        // Fetch all opportunities for selected account
+        fetchOpportunitiesForAccount(firstAccount.id, '');
+      }
     } catch (err) {
       console.error('Failed to fetch SFDC context:', err);
       setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
     } finally {
       setLoadingSFDC(false);
+    }
+  };
+
+  // Fetch opportunities for selected account
+  const fetchOpportunitiesForAccount = async (accountId: string, keyword: string) => {
+    try {
+      const result = await transformTool('work-agent', 'satSfdc_getOpportunitiesForAccount', { 
+        accountId,
+        includeClosed: true
+      }, 'data => data');
+      
+      // Sort by lastModifiedDate descending (most recent first) and add accountId
+      const opportunities = (result?.opportunities || [])
+        .map((opp: any) => ({ ...opp, accountId }))
+        .sort((a: any, b: any) => {
+          const dateA = new Date(a.lastModifiedDate || 0).getTime();
+          const dateB = new Date(b.lastModifiedDate || 0).getTime();
+          return dateB - dateA;
+        });
+      
+      setSfdcContext(prev => ({
+        ...prev,
+        opportunities,
+        selectedAccountId: accountId
+      }));
+    } catch (err) {
+      console.error('Failed to fetch opportunities:', err);
+    }
+  };
+
+  // Fetch tasks for selected account or opportunity
+  const fetchTasksForItem = async (item: {type: 'account' | 'opportunity', data: any}) => {
+    setLoadingTasks(true);
+    try {
+      // Use listUserTasks with appropriate filter
+      const params: any = { limit: 50 };
+      if (item.type === 'opportunity') {
+        params.opportunityId = item.data.id;
+      } else {
+        params.accountId = item.data.id;
+      }
+      
+      const tasksResult = await transformTool('work-agent', 'satSfdc_listUserTasks', params, 'data => data');
+      
+      // Update context with tasks
+      setSfdcContext(prev => ({
+        ...prev,
+        tasks: tasksResult?.tasks || []
+      }));
+    } catch (err) {
+      console.error('Failed to fetch tasks:', err);
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
+  const prefillActivityData = async (item: {type: 'account' | 'opportunity', data: any}) => {
+    if (!selectedEvent || !meetingDetails) return;
+    
+    setLoadingActivityPrefill(true);
+    try {
+      const meetingInfo = `Meeting: ${selectedEvent.subject}\nTime: ${new Date(selectedEvent.start).toLocaleString()}\nAttendees: ${meetingDetails.attendees?.map(a => a.email).join(', ') || 'None'}`;
+      const meetingBody = meetingDetails.body ? `\nMeeting Notes:\n${meetingDetails.body.replace(/<[^>]*>/g, '').trim()}` : '';
+      const itemContext = item.type === 'account' 
+        ? `Account: ${item.data.name}` 
+        : `Opportunity: ${item.data.name} (Stage: ${item.data.stageName})`;
+      
+      const response = await invoke({
+        prompt: `Generate a tech activity log for ${item.type}: ${item.data.name}\n\nCRITICAL RULES:\n1. For the description field, you MUST use this exact format:\n\nAttendees:\n[List ONLY the attendees provided below - do NOT make up names or add people not listed]\n\nOverview:\n[Summarize what was discussed/accomplished based ONLY on the meeting body content provided below. If no meeting body/notes are provided, write "No meeting notes available." Do NOT invent or assume information.]\n\n2. EXCLUDE ALL meeting logistics:\n   - Do NOT mention Zoom, Teams, Chime, or any video conferencing links\n   - Do NOT mention dial-in numbers or meeting IDs\n   - Do NOT mention location or room details\n   - Do NOT mention scheduling information\n\n3. ONLY use information explicitly provided in the meeting body below. If the meeting body is empty or only contains logistics, state that no content is available.\n\n4. For SA Activity type: Default to "Meeting / Office Hours [Management]" unless the subject or meeting notes explicitly mention a workshop (Immersion Day, GameDay, Hackathon, etc.) or another specific activity type.\n\n---\nMEETING INFORMATION PROVIDED:\n${meetingInfo}${meetingBody}`,
+        schema: {
+          type: 'object',
+          properties: {
+            saActivity: { 
+              type: 'string', 
+              enum: [
+                'Architecture Review [Architecture]',
+                'Cloud Adoption Framework [Architecture]',
+                'Demo [Architecture]',
+                'Foundational Technical Review [Architecture]',
+                'Migration Readiness Assessment [Architecture]',
+                'Migration/Modernization Acceleration [Architecture]',
+                'Other Architectural Guidance [Architecture]',
+                'Partner Competency Assessment [Architecture]',
+                'Partner Solution Engagement [Architecture]',
+                'Prototype/PoC/Pilot [Architecture]',
+                'Security, Resilience and Compliance [Architecture]',
+                'Service Team Engagement [Architecture]',
+                'Well Architected [Architecture]',
+                'Account Planning [Management]',
+                'Cost Optimization [Management]',
+                'Meeting / Office Hours [Management]',
+                'RFI and RFP response [Management]',
+                'Support and Enablement of Partners [Management]',
+                'Support of Proserve Engagement [Management]',
+                'Support/Escalation [Management]',
+                'Validation of Business Outcome after Launch [Management]',
+                'Internal Narrative Authorship [Org Capabilities]',
+                'Internal Speaking Engagement [Org Capabilities]',
+                'Tech Mentoring [Org Capabilities]',
+                'Technical Field Community Initiatives [Org Capabilities]',
+                'CCoE (Cloud Center of Excellence) [Program Execution]',
+                'CSM - Account Planning [Program Execution]',
+                'CSM - Customer Success Plan [Program Execution]',
+                'EBA (Experience Based Acceleration) [Program Execution]',
+                'EBC (Executive Briefing Centre) [Program Execution]',
+                'Innovation and Transformation [Program Execution]',
+                'MAP (Migration Acceleration Program) [Program Execution]',
+                'Other Program/ Strategic Initiative Execution [Program Execution]',
+                'Customer PR-FAQ [Thought Leadership]',
+                'General Tech Content [Thought Leadership]',
+                'Other Thought Leadership [Thought Leadership]',
+                'PFR Curation [Thought Leadership]',
+                'Public Speaking Conference [Thought Leadership]',
+                'Activation Day [Workshops]',
+                'GameDay [Workshops]',
+                'Hackathon [Workshops]',
+                'Immersion Day [Workshops]',
+                'Other Workshops [Workshops]'
+              ],
+              description: 'Type of SA activity'
+            },
+            description: { type: 'string', description: 'Must follow format: "Attendees:\n[list]\n\nOverview:\n[summary]"' }
+          },
+          required: ['saActivity', 'description']
+        },
+        maxSteps: 1,
+        model: 'us.amazon.nova-lite-v1:0'
+      });
+      
+      // Use meeting date directly
+      const meetingDate = new Date(selectedEvent.start);
+      const activityDate = `${meetingDate.getFullYear()}-${String(meetingDate.getMonth() + 1).padStart(2, '0')}-${String(meetingDate.getDate()).padStart(2, '0')}`;
+      
+      setActivityFormData({
+        subject: selectedEvent.subject,
+        saActivity: response.saActivity || 'Meeting / Office Hours [Management]',
+        activityDate: activityDate,
+        description: response.description || ''
+      });
+    } catch (err) {
+      console.error('Failed to prefill activity data:', err);
+    } finally {
+      setLoadingActivityPrefill(false);
     }
   };
 
@@ -1164,7 +1399,7 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                       let joinButton: JSX.Element | null = null;
                       
                       if (isActiveEvent) {
-                        const meetingProvider = detectMeetingProvider(event.location);
+                        const meetingProvider = detectMeetingProvider(event.location, meetingDetails?.body);
                         
                         indicatorText = `Now ${currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - `;
                         
@@ -1382,13 +1617,87 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
 
           <section className="workspace-dashboard__details">
               {selectedEvent && (() => {
-                const meetingProvider = detectMeetingProvider(meetingDetails?.location);
+                const meetingProvider = detectMeetingProvider(meetingDetails?.location, meetingDetails?.body);
                 
                 return (
                 <div className="workspace-dashboard__card">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem' }}>
+                      <h3 style={{ minWidth: 'fit-content', marginBottom: '0.5rem', flex: 1 }}>{selectedEvent.subject}</h3>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                        <button 
+                          onClick={() => {
+                            fetchSFDCContext();
+                            setShowLogActivityModal(true);
+                          }}
+                          disabled={loadingSFDC}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: 'transparent',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '0.375rem',
+                            fontSize: '0.875rem',
+                            fontWeight: 500,
+                            cursor: loadingSFDC ? 'not-allowed' : 'pointer',
+                            opacity: loadingSFDC ? 0.5 : 1,
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => !loadingSFDC && (e.currentTarget.style.background = 'var(--bg-tertiary)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          {loadingSFDC ? 'Loading...' : 'Log Activity'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            const meetingInfo = `Meeting: ${meetingDetails.subject}\nTime: ${new Date(meetingDetails.start).toLocaleString()} - ${new Date(meetingDetails.end).toLocaleTimeString()}\nLocation: ${meetingDetails.location || 'Not specified'}${meetingDetails.attendees ? `\nAttendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}`;
+                            sendToChat(`I need to log an SA activity for this meeting:\n\n${meetingInfo}\n\nWorkflow:\n- Search my email for meeting notes or follow-ups related to "${meetingDetails.subject}"\n- Use the attendee list and meeting subject to identify the relevant Salesforce account\n- Find any related opportunities for this account\n- Present matching accounts/opportunities as a numbered list for me to choose from\n- Help me create the SA activity log with the meeting notes and context`);
+                          }}
+                          style={{
+                            padding: '0.5rem 0.75rem',
+                            background: 'transparent',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '0.375rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                          }}
+                          title="Ask agent for help"
+                          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    {selectedEvent && salesContext?.state?.loggedActivities?.[selectedEvent.meetingId] && (
+                      <div style={{ 
+                        marginTop: '0.75rem',
+                        padding: '0.75rem',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--color-primary)',
+                        borderRadius: '6px',
+                        fontSize: '0.875rem'
+                      }}>
+                        <div style={{ color: 'var(--color-primary)', fontWeight: 600, marginBottom: '0.25rem' }}>
+                          ✓ Activity Logged
+                        </div>
+                        <a
+                          href={`${SFDC_BASE_URL}/lightning/r/Task/${salesContext.state.loggedActivities[selectedEvent.meetingId].id}/view`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                        >
+                          {salesContext.state.loggedActivities[selectedEvent.meetingId].subject}
+                        </a>
+                      </div>
+                    )}
                     <div>
-                      <h3 style={{ minWidth: 'fit-content', marginBottom: '0.5rem' }}>{selectedEvent.subject}</h3>
                       {meetingDetails?.organizer && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                           <span>
@@ -1426,32 +1735,13 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <button 
-                        onClick={fetchSFDCContext}
-                        disabled={loadingSFDC}
-                        className="workspace-dashboard__action"
-                      >
-                        {loadingSFDC ? 'Loading...' : 'Enrich with Salesforce'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          const meetingInfo = `Meeting: ${meetingDetails.subject}\nTime: ${new Date(meetingDetails.start).toLocaleString()} - ${new Date(meetingDetails.end).toLocaleTimeString()}\nLocation: ${meetingDetails.location || 'Not specified'}${meetingDetails.attendees ? `\nAttendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}`;
-                          sendToChat(`I need to log an SA activity for this meeting:\n\n${meetingInfo}\n\nWorkflow:\n- Search my email for meeting notes or follow-ups related to "${meetingDetails.subject}"\n- Use the attendee list and meeting subject to identify the relevant Salesforce account\n- Find any related opportunities for this account\n- Present matching accounts/opportunities as a numbered list for me to choose from\n- Help me create the SA activity log with the meeting notes and context`);
-                        }}
-                        className="workspace-dashboard__action"
-                      >
-                        Log Activity
-                      </button>
-                    </div>
                   </div>
                   
                   {loadingDetails ? (
                     <p>Loading meeting details...</p>
                   ) : meetingDetails ? (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: sfdcContext ? '3fr 1fr' : '1fr', gap: '1.5rem', marginBottom: '1rem' }}>
-                        <div>
+                      <div>
                         <p><strong>Time:</strong> {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}</p>
                         {selectedEvent.categories && selectedEvent.categories.length > 0 && (
                           <p><strong>Categories:</strong> {selectedEvent.categories.join(', ')}</p>
@@ -1586,309 +1876,6 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
                           <p style={{ fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>No content to show.</p>
                         </div>
                       )}
-                        </div>
-
-                        {sfdcContext && (
-                          <div style={{ position: 'sticky', top: '1rem', alignSelf: 'start' }}>
-                            <>
-                              <h4 style={{ marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--color-border)' }}>Salesforce Intelligence</h4>
-                                
-                  {sfdcContext.accounts && sfdcContext.accounts.length > 0 && (
-                        <details open style={{ marginTop: '0.5rem' }}>
-                          <summary><strong>Accounts ({sfdcContext.accounts.length})</strong></summary>
-                          <ul style={{ marginLeft: '1rem', marginTop: '0.5rem', listStyle: 'none', padding: 0 }}>
-                            {sfdcContext.accounts.map((acc: any, i: number) => (
-                              <li key={i} style={{ marginBottom: '0.5rem', padding: '0.5rem', background: 'var(--color-bg-secondary)', borderRadius: '4px', border: '1px solid var(--color-border)', position: 'relative' }}>
-                                {acc.id && (
-                                  <a 
-                                    href={`https://aws-crm.lightning.force.com/lightning/r/Account/${acc.id}/view`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    title="Open in Salesforce"
-                                    style={{ 
-                                      position: 'absolute',
-                                      top: '0.5rem',
-                                      right: '0.5rem',
-                                      fontSize: '0.75em',
-                                      color: 'var(--color-primary)',
-                                      textDecoration: 'none'
-                                    }}
-                                  >
-                                    ↗
-                                  </a>
-                                )}
-                                {acc.id ? (
-                                  <a
-                                    href={`https://aws-crm.lightning.force.com/lightning/r/Account/${acc.id}/view`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ 
-                                      fontWeight: 'bold',
-                                      fontSize: '0.9em',
-                                      marginBottom: '0.25rem',
-                                      paddingRight: '1.5rem',
-                                      display: 'block',
-                                      color: 'inherit',
-                                      textDecoration: 'none'
-                                    }}
-                                  >
-                                    {acc.name || acc.id}
-                                  </a>
-                                ) : (
-                                  <div style={{ fontWeight: 'bold', fontSize: '0.9em', marginBottom: '0.25rem', paddingRight: '1.5rem' }}>{acc.name || acc.id}</div>
-                                )}
-                                <div style={{ fontSize: '0.75em', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                                  {acc.owner && <span style={{ marginRight: '0.75rem' }}>Owner: {acc.owner}</span>}
-                                  {acc.opportunities && <span style={{ marginRight: '0.75rem' }}>Opps: {acc.opportunities}</span>}
-                                  {acc.spend && <span>Spend: {acc.spend}</span>}
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                  <button
-                                    onClick={() => {
-                                      onLaunchPrompt?.({
-                                        id: `sfdc-account-${acc.id}`,
-                                        label: 'Ask about account',
-                                        prompt: `Tell me about this Salesforce account:\n\nAccount: ${acc.name || acc.id}`
-                                      });
-                                      onShowChat?.();
-                                    }}
-                                    title="Send to chat"
-                                    style={{
-                                      padding: '3px 10px',
-                                      background: 'var(--color-bg)',
-                                      border: '1px solid var(--color-border)',
-                                      borderRadius: '12px',
-                                      color: 'var(--color-text)',
-                                      cursor: 'pointer',
-                                      fontSize: '0.75em',
-                                      transition: 'all 0.2s'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.background = 'var(--color-primary)';
-                                      e.currentTarget.style.color = 'var(--color-bg)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.background = 'var(--color-bg)';
-                                      e.currentTarget.style.color = 'var(--color-text)';
-                                    }}
-                                  >
-                                    Discuss Account
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      onLaunchPrompt?.({
-                                        id: `sfdc-account-plan-${acc.id}`,
-                                        label: 'Create account plan',
-                                        prompt: `Help me create a strategic plan for this Salesforce account:\n\nAccount: ${acc.name || acc.id}\n\nWhat should be my focus areas?`
-                                      });
-                                      onShowChat?.();
-                                    }}
-                                    title="Send to chat"
-                                    style={{
-                                      padding: '3px 10px',
-                                      background: 'var(--color-bg)',
-                                      border: '1px solid var(--color-border)',
-                                      borderRadius: '12px',
-                                      color: 'var(--color-text)',
-                                      cursor: 'pointer',
-                                      fontSize: '0.75em',
-                                      transition: 'all 0.2s'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.background = 'var(--color-primary)';
-                                      e.currentTarget.style.color = 'var(--color-bg)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.background = 'var(--color-bg)';
-                                      e.currentTarget.style.color = 'var(--color-text)';
-                                    }}
-                                  >
-                                    Create Activity
-                                  </button>
-                                </div>
-                                
-                                {sfdcContext.tasks && sfdcContext.tasks.filter((t: any) => t.accountId === acc.id || !t.accountId).length > 0 && (
-                                  <details style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
-                                    <summary style={{ cursor: 'pointer', fontSize: '0.8em', color: 'var(--color-text-secondary)', listStyle: 'none' }}>
-                                      <span style={{ marginRight: '0.25rem' }}>▸</span>
-                                      Log History ({sfdcContext.tasks.filter((t: any) => t.accountId === acc.id || !t.accountId).length})
-                                    </summary>
-                                    <ul style={{ listStyle: 'none', padding: '0.5rem 0 0 0', margin: 0 }}>
-                                      {sfdcContext.tasks.filter((t: any) => t.accountId === acc.id || !t.accountId).slice(0, 3).map((task: any, ti: number) => (
-                                        <li key={ti} style={{ marginBottom: '0.5rem', fontSize: '0.75em' }}>
-                                          {task.id ? (
-                                            <a
-                                              href={`https://aws-crm.lightning.force.com/lightning/r/Task/${task.id}/view`}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              style={{ 
-                                                display: 'block',
-                                                color: 'inherit',
-                                                textDecoration: 'none'
-                                              }}
-                                            >
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                                                <div style={{ flex: 1 }}>{task.subject || task.id}</div>
-                                                <span style={{ 
-                                                  fontSize: '0.9em',
-                                                  color: 'var(--color-primary)',
-                                                  marginLeft: '0.5rem'
-                                                }}>
-                                                  ↗
-                                                </span>
-                                              </div>
-                                              <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.9em' }}>
-                                                {task.status && <span style={{ marginRight: '0.5rem' }}>{task.status}</span>}
-                                                {task.dueDate && <span>{task.dueDate}</span>}
-                                              </div>
-                                            </a>
-                                          ) : (
-                                            <div>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                                                <div style={{ flex: 1 }}>{task.subject || task.id}</div>
-                                              </div>
-                                              <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.9em' }}>
-                                                {task.status && <span style={{ marginRight: '0.5rem' }}>{task.status}</span>}
-                                                {task.dueDate && <span>{task.dueDate}</span>}
-                                              </div>
-                                            </div>
-                                          )}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </details>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-
-                  {sfdcContext.opportunities && sfdcContext.opportunities.length > 0 && (
-                        <details open style={{ marginTop: '0.5rem' }}>
-                          <summary><strong>Opportunities ({sfdcContext.opportunities.length})</strong></summary>
-                          <ul style={{ marginLeft: '1rem', marginTop: '0.5rem', listStyle: 'none', padding: 0 }}>
-                            {sfdcContext.opportunities.map((opp: any, i: number) => (
-                              <li key={i} style={{ marginBottom: '0.5rem', padding: '0.5rem', background: 'var(--color-bg-secondary)', borderRadius: '4px', border: '1px solid var(--color-border)', position: 'relative' }}>
-                                {opp.id && (
-                                  <a 
-                                    href={`https://aws-crm.lightning.force.com/lightning/r/Opportunity/${opp.id}/view`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    title="Open in Salesforce"
-                                    style={{ 
-                                      position: 'absolute',
-                                      top: '0.5rem',
-                                      right: '0.5rem',
-                                      fontSize: '0.75em',
-                                      color: 'var(--color-primary)',
-                                      textDecoration: 'none'
-                                    }}
-                                  >
-                                    ↗
-                                  </a>
-                                )}
-                                {opp.id ? (
-                                  <a
-                                    href={`https://aws-crm.lightning.force.com/lightning/r/Opportunity/${opp.id}/view`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ 
-                                      fontWeight: 'bold',
-                                      fontSize: '0.9em',
-                                      marginBottom: '0.25rem',
-                                      paddingRight: '1.5rem',
-                                      display: 'block',
-                                      color: 'inherit',
-                                      textDecoration: 'none'
-                                    }}
-                                  >
-                                    {opp.name || opp.id}
-                                  </a>
-                                ) : (
-                                  <div style={{ fontWeight: 'bold', fontSize: '0.9em', marginBottom: '0.25rem', paddingRight: '1.5rem' }}>{opp.name || opp.id}</div>
-                                )}
-                                <div style={{ fontSize: '0.75em', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                                  {opp.owner && <span style={{ marginRight: '0.75rem' }}>Owner: {opp.owner}</span>}
-                                  {opp.stage && <span style={{ marginRight: '0.75rem' }}>Stage: {opp.stage}</span>}
-                                  {opp.amount && <span style={{ marginRight: '0.75rem' }}>Amount: ${typeof opp.amount === 'number' ? opp.amount.toLocaleString() : opp.amount}</span>}
-                                  {opp.closeDate && <span>Close: {opp.closeDate}</span>}
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                  <button
-                                    onClick={() => {
-                                      const accountContext = sfdcContext.accounts?.map(a => a.name || a.id).join(', ') || 'N/A';
-                                      onLaunchPrompt?.({
-                                        id: `sfdc-opportunity-${opp.id}`,
-                                        label: 'Ask about opportunity',
-                                        prompt: `Tell me about this Salesforce opportunity:\n\nAccount(s): ${accountContext}\nOpportunity: ${opp.name || opp.id}`
-                                      });
-                                      onShowChat?.();
-                                    }}
-                                    title="Send to chat"
-                                    style={{
-                                      padding: '3px 10px',
-                                      background: 'var(--color-bg)',
-                                      border: '1px solid var(--color-border)',
-                                      borderRadius: '12px',
-                                      color: 'var(--color-text)',
-                                      cursor: 'pointer',
-                                      fontSize: '0.75em',
-                                      transition: 'all 0.2s'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.background = 'var(--color-primary)';
-                                      e.currentTarget.style.color = 'var(--color-bg)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.background = 'var(--color-bg)';
-                                      e.currentTarget.style.color = 'var(--color-text)';
-                                    }}
-                                  >
-                                    Discuss Opportunity
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      const accountContext = sfdcContext.accounts?.map(a => a.name || a.id).join(', ') || 'N/A';
-                                      onLaunchPrompt?.({
-                                        id: `sfdc-opportunity-create-${opp.id}`,
-                                        label: 'Help create opportunity plan',
-                                        prompt: `Help me create a plan for this Salesforce opportunity:\n\nAccount(s): ${accountContext}\nOpportunity: ${opp.name || opp.id}\n\nWhat should I focus on to move this opportunity forward?`
-                                      });
-                                      onShowChat?.();
-                                    }}
-                                    title="Send to chat"
-                                    style={{
-                                      padding: '3px 10px',
-                                      background: 'var(--color-bg)',
-                                      border: '1px solid var(--color-border)',
-                                      borderRadius: '12px',
-                                      color: 'var(--color-text)',
-                                      cursor: 'pointer',
-                                      fontSize: '0.75em',
-                                      transition: 'all 0.2s'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.background = 'var(--color-primary)';
-                                      e.currentTarget.style.color = 'var(--color-bg)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.background = 'var(--color-bg)';
-                                      e.currentTarget.style.color = 'var(--color-text)';
-                                    }}
-                                  >
-                                    Create Activity
-                                  </button>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-
-                            </>
-                          </div>
-                        )}
                       </div>
                     </>
                   ) : (
@@ -1901,6 +1888,645 @@ ${meetingDetails?.attendees?.length ? `Attendees: ${meetingDetails.attendees.map
               })()}
             </section>
       </div>
+
+      {/* Log Activity Modal */}
+      {showLogActivityModal && sfdcContext && (
+        <div className="log-activity-modal-overlay" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div className="log-activity-modal-container" style={{
+            background: 'var(--bg-primary)',
+            borderRadius: '12px',
+            width: '1000px',
+            maxWidth: '90vw',
+            height: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            border: '1px solid var(--border-primary)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="log-activity-modal-header" style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid var(--border-primary)',
+              background: 'var(--bg-secondary)',
+              borderRadius: '12px 12px 0 0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Log Activity - {selectedEvent?.subject}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowLogActivityModal(false);
+                  setSelectedSfdcItem(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '1.5rem',
+                  padding: '0',
+                  lineHeight: 1,
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="log-activity-modal-content" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+              {/* Left: Accounts & Opportunities */}
+              <div className="log-activity-modal-sidebar" style={{
+                width: '300px',
+                borderRight: '1px solid var(--border-primary)',
+                overflow: 'auto',
+                background: 'var(--bg-secondary)'
+              }}>
+                {/* Accounts Section */}
+                {sfdcContext.accounts && sfdcContext.accounts.length > 0 ? (
+                  <details open className="log-activity-accounts-section" style={{ padding: '1rem' }}>
+                    <summary style={{ cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span>▼</span> Accounts ({sfdcContext.accounts.length})
+                    </summary>
+                    {sfdcContext.accounts.map((account: any) => {
+                      const isAccountSelected = selectedSfdcItem?.type === 'account' && selectedSfdcItem.data.id === account.id;
+                      const isOpportunityOfThisAccount = selectedSfdcItem?.type === 'opportunity' && sfdcContext.selectedAccountId === account.id;
+                      const isActive = isAccountSelected || isOpportunityOfThisAccount;
+                      
+                      return (
+                      <button
+                        key={account.id}
+                        className="log-activity-account-item"
+                        onClick={() => {
+                          const item = { type: 'account' as const, data: account };
+                          
+                          // If account is already directly selected, do nothing
+                          if (isAccountSelected) return;
+                          
+                          // If switching from opportunity to account, just update selection (don't refetch)
+                          if (isOpportunityOfThisAccount) {
+                            setSelectedSfdcItem(item);
+                            return;
+                          }
+                          
+                          // New account selection - fetch everything
+                          setSelectedSfdcItem(item);
+                          fetchTasksForItem(item);
+                          prefillActivityData(item);
+                          // Fetch opportunities when account is selected
+                          setLoadingOpportunities(true);
+                          fetchOpportunitiesForAccount(account.id, '').finally(() => setLoadingOpportunities(false));
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          marginBottom: '0.5rem',
+                          background: isAccountSelected ? 'var(--color-primary)' : 'var(--bg-primary)',
+                          color: isAccountSelected ? 'white' : 'var(--text-primary)',
+                          border: isOpportunityOfThisAccount ? '2px solid var(--color-primary)' : '1px solid var(--border-primary)',
+                          borderRadius: '6px',
+                          textAlign: 'left',
+                          cursor: isAccountSelected ? 'default' : 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: 500
+                        }}
+                      >
+                        {account.name}
+                      </button>
+                      );
+                    })}
+                  </details>
+                ) : (
+                  <div style={{ padding: '2rem 1rem', textAlign: 'center' }}>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1rem' }}>
+                      No related accounts found
+                    </div>
+                    <button
+                      onClick={() => fetchSFDCContext(true)}
+                      disabled={loadingSFDC}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: 'var(--color-primary)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '0.875rem',
+                        cursor: loadingSFDC ? 'not-allowed' : 'pointer',
+                        opacity: loadingSFDC ? 0.5 : 1
+                      }}
+                    >
+                      {loadingSFDC ? 'Loading...' : 'Load All Accounts'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Opportunities Section - show if account or opportunity is selected */}
+                {(selectedSfdcItem?.type === 'account' || selectedSfdcItem?.type === 'opportunity') && sfdcContext.opportunities && sfdcContext.opportunities.length > 0 && (
+                  <div style={{ padding: '1rem 1rem 0', borderTop: '1px solid var(--border-primary)' }}>
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                        Filter Opportunities
+                      </label>
+                      <input
+                        type="text"
+                        value={opportunityKeyword}
+                        onChange={(e) => setOpportunityKeyword(e.target.value)}
+                        placeholder="Filter by name..."
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem',
+                          marginBottom: '0.5rem',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '4px',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.875rem'
+                        }}
+                      />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={hideClosedOpportunities}
+                          onChange={(e) => setHideClosedOpportunities(e.target.checked)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        Hide Closed/Won
+                      </label>
+                    </div>
+                    
+                    {loadingOpportunities ? (
+                      <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                        Loading opportunities...
+                      </div>
+                    ) : sfdcContext.opportunities && sfdcContext.opportunities.length > 0 ? (
+                      (() => {
+                        let filteredOpps = sfdcContext.opportunities;
+                        
+                        // Filter by closed/won status
+                        if (hideClosedOpportunities) {
+                          filteredOpps = filteredOpps.filter((opp: any) => 
+                            !opp.stageName?.toLowerCase().includes('closed') && 
+                            !opp.stageName?.toLowerCase().includes('won') &&
+                            !opp.stageName?.toLowerCase().includes('lost')
+                          );
+                        }
+                        
+                        // Filter by keyword
+                        if (opportunityKeyword.trim()) {
+                          const keyword = opportunityKeyword.toLowerCase();
+                          filteredOpps = filteredOpps.filter((opp: any) =>
+                            opp.name?.toLowerCase().includes(keyword)
+                          );
+                        }
+                        
+                        return filteredOpps.length > 0 ? (
+                          <details open>
+                            <summary style={{ cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span>▼</span> Opportunities ({filteredOpps.length})
+                            </summary>
+                            {filteredOpps.map((opp: any) => (
+                              <button
+                                key={opp.id}
+                                onClick={() => {
+                                  const item = { type: 'opportunity' as const, data: opp };
+                                  setSelectedSfdcItem(item);
+                                  fetchTasksForItem(item);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '0.75rem',
+                                  marginBottom: '0.5rem',
+                                  background: selectedSfdcItem?.type === 'opportunity' && selectedSfdcItem.data.id === opp.id ? 'var(--color-primary)' : 'var(--bg-primary)',
+                                  color: selectedSfdcItem?.type === 'opportunity' && selectedSfdcItem.data.id === opp.id ? 'white' : 'var(--text-primary)',
+                                  border: '1px solid var(--border-primary)',
+                                  borderRadius: '6px',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  fontSize: '0.875rem'
+                                }}
+                              >
+                                <div style={{ fontWeight: 500 }}>{opp.name}</div>
+                                <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '0.25rem' }}>{opp.stageName}</div>
+                              </button>
+                            ))}
+                          </details>
+                        ) : (
+                          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                            No open opportunities found
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                        No opportunities found
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Activity Form */}
+              <div className="log-activity-modal-form" style={{ flex: 1, overflow: 'auto', padding: '1.5rem', position: 'relative' }}>
+                {selectedSfdcItem ? (
+                  <div className="log-activity-form-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* Context */}
+                    <div className="log-activity-selected-context" style={{
+                      padding: '1rem',
+                      background: 'var(--bg-tertiary)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-primary)',
+                      position: 'relative'
+                    }}>
+                      <a
+                        href={`${SFDC_BASE_URL}/lightning/r/${selectedSfdcItem.type === 'account' ? 'Account' : 'Opportunity'}/${selectedSfdcItem.data.id}/view`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          position: 'absolute',
+                          top: '1rem',
+                          right: '1rem',
+                          color: 'var(--color-primary)',
+                          fontSize: '1rem',
+                          textDecoration: 'none'
+                        }}
+                        title="Open in Salesforce"
+                      >
+                        ↗
+                      </a>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                        {selectedSfdcItem.type === 'account' ? 'Account' : 'Opportunity'}
+                      </div>
+                      <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', paddingRight: '2rem' }}>
+                        {selectedSfdcItem.data.name}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', opacity: 0.6 }}>
+                        {selectedSfdcItem.data.id}
+                      </div>
+                      {selectedSfdcItem.type === 'opportunity' && selectedSfdcItem.data.stageName && (
+                        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                          Stage: {selectedSfdcItem.data.stageName}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Form Fields */}
+                    <div style={{ position: 'relative' }}>
+                      {loadingActivityPrefill && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'rgba(0,0,0,0.5)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '8px',
+                          zIndex: 10
+                        }}>
+                          <div style={{ color: 'white', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
+                            Generating activity details...
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                        Subject <span style={{ color: 'var(--color-error)' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={activityFormData.subject}
+                        onChange={(e) => setActivityFormData({...activityFormData, subject: e.target.value})}
+                        placeholder="Brief summary of the activity"
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '6px',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.875rem'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                        SA Activity <span style={{ color: 'var(--color-error)' }}>*</span>
+                      </label>
+                      <select
+                        value={activityFormData.saActivity}
+                        onChange={(e) => setActivityFormData({...activityFormData, saActivity: e.target.value})}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '6px',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.875rem'
+                        }}
+                      >
+                        <option value="">Select activity type...</option>
+                        <optgroup label="Architecture">
+                          <option value="Architecture Review [Architecture]">Architecture Review</option>
+                          <option value="Cloud Adoption Framework [Architecture]">Cloud Adoption Framework</option>
+                          <option value="Demo [Architecture]">Demo</option>
+                          <option value="Foundational Technical Review [Architecture]">Foundational Technical Review</option>
+                          <option value="Migration Readiness Assessment [Architecture]">Migration Readiness Assessment</option>
+                          <option value="Migration/Modernization Acceleration [Architecture]">Migration/Modernization Acceleration</option>
+                          <option value="Other Architectural Guidance [Architecture]">Other Architectural Guidance</option>
+                          <option value="Partner Competency Assessment [Architecture]">Partner Competency Assessment</option>
+                          <option value="Partner Solution Engagement [Architecture]">Partner Solution Engagement</option>
+                          <option value="Prototype/PoC/Pilot [Architecture]">Prototype/PoC/Pilot</option>
+                          <option value="Security, Resilience and Compliance [Architecture]">Security, Resilience and Compliance</option>
+                          <option value="Service Team Engagement [Architecture]">Service Team Engagement</option>
+                          <option value="Well Architected [Architecture]">Well Architected</option>
+                        </optgroup>
+                        <optgroup label="Management">
+                          <option value="Account Planning [Management]">Account Planning</option>
+                          <option value="Cost Optimization [Management]">Cost Optimization</option>
+                          <option value="Meeting / Office Hours [Management]">Meeting / Office Hours</option>
+                          <option value="RFI and RFP response [Management]">RFI and RFP response</option>
+                          <option value="Support and Enablement of Partners [Management]">Support and Enablement of Partners</option>
+                          <option value="Support of Proserve Engagement [Management]">Support of Proserve Engagement</option>
+                          <option value="Support/Escalation [Management]">Support/Escalation</option>
+                          <option value="Validation of Business Outcome after Launch [Management]">Validation of Business Outcome after Launch</option>
+                        </optgroup>
+                        <optgroup label="Workshops">
+                          <option value="Activation Day [Workshops]">Activation Day</option>
+                          <option value="GameDay [Workshops]">GameDay</option>
+                          <option value="Hackathon [Workshops]">Hackathon</option>
+                          <option value="Immersion Day [Workshops]">Immersion Day</option>
+                          <option value="Other Workshops [Workshops]">Other Workshops</option>
+                        </optgroup>
+                        <optgroup label="Program Execution">
+                          <option value="CCoE (Cloud Center of Excellence) [Program Execution]">CCoE (Cloud Center of Excellence)</option>
+                          <option value="EBA (Experience Based Acceleration) [Program Execution]">EBA (Experience Based Acceleration)</option>
+                          <option value="EBC (Executive Briefing Centre) [Program Execution]">EBC (Executive Briefing Centre)</option>
+                          <option value="MAP (Migration Acceleration Program) [Program Execution]">MAP (Migration Acceleration Program)</option>
+                          <option value="Other Program/ Strategic Initiative Execution [Program Execution]">Other Program/ Strategic Initiative Execution</option>
+                        </optgroup>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                        Activity Date <span style={{ color: 'var(--color-error)' }}>*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={activityFormData.activityDate}
+                        onChange={(e) => setActivityFormData({...activityFormData, activityDate: e.target.value})}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '6px',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.875rem',
+                          colorScheme: 'dark'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                        Description
+                      </label>
+                      <textarea
+                        value={activityFormData.description}
+                        onChange={(e) => setActivityFormData({...activityFormData, description: e.target.value})}
+                        placeholder="Detailed notes about the activity..."
+                        rows={6}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '6px',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.875rem',
+                          resize: 'vertical',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+                    </div>
+                    </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border-primary)' }}>
+                      <button
+                        onClick={async () => {
+                          if (!selectedSfdcItem) return;
+                          
+                          setSubmittingActivity(true);
+                          try {
+                            const result = await transformTool('work-agent', 'satSfdc_createTechActivity', {
+                              parentRecord: selectedSfdcItem.data.id,
+                              subject: activityFormData.subject,
+                              saActivity: activityFormData.saActivity,
+                              activityDate: activityFormData.activityDate,
+                              description: activityFormData.description
+                            }, 'data => data');
+                            
+                            const taskId = result?.task?.id;
+                            
+                            // Store logged activity in workspace context
+                            if (taskId && selectedEvent) {
+                              salesContext.setState({
+                                ...salesContext.state,
+                                loggedActivities: {
+                                  ...salesContext.state.loggedActivities,
+                                  [selectedEvent.meetingId]: { id: taskId, subject: activityFormData.subject }
+                                }
+                              });
+                            }
+                            
+                            // Show toast with clickable link
+                            if (taskId) {
+                              notify({
+                                title: 'Activity logged successfully',
+                                message: (
+                                  <a
+                                    href={`${SFDC_BASE_URL}/lightning/r/Task/${taskId}/view`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                                  >
+                                    {activityFormData.subject}
+                                  </a>
+                                ),
+                                type: 'success'
+                              });
+                            } else {
+                              showToast('Activity logged successfully', 'success');
+                            }
+                            
+                            setShowLogActivityModal(false);
+                            setSelectedSfdcItem(null);
+                            
+                            // Refresh tasks
+                            if (selectedSfdcItem) {
+                              fetchTasksForItem(selectedSfdcItem);
+                            }
+                          } catch (err) {
+                            console.error('Failed to log activity:', err);
+                            showToast('Failed to log activity', 'error');
+                          } finally {
+                            setSubmittingActivity(false);
+                          }
+                        }}
+                        disabled={!activityFormData.subject || !activityFormData.saActivity || submittingActivity}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          background: 'var(--color-primary)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          cursor: !activityFormData.subject || !activityFormData.saActivity || submittingActivity ? 'not-allowed' : 'pointer',
+                          opacity: !activityFormData.subject || !activityFormData.saActivity || submittingActivity ? 0.5 : 1
+                        }}
+                      >
+                        {submittingActivity ? 'Logging...' : 'Log Activity'}
+                      </button>
+                    </div>
+                    
+                    {/* Recent Tasks Section */}
+                    {loadingTasks ? (
+                      <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-primary)', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                        <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: '0.5rem' }}>⟳</span>
+                        Loading activities...
+                      </div>
+                    ) : sfdcContext.tasks && sfdcContext.tasks.length > 0 && (
+                      <details open style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-primary)' }}>
+                        <summary style={{ cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                          <span>▼</span> Recent Activities ({sfdcContext.tasks.length})
+                        </summary>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {sfdcContext.tasks.slice(0, showAllTasks ? undefined : 5).map((task: any, idx: number) => (
+                            <div key={task.id || idx} style={{
+                              padding: '0.75rem',
+                              background: 'var(--bg-tertiary)',
+                              border: '1px solid var(--border-primary)',
+                              borderRadius: '6px',
+                              fontSize: '0.875rem',
+                              position: 'relative'
+                            }}>
+                              {task.id && (
+                                <a
+                                  href={`${SFDC_BASE_URL}/lightning/r/Task/${task.id}/view`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    position: 'absolute',
+                                    top: '0.75rem',
+                                    right: '0.75rem',
+                                    color: 'var(--color-primary)',
+                                    fontSize: '0.875rem',
+                                    textDecoration: 'none'
+                                  }}
+                                  title="Open in Salesforce"
+                                >
+                                  ↗
+                                </a>
+                              )}
+                              <div style={{ fontWeight: 500, marginBottom: '0.25rem', paddingRight: '1.5rem' }}>{task.subject}</div>
+                              {task.sa_Activity__c && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                  {task.sa_Activity__c}
+                                </div>
+                              )}
+                              {task.what?.name && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                  {task.what.name}
+                                </div>
+                              )}
+                              {task.activityDate && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                  {task.activityDate}
+                                </div>
+                              )}
+                              {task.status && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                  Status: {task.status}
+                                </div>
+                              )}
+                              {task.description && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', maxHeight: '3em', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {task.description}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {sfdcContext.tasks.length > 5 && (
+                            <button
+                              onClick={() => setShowAllTasks(!showAllTasks)}
+                              style={{
+                                padding: '0.5rem',
+                                background: 'transparent',
+                                border: '1px solid var(--border-primary)',
+                                borderRadius: '6px',
+                                color: 'var(--color-primary)',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem'
+                              }}
+                            >
+                              {showAllTasks ? 'Show Less' : `Show ${sfdcContext.tasks.length - 5} More`}
+                            </button>
+                          )}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    height: '100%',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.875rem'
+                  }}>
+                    Select an account or opportunity to log activity
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

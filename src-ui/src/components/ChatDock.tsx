@@ -18,10 +18,12 @@ import { useApiBase, useConfig, CONFIG_DEFAULTS } from '../contexts/ConfigContex
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
+import { useStreaming } from '../contexts/StreamingContext';
 import { useToolApproval } from '../hooks/useToolApproval';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { getAgentIcon, getAgentIconStyle, getUserIconStyle, getInitials } from '../utils/workspace';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
+import { log } from '@/utils/logger';
 import type { AgentSummary } from '../types';
 import type { SlashCommand } from '../hooks/useSlashCommands';
 
@@ -321,6 +323,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const defaultFontSize = appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
   const handleToolApproval = useToolApproval(apiBase);
   const handleSlashCommand = useSlashCommandHandler(apiBase);
+  const { getStreamingMessage } = useStreaming();
+  
+  // DEBUG: Log when component renders
+  const renderTimestamp = new Date().toISOString();
+
   
   // Chat dock UI state (height and dragging only - open/maximized from navigation)
   const [dockHeight, setDockHeight] = useState(400);
@@ -1596,7 +1603,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         })}
                         
                         {/* Render streaming message being built in real-time */}
-                        {activeSession.streamingMessage && (
+                        {(() => {
+                          const streamingMessage = getStreamingMessage(activeSession.id);
+                          if (!streamingMessage) return null;
+                          
+                          return (
                           <div style={{ 
                             display: 'flex',
                             gap: '8px',
@@ -1627,8 +1638,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                               })()}
                             </div>
                             <div className="message assistant" style={{ maxWidth: '70%', fontSize: `${chatFontSize}px` }}>
-                              {activeSession.streamingMessage.contentParts && activeSession.streamingMessage.contentParts.length > 0 ? (
-                                activeSession.streamingMessage.contentParts.map((part, i) => {
+                              {streamingMessage.contentParts && streamingMessage.contentParts.length > 0 ? (
+                                streamingMessage.contentParts.map((part, i) => {
                                   if (part.type === 'text' && part.content) {
                                     return <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>;
                                   } else if (part.type === 'tool' || part.type?.startsWith('tool-')) {
@@ -1643,11 +1654,12 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                   return null;
                                 })
                               ) : (
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeSession.streamingMessage.content}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingMessage.content}</ReactMarkdown>
                               )}
                             </div>
                           </div>
-                        )}
+                        );
+                        })()}
                         
                       </>
                     )}

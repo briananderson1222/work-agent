@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast, transformTool, useAgents, useCreateChatSession, useNavigation, useWorkspaceNavigation, useActiveChatActions, resolveAgentName, Button, Pill, useSendMessage, useApiBase } from '@stallion-ai/sdk';
-import '../../plugins/shared/workspace.css';
+import { useUserDetails } from './hooks';
+import './workspace.css';
 
 const SALESFORCE_BASE_URL = 'https://aws-crm.lightning.force.com';
 
 // Feature flags
-const ENABLE_MY_ACCOUNTS = false;
+const ENABLE_MY_ACCOUNTS = true;
 
 interface AutocompleteItem {
   id: string;
@@ -75,6 +76,7 @@ export function CRM({ activeTab }: CRMProps) {
   const sendMessage = useSendMessage(apiBase);
   const agents = useAgents();
   const agentSlug = 'work-agent';
+  const { userDetails } = useUserDetails(agentSlug);
   
   const sendToChat = useCallback((message: string) => {
     const resolvedSlug = resolveAgentName(agentSlug);
@@ -111,8 +113,49 @@ export function CRM({ activeTab }: CRMProps) {
     error?: string;
   }>>(initialState.activeFilters);
   const [isInitialMount, setIsInitialMount] = useState(true);
+  const [displayLimit, setDisplayLimit] = useState(50); // Show 50 accounts initially
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
+  
+  // In-memory cache for enriched account details (persists until page refresh)
+  const accountDetailsCache = useRef<Map<string, Account>>(new Map());
+  
+  // Account and detail state
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [myAccountsCache, setMyAccountsCache] = useState<Account[]>([]);
+  const [searchAccountsCache, setSearchAccountsCache] = useState<Account[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [showAllOpportunities, setShowAllOpportunities] = useState(false);
+  const [showAllTasks, setShowAllTasks] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [filterExpanded, setFilterExpanded] = useState(false);
+  const [selectedGeos, setSelectedGeos] = useState<Set<string>>(new Set());
+  const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set());
+  const [nameFilter, setNameFilter] = useState('');
+  const [showCreateOppModal, setShowCreateOppModal] = useState(false);
+  const [showLogActivityModal, setShowLogActivityModal] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
+  const [showAiPreview, setShowAiPreview] = useState(false);
+  const [aiGeneratedText, setAiGeneratedText] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [oppFormData, setOppFormData] = useState({
+    name: '',
+    stageName: 'Prospecting',
+    closeDate: '',
+    amount: '',
+    probability: '10'
+  });
+  const [activityFormData, setActivityFormData] = useState({
+    subject: '',
+    activityDate: new Date().toISOString().split('T')[0],
+    description: '',
+    saActivity: ''
+  });
   
   // Restore state when tab becomes active
   useEffect(() => {
@@ -145,17 +188,16 @@ export function CRM({ activeTab }: CRMProps) {
     } else {
       params.delete('filters');
     }
-    // Preserve selectedAccount if it exists
     const stateString = params.toString();
     setTabState('crm', stateString);
   }, [mode, searchType, activeFilters, isInitialMount, setTabState, getTabState]);
 
   // Auto-load my accounts on mount
   useEffect(() => {
-    if (ENABLE_MY_ACCOUNTS && mode === 'my-accounts' && accounts.length === 0 && activeFilters.length === 0) {
+    if (ENABLE_MY_ACCOUNTS && mode === 'my-accounts' && accounts.length === 0 && activeFilters.length === 0 && userDetails) {
       loadMyAccounts();
     }
-  }, [mode]);
+  }, [mode, userDetails]);
 
   // Restore accounts from filters on mount
   useEffect(() => {
@@ -180,22 +222,31 @@ export function CRM({ activeTab }: CRMProps) {
   }, []);
 
   const loadMyAccounts = async () => {
-    const cacheKey = getCacheKey('accounts', 'my-accounts');
-    const cached = sessionStorage.getItem(cacheKey);
-    
-    if (cached) {
-      setAccounts(JSON.parse(cached));
+    if (!userDetails) {
+      showToast('User details not loaded yet', 'error');
       return;
     }
     
     setLoading(true);
     try {
-      const result = await transformTool(agentSlug, 'sat-sfdc_search_accounts',
-        {},
-        `(data) => data || []`
+      const result = await transformTool(agentSlug, 'sat-sfdc_list_user_assigned_accounts',
+        { userId: userDetails.sfdcId },
+        `(data) => (data.accountTeamMembers || []).map(member => ({
+          ...member.account,
+          _sources: [
+            { type: 'owner', label: '${userDetails.alias}' },
+            ...(member.account.territory ? [{ type: 'territory', label: member.account.territory.name }] : [])
+          ]
+        }))`
       );
-      setAccounts(result || []);
-      sessionStorage.setItem(cacheKey, JSON.stringify(result || []));
+      
+      if (Array.isArray(result)) {
+        setAccounts(result);
+        setMyAccountsCache(result); // Cache the results
+      } else {
+        console.error('Result is not an array:', result);
+        setAccounts([]);
+      }
     } catch (error) {
       console.error('Failed to load my accounts:', error);
       showToast('Failed to load accounts', 'error');
@@ -250,39 +301,25 @@ export function CRM({ activeTab }: CRMProps) {
     }]);
     setShowAutocomplete(true);
   }, [searchInput, searchType]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [showAllOpportunities, setShowAllOpportunities] = useState(false);
-  const [showAllTasks, setShowAllTasks] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
-  const [loadingTasks, setLoadingTasks] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [filterExpanded, setFilterExpanded] = useState(false);
-  const [selectedGeos, setSelectedGeos] = useState<Set<string>>(new Set());
-  const [selectedSizes, setSelectedSizes] = useState<Set<string>>(new Set());
-  const [nameFilter, setNameFilter] = useState('');
-  const [showCreateOppModal, setShowCreateOppModal] = useState(false);
-  const [showLogActivityModal, setShowLogActivityModal] = useState(false);
-  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
-  const [showAiPreview, setShowAiPreview] = useState(false);
-  const [aiGeneratedText, setAiGeneratedText] = useState('');
-  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
-  const [oppFormData, setOppFormData] = useState({
-    name: '',
-    stageName: 'Prospecting',
-    closeDate: '',
-    amount: '',
-    probability: '10'
-  });
-  const [activityFormData, setActivityFormData] = useState({
-    subject: '',
-    activityDate: new Date().toISOString().split('T')[0],
-    description: '',
-    saActivity: ''
-  });
+
+  // Cache search results whenever accounts change in search mode
+  useEffect(() => {
+    if (mode === 'search' && accounts.length > 0) {
+      setSearchAccountsCache(accounts);
+    }
+  }, [accounts, mode]);
+
+  // Persist selected account to URL
+  useEffect(() => {
+    if (isInitialMount) return;
+    const params = new URLSearchParams(getTabState('crm'));
+    if (selectedAccount) {
+      params.set('selectedAccount', selectedAccount.id);
+    } else {
+      params.delete('selectedAccount');
+    }
+    setTabState('crm', params.toString());
+  }, [selectedAccount]);
 
   const getCacheKey = (type: string, key: string) => `sfdc-${type}-${key}`;
 
@@ -314,39 +351,7 @@ export function CRM({ activeTab }: CRMProps) {
     setShowAutocomplete(false);
   };
 
-  const loadTerritoryAccounts = async (territoryId: string, territoryName: string, forceRefresh = false) => {
-    const cacheKey = getCacheKey('territory-accounts', territoryId);
-    
-    if (!forceRefresh) {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) {
-        const newAccounts = JSON.parse(cached).map((acc: Account) => ({
-          ...acc,
-          _sources: [{ type: 'territory' as const, label: territoryName }]
-        }));
-        setAccounts(prev => {
-          const combined = [...prev, ...newAccounts];
-          return combined.reduce((acc, curr) => {
-            const existing = acc.find(a => a.id === curr.id);
-            if (existing) {
-              existing._sources = [...(existing._sources || []), ...(curr._sources || [])];
-            } else {
-              acc.push(curr);
-            }
-            return acc;
-          }, [] as Account[]);
-        });
-        
-        setActiveFilters(prev => {
-          if (isRestoring || prev.some(f => f.type === 'territory' && f.id === territoryId)) {
-            return prev;
-          }
-          return [...prev, { type: 'territory', label: territoryName, id: territoryId }];
-        });
-        return;
-      }
-    }
-    
+  const loadTerritoryAccounts = async (territoryId: string, territoryName: string) => {
     setLoading(true);
     try {
       const result = await transformTool(agentSlug, 'sat-sfdc_list_territory_accounts',
@@ -371,7 +376,6 @@ export function CRM({ activeTab }: CRMProps) {
         }, [] as Account[]);
       });
       
-      sessionStorage.setItem(cacheKey, JSON.stringify(result || []));
       setActiveFilters(prev => {
         if (isRestoring || prev.some(f => f.type === 'territory' && f.id === territoryId)) {
           return prev;
@@ -386,40 +390,8 @@ export function CRM({ activeTab }: CRMProps) {
     }
   };
 
-  const searchAccounts = async (ownerSearch: string, forceRefresh = false) => {
+  const searchAccounts = async (ownerSearch: string) => {
     if (!ownerSearch.trim()) return;
-    
-    const cacheKey = getCacheKey('accounts', ownerSearch);
-    
-    if (!forceRefresh) {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) {
-        const newAccounts = JSON.parse(cached).map((acc: Account) => ({
-          ...acc,
-          _sources: [{ type: 'owner' as const, label: ownerSearch }]
-        }));
-        setAccounts(prev => {
-          const combined = [...prev, ...newAccounts];
-          return combined.reduce((acc, curr) => {
-            const existing = acc.find(a => a.id === curr.id);
-            if (existing) {
-              existing._sources = [...(existing._sources || []), ...(curr._sources || [])];
-            } else {
-              acc.push(curr);
-            }
-            return acc;
-          }, [] as Account[]);
-        });
-        setActiveFilters(prev => {
-          if (isRestoring || prev.some(f => f.type === 'owner' && f.value === ownerSearch)) {
-            return prev;
-          }
-          const updated = [...prev, { type: 'owner', label: ownerSearch, value: ownerSearch }];
-          return updated;
-        });
-        return;
-      }
-    }
     
     setLoading(true);
     try {
@@ -428,7 +400,7 @@ export function CRM({ activeTab }: CRMProps) {
       const searchPromises = owners.map(owner =>
         transformTool(agentSlug, 'sat-sfdc_search_accounts',
           { owner, ownerFilterType: 'CONTAINS_WORD' },
-          `(data) => data || []`
+          `(data) => data.accounts || data || []`
         )
       );
       
@@ -461,7 +433,6 @@ export function CRM({ activeTab }: CRMProps) {
       }
       
       if (newAccounts.length > 0) {
-        sessionStorage.setItem(cacheKey, JSON.stringify(results.flat()));
         setActiveFilters(prev => {
           if (isRestoring || prev.some(f => f.type === 'owner' && f.value === ownerSearch)) {
             return prev;
@@ -488,7 +459,33 @@ export function CRM({ activeTab }: CRMProps) {
     // Clear previous account data immediately
     setOpportunities([]);
     setTasks([]);
-    setSelectedAccount(account);
+    
+    // Check if we have enriched details in cache
+    let enrichedAccount = accountDetailsCache.current.get(account.id);
+    
+    if (!enrichedAccount || forceRefresh) {
+      // Fetch full account details
+      try {
+        const details = await transformTool(agentSlug, 'sat-sfdc_fetch_account_details',
+          { accountId: account.id },
+          `(data) => data`
+        );
+        enrichedAccount = {
+          ...account,
+          owner: details.owner,
+          geo_Text__c: details.geo_Text__c,
+          awsci_customer: details.awsci_customer,
+          website: details.website
+        };
+        // Cache the enriched account
+        accountDetailsCache.current.set(account.id, enrichedAccount);
+      } catch (error) {
+        console.error('Failed to fetch account details:', error);
+        enrichedAccount = account; // Use basic account if fetch fails
+      }
+    }
+    
+    setSelectedAccount(enrichedAccount);
     
     // Scroll account into view
     setTimeout(() => {
@@ -498,11 +495,6 @@ export function CRM({ activeTab }: CRMProps) {
       }
     }, 100);
     
-    // Save account state to provider - preserve existing state
-    const currentState = getTabState('crm');
-    const params = new URLSearchParams(currentState);
-    params.set('selectedAccount', account.id);
-    setTabState('crm', params.toString());
     
     const oppsCacheKey = getCacheKey('opportunities', account.id);
     const tasksCacheKey = getCacheKey('tasks', account.id);
@@ -550,52 +542,10 @@ export function CRM({ activeTab }: CRMProps) {
   };
 
   // Auto-load on mount - restore selected account only
-  useEffect(() => {
-    
-    const storedState = getTabState('crm');
-    const params = new URLSearchParams(storedState);
-    const accountId = params.get('selectedAccount');
-    if (accountId) {
-      setTimeout(() => {
-        const account = accounts.find(a => a.id === accountId);
-        if (account) {
-          setSelectedAccount(account);
-          const accountElement = document.querySelector(`[data-account-id="${accountId}"]`);
-          if (accountElement) {
-            accountElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }
-        }
-      }, 100);
-    }
-  }, []); // Empty dependency array - only run on mount
-
-  // Restore selected account from tab navigation state when accounts are loaded
-  useEffect(() => {
-    if (accounts.length > 0 && !selectedAccount) {
-      const state = getTabState('crm');
-      const params = new URLSearchParams(state);
-      const accountId = params.get('selectedAccount');
-      if (accountId) {
-        const account = accounts.find(a => a.id === accountId);
-        if (account) {
-          loadAccountDetails(account);
-        }
-      }
-    }
-  }, [accounts, selectedAccount, getTabState]);
 
   const handleRefresh = async () => {
-    // Clear all caches
-    activeFilters.forEach(filter => {
-      if (filter.type === 'owner' && filter.value) {
-        sessionStorage.removeItem(getCacheKey('accounts', filter.value));
-      } else if (filter.type === 'territory' && filter.id) {
-        sessionStorage.removeItem(getCacheKey('territory-accounts', filter.id));
-      }
-    });
-    
+    // Clear opportunity and task caches
     accounts.forEach(account => {
-      sessionStorage.removeItem(getCacheKey('account-details', account.id));
       sessionStorage.removeItem(getCacheKey('opportunities', account.id));
       sessionStorage.removeItem(getCacheKey('tasks', account.id));
     });
@@ -621,7 +571,6 @@ export function CRM({ activeTab }: CRMProps) {
           const results = await Promise.all(searchPromises);
           const accounts = results.flat();
           allAccounts.push(...accounts);
-          sessionStorage.setItem(getCacheKey('accounts', filter.value), JSON.stringify(accounts));
         } else if (filter.type === 'territory' && filter.id) {
           const result = await transformTool(agentSlug, 'sat-sfdc_list_territory_accounts',
             { territoryId: filter.id },
@@ -629,7 +578,6 @@ export function CRM({ activeTab }: CRMProps) {
           );
           const accounts = result || [];
           allAccounts.push(...accounts);
-          sessionStorage.setItem(getCacheKey('territory-accounts', filter.id), JSON.stringify(accounts));
         }
       }
       const uniqueAccounts = allAccounts.filter((account, index, self) =>
@@ -1147,19 +1095,27 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <button
                 onClick={() => {
-                  setMode('my-accounts');
-                  setAccounts([]);
-                  setActiveFilters([]);
-                  loadMyAccounts();
+                  if (mode !== 'my-accounts') {
+                    setMode('my-accounts');
+                    setSelectedAccount(null);
+                    setOpportunities([]);
+                    setTasks([]);
+                    // Restore from cache or load fresh
+                    if (myAccountsCache.length > 0) {
+                      setAccounts(myAccountsCache);
+                    } else {
+                      loadMyAccounts();
+                    }
+                  }
                 }}
                 style={{
                   flex: 1,
                   padding: '0.5rem',
                   fontSize: '0.875rem',
-                  border: '1px solid var(--color-border)',
+                  border: mode === 'my-accounts' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
                   borderRadius: '6px',
-                  background: mode === 'my-accounts' ? 'var(--color-primary)' : 'var(--color-bg)',
-                  color: mode === 'my-accounts' ? 'white' : 'var(--color-text-primary)',
+                  background: mode === 'my-accounts' ? 'var(--color-bg)' : 'var(--color-bg)',
+                  color: 'var(--color-text-primary)',
                   cursor: 'pointer',
                   fontWeight: mode === 'my-accounts' ? 600 : 400
                 }}
@@ -1168,18 +1124,23 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
               </button>
               <button
                 onClick={() => {
-                  setMode('search');
-                  setAccounts([]);
-                  setActiveFilters([]);
+                  if (mode !== 'search') {
+                    setMode('search');
+                    // Restore search results from cache
+                    setAccounts(searchAccountsCache);
+                    setSelectedAccount(null);
+                    setOpportunities([]);
+                    setTasks([]);
+                  }
                 }}
                 style={{
                   flex: 1,
                   padding: '0.5rem',
                   fontSize: '0.875rem',
-                  border: '1px solid var(--color-border)',
+                  border: mode === 'search' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
                   borderRadius: '6px',
-                  background: mode === 'search' ? 'var(--color-primary)' : 'var(--color-bg)',
-                  color: mode === 'search' ? 'white' : 'var(--color-text-primary)',
+                  background: 'var(--color-bg)',
+                  color: 'var(--color-text-primary)',
                   cursor: 'pointer',
                   fontWeight: mode === 'search' ? 600 : 400
                 }}
@@ -1189,8 +1150,9 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
             </div>
             )}
 
-            {/* Search Controls */}
-            <>
+            {/* Search Controls - Only show in search mode */}
+            {mode === 'search' && (
+            <div>
               {/* Search Type Selector */}
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <button
@@ -1201,7 +1163,7 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                       fontSize: '0.75rem',
                       border: '1px solid var(--color-border)',
                       borderRadius: '6px',
-                      background: searchType === 'owner' ? '#0d6efd' : 'var(--color-bg)',
+                      background: searchType === 'owner' ? 'var(--color-primary)' : 'var(--color-bg)',
                       color: searchType === 'owner' ? 'white' : 'var(--color-text-primary)',
                       cursor: 'pointer',
                       fontWeight: searchType === 'owner' ? 600 : 400
@@ -1313,9 +1275,11 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                 </div>
               )}
             </div>
+            </div>
+            )}
 
             {/* Active Filters */}
-            {activeFilters.length > 0 && (
+            {mode === 'search' && activeFilters.length > 0 && (
               <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                 {activeFilters.map((filter, idx) => {
                   const getFilterColor = () => {
@@ -1385,7 +1349,6 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                 })}
               </div>
             )}
-            </>
             
             {/* Filter Bar */}
             {accounts.length > 0 && (
@@ -1581,7 +1544,8 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                     
                     {(selectedGeos.size > 0 || selectedSizes.size > 0 || nameFilter) && (
                       <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
-                        Showing {filteredAccounts.length} of {accounts.length} accounts
+                        Showing {Math.min(filteredAccounts.length, displayLimit)} of {filteredAccounts.length} accounts
+                        {filteredAccounts.length > accounts.length && ` (${accounts.length} total)`}
                       </div>
                     )}
                   </>
@@ -1600,7 +1564,7 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
               </div>
             )}
             {filteredAccounts.length > 0 ? (
-              filteredAccounts.map((account) => (
+              filteredAccounts.slice(0, displayLimit).map((account) => (
                 <div
                   key={account.id}
                   data-account-id={account.id}
@@ -1753,6 +1717,44 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                 </div>
               </div>
             ) : null}
+            
+            {/* Show More/Less Button */}
+            {filteredAccounts.length > displayLimit && (
+              <div style={{ padding: '1rem', textAlign: 'center', borderTop: '1px solid var(--color-border)' }}>
+                <button
+                  onClick={() => setDisplayLimit(prev => prev + 50)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    background: 'var(--color-primary)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.25rem',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  Show More ({filteredAccounts.length - displayLimit} remaining)
+                </button>
+              </div>
+            )}
+            {displayLimit > 50 && filteredAccounts.length <= displayLimit && (
+              <div style={{ padding: '1rem', textAlign: 'center', borderTop: '1px solid var(--color-border)' }}>
+                <button
+                  onClick={() => setDisplayLimit(50)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    background: 'var(--color-secondary)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.25rem',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  Show Less
+                </button>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -1781,7 +1783,7 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                   }}
                   title="Open in Salesforce"
                 >
-                  Open in Salesforce →
+                  Salesforce 
                 </a>
                 <div className="workspace-dashboard__details-meta">
                   {selectedAccount.owner?.name && <span>Owner: {selectedAccount.owner.name}</span>}

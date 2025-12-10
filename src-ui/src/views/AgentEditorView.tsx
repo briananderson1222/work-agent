@@ -236,19 +236,19 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         : `Please generate a professional system prompt for an AI assistant named "${formData.name}". The assistant should be helpful, clear, and professional.`;
 
       // Use the default agent to generate the prompt
-      const response = await fetch(`${apiBase}/agents/work-agent/text`, {
+      const response = await fetch(`${apiBase}/agents/default/invoke`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          input: [{ role: 'user', content: userMessage }],
-          options: { userId: 'ui-user' },
+          prompt: userMessage,
+          silent: true
         }),
       });
 
       if (!response.ok) throw new Error('Failed to generate prompt');
 
       const data = await response.json();
-      const generatedPrompt = data.data?.text || data.text || '';
+      const generatedPrompt = data.response || '';
 
       setFormData({ ...formData, prompt: generatedPrompt });
     } catch (err: any) {

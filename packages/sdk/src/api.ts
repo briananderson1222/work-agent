@@ -179,7 +179,7 @@ export async function streamMessage(
 export async function invokeAgent(
   agentSlug: string,
   content: string,
-  options: SendMessageOptions = {}
+  options: SendMessageOptions & { schema?: any } = {}
 ): Promise<any> {
   const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
@@ -188,6 +188,7 @@ export async function invokeAgent(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       input: content,
+      schema: options.schema,
       options: {
         model: options.model,
         conversationId: options.conversationId,
@@ -232,6 +233,40 @@ export async function transformTool(
   const data = await response.json();
   if (!data.success) {
     throw new Error(data.error || 'Transform failed');
+  }
+  
+  return data.response;
+}
+
+export interface InvokeOptions {
+  prompt: string;
+  schema?: any;
+  tools?: string[];
+  maxSteps?: number;
+  model?: string;
+  structureModel?: string;
+  system?: string;
+}
+
+/**
+ * Invoke with multi-turn tool calling and structured output
+ * No agent needed - lightweight endpoint
+ */
+export async function invoke(options: InvokeOptions): Promise<any> {
+  const apiBase = await _getApiBase();
+  const response = await fetch(`${apiBase}/invoke`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to invoke: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error || 'Invoke failed');
   }
   
   return data.response;

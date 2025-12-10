@@ -40,7 +40,7 @@ function App() {
   const { apiBase: API_BASE } = useApiBase();
   const availableModels = useModels(API_BASE);
   const agents = useAgents(API_BASE);
-  const { selectedAgent, selectedWorkspace, setAgent, setWorkspace, navigate, isDockOpen } = useNavigation();
+  const { selectedAgent, selectedWorkspace, setAgent, setWorkspace, setWorkspaceTab, navigate, isDockOpen } = useNavigation();
   const { showToast } = useToast();
   const workspaces = useWorkspaces(API_BASE);
   const selectedWorkspaceData = useWorkspace(API_BASE, selectedWorkspace || '', !!selectedWorkspace);
@@ -144,10 +144,15 @@ function App() {
       }
       
       // Parse workspace paths from URL (for workspace tab navigation)
-      if (path.startsWith('/workspace/')) {
+      if (path.startsWith('/workspaces/')) {
         const pathParts = path.split('/');
         const workspaceSlug = pathParts[2];
         const tabId = pathParts[3];
+        
+        // Skip if this is an edit path (already handled above)
+        if (workspaceSlug === 'new' || path.endsWith('/edit')) {
+          return;
+        }
         
         if (workspaceSlug && workspaceSlug !== selectedWorkspace?.slug) {
           handleWorkspaceSelect(workspaceSlug, tabId);
@@ -328,8 +333,6 @@ function App() {
       const response = await fetch(`${API_BASE}/workspaces/${slug}`);
       const data = await response.json();
       if (data.success) {
-        setWorkspace(slug);
-        
         // Use preferred tab ID if provided and valid, otherwise use first tab
         const validTabId = preferredTabId && data.data.tabs.find((t: any) => t.id === preferredTabId)
           ? preferredTabId 
@@ -337,9 +340,8 @@ function App() {
         
         setActiveTabId(validTabId);
         
-        // Update URL
-        const newPath = `/workspace/${slug}${validTabId ? `/${validTabId}` : ''}`;
-        window.history.replaceState(null, '', newPath + window.location.search);
+        // Use setWorkspaceTab to include tab in URL
+        setWorkspaceTab(slug, validTabId);
       }
     } catch (error) {
       log.api('Failed to load workspace:', error);
@@ -348,10 +350,9 @@ function App() {
 
   const handleTabChange = (tabId: string) => {
     setActiveTabId(tabId);
-    // Update URL
+    // Update URL via NavigationContext
     if (selectedWorkspace) {
-      const newPath = `/workspace/${selectedWorkspace.slug}/${tabId}`;
-      window.history.replaceState(null, '', newPath + window.location.search);
+      setWorkspaceTab(selectedWorkspace.slug, tabId);
     }
   };
 

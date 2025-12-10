@@ -2,8 +2,8 @@
 export * from './types';
 
 // Re-export components
-export { Button, Pill } from './components';
-export type { ButtonProps, PillProps } from './components';
+export { Button, Pill, AutoSelectModal } from './components';
+export type { AutoSelectItem } from './components';
 
 // Re-export context hooks
 export {
@@ -73,11 +73,14 @@ export {
   sendMessage,
   streamMessage,
   invokeAgent,
+  invoke,
   transformTool,
   fetchConfig,
   _setWorkspaceContext,
   _setApiBase,
 } from './api';
+
+export type { InvokeOptions } from './api';
 
 export {
   resolveAgentName,
@@ -93,3 +96,6 @@ export {
   useWorkspaceNavigation,
   SDKContext,
 } from './providers';
+
+// Re-export workspace utilities
+export { createWorkspaceContext } from './workspace/context';

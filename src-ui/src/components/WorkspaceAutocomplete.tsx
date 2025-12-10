@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { AutocompleteSelector } from './AutocompleteSelector';
+import { WorkspaceIcon } from './WorkspaceIcon';
 import { getWorkspaceIcon } from '../utils/workspace';
 
 interface WorkspaceAutocompleteProps {
@@ -31,10 +32,12 @@ export function WorkspaceAutocomplete({
       
       return {
         id: workspace.slug,
-        title: `${icon.display} ${workspace.name}${isActive ? ' (active)' : ''}`,
+        title: workspace.name,
         description: workspace.description,
         metadata: workspace,
-        isActive
+        isActive,
+        icon: icon.display,
+        isCustomIcon: icon.isCustomIcon,
       };
     });
 
@@ -51,6 +54,7 @@ export function WorkspaceAutocomplete({
       onSelect={(item) => onSelect(item.metadata)}
       onClose={onClose}
       emptyMessage="No workspaces found"
+      renderIcon={(item) => <WorkspaceIcon workspace={item.metadata} size={32} />}
     />
   );
 }

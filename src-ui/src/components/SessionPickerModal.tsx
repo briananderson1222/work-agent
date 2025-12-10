@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { log } from '@/utils/logger';
+import { AutoSelectModal, AutoSelectItem } from './AutoSelectModal';
 
 interface ConversationMetadata {
   id: string;
@@ -25,8 +26,6 @@ interface SessionPickerModalProps {
 }
 
 export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents, activeConversationIds = [] }: SessionPickerModalProps) {
-  const [search, setSearch] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [conversations, setConversations] = useState<ConversationMetadata[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -58,7 +57,6 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents,
         }
       }
       
-      // Sort by updatedAt descending
       allConversations.sort((a, b) => 
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       );
@@ -70,16 +68,6 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents,
       setLoading(false);
     }
   };
-
-  const filteredConversations = conversations.filter(conv => {
-    const searchLower = search.toLowerCase();
-    const agent = agents.find(a => a.slug === conv.agentSlug);
-    return (
-      conv.title?.toLowerCase().includes(searchLower) ||
-      agent?.name.toLowerCase().includes(searchLower) ||
-      conv.id.toLowerCase().includes(searchLower)
-    );
-  });
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -96,148 +84,51 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents,
     return date.toLocaleDateString();
   };
 
-  if (!isOpen) return null;
+  const items: AutoSelectItem<ConversationMetadata>[] = conversations.map(conv => {
+    const agent = agents.find(a => a.slug === conv.agentSlug);
+    const isActive = activeConversationIds.includes(conv.id);
+    
+    return {
+      id: conv.id,
+      title: conv.title || 'Untitled Conversation',
+      subtitle: agent?.name || conv.agentSlug,
+      timestamp: formatDate(conv.updatedAt),
+      isActive,
+      metadata: conv,
+    };
+  });
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 2000,
+    <AutoSelectModal
+      isOpen={isOpen}
+      title="Open Conversation"
+      placeholder="Search conversations..."
+      items={items}
+      loading={loading}
+      emptyMessage="No conversations found"
+      onSelect={(item) => {
+        onSelect(item.id, item.metadata!.agentSlug);
+        onClose();
       }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: 'var(--bg-primary)',
-          border: '1px solid var(--border-primary)',
-          borderRadius: '12px',
-          width: '90%',
-          maxWidth: '600px',
-          maxHeight: '600px',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-primary)' }}>
-          <h3 style={{ margin: '0 0 12px 0' }}>Open Conversation</h3>
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setSelectedIndex(0);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setSelectedIndex((prev) => Math.min(prev + 1, filteredConversations.length - 1));
-              } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setSelectedIndex((prev) => Math.max(prev - 1, 0));
-              } else if (e.key === 'Enter' && filteredConversations[selectedIndex]) {
-                const conv = filteredConversations[selectedIndex];
-                onSelect(conv.id, conv.agentSlug);
-                onClose();
-              } else if (e.key === 'Escape') {
-                onClose();
-              }
-            }}
-            autoFocus
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '8px',
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              fontSize: '14px',
-            }}
-          />
-        </div>
-        <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
-          {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Loading conversations...
-            </div>
-          ) : filteredConversations.length === 0 ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              No conversations found
-            </div>
-          ) : (
-            filteredConversations.map((conv, idx) => {
-              const agent = agents.find(a => a.slug === conv.agentSlug);
-              const isActive = activeConversationIds.includes(conv.id);
-              return (
-                <button
-                  key={conv.id}
-                  onClick={() => {
-                    onSelect(conv.id, conv.agentSlug);
-                    onClose();
-                  }}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 20px',
-                    border: 'none',
-                    borderBottom: '1px solid var(--border-primary)',
-                    background: idx === selectedIndex ? 'var(--accent-primary)' : 'transparent',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    color: idx === selectedIndex ? 'white' : 'var(--text-primary)',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
-                    <div style={{ fontWeight: 600, flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {isActive && (
-                        <span style={{ 
-                          fontSize: '10px', 
-                          color: idx === selectedIndex ? 'white' : 'var(--accent-primary, #0066cc)'
-                        }}>●</span>
-                      )}
-                      {conv.title || 'Untitled Conversation'}
-                    </div>
-                    <div style={{ 
-                      fontSize: '11px', 
-                      color: idx === selectedIndex ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)',
-                      marginLeft: '12px'
-                    }}>
-                      {formatDate(conv.updatedAt)}
-                    </div>
-                  </div>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: idx === selectedIndex ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)',
-                    display: 'flex',
-                    gap: '12px'
-                  }}>
-                    <span>{agent?.name || conv.agentSlug}</span>
-                    {conv.metadata?.stats?.turns && (
-                      <>
-                        <span>•</span>
-                        <span>{conv.metadata.stats.turns} messages</span>
-                      </>
-                    )}
-                    {conv.metadata?.stats?.totalTokens && (
-                      <>
-                        <span>•</span>
-                        <span>{conv.metadata.stats.totalTokens.toLocaleString()} tokens</span>
-                      </>
-                    )}
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-    </div>
+      onClose={onClose}
+      renderMetadata={(item) => {
+        const stats = item.metadata?.metadata?.stats;
+        if (!stats?.turns && !stats?.totalTokens) return null;
+        
+        return (
+          <div style={{ 
+            fontSize: '12px', 
+            color: 'var(--text-muted)',
+            display: 'flex',
+            gap: '12px',
+            marginTop: '4px',
+          }}>
+            {stats.turns && <span>{stats.turns} messages</span>}
+            {stats.turns && stats.totalTokens && <span>•</span>}
+            {stats.totalTokens && <span>{stats.totalTokens.toLocaleString()} tokens</span>}
+          </div>
+        );
+      }}
+    />
   );
 }

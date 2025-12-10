@@ -326,7 +326,9 @@ Silent invocations (`/invoke` endpoint) bypass approval.
 
 ### Frontend Logging
 
-The frontend uses the `debug` package for structured logging with namespaces:
+**CRITICAL: Never use `console.log()` directly in production code.**
+
+The frontend uses the `debug` package for structured logging with namespaces. This allows users to control log output without code changes.
 
 ```typescript
 import { log } from '@/utils/logger';
@@ -339,6 +341,14 @@ log.workflow('Workflow started:', workflowId);
 log.plugin('Plugin registered:', pluginName);
 log.auth('Auth error:', error);
 ```
+
+**When to use each namespace:**
+- `app:context` - Context providers, state management, React hooks
+- `app:api` - API calls, responses, network errors
+- `app:chat` - Chat interactions, messages, streaming
+- `app:workflow` - Workflow execution, state changes
+- `app:plugin` - Plugin loading, registration, errors
+- `app:auth` - Authentication, authorization, token refresh
 
 **Enable/disable logs in browser console:**
 
@@ -362,6 +372,8 @@ localStorage.debug = ''
 - `app:workflow` - Workflow execution
 - `app:plugin` - Plugin loading and registration
 - `app:auth` - Authentication and authorization
+
+**Exception:** Temporary debugging during development is acceptable, but must be removed before committing.
 
 ## Best Practices
 

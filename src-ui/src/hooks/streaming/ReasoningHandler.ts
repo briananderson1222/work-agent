@@ -32,13 +32,13 @@ export class ReasoningHandler extends StreamEventHandler {
       content: '',
     });
 
-    this.updateChat({
-      streamingMessage: this.createStreamingMessage(state.currentTextChunk, newContentParts),
-    });
+    const streamingMessage = this.createStreamingMessage(state.currentTextChunk, newContentParts);
+    this.updateChat({ streamingMessage });
 
     return createResult(state, {
       contentParts: newContentParts,
       currentReasoningChunk: '',
+      streamingMessage,
     });
   }
 
@@ -52,13 +52,13 @@ export class ReasoningHandler extends StreamEventHandler {
       part => ({ ...part, content: newReasoningChunk })
     );
 
-    this.updateChat({
-      streamingMessage: this.createStreamingMessage(state.currentTextChunk, newContentParts),
-    });
+    const streamingMessage = this.createStreamingMessage(state.currentTextChunk, newContentParts);
+    this.updateChat({ streamingMessage });
 
     return createResult(state, {
       contentParts: newContentParts,
       currentReasoningChunk: newReasoningChunk,
+      streamingMessage,
     });
   }
 
@@ -84,13 +84,13 @@ export class ReasoningHandler extends StreamEventHandler {
           content: reasoningContent,
         });
 
-    this.updateChat({
-      streamingMessage: this.createStreamingMessage(state.currentTextChunk, newContentParts),
-    });
+    const streamingMessage = this.createStreamingMessage(state.currentTextChunk, newContentParts);
+    this.updateChat({ streamingMessage });
 
     return createResult(state, {
       contentParts: newContentParts,
       reasoningChunks,
+      streamingMessage,
     });
   }
 }

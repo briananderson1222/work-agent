@@ -66,6 +66,7 @@ export class WorkAgentRuntime {
   private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
+  private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
   private agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }> = new Map(); // Cache fixed token counts per agent
   private toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }> = new Map(); // Tool name mapping with parsed data
   private toolNameReverseMapping: Map<string, string> = new Map(); // Original -> Normalized for O(1) lookup
@@ -182,6 +183,26 @@ export class WorkAgentRuntime {
 
     // Create VoltAgent instances for each agent
     const agents: Record<string, Agent> = {};
+
+    // Create default agent (always available, uses defaultModel, no tools)
+    const defaultAgent = new Agent({
+      name: 'default',
+      instructions: 'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
+      model: createBedrockProvider({ 
+        appConfig: this.appConfig, 
+        agentSpec: { model: this.appConfig.defaultModel } as any 
+      }),
+      tools: [], // No tools
+    });
+    agents['default'] = defaultAgent;
+    this.activeAgents.set('default', defaultAgent);
+    this.agentMetadataMap.set('default', {
+      slug: 'default',
+      name: 'Default Agent',
+      description: 'System default agent with no tools',
+      updatedAt: new Date().toISOString()
+    });
+    this.logger.info('Default agent created', { model: this.appConfig.defaultModel });
 
     for (const meta of agentMetadataList) {
       try {
@@ -1326,15 +1347,19 @@ export class WorkAgentRuntime {
           app.post('/agents/:slug/invoke', async (c) => {
             try {
               const slug = c.req.param('slug');
-              const { prompt, silent = true, model, tools: toolNames } = await c.req.json();
+              const { input, silent = true, model, tools: toolNames, schema } = await c.req.json();
 
               const agent = this.activeAgents.get(slug);
               if (!agent) {
                 return c.json({ success: false, error: 'Agent not found' }, 404);
               }
 
-              // Invoke agent using generateText with simple prompt string
-              // Don't pass userId/conversationId to avoid loading empty conversation history
+              // Build prompt with schema instruction if provided
+              let prompt = input;
+              if (schema) {
+                prompt = `${input}\n\nYou must return your response as valid JSON matching this exact schema:\n${JSON.stringify(schema, null, 2)}\n\nReturn ONLY the JSON object, no markdown formatting, no explanations.`;
+              }
+
               const options: any = {};
               if (model) {
                 const resolvedModel = await this.modelCatalog.resolveModelId(model);
@@ -1344,7 +1369,7 @@ export class WorkAgentRuntime {
                 });
               }
               
-              // Override tools if specified - filter agent's tools by name
+              // Override tools if specified
               if (toolNames && Array.isArray(toolNames)) {
                 const agentTools = agent.tools || [];
                 options.tools = agentTools.filter((t: any) => 
@@ -1352,12 +1377,34 @@ export class WorkAgentRuntime {
                 );
               }
               
+              // Use generateText to support multi-turn tool calling
               const result = await agent.generateText(prompt, options);
+
+              // Parse response if schema provided
+              let response = result.text;
+              if (schema && typeof result.text === 'string') {
+                try {
+                  // Extract JSON from markdown code blocks if present
+                  let jsonText = result.text.trim();
+                  const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                  if (jsonMatch) {
+                    jsonText = jsonMatch[1].trim();
+                  }
+                  response = JSON.parse(jsonText);
+                } catch (e) {
+                  this.logger.warn('Failed to parse JSON response', { error: e, text: result.text });
+                  // Return raw text if parsing fails
+                }
+              }
 
               return c.json({ 
                 success: true, 
-                response: result.text,
-                usage: result.usage
+                response,
+                usage: result.usage,
+                steps: result.steps,
+                toolCalls: result.toolCalls,
+                toolResults: result.toolResults,
+                reasoning: result.reasoning
               });
             } catch (error: any) {
               this.logger.error('Failed to invoke agent', { error });
@@ -1680,6 +1727,119 @@ export class WorkAgentRuntime {
               return c.json({ success: false, error: 'Approval request not found' }, 404);
             } catch (error: any) {
               this.logger.error('Approval response error', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // New lightweight invoke endpoint - uses global tool registry
+          app.post('/invoke', async (c) => {
+            try {
+              const { 
+                prompt, 
+                schema, 
+                tools: toolIds = [],
+                maxSteps = 10,
+                model,
+                structureModel,
+                system
+              } = await c.req.json();
+
+              // Get tools from global registry
+              const filteredTools = toolIds.length > 0
+                ? toolIds.map(id => this.globalToolRegistry.get(id)).filter(Boolean)
+                : [];
+
+              console.log('[INVOKE] Requested:', toolIds);
+              console.log('[INVOKE] Available in registry:', this.globalToolRegistry.size);
+              console.log('[INVOKE] Filtered:', filteredTools.map(t => t.name));
+              console.log('[INVOKE] Schema provided:', !!schema);
+
+              // Resolve models - use nova-lite for tool calling (better at tools), micro for structuring
+              const defaultModel = model || 'us.amazon.nova-lite-v1:0';
+              const mainModel = createBedrockProvider({ 
+                appConfig: this.appConfig,
+                agentSpec: { 
+                  model: await this.modelCatalog.resolveModelId(defaultModel)
+                } as any
+              });
+              
+              const fastModel = structureModel
+                ? createBedrockProvider({ 
+                    appConfig: this.appConfig,
+                    agentSpec: { 
+                      model: await this.modelCatalog.resolveModelId(structureModel)
+                    } as any
+                  })
+                : createBedrockProvider({ 
+                    appConfig: this.appConfig,
+                    agentSpec: { 
+                      model: await this.modelCatalog.resolveModelId('us.amazon.nova-micro-v1:0')
+                    } as any
+                  });
+
+              const defaultSystem = 'You are a helpful assistant. Use the available tools to answer the user\'s request accurately and concisely.';
+              
+              // Create temp agent for tool execution
+              const tempAgent = new Agent({
+                name: `invoke-${Date.now()}`,
+                instructions: system || defaultSystem,
+                model: mainModel,
+                tools: filteredTools,
+                maxSteps
+              });
+
+              const tempConvId = `invoke-${Date.now()}`;
+              
+              // Phase 1: Tool execution
+              const textResult = await tempAgent.generateText(prompt, {
+                conversationId: tempConvId,
+                userId: 'invoke-user'
+              });
+              
+              console.log('[INVOKE] Phase 1 complete - Steps:', textResult.steps?.length, 'Text length:', textResult.text.length);
+              
+              if (!schema) {
+                return c.json({
+                  success: true,
+                  response: textResult.text,
+                  usage: textResult.usage,
+                  steps: textResult.steps?.length || 0
+                });
+              }
+              
+              // Phase 2: Structure output (no tools needed)
+              const { jsonSchema } = await import('ai');
+              
+              // Create new agent without tools for structuring
+              const structureAgent = new Agent({
+                name: `invoke-structure-${Date.now()}`,
+                instructions: 'Format the provided information as structured JSON.',
+                model: fastModel || mainModel,
+                tools: [],  // No tools for structuring
+                maxSteps: 1
+              });
+              
+              const objectResult = await structureAgent.generateObject(
+                `${textResult.text}\n\nFormat the above information as structured JSON.`,
+                jsonSchema(schema),
+                {
+                  conversationId: tempConvId,
+                  userId: 'invoke-user'
+                }
+              );
+              
+              return c.json({
+                success: true,
+                response: objectResult.object,
+                usage: {
+                  promptTokens: textResult.usage.promptTokens + objectResult.usage.promptTokens,
+                  completionTokens: textResult.usage.completionTokens + objectResult.usage.completionTokens,
+                  totalTokens: textResult.usage.totalTokens + objectResult.usage.totalTokens
+                },
+                steps: textResult.steps?.length || 0
+              });
+            } catch (error: any) {
+              this.logger.error('Failed to invoke', { error });
               return c.json({ success: false, error: error.message }, 500);
             }
           });
@@ -2412,6 +2572,13 @@ export class WorkAgentRuntime {
     
     // Cache tools for runtime filtering
     this.agentTools.set(agentSlug, tools);
+    
+    // Add to global tool registry (deduplicated by name)
+    for (const tool of tools) {
+      if (!this.globalToolRegistry.has(tool.name)) {
+        this.globalToolRegistry.set(tool.name, tool);
+      }
+    }
 
     // Calculate and cache fixed token counts (system prompt + tools)
     // These don't change unless the agent is reloaded
@@ -2457,6 +2624,9 @@ export class WorkAgentRuntime {
       memory,
       tools,
       hooks,
+      ...(spec.maxTurns !== undefined || this.appConfig.defaultMaxTurns !== undefined ? {
+        maxTurns: spec.maxTurns ?? this.appConfig.defaultMaxTurns
+      } : {}),
       ...(spec.guardrails && {
         temperature: spec.guardrails.temperature,
         maxOutputTokens: spec.guardrails.maxTokens,
