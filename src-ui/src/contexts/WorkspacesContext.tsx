@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore } from 'react';
 import { log } from '@/utils/logger';
 
 type WorkspaceData = {
@@ -35,9 +35,7 @@ class WorkspacesStore {
     return () => this.listeners.delete(listener);
   };
 
-  getSnapshot = () => {
-    return this.workspaces;
-  };
+  getSnapshot = () => this.workspaces;
 
   private notify = () => {
     this.listeners.forEach(listener => listener());
@@ -70,7 +68,11 @@ class WorkspacesStore {
   }
 
   async fetchOne(apiBase: string, slug: string) {
-    // Always fetch fresh data, don't use cached promise
+    const key = `one:${slug}`;
+    if (this.fetching.has(key)) {
+      return this.fetching.get(key);
+    }
+
     const promise = (async () => {
       try {
         const response = await fetch(`${apiBase}/workspaces/${slug}`);
@@ -87,9 +89,12 @@ class WorkspacesStore {
         }
       } catch (error) {
         log.api(`Failed to fetch workspace ${slug}:`, error);
+      } finally {
+        this.fetching.delete(key);
       }
     })();
 
+    this.fetching.set(key, promise);
     return promise;
   }
 
@@ -108,27 +113,27 @@ class WorkspacesStore {
       }
     } catch (error) {
       log.api('Failed to create workspace:', error);
-      throw error;
     }
   }
 
-  async update(apiBase: string, slug: string, workspace: Partial<WorkspaceData>) {
+  async update(apiBase: string, slug: string, updates: Partial<WorkspaceData>) {
     try {
       const response = await fetch(`${apiBase}/workspaces/${slug}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workspace),
+        body: JSON.stringify(updates),
       });
       const result = await response.json();
       
       if (result.success) {
         const idx = this.workspaces.findIndex(w => w.slug === slug);
-        if (idx >= 0) this.workspaces[idx] = result.data;
-        this.notify();
+        if (idx >= 0) {
+          this.workspaces[idx] = result.data;
+          this.notify();
+        }
       }
     } catch (error) {
-      log.api(`Failed to update workspace ${slug}:`, error);
-      throw error;
+      log.api('Failed to update workspace:', error);
     }
   }
 
@@ -144,113 +149,58 @@ class WorkspacesStore {
         this.notify();
       }
     } catch (error) {
-      log.api(`Failed to delete workspace ${slug}:`, error);
-      throw error;
+      log.api('Failed to delete workspace:', error);
     }
   }
 }
 
 const workspacesStore = new WorkspacesStore();
 
-type WorkspacesContextType = {
-  fetchWorkspaces: (apiBase: string) => Promise<void>;
-  fetchWorkspace: (apiBase: string, slug: string) => Promise<void>;
-  createWorkspace: (apiBase: string, workspace: WorkspaceData) => Promise<void>;
-  updateWorkspace: (apiBase: string, slug: string, workspace: Partial<WorkspaceData>) => Promise<void>;
-  deleteWorkspace: (apiBase: string, slug: string) => Promise<void>;
-};
-
-const WorkspacesContext = createContext<WorkspacesContextType | undefined>(undefined);
+const WorkspacesContext = createContext<{
+  fetchAll: (apiBase: string) => Promise<void>;
+  fetchOne: (apiBase: string, slug: string) => Promise<void>;
+  create: (apiBase: string, workspace: WorkspaceData) => Promise<void>;
+  update: (apiBase: string, slug: string, updates: Partial<WorkspaceData>) => Promise<void>;
+  delete: (apiBase: string, slug: string) => Promise<void>;
+} | null>(null);
 
 export function WorkspacesProvider({ children }: { children: ReactNode }) {
-  const fetchWorkspaces = useCallback((apiBase: string) => {
-    return workspacesStore.fetchAll(apiBase);
-  }, []);
-
-  const fetchWorkspace = useCallback((apiBase: string, slug: string) => {
-    return workspacesStore.fetchOne(apiBase, slug);
-  }, []);
-
-  const createWorkspace = useCallback((apiBase: string, workspace: WorkspaceData) => {
-    return workspacesStore.create(apiBase, workspace);
-  }, []);
-
-  const updateWorkspace = useCallback((apiBase: string, slug: string, workspace: Partial<WorkspaceData>) => {
-    return workspacesStore.update(apiBase, slug, workspace);
-  }, []);
-
-  const deleteWorkspace = useCallback((apiBase: string, slug: string) => {
-    return workspacesStore.delete(apiBase, slug);
-  }, []);
+  const fetchAll = useCallback((apiBase: string) => workspacesStore.fetchAll(apiBase), []);
+  const fetchOne = useCallback((apiBase: string, slug: string) => workspacesStore.fetchOne(apiBase, slug), []);
+  const create = useCallback((apiBase: string, workspace: WorkspaceData) => workspacesStore.create(apiBase, workspace), []);
+  const update = useCallback((apiBase: string, slug: string, updates: Partial<WorkspaceData>) => workspacesStore.update(apiBase, slug, updates), []);
+  const deleteWorkspace = useCallback((apiBase: string, slug: string) => workspacesStore.delete(apiBase, slug), []);
 
   return (
-    <WorkspacesContext.Provider value={{ 
-      fetchWorkspaces, 
-      fetchWorkspace, 
-      createWorkspace, 
-      updateWorkspace, 
-      deleteWorkspace 
-    }}>
+    <WorkspacesContext.Provider value={{ fetchAll, fetchOne, create, update, delete: deleteWorkspace }}>
       {children}
     </WorkspacesContext.Provider>
   );
 }
 
-export function useWorkspaces(apiBase: string, shouldFetch: boolean = true): WorkspaceData[] {
+// Hook for actions
+export function useWorkspacesActions() {
   const context = useContext(WorkspacesContext);
   if (!context) {
-    throw new Error('useWorkspaces must be used within WorkspacesProvider');
+    throw new Error('useWorkspacesActions must be used within WorkspacesProvider');
   }
+  return context;
+}
 
-  const { fetchWorkspaces } = context;
-
+// Hook for data subscription (no side effects)
+export function useWorkspaces(apiBase: string) {
   const workspaces = useSyncExternalStore(
     workspacesStore.subscribe,
-    workspacesStore.getSnapshot,
     workspacesStore.getSnapshot
   );
-
-  useEffect(() => {
-    if (shouldFetch) {
-      fetchWorkspaces(apiBase);
-    }
-  }, [apiBase, shouldFetch, fetchWorkspaces]);
-
   return workspaces;
 }
 
-export function useWorkspace(apiBase: string, slug: string, shouldFetch: boolean = true): WorkspaceData | null {
-  const context = useContext(WorkspacesContext);
-  if (!context) {
-    throw new Error('useWorkspace must be used within WorkspacesProvider');
-  }
-
-  const { fetchWorkspace } = context;
-
+// Hook for single workspace (no auto-fetch)
+export function useWorkspace(apiBase: string, slug: string, enabled = true) {
   const workspaces = useSyncExternalStore(
     workspacesStore.subscribe,
-    workspacesStore.getSnapshot,
     workspacesStore.getSnapshot
   );
-
-  useEffect(() => {
-    // Always fetch when slug changes to get latest data
-    if (shouldFetch && slug) {
-      fetchWorkspace(apiBase, slug);
-    }
-  }, [apiBase, slug, shouldFetch, fetchWorkspace]);
-
   return workspaces.find(w => w.slug === slug) || null;
-}
-
-export function useWorkspaceActions() {
-  const context = useContext(WorkspacesContext);
-  if (!context) {
-    throw new Error('useWorkspaceActions must be used within WorkspacesProvider');
-  }
-  return {
-    createWorkspace: context.createWorkspace,
-    updateWorkspace: context.updateWorkspace,
-    deleteWorkspace: context.deleteWorkspace,
-  };
 }

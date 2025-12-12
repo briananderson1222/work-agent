@@ -1494,11 +1494,13 @@ export class WorkAgentRuntime {
 
           // Pure transformation endpoint (no LLM, just data mapping)
           app.post('/agents/:slug/invoke/transform', async (c) => {
+            console.log('[TRANSFORM] Endpoint called');
             const endpointStart = performance.now();
             
             try {
               const slug = c.req.param('slug');
               const { toolName, toolArgs, transform } = await c.req.json();
+              console.log('[TRANSFORM] Tool:', toolName, 'Args:', toolArgs);
               
               const agent = this.activeAgents.get(slug);
               if (!agent) {
@@ -1540,6 +1542,53 @@ export class WorkAgentRuntime {
               }
               
               this.logger.debug('[Tool] Result', { toolName, result: unwrappedResult });
+              console.log('[PARSE] unwrappedResult type:', typeof unwrappedResult);
+              
+              let parseError: string | undefined;
+              
+              // Check if unwrappedResult itself is a string containing both error and valid data
+              if (typeof unwrappedResult === 'string') {
+                console.log('[PARSE] unwrappedResult is a string, checking for embedded JSON');
+                const lastBrace = unwrappedResult.lastIndexOf(', {');
+                console.log('[PARSE] Last brace position:', lastBrace);
+                if (lastBrace > 0) {
+                  try {
+                    parseError = unwrappedResult.substring(0, lastBrace);
+                    const jsonStr = unwrappedResult.substring(lastBrace + 2);
+                    console.log('[PARSE] Attempting to parse JSON (first 100 chars):', jsonStr.substring(0, 100));
+                    const parsed = JSON.parse(jsonStr);
+                    console.log('[PARSE] Successfully parsed, extracting task');
+                    // Replace unwrappedResult with the parsed data
+                    unwrappedResult = parsed?.data?.sfdc?.task || parsed;
+                    console.log('[PARSE] Extracted task subject:', unwrappedResult?.subject);
+                  } catch (e) {
+                    console.error('[PARSE] Failed to parse embedded JSON:', e);
+                    parseError = undefined;
+                  }
+                }
+              }
+              
+              // Check if response field contains both error and valid data
+              if (unwrappedResult?.response && typeof unwrappedResult.response === 'string') {
+                console.log('[PARSE] Checking response string for embedded JSON');
+                const lastBrace = unwrappedResult.response.lastIndexOf(', {');
+                console.log('[PARSE] Last brace position:', lastBrace);
+                if (lastBrace > 0) {
+                  try {
+                    parseError = unwrappedResult.response.substring(0, lastBrace);
+                    const jsonStr = unwrappedResult.response.substring(lastBrace + 2);
+                    console.log('[PARSE] Attempting to parse JSON (first 100 chars):', jsonStr.substring(0, 100));
+                    const parsed = JSON.parse(jsonStr);
+                    console.log('[PARSE] Successfully parsed, extracting task');
+                    // Replace unwrappedResult with the parsed data
+                    unwrappedResult = parsed?.data?.sfdc?.task || parsed;
+                    console.log('[PARSE] Extracted task subject:', unwrappedResult?.subject);
+                  } catch (e) {
+                    console.error('[PARSE] Failed to parse embedded JSON:', e);
+                    parseError = undefined;
+                  }
+                }
+              }
               
               // Check if the MCP tool returned an error
               if (unwrappedResult?.success === false && unwrappedResult?.error) {
@@ -1571,7 +1620,8 @@ export class WorkAgentRuntime {
                 debug: {
                   toolDuration,
                   transformDuration,
-                  totalDuration: performance.now() - endpointStart
+                  totalDuration: performance.now() - endpointStart,
+                  ...(parseError && { parseError })
                 }
               });
             } catch (error: any) {

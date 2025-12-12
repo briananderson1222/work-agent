@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast, transformTool, useAgents, useCreateChatSession, useNavigation, useWorkspaceNavigation, useActiveChatActions, resolveAgentName, Button, Pill, useSendMessage, useApiBase } from '@stallion-ai/sdk';
 import { useUserDetails } from './hooks';
+import { LeadershipInsightModal } from './LeadershipInsightModal';
 import './workspace.css';
 
 const SALESFORCE_BASE_URL = 'https://aws-crm.lightning.force.com';
@@ -93,14 +94,15 @@ export function CRM({ activeTab }: CRMProps) {
     const storedState = activeTab ? getTabState('crm') : '';
     const params = new URLSearchParams(storedState);
     const filters = params.get('filters') ? JSON.parse(params.get('filters')!) : [];
+    const storedMode = params.get('mode') as 'my-accounts' | 'search' | null;
     return {
-      mode: 'search' as 'my-accounts' | 'search',
+      mode: storedMode || 'my-accounts',
       searchType: (params.get('searchType') as 'owner' | 'territory') || 'owner',
       activeFilters: filters
     };
   }, [activeTab]);
   
-  const [mode, setMode] = useState<'my-accounts' | 'search'>('search');
+  const [mode, setMode] = useState<'my-accounts' | 'search'>(initialState.mode);
   const [searchInput, setSearchInput] = useState('');
   const [searchType, setSearchType] = useState<'owner' | 'territory'>(initialState.searchType);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
@@ -116,6 +118,7 @@ export function CRM({ activeTab }: CRMProps) {
   const [displayLimit, setDisplayLimit] = useState(50); // Show 50 accounts initially
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
+  const [showLeadershipModal, setShowLeadershipModal] = useState(false);
   
   // In-memory cache for enriched account details (persists until page refresh)
   const accountDetailsCache = useRef<Map<string, Account>>(new Map());
@@ -222,7 +225,7 @@ export function CRM({ activeTab }: CRMProps) {
   }, []);
 
   const loadMyAccounts = async () => {
-    if (!userDetails) {
+    if (!userDetails?.sfdcId) {
       showToast('User details not loaded yet', 'error');
       return;
     }
@@ -800,7 +803,24 @@ export function CRM({ activeTab }: CRMProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem' }}>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Account:</span>
-                  <span style={{ color: 'var(--text-primary)' }}>{selectedAccount?.name}</span>
+                  <button
+                    onClick={() => {
+                      setSelectedOpportunity(null);
+                      setShowLogActivityModal(false);
+                      if (selectedAccount) loadAccountDetails(selectedAccount, true);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-primary)',
+                      cursor: 'pointer',
+                      padding: 0,
+                      textDecoration: 'underline',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    {selectedAccount?.name}
+                  </button>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Opportunity:</span>
@@ -1085,6 +1105,168 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
       )}
 
     <div className="workspace-container">
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        padding: '0.5rem 1rem',
+        borderBottom: '1px solid var(--border-primary)',
+        background: 'var(--bg-primary)',
+        gap: '0.5rem',
+      }}>
+        <button
+          onClick={() => setShowLeadershipModal(true)}
+          style={{
+            padding: '0.5rem 1rem',
+            background: 'transparent',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-primary)',
+            borderRadius: '0.375rem',
+            fontSize: '0.875rem',
+            cursor: 'pointer',
+            fontWeight: 500,
+          }}
+        >
+          Leadership Insight
+        </button>
+        <button
+          onClick={() => {
+            const prompt = `# Generate Insights
+
+## Workflow
+
+1. **Confirm scope** - Which timeframe and filter? (default: last 7 days, user's tasks)
+2. **[P] Retrieve data:**
+   - Get tasks/activities from SFDC for specified period
+   - Get existing insights created by user for same period
+3. **Cross-reference** - Match activities to existing insights by:
+   - Account/Opportunity IDs
+   - Activity date overlap
+   - Description similarity
+4. **Filter unlogged activities** - Exclude activities already covered by insights
+5. **Analyze remaining activities** - Group by account/opportunity and identify significant items with business impact:
+   - Customer wins or milestones
+   - Technical blockers or challenges
+   - Strategic opportunities
+   - Risk indicators
+   - Partner engagement highlights
+6. **[P] Draft insights** - For each significant item, create insight draft with:
+   - Title (AI-generated or manual)
+   - Description (situation, action, result)
+   - Category (Highlight, Lowlight, Risk, Observation, Blocker, Challenge)
+   - Related accounts/opportunities
+   - Relevant AWS services (if applicable)
+   - Relevant tags
+7. **Present drafts** - Numbered list with quick summary (or report "No new insights needed")
+8. **User selects** - Which numbered insights to create
+9. **[P] Create insights** - Submit selected insights to SFDC
+
+## What Makes a Good Leadership Insight
+
+**MUST:**
+- Focus on business outcomes and impact
+- Highlight strategic value or risk
+- Provide context on "why this matters"
+- Connect to customer goals or AWS priorities
+
+**MUST NOT:**
+- Simply log that an activity happened
+- Include routine/expected activities without notable outcomes
+- Create insights for administrative tasks
+- Create insights just to have something to report
+
+**SHOULD:**
+- If all significant activities are already covered by insights, report "No new insights needed"
+- Only propose insights with clear business value
+
+## Activity Significance Criteria
+
+- **Highlight**: Successful outcomes, customer adoption, competitive wins
+- **Lowlight**: Setbacks, lost opportunities, delays
+- **Risk**: Potential issues, customer concerns, technical debt
+- **Observation**: Market trends, customer patterns, feedback themes
+- **Blocker**: Issues preventing progress
+- **Challenge**: Difficulties being addressed
+
+## Questions to Ask
+
+1. "Which timeframe to review?" (default: last 7 days)
+2. "Filter by account, opportunity, or all activities?" (default: all)
+3. "Which numbered insights should I create?" (only if insights proposed)
+
+## Output Format
+
+### When insights are proposed:
+\`\`\`
+📊 Leadership Insights - [Date Range]
+
+Activities reviewed: [count] tasks/activities
+Existing insights: [count] insights already created
+New opportunities: [count] activities without insights
+
+1. [Category] - [Title]
+   - Account: [Account Name] [link]
+   - Opportunity: [Opportunity Name] [link] (if applicable)
+   - Activity: [Activity subject/date]
+   - Summary: [Brief description]
+   - AWS Services: [Service names] (if applicable)
+   - Tags: [Suggested tags]
+   
+2. [Category] - [Title]
+   - Account: [Account Name] [link]
+   - Activity: [Activity subject/date]
+   - Summary: [Brief description]
+   - AWS Services: [Service names] (if applicable)
+   - Tags: [Suggested tags]
+
+**Action Required:**
+Which insights should I create? (provide numbers)
+\`\`\`
+
+### When no insights needed:
+\`\`\`
+📊 Leadership Insights - [Date Range]
+
+Activities reviewed: [count] tasks/activities
+Existing insights: [count] insights already created
+
+✅ No new insights needed - all significant activities are already covered by existing insights.
+\`\`\`
+
+## Notes
+
+- Default to last 7 days unless user specifies otherwise
+- MUST skip activities already covered by existing insights
+- MUST focus on items with business impact or strategic value, not routine activities
+- SHOULD report "No new insights needed" if everything significant is already covered
+- Include SFDC links for accounts/opportunities/existing insights
+- MAY use AI enrichment if available to improve insight quality
+- Suggest relevant AWS services and tags based on activity content
+- MAY group related activities into single insight when appropriate`;
+
+            // Send to chat dock
+            window.dispatchEvent(new CustomEvent('sendChatMessage', { 
+              detail: { message: prompt, agentSlug: 'stallion-workspace:work-agent' }
+            }));
+          }}
+          style={{
+            padding: '0.5rem',
+            background: 'transparent',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-primary)',
+            borderRadius: '0.375rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          title="Ask AI to generate insights"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+      </div>
+      
       <div className="workspace-dashboard__content">
         <aside className="workspace-dashboard__sidebar">
           <div className="workspace-dashboard__sidebar-header">
@@ -1578,28 +1760,35 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                   className={`workspace-dashboard__list-item ${
                     selectedAccount?.id === account.id ? 'is-active' : ''
                   }`}
-                  style={{ position: 'relative', paddingBottom: '0.5rem' }}
                 >
-                  {/* Owner pill - top left */}
-                  {account.owner?.name && (
-                    <div style={{ position: 'absolute', top: '0.25rem', left: '0.5rem' }}>
-                      <span style={{
-                        fontSize: '0.65rem',
-                        padding: '2px 6px',
-                        borderRadius: '12px',
-                        background: account._sources?.some(s => s.type === 'owner') ? '#0d6efd' : 'transparent',
-                        color: account._sources?.some(s => s.type === 'owner') ? 'white' : 'var(--color-text-secondary)',
-                        border: '1px solid #0d6efd',
-                        fontWeight: 500
-                      }}>
-                        {account.owner.name}
-                      </span>
-                    </div>
-                  )}
-                  
-                  <div className="workspace-dashboard__list-item-title" style={{ marginTop: '0.75rem' }}>
+                  <div className="workspace-dashboard__list-item-title">
                     {account.name}
                   </div>
+                  
+                  {/* Owner and Territory Pills */}
+                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                    {account._sources?.map((source, idx) => {
+                      const getSourceColor = () => {
+                        if (source.type === 'owner') return '#0d6efd';
+                        if (source.type === 'territory') return '#198754';
+                        return 'var(--color-primary)';
+                      };
+                      
+                      return (
+                        <span key={idx} style={{
+                          fontSize: '0.65rem',
+                          padding: '2px 6px',
+                          borderRadius: '12px',
+                          background: getSourceColor(),
+                          color: 'white',
+                          fontWeight: 500
+                        }}>
+                          {source.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  
                   <div className="workspace-dashboard__list-item-meta">
                     {account.website && (
                       <a
@@ -1647,62 +1836,21 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                   </div>
                   <div style={{
                     position: 'absolute',
-                    top: '0.25rem',
-                    right: '0.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem'
+                    top: '0.5rem',
+                    right: '0.5rem'
                   }}>
-                    {account._sources?.map((source, idx) => {
-                      const getSourceColor = () => {
-                        if (source.type === 'owner') return '#0d6efd';
-                        if (source.type === 'territory') return '#198754';
-                        return 'var(--color-primary)';
-                      };
-                      
-                      // Skip owner source since it's shown in top left
-                      if (source.type === 'owner') {
-                        return null;
-                      }
-                      
-                      // For territory, show last 11 chars of territory name
-                      if (source.type === 'territory') {
-                        const shortName = source.label.slice(-11);
-                        return (
-                          <span key={idx} style={{
-                            fontSize: '0.65rem',
-                            padding: '2px 6px',
-                            borderRadius: '12px',
-                            background: getSourceColor(),
-                            color: 'white',
-                            fontWeight: 500
-                          }} title={source.label}>
-                            {shortName}
-                          </span>
-                        );
-                      }
-                      
-                      return null;
-                    })}
                     <a
                       href={`${SALESFORCE_BASE_URL}/lightning/r/Account/${account.id}/view`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        color: 'var(--color-text-secondary)',
-                        opacity: 0.6,
-                        cursor: 'pointer',
+                        color: 'var(--color-primary)',
+                        fontSize: '1rem',
                         textDecoration: 'none'
                       }}
                       title="Open in Salesforce"
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
+                      ↗
                     </a>
                   </div>
                 </div>
@@ -1771,19 +1919,13 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                     position: 'absolute',
                     top: '0.5rem',
                     right: '0.5rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '0.5rem 0.75rem',
-                    background: 'var(--color-primary)',
-                    color: 'white',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
+                    color: 'var(--color-primary)',
+                    fontSize: '1.25rem',
                     textDecoration: 'none'
                   }}
                   title="Open in Salesforce"
                 >
-                  Salesforce 
+                  ↗
                 </a>
                 <div className="workspace-dashboard__details-meta">
                   {selectedAccount.owner?.name && <span>Owner: {selectedAccount.owner.name}</span>}
@@ -1896,18 +2038,13 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       style={{
-                                        color: 'var(--color-text-secondary)',
-                                        opacity: 0.6,
-                                        cursor: 'pointer',
+                                        color: 'var(--color-primary)',
+                                        fontSize: '1rem',
                                         textDecoration: 'none'
                                       }}
                                       title="Open in Salesforce"
                                     >
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                        <polyline points="15 3 21 3 21 9"></polyline>
-                                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                                      </svg>
+                                      ↗
                                     </a>
                                   </div>
                                 </div>
@@ -2009,18 +2146,13 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       style={{
-                                        color: 'var(--color-text-secondary)',
-                                        opacity: 0.6,
-                                        cursor: 'pointer',
+                                        color: 'var(--color-primary)',
+                                        fontSize: '1rem',
                                         textDecoration: 'none'
                                       }}
                                       title="Open in Salesforce"
                                     >
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                        <polyline points="15 3 21 3 21 9"></polyline>
-                                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                                      </svg>
+                                      ↗
                                     </a>
                                   </div>
                                 </div>
@@ -2093,6 +2225,12 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
         </section>
       </div>
     </div>
+    
+    <LeadershipInsightModal
+      isOpen={showLeadershipModal}
+      onClose={() => setShowLeadershipModal(false)}
+      agentSlug={agentSlug}
+    />
     </>
   );
 }

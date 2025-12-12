@@ -8,6 +8,7 @@ import { ConfigProvider } from './contexts/ConfigContext';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { WorkspacesProvider } from './contexts/WorkspacesContext';
 import { AgentsProvider } from './contexts/AgentsContext';
+import { AgentToolsProvider } from './contexts/AgentToolsContext';
 import { WorkflowsProvider } from './contexts/WorkflowsContext';
 import { ConversationsProvider } from './contexts/ConversationsContext';
 import { ActiveChatsProvider } from './contexts/ActiveChatsContext';
@@ -49,22 +50,24 @@ pluginRegistry.initialize().then(() => {
                   <ModelCapabilitiesProvider apiBase={API_BASE}>
                     <WorkspacesProvider>
                     <AgentsProvider>
-                      <WorkflowsProvider>
-                        <ConversationsProvider>
-                          <ActiveChatsProvider>
-                            <StreamingProvider>
-                              <StatsProvider>
-                                <AnalyticsProvider>
-                                  <SDKProvider>
-                                    <App />
-                                    <NotificationContainer />
-                                  </SDKProvider>
-                                </AnalyticsProvider>
-                              </StatsProvider>
-                            </StreamingProvider>
-                          </ActiveChatsProvider>
-                        </ConversationsProvider>
-                      </WorkflowsProvider>
+                      <AgentToolsProvider>
+                        <WorkflowsProvider>
+                          <ConversationsProvider>
+                            <ActiveChatsProvider>
+                              <StreamingProvider>
+                                <StatsProvider>
+                                  <AnalyticsProvider>
+                                    <SDKProvider>
+                                      <App />
+                                      <NotificationContainer />
+                                    </SDKProvider>
+                                  </AnalyticsProvider>
+                                </StatsProvider>
+                              </StreamingProvider>
+                            </ActiveChatsProvider>
+                          </ConversationsProvider>
+                        </WorkflowsProvider>
+                      </AgentToolsProvider>
                     </AgentsProvider>
                   </WorkspacesProvider>
                   </ModelCapabilitiesProvider>

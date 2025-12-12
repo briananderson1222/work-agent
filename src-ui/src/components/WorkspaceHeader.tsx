@@ -29,6 +29,7 @@ interface WorkspaceHeaderProps {
   onTabPromptSelect?: (prompt: WorkspacePrompt) => void;
   onRefresh?: () => void;
   loading?: boolean;
+  onLeadershipInsight?: () => void;
 }
 
 export function WorkspaceHeader({ 
@@ -43,7 +44,8 @@ export function WorkspaceHeader({
   tabPrompts,
   onTabPromptSelect,
   onRefresh, 
-  loading 
+  loading,
+  onLeadershipInsight
 }: WorkspaceHeaderProps) {
   const [showWorkspacePrompts, setShowWorkspacePrompts] = useState(false);
   const [showTabPrompts, setShowTabPrompts] = useState(false);
@@ -106,6 +108,24 @@ export function WorkspaceHeader({
       }}>
         <p style={{ margin: '0', color: 'var(--color-text-secondary)' }}>{description}</p>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {onLeadershipInsight && (
+            <button
+              onClick={onLeadershipInsight}
+              type="button"
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--accent-primary)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              Leadership Insight
+            </button>
+          )}
           {tabPrompts && tabPrompts.length > 0 && (
             <div style={{ position: 'relative' }}>
               <button

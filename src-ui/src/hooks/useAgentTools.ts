@@ -1,41 +1,19 @@
-import { useState, useEffect } from 'react';
-import { log } from '@/utils/logger';
+import { useEffect } from 'react';
+import { useAgentToolsWithState } from '@/contexts/AgentToolsContext';
 
-interface ToolMapping {
-  server?: string;
-  toolName?: string;
-  originalName?: string;
-}
-
+/**
+ * Hook to fetch and access agent tools
+ * Automatically fetches on mount, uses cached data on subsequent calls
+ */
 export function useAgentTools(apiBase: string, agentSlug: string | undefined) {
-  const [toolMappings, setToolMappings] = useState<Record<string, ToolMapping>>({});
+  const { tools, fetch } = useAgentToolsWithState(apiBase, agentSlug);
 
   useEffect(() => {
-    if (!agentSlug) return;
+    if (agentSlug) {
+      fetch();
+    }
+  }, [agentSlug, fetch]);
 
-    const fetchTools = async () => {
-      try {
-        const response = await fetch(`${apiBase}/agents/${agentSlug}/tools`);
-        const result = await response.json();
-        
-        if (result.success) {
-          const mappings = result.data.reduce((acc: Record<string, ToolMapping>, tool: any) => {
-            acc[tool.name] = {
-              server: tool.server,
-              toolName: tool.toolName,
-              originalName: tool.originalName,
-            };
-            return acc;
-          }, {});
-          setToolMappings(mappings);
-        }
-      } catch (err) {
-        log.api('Failed to fetch agent tools:', err);
-      }
-    };
-
-    fetchTools();
-  }, [apiBase, agentSlug]);
-
-  return toolMappings;
+  return tools;
 }
+

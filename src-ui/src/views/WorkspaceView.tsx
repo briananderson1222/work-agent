@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useApiBase } from '../contexts/ConfigContext';
-import { useWorkspace } from '../contexts/WorkspacesContext';
+import { useWorkspace, useWorkspacesActions } from '../contexts/WorkspacesContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useCreateChatSession } from '../contexts/ActiveChatsContext';
 import { useSendMessage } from '../contexts/ActiveChatsContext';
@@ -17,8 +17,18 @@ export function WorkspaceView() {
   
   const agents = useAgents(apiBase);
   const workspace = useWorkspace(apiBase, selectedWorkspace || '', !!selectedWorkspace);
+  const { fetchOne } = useWorkspacesActions();
   const createChatSession = useCreateChatSession();
   const slashCommandHandler = useSlashCommandHandler(apiBase);
+  
+  // Explicit action: fetch workspace when selected
+  const hasFetchedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (selectedWorkspace && hasFetchedRef.current !== selectedWorkspace) {
+      hasFetchedRef.current = selectedWorkspace;
+      fetchOne(apiBase, selectedWorkspace);
+    }
+  }, [apiBase, selectedWorkspace, fetchOne]);
   
   // Set active tab via NavigationContext
   const setActiveTabId = useCallback((tabId: string) => {

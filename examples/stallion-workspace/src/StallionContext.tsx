@@ -16,6 +16,8 @@ interface SalesState {
   } | null;
   myTerritories: any[];
   myAccounts: any[];
+  myTasks: any[];
+  myInsights: any[];
   
   // Meeting-specific cache
   sfdcCache: Record<string, SFDCContext>; // meetingId -> SFDC data
@@ -32,6 +34,8 @@ const { Provider, useWorkspaceContext } = createWorkspaceContext<SalesState>({
     myDetails: null,
     myTerritories: [],
     myAccounts: [],
+    myTasks: [],
+    myInsights: [],
     sfdcCache: {},
     loggedActivities: {},
     lastRefresh: 0,

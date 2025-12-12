@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
 import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
+import { useSalesDataActions } from './SalesDataContext';
+import { SearchModal } from './components/SearchModal';
 import './workspace.css';
 
 const SFDC_BASE_URL = 'https://aws-crm.lightning.force.com';
@@ -40,12 +42,13 @@ interface CalendarEvent {
 
 interface MeetingDetails extends CalendarEvent {
   body?: string;
-  attendees?: Array<{email: string, status: string}>;
+  attendees?: Array<{email: string, name?: string, status: string}>;
   responseStatus?: string;
 }
 
 interface SFDCContext {
   accounts?: any[];
+  campaigns?: any[];
   opportunities?: any[];
   tasks?: any[];
   suggestedKeyword?: string;
@@ -136,8 +139,9 @@ interface CalendarProps {
 }
 
 export function Calendar({ activeTab }: CalendarProps) {
-  // Load sales context (personal details, territories, accounts)
+  // Subscribe to sales context data (no auto-fetch)
   const salesContext = useSalesContext();
+  const { fetch: fetchSalesData } = useSalesDataActions();
   
   const { showToast } = useToast();
   const { notify } = useNotifications();
@@ -147,6 +151,15 @@ export function Calendar({ activeTab }: CalendarProps) {
   const createChatSession = useCreateChatSession();
   const sendMessage = useSendMessage(apiBase);
   const agents = useAgents();
+  
+  // Explicit action: fetch sales data on mount (once)
+  const hasFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchSalesData(); // Will use cache if valid
+    }
+  }, [fetchSalesData]);
   
   const sendToChat = (message: string) => {
     const resolvedSlug = resolveAgentName('work-agent');
@@ -239,7 +252,7 @@ export function Calendar({ activeTab }: CalendarProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
   const [showLogActivityModal, setShowLogActivityModal] = useState(false);
-  const [selectedSfdcItem, setSelectedSfdcItem] = useState<{type: 'account' | 'opportunity', data: any} | null>(null);
+  const [selectedSfdcItem, setSelectedSfdcItem] = useState<{type: 'account' | 'opportunity' | 'campaign', data: any} | null>(null);
   const [activityFormData, setActivityFormData] = useState({
     subject: '',
     saActivity: '',
@@ -252,6 +265,16 @@ export function Calendar({ activeTab }: CalendarProps) {
   const [opportunityKeyword, setOpportunityKeyword] = useState('');
   const [loadingOpportunities, setLoadingOpportunities] = useState(false);
   const [hideClosedOpportunities, setHideClosedOpportunities] = useState(true);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchModalType, setSearchModalType] = useState<'account' | 'campaign' | 'opportunity'>('account');
+  const [accountFilter, setAccountFilter] = useState('');
+  const [showActivityDetailModal, setShowActivityDetailModal] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<any>(null);
+  const [loadingActivityDetails, setLoadingActivityDetails] = useState(false);
+  const [showAssignOppModal, setShowAssignOppModal] = useState(false);
+  const [activityToAssign, setActivityToAssign] = useState<any>(null);
+  const [assigningActivity, setAssigningActivity] = useState(false);
+  const [oppFilterText, setOppFilterText] = useState('');
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
 
@@ -606,16 +629,24 @@ export function Calendar({ activeTab }: CalendarProps) {
         meetingChangeKey: event.meetingChangeKey 
       }, `(data) => {
         const meeting = data.success ? data.content : data;
+        
         const normalizeStatus = (status) => {
           if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
           if (status === 'Accept' || status === 'Accepted') return 'Accepted';
           if (status === 'Decline' || status === 'Declined') return 'Declined';
           return status;
         };
-        const mapAttendees = (list) => (list || []).map(a => ({
-          email: typeof a === 'string' ? a : a.email,
-          status: normalizeStatus(a.responseStatus)
-        }));
+        const mapAttendees = (list) => (list || []).map(a => {
+          if (typeof a === 'string') return { email: a, status: 'No Response' };
+          const email = a.emailAddress?.address || a.email;
+          const name = a.emailAddress?.name || a.name;
+          
+          return {
+            email,
+            name: name && name !== email ? name : undefined,
+            status: normalizeStatus(a.responseStatus)
+          };
+        });
         return {
           meetingId: meeting.meetingId,
           meetingChangeKey: meeting.changeKey,
@@ -626,11 +657,27 @@ export function Calendar({ activeTab }: CalendarProps) {
           end: meeting.end,
           location: meeting.location || '',
           organizer: meeting.organizer || '',
+          organizerEmail: meeting.organizer?.email,
+          organizerName: meeting.organizer?.name,
           responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
         };
       }`);
       
       const details = data;
+      
+      // Populate emailToName map from organizer if available
+      if (details.organizerEmail && details.organizerName) {
+        addEmailName(details.organizerEmail, details.organizerName);
+      }
+      
+      // Enrich attendee names from emailToName map
+      if (details.attendees) {
+        details.attendees = details.attendees.map(a => ({
+          ...a,
+          name: a.name || getNameForEmail(a.email)
+        }));
+      }
+      
       setMeetingDetails(details);
       setCache(cacheKey, details);
     } catch (err) {
@@ -763,14 +810,53 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
     }
   };
 
+  const handleSelectSearchResult = (item: any) => {
+    if (searchModalType === 'account') {
+      // Add to accounts list if not already there
+      setSfdcContext(prev => {
+        const exists = prev?.accounts?.some(a => a.id === item.id);
+        if (exists) return prev;
+        return {
+          ...prev,
+          accounts: [...(prev?.accounts || []), item]
+        };
+      });
+      // Select the account
+      const accountItem = { type: 'account' as const, data: item };
+      setSelectedSfdcItem(accountItem);
+      fetchTasksForItem(accountItem);
+      prefillActivityData(accountItem);
+      setLoadingOpportunities(true);
+      fetchOpportunitiesForAccount(item.id, '').finally(() => setLoadingOpportunities(false));
+    } else {
+      // Add to campaigns list if not already there
+      setSfdcContext(prev => {
+        const exists = prev?.campaigns?.some(c => c.id === item.id);
+        if (exists) return prev;
+        return {
+          ...prev,
+          campaigns: [...(prev?.campaigns || []), item]
+        };
+      });
+      // Select the campaign
+      const campaignItem = { type: 'campaign' as const, data: item };
+      setSelectedSfdcItem(campaignItem);
+      fetchTasksForItem(campaignItem);
+      prefillActivityData(campaignItem);
+    }
+    setShowSearchModal(false);
+  };
+
   // Fetch tasks for selected account or opportunity
-  const fetchTasksForItem = async (item: {type: 'account' | 'opportunity', data: any}) => {
+  const fetchTasksForItem = async (item: {type: 'account' | 'opportunity' | 'campaign', data: any}) => {
     setLoadingTasks(true);
     try {
       // Use listUserTasks with appropriate filter
       const params: any = { limit: 50 };
       if (item.type === 'opportunity') {
         params.opportunityId = item.data.id;
+      } else if (item.type === 'campaign') {
+        params.campaignId = item.data.id;
       } else {
         params.accountId = item.data.id;
       }
@@ -789,7 +875,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
     }
   };
 
-  const prefillActivityData = async (item: {type: 'account' | 'opportunity', data: any}) => {
+  const prefillActivityData = async (item: {type: 'account' | 'opportunity' | 'campaign', data: any}) => {
     if (!selectedEvent || !meetingDetails) return;
     
     setLoadingActivityPrefill(true);
@@ -798,6 +884,8 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
       const meetingBody = meetingDetails.body ? `\nMeeting Notes:\n${meetingDetails.body.replace(/<[^>]*>/g, '').trim()}` : '';
       const itemContext = item.type === 'account' 
         ? `Account: ${item.data.name}` 
+        : item.type === 'campaign'
+        ? `Campaign: ${item.data.name}`
         : `Opportunity: ${item.data.name} (Stage: ${item.data.stageName})`;
       
       const response = await invoke({
@@ -1623,7 +1711,25 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                 <div className="workspace-dashboard__card">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem' }}>
-                      <h3 style={{ minWidth: 'fit-content', marginBottom: '0.5rem', flex: 1 }}>{selectedEvent.subject}</h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, flexWrap: 'wrap' }}>
+                        <h3 style={{ minWidth: 'fit-content', marginBottom: '0' }}>{selectedEvent.subject}</h3>
+                        {selectedEvent.categories && selectedEvent.categories.length > 0 && (
+                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                            {selectedEvent.categories.map(cat => (
+                              <span key={cat} style={{
+                                fontSize: '0.7rem',
+                                padding: '2px 6px',
+                                borderRadius: '8px',
+                                background: 'var(--color-bg)',
+                                color: 'var(--color-text-secondary)',
+                                border: '1px solid var(--color-border)'
+                              }}>
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
                         <button 
                           onClick={() => {
@@ -1743,9 +1849,6 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                     <>
                       <div>
                         <p><strong>Time:</strong> {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}</p>
-                        {selectedEvent.categories && selectedEvent.categories.length > 0 && (
-                          <p><strong>Categories:</strong> {selectedEvent.categories.join(', ')}</p>
-                        )}
                         {meetingDetails.attendees && meetingDetails.attendees.length > 0 && (
                           <div>
                             <strong>Attendees ({meetingDetails.attendees.length}):</strong>
@@ -1753,7 +1856,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                               {(showAllAttendees ? meetingDetails.attendees : meetingDetails.attendees.slice(0, 5)).map((a, i) => (
                                 <li key={i}>
                                   <a href={`mailto:${a.email}`} style={{ color: 'var(--color-primary)' }}>
-                                    {a.email}
+                                    {a.name || a.email}
                                   </a>
                                   <span 
                                     className={`attendee-status attendee-status--${a.status.toLowerCase().replace(' ', '-')}`}
@@ -1783,9 +1886,6 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                           </div>
                         )}
                         
-                        {meetingDetails.categories && meetingDetails.categories.length > 0 && (
-                          <p><strong>Categories:</strong> {meetingDetails.categories.join(', ')}</p>
-                        )}
                         {meetingDetails.isCanceled && <p style={{ color: 'red' }}><strong>⚠️ Canceled</strong></p>}
                       
                       {meetingDetails.body?.replace(/<[^>]*>/g, '').trim() ? (
@@ -1889,6 +1989,365 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
             </section>
       </div>
 
+      {/* Activity Detail Modal */}
+      {showActivityDetailModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1002,
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            background: 'var(--bg-primary)',
+            borderRadius: '12px',
+            width: '600px',
+            maxWidth: '90vw',
+            maxHeight: '80vh',
+            overflow: 'auto',
+            border: '1px solid var(--border-primary)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid var(--border-primary)',
+              background: 'var(--bg-secondary)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Activity Details
+              </h3>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button
+                  onClick={() => {
+                    setActivityToAssign(selectedActivity);
+                    setShowAssignOppModal(true);
+                    setOppFilterText('');
+                  }}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  Assign To...
+                </button>
+                {selectedActivity?.id && (
+                  <a
+                    href={`${SFDC_BASE_URL}/lightning/r/Task/${selectedActivity.id}/view`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: 'var(--color-primary)',
+                      fontSize: '1rem',
+                      textDecoration: 'none'
+                    }}
+                    title="Open in Salesforce"
+                  >
+                    ↗
+                  </a>
+                )}
+                <button
+                  onClick={() => {
+                    setShowActivityDetailModal(false);
+                    setSelectedActivity(null);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '1.5rem',
+                    padding: 0,
+                    lineHeight: 1,
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '4px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              {loadingActivityDetails ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>
+                  Loading details...
+                </div>
+              ) : selectedActivity ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Subject</div>
+                  <div style={{ fontWeight: 600 }}>{selectedActivity.subject}</div>
+                </div>
+                {selectedActivity.sa_Activity__c && (
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>SA Activity</div>
+                    <div>{selectedActivity.sa_Activity__c}</div>
+                  </div>
+                )}
+                {selectedActivity.what?.name && (
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Related To</div>
+                    <div>{selectedActivity.what.name}</div>
+                  </div>
+                )}
+                {selectedActivity.activityDate && (
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Activity Date</div>
+                    <div>{selectedActivity.activityDate}</div>
+                  </div>
+                )}
+                {selectedActivity.status && (
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Status</div>
+                    <div>{selectedActivity.status}</div>
+                  </div>
+                )}
+                {selectedActivity.description && (
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Description</div>
+                    <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.875rem' }}>{selectedActivity.description}</div>
+                  </div>
+                )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign to Opportunity Modal */}
+      {showAssignOppModal && activityToAssign && sfdcContext && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1002,
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            background: 'var(--bg-primary)',
+            borderRadius: '12px',
+            width: '500px',
+            maxWidth: '90vw',
+            maxHeight: '80vh',
+            overflow: 'hidden',
+            border: '1px solid var(--border-primary)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid var(--border-primary)',
+              background: 'var(--bg-secondary)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Assign To
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAssignOppModal(false);
+                  setActivityToAssign(null);
+                  setOppFilterText('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '1.5rem',
+                  padding: 0,
+                  lineHeight: 1,
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Activity</div>
+                <div style={{ fontWeight: 600 }}>{activityToAssign.subject}</div>
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Filter..."
+                    value={oppFilterText}
+                    onChange={(e) => setOppFilterText(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      paddingRight: oppFilterText ? '2rem' : '0.5rem',
+                      border: '1px solid var(--border-primary)',
+                      borderRadius: '4px',
+                      background: 'var(--bg-primary)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                  {oppFilterText && (
+                    <button
+                      onClick={() => setOppFilterText('')}
+                      style={{
+                        position: 'absolute',
+                        right: '0.5rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '1.2rem',
+                        padding: 0,
+                        lineHeight: 1
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>Select Record:</div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', borderTop: '1px solid var(--border-primary)' }}>
+              {(() => {
+                const items: Array<{id: string, name: string, type: 'Account' | 'Campaign' | 'Opportunity', meta?: string}> = [];
+                
+                // Add accounts
+                (sfdcContext.accounts || []).forEach((acc: any) => {
+                  items.push({ id: acc.id, name: acc.name, type: 'Account' });
+                });
+                
+                // Add campaigns
+                (sfdcContext.campaigns || []).forEach((camp: any) => {
+                  items.push({ id: camp.id, name: camp.name, type: 'Campaign', meta: camp.type });
+                });
+                
+                // Add opportunities
+                (sfdcContext.opportunities || []).forEach((opp: any) => {
+                  items.push({ id: opp.id, name: opp.name, type: 'Opportunity', meta: opp.stageName });
+                });
+                
+                // Filter
+                const filtered = oppFilterText 
+                  ? items.filter(item => item.name.toLowerCase().includes(oppFilterText.toLowerCase()))
+                  : items;
+                
+                return filtered.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={async () => {
+                    setAssigningActivity(true);
+                    try {
+                      await transformTool('work-agent', 'satSfdc_updateTechActivity', {
+                        taskId: activityToAssign.id,
+                        parentRecord: item.id
+                      }, 'data => data');
+                      showToast(`Activity assigned to ${item.type.toLowerCase()}`, 'success');
+                      setShowAssignOppModal(false);
+                      setActivityToAssign(null);
+                      // Refresh tasks
+                      if (selectedSfdcItem) {
+                        fetchTasksForItem(selectedSfdcItem);
+                      }
+                    } catch (err) {
+                      console.error('Failed to assign activity:', err);
+                      showToast('Failed to assign activity', 'error');
+                    } finally {
+                      setAssigningActivity(false);
+                    }
+                  }}
+                  disabled={assigningActivity}
+                  style={{
+                    width: '100%',
+                    padding: '1rem 1.5rem',
+                    borderBottom: '1px solid var(--border-primary)',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px solid var(--border-primary)',
+                    textAlign: 'left',
+                    cursor: assigningActivity ? 'not-allowed' : 'pointer',
+                    transition: 'background 0.15s',
+                    opacity: assigningActivity ? 0.5 : 1
+                  }}
+                  onMouseEnter={(e) => !assigningActivity && (e.currentTarget.style.background = 'var(--bg-secondary)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {item.name}
+                    </span>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '2px 6px',
+                      borderRadius: '10px',
+                      background: item.type === 'Account' ? '#0d6efd' : item.type === 'Campaign' ? '#198754' : '#6c757d',
+                      color: 'white',
+                      fontWeight: 500
+                    }}>
+                      {item.type}
+                    </span>
+                  </div>
+                  {item.meta && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      {item.meta}
+                    </div>
+                  )}
+                </button>
+              ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        onSelect={handleSelectSearchResult}
+        type={searchModalType}
+        agentSlug="work-agent"
+      />
+
       {/* Log Activity Modal */}
       {showLogActivityModal && sfdcContext && (
         <div className="log-activity-modal-overlay" style={{
@@ -1965,13 +2424,90 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                 overflow: 'auto',
                 background: 'var(--bg-secondary)'
               }}>
+                {/* Account Filter */}
+                {sfdcContext.accounts && sfdcContext.accounts.length > 1 && (
+                  <div style={{ padding: '1rem 1rem 0' }}>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="Filter accounts..."
+                        value={accountFilter}
+                        onChange={(e) => setAccountFilter(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem',
+                          paddingRight: accountFilter ? '2rem' : '0.5rem',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '4px',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.875rem'
+                        }}
+                      />
+                      {accountFilter && (
+                        <button
+                          onClick={() => setAccountFilter('')}
+                          style={{
+                            position: 'absolute',
+                            right: '0.5rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            fontSize: '1.2rem',
+                            padding: 0,
+                            lineHeight: 1
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    {accountFilter && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                        Showing {sfdcContext.accounts.filter((a: any) => a.name.toLowerCase().includes(accountFilter.toLowerCase())).length} of {sfdcContext.accounts.length} accounts
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 {/* Accounts Section */}
                 {sfdcContext.accounts && sfdcContext.accounts.length > 0 ? (
                   <details open className="log-activity-accounts-section" style={{ padding: '1rem' }}>
-                    <summary style={{ cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>▼</span> Accounts ({sfdcContext.accounts.length})
+                    <summary style={{ cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', listStyle: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span>▼</span> Accounts ({sfdcContext.accounts.length})
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowSearchModal(true);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          padding: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                        title="Search accounts or campaigns"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                      </button>
                     </summary>
                     {sfdcContext.accounts.map((account: any) => {
+                      // Apply filter
+                      if (accountFilter && !account.name.toLowerCase().includes(accountFilter.toLowerCase())) {
+                        return null;
+                      }
+                      
                       const isAccountSelected = selectedSfdcItem?.type === 'account' && selectedSfdcItem.data.id === account.id;
                       const isOpportunityOfThisAccount = selectedSfdcItem?.type === 'opportunity' && sfdcContext.selectedAccountId === account.id;
                       const isActive = isAccountSelected || isOpportunityOfThisAccount;
@@ -1986,13 +2522,14 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                           // If account is already directly selected, do nothing
                           if (isAccountSelected) return;
                           
-                          // If switching from opportunity to account, just update selection (don't refetch)
+                          // If switching from opportunity to account, reload tasks
                           if (isOpportunityOfThisAccount) {
                             setSelectedSfdcItem(item);
+                            fetchTasksForItem(item);
                             return;
                           }
                           
-                          // New account selection - fetch everything
+                          // New account selection - fetch tasks and prefill
                           setSelectedSfdcItem(item);
                           fetchTasksForItem(item);
                           prefillActivityData(item);
@@ -2024,22 +2561,38 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                     <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1rem' }}>
                       No related accounts found
                     </div>
-                    <button
-                      onClick={() => fetchSFDCContext(true)}
-                      disabled={loadingSFDC}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        background: 'var(--color-primary)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem',
-                        cursor: loadingSFDC ? 'not-allowed' : 'pointer',
-                        opacity: loadingSFDC ? 0.5 : 1
-                      }}
-                    >
-                      {loadingSFDC ? 'Loading...' : 'Load All Accounts'}
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => fetchSFDCContext(true)}
+                        disabled={loadingSFDC}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: 'var(--color-primary)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '0.875rem',
+                          cursor: loadingSFDC ? 'not-allowed' : 'pointer',
+                          opacity: loadingSFDC ? 0.5 : 1
+                        }}
+                      >
+                        {loadingSFDC ? 'Loading...' : 'My Accounts'}
+                      </button>
+                      <button
+                        onClick={() => setShowSearchModal(true)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: 'transparent',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-primary)',
+                          borderRadius: '6px',
+                          fontSize: '0.875rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Search Accounts/Campaigns
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -2050,22 +2603,45 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
                         Filter Opportunities
                       </label>
-                      <input
-                        type="text"
-                        value={opportunityKeyword}
-                        onChange={(e) => setOpportunityKeyword(e.target.value)}
-                        placeholder="Filter by name..."
-                        style={{
-                          width: '100%',
-                          padding: '0.5rem',
-                          marginBottom: '0.5rem',
-                          border: '1px solid var(--border-primary)',
-                          borderRadius: '4px',
-                          background: 'var(--bg-primary)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.875rem'
-                        }}
-                      />
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          value={opportunityKeyword}
+                          onChange={(e) => setOpportunityKeyword(e.target.value)}
+                          placeholder="Filter by name..."
+                          style={{
+                            width: '100%',
+                            padding: '0.5rem',
+                            paddingRight: opportunityKeyword ? '2rem' : '0.5rem',
+                            marginBottom: '0.5rem',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '4px',
+                            background: 'var(--bg-primary)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.875rem'
+                          }}
+                        />
+                        {opportunityKeyword && (
+                          <button
+                            onClick={() => setOpportunityKeyword('')}
+                            style={{
+                              position: 'absolute',
+                              right: '0.5rem',
+                              top: 'calc(50% - 0.25rem)',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              fontSize: '1.2rem',
+                              padding: 0,
+                              lineHeight: 1
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
@@ -2135,7 +2711,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                           </details>
                         ) : (
                           <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                            No open opportunities found
+                            {opportunityKeyword || hideClosedOpportunities ? 'No opportunities match the current filters' : 'No opportunities found'}
                           </div>
                         );
                       })()
@@ -2144,6 +2720,45 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                         No opportunities found
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Campaigns Section */}
+                {sfdcContext.campaigns && sfdcContext.campaigns.length > 0 && (
+                  <div style={{ padding: '1rem 1rem 0', borderTop: '1px solid var(--border-primary)' }}>
+                    <details open>
+                      <summary style={{ cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span>▼</span> Campaigns ({sfdcContext.campaigns.length})
+                      </summary>
+                      {sfdcContext.campaigns.map((campaign: any) => (
+                        <button
+                          key={campaign.id}
+                          onClick={() => {
+                            const item = { type: 'campaign' as const, data: campaign };
+                            setSelectedSfdcItem(item);
+                            fetchTasksForItem(item);
+                            prefillActivityData(item);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            marginBottom: '0.5rem',
+                            background: selectedSfdcItem?.type === 'campaign' && selectedSfdcItem.data.id === campaign.id ? 'var(--color-primary)' : 'var(--bg-primary)',
+                            color: selectedSfdcItem?.type === 'campaign' && selectedSfdcItem.data.id === campaign.id ? 'white' : 'var(--text-primary)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '6px',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          <div style={{ fontWeight: 500 }}>{campaign.name}</div>
+                          {campaign.type && (
+                            <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '0.25rem' }}>{campaign.type}</div>
+                          )}
+                        </button>
+                      ))}
+                    </details>
                   </div>
                 )}
               </div>
@@ -2161,7 +2776,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                       position: 'relative'
                     }}>
                       <a
-                        href={`${SFDC_BASE_URL}/lightning/r/${selectedSfdcItem.type === 'account' ? 'Account' : 'Opportunity'}/${selectedSfdcItem.data.id}/view`}
+                        href={`${SFDC_BASE_URL}/lightning/r/${selectedSfdcItem.type === 'account' ? 'Account' : selectedSfdcItem.type === 'campaign' ? 'Campaign' : 'Opportunity'}/${selectedSfdcItem.data.id}/view`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -2177,7 +2792,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                         ↗
                       </a>
                       <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                        {selectedSfdcItem.type === 'account' ? 'Account' : 'Opportunity'}
+                        {selectedSfdcItem.type === 'account' ? 'Account' : selectedSfdcItem.type === 'campaign' ? 'Campaign' : 'Opportunity'}
                       </div>
                       <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', paddingRight: '2rem' }}>
                         {selectedSfdcItem.data.name}
@@ -2188,6 +2803,11 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                       {selectedSfdcItem.type === 'opportunity' && selectedSfdcItem.data.stageName && (
                         <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
                           Stage: {selectedSfdcItem.data.stageName}
+                        </div>
+                      )}
+                      {selectedSfdcItem.type === 'campaign' && selectedSfdcItem.data.type && (
+                        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                          Type: {selectedSfdcItem.data.type}
                         </div>
                       )}
                     </div>
@@ -2444,50 +3064,90 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                               fontSize: '0.875rem',
                               position: 'relative'
                             }}>
-                              {task.id && (
-                                <a
-                                  href={`${SFDC_BASE_URL}/lightning/r/Task/${task.id}/view`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    position: 'absolute',
-                                    top: '0.75rem',
-                                    right: '0.75rem',
-                                    color: 'var(--color-primary)',
-                                    fontSize: '0.875rem',
-                                    textDecoration: 'none'
+                              <div style={{ display: 'flex', gap: '0.5rem', position: 'absolute', top: '0.75rem', right: '0.75rem' }}>
+                                <button
+                                  onClick={() => {
+                                    setActivityToAssign(task);
+                                    setShowAssignOppModal(true);
+                                    setOppFilterText('');
                                   }}
-                                  title="Open in Salesforce"
+                                  style={{
+                                    padding: '0.25rem 0.5rem',
+                                    fontSize: '0.7rem',
+                                    background: 'transparent',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border-primary)',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Assign to account, opportunity, or campaign"
                                 >
-                                  ↗
-                                </a>
-                              )}
-                              <div style={{ fontWeight: 500, marginBottom: '0.25rem', paddingRight: '1.5rem' }}>{task.subject}</div>
-                              {task.sa_Activity__c && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                                  {task.sa_Activity__c}
-                                </div>
-                              )}
-                              {task.what?.name && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                                  {task.what.name}
-                                </div>
-                              )}
-                              {task.activityDate && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                                  {task.activityDate}
-                                </div>
-                              )}
-                              {task.status && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                                  Status: {task.status}
-                                </div>
-                              )}
-                              {task.description && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', maxHeight: '3em', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {task.description}
-                                </div>
-                              )}
+                                  Assign To...
+                                </button>
+                                {task.id && (
+                                  <a
+                                    href={`${SFDC_BASE_URL}/lightning/r/Task/${task.id}/view`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      color: 'var(--color-primary)',
+                                      fontSize: '0.875rem',
+                                      textDecoration: 'none'
+                                    }}
+                                    title="Open in Salesforce"
+                                  >
+                                    ↗
+                                  </a>
+                                )}
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  setShowActivityDetailModal(true);
+                                  setLoadingActivityDetails(true);
+                                  try {
+                                    const details = await transformTool('work-agent', 'satSfdc_fetchTaskDetails', {
+                                      taskId: task.id
+                                    }, 'data => data');
+                                    setSelectedActivity(details);
+                                  } catch (err) {
+                                    console.error('Failed to fetch task details:', err);
+                                    setSelectedActivity(task);
+                                  } finally {
+                                    setLoadingActivityDetails(false);
+                                  }
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: 0,
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  width: '100%',
+                                  color: 'var(--text-primary)'
+                                }}
+                              >
+                                <div style={{ fontWeight: 500, marginBottom: '0.25rem', paddingRight: '5rem' }}>{task.subject}</div>
+                                {task.sa_Activity__c && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                    {task.sa_Activity__c}
+                                  </div>
+                                )}
+                                {task.what?.name && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                    {task.what.name}
+                                  </div>
+                                )}
+                                {task.activityDate && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                    {task.activityDate}
+                                  </div>
+                                )}
+                                {task.status && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                    Status: {task.status}
+                                  </div>
+                                )}
+                              </button>
                             </div>
                           ))}
                           {sfdcContext.tasks.length > 5 && (
