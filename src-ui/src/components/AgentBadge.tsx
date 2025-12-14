@@ -7,6 +7,8 @@ interface AgentBadgeProps {
 }
 
 export function AgentBadge({ agentSlug, size = 'md' }: AgentBadgeProps) {
+  if (!agentSlug) return null;
+  
   const { namespace, name } = parseAgentSlug(agentSlug);
   const isWorkspace = isWorkspaceAgent(agentSlug);
 

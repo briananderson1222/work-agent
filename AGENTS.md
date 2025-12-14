@@ -405,78 +405,82 @@ localStorage.debug = ''
 
 ### State Management
 
-**Use React Context + useSyncExternalStore for ALL API data:**
+**Use React Query for ALL API data:**
 - Provides consistent pattern across the codebase
 - Automatic caching and deduplication
 - Single source of truth for all API state
 - Easy to debug and reason about
 - Components automatically stay in sync
 
-**Implementation pattern:**
-1. Create a Context with `useSyncExternalStore` for reactive updates
-2. Implement a store class with subscribe/getSnapshot methods
-3. Provide a custom hook (e.g., `useStats()`, `useAgents()`) that encapsulates subscription logic
-4. Wrap the app with the Provider in `main.tsx`
+**Migration Status:** See [REACT_QUERY_MIGRATION_STATUS.md](./REACT_QUERY_MIGRATION_STATUS.md) for current progress and next steps.
 
-**Example contexts to create:**
-- `StatsContext` - Conversation statistics (✅ implemented)
-- `AgentsContext` - Agent list and metadata
-- `WorkspacesContext` - Workspace configurations
-- `ConversationsContext` - Conversation history
-- `ToolsContext` - Available tools
+**Architecture Pattern (MVVM)**:
 
-**Prefer state management over business logic in components:**
-- **Keep components thin**: Components should primarily handle rendering and user interactions
-- **Move logic to contexts**: Data fetching, transformations, and business rules belong in context stores
-- **Use custom hooks**: Encapsulate complex state logic in hooks that components can consume
-- **Avoid inline calculations**: Move data transformations to the store or custom hooks
-- **Single responsibility**: Components render UI, contexts manage state and logic
+```
+Data Layer (Queries)
+  ↓
+ViewModel Layer (Custom Hooks)
+  ↓
+View Layer (Components)
+```
 
-**Example - Bad (logic in component):**
+**1. Data Layer** - Reusable query hooks:
 ```typescript
-function MyComponent() {
-  const [data, setData] = useState(null);
-  
-  useEffect(() => {
-    fetch('/api/data').then(r => r.json()).then(setData);
-  }, []);
-  
-  const processedData = data?.items
-    .filter(i => i.active)
-    .map(i => ({ ...i, label: i.name.toUpperCase() }));
-  
-  return <div>{processedData?.map(...)}</div>;
+// useSalesQueries.ts
+export function useMyPersonalDetails() {
+  return useApiQuery(['sfdc', 'personalDetails'], async () => {
+    return await transformTool('work-agent', 'sat-sfdc_get_my_personal_details', {}, 'data => data');
+  });
+}
+
+export function useMyAccounts(userId: string | undefined) {
+  return useApiQuery(['sfdc', 'accounts', userId], async () => {
+    return await transformTool('work-agent', 'sat-sfdc_list_user_assigned_accounts', { userId }, 'data => data');
+  }, { enabled: !!userId });
 }
 ```
 
-**Example - Good (logic in context):**
+**2. ViewModel Layer** - Component-specific business logic:
 ```typescript
-// In context/store
-class DataStore {
-  private data = new Map();
+// useCRMViewModel.ts
+export function useCRMViewModel() {
+  const { data: myDetails } = useMyPersonalDetails();
+  const { data: myAccounts = [] } = useMyAccounts(myDetails?.userId);
   
-  async fetch() {
-    const response = await fetch('/api/data');
-    const result = await response.json();
-    this.data.set('items', this.processItems(result.items));
-    this.notify();
-  }
+  // Derived state
+  const userDetails = myDetails ? {
+    alias: myDetails.name,
+    sfdcId: myDetails.userId
+  } : null;
   
-  private processItems(items) {
-    return items
-      .filter(i => i.active)
-      .map(i => ({ ...i, label: i.name.toUpperCase() }));
-  }
-}
-
-// In component
-function MyComponent() {
-  const { items } = useData();
-  return <div>{items?.map(...)}</div>;
+  // Business logic
+  const processedAccounts = myAccounts.map(member => ({
+    ...member.account,
+    _sources: [{ type: 'owner', label: userDetails?.alias }]
+  }));
+  
+  return { userDetails, processedAccounts, isLoading: !myDetails };
 }
 ```
 
-**Simple UI state (NOT API data):**
+**3. View Layer** - Just render:
+```typescript
+// CRM.tsx
+export function CRM() {
+  const vm = useCRMViewModel();
+  
+  return <div>{vm.processedAccounts.map(...)}</div>;
+}
+```
+
+**Benefits**:
+- **Reusable data hooks**: Multiple ViewModels can use same queries
+- **Automatic deduplication**: React Query caches by key
+- **Separation of concerns**: Data fetching ≠ business logic ≠ rendering
+- **Testable**: Test ViewModels independently of components
+- **Type-safe**: Full TypeScript support
+
+**Simple UI state (NOT API data)**:
 - Use `useState` for component-local state (toggles, form inputs, etc.)
 - Use `useReducer` for complex component state machines
 - Keep it simple - only use Context for data that comes from the backend

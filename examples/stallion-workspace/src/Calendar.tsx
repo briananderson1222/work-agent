@@ -518,7 +518,7 @@ export function Calendar({ activeTab }: CalendarProps) {
   const fetchMeetingDetails = async (meetingId: string) => {
     const event = events.find(e => e.meetingId === meetingId);
     if (!event?.meetingChangeKey) {
-      console.error('Missing meetingChangeKey for event:', meetingId);
+      console.warn('Missing meetingChangeKey for event:', meetingId);
       return;
     }
 
@@ -1074,8 +1074,6 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                   const today = new Date();
                   setSelectedDate(today);
                   setViewMonth(new Date(today.getFullYear(), today.getMonth(), 1));
-                  // Trigger fetch without preserving selection to use smart selection logic
-                  fetchEvents(formatLocalDate(today), null);
                 }}
                 style={{
                   background: 'var(--color-primary)',

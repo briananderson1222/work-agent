@@ -32,9 +32,9 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
   }, [apiBase, workspace]);
   
   // Get all the core contexts
-  const agents = useAgents(apiBase);
+  const agents = useAgents();
   const { data: workspaces = [] } = useWorkspacesQuery();
-  const conversations = useConversations();
+  const conversations = useConversations(workspace?.slug || '');
   const navigation = useNavigation();
   const toast = useToast();
   const sendMessage = useSendMessage(apiBase);

@@ -316,7 +316,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   // Get data from contexts
   const { apiBase } = useApiBase();
   const { selectedAgent, isDockOpen, isDockMaximized, activeChat, setDockState, setActiveChat } = useNavigation();
-  const agents = useAgents(apiBase);
+  const agents = useAgents();
   const availableModels = useModels(apiBase);
   const { showToast } = useToast();
   const appConfig = useConfig(apiBase);
@@ -2131,7 +2131,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
 
       {/* New Chat Modal */}
       {showNewChatModal && (() => {
-        const filteredAgents = agents.filter(a => 
+        const filteredAgents = (agents || []).filter(a => 
           a.name.toLowerCase().includes(newChatSearch.toLowerCase()) ||
           a.slug.toLowerCase().includes(newChatSearch.toLowerCase())
         );
@@ -2219,12 +2219,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       transition: 'all 0.15s',
                     }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
-                    {agent.description && (
-                      <div style={{ fontSize: '12px', color: idx === newChatSelectedIndex ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)' }}>
-                        {agent.description}
-                      </div>
-                    )}
+                    <div style={{ fontWeight: 600 }}>{agent.name}</div>
                   </button>
               ))}
             </div>

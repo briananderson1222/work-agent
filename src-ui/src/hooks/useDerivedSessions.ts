@@ -7,7 +7,7 @@ import type { ChatSession } from '../types';
 
 // Hook to get all open tabs (with messages loaded from backend)
 export function useDerivedSessions(apiBase: string, agentSlug: string | null): ChatSession[] {
-  const agents = useAgents(apiBase);
+  const agents = useAgents();
   const allChats = useAllActiveChats();
   
   // Subscribe to conversations store for messages

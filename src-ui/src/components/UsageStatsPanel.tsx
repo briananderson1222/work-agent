@@ -12,7 +12,7 @@ export function UsageStatsPanel() {
   const { usageStats, loading, error, refresh, rescan } = useAnalytics();
   const { apiBase } = useApiBase();
   const models = useModels(apiBase);
-  const agents = useAgents(apiBase);
+  const agents = useAgents();
   const [drillDown, setDrillDown] = useState<{ type: DrillDownType; id: string } | null>(null);
   const [hasAutoRescanned, setHasAutoRescanned] = useState(false);
 

@@ -39,7 +39,7 @@ import type {
 function App() {
   const { apiBase: API_BASE } = useApiBase();
   const availableModels = useModels(API_BASE);
-  const agents = useAgents(API_BASE);
+  const agents = useAgents();
   const { selectedAgent, selectedWorkspace, setAgent, setWorkspace, setWorkspaceTab, navigate, isDockOpen } = useNavigation();
   const { showToast } = useToast();
   const { data: workspaces = [] } = useWorkspacesQuery();
@@ -154,7 +154,7 @@ function App() {
           return;
         }
         
-        if (workspaceSlug && workspaceSlug !== selectedWorkspace?.slug) {
+        if (workspaceSlug && workspaceSlug !== selectedWorkspace) {
           handleWorkspaceSelect(workspaceSlug, tabId);
         } else if (tabId && tabId !== activeTabId) {
           setActiveTabId(tabId);

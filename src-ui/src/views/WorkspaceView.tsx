@@ -15,7 +15,7 @@ export function WorkspaceView() {
   const { apiBase } = useApiBase();
   const { selectedWorkspace, activeTab, setDockState, setWorkspaceTab, setActiveChat } = useNavigation();
   
-  const agents = useAgents(apiBase);
+  const agents = useAgents();
   
   // React Query auto-fetches, caches, dedupes
   const { data: workspace, isLoading } = useWorkspaceQuery(

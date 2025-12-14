@@ -170,3 +170,54 @@ export function useAchievementsQuery(config?: QueryConfig<any>) {
     config
   );
 }
+
+/**
+ * Fetch all agents
+ */
+export function useAgentsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['agents'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/agents`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    config
+  );
+}
+
+/**
+ * Fetch Bedrock models
+ */
+export function useModelsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['models'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/bedrock/models`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    config
+  );
+}
+
+/**
+ * Fetch conversations for an agent
+ */
+export function useConversationsQuery(agentSlug: string | undefined, config?: QueryConfig<any>) {
+  return useApiQuery(
+    agentSlug ? ['conversations', agentSlug] : ['conversations'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/agents/${agentSlug}/conversations`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { ...config, enabled: !!agentSlug && (config?.enabled ?? true) }
+  );
+}

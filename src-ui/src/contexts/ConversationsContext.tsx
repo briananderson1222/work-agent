@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import { useConversationsQuery } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 import { CONFIG_DEFAULTS } from './ConfigContext';
 
@@ -420,27 +421,16 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useConversations(apiBase: string, agentSlug: string, shouldFetch: boolean = true): ConversationData[] {
-  const context = useContext(ConversationsContext);
-  if (!context) {
-    throw new Error('useConversations must be used within ConversationsProvider');
-  }
-
-  const { fetchConversations } = context;
-
-  const snapshot = useSyncExternalStore(
-    conversationsStore.subscribe,
-    conversationsStore.getSnapshot,
-    conversationsStore.getSnapshot
-  );
-
-  useEffect(() => {
-    if (shouldFetch && agentSlug) {
-      fetchConversations(apiBase, agentSlug);
-    }
-  }, [apiBase, agentSlug, shouldFetch, fetchConversations]);
-
-  return snapshot.conversations[agentSlug] || [];
+export function useConversations(agentSlug: string): ConversationData[] {
+  const { data, error } = useConversationsQuery(agentSlug);
+  
+  if (error) log.api(`Failed to fetch conversations for ${agentSlug}:`, error);
+  
+  // Map backend format (resourceId) to frontend format (agentSlug)
+  return (data || []).map((conv: any) => ({
+    ...conv,
+    agentSlug: conv.resourceId || agentSlug,
+  }));
 }
 
 export function useMessages(apiBase: string, agentSlug: string, conversationId: string, shouldFetch: boolean = true): MessageData[] {

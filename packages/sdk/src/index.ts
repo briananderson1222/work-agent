@@ -12,6 +12,9 @@ export {
   useWorkspacesQuery,
   useUsageQuery,
   useAchievementsQuery,
+  useAgentsQuery,
+  useModelsQuery,
+  useConversationsQuery,
 } from './queries';
 
 // Re-export components
