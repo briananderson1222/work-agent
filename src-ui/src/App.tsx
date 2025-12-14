@@ -329,22 +329,19 @@ function App() {
   }, [workspaces, selectedWorkspace, selectedAgent, currentView.type, setWorkspace]);
 
   const handleWorkspaceSelect = async (slug: string, preferredTabId?: string) => {
-    try {
-      const response = await fetch(`${API_BASE}/workspaces/${slug}`);
-      const data = await response.json();
-      if (data.success) {
-        // Use preferred tab ID if provided and valid, otherwise use first tab
-        const validTabId = preferredTabId && data.data.tabs.find((t: any) => t.id === preferredTabId)
-          ? preferredTabId 
-          : data.data.tabs[0]?.id || '';
-        
-        setActiveTabId(validTabId);
-        
-        // Use setWorkspaceTab to include tab in URL
-        setWorkspaceTab(slug, validTabId);
-      }
-    } catch (error) {
-      log.api('Failed to load workspace:', error);
+    // React Query will fetch workspace data automatically
+    // Just get it from cache or wait for it to load
+    const workspace = workspaces.find(w => w.slug === slug);
+    if (workspace) {
+      // Use preferred tab ID if provided and valid, otherwise use first tab
+      const validTabId = preferredTabId && workspace.tabs.find((t: any) => t.id === preferredTabId)
+        ? preferredTabId 
+        : workspace.tabs[0]?.id || '';
+      
+      setActiveTabId(validTabId);
+      
+      // Use setWorkspaceTab to include tab in URL
+      setWorkspaceTab(slug, validTabId);
     }
   };
 
