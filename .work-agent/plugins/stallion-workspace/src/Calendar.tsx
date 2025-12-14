@@ -655,15 +655,12 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
         const matchedAccountsFromLLM = analysisResult.matchedAccounts || [];
         suggestedKeyword = analysisResult.keyword || '';
         
-        console.log('[SFDC] Matched accounts from LLM:', matchedAccountsFromLLM);
-        console.log('[SFDC] Suggested keyword:', suggestedKeyword);
         
         // Build full account objects from matched IDs
         matchedAccounts = salesContext?.myAccounts
           ?.filter(atm => matchedAccountsFromLLM.some(ma => ma.id === atm.account.id))
           .map(atm => atm.account) || [];
         
-        console.log('[SFDC] Matched accounts:', matchedAccounts.map(a => a.name));
       }
       
       const context = {

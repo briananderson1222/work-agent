@@ -21,7 +21,6 @@ export class TextDeltaHandler extends StreamEventHandler {
     log.chat('Text delta received:', newTextChunk.substring(0, 50));
     
     // DEBUG: Log handler processing timing
-    console.log(`[STREAM DEBUG] TextDeltaHandler processing at ${timestamp}, new length: ${newTextChunk.length}`);
 
     const streamingMessage = this.createStreamingMessage(
       newTextChunk,
@@ -29,7 +28,6 @@ export class TextDeltaHandler extends StreamEventHandler {
     );
     
     // DEBUG: Log before updateChat
-    console.log(`[STREAM DEBUG] Calling updateChat at ${new Date().toISOString()}`);
 
     // Store in ActiveChats for data access (batched by React)
     this.updateChat({
@@ -38,7 +36,6 @@ export class TextDeltaHandler extends StreamEventHandler {
     });
     
     // DEBUG: Log after updateChat
-    console.log(`[STREAM DEBUG] updateChat completed at ${new Date().toISOString()}`);
 
     // Also return in result for immediate UI rendering via StreamingContext
     return createResult(state, {

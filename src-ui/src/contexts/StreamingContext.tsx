@@ -24,7 +24,6 @@ export function StreamingProvider({ children }: { children: ReactNode }) {
   const setStreamingMessage = useCallback((sessionId: string, message: StreamingMessage | undefined) => {
     // DEBUG: Log when streaming message is set
     if (message) {
-      console.log(`[STREAM DEBUG] StreamingContext.setStreamingMessage called at ${new Date().toISOString()}, content length: ${message.content.length}`);
     }
     setStreamingMessages(prev => {
       if (message === undefined) {
@@ -33,7 +32,6 @@ export function StreamingProvider({ children }: { children: ReactNode }) {
         return next;
       }
       // DEBUG: Log state update
-      console.log(`[STREAM DEBUG] StreamingContext state updating at ${new Date().toISOString()}`);
       return { ...prev, [sessionId]: message };
     });
   }, []);

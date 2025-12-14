@@ -277,7 +277,6 @@ class ConversationsStore {
             
             // DEBUG: Log text-delta reception timing
             if (data.type === 'text-delta') {
-              console.log(`[STREAM DEBUG] Frontend received text-delta at ${timestamp}, text: "${(data.delta || data.text)?.substring(0, 30)}"`);
             }
             
             // Handle conversation-started event
@@ -296,7 +295,6 @@ class ConversationsStore {
             
             // DEBUG: Log state update timing
             if (data.type === 'text-delta') {
-              console.log(`[STREAM DEBUG] State updated at ${new Date().toISOString()}, content length: ${result.currentTextChunk.length}`);
             }
             
             // Always update state to preserve all fields

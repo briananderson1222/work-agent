@@ -24,7 +24,6 @@ export function useStreamingMessage(apiBase: string, onNavigateToChat?: (session
     state: StreamState
   ) => {
     if (data.type === 'text-delta') {
-      console.log('[useStreamingMessage] text-delta:', data.delta || data.text);
     }
     
     // Build handler context
@@ -53,7 +52,6 @@ export function useStreamingMessage(apiBase: string, onNavigateToChat?: (session
     
     // If handler returned a streaming message, update context immediately
     if (result.streamingMessage) {
-      console.log('[useStreamingMessage] Setting streaming message, content length:', result.streamingMessage.content.length);
       setStreamingMessage(sessionId, result.streamingMessage);
     }
     
