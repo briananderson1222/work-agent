@@ -5,6 +5,7 @@ import DOMPurify from 'dompurify';
 import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { useLocalSalesState } from './SalesDataContext';
+import { useCalendarEvents } from './useCalendarQueries';
 import { SearchModal } from './components/SearchModal';
 import './workspace.css';
 
@@ -217,13 +218,14 @@ export function Calendar({ activeTab }: CalendarProps) {
     }
   }, [activeTab, getTabState]);
 
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  // Use React Query for calendar events
+  const { data: events = [], isLoading: loading, error: eventsError } = useCalendarEvents(selectedDate);
+  
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialState.eventId);
   const [meetingDetails, setMeetingDetails] = useState<MeetingDetails | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loadingDetails, setLoadingDetails] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const error = eventsError ? (eventsError as Error).message : null;
   const [rawResponse, setRawResponse] = useState<string>('');
   const [sfdcContext, setSfdcContext] = useState<SFDCContext | null>(null);
   const [loadingSFDC, setLoadingSFDC] = useState(false);
@@ -384,101 +386,17 @@ export function Calendar({ activeTab }: CalendarProps) {
 
   const hasCanceledEvents = events.some(e => e.subject.startsWith('Canceled:'));
 
-  const fetchCalendarData = async (date: Date = new Date(), preserveEventId?: string) => {
-    const startTime = performance.now();
-    setLoading(true);
-    setError(null);
-    setRawResponse(''); // Clear previous
-    setEvents([]); // Clear events list
-    
-    // Only clear selectedEventId if not preserving selection
-    if (!preserveEventId) {
-      setSelectedEventId(null);
-    }
-    
-    const dateStr = date.toISOString().split('T')[0];
-    
-    // Check cache first
-    const cacheKey = `sa-calendar-${dateStr}`;
-    const cached = getFromCache<CalendarEvent[]>(cacheKey);
-    if (cached) {
-      setEvents(cached);
-      
-      // Only auto-select if not preserving a selection
-      if (preserveEventId) {
-        setSelectedEventId(preserveEventId);
-      } else {
-        // Select active event, or next upcoming event, or first non-all-day, or first event
-        const now = new Date();
-        const activeEvent = cached.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
-        const upcomingEvent = cached.find(e => !e.isAllDay && new Date(e.start) > now);
-        const firstNonAllDay = cached.find(e => !e.isAllDay);
-        const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || cached[0]?.meetingId;
-        setSelectedEventId(eventId);
-      }
-      
-      setLoading(false);
-      return;
-    }
-    
-    const apiStartTime = performance.now();
-    try {
-      // Use pure transformation (no LLM, instant)
-      const data = await transformTool('work-agent', 'sat-outlook_calendar_view', {
-        view: 'day',
-        start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0]
-      }, `(data) => ({
-        events: data.map(e => ({
-          meetingId: e.meetingId,
-          meetingChangeKey: e.meetingChangeKey,
-          subject: e.subject,
-          start: e.start,
-          end: e.end,
-          location: e.location || '',
-          organizer: e.organizer?.name || '',
-          status: e.status,
-          isCanceled: e.isCanceled || false,
-          categories: e.categories || [],
-          isAllDay: e.isAllDay || false
-        }))
-      })`);
-      
-      const apiTime = performance.now() - apiStartTime;
-      
-      const parsedEvents = data.events;
-      
-      if (parsedEvents.length === 0) {
-        setEvents([]);
-        setSelectedEventId(null);
-      } else {
-        setEvents(parsedEvents);
-        
-        // Only auto-select if not preserving a selection
-        if (preserveEventId) {
-          setSelectedEventId(preserveEventId);
-        } else {
-          // Select active event, or next upcoming event, or first non-all-day, or first event
-          const now = new Date();
-          const activeEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
-          const upcomingEvent = parsedEvents.find(e => !e.isAllDay && new Date(e.start) > now);
-          const firstNonAllDay = parsedEvents.find(e => !e.isAllDay);
-          const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || parsedEvents[0]?.meetingId;
-          setSelectedEventId(eventId);
-        }
-        
-        setCache(cacheKey, parsedEvents);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // React Query handles fetching - just auto-select event when events load
   useEffect(() => {
-    fetchCalendarData(selectedDate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+    if (events.length > 0 && !selectedEventId) {
+      const now = new Date();
+      const activeEvent = events.find(e => !e.isAllDay && new Date(e.start) <= now && new Date(e.end) > now);
+      const upcomingEvent = events.find(e => !e.isAllDay && new Date(e.start) > now);
+      const firstNonAllDay = events.find(e => !e.isAllDay);
+      const eventId = activeEvent?.meetingId || upcomingEvent?.meetingId || firstNonAllDay?.meetingId || events[0]?.meetingId;
+      setSelectedEventId(eventId);
+    }
+  }, [events, selectedEventId]);
 
   // Always fetch today's events for notifications
   useEffect(() => {
