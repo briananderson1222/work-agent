@@ -33,7 +33,7 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
   
   // Get all the core contexts
   const agents = useAgents(apiBase);
-  const { data: workspaces = [] } = useWorkspacesQuery(apiBase);
+  const { data: workspaces = [] } = useWorkspacesQuery();
   const conversations = useConversations();
   const navigation = useNavigation();
   const toast = useToast();

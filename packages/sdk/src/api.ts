@@ -41,7 +41,7 @@ function _resolveAgent(agentSlug: string): string {
  * Get current API base
  * @internal
  */
-async function _getApiBase(): Promise<string> {
+export async function _getApiBase(): Promise<string> {
   // TODO: This polling approach is a workaround for race condition between SDKProvider useEffect
   // and component useEffect calls. Consider using a Promise-based initialization pattern or
   // React Context to ensure API base is available before components can call SDK functions.

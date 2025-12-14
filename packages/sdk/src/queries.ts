@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
-import { transformTool, invokeAgent, invoke } from './api';
+import { transformTool, invokeAgent, invoke, _getApiBase } from './api';
 
 interface QueryConfig<T> {
   staleTime?: number;
@@ -106,10 +106,11 @@ export function useInvalidateQuery() {
 /**
  * Fetch workspace by slug
  */
-export function useWorkspaceQuery(apiBase: string, slug: string, config?: QueryConfig<any>) {
+export function useWorkspaceQuery(slug: string, config?: QueryConfig<any>) {
   return useApiQuery(
     ['workspace', slug],
     async () => {
+      const apiBase = await _getApiBase();
       const response = await fetch(`${apiBase}/workspaces/${slug}`);
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
@@ -122,10 +123,11 @@ export function useWorkspaceQuery(apiBase: string, slug: string, config?: QueryC
 /**
  * Fetch all workspaces
  */
-export function useWorkspacesQuery(apiBase: string, config?: QueryConfig<any>) {
+export function useWorkspacesQuery(config?: QueryConfig<any>) {
   return useApiQuery(
     ['workspaces'],
     async () => {
+      const apiBase = await _getApiBase();
       const response = await fetch(`${apiBase}/workspaces`);
       const result = await response.json();
       if (!result.success) throw new Error(result.error);

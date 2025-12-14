@@ -19,7 +19,6 @@ export function WorkspaceView() {
   
   // React Query auto-fetches, caches, dedupes
   const { data: workspace, isLoading } = useWorkspaceQuery(
-    apiBase, 
     selectedWorkspace || '', 
     { enabled: !!selectedWorkspace }
   );

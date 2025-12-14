@@ -42,8 +42,8 @@ function App() {
   const agents = useAgents(API_BASE);
   const { selectedAgent, selectedWorkspace, setAgent, setWorkspace, setWorkspaceTab, navigate, isDockOpen } = useNavigation();
   const { showToast } = useToast();
-  const { data: workspaces = [] } = useWorkspacesQuery(API_BASE);
-  const { data: selectedWorkspaceData } = useWorkspaceQuery(API_BASE, selectedWorkspace || '', { enabled: !!selectedWorkspace });
+  const { data: workspaces = [] } = useWorkspacesQuery();
+  const { data: selectedWorkspaceData } = useWorkspaceQuery(selectedWorkspace || '', { enabled: !!selectedWorkspace });
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [agentSelectorModal, setAgentSelectorModal] = useState<{
     show: boolean;
