@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast, transformTool, useAgents, useCreateChatSession, useNavigation, useWorkspaceNavigation, useActiveChatActions, resolveAgentName, Button, Pill, useSendMessage, useApiBase } from '@stallion-ai/sdk';
-import { useUserDetails } from './hooks';
+import { useSalesContext } from './useSalesContext';
 import { LeadershipInsightModal } from './LeadershipInsightModal';
 import './workspace.css';
 
@@ -77,7 +77,11 @@ export function CRM({ activeTab }: CRMProps) {
   const sendMessage = useSendMessage(apiBase);
   const agents = useAgents();
   const agentSlug = 'work-agent';
-  const { userDetails } = useUserDetails(agentSlug);
+  const salesContext = useSalesContext();
+  const userDetails = salesContext.myDetails ? {
+    alias: salesContext.myDetails.name,
+    sfdcId: salesContext.myDetails.userId
+  } : null;
   
   const sendToChat = useCallback((message: string) => {
     const resolvedSlug = resolveAgentName(agentSlug);

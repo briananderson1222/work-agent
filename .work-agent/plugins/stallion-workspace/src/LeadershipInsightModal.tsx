@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { transformTool } from '@stallion-ai/sdk';
-import { useUserDetails } from './hooks';
+import { useSalesContext } from './useSalesContext';
 import { useSales } from './StallionContext';
 import { SearchModal } from './components/SearchModal';
 
@@ -11,7 +11,11 @@ interface LeadershipInsightModalProps {
 }
 
 export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: LeadershipInsightModalProps) {
-  const { userDetails } = useUserDetails(agentSlug);
+  const salesContext = useSalesContext();
+  const userDetails = salesContext.myDetails ? {
+    alias: salesContext.myDetails.name,
+    sfdcId: salesContext.myDetails.userId
+  } : null;
   const { state, setState } = useSales();
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
