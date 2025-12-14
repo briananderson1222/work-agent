@@ -149,4 +149,4 @@ export function useSalesContext() {
     error: error ? (error as Error).message : null,
   };
 }
-}
+
