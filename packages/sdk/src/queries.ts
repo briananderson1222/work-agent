@@ -110,13 +110,10 @@ export function useWorkspaceQuery(slug: string, config?: QueryConfig<any>) {
   return useApiQuery(
     ['workspace', slug],
     async () => {
-      console.log('[useWorkspaceQuery] Fetching workspace:', slug);
       const apiBase = await _getApiBase();
-      console.log('[useWorkspaceQuery] API base:', apiBase);
       const response = await fetch(`${apiBase}/workspaces/${slug}`);
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
-      console.log('[useWorkspaceQuery] Success:', result.data);
       return result.data;
     },
     config
