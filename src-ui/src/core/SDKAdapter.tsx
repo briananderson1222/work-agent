@@ -1,7 +1,6 @@
 import { ReactNode, useEffect } from 'react';
-import { SDKProvider, type SDKContextValue, _setWorkspaceContext, _setApiBase } from '@stallion-ai/sdk';
+import { SDKProvider, type SDKContextValue, _setWorkspaceContext, _setApiBase, useWorkspacesQuery } from '@stallion-ai/sdk';
 import { useAgents } from '../contexts/AgentsContext';
-import { useWorkspaces } from '../contexts/WorkspacesContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
@@ -34,7 +33,7 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
   
   // Get all the core contexts
   const agents = useAgents(apiBase);
-  const workspaces = useWorkspaces(apiBase);
+  const { data: workspaces = [] } = useWorkspacesQuery(apiBase);
   const conversations = useConversations();
   const navigation = useNavigation();
   const toast = useToast();

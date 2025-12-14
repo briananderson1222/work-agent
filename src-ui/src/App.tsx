@@ -15,7 +15,7 @@ import { useApiBase } from './contexts/ApiBaseContext';
 import { useConfig, CONFIG_DEFAULTS } from './contexts/ConfigContext';
 import { useNavigation } from './contexts/NavigationContext';
 import { useToast } from './contexts/ToastContext';
-import { useWorkspaces, useWorkspace } from './contexts/WorkspacesContext';
+import { useWorkspacesQuery, useWorkspaceQuery } from '@stallion-ai/sdk';
 import { useAgents } from './contexts/AgentsContext';
 import { useWorkflows } from './contexts/WorkflowsContext';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
@@ -42,8 +42,8 @@ function App() {
   const agents = useAgents(API_BASE);
   const { selectedAgent, selectedWorkspace, setAgent, setWorkspace, setWorkspaceTab, navigate, isDockOpen } = useNavigation();
   const { showToast } = useToast();
-  const workspaces = useWorkspaces(API_BASE);
-  const selectedWorkspaceData = useWorkspace(API_BASE, selectedWorkspace || '', !!selectedWorkspace);
+  const { data: workspaces = [] } = useWorkspacesQuery(API_BASE);
+  const { data: selectedWorkspaceData } = useWorkspaceQuery(API_BASE, selectedWorkspace || '', { enabled: !!selectedWorkspace });
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [agentSelectorModal, setAgentSelectorModal] = useState<{
     show: boolean;
