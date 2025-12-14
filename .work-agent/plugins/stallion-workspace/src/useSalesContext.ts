@@ -2,8 +2,16 @@ import { useSalesData } from './SalesDataContext';
 
 /**
  * Hook to subscribe to sales context data
- * Does NOT trigger fetches - use useSalesDataActions().fetch() explicitly
  */
 export function useSalesContext() {
-  return useSalesData();
+  const { data, isLoading, error } = useSalesData();
+  
+  return {
+    myDetails: data.myDetails,
+    myTerritories: data.myTerritories,
+    myAccounts: data.myAccounts,
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+  };
 }
+

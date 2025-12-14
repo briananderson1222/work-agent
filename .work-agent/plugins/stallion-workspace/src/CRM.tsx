@@ -78,6 +78,8 @@ export function CRM({ activeTab }: CRMProps) {
   const agents = useAgents();
   const agentSlug = 'work-agent';
   const salesContext = useSalesContext();
+  console.log('CRM salesContext:', salesContext);
+  
   const userDetails = salesContext.myDetails ? {
     alias: salesContext.myDetails.name,
     sfdcId: salesContext.myDetails.userId
@@ -235,9 +237,12 @@ export function CRM({ activeTab }: CRMProps) {
     }
     
     if (!userDetails?.sfdcId || !salesContext.myAccounts?.length) {
+      console.log('Debug:', { userDetails, myAccounts: salesContext.myAccounts, loading: salesContext.loading });
       showToast('User details not loaded yet', 'error');
       return;
     }
+    
+    console.log('Loading accounts from salesContext:', salesContext.myAccounts);
     
     // Use accounts from salesContext (already fetched via React Query)
     const myAccountsData = salesContext.myAccounts.map(member => ({
@@ -247,6 +252,8 @@ export function CRM({ activeTab }: CRMProps) {
         ...(member.account.territory ? [{ type: 'territory', label: member.account.territory.name }] : [])
       ]
     }));
+    
+    console.log('Processed accounts:', myAccountsData);
     
     setAccounts(myAccountsData);
     setMyAccountsCache(myAccountsData);
