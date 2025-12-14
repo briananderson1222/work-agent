@@ -234,33 +234,19 @@ export function CRM({ activeTab }: CRMProps) {
       return;
     }
     
-    setLoading(true);
-    try {
-      const result = await transformTool(agentSlug, 'sat-sfdc_list_user_assigned_accounts',
-        { userId: userDetails.sfdcId },
-        `(data) => (data.accountTeamMembers || []).map(member => ({
-          ...member.account,
-          _sources: [
-            { type: 'owner', label: '${userDetails.alias}' },
-            ...(member.account.territory ? [{ type: 'territory', label: member.account.territory.name }] : [])
-          ]
-        }))`
-      );
-      
-      if (Array.isArray(result)) {
-        setAccounts(result);
-        setMyAccountsCache(result); // Cache the results
-      } else {
-        console.error('Result is not an array:', result);
-        setAccounts([]);
-      }
-    } catch (error) {
-      console.error('Failed to load my accounts:', error);
-      showToast('Failed to load accounts', 'error');
-    } finally {
-      setLoading(false);
-    }
+    // Use accounts from salesContext (already fetched via React Query)
+    const myAccountsData = salesContext.myAccounts.map(member => ({
+      ...member.account,
+      _sources: [
+        { type: 'owner', label: userDetails.alias },
+        ...(member.account.territory ? [{ type: 'territory', label: member.account.territory.name }] : [])
+      ]
+    }));
+    
+    setAccounts(myAccountsData);
+    setMyAccountsCache(myAccountsData);
   };
+
 
   // Debounced territory search
   useEffect(() => {
