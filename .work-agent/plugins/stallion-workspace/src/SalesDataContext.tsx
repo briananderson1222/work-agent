@@ -1,35 +1,19 @@
-import { createContext, useContext, ReactNode, useSyncExternalStore, useCallback } from 'react';
-import { transformTool } from '@stallion-ai/sdk';
+import { createContext, useContext, ReactNode, useSyncExternalStore } from 'react';
+import { useApiQuery, transformTool } from '@stallion-ai/sdk';
 
-interface SalesData {
-  myDetails: {
-    userId: string;
-    name: string;
-    email: string;
-    role: string;
-  } | null;
-  myTerritories: any[];
-  myAccounts: any[];
-  emailToName: Record<string, string>;
-  loading: boolean;
-  error: string | null;
-  lastFetch: number;
+// Local state store (not API data)
+interface LocalSalesState {
+  sfdcCache: Record<string, any>;
+  loggedActivities: Record<string, { id: string; subject: string }>;
 }
 
-class SalesDataStore {
-  private data: SalesData = {
-    myDetails: null,
-    myTerritories: [],
-    myAccounts: [],
-    emailToName: {},
-    loading: false,
-    error: null,
-    lastFetch: 0,
+class LocalSalesStore {
+  private data: LocalSalesState = {
+    sfdcCache: {},
+    loggedActivities: {},
   };
   
   private listeners = new Set<() => void>();
-  private fetchPromise: Promise<void> | null = null;
-  private CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -42,135 +26,98 @@ class SalesDataStore {
     this.listeners.forEach(listener => listener());
   };
 
-  addEmailName(email: string, name: string) {
-    if (!this.data.emailToName[email]) {
-      this.data = {
-        ...this.data,
-        emailToName: { ...this.data.emailToName, [email]: name }
-      };
-      this.notify();
-    }
-  }
-
-  getNameForEmail(email: string): string | undefined {
-    return this.data.emailToName[email];
-  }
-
-  async fetch(force = false) {
-    // Return existing promise if already fetching
-    if (this.fetchPromise) {
-      return this.fetchPromise;
-    }
-
-    // Use cache if fresh and not forcing
-    const now = Date.now();
-    if (!force && this.data.lastFetch && (now - this.data.lastFetch) < this.CACHE_TTL) {
-      console.log('[SalesDataStore] Using cached data');
-      return;
-    }
-
-    this.data = { ...this.data, loading: true, error: null };
+  setSfdcCache(meetingId: string, data: any) {
+    this.data.sfdcCache[meetingId] = data;
     this.notify();
+  }
 
-    this.fetchPromise = (async () => {
-      try {
-        console.log('[SalesDataStore] Fetching sales data...');
-        
-        const details = await transformTool('work-agent', 'satSfdc_getMyPersonalDetails', {}, 'data => data');
-        
-        if (!details?.sfdcId) {
-          throw new Error('No user ID returned');
-        }
-
-        const [territoriesResult, accountsResult] = await Promise.allSettled([
-          transformTool('work-agent', 'satSfdc_listUserAssignedTerritories', { userId: details.sfdcId }, 'data => data'),
-          transformTool('work-agent', 'satSfdc_listUserAssignedAccounts', { userId: details.sfdcId }, 'data => data')
-        ]);
-
-        const territories = territoriesResult.status === 'fulfilled' ? territoriesResult.value?.territories || [] : [];
-        const accounts = accountsResult.status === 'fulfilled' ? accountsResult.value?.accountTeamMembers || [] : [];
-
-        this.data = {
-          myDetails: {
-            userId: details.sfdcId,
-            name: details.alias,
-            email: details.email,
-            role: details.role,
-          },
-          myTerritories: territories,
-          myAccounts: accounts,
-          loading: false,
-          error: null,
-          lastFetch: Date.now(),
-        };
-
-        console.log('[SalesDataStore] ✅ Loaded:', {
-          user: details.alias,
-          territories: territories.length,
-          accounts: accounts.length,
-        });
-      } catch (err) {
-        console.error('[SalesDataStore] ❌ Failed:', err);
-        this.data = {
-          ...this.data,
-          loading: false,
-          error: err instanceof Error ? err.message : 'Unknown error',
-        };
-      } finally {
-        this.fetchPromise = null;
-        this.notify();
-      }
-    })();
-
-    return this.fetchPromise;
+  setLoggedActivity(meetingId: string, activity: { id: string; subject: string }) {
+    this.data.loggedActivities[meetingId] = activity;
+    this.notify();
   }
 
   clear() {
-    this.data = {
-      myDetails: null,
-      myTerritories: [],
-      myAccounts: [],
-      emailToName: {},
-      loading: false,
-      error: null,
-      lastFetch: 0,
-    };
+    this.data = { sfdcCache: {}, loggedActivities: {} };
     this.notify();
   }
 }
 
-const salesDataStore = new SalesDataStore();
+const localSalesStore = new LocalSalesStore();
 
-const SalesDataContext = createContext<{
-  data: SalesData;
-  fetch: (force?: boolean) => Promise<void>;
-  clear: () => void;
-  addEmailName: (email: string, name: string) => void;
-  getNameForEmail: (email: string) => string | undefined;
-} | null>(null);
+const LocalSalesContext = createContext<LocalSalesStore | null>(null);
 
 export function SalesDataProvider({ children }: { children: ReactNode }) {
-  const data = useSyncExternalStore(
-    salesDataStore.subscribe,
-    salesDataStore.getSnapshot
-  );
-
-  const fetch = useCallback((force = false) => salesDataStore.fetch(force), []);
-  const clear = useCallback(() => salesDataStore.clear(), []);
-  const addEmailName = useCallback((email: string, name: string) => salesDataStore.addEmailName(email, name), []);
-  const getNameForEmail = useCallback((email: string) => salesDataStore.getNameForEmail(email), []);
-
   return (
-    <SalesDataContext.Provider value={{ data, fetch, clear, addEmailName, getNameForEmail }}>
+    <LocalSalesContext.Provider value={localSalesStore}>
       {children}
-    </SalesDataContext.Provider>
+    </LocalSalesContext.Provider>
   );
 }
 
-export function useSalesData() {
-  const context = useContext(SalesDataContext);
-  if (!context) {
-    throw new Error('useSalesData must be used within SalesDataProvider');
+// Hook for local state
+export function useLocalSalesState() {
+  const store = useContext(LocalSalesContext);
+  if (!store) {
+    throw new Error('useLocalSalesState must be used within SalesDataProvider');
   }
-  return context;
+  
+  const data = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot
+  );
+  
+  return {
+    ...data,
+    setSfdcCache: (meetingId: string, data: any) => store.setSfdcCache(meetingId, data),
+    setLoggedActivity: (meetingId: string, activity: { id: string; subject: string }) => 
+      store.setLoggedActivity(meetingId, activity),
+    clear: () => store.clear(),
+  };
+}
+
+// SDK query hook for API data - auto-caches, dedupes, handles StrictMode
+export function useSalesData(config?: { staleTime?: number }) {
+  return useApiQuery(
+    ['salesData'], // Cache key
+    async () => {
+      const details = await transformTool('work-agent', 'satSfdc_getMyPersonalDetails', {}, 'data => data');
+      
+      if (!details?.sfdcId) {
+        throw new Error('No user ID returned');
+      }
+
+      const [territoriesResult, accountsResult] = await Promise.allSettled([
+        transformTool('work-agent', 'satSfdc_listUserAssignedTerritories', { userId: details.sfdcId }, 'data => data'),
+        transformTool('work-agent', 'satSfdc_listUserAssignedAccounts', { userId: details.sfdcId }, 'data => data')
+      ]);
+
+      const territories = territoriesResult.status === 'fulfilled' ? territoriesResult.value?.territories || [] : [];
+      const accounts = accountsResult.status === 'fulfilled' ? accountsResult.value?.accountTeamMembers || [] : [];
+
+      return {
+        myDetails: {
+          userId: details.sfdcId,
+          name: details.alias,
+          email: details.email,
+          role: details.role,
+        },
+        myTerritories: territories,
+        myAccounts: accounts,
+      };
+    },
+    config // Optional: override staleTime
+  );
+}
+
+// Backward compatibility hook
+export function useSalesContext() {
+  const { data, isLoading, error } = useSalesData();
+  
+  return {
+    myDetails: data?.myDetails || null,
+    myTerritories: data?.myTerritories || [],
+    myAccounts: data?.myAccounts || [],
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+  };
 }

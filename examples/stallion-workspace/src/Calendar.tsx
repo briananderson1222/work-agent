@@ -1,10 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
 import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
-import { useSalesDataActions } from './SalesDataContext';
 import { SearchModal } from './components/SearchModal';
 import './workspace.css';
 
@@ -139,9 +138,8 @@ interface CalendarProps {
 }
 
 export function Calendar({ activeTab }: CalendarProps) {
-  // Subscribe to sales context data (no auto-fetch)
+  // Subscribe to sales context data (React Query auto-fetches)
   const salesContext = useSalesContext();
-  const { fetch: fetchSalesData } = useSalesDataActions();
   
   const { showToast } = useToast();
   const { notify } = useNotifications();
@@ -151,15 +149,6 @@ export function Calendar({ activeTab }: CalendarProps) {
   const createChatSession = useCreateChatSession();
   const sendMessage = useSendMessage(apiBase);
   const agents = useAgents();
-  
-  // Explicit action: fetch sales data on mount (once)
-  const hasFetchedRef = useRef(false);
-  useEffect(() => {
-    if (!hasFetchedRef.current) {
-      hasFetchedRef.current = true;
-      fetchSalesData(); // Will use cache if valid
-    }
-  }, [fetchSalesData]);
   
   const sendToChat = (message: string) => {
     const resolvedSlug = resolveAgentName('work-agent');

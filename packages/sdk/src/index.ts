@@ -1,6 +1,17 @@
 // Re-export all types
 export * from './types';
 
+// Re-export query hooks (plugins use these instead of raw React Query)
+export {
+  useTransformTool,
+  useInvokeAgent,
+  useApiQuery,
+  useApiMutation,
+  useInvalidateQuery,
+  useWorkspaceQuery,
+  useWorkspacesQuery,
+} from './queries';
+
 // Re-export components
 export { Button, Pill, AutoSelectModal } from './components';
 export type { AutoSelectItem } from './components';

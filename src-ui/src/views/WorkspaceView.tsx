@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useApiBase } from '../contexts/ConfigContext';
-import { useWorkspace, useWorkspacesActions } from '../contexts/WorkspacesContext';
+import { useWorkspaceQuery } from '@stallion-ai/sdk';
 import { useAgents } from '../contexts/AgentsContext';
 import { useCreateChatSession } from '../contexts/ActiveChatsContext';
 import { useSendMessage } from '../contexts/ActiveChatsContext';
@@ -16,19 +16,16 @@ export function WorkspaceView() {
   const { selectedWorkspace, activeTab, setDockState, setWorkspaceTab, setActiveChat } = useNavigation();
   
   const agents = useAgents(apiBase);
-  const workspace = useWorkspace(apiBase, selectedWorkspace || '', !!selectedWorkspace);
-  const { fetchOne } = useWorkspacesActions();
+  
+  // React Query auto-fetches, caches, dedupes
+  const { data: workspace, isLoading } = useWorkspaceQuery(
+    apiBase, 
+    selectedWorkspace || '', 
+    { enabled: !!selectedWorkspace }
+  );
+  
   const createChatSession = useCreateChatSession();
   const slashCommandHandler = useSlashCommandHandler(apiBase);
-  
-  // Explicit action: fetch workspace when selected
-  const hasFetchedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (selectedWorkspace && hasFetchedRef.current !== selectedWorkspace) {
-      hasFetchedRef.current = selectedWorkspace;
-      fetchOne(apiBase, selectedWorkspace);
-    }
-  }, [apiBase, selectedWorkspace, fetchOne]);
   
   // Set active tab via NavigationContext
   const setActiveTabId = useCallback((tabId: string) => {
@@ -86,7 +83,7 @@ export function WorkspaceView() {
     );
   }
 
-  if (!workspace) {
+  if (isLoading || !workspace) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
         <p>Loading workspace...</p>

@@ -1,33 +1,19 @@
-import { createContext, useContext, ReactNode, useSyncExternalStore, useCallback } from 'react';
-import { transformTool } from '@stallion-ai/sdk';
+import { createContext, useContext, ReactNode, useSyncExternalStore } from 'react';
+import { useApiQuery, transformTool } from '@stallion-ai/sdk';
 
-interface SalesData {
-  myDetails: {
-    userId: string;
-    name: string;
-    email: string;
-    role: string;
-  } | null;
-  myTerritories: any[];
-  myAccounts: any[];
-  loading: boolean;
-  error: string | null;
-  lastFetch: number;
+// Local state store (not API data)
+interface LocalSalesState {
+  sfdcCache: Record<string, any>;
+  loggedActivities: Record<string, { id: string; subject: string }>;
 }
 
-class SalesDataStore {
-  private data: SalesData = {
-    myDetails: null,
-    myTerritories: [],
-    myAccounts: [],
-    loading: false,
-    error: null,
-    lastFetch: 0,
+class LocalSalesStore {
+  private data: LocalSalesState = {
+    sfdcCache: {},
+    loggedActivities: {},
   };
   
   private listeners = new Set<() => void>();
-  private fetchPromise: Promise<void> | null = null;
-  private cacheTTL = 5 * 60 * 1000; // 5 minutes
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -40,122 +26,98 @@ class SalesDataStore {
     this.listeners.forEach(listener => listener());
   };
 
-  private isCacheValid(): boolean {
-    if (!this.data.lastFetch) return false;
-    return (Date.now() - this.data.lastFetch) < this.cacheTTL;
+  setSfdcCache(meetingId: string, data: any) {
+    this.data.sfdcCache[meetingId] = data;
+    this.notify();
   }
 
-  async fetch(force = false) {
-    // Return cached data if valid and not forcing
-    if (!force && this.isCacheValid()) {
-      console.log('[SalesDataStore] Using cached data');
-      return;
-    }
-
-    // Return existing promise if already fetching
-    if (this.fetchPromise) {
-      console.log('[SalesDataStore] Fetch already in progress');
-      return this.fetchPromise;
-    }
-
-    this.data = { ...this.data, loading: true, error: null };
+  setLoggedActivity(meetingId: string, activity: { id: string; subject: string }) {
+    this.data.loggedActivities[meetingId] = activity;
     this.notify();
-
-    this.fetchPromise = (async () => {
-      try {
-        console.log('[SalesDataStore] Fetching sales data...');
-        
-        const details = await transformTool('work-agent', 'satSfdc_getMyPersonalDetails', {}, 'data => data');
-        
-        if (!details?.sfdcId) {
-          throw new Error('No user ID returned');
-        }
-
-        const [territoriesResult, accountsResult] = await Promise.allSettled([
-          transformTool('work-agent', 'satSfdc_listUserAssignedTerritories', { userId: details.sfdcId }, 'data => data'),
-          transformTool('work-agent', 'satSfdc_listUserAssignedAccounts', { userId: details.sfdcId }, 'data => data')
-        ]);
-
-        const territories = territoriesResult.status === 'fulfilled' ? territoriesResult.value?.territories || [] : [];
-        const accounts = accountsResult.status === 'fulfilled' ? accountsResult.value?.accountTeamMembers || [] : [];
-
-        this.data = {
-          myDetails: {
-            userId: details.sfdcId,
-            name: details.alias,
-            email: details.email,
-            role: details.role,
-          },
-          myTerritories: territories,
-          myAccounts: accounts,
-          loading: false,
-          error: null,
-          lastFetch: Date.now(),
-        };
-
-        console.log('[SalesDataStore] ✅ Loaded');
-      } catch (err) {
-        console.error('[SalesDataStore] ❌ Failed:', err);
-        this.data = {
-          ...this.data,
-          loading: false,
-          error: err instanceof Error ? err.message : 'Unknown error',
-        };
-      } finally {
-        this.fetchPromise = null;
-        this.notify();
-      }
-    })();
-
-    return this.fetchPromise;
   }
 
   clear() {
-    this.data = {
-      myDetails: null,
-      myTerritories: [],
-      myAccounts: [],
-      loading: false,
-      error: null,
-      lastFetch: 0,
-    };
-    this.fetchPromise = null;
+    this.data = { sfdcCache: {}, loggedActivities: {} };
     this.notify();
   }
 }
 
-const salesDataStore = new SalesDataStore();
+const localSalesStore = new LocalSalesStore();
 
-const SalesDataContext = createContext<{
-  fetch: (force?: boolean) => Promise<void>;
-  clear: () => void;
-} | null>(null);
+const LocalSalesContext = createContext<LocalSalesStore | null>(null);
 
 export function SalesDataProvider({ children }: { children: ReactNode }) {
-  const fetch = useCallback((force = false) => salesDataStore.fetch(force), []);
-  const clear = useCallback(() => salesDataStore.clear(), []);
-
   return (
-    <SalesDataContext.Provider value={{ fetch, clear }}>
+    <LocalSalesContext.Provider value={localSalesStore}>
       {children}
-    </SalesDataContext.Provider>
+    </LocalSalesContext.Provider>
   );
 }
 
-// Hook for actions only (fetch/clear)
-export function useSalesDataActions() {
-  const context = useContext(SalesDataContext);
-  if (!context) {
-    throw new Error('useSalesDataActions must be used within SalesDataProvider');
+// Hook for local state
+export function useLocalSalesState() {
+  const store = useContext(LocalSalesContext);
+  if (!store) {
+    throw new Error('useLocalSalesState must be used within SalesDataProvider');
   }
-  return context;
+  
+  const data = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot
+  );
+  
+  return {
+    ...data,
+    setSfdcCache: (meetingId: string, data: any) => store.setSfdcCache(meetingId, data),
+    setLoggedActivity: (meetingId: string, activity: { id: string; subject: string }) => 
+      store.setLoggedActivity(meetingId, activity),
+    clear: () => store.clear(),
+  };
 }
 
-// Hook for data subscription (no side effects)
-export function useSalesData() {
-  const data = useSyncExternalStore(
-    salesDataStore.subscribe,
-    salesDataStore.getSnapshot
+// SDK query hook for API data - auto-caches, dedupes, handles StrictMode
+export function useSalesData(config?: { staleTime?: number }) {
+  return useApiQuery(
+    ['salesData'], // Cache key
+    async () => {
+      const details = await transformTool('work-agent', 'satSfdc_getMyPersonalDetails', {}, 'data => data');
+      
+      if (!details?.sfdcId) {
+        throw new Error('No user ID returned');
+      }
+
+      const [territoriesResult, accountsResult] = await Promise.allSettled([
+        transformTool('work-agent', 'satSfdc_listUserAssignedTerritories', { userId: details.sfdcId }, 'data => data'),
+        transformTool('work-agent', 'satSfdc_listUserAssignedAccounts', { userId: details.sfdcId }, 'data => data')
+      ]);
+
+      const territories = territoriesResult.status === 'fulfilled' ? territoriesResult.value?.territories || [] : [];
+      const accounts = accountsResult.status === 'fulfilled' ? accountsResult.value?.accountTeamMembers || [] : [];
+
+      return {
+        myDetails: {
+          userId: details.sfdcId,
+          name: details.alias,
+          email: details.email,
+          role: details.role,
+        },
+        myTerritories: territories,
+        myAccounts: accounts,
+      };
+    },
+    config // Optional: override staleTime
   );
-  return data;
+}
+
+// Backward compatibility hook
+export function useSalesContext() {
+  const { data, isLoading, error } = useSalesData();
+  
+  return {
+    myDetails: data?.myDetails || null,
+    myTerritories: data?.myTerritories || [],
+    myAccounts: data?.myAccounts || [],
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+  };
 }

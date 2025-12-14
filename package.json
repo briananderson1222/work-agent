@@ -27,6 +27,7 @@
     "@hono/node-server": "^1.19.5",
     "@smithy/node-http-handler": "^4.4.5",
     "@stallion-ai/sdk": "file:./packages/sdk",
+    "@tanstack/react-query": "^5.90.12",
     "@tauri-apps/api": "^2.9.0",
     "@types/dompurify": "^3.0.5",
     "@voltagent/core": "^1.1.30",
