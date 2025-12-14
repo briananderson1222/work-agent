@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify';
 import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { useLocalSalesState } from './SalesDataContext';
-import { useCalendarEvents } from './useCalendarQueries';
+import { useCalendarEvents } from './useSalesQueries';
 import { SearchModal } from './components/SearchModal';
 import './workspace.css';
 

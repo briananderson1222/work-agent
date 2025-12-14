@@ -60,7 +60,7 @@ export function useAccountOpportunities(accountId: string | null) {
   return useApiQuery(
     ['sfdc', 'opportunities', accountId],
     async () => {
-      const result = await transformTool('work-agent', 'satSfdc_getOpportunitiesForAccount', { 
+      const result = await transformTool('work-agent', 'sat-sfdc_get_opportunities_for_account', { 
         accountId 
       }, 'data => data');
       return result;
@@ -79,7 +79,7 @@ export function useUserTasks(params: any) {
   return useApiQuery(
     ['sfdc', 'tasks', params],
     async () => {
-      const result = await transformTool('work-agent', 'satSfdc_listUserTasks', params, 'data => data');
+      const result = await transformTool('work-agent', 'sat-sfdc_list_user_tasks', params, 'data => data');
       return result;
     },
     { staleTime: 2 * 60 * 1000 }

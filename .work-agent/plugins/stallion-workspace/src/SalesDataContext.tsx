@@ -90,20 +90,20 @@ export function useLocalSalesState() {
   };
 }
 
-// SDK query hook for API data - auto-caches, dedupes, handles StrictMode
+// SDK query hook for API data
 export function useSalesData(config?: { staleTime?: number }) {
   return useApiQuery(
     ['salesData'], // Cache key
     async () => {
-      const details = await transformTool('work-agent', 'satSfdc_getMyPersonalDetails', {}, 'data => data');
+      const details = await transformTool('work-agent', 'sat-sfdc_get_my_personal_details', {}, 'data => data');
       
       if (!details?.sfdcId) {
         throw new Error('No user ID returned');
       }
 
       const [territoriesResult, accountsResult] = await Promise.allSettled([
-        transformTool('work-agent', 'satSfdc_listUserAssignedTerritories', { userId: details.sfdcId }, 'data => data'),
-        transformTool('work-agent', 'satSfdc_listUserAssignedAccounts', { userId: details.sfdcId }, 'data => data')
+        transformTool('work-agent', 'sat-sfdc_list_user_assigned_territories', { userId: details.sfdcId }, 'data => data'),
+        transformTool('work-agent', 'sat-sfdc_list_user_assigned_accounts', { userId: details.sfdcId }, 'data => data')
       ]);
 
       const territories = territoriesResult.status === 'fulfilled' ? territoriesResult.value?.territories || [] : [];
