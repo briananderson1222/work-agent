@@ -129,8 +129,8 @@ export function useSalesData() {
   return {
     data: {
       myDetails: myDetails || null,
-      myTerritories,
-      myAccounts,
+      myTerritories: myTerritories || [],
+      myAccounts: myAccounts || [],
     },
     isLoading: detailsLoading || territoriesLoading || accountsLoading,
     error: null,
@@ -142,10 +142,11 @@ export function useSalesContext() {
   const { data, isLoading, error } = useSalesData();
   
   return {
-    myDetails: data?.myDetails || null,
-    myTerritories: data?.myTerritories || [],
-    myAccounts: data?.myAccounts || [],
+    myDetails: data.myDetails,
+    myTerritories: data.myTerritories,
+    myAccounts: data.myAccounts,
     loading: isLoading,
     error: error ? (error as Error).message : null,
   };
+}
 }
