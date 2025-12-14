@@ -32,3 +32,56 @@ export function useCalendarEvents(date: Date) {
     { staleTime: 2 * 60 * 1000 } // 2 min cache
   );
 }
+
+/**
+ * Fetch meeting details
+ */
+export function useMeetingDetails(meetingId: string | null, meetingChangeKey?: string) {
+  return useApiQuery(
+    ['calendar', 'meeting', meetingId],
+    async () => {
+      const data = await transformTool('work-agent', 'sat-outlook_calendar_meeting', {
+        meeting_id: meetingId,
+        meeting_change_key: meetingChangeKey
+      }, 'data => data');
+      return data;
+    },
+    { 
+      enabled: !!meetingId,
+      staleTime: 5 * 60 * 1000 // 5 min cache
+    }
+  );
+}
+
+/**
+ * Fetch opportunities for account
+ */
+export function useAccountOpportunities(accountId: string | null) {
+  return useApiQuery(
+    ['sfdc', 'opportunities', accountId],
+    async () => {
+      const result = await transformTool('work-agent', 'satSfdc_getOpportunitiesForAccount', { 
+        accountId 
+      }, 'data => data');
+      return result;
+    },
+    { 
+      enabled: !!accountId,
+      staleTime: 5 * 60 * 1000
+    }
+  );
+}
+
+/**
+ * Fetch user tasks
+ */
+export function useUserTasks(params: any) {
+  return useApiQuery(
+    ['sfdc', 'tasks', params],
+    async () => {
+      const result = await transformTool('work-agent', 'satSfdc_listUserTasks', params, 'data => data');
+      return result;
+    },
+    { staleTime: 2 * 60 * 1000 }
+  );
+}
