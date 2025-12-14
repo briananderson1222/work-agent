@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { _setApiBase } from '@stallion-ai/sdk';
 import { ModelsProvider } from './contexts/ModelsContext';
 import { ModelCapabilitiesProvider } from './contexts/ModelCapabilitiesContext';
 import { ConfigProvider } from './contexts/ConfigContext';
@@ -43,6 +44,9 @@ window.addEventListener('hashchange', () => {
 });
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3141';
+
+// Set API base for SDK before rendering
+_setApiBase(API_BASE);
 
 // SDK Provider for plugins (simplified version)
 const SDKProvider = ({ children }: { children: React.ReactNode }) => {
