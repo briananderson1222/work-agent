@@ -199,12 +199,12 @@ export function CRM({ activeTab }: CRMProps) {
     setTabState('crm', stateString);
   }, [mode, searchType, activeFilters, isInitialMount, setTabState, getTabState]);
 
-  // Auto-load my accounts on mount
+  // Auto-load my accounts when data is ready
   useEffect(() => {
-    if (ENABLE_MY_ACCOUNTS && mode === 'my-accounts' && accounts.length === 0 && activeFilters.length === 0 && userDetails) {
+    if (ENABLE_MY_ACCOUNTS && mode === 'my-accounts' && accounts.length === 0 && activeFilters.length === 0 && !salesContext.loading && salesContext.myAccounts.length > 0) {
       loadMyAccounts();
     }
-  }, [mode, userDetails]);
+  }, [mode, salesContext.loading, salesContext.myAccounts.length]);
 
   // Restore accounts from filters on mount
   useEffect(() => {
@@ -229,6 +229,11 @@ export function CRM({ activeTab }: CRMProps) {
   }, []);
 
   const loadMyAccounts = async () => {
+    if (salesContext.loading) {
+      showToast('Loading user details...', 'info');
+      return;
+    }
+    
     if (!userDetails?.sfdcId) {
       showToast('User details not loaded yet', 'error');
       return;
