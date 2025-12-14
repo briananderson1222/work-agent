@@ -218,6 +218,9 @@ export function Calendar({ activeTab }: CalendarProps) {
     }
   }, [activeTab, getTabState]);
 
+  const [selectedDate, setSelectedDate] = useState<Date>(initialState.date);
+  const [viewMonth, setViewMonth] = useState<Date>(initialState.date);
+  
   // Use React Query for calendar events
   const { data: events = [], isLoading: loading, error: eventsError } = useCalendarEvents(selectedDate);
   
@@ -229,8 +232,6 @@ export function Calendar({ activeTab }: CalendarProps) {
   const [rawResponse, setRawResponse] = useState<string>('');
   const [sfdcContext, setSfdcContext] = useState<SFDCContext | null>(null);
   const [loadingSFDC, setLoadingSFDC] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date>(initialState.date);
-  const [viewMonth, setViewMonth] = useState<Date>(initialState.date);
   const [showAllAttendees, setShowAllAttendees] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(initialState.categories));
   const [filterExpanded, setFilterExpanded] = useState(initialState.filterExpanded);
