@@ -136,3 +136,37 @@ export function useWorkspacesQuery(config?: QueryConfig<any>) {
     config
   );
 }
+
+/**
+ * Fetch usage analytics
+ */
+export function useUsageQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['analytics', 'usage'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/analytics/usage`);
+      if (!response.ok) throw new Error('Failed to fetch usage');
+      const result = await response.json();
+      return result.data;
+    },
+    config
+  );
+}
+
+/**
+ * Fetch achievements
+ */
+export function useAchievementsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['analytics', 'achievements'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/analytics/achievements`);
+      if (!response.ok) throw new Error('Failed to fetch achievements');
+      const result = await response.json();
+      return result.data;
+    },
+    config
+  );
+}

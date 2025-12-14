@@ -10,6 +10,8 @@ export {
   useInvalidateQuery,
   useWorkspaceQuery,
   useWorkspacesQuery,
+  useUsageQuery,
+  useAchievementsQuery,
 } from './queries';
 
 // Re-export components

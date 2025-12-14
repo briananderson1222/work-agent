@@ -5,12 +5,14 @@ import { useApiQuery, transformTool } from '@stallion-ai/sdk';
 interface LocalSalesState {
   sfdcCache: Record<string, any>;
   loggedActivities: Record<string, { id: string; subject: string }>;
+  emailToName: Record<string, string>;
 }
 
 class LocalSalesStore {
   private data: LocalSalesState = {
     sfdcCache: {},
     loggedActivities: {},
+    emailToName: {},
   };
   
   private listeners = new Set<() => void>();
@@ -36,8 +38,19 @@ class LocalSalesStore {
     this.notify();
   }
 
+  addEmailName(email: string, name: string) {
+    if (!this.data.emailToName[email]) {
+      this.data.emailToName[email] = name;
+      this.notify();
+    }
+  }
+
+  getNameForEmail(email: string): string | undefined {
+    return this.data.emailToName[email];
+  }
+
   clear() {
-    this.data = { sfdcCache: {}, loggedActivities: {} };
+    this.data = { sfdcCache: {}, loggedActivities: {}, emailToName: {} };
     this.notify();
   }
 }
@@ -71,6 +84,8 @@ export function useLocalSalesState() {
     setSfdcCache: (meetingId: string, data: any) => store.setSfdcCache(meetingId, data),
     setLoggedActivity: (meetingId: string, activity: { id: string; subject: string }) => 
       store.setLoggedActivity(meetingId, activity),
+    addEmailName: (email: string, name: string) => store.addEmailName(email, name),
+    getNameForEmail: (email: string) => store.getNameForEmail(email),
     clear: () => store.clear(),
   };
 }

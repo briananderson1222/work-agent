@@ -4,6 +4,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
 import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
+import { useLocalSalesState } from './SalesDataContext';
 import { SearchModal } from './components/SearchModal';
 import './workspace.css';
 
@@ -140,6 +141,7 @@ interface CalendarProps {
 export function Calendar({ activeTab }: CalendarProps) {
   // Subscribe to sales context data (React Query auto-fetches)
   const salesContext = useSalesContext();
+  const { addEmailName, getNameForEmail } = useLocalSalesState();
   
   const { showToast } = useToast();
   const { notify } = useNotifications();
