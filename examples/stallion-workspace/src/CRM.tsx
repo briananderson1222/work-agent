@@ -201,10 +201,10 @@ export function CRM({ activeTab }: CRMProps) {
 
   // Auto-load my accounts when data is ready
   useEffect(() => {
-    if (ENABLE_MY_ACCOUNTS && mode === 'my-accounts' && accounts.length === 0 && activeFilters.length === 0 && !salesContext.loading && salesContext.myAccounts.length > 0) {
+    if (ENABLE_MY_ACCOUNTS && mode === 'my-accounts' && accounts.length === 0 && activeFilters.length === 0 && !salesContext.loading && salesContext.myAccounts?.length > 0) {
       loadMyAccounts();
     }
-  }, [mode, salesContext.loading, salesContext.myAccounts.length]);
+  }, [mode, salesContext.loading, salesContext.myAccounts?.length]);
 
   // Restore accounts from filters on mount
   useEffect(() => {
@@ -234,7 +234,7 @@ export function CRM({ activeTab }: CRMProps) {
       return;
     }
     
-    if (!userDetails?.sfdcId) {
+    if (!userDetails?.sfdcId || !salesContext.myAccounts?.length) {
       showToast('User details not loaded yet', 'error');
       return;
     }
