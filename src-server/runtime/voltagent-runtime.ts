@@ -1493,13 +1493,14 @@ export class WorkAgentRuntime {
           });
 
           // Pure transformation endpoint (no LLM, just data mapping)
-          app.post('/agents/:slug/invoke/transform', async (c) => {
+          app.post('/agents/:slug/tool/:toolName', async (c) => {
             console.log('[TRANSFORM] Endpoint called');
             const endpointStart = performance.now();
             
             try {
               const slug = c.req.param('slug');
-              const { toolName, toolArgs, transform } = await c.req.json();
+              const toolName = c.req.param('toolName');
+              const { toolArgs, transform } = await c.req.json();
               console.log('[TRANSFORM] Tool:', toolName, 'Args:', toolArgs);
               
               const agent = this.activeAgents.get(slug);

@@ -216,11 +216,10 @@ export async function transformTool(
 ): Promise<any> {
   const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/invoke/transform`, {
+  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tool/${encodeURIComponent(toolName)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      toolName,
       toolArgs,
       transform: transformFn
     })
