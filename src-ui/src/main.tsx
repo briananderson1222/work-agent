@@ -64,7 +64,7 @@ pluginRegistry.initialize().then(() => {
               <KeyboardShortcutsProvider>
                 <ToastProvider>
                   <ModelsProvider>
-                    <ModelCapabilitiesProvider apiBase={API_BASE}>
+                    <ModelCapabilitiesProvider>
                       <WorkspacesProvider>
                       <AgentsProvider>
                         <AgentToolsProvider>

@@ -206,6 +206,22 @@ export function useModelsQuery(config?: QueryConfig<any>) {
 }
 
 /**
+ * Fetch model capabilities
+ */
+export function useModelCapabilitiesQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['modelCapabilities'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/models/capabilities`);
+      const result = await response.json();
+      return result.data;
+    },
+    config
+  );
+}
+
+/**
  * Fetch app configuration
  */
 export function useConfigQuery(config?: QueryConfig<any>) {

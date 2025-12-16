@@ -1,104 +1,42 @@
-import { createContext, useContext, useSyncExternalStore, ReactNode } from 'react';
-import { log } from '@/utils/logger';
+import { createContext, useContext, ReactNode } from 'react';
+import { useModelCapabilitiesQuery } from '@stallion-ai/sdk';
 
-type ModelCapability = {
+export type ModelCapability = {
   modelId: string;
   modelName: string;
   provider: string;
   inputModalities: string[];
   outputModalities: string[];
-  supportsStreaming: boolean;
-  supportsImages: boolean;
-  supportsVideo: boolean;
-  supportsAudio: boolean;
+  supportsStreaming?: boolean;
+  supportsImages?: boolean;
+  supportsVideo?: boolean;
+  supportsAudio?: boolean;
   lifecycleStatus?: string;
 };
 
-class ModelCapabilitiesStore {
-  private capabilities: ModelCapability[] = [];
-  private listeners = new Set<() => void>();
-  private loading = false;
-  private error: string | null = null;
-  private cachedSnapshot = { capabilities: this.capabilities, loading: this.loading, error: this.error };
+const ModelCapabilitiesContext = createContext<{} | undefined>(undefined);
 
-  subscribe = (listener: () => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
-
-  getSnapshot = () => {
-    return this.cachedSnapshot;
-  };
-
-  private notify = () => {
-    this.cachedSnapshot = { capabilities: [...this.capabilities], loading: this.loading, error: this.error };
-    this.listeners.forEach(listener => listener());
-  };
-
-  async fetch(apiBase: string) {
-    if (this.loading || this.capabilities.length > 0) return;
-    
-    this.loading = true;
-    this.notify();
-
-    try {
-      const response = await fetch(`${apiBase}/api/models/capabilities`);
-      const data = await response.json();
-      
-      if (data.data) {
-        this.capabilities = data.data;
-        this.error = null;
-      } else {
-        this.error = 'Failed to load model capabilities';
-      }
-    } catch (error: any) {
-      this.error = error.message;
-      log.api('Failed to fetch model capabilities:', error);
-    } finally {
-      this.loading = false;
-      this.notify();
-    }
-  }
-
-  getCapabilities(modelId: string): ModelCapability | null {
-    return this.capabilities.find(c => c.modelId === modelId) || null;
-  }
-}
-
-export const modelCapabilitiesStore = new ModelCapabilitiesStore();
-
-const ModelCapabilitiesContext = createContext<typeof modelCapabilitiesStore | undefined>(undefined);
-
-export function ModelCapabilitiesProvider({ children, apiBase }: { children: ReactNode; apiBase: string }) {
-  // Fetch on mount
-  if (apiBase) {
-    modelCapabilitiesStore.fetch(apiBase);
-  }
-
+export function ModelCapabilitiesProvider({ children }: { children: ReactNode }) {
   return (
-    <ModelCapabilitiesContext.Provider value={modelCapabilitiesStore}>
+    <ModelCapabilitiesContext.Provider value={{}}>
       {children}
     </ModelCapabilitiesContext.Provider>
   );
 }
 
-export function useModelCapabilities() {
-  const store = useContext(ModelCapabilitiesContext);
-  if (!store) {
-    throw new Error('useModelCapabilities must be used within ModelCapabilitiesProvider');
-  }
+export function useModelCapabilities(): ModelCapability[] {
+  const context = useContext(ModelCapabilitiesContext);
+  if (!context) throw new Error('useModelCapabilities must be used within ModelCapabilitiesProvider');
 
-  return useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-    store.getSnapshot
-  );
+  const { data = [] } = useModelCapabilitiesQuery();
+  return data;
 }
 
 export function useModelSupportsAttachments(modelId: string | undefined): boolean {
-  const { capabilities } = useModelCapabilities();
+  const capabilities = useModelCapabilities();
+  
   if (!modelId) return false;
   
   const capability = capabilities.find(c => c.modelId === modelId);
-  return capability?.supportsImages || capability?.supportsVideo || capability?.supportsAudio || false;
+  return capability?.supportsImages || false;
 }
