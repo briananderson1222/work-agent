@@ -5,7 +5,7 @@ import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 import { useSendMessage, useCreateChatSession, useActiveChatActions } from '../contexts/ActiveChatsContext';
-import { useApiBase } from './ApiBaseContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import type { WorkspaceConfig } from '../types';
 
 interface SDKAdapterProps {
