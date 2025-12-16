@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useConversationsQuery, useInvalidateQuery } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 import { ConfirmModal } from './ConfirmModal';
 import { ContextPercentage } from './ConversationStats';
@@ -52,13 +53,41 @@ export function SessionManagementMenu({
   const [isOpen, setIsOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(false);
   const [panelBounds, setPanelBounds] = useState({ top: 0, bottom: 0, left: 0 });
   const [deleteConfirm, setDeleteConfirm] = useState<{ conv: Conversation } | null>(null);
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const invalidate = useInvalidateQuery();
+
+  // Fetch conversations for all agents using React Query
+  const conversationQueries = agents.map(agent => 
+    useConversationsQuery(agent.slug, { enabled: isOpen })
+  );
+
+  // Combine all conversations from all agents
+  const conversations = useMemo(() => {
+    const allConversations: Conversation[] = [];
+    
+    agents.forEach((agent, index) => {
+      const data = conversationQueries[index].data || [];
+      const agentConvos = data.map((conv: any) => ({
+        ...conv,
+        agentSlug: agent.slug,
+        agentName: agent.name,
+      }));
+      allConversations.push(...agentConvos);
+    });
+    
+    // Sort by updatedAt descending
+    allConversations.sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+    
+    return allConversations;
+  }, [agents, conversationQueries]);
+
+  const loading = conversationQueries.some(q => q.isLoading);
 
   useEffect(() => {
     if (isOpen && chatDockRef.current) {
@@ -68,44 +97,8 @@ export function SessionManagementMenu({
         bottom: rect.bottom,
         left: rect.left,
       });
-      loadConversations();
     }
   }, [isOpen]);
-
-  const loadConversations = async () => {
-    setLoading(true);
-    try {
-      const allConversations: Conversation[] = [];
-      
-      for (const agent of agents) {
-        try {
-          const response = await fetch(`${apiBase}/agents/${agent.slug}/conversations`);
-          if (response.ok) {
-            const data = await response.json();
-            const agentConvos = (data.data || []).map((conv: any) => ({
-              ...conv,
-              agentSlug: agent.slug,
-              agentName: agent.name,
-            }));
-            allConversations.push(...agentConvos);
-          }
-        } catch (error) {
-          log.api(`Failed to load conversations for ${agent.slug}:`, error);
-        }
-      }
-      
-      // Sort by updatedAt descending
-      allConversations.sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
-      
-      setConversations(allConversations);
-    } catch (error) {
-      log.api('Failed to load conversations:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -148,10 +141,8 @@ export function SessionManagementMenu({
       });
 
       if (response.ok) {
-        // Update local conversation list
-        setConversations(prev => prev.map(c => 
-          c.id === conv.id ? { ...c, title: newTitle.trim() } : c
-        ));
+        // Invalidate conversations cache to refetch
+        invalidate(['conversations', conv.agentSlug]);
         
         // Update active session if it matches
         const activeSession = sessions.find(s => s.conversationId === conv.id);
@@ -182,8 +173,8 @@ export function SessionManagementMenu({
 
       
       if (response.ok) {
-        // Remove from local list
-        setConversations(prev => prev.filter(c => c.id !== conv.id));
+        // Invalidate conversations cache to refetch
+        invalidate(['conversations', conv.agentSlug]);
         
         // Close active session if it matches
         const activeSession = sessions.find(s => s.conversationId === conv.id);
@@ -218,8 +209,10 @@ export function SessionManagementMenu({
         }
       }
       
-      // Clear local list
-      setConversations([]);
+      // Invalidate all agent conversation caches
+      agents.forEach(agent => {
+        invalidate(['conversations', agent.slug]);
+      });
     } catch (error) {
       log.api('Failed to clear all conversations:', error);
       alert('Failed to clear all conversations. Check console for details.');
