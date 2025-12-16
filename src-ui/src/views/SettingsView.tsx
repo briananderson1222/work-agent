@@ -12,7 +12,7 @@ import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
 import { useAgents } from '../contexts/AgentsContext';
-import { useWorkspacesQuery } from '@stallion-ai/sdk';
+import { useWorkspacesQuery, useInvalidateQuery } from '@stallion-ai/sdk';
 
 export interface SettingsViewProps {
   apiBase: string;
@@ -35,6 +35,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
   const agents = useAgents();
   const { data: workspaces = [] } = useWorkspacesQuery();
   const { updateConfig } = useConfigActions();
+  const invalidate = useInvalidateQuery();
   
   const [activeTab, setActiveTab] = useState<'general' | 'agents' | 'workspaces' | 'prompts' | 'notifications' | 'advanced' | 'debug'>(() => {
     const hash = window.location.hash.slice(1);
@@ -121,13 +122,8 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
     try {
       setIsSaving(true);
       setError(null);
-      const response = await fetch(`${apiBase}/config/app`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) throw new Error('Failed to reset configuration');
-      await loadConfig();
+      await updateConfig({});
+      invalidate(['config']);
       onSaved?.();
     } catch (err: any) {
       setError(err.message);
@@ -160,11 +156,11 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
       const response = await fetch(endpoint, { method: 'DELETE' });
       if (!response.ok) throw new Error(`Failed to delete ${deleteConfirm.type}`);
       
-      // Reload data
+      // Invalidate cache to refetch
       if (deleteConfirm.type === 'agent') {
-        loadAgents();
+        invalidate(['agents']);
       } else {
-        loadWorkspaces();
+        invalidate(['workspaces']);
       }
       
       setDeleteConfirm(null);
@@ -1094,7 +1090,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                       setShowImportModal(false);
                       setSelectedQAgent(null);
                       setQAgents([]);
-                      loadAgents();
+                      invalidate(['agents']);
                     } catch (err: any) {
                       setError(err.message);
                     }

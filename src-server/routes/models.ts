@@ -23,9 +23,9 @@ app.get('/capabilities', async (c) => {
     const modelsResponse = await bedrockClient.send(new ListFoundationModelsCommand({}));
     const models = modelsResponse.modelSummaries || [];
     
-    // Build capabilities map
+    // Build capabilities map (include LEGACY models as they still work)
     const capabilities = models
-      .filter(m => m.modelLifecycle?.status === 'ACTIVE')
+      .filter(m => m.modelLifecycle?.status === 'ACTIVE' || m.modelLifecycle?.status === 'LEGACY')
       .map(model => ({
         modelId: model.modelId,
         modelName: model.modelName,
