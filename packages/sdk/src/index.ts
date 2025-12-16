@@ -15,6 +15,7 @@ export {
   useAgentsQuery,
   useModelsQuery,
   useConversationsQuery,
+  useConfigQuery,
 } from './queries';
 
 // Re-export components

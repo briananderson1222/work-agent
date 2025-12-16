@@ -319,7 +319,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const agents = useAgents();
   const availableModels = useModels(apiBase);
   const { showToast } = useToast();
-  const appConfig = useConfig(apiBase);
+  const appConfig = useConfig();
   const defaultFontSize = appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
   const handleToolApproval = useToolApproval(apiBase);
   const handleSlashCommand = useSlashCommandHandler(apiBase);

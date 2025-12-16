@@ -86,6 +86,7 @@ export function CRM() {
 | **AgentsContext** | ✅ Migrated | Uses `useAgentsQuery()` from SDK, mutations for create/update/delete |
 | **AppDataContext** | ✅ Migrated | Uses `useModelsQuery()` from SDK with transform logic |
 | **ConversationsContext** | ✅ Partially Migrated | List uses `useConversationsQuery()`, streaming/messages logic kept as-is |
+| **ConfigContext** | ✅ Migrated | Uses `useConfigQuery()` from SDK with mutation for updates |
 
 ### 🔄 In Progress / Needs Migration
 
@@ -93,7 +94,6 @@ export function CRM() {
 |---------|----------------|-------------------|-------|
 | **WorkflowsContext** | Store + useSyncExternalStore | 🟡 Medium | Has deduplication, but should migrate to React Query |
 | **MonitoringContext** | Store + useSyncExternalStore | 🟡 Medium | Real-time stats - may need polling or SSE |
-| **ConfigContext** | Store + useSyncExternalStore | 🟢 Low | App config - rarely changes |
 
 ### ✅ No Migration Needed (UI State Only)
 

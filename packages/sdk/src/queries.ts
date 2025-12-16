@@ -206,6 +206,23 @@ export function useModelsQuery(config?: QueryConfig<any>) {
 }
 
 /**
+ * Fetch app configuration
+ */
+export function useConfigQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['config'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/config/app`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    config
+  );
+}
+
+/**
  * Fetch conversations for an agent
  */
 export function useConversationsQuery(agentSlug: string | undefined, config?: QueryConfig<any>) {

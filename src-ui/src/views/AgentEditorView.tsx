@@ -38,7 +38,7 @@ const FORM_STEPS: readonly FormStep[] = ['basic', 'model', 'tools', 'commands'] 
 
 export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: AgentEditorViewProps) {
   const availableModels = useModels(apiBase);
-  const appConfig = useConfig(apiBase);
+  const appConfig = useConfig();
   const [currentStep, setCurrentStep] = useState<FormStep>(initialTab || 'basic');
   const [expandedCommands, setExpandedCommands] = useState<Record<string, boolean>>({});
   

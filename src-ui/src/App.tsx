@@ -50,7 +50,7 @@ function App() {
     onSelect: (slug: string) => void;
   } | null>(null);
   
-  const appConfig = useConfig(API_BASE);
+  const appConfig = useConfig();
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
   const workflowCatalog = useWorkflows(API_BASE);
