@@ -206,6 +206,23 @@ export function useModelsQuery(config?: QueryConfig<any>) {
 }
 
 /**
+ * Fetch tools for an agent
+ */
+export function useAgentToolsQuery(agentSlug: string | undefined, config?: QueryConfig<any>) {
+  return useApiQuery(
+    agentSlug ? ['agentTools', agentSlug] : ['agentTools'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/agents/${agentSlug}/tools`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { ...config, enabled: !!agentSlug && (config?.enabled ?? true) }
+  );
+}
+
+/**
  * Fetch model capabilities
  */
 export function useModelCapabilitiesQuery(config?: QueryConfig<any>) {
