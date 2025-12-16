@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
-import { useConversationsQuery } from '@stallion-ai/sdk';
+import { useConversationsQuery, useQueryClient } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 import { CONFIG_DEFAULTS } from './ConfigContext';
 
@@ -83,7 +83,7 @@ class ConversationsStore {
     return promise;
   }
 
-  async fetchMessages(apiBase: string, agentSlug: string, conversationId: string) {
+  async fetchMessages(apiBase: string, agentSlug: string, conversationId: string, queryClient?: any) {
     const key = `messages:${agentSlug}:${conversationId}`;
     if (this.fetching.has(key)) {
       return this.fetching.get(key);
@@ -91,25 +91,24 @@ class ConversationsStore {
 
     const promise = (async () => {
       try {
-        // Fetch messages and tool mappings in parallel
-        const [messagesResponse, toolsResponse] = await Promise.all([
-          fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}/messages`),
-          fetch(`${apiBase}/agents/${agentSlug}/tools`)
-        ]);
-        
+        // Fetch messages
+        const messagesResponse = await fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}/messages`);
         const result = await messagesResponse.json();
-        const toolsResult = await toolsResponse.json();
         
-        // Build tool mappings
-        const toolMappings: Record<string, { server?: string; toolName?: string; originalName?: string }> = {};
-        if (toolsResult.success) {
-          toolsResult.data.forEach((tool: any) => {
-            toolMappings[tool.name] = {
-              server: tool.server,
-              toolName: tool.toolName,
-              originalName: tool.originalName,
-            };
-          });
+        // Get tool mappings from React Query cache (already fetched by useAgentTools)
+        let toolMappings: Record<string, { server?: string; toolName?: string; originalName?: string }> = {};
+        if (queryClient) {
+          const cachedTools = queryClient.getQueryData(['agentTools', agentSlug]);
+          if (cachedTools) {
+            toolMappings = cachedTools.reduce((acc: any, tool: any) => {
+              acc[tool.name] = {
+                server: tool.server,
+                toolName: tool.toolName,
+                originalName: tool.originalName,
+              };
+              return acc;
+            }, {});
+          }
         }
         
         if (result.success) {
@@ -159,11 +158,11 @@ class ConversationsStore {
     return promise;
   }
 
-  async refreshMessages(apiBase: string, agentSlug: string, conversationId: string) {
+  async refreshMessages(apiBase: string, agentSlug: string, conversationId: string, queryClient?: any) {
     const key = `messages:${agentSlug}:${conversationId}`;
     // Clear cache and refetch
     this.fetching.delete(key);
-    return this.fetchMessages(apiBase, agentSlug, conversationId);
+    return this.fetchMessages(apiBase, agentSlug, conversationId, queryClient);
   }
 
   async deleteConversation(apiBase: string, agentSlug: string, conversationId: string) {
@@ -377,17 +376,19 @@ type ConversationsContextType = {
 const ConversationsContext = createContext<ConversationsContextType | undefined>(undefined);
 
 export function ConversationsProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  
   const fetchConversations = useCallback((apiBase: string, agentSlug: string) => {
     return conversationsStore.fetchConversations(apiBase, agentSlug);
   }, []);
 
   const fetchMessages = useCallback((apiBase: string, agentSlug: string, conversationId: string) => {
-    return conversationsStore.fetchMessages(apiBase, agentSlug, conversationId);
-  }, []);
+    return conversationsStore.fetchMessages(apiBase, agentSlug, conversationId, queryClient);
+  }, [queryClient]);
 
   const refreshMessages = useCallback((apiBase: string, agentSlug: string, conversationId: string) => {
-    return conversationsStore.refreshMessages(apiBase, agentSlug, conversationId);
-  }, []);
+    return conversationsStore.refreshMessages(apiBase, agentSlug, conversationId, queryClient);
+  }, [queryClient]);
 
   const deleteConversation = useCallback((apiBase: string, agentSlug: string, conversationId: string) => {
     return conversationsStore.deleteConversation(apiBase, agentSlug, conversationId);
