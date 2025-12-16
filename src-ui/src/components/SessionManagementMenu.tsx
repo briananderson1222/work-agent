@@ -61,16 +61,18 @@ export function SessionManagementMenu({
   const invalidate = useInvalidateQuery();
 
   // Fetch conversations for all agents using React Query
-  const conversationQueries = agents.map(agent => 
-    useConversationsQuery(agent.slug, { enabled: isOpen })
-  );
+  // Note: We fetch for all agents but only when menu is open
+  const allConversationsData = agents.map(agent => ({
+    agent,
+    query: useConversationsQuery(agent.slug, { enabled: isOpen })
+  }));
 
   // Combine all conversations from all agents
   const conversations = useMemo(() => {
     const allConversations: Conversation[] = [];
     
-    agents.forEach((agent, index) => {
-      const data = conversationQueries[index].data || [];
+    allConversationsData.forEach(({ agent, query }) => {
+      const data = query.data || [];
       const agentConvos = data.map((conv: any) => ({
         ...conv,
         agentSlug: agent.slug,
@@ -85,9 +87,9 @@ export function SessionManagementMenu({
     );
     
     return allConversations;
-  }, [agents, conversationQueries]);
+  }, [allConversationsData]);
 
-  const loading = conversationQueries.some(q => q.isLoading);
+  const loading = allConversationsData.some(({ query }) => query.isLoading);
 
   useEffect(() => {
     if (isOpen && chatDockRef.current) {
