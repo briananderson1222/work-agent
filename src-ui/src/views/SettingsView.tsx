@@ -10,6 +10,9 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
+import { useConfig, useConfigActions } from '../contexts/ConfigContext';
+import { useAgents } from '../contexts/AgentsContext';
+import { useWorkspacesQuery } from '@stallion-ai/sdk';
 
 export interface SettingsViewProps {
   apiBase: string;
@@ -26,18 +29,23 @@ export interface SettingsViewProps {
 export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAgent, onEditWorkspace, onCreateWorkspace, chatFontSize = 14, onChatFontSizeChange }: SettingsViewProps) {
   const availableModels = useModels(apiBase);
   const { apiBase: currentApiBase, setApiBase, resetToDefault, isCustom } = useApiBase();
+  
+  // Use React Query hooks
+  const configData = useConfig();
+  const agents = useAgents();
+  const { data: workspaces = [] } = useWorkspacesQuery();
+  const { updateConfig } = useConfigActions();
+  
   const [activeTab, setActiveTab] = useState<'general' | 'agents' | 'workspaces' | 'prompts' | 'notifications' | 'advanced' | 'debug'>(() => {
     const hash = window.location.hash.slice(1);
     return (hash && ['general', 'agents', 'workspaces', 'prompts', 'notifications', 'advanced', 'debug'].includes(hash)) 
       ? hash as any 
       : 'general';
   });
-  const [config, setConfig] = useState<AppConfig>({});
-  const [originalConfig, setOriginalConfig] = useState<AppConfig>({});
-  const [agents, setAgents] = useState<any[]>([]);
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [config, setConfig] = useState<AppConfig>(configData || {});
+  const [originalConfig, setOriginalConfig] = useState<AppConfig>(configData || {});
   const [prompts, setPrompts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
@@ -48,6 +56,14 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
   const [showImportModal, setShowImportModal] = useState(false);
   const [qAgents, setQAgents] = useState<any[]>([]);
   const [selectedQAgent, setSelectedQAgent] = useState<any>(null);
+  
+  // Update local state when config loads
+  useEffect(() => {
+    if (configData) {
+      setConfig(configData);
+      setOriginalConfig(configData);
+    }
+  }, [configData]);
   const [importForm, setImportForm] = useState({ name: '', slug: '' });
   const [editingPrompt, setEditingPrompt] = useState<any>(null);
 
@@ -66,65 +82,12 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    loadConfig();
-    loadAgents();
-    loadWorkspaces();
-  }, []);
-
-  const loadConfig = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(`${apiBase}/config/app`);
-      if (!response.ok) throw new Error('Failed to load configuration');
-      const data = await response.json();
-      const loadedConfig = data.data || {};
-      setConfig(loadedConfig);
-      setOriginalConfig(loadedConfig);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadAgents = async () => {
-    try {
-      const response = await fetch(`${apiBase}/api/agents`);
-      if (!response.ok) throw new Error('Failed to load agents');
-      const data = await response.json();
-      setAgents(data.data || []);
-    } catch (err: any) {
-      log.api('Failed to load agents:', err);
-    }
-  };
-
-  const loadWorkspaces = async () => {
-    try {
-      const response = await fetch(`${apiBase}/workspaces`);
-      if (!response.ok) throw new Error('Failed to load workspaces');
-      const data = await response.json();
-      setWorkspaces(data.data || []);
-    } catch (err: any) {
-      log.api('Failed to load workspaces:', err);
-    }
-  };
-
   const saveConfig = async () => {
     try {
       setIsSaving(true);
       setError(null);
       
-      const response = await fetch(`${apiBase}/config/app`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save configuration');
-      }
+      await updateConfig(config);
       
       // Update original config after successful save
       setOriginalConfig(config);
