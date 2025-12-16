@@ -38,5 +38,5 @@ export function useModelSupportsAttachments(modelId: string | undefined): boolea
   if (!modelId) return false;
   
   const capability = capabilities.find(c => c.modelId === modelId);
-  return capability?.supportsImages || false;
+  return capability?.supportsImages || capability?.supportsVideo || capability?.supportsAudio || false;
 }
