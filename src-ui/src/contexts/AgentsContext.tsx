@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { useAgentsQuery, useApiMutation, useInvalidateQuery } from '@stallion-ai/sdk';
-import { useApiBase } from './ApiBaseContext'';
+import { useApiBase } from './ApiBaseContext';
 import { log } from '@/utils/logger';
 
 type AgentData = {

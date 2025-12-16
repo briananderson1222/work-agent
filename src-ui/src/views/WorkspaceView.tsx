@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
-import { useApiBase } from './ApiBaseContext'';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import { useWorkspaceQuery } from '@stallion-ai/sdk';
 import { useAgents } from '../contexts/AgentsContext';
 import { useCreateChatSession } from '../contexts/ActiveChatsContext';
