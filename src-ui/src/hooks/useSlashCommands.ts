@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useApiBase } from '../contexts/ConfigContext';
+import { useApiBase } from './ApiBaseContext'';
 import { useAgents } from '../contexts/AgentsContext';
 
 export interface SlashCommand {

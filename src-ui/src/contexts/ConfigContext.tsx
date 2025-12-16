@@ -79,7 +79,3 @@ export function useConfigActions() {
     updateConfig: (config: Partial<ConfigData>) => updateMutation.mutateAsync(config),
   };
 }
-
-export function useApiBase(): string {
-  return CONFIG_DEFAULTS.apiBase;
-}

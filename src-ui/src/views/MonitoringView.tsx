@@ -4,7 +4,7 @@ import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 import { useSearchAutocomplete, parseSearchQuery } from '../hooks/useSearchAutocomplete';
 import { useModels } from '../contexts/ModelsContext';
-import { useApiBase } from '../contexts/ConfigContext';
+import { useApiBase } from './ApiBaseContext'';
 import type { AgentStats, MonitoringEvent } from '../contexts/MonitoringContext';
 
 export function MonitoringView() {

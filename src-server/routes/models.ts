@@ -36,6 +36,7 @@ app.get('/capabilities', async (c) => {
         supportsImages: model.inputModalities?.includes('IMAGE') || false,
         supportsVideo: model.inputModalities?.includes('VIDEO') || false,
         supportsAudio: model.inputModalities?.includes('AUDIO') || model.inputModalities?.includes('SPEECH') || false,
+        lifecycleStatus: model.modelLifecycle?.status,
       }));
     
     modelCache = capabilities;

@@ -14,7 +14,8 @@ import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardSho
 import { useActiveChatActions, useActiveChatState, useSendMessage, useCreateChatSession, useCancelMessage, useOpenConversation, useRehydrateSessions } from '../contexts/ActiveChatsContext';
 import { useConversationStatus, useConversationActions } from '../contexts/ConversationsContext';
 import { useToast } from '../contexts/ToastContext';
-import { useApiBase, useConfig, CONFIG_DEFAULTS } from '../contexts/ConfigContext';
+import { useConfig, CONFIG_DEFAULTS } from '../contexts/ConfigContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';

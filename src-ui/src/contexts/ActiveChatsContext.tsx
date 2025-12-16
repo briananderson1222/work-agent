@@ -2,7 +2,7 @@ import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore
 import { log } from '@/utils/logger';
 import { useConversationActions, conversationsStore } from './ConversationsContext';
 import { useStreamingMessage } from '../hooks/useStreamingMessage';
-import { useApiBase } from './ConfigContext';
+import { useApiBase } from './ApiBaseContext';
 import type { FileAttachment } from '../types';
 
 type ChatUIState = {

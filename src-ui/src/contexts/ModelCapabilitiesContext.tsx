@@ -11,6 +11,7 @@ type ModelCapability = {
   supportsImages: boolean;
   supportsVideo: boolean;
   supportsAudio: boolean;
+  lifecycleStatus?: string;
 };
 
 class ModelCapabilitiesStore {
