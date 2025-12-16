@@ -675,7 +675,7 @@ export function useOpenConversation(apiBase: string) {
 }
 
 export function useRehydrateSessions(apiBase: string) {
-  const { fetchMessages, fetchConversations } = useConversationActions();
+  const { fetchMessages } = useConversationActions();
   const { updateChat } = useActiveChatActions();
 
   return useCallback(async () => {
@@ -689,10 +689,8 @@ export function useRehydrateSessions(apiBase: string) {
       }
     }
     
-    // Fetch conversations metadata for all agents (for titles)
-    for (const slug of agentSlugs) {
-      fetchConversations(apiBase, slug);
-    }
+    // Note: Conversations are fetched automatically by React Query when useConversations() is called
+    // No need to prefetch here
     
     // Fetch messages for each conversation and rebuild input history
     for (const [sessionId, chat] of Object.entries(allChats)) {
@@ -720,7 +718,7 @@ export function useRehydrateSessions(apiBase: string) {
         updateChat(sessionId, { inputHistory: mergedHistory });
       }
     }
-  }, [apiBase, fetchMessages, fetchConversations, updateChat]);
+  }, [apiBase, fetchMessages, updateChat]);
 }
 
 export type { ChatUIState };
