@@ -6,9 +6,6 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import { transformTool, invokeAgent, invoke, _getApiBase } from './api';
 
-// Re-export useQueryClient for contexts that need it
-export { useQueryClient } from '@tanstack/react-query';
-
 interface QueryConfig<T> {
   staleTime?: number;
   gcTime?: number; // Renamed from cacheTime in React Query v5
