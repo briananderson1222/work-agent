@@ -1,4 +1,6 @@
 import React from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
+import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 
 interface Session {
   id: string;
@@ -7,30 +9,28 @@ interface Session {
 }
 
 interface ChatDockHeaderProps {
-  isDockOpen: boolean;
-  isDockMaximized: boolean;
   sessions: Session[];
   unreadCount: number;
-  toggleDockShortcut: string;
-  maximizeShortcut: string;
   dockHeight: number;
   previousDockHeight: number;
   previousDockOpen: boolean;
   setDockHeight: (h: number) => void;
   setPreviousDockHeight: (h: number) => void;
   setPreviousDockOpen: (o: boolean) => void;
-  setDockState: (open: boolean, maximized: boolean) => void;
   setShowChatSettings: (fn: (prev: boolean) => boolean) => void;
   focusSession: (id: string) => void;
 }
 
 export function ChatDockHeader({
-  isDockOpen, isDockMaximized, sessions, unreadCount,
-  toggleDockShortcut, maximizeShortcut,
+  sessions, unreadCount,
   dockHeight, previousDockHeight, previousDockOpen,
   setDockHeight, setPreviousDockHeight, setPreviousDockOpen,
-  setDockState, setShowChatSettings, focusSession,
+  setShowChatSettings, focusSession,
 }: ChatDockHeaderProps) {
+  const { isDockOpen, isDockMaximized, setDockState } = useNavigation();
+  const toggleDockShortcut = useShortcutDisplay('dock.toggle');
+  const maximizeShortcut = useShortcutDisplay('dock.maximize');
+  
   const activeSessions = sessions.filter(s => s.status === 'sending');
 
   const handleHeaderClick = () => {

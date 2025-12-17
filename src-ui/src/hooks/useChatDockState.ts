@@ -32,7 +32,6 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
 
   // Message removal animation state
   const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
-  const [removingMessageContent, setRemovingMessageContent] = useState<Map<string, unknown>>(new Map());
 
   // Update CSS variable for content-view padding
   useEffect(() => {
@@ -62,6 +61,5 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
     activeSessionId, setActiveSessionId,
     // Animation
     removingMessages, setRemovingMessages,
-    removingMessageContent, setRemovingMessageContent,
   };
 }

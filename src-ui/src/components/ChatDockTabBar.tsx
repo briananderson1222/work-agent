@@ -1,6 +1,10 @@
-import React, { useRef, useEffect, RefObject } from 'react';
+import React, { useRef, useEffect, RefObject, useState } from 'react';
 import { SessionManagementMenu } from './SessionManagementMenu';
 import { SessionTab } from './SessionTab';
+import { useAgents } from '../contexts/AgentsContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
+import { useModels } from '../contexts/ModelsContext';
+import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { AgentSummary } from '../types';
 
 interface Session {
@@ -9,21 +13,10 @@ interface Session {
   conversationId?: string;
 }
 
-interface Model {
-  id: string;
-  name: string;
-}
-
 interface ChatDockTabBarProps {
   sessions: Session[];
   activeSessionId: string | null;
-  agents: AgentSummary[];
-  availableModels: Model[];
-  apiBase: string;
   chatDockRef: RefObject<HTMLDivElement>;
-  closeTabShortcut: string;
-  newChatShortcut: string;
-  openConversationShortcut: string;
   focusSession: (id: string) => void;
   removeSession: (id: string) => void;
   openConversation: (conversationId: string, agentSlug: string) => void;
@@ -34,13 +27,19 @@ interface ChatDockTabBarProps {
 }
 
 export function ChatDockTabBar({
-  sessions, activeSessionId, agents, availableModels, apiBase, chatDockRef,
-  closeTabShortcut, newChatShortcut, openConversationShortcut,
+  sessions, activeSessionId, chatDockRef,
   focusSession, removeSession, openConversation, openChatForAgent, updateChat,
   setShowSessionPicker, setShowNewChatModal,
 }: ChatDockTabBarProps) {
+  const agents = useAgents();
+  const { apiBase } = useApiBase();
+  const availableModels = useModels(apiBase);
+  const closeTabShortcut = useShortcutDisplay('dock.closeTab');
+  const newChatShortcut = useShortcutDisplay('dock.newChat');
+  const openConversationShortcut = useShortcutDisplay('dock.openConversation');
+
   const tabListRef = useRef<HTMLDivElement>(null);
-  const [showScrollButtons, setShowScrollButtons] = React.useState({ left: false, right: false });
+  const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
 
   useEffect(() => {
     const checkScroll = () => {

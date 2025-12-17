@@ -10,8 +10,11 @@ import { ToolCallDisplay } from './ToolCallDisplay';
 import { ScrollToBottomButton } from './ScrollToBottomButton';
 import { QueuedMessages } from './QueuedMessages';
 import { ChatInputArea } from './ChatInputArea';
+import { useAgents } from '../contexts/AgentsContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
+import { useToast } from '../contexts/ToastContext';
+import { useToolApproval } from '../hooks/useToolApproval';
 import { getAgentIconStyle, getInitials } from '../utils/workspace';
-import type { AgentSummary } from '../types';
 
 interface Message {
   id?: string;
@@ -31,38 +34,10 @@ interface Session {
   status: string;
   abortController?: AbortController;
   queuedMessages?: unknown[];
-  model?: string;
-}
-
-interface ChatInputHook {
-  input: string;
-  attachments: unknown[];
-  textareaRef: RefObject<HTMLTextAreaElement>;
-  currentModel: string;
-  modelQuery: string;
-  commandQuery: string;
-  slashCommands: unknown[];
-  handleInputChange: (value: string) => void;
-  handleSend: () => void;
-  handleCancel: () => void;
-  handleClearInput: () => void;
-  handleAddAttachments: (files: File[]) => void;
-  handleRemoveAttachment: (index: number) => void;
-  handleModelSelect: (model: string) => void;
-  handleModelClose: () => void;
-  handleModelOpen: () => void;
-  handleCommandSelect: (command: unknown) => void;
-  handleCommandClose: () => void;
-  handleHistoryUp: () => void;
-  handleHistoryDown: () => void;
-  updateFromInput: (value: string) => void;
-  closeAll: () => void;
 }
 
 interface ChatDockBodyProps {
   activeSession: Session;
-  agents: AgentSummary[];
-  apiBase: string;
   chatFontSize: number;
   dockHeight: number;
   showStatsPanel: boolean;
@@ -75,20 +50,39 @@ interface ChatDockBodyProps {
   ephemeralMessages: Message[];
   removingMessages: Set<string>;
   messagesContainerRef: RefObject<HTMLDivElement>;
-  chatInput: ChatInputHook;
+  chatInput: {
+    input: string;
+    attachments: unknown[];
+    textareaRef: RefObject<HTMLTextAreaElement>;
+    currentModel: string;
+    modelQuery: string;
+    commandQuery: string;
+    slashCommands: unknown[];
+    handleInputChange: (value: string) => void;
+    handleSend: () => void;
+    handleCancel: () => void;
+    handleClearInput: () => void;
+    handleAddAttachments: (files: File[]) => void;
+    handleRemoveAttachment: (index: number) => void;
+    handleModelSelect: (model: string) => void;
+    handleModelClose: () => void;
+    handleModelOpen: () => void;
+    handleCommandSelect: (command: unknown) => void;
+    handleCommandClose: () => void;
+    handleHistoryUp: () => void;
+    handleHistoryDown: () => void;
+    updateFromInput: (value: string) => void;
+    closeAll: () => void;
+  };
   setShowStatsPanel: (show: boolean) => void;
   setIsUserScrolledUp: (scrolled: boolean) => void;
   setRemovingMessages: (fn: (prev: Set<string>) => Set<string>) => void;
   updateChat: (id: string, updates: unknown) => void;
   clearEphemeralMessages: (id: string) => void;
-  handleToolApproval: (sessionId: string, agentSlug: string, approvalId: string, toolName: string, action: string) => void;
-  showToast: (message: string) => void;
 }
 
 export function ChatDockBody({
   activeSession,
-  agents,
-  apiBase,
   chatFontSize,
   dockHeight,
   showStatsPanel,
@@ -107,9 +101,13 @@ export function ChatDockBody({
   setRemovingMessages,
   updateChat,
   clearEphemeralMessages,
-  handleToolApproval,
-  showToast,
 }: ChatDockBodyProps) {
+  // Use hooks directly instead of prop drilling
+  const agents = useAgents();
+  const { apiBase } = useApiBase();
+  const { showToast } = useToast();
+  const handleToolApproval = useToolApproval(apiBase);
+
   const agent = agents.find(a => a.slug === activeSession.agentSlug);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {

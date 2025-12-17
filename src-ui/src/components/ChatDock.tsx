@@ -11,18 +11,13 @@ import { useChatDockActions } from '../hooks/useChatDockActions';
 import { useChatDockState } from '../hooks/useChatDockState';
 import { useDragResize } from '../hooks/useDragResize';
 import { useChatDockKeyboardShortcuts } from '../hooks/useChatDockKeyboardShortcuts';
-import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import { useActiveChatActions, useActiveChatState, useRehydrateSessions } from '../contexts/ActiveChatsContext';
-import { useToast } from '../contexts/ToastContext';
 import { useConfig, CONFIG_DEFAULTS } from '../contexts/ConfigContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
-
-import { useToolApproval } from '../hooks/useToolApproval';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
-import type { AgentSummary } from '../types';
 
 interface ChatDockProps {
   onRequestAuth?: () => void;
@@ -31,13 +26,11 @@ interface ChatDockProps {
 export function ChatDock({ onRequestAuth }: ChatDockProps) {
   // Get data from contexts
   const { apiBase } = useApiBase();
-  const { selectedAgent, isDockOpen, isDockMaximized, activeChat, setDockState, setActiveChat } = useNavigation();
+  const { selectedAgent, isDockOpen, isDockMaximized, activeChat, setActiveChat } = useNavigation();
   const agents = useAgents();
   const availableModels = useModels(apiBase);
-  const { showToast } = useToast();
   const appConfig = useConfig();
   const defaultFontSize = appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
-  const handleToolApproval = useToolApproval(apiBase);
   
   // Consolidated UI state
   const {
@@ -55,12 +48,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     showSessionPicker, setShowSessionPicker,
     activeSessionId, setActiveSessionId,
     removingMessages, setRemovingMessages,
-    removingMessageContent, setRemovingMessageContent,
   } = useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized });
   
   // Derive sessions from contexts (includes messages for all sessions)
   const sessions = useDerivedSessions(apiBase, selectedAgent);
-  const { initChat, updateChat, clearInput, removeChat, addEphemeralMessage, clearEphemeralMessages, addToInputHistory, navigateHistoryUp, navigateHistoryDown } = useActiveChatActions();
+  const { updateChat, clearEphemeralMessages } = useActiveChatActions();
   const rehydrateSessions = useRehydrateSessions(apiBase);
   
   // Get active session for chat input hook
@@ -87,13 +79,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   useEffect(() => {
     rehydrateSessions();
   }, [rehydrateSessions]);
-  
-  // Shortcut displays
-  const toggleDockShortcut = useShortcutDisplay('dock.toggle');
-  const maximizeShortcut = useShortcutDisplay('dock.maximize');
-  const newChatShortcut = useShortcutDisplay('dock.newChat');
-  const openConversationShortcut = useShortcutDisplay('dock.openConversation');
-  const closeTabShortcut = useShortcutDisplay('dock.closeTab');
   
   // Sync activeChat from URL to local state on mount/change
   useEffect(() => {
@@ -189,19 +174,14 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           />
         )}
         <ChatDockHeader
-          isDockOpen={isDockOpen}
-          isDockMaximized={isDockMaximized}
           sessions={sessions}
           unreadCount={unreadCount}
-          toggleDockShortcut={toggleDockShortcut}
-          maximizeShortcut={maximizeShortcut}
           dockHeight={dockHeight}
           previousDockHeight={previousDockHeight}
           previousDockOpen={previousDockOpen}
           setDockHeight={setDockHeight}
           setPreviousDockHeight={setPreviousDockHeight}
           setPreviousDockOpen={setPreviousDockOpen}
-          setDockState={setDockState}
           setShowChatSettings={setShowChatSettings}
           focusSession={focusSession}
         />
@@ -211,13 +191,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
             <ChatDockTabBar
               sessions={sessions}
               activeSessionId={activeSessionId}
-              agents={agents}
-              availableModels={availableModels}
-              apiBase={apiBase}
               chatDockRef={chatSectionRef}
-              closeTabShortcut={closeTabShortcut}
-              newChatShortcut={newChatShortcut}
-              openConversationShortcut={openConversationShortcut}
               focusSession={focusSession}
               removeSession={removeSession}
               openConversation={openConversation}
@@ -231,8 +205,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               {activeSession ? (
                 <ChatDockBody
                   activeSession={activeSession}
-                  agents={agents}
-                  apiBase={apiBase}
                   chatFontSize={chatFontSize}
                   dockHeight={dockHeight}
                   showStatsPanel={showStatsPanel}
@@ -251,8 +223,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                   setRemovingMessages={setRemovingMessages}
                   updateChat={updateChat}
                   clearEphemeralMessages={clearEphemeralMessages}
-                  handleToolApproval={handleToolApproval}
-                  showToast={showToast}
                 />
               ) : (
                 <div className="empty-state">
