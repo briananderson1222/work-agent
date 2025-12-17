@@ -1,8 +1,31 @@
+import { useRef, useEffect } from 'react';
+import { useQueuedMessages } from '../hooks/useQueuedMessages';
+
 interface QueuedMessagesProps {
+  sessionId: string;
   messages: string[];
 }
 
-export function QueuedMessages({ messages }: QueuedMessagesProps) {
+export function QueuedMessages({ sessionId, messages }: QueuedMessagesProps) {
+  const {
+    editingIndex,
+    editValue,
+    setEditValue,
+    startEdit,
+    cancelEdit,
+    saveEdit,
+    remove,
+  } = useQueuedMessages(sessionId);
+  
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingIndex !== null && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingIndex]);
+
   if (messages.length === 0) return null;
 
   return (
@@ -12,8 +35,73 @@ export function QueuedMessages({ messages }: QueuedMessagesProps) {
       </div>
       <div className="queued-messages__list">
         {messages.map((msg, idx) => (
-          <div key={idx} className="queued-message" title={msg}>
-            {msg.length > 50 ? msg.slice(0, 50) + '...' : msg}
+          <div key={idx} className="queued-message">
+            {editingIndex === idx ? (
+              <input
+                ref={editInputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEdit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEdit();
+                  }
+                }}
+                onBlur={saveEdit}
+                style={{
+                  flex: 1,
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--accent-primary)',
+                  borderRadius: '3px',
+                  padding: '2px 6px',
+                  fontSize: '13px',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                }}
+              />
+            ) : (
+              <>
+                <span 
+                  className="queued-message__text" 
+                  title={msg}
+                  style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {msg}
+                </span>
+                <button
+                  onClick={() => startEdit(idx, msg)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      startEdit(idx, msg);
+                    }
+                  }}
+                  className="queued-message__btn"
+                  title="Edit (Enter)"
+                  aria-label="Edit message"
+                >
+                  ✎
+                </button>
+                <button
+                  onClick={() => remove(idx)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      remove(idx);
+                    }
+                  }}
+                  className="queued-message__btn queued-message__btn--danger"
+                  title="Remove (Delete)"
+                  aria-label="Remove message"
+                >
+                  ×
+                </button>
+              </>
+            )}
           </div>
         ))}
       </div>

@@ -1458,14 +1458,36 @@ body {
 }
 
 .queued-message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 8px;
   border-radius: 4px;
   background: var(--bg-input);
   font-size: 13px;
   color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.queued-message__btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 14px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.queued-message__btn:hover,
+.queued-message__btn:focus {
+  opacity: 1;
+}
+
+.queued-message__btn--danger:hover,
+.queued-message__btn--danger:focus {
+  color: var(--error-primary);
 }
 
 .chat-input {

@@ -894,7 +894,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       }}
                     />
                   )}
-                  <QueuedMessages messages={activeSession.queuedMessages} />
+                  <QueuedMessages sessionId={activeSession.id} messages={activeSession.queuedMessages} />
                   <ChatInputArea
                     agentSlug={activeSession.agentSlug}
                     conversationId={activeSession.conversationId}
