@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { SessionManagementMenu } from './SessionManagementMenu';
 import { SessionPickerModal } from './SessionPickerModal';
 import { ConversationStats } from './ConversationStats';
@@ -17,8 +17,12 @@ import { SessionTab } from './SessionTab';
 import { QueuedMessages } from './QueuedMessages';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useChatInput } from '../hooks/useChatInput';
-import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
-import { useActiveChatActions, useActiveChatState, useCreateChatSession, useCancelMessage, useOpenConversation, useRehydrateSessions } from '../contexts/ActiveChatsContext';
+import { useChatDockActions } from '../hooks/useChatDockActions';
+import { useChatDockState } from '../hooks/useChatDockState';
+import { useDragResize } from '../hooks/useDragResize';
+import { useChatDockKeyboardShortcuts } from '../hooks/useChatDockKeyboardShortcuts';
+import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
+import { useActiveChatActions, useActiveChatState, useRehydrateSessions } from '../contexts/ActiveChatsContext';
 import { useToast } from '../contexts/ToastContext';
 import { useConfig, CONFIG_DEFAULTS } from '../contexts/ConfigContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -47,48 +51,29 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const defaultFontSize = appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
   const handleToolApproval = useToolApproval(apiBase);
   
-  // DEBUG: Log when component renders
-  const renderTimestamp = new Date().toISOString();
-
-  
-  // Chat dock UI state (height and dragging only - open/maximized from navigation)
-  const [dockHeight, setDockHeight] = useState(400);
-  const [previousDockHeight, setPreviousDockHeight] = useState(400);
-  const [previousDockOpen, setPreviousDockOpen] = useState(true);
-  const [isDragging, setIsDragging] = useState(false);
-  
-  // Update CSS variable for content-view padding
-  useEffect(() => {
-    const height = !isDockOpen ? 43 : isDockMaximized ? window.innerHeight - 107 : dockHeight;
-    document.documentElement.style.setProperty('--chat-dock-height', `${height}px`);
-  }, [isDockOpen, isDockMaximized, dockHeight]);
-  
-  // Chat UI state
-  const [chatFontSize, setChatFontSize] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const querySize = params.get('fontSize');
-    return querySize ? parseInt(querySize, 10) : defaultFontSize;
-  });
-  const [showStatsPanel, setShowStatsPanel] = useState(false);
-  const [showReasoning, setShowReasoning] = useState(true);
-  const [showToolDetails, setShowToolDetails] = useState(true);
-  const [showChatSettings, setShowChatSettings] = useState(false);
-  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
-  const [showNewChatModal, setShowNewChatModal] = useState(false);
-  const [showSessionPicker, setShowSessionPicker] = useState(false);
-  const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
-  
-  // Session state
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  
-  // Track removing messages for animation
-  const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
-  const [removingMessageContent, setRemovingMessageContent] = useState<Map<string, any>>(new Map());
+  // Consolidated UI state
+  const {
+    dockHeight, setDockHeight,
+    previousDockHeight, setPreviousDockHeight,
+    previousDockOpen, setPreviousDockOpen,
+    isDragging, setIsDragging,
+    chatFontSize, setChatFontSize,
+    showStatsPanel, setShowStatsPanel,
+    showReasoning, setShowReasoning,
+    showToolDetails, setShowToolDetails,
+    showChatSettings, setShowChatSettings,
+    isUserScrolledUp, setIsUserScrolledUp,
+    showNewChatModal, setShowNewChatModal,
+    showSessionPicker, setShowSessionPicker,
+    showScrollButtons, setShowScrollButtons,
+    activeSessionId, setActiveSessionId,
+    removingMessages, setRemovingMessages,
+    removingMessageContent, setRemovingMessageContent,
+  } = useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized });
   
   // Derive sessions from contexts (includes messages for all sessions)
   const sessions = useDerivedSessions(apiBase, selectedAgent);
   const { initChat, updateChat, clearInput, removeChat, addEphemeralMessage, clearEphemeralMessages, addToInputHistory, navigateHistoryUp, navigateHistoryDown } = useActiveChatActions();
-  const openConversationAction = useOpenConversation(apiBase);
   const rehydrateSessions = useRehydrateSessions(apiBase);
   
   // Get active session for chat input hook
@@ -130,12 +115,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     }
   }, [activeChat, sessions]);
   
-  // Cancel message handler
-  const cancelMessage = useCancelMessage();
-  
-  // Create chat session handler
-  const createChatSession = useCreateChatSession();
-  
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
   const activeChatState = useActiveChatState(activeSessionId);
   
@@ -161,106 +140,20 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     isDockOpenRef.current = isDockOpen;
   }, [isDockOpen]);
   
-  // Handlers
-  const focusSession = useCallback((sessionId: string) => {
-    setActiveSessionId(sessionId);
-    setActiveChat(sessionId);
-    setDockState(true, isDockMaximized);
-    updateChat(sessionId, { hasUnread: false });
-    
-    // Scroll to bottom after session is focused
-    setTimeout(() => {
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTo({
-          top: messagesContainerRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
-        setIsUserScrolledUp(false);
-      }
-    }, 100);
-  }, [updateChat, setDockState, isDockMaximized, setActiveChat]);
-  
-  const removeSession = useCallback((sessionId: string) => {
-    removeChat(sessionId);
-    if (activeSessionId === sessionId) {
-      const remaining = sessions.filter(s => s.id !== sessionId);
-      const next = remaining[remaining.length - 1]?.id ?? null;
-      setActiveSessionId(next);
-      setActiveChat(next);
-    }
-  }, [removeChat, activeSessionId, sessions, setActiveChat]);
-  
-  const openChatForAgent = useCallback((agent: AgentSummary) => {
-    const sessionId = createChatSession(agent.slug, agent.name);
-    setActiveSessionId(sessionId);
-    setActiveChat(sessionId);
-    setDockState(true, false);
-    
-    // Focus the textarea after chat is opened
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-      }
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTo({
-          top: messagesContainerRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
-        setIsUserScrolledUp(false);
-      }
-    }, 100);
-  }, [createChatSession, setDockState, setActiveChat]);
-  
-  const openConversation = useCallback(async (conversationId: string, agentSlug: string) => {
-    const agent = agents.find(a => a.slug === agentSlug);
-    if (!agent) return;
-    
-    // Check if already open
-    const existing = sessions.find(s => s.conversationId === conversationId);
-    if (existing) {
-      focusSession(existing.id);
-      return;
-    }
-    
-    const sessionId = await openConversationAction(conversationId, agentSlug, agent.name);
-    setActiveSessionId(sessionId);
-    setActiveChat(sessionId);
-    setDockState(true, false);
-    
-    // Scroll to bottom after conversation is opened
-    setTimeout(() => {
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTo({
-          top: messagesContainerRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
-        setIsUserScrolledUp(false);
-      }
-    }, 100);
-  }, [agents, sessions, focusSession, openConversationAction, setActiveChat, setDockState]);
-  
+  // Session management actions
+  const { focusSession, removeSession, openChatForAgent, openConversation } = useChatDockActions({
+    apiBase,
+    sessions,
+    agents,
+    activeSessionId,
+    setActiveSessionId,
+    setIsUserScrolledUp,
+    messagesContainerRef,
+    textareaRef,
+  });
   
   // Drag to resize
-  useEffect(() => {
-    if (!isDragging) return;
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      const newHeight = window.innerHeight - e.clientY;
-      setDockHeight(Math.max(200, Math.min(newHeight, window.innerHeight - 150)));
-    };
-    
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
+  useDragResize({ isDragging, setIsDragging, setHeight: setDockHeight });
   
   // Scroll buttons visibility
   useEffect(() => {
@@ -286,91 +179,23 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     }
   }, [activeSession?.messages, ephemeralMessages, isUserScrolledUp]);
   
-  // Ctrl+C to cancel active request
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'c' && activeSession?.status === 'sending') {
-        e.preventDefault();
-        cancelMessage(activeSession.id);
-        showToast('Request cancelled');
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSession, cancelMessage, showToast]);
-  
   // Keyboard shortcuts
-  useKeyboardShortcut('dock.toggle', 'd', ['cmd'], 'Toggle dock', useCallback(() => {
-    setDockState(!isDockOpen, isDockMaximized);
-  }, [isDockOpen, isDockMaximized, setDockState]));
-
-  useKeyboardShortcut('dock.maximize', 'm', ['cmd'], 'Maximize/restore dock', useCallback(() => {
-    if (isDockMaximized) {
-      setDockHeight(previousDockHeight);
-      setDockState(previousDockOpen, false);
-    } else {
-      setPreviousDockHeight(dockHeight);
-      setPreviousDockOpen(isDockOpen);
-      setDockHeight(window.innerHeight - 107);
-      setDockState(true, true);
-    }
-  }, [isDockMaximized, dockHeight, isDockOpen, previousDockHeight, previousDockOpen, setDockState]));
-
-  useKeyboardShortcut('dock.newChat', 't', ['cmd'], 'New chat', useCallback(() => {
-    if (selectedAgent) {
-      const newSessionId = `session-${Date.now()}`;
-      initChat(newSessionId, selectedAgent, null);
-      setActiveSessionId(newSessionId);
-      setActiveChat(newSessionId);
-      
-      // Scroll to bottom after chat is created
-      setTimeout(() => {
-        if (messagesContainerRef.current) {
-          messagesContainerRef.current.scrollTo({
-            top: messagesContainerRef.current.scrollHeight,
-            behavior: 'smooth'
-          });
-          setIsUserScrolledUp(false);
-        }
-      }, 100);
-    }
-  }, [selectedAgent, initChat, setActiveChat]));
-
-  useKeyboardShortcut('dock.openConversation', 'o', ['cmd'], 'Open conversation', useCallback(() => {
-    setShowSessionPicker(true);
-  }, []));
-
-  useKeyboardShortcut('dock.closeTab', 'x', ['cmd'], 'Close tab', useCallback(() => {
-    if (activeSessionId && sessions.length > 1) {
-      const currentIndex = sessions.findIndex(s => s.id === activeSessionId);
-      const nextSession = sessions[currentIndex + 1] || sessions[currentIndex - 1];
-      if (nextSession) {
-        focusSession(nextSession.id);
-      }
-      removeChat(activeSessionId);
-    }
-  }, [activeSessionId, sessions, focusSession, removeChat]));
-
-  // Session switching shortcuts (⌘1-9)
-  for (let i = 1; i <= 9; i++) {
-    useKeyboardShortcut(`dock.session${i}`, String(i), ['cmd'], `Switch to session ${i}`, useCallback(() => {
-      if (sessions[i - 1]) {
-        focusSession(sessions[i - 1].id);
-      }
-    }, [sessions, focusSession]));
-  }
-
-  // Cancel ongoing request with Ctrl+C
-  useKeyboardShortcut('dock.cancel', 'c', ['ctrl'], 'Cancel request', useCallback(() => {
-    if (activeSession?.abortController) {
-      cancelMessage(activeSession.id);
-      addEphemeralMessage(activeSession.id, {
-        role: 'system',
-        content: 'User canceled the ongoing request.'
-      });
-    }
-  }, [activeSession, cancelMessage, addEphemeralMessage]));
+  useChatDockKeyboardShortcuts({
+    sessions,
+    activeSessionId,
+    activeSession,
+    dockHeight,
+    previousDockHeight,
+    previousDockOpen,
+    setDockHeight,
+    setPreviousDockHeight,
+    setPreviousDockOpen,
+    setActiveSessionId,
+    setIsUserScrolledUp,
+    setShowSessionPicker,
+    focusSession,
+    messagesContainerRef,
+  });
   
   return (
     <>
