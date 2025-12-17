@@ -23,15 +23,11 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
   const [showReasoning, setShowReasoning] = useState(true);
   const [showToolDetails, setShowToolDetails] = useState(true);
   const [showChatSettings, setShowChatSettings] = useState(false);
-  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
 
   // Session state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-
-  // Message removal animation state
-  const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
 
   // Update CSS variable for content-view padding
   useEffect(() => {
@@ -54,12 +50,9 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
     showReasoning, setShowReasoning,
     showToolDetails, setShowToolDetails,
     showChatSettings, setShowChatSettings,
-    isUserScrolledUp, setIsUserScrolledUp,
     showNewChatModal, setShowNewChatModal,
     showSessionPicker, setShowSessionPicker,
     // Session
     activeSessionId, setActiveSessionId,
-    // Animation
-    removingMessages, setRemovingMessages,
   };
 }

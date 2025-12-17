@@ -1,4 +1,4 @@
-import { useCallback, RefObject } from 'react';
+import { useCallback } from 'react';
 import { useKeyboardShortcut } from './useKeyboardShortcut';
 import { useActiveChatActions, useCancelMessage } from '../contexts/ActiveChatsContext';
 import { useNavigation } from '../contexts/NavigationContext';
@@ -19,10 +19,8 @@ interface UseChatDockKeyboardShortcutsOptions {
   setPreviousDockHeight: (h: number) => void;
   setPreviousDockOpen: (o: boolean) => void;
   setActiveSessionId: (id: string | null) => void;
-  setIsUserScrolledUp: (v: boolean) => void;
   setShowSessionPicker: (v: boolean) => void;
   focusSession: (id: string) => void;
-  messagesContainerRef: RefObject<HTMLDivElement>;
 }
 
 export function useChatDockKeyboardShortcuts({
@@ -36,10 +34,8 @@ export function useChatDockKeyboardShortcuts({
   setPreviousDockHeight,
   setPreviousDockOpen,
   setActiveSessionId,
-  setIsUserScrolledUp,
   setShowSessionPicker,
   focusSession,
-  messagesContainerRef,
 }: UseChatDockKeyboardShortcutsOptions) {
   const { selectedAgent, isDockOpen, isDockMaximized, setDockState, setActiveChat } = useNavigation();
   const { initChat, removeChat, addEphemeralMessage } = useActiveChatActions();
@@ -68,14 +64,8 @@ export function useChatDockKeyboardShortcuts({
       initChat(newSessionId, selectedAgent, null);
       setActiveSessionId(newSessionId);
       setActiveChat(newSessionId);
-      setTimeout(() => {
-        if (messagesContainerRef.current) {
-          messagesContainerRef.current.scrollTo({ top: messagesContainerRef.current.scrollHeight, behavior: 'smooth' });
-          setIsUserScrolledUp(false);
-        }
-      }, 100);
     }
-  }, [selectedAgent, initChat, setActiveSessionId, setActiveChat, messagesContainerRef, setIsUserScrolledUp]));
+  }, [selectedAgent, initChat, setActiveSessionId, setActiveChat]));
 
   useKeyboardShortcut('dock.openConversation', 'o', ['cmd'], 'Open conversation', useCallback(() => {
     setShowSessionPicker(true);

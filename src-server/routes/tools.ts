@@ -26,18 +26,19 @@ export function createToolRoutes(
 
 /**
  * Agent tool routes - mounted at /agents/:slug/tools
+ * Note: These routes expect :slug to be available from parent route
  */
 export function createAgentToolRoutes(
   mcpService: MCPService,
   getActiveAgent: (slug: string) => any,
   reinitialize: () => Promise<void>
 ) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { slug: string } }>();
 
   // Get agent tools with full schemas (GET /agents/:slug/tools)
   app.get('/', async (c) => {
     try {
-      const slug = c.req.param('slug');
+      const slug = c.req.param('slug')!;
       const agent = getActiveAgent(slug);
       
       if (!agent) {
@@ -54,7 +55,7 @@ export function createAgentToolRoutes(
   // Add tool to agent (POST /agents/:slug/tools)
   app.post('/', async (c) => {
     try {
-      const slug = c.req.param('slug');
+      const slug = c.req.param('slug')!;
       const { toolId } = await c.req.json();
       const tools = await mcpService.addToolToAgent(slug, toolId);
       await reinitialize();
@@ -67,8 +68,8 @@ export function createAgentToolRoutes(
   // Remove tool from agent (DELETE /agents/:slug/tools/:toolId)
   app.delete('/:toolId', async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const toolId = c.req.param('toolId');
+      const slug = c.req.param('slug')!;
+      const toolId = c.req.param('toolId')!;
       await mcpService.removeToolFromAgent(slug, toolId);
       await reinitialize();
       return c.json({ success: true }, 200);
@@ -80,7 +81,7 @@ export function createAgentToolRoutes(
   // Update tool allow-list (PUT /agents/:slug/tools/allowed)
   app.put('/allowed', async (c) => {
     try {
-      const slug = c.req.param('slug');
+      const slug = c.req.param('slug')!;
       const { allowed } = await c.req.json();
       const tools = await mcpService.updateAllowedTools(slug, allowed);
       await reinitialize();
@@ -93,7 +94,7 @@ export function createAgentToolRoutes(
   // Update tool aliases (PUT /agents/:slug/tools/aliases)
   app.put('/aliases', async (c) => {
     try {
-      const slug = c.req.param('slug');
+      const slug = c.req.param('slug')!;
       const { aliases } = await c.req.json();
       const tools = await mcpService.updateToolAliases(slug, aliases);
       await reinitialize();

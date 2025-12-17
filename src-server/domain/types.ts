@@ -8,6 +8,8 @@
 export interface AgentSpec {
   name: string;
   prompt: string; // system instructions
+  description?: string; // Agent description for display
+  icon?: string; // Agent icon (emoji or URL)
   model?: string; // falls back to app.defaultModel
   region?: string;
   maxTurns?: number; // Maximum conversation turns before requiring continue

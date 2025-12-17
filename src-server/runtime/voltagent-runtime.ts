@@ -6,6 +6,7 @@
 import { Agent, Memory, VoltAgent, MCPConfiguration, createHooks, type Tool } from '@voltagent/core';
 import { honoServer } from '@voltagent/server-hono';
 import { createPinoLogger } from '@voltagent/logger';
+import { jsonSchema } from 'ai';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
 import { EventEmitter } from 'events';
@@ -150,7 +151,7 @@ export class WorkAgentRuntime {
         // Cleanup MCP configs for this agent
         for (const [key, config] of this.mcpConfigs.entries()) {
           if (key.startsWith(`${slug}:`)) {
-            await config.close();
+            await config.disconnect();
             this.mcpConfigs.delete(key);
             this.mcpConnectionStatus.delete(key);
             this.integrationMetadata.delete(key);
@@ -443,16 +444,16 @@ export class WorkAgentRuntime {
               const { toolId } = await c.req.json();
 
               const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { use: [], allowed: ['*'] };
+              const tools = agent.tools || { mcpServers: [], available: ['*'] };
 
-              if (!tools.use.includes(toolId)) {
-                tools.use.push(toolId);
+              if (!tools.mcpServers.includes(toolId)) {
+                tools.mcpServers.push(toolId);
               }
 
               await this.configLoader.updateAgent(slug, { tools });
               await this.initialize();
 
-              return c.json({ success: true, data: tools.use });
+              return c.json({ success: true, data: tools.mcpServers });
             } catch (error: any) {
               this.logger.error('Failed to add tool', { error });
               return c.json({ success: false, error: error.message }, 400);
@@ -466,9 +467,9 @@ export class WorkAgentRuntime {
               const toolId = c.req.param('toolId');
 
               const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { use: [] };
+              const tools = agent.tools || { mcpServers: [] };
 
-              tools.use = tools.use.filter(id => id !== toolId);
+              tools.mcpServers = tools.mcpServers.filter((id: string) => id !== toolId);
 
               await this.configLoader.updateAgent(slug, { tools });
               await this.initialize();
@@ -487,9 +488,9 @@ export class WorkAgentRuntime {
               const { allowed } = await c.req.json();
 
               const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { use: [] };
+              const tools = agent.tools || { mcpServers: [] };
 
-              tools.allowed = allowed;
+              tools.available = allowed;
 
               await this.configLoader.updateAgent(slug, { tools });
               await this.initialize();
@@ -508,7 +509,7 @@ export class WorkAgentRuntime {
               const { aliases } = await c.req.json();
 
               const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { use: [] };
+              const tools = agent.tools || { mcpServers: [] };
 
               tools.aliases = aliases;
 
@@ -757,11 +758,15 @@ export class WorkAgentRuntime {
                     }
                   }
 
+                  const modelId = typeof agent.model === 'string' 
+                    ? agent.model 
+                    : (agent.model as any)?.modelId || 'unknown';
+
                   return {
                     slug,
                     name: agent.name,
                     status: this.agentStatus.get(slug) || 'idle',
-                    model: agent.model?.modelId || 'unknown',
+                    model: modelId,
                     conversationCount: stats.conversationCount,
                     messageCount: stats.messageCount,
                     cost: 0,
@@ -1158,7 +1163,23 @@ export class WorkAgentRuntime {
                 return c.json({ success: false, error: 'Conversation not found' }, 404);
               }
 
-              const stats = conversation.metadata?.stats || {
+              interface ConversationStats {
+                inputTokens: number;
+                outputTokens: number;
+                totalTokens: number;
+                contextTokens?: number;
+                turns: number;
+                toolCalls: number;
+                estimatedCost: number;
+                tokenBreakdown?: {
+                  userMessageTokens?: number;
+                  assistantMessageTokens?: number;
+                  systemPromptTokens?: number;
+                  mcpServerTokens?: number;
+                };
+              }
+
+              const stats: ConversationStats = (conversation.metadata as any)?.stats || {
                 inputTokens: 0,
                 outputTokens: 0,
                 totalTokens: 0,
@@ -1167,7 +1188,7 @@ export class WorkAgentRuntime {
                 estimatedCost: 0,
               };
 
-              const modelStats = conversation.metadata?.modelStats || {};
+              const modelStats = (conversation.metadata as any)?.modelStats || {};
               
               const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, stats.contextTokens || stats.totalTokens);
 
@@ -1177,9 +1198,11 @@ export class WorkAgentRuntime {
               let assistantMessageTokens = breakdown.assistantMessageTokens;
               
               // If breakdown doesn't exist, calculate user message tokens from conversation
+              // Note: messages are stored separately, not on conversation object
               if (userMessageTokens === undefined) {
-                const userMessages = conversation.messages?.filter(m => m.role === 'user') || [];
-                userMessageTokens = userMessages.reduce((sum, m) => {
+                const messages = await adapter.getMessages(conversation.userId, conversationId);
+                const userMessages = messages?.filter((m: any) => m.role === 'user') || [];
+                userMessageTokens = userMessages.reduce((sum: number, m: any) => {
                   const content = typeof m.content === 'string' 
                     ? m.content 
                     : Array.isArray(m.content) 
@@ -1811,7 +1834,7 @@ export class WorkAgentRuntime {
                     // Get the original agent spec and tools
                     const originalSpec = this.agentSpecs.get(slug);
                     const originalTools = this.agentTools.get(slug);
-                    const originalMemory = agent.memory;
+                    const originalMemory = agent.getMemory();
                     const originalHooks = agent.hooks;
                     
                     const resolvedModel = await this.modelCatalog.resolveModelId(modelOverride);
@@ -1974,12 +1997,13 @@ export class WorkAgentRuntime {
                   this.logger.debug('Abort signal configured', { conversationId });
                   
                   // Ensure conversation exists before streaming
-                  if (agent.memory && operationContext.conversationId && operationContext.userId) {
-                    const existing = await agent.memory.getConversation(operationContext.conversationId);
+                  const memory = agent.getMemory();
+                  if (memory && operationContext.conversationId && operationContext.userId) {
+                    const existing = await memory.getConversation(operationContext.conversationId);
                     if (!existing) {
                       // Use provided title or generate from first 50 chars of user message
                       const title = operationContext.title || (input.length > 50 ? input.substring(0, 50) + '...' : input);
-                      await agent.memory.createConversation({
+                      await memory.createConversation({
                         id: operationContext.conversationId,
                         resourceId: slug,
                         userId: operationContext.userId,
@@ -2039,8 +2063,9 @@ export class WorkAgentRuntime {
                   
                   // Helper to save standalone cancellation message
                   const saveCancellationMessage = async () => {
-                    if (agent.memory && operationContext.conversationId && operationContext.userId) {
-                      await agent.memory.addMessage(
+                    const mem = agent.getMemory();
+                    if (mem && operationContext.conversationId && operationContext.userId) {
+                      await mem.addMessage(
                         {
                           id: crypto.randomUUID(),
                           role: 'assistant',
@@ -2059,7 +2084,7 @@ export class WorkAgentRuntime {
 
                   // Send conversationId as first event for new conversations
                   if (isNewConversation && operationContext.conversationId) {
-                    const conversation = await agent.memory?.getConversation(operationContext.conversationId);
+                    const conversation = await agent.getMemory()?.getConversation(operationContext.conversationId);
                     await streamWriter.write(`data: ${JSON.stringify({
                       type: 'conversation-started',
                       conversationId: operationContext.conversationId,
@@ -2691,7 +2716,7 @@ export class WorkAgentRuntime {
         }
 
         try {
-          const memory = agent.memory;
+          const memory = agent.getMemory();
           if (!memory) return;
 
           // Get current conversation

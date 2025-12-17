@@ -43,16 +43,13 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     showReasoning, setShowReasoning,
     showToolDetails, setShowToolDetails,
     showChatSettings, setShowChatSettings,
-    isUserScrolledUp, setIsUserScrolledUp,
     showNewChatModal, setShowNewChatModal,
     showSessionPicker, setShowSessionPicker,
     activeSessionId, setActiveSessionId,
-    removingMessages, setRemovingMessages,
   } = useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized });
   
   // Derive sessions from contexts (includes messages for all sessions)
   const sessions = useDerivedSessions(apiBase, selectedAgent);
-  const { updateChat, clearEphemeralMessages } = useActiveChatActions();
   const rehydrateSessions = useRehydrateSessions(apiBase);
   
   // Get active session for chat input hook
@@ -99,39 +96,20 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const ephemeralMessages = activeChatState?.ephemeralMessages || [];
   const unreadCount = sessions.filter(s => s.hasUnread).length;
   
-  
   // Refs
   const chatSectionRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isDockOpenRef = useRef(isDockOpen);
-  
-  // Update ref when state changes
-  useEffect(() => {
-    isDockOpenRef.current = isDockOpen;
-  }, [isDockOpen]);
   
   // Session management actions
   const { focusSession, removeSession, openChatForAgent, openConversation } = useChatDockActions({
-    apiBase,
     sessions,
     agents,
     activeSessionId,
     setActiveSessionId,
-    setIsUserScrolledUp,
-    messagesContainerRef,
-    textareaRef,
   });
   
   // Drag to resize
   useDragResize({ isDragging, setIsDragging, setHeight: setDockHeight });
-  
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    if (!isUserScrolledUp && messagesContainerRef.current && activeSession) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-    }
-  }, [activeSession?.messages, ephemeralMessages, isUserScrolledUp]);
   
   // Keyboard shortcuts
   useChatDockKeyboardShortcuts({
@@ -145,10 +123,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setPreviousDockHeight,
     setPreviousDockOpen,
     setActiveSessionId,
-    setIsUserScrolledUp,
     setShowSessionPicker,
     focusSession,
-    messagesContainerRef,
   });
   
   return (
@@ -210,19 +186,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                   showStatsPanel={showStatsPanel}
                   showReasoning={showReasoning}
                   showToolDetails={showToolDetails}
-                  isUserScrolledUp={isUserScrolledUp}
                   modelSupportsAttachments={modelSupportsAttachments}
                   agentDefaultModelId={agentDefaultModelId}
                   availableModels={availableModels}
-                  ephemeralMessages={ephemeralMessages}
-                  removingMessages={removingMessages}
-                  messagesContainerRef={messagesContainerRef}
                   chatInput={chatInput}
                   setShowStatsPanel={setShowStatsPanel}
-                  setIsUserScrolledUp={setIsUserScrolledUp}
-                  setRemovingMessages={setRemovingMessages}
-                  updateChat={updateChat}
-                  clearEphemeralMessages={clearEphemeralMessages}
                 />
               ) : (
                 <div className="empty-state">

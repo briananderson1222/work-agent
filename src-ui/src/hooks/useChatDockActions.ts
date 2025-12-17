@@ -1,6 +1,7 @@
-import { useCallback, RefObject } from 'react';
+import { useCallback } from 'react';
 import { useActiveChatActions, useCreateChatSession, useOpenConversation } from '../contexts/ActiveChatsContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import type { AgentSummary } from '../types';
 
 interface DerivedSession {
@@ -10,50 +11,30 @@ interface DerivedSession {
 }
 
 interface UseChatDockActionsOptions {
-  apiBase: string;
   sessions: DerivedSession[];
   agents: AgentSummary[];
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
-  setIsUserScrolledUp: (value: boolean) => void;
-  messagesContainerRef: RefObject<HTMLDivElement>;
-  textareaRef: RefObject<HTMLTextAreaElement>;
 }
 
 export function useChatDockActions({
-  apiBase,
   sessions,
   agents,
   activeSessionId,
   setActiveSessionId,
-  setIsUserScrolledUp,
-  messagesContainerRef,
-  textareaRef,
 }: UseChatDockActionsOptions) {
+  const { apiBase } = useApiBase();
   const { isDockMaximized, setDockState, setActiveChat } = useNavigation();
   const { updateChat, removeChat } = useActiveChatActions();
   const createChatSession = useCreateChatSession();
   const openConversationAction = useOpenConversation(apiBase);
-
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTo({
-          top: messagesContainerRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
-        setIsUserScrolledUp(false);
-      }
-    }, 100);
-  }, [messagesContainerRef, setIsUserScrolledUp]);
 
   const focusSession = useCallback((sessionId: string) => {
     setActiveSessionId(sessionId);
     setActiveChat(sessionId);
     setDockState(true, isDockMaximized);
     updateChat(sessionId, { hasUnread: false });
-    scrollToBottom();
-  }, [setActiveSessionId, setActiveChat, setDockState, isDockMaximized, updateChat, scrollToBottom]);
+  }, [setActiveSessionId, setActiveChat, setDockState, isDockMaximized, updateChat]);
 
   const removeSession = useCallback((sessionId: string) => {
     removeChat(sessionId);
@@ -70,12 +51,7 @@ export function useChatDockActions({
     setActiveSessionId(sessionId);
     setActiveChat(sessionId);
     setDockState(true, false);
-    
-    setTimeout(() => {
-      textareaRef.current?.focus();
-      scrollToBottom();
-    }, 100);
-  }, [createChatSession, setActiveSessionId, setActiveChat, setDockState, textareaRef, scrollToBottom]);
+  }, [createChatSession, setActiveSessionId, setActiveChat, setDockState]);
 
   const openConversation = useCallback(async (conversationId: string, agentSlug: string) => {
     const agent = agents.find(a => a.slug === agentSlug);
@@ -91,8 +67,7 @@ export function useChatDockActions({
     setActiveSessionId(sessionId);
     setActiveChat(sessionId);
     setDockState(true, false);
-    scrollToBottom();
-  }, [agents, sessions, focusSession, openConversationAction, setActiveSessionId, setActiveChat, setDockState, scrollToBottom]);
+  }, [agents, sessions, focusSession, openConversationAction, setActiveSessionId, setActiveChat, setDockState]);
 
   return {
     focusSession,

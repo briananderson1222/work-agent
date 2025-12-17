@@ -1,4 +1,4 @@
-import React, { RefObject } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { ConversationStats } from './ConversationStats';
 import { ChatEmptyState } from './ChatEmptyState';
 import { EphemeralMessage } from './EphemeralMessage';
@@ -13,6 +13,7 @@ import { ChatInputArea } from './ChatInputArea';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useToast } from '../contexts/ToastContext';
+import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useToolApproval } from '../hooks/useToolApproval';
 import { getAgentIconStyle, getInitials } from '../utils/workspace';
 
@@ -43,17 +44,13 @@ interface ChatDockBodyProps {
   showStatsPanel: boolean;
   showReasoning: boolean;
   showToolDetails: boolean;
-  isUserScrolledUp: boolean;
   modelSupportsAttachments: boolean;
   agentDefaultModelId?: string;
   availableModels: Array<{ id: string; name: string }>;
-  ephemeralMessages: Message[];
-  removingMessages: Set<string>;
-  messagesContainerRef: RefObject<HTMLDivElement>;
   chatInput: {
     input: string;
     attachments: unknown[];
-    textareaRef: RefObject<HTMLTextAreaElement>;
+    textareaRef: React.RefObject<HTMLTextAreaElement>;
     currentModel: string;
     modelQuery: string;
     commandQuery: string;
@@ -75,10 +72,6 @@ interface ChatDockBodyProps {
     closeAll: () => void;
   };
   setShowStatsPanel: (show: boolean) => void;
-  setIsUserScrolledUp: (scrolled: boolean) => void;
-  setRemovingMessages: (fn: (prev: Set<string>) => Set<string>) => void;
-  updateChat: (id: string, updates: unknown) => void;
-  clearEphemeralMessages: (id: string) => void;
 }
 
 export function ChatDockBody({
@@ -88,27 +81,33 @@ export function ChatDockBody({
   showStatsPanel,
   showReasoning,
   showToolDetails,
-  isUserScrolledUp,
   modelSupportsAttachments,
   agentDefaultModelId,
   availableModels,
-  ephemeralMessages,
-  removingMessages,
-  messagesContainerRef,
   chatInput,
   setShowStatsPanel,
-  setIsUserScrolledUp,
-  setRemovingMessages,
-  updateChat,
-  clearEphemeralMessages,
 }: ChatDockBodyProps) {
-  // Use hooks directly instead of prop drilling
+  // Hooks for global state
   const agents = useAgents();
   const { apiBase } = useApiBase();
   const { showToast } = useToast();
   const handleToolApproval = useToolApproval(apiBase);
+  const { updateChat, clearEphemeralMessages } = useActiveChatActions();
+
+  // Local state - only used within this component
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
 
   const agent = agents.find(a => a.slug === activeSession.agentSlug);
+  const ephemeralMessages = activeSession.messages.filter(m => m.ephemeral);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (!isUserScrolledUp && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [activeSession.messages, isUserScrolledUp]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
