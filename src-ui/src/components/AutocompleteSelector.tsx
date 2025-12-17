@@ -57,18 +57,6 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
     }
   }, [selectedIndex]);
 
-  // Click outside to close
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        onClose?.();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
-
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -81,10 +69,10 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
         e.stopPropagation();
         setSelectedIndex(prev => Math.max(prev - 1, 0));
       } else if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        e.stopPropagation();
         const item = itemsRef.current[selectedIndexRef.current];
         if (item) {
+          e.preventDefault();
+          e.stopPropagation();
           onSelect(item);
         }
       } else if (e.key === 'Escape') {
@@ -103,8 +91,11 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
       <div 
         ref={containerRef}
         style={{
-        position: 'relative',
-        width: '100%',
+        position: 'absolute',
+        bottom: '100%',
+        left: 0,
+        right: 0,
+        marginBottom: '8px',
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border-primary)',
         borderRadius: '4px',
@@ -124,8 +115,11 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
     <div 
       ref={containerRef}
       style={{
-      position: 'relative',
-      width: '100%',
+      position: 'absolute',
+      bottom: '100%',
+      left: 0,
+      right: 0,
+      marginBottom: '8px',
       background: 'var(--bg-secondary)',
       border: '1px solid var(--border-primary)',
       borderRadius: '4px',
@@ -141,7 +135,10 @@ export function AutocompleteSelector({ items, onSelect, onClose, emptyMessage = 
             if (el) itemRefs.current.set(idx, el);
             else itemRefs.current.delete(idx);
           }}
-          onClick={() => onSelect(item)}
+          onMouseDown={(e) => {
+            e.preventDefault(); // Prevent blur
+            onSelect(item);
+          }}
           onMouseEnter={() => setSelectedIndex(idx)}
           style={{
             padding: '10px 12px',

@@ -8,8 +8,10 @@ import { FileAttachmentInput } from './FileAttachmentInput';
 import { SlashCommandSelector } from './SlashCommandSelector';
 import { ModelSelectorAutocomplete } from './ModelSelector';
 import { AgentBadge } from './AgentBadge';
+import { StreamingMessage } from './StreamingMessage';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useSlashCommands } from '../hooks/useSlashCommands';
+import { useAutocompleteState } from '../hooks/useAutocompleteState';
 import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import { useActiveChatActions, useActiveChatState, useSendMessage, useCreateChatSession, useCancelMessage, useOpenConversation, useRehydrateSessions } from '../contexts/ActiveChatsContext';
 import { useConversationStatus, useConversationActions } from '../contexts/ConversationsContext';
@@ -19,11 +21,12 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
-import { useStreaming } from '../contexts/StreamingContext';
+
 import { useToolApproval } from '../hooks/useToolApproval';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { getAgentIcon, getAgentIconStyle, getUserIconStyle, getInitials } from '../utils/workspace';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
+import { useAgentTools } from '../contexts/AgentToolsContext';
 import { log } from '@/utils/logger';
 import type { AgentSummary } from '../types';
 import type { SlashCommand } from '../hooks/useSlashCommands';
@@ -323,8 +326,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const appConfig = useConfig();
   const defaultFontSize = appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
   const handleToolApproval = useToolApproval(apiBase);
-  const handleSlashCommand = useSlashCommandHandler(apiBase);
-  const { getStreamingMessage } = useStreaming();
+  const handleSlashCommand = useSlashCommandHandler();
   
   // DEBUG: Log when component renders
   const renderTimestamp = new Date().toISOString();
@@ -358,8 +360,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const [newChatSearch, setNewChatSearch] = useState('');
   const [newChatSelectedIndex, setNewChatSelectedIndex] = useState(0);
   const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
-  const [commandQuery, setCommandQuery] = useState<string | null>(null);
-  const [modelQuery, setModelQuery] = useState<string | null>(null);
+  const { commandQuery, modelQuery, updateFromInput, closeCommand, closeModel, openModel, closeAll, onInputCleared } = useAutocompleteState();
   
   // History navigation index (local UI state only)
   const [historyIndex, setHistoryIndex] = useState<Map<string, number>>(new Map());
@@ -378,18 +379,12 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const rehydrateSessions = useRehydrateSessions(apiBase);
   
   // Wrap slash command handler with callbacks (after updateChat is available)
-  const wrappedSlashCommandHandler = useCallback(async (sessionId: string, command: string) => {
-    return handleSlashCommand(
-      sessionId, 
-      command,
-      () => {
-        // Set input to /model with space to trigger autocomplete
-        updateChat(sessionId, { input: '/model ' });
-        setModelQuery('');
-      },
-      () => setShowStatsPanel(true)
-    );
-  }, [handleSlashCommand, updateChat]);
+  const slashCommandHandler = useCallback(async (sessionId: string, command: string) => {
+    return handleSlashCommand(sessionId, command, {
+      onInputCleared,
+      autocomplete: { openModel, closeCommand, closeAll },
+    });
+  }, [handleSlashCommand, openModel, closeCommand, closeAll, onInputCleared]);
   
   // Rehydrate sessions on mount
   useEffect(() => {
@@ -425,7 +420,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         showToast(`Error: ${error.message}`, 'error');
       }
     },
-    wrappedSlashCommandHandler
+    slashCommandHandler
   );
 
   // Wrapper for backward compatibility - now just calls sendMessage directly
@@ -548,141 +543,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     }, 100);
   }, [agents, sessions, focusSession, openConversationAction, setActiveChat, setDockState]);
   
-  const executeCommand = useCallback(async (command: SlashCommand, sessionId: string) => {
-    const cmdName = command.cmd.slice(1);
-    
-    // Save to history before clearing input
-    addToInputHistory(sessionId, command.cmd);
-    
-    // Don't clear input for /model - we need to set it to trigger autocomplete
-    if (cmdName !== 'model') {
-      clearInput(sessionId);
-    }
-    setCommandQuery(null);
-    
-    switch (cmdName) {
-      case 'clear':
-      case 'new':
-        updateChat(sessionId, { messages: [] });
-        showToast('Conversation cleared');
-        break;
-        
-      case 'stats':
-        setShowStatsPanel(true);
-        break;
-        
-      case 'mcp': {
-        try {
-          const agent = agents.find(a => a.slug === activeSession?.agentSlug);
-          const response = await fetch(`${apiBase}/agents/${agent?.slug}`);
-          const data = await response.json();
-          const agentData = data.data;
-          
-          const tools = agentData?.tools || [];
-          const mcpServers = [...new Set(
-            tools
-              .map((t: any) => {
-                const name = typeof t === 'string' ? t : (t.name || t.id || '');
-                return name.includes('_') ? name.split('_')[0] : null;
-              })
-              .filter((s: string | null) => s !== null)
-          )].sort();
-          
-          const content = mcpServers.length > 0
-            ? `**MCP Servers (${mcpServers.length}):**\n\n${mcpServers.map((s: string) => `- ${s}`).join('\n')}`
-            : 'No MCP servers loaded for this agent.';
-          
-          addEphemeralMessage(sessionId, { role: 'system', content });
-        } catch (error) {
-          addEphemeralMessage(sessionId, { role: 'system', content: `Error: ${error}` });
-        }
-        break;
-      }
-        
-      case 'tools': {
-        try {
-          const agent = agents.find(a => a.slug === activeSession?.agentSlug);
-          const response = await fetch(`${apiBase}/agents/${agent?.slug}`);
-          const data = await response.json();
-          const agentData = data.data;
-          
-          const tools = agentData?.tools || [];
-          const autoApproveList = agentData?.autoApprove || [];
-          
-          if (tools.length > 0) {
-            const sortedTools = [...tools].sort((a: any, b: any) => {
-              const nameA = typeof a === 'string' ? a : (a.name || a.id || '');
-              const nameB = typeof b === 'string' ? b : (b.name || b.id || '');
-              return nameA.localeCompare(nameB);
-            });
-            
-            const toolLines = sortedTools.map((t: any) => {
-              const name = typeof t === 'string' ? t : (t.name || t.id || 'unknown');
-              const isAutoApproved = autoApproveList.some((pattern: string) => {
-                if (pattern.includes('*')) {
-                  const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-                  return regex.test(name);
-                }
-                return pattern === name;
-              });
-              return `- ${name}${isAutoApproved ? ' ✓' : ''}`;
-            });
-            
-            const content = `**Available Tools (${tools.length}):**\n\n${toolLines.join('\n')}\n\n✓ = Auto-approved`;
-            addEphemeralMessage(sessionId, { role: 'system', content });
-          } else {
-            addEphemeralMessage(sessionId, { role: 'system', content: 'No tools available for this agent.' });
-          }
-        } catch (error) {
-          addEphemeralMessage(sessionId, { role: 'system', content: `Error: ${error}` });
-        }
-        break;
-      }
-        
-      case 'model': {
-        // Trigger model autocomplete
-        updateChat(sessionId, { input: '/model ' });
-        setModelQuery('');
-        break;
-      }
-        
-      case 'prompts': {
-        const agent = agents.find(a => a.slug === activeSession?.agentSlug);
-        if (agent?.commands && Object.keys(agent.commands).length > 0) {
-          const cmdList = Object.entries(agent.commands).map(([name, cmd]: [string, any]) => 
-            `- **/${name}**: ${cmd.description || 'No description'}`
-          ).join('\n');
-          addEphemeralMessage(sessionId, { role: 'system', content: `**Custom Commands:**\n\n${cmdList}` });
-        } else {
-          addEphemeralMessage(sessionId, { role: 'system', content: 'No custom commands defined for this agent.' });
-        }
-        break;
-      }
-        
-      default:
-        if (command.isCustom) {
-          const agent = agents.find(a => a.slug === activeSession?.agentSlug);
-          const customCmd = agent?.commands?.[cmdName];
-          if (customCmd) {
-            // Add ephemeral message explaining the prompt launch
-            addEphemeralMessage(sessionId, { 
-              role: 'system', 
-              content: `🚀 Launching prompt: **${customCmd.description || cmdName}**` 
-            });
-            
-            // Send the prompt
-            await sendMessage(
-              sessionId,
-              activeSession!.agentSlug,
-              activeSession!.conversationId,
-              customCmd.prompt
-            );
-          }
-        } else {
-          showToast(`Unknown command: ${command.cmd}`, 'error');
-        }
-    }
-  }, [clearInput, updateChat, showToast, agents, activeSession, sendMessage, apiBase, addEphemeralMessage, addToInputHistory]);
   
   // Drag to resize
   useEffect(() => {
@@ -1313,6 +1173,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                   marginBottom: '0',
                                   position: 'relative',
                                   fontSize: `${chatFontSize}px`,
+                                  textAlign: 'left',
+                                  alignSelf: 'flex-start',
+                                  width: '100%',
                                   opacity: removingMessages.has(messageId) ? 0 : 1,
                                   transform: removingMessages.has(messageId) ? 'translateY(-10px)' : 'translateY(0px)',
                                   transition: 'opacity 0.3s ease, transform 0.3s ease'
@@ -1353,7 +1216,18 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                                 >
                                   ×
                                 </button>
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
+                                {msg.contentType === 'html' ? (
+                                  <div 
+                                    ref={(el) => {
+                                      if (el && !el.dataset.initialized) {
+                                        el.innerHTML = msg.content;
+                                        el.dataset.initialized = 'true';
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
+                                )}
                                 {msg.action && (
                                   <button
                                     onClick={() => {
@@ -1603,108 +1477,52 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                           );
                         })}
                         
-                        {/* Render streaming message being built in real-time */}
-                        {(() => {
-                          const streamingMessage = getStreamingMessage(activeSession.id);
-                          if (!streamingMessage) return null;
-                          
-                          return (
-                          <div style={{ 
+                        {/* Render streaming message with direct DOM updates (bypasses React batching) */}
+                        {activeSession.status === 'sending' && (() => {
+                          const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                          const iconStyle = agent ? getAgentIconStyle(agent, 20) : {
                             display: 'flex',
-                            gap: '8px',
-                            alignItems: 'flex-start',
-                            marginBottom: '12px'
-                          }}>
-                            <div style={{ 
-                              ...(() => {
-                                const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                                return agent ? getAgentIconStyle(agent, 20) : {
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '20px',
-                                  height: '20px',
-                                  borderRadius: '50%',
-                                  background: 'var(--accent-primary)',
-                                  fontSize: '11px',
-                                  flexShrink: 0,
-                                  color: 'var(--text-primary)',
-                                };
-                              })(),
-                              marginTop: '4px'
-                            }}>
-                              {(() => {
-                                const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                                return agent?.icon || getInitials(agent?.name || 'AI');
-                              })()}
-                            </div>
-                            <div className="message assistant" style={{ maxWidth: '70%', fontSize: `${chatFontSize}px` }}>
-                              {streamingMessage.contentParts && streamingMessage.contentParts.length > 0 ? (
-                                streamingMessage.contentParts.map((part, i) => {
-                                  if (part.type === 'text' && part.content) {
-                                    return <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>;
-                                  } else if (part.type === 'tool' || part.type?.startsWith('tool-')) {
-                                    return (
-                                      <ToolCallDisplay 
-                                        key={i} 
-                                        toolCall={part}
-                                        showDetails={showToolDetails}
-                                      />
-                                    );
-                                  }
-                                  return null;
-                                })
-                              ) : (
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingMessage.content}</ReactMarkdown>
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            background: 'var(--accent-primary)',
+                            fontSize: '11px',
+                            flexShrink: 0,
+                            color: 'var(--text-primary)',
+                          };
+                          return (
+                            <StreamingMessage
+                              sessionId={activeSession.id}
+                              agentIcon={agent?.icon || getInitials(agent?.name || 'AI')}
+                              agentIconStyle={iconStyle}
+                              fontSize={chatFontSize}
+                              showReasoning={showReasoning}
+                              renderReasoning={(content, i) => (
+                                <ReasoningSection key={i} content={content} fontSize={chatFontSize} show={showReasoning} />
                               )}
-                            </div>
-                          </div>
-                        );
+                              renderToolCall={(part, i) => (
+                                <ToolCallDisplay 
+                                  key={i} 
+                                  toolCall={part}
+                                  showDetails={showToolDetails}
+                                  onApprove={part.tool?.needsApproval ? (action) => {
+                                    handleToolApproval(
+                                      activeSession.id,
+                                      activeSession.agentSlug,
+                                      part.tool!.approvalId!,
+                                      part.tool!.name,
+                                      action
+                                    );
+                                  } : undefined}
+                                />
+                              )}
+                            />
+                          );
                         })()}
                         
                       </>
-                    )}
-                    {/* Show loading indicator in new bubble when starting a new response */}
-                    {activeSession.isThinking && (!activeSession.messages.length || activeSession.messages[activeSession.messages.length - 1]?.role !== 'assistant' || !activeSession.messages[activeSession.messages.length - 1]?.content) && (
-                      <div style={{ 
-                        display: 'flex',
-                        gap: '8px',
-                        alignItems: 'flex-start',
-                        marginBottom: '12px'
-                      }}>
-                        <div style={{ 
-                          ...(() => {
-                            const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                            return agent ? getAgentIconStyle(agent, 20) : {
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              background: 'var(--accent-primary)',
-                              fontSize: '11px',
-                              flexShrink: 0,
-                              color: 'var(--text-primary)',
-                            };
-                          })(),
-                          marginTop: '4px'
-                        }}>
-                          {(() => {
-                            const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                            return agent?.icon || getInitials(agent?.name || 'AI');
-                          })()}
-                        </div>
-                        <div className="message assistant" style={{ maxWidth: '70%' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
-                            <span className="loading-dots">
-                              <span style={{ animationDelay: '0s' }}>●</span>
-                              <span style={{ animationDelay: '0.2s' }}>●</span>
-                              <span style={{ animationDelay: '0.4s' }}>●</span>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
                     )}
                   </div>
                   {isUserScrolledUp && (
@@ -1813,61 +1631,68 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       ))}
                     </div>
                   )}
-                  <div className="chat-input" style={{ display: 'flex', alignItems: 'stretch', position: 'relative' }}>
-                    {modelQuery !== null && activeSession && (
-                      <ModelSelectorAutocomplete
-                        query={modelQuery}
-                        models={availableModels}
-                        currentModel={activeChatState?.model || agents.find(a => a.slug === activeSession.agentSlug)?.model}
-                        agentDefaultModel={agents.find(a => a.slug === activeSession.agentSlug)?.model}
-                        maxHeight={`calc(${dockHeight}px - 200px)`}
-                        onSelect={(model) => {
-                          const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                          const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                          const currentModelStr = activeChatState?.model || agentModelId || '';
-                          const isAlreadyActive = currentModelStr === model.id;
-                          
-                          updateChat(activeSession.id, { 
-                            input: '',
-                            model: model.id
-                          });
-                          
-                          if (!isAlreadyActive) {
-                            addEphemeralMessage(activeSession.id, { 
-                              role: 'system', 
-                              content: `Model changed to **${model.name}**` 
-                            });
-                          }
-                          
-                          setModelQuery(null);
-                        }}
-                        onClose={() => {
-                          setModelQuery(null);
-                          clearInput(activeSession.id);
-                        }}
-                      />
-                    )}
-                    {commandQuery !== null && activeSession && (
-                      <SlashCommandSelector
-                        query={commandQuery}
-                        commands={slashCommands}
-                        maxHeight={`calc(${dockHeight}px - 200px)`}
-                        onSelect={(command) => {
-                          executeCommand(command, activeSession.id);
-                        }}
-                        onClose={() => {
-                          setCommandQuery(null);
-                          clearInput(activeSession.id);
-                        }}
-                      />
-                    )}
+                  <div className="chat-input" style={{ display: 'flex', alignItems: 'stretch' }}>
                     <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
+                      {modelQuery !== null && activeSession && (
+                        <ModelSelectorAutocomplete
+                          query={modelQuery}
+                          models={availableModels}
+                          currentModel={activeChatState?.model || agents.find(a => a.slug === activeSession.agentSlug)?.model}
+                          agentDefaultModel={agents.find(a => a.slug === activeSession.agentSlug)?.model}
+                          maxHeight={`calc(${dockHeight}px - 200px)`}
+                          onSelect={(model) => {
+                            const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                            const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
+                            const currentModelStr = activeChatState?.model || agentModelId || '';
+                            const isAlreadyActive = currentModelStr === model.id;
+                            
+                            updateChat(activeSession.id, { 
+                              input: '',
+                              model: model.id
+                            });
+                            
+                            if (!isAlreadyActive) {
+                              addEphemeralMessage(activeSession.id, { 
+                                role: 'system', 
+                                content: `Model changed to **${model.name}**` 
+                              });
+                            }
+                            
+                            closeModel();
+                          }}
+                          onClose={() => {
+                            closeModel();
+                          }}
+                        />
+                      )}
+                      {commandQuery !== null && activeSession && (
+                        <SlashCommandSelector
+                          query={commandQuery}
+                          commands={slashCommands}
+                          maxHeight={`calc(${dockHeight}px - 200px)`}
+                          onSelect={async (command) => {
+                            // Just send the command - sendMessage will handle slash command logic
+                            await sendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, command.cmd);
+                            // Refocus textarea after command (needed for /model to show sub-autocomplete)
+                            textareaRef.current?.focus();
+                          }}
+                          onClose={() => {
+                            closeCommand();
+                          }}
+                        />
+                      )}
                       <textarea
                         ref={textareaRef}
                         placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
                         value={activeSession.input || ''}
                         disabled={!agent}
                         tabIndex={0}
+                        onFocus={() => {
+                          updateFromInput(activeSession.input || '');
+                        }}
+                        onBlur={() => {
+                          closeAll();
+                        }}
                         onChange={(e) => {
                           let value = e.target.value;
                           
@@ -1881,31 +1706,19 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         // Reset history index when user types
                         setHistoryIndex(prev => new Map(prev).set(activeSession.id, -1));
                         
-                        // Update model query
-                        if (value.startsWith('/model ')) {
-                          setModelQuery(value.slice(7)); // Remove '/model '
-                          setCommandQuery(null);
-                        }
-                        // Update command query
-                        else if (value.startsWith('/') && !value.includes(' ')) {
-                          setCommandQuery(value.slice(1));
-                          setModelQuery(null);
-                        } else {
-                          setCommandQuery(null);
-                          setModelQuery(null);
-                        }
+                        // Update autocomplete state
+                        updateFromInput(value);
                       }}
                       onKeyDown={async (e) => {
+                        // If autocomplete already handled the event, don't process it
+                        if (e.defaultPrevented) return;
+                        
                         // Handle Escape to dismiss autocomplete
                         if (e.key === 'Escape' && (commandQuery !== null || modelQuery !== null)) {
                           e.preventDefault();
-                          setCommandQuery(null);
-                          setModelQuery(null);
+                          closeAll();
                           return;
                         }
-                        
-                        // Selectors handle their own keyboard events
-                        if (commandQuery !== null || modelQuery !== null) return;
                         
                         // Allow Tab to navigate to chat controls
                         if (e.key === 'Tab' && !e.shiftKey) {
@@ -2039,8 +1852,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       </div>
                       <button 
                         onClick={() => {
+                          closeCommand();
                           updateChat(activeSession.id, { input: '/model ' });
-                          setModelQuery('');
+                          setTimeout(() => openModel(), 0);
                           if (textareaRef.current) {
                             textareaRef.current.focus();
                           }

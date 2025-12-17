@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import { transformTool, invokeAgent, invoke, _getApiBase } from './api';
+import { agentQueries } from './queryFactories';
 
 interface QueryConfig<T> {
   staleTime?: number;
@@ -209,17 +210,11 @@ export function useModelsQuery(config?: QueryConfig<any>) {
  * Fetch tools for an agent
  */
 export function useAgentToolsQuery(agentSlug: string | undefined, config?: QueryConfig<any>) {
-  return useApiQuery(
-    agentSlug ? ['agentTools', agentSlug] : ['agentTools'],
-    async () => {
-      const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/tools`);
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
-      return result.data;
-    },
-    { ...config, enabled: !!agentSlug && (config?.enabled ?? true) }
-  );
+  return useQuery({
+    ...agentQueries.tools(agentSlug!),
+    ...config,
+    enabled: !!agentSlug && (config?.enabled ?? true),
+  });
 }
 
 /**
@@ -231,8 +226,15 @@ export function useModelCapabilitiesQuery(config?: QueryConfig<any>) {
     async () => {
       const apiBase = await _getApiBase();
       const response = await fetch(`${apiBase}/api/models/capabilities`);
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('AWS credentials not configured - model capabilities unavailable');
+          return [];
+        }
+        throw new Error(`Failed to fetch model capabilities: ${response.statusText}`);
+      }
       const result = await response.json();
-      return result.data;
+      return result.data || [];
     },
     config
   );
@@ -270,4 +272,19 @@ export function useConversationsQuery(agentSlug: string | undefined, config?: Qu
     },
     { ...config, enabled: !!agentSlug && (config?.enabled ?? true) }
   );
+}
+
+/**
+ * Fetch conversation stats
+ */
+export function useStatsQuery(
+  agentSlug: string | undefined,
+  conversationId: string | undefined,
+  config?: QueryConfig<any>
+) {
+  return useQuery({
+    ...agentQueries.stats(agentSlug || '', conversationId || ''),
+    ...config,
+    enabled: !!agentSlug && !!conversationId && (config?.enabled ?? true),
+  });
 }

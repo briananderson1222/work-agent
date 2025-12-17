@@ -21,7 +21,11 @@ export {
   useConfigQuery,
   useModelCapabilitiesQuery,
   useAgentToolsQuery,
+  useStatsQuery,
 } from './queries';
+
+// Re-export query factories (for imperative fetching in commands)
+export { agentQueries } from './queryFactories';
 
 // Re-export components
 export { Button, Pill, AutoSelectModal } from './components';

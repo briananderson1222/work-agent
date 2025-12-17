@@ -45,6 +45,12 @@ app.get('/capabilities', async (c) => {
     return c.json({ data: capabilities });
   } catch (error: any) {
     console.error('Error fetching model capabilities:', error);
+    
+    // Return 401 for credential errors
+    if (error.name === 'CredentialsProviderError' || error.message?.includes('credentials')) {
+      return c.json({ error: 'AWS credentials not configured', details: error.message }, 401);
+    }
+    
     return c.json({ error: error.message }, 500);
   }
 });

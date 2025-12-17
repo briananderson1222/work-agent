@@ -1,4 +1,3 @@
-import { createContext, useContext, ReactNode } from 'react';
 import { useConfigQuery, useApiMutation, useInvalidateQuery } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 
@@ -30,20 +29,7 @@ export const CONFIG_DEFAULTS = {
     : 'http://localhost:3141',
 } as const;
 
-const ConfigContext = createContext<{} | undefined>(undefined);
-
-export function ConfigProvider({ children }: { children: ReactNode }) {
-  return (
-    <ConfigContext.Provider value={{}}>
-      {children}
-    </ConfigContext.Provider>
-  );
-}
-
 export function useConfig(): ConfigData | null {
-  const context = useContext(ConfigContext);
-  if (!context) throw new Error('useConfig must be used within ConfigProvider');
-
   const { data, error } = useConfigQuery();
   
   if (error) log.api('Failed to fetch config:', error);
@@ -52,9 +38,6 @@ export function useConfig(): ConfigData | null {
 }
 
 export function useConfigActions() {
-  const context = useContext(ConfigContext);
-  if (!context) throw new Error('useConfigActions must be used within ConfigProvider');
-  
   const invalidate = useInvalidateQuery();
 
   const updateMutation = useApiMutation(

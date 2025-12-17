@@ -33,7 +33,8 @@ export function WorkspaceView() {
     }
   }, [selectedWorkspace, setWorkspaceTab]);
   
-  const activeTabId = activeTab || '';
+  // Auto-select first tab if none is active
+  const activeTabId = activeTab || workspace?.tabs?.[0]?.id || '';
   
   const [refreshKey, setRefreshKey] = useState(0);
   

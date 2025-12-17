@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, ReactNode } from 'react';
+import { useMemo } from 'react';
 import { useModelsQuery } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 
@@ -10,20 +10,7 @@ interface Model {
   profileType?: string;
 }
 
-const ModelsContext = createContext<{} | undefined>(undefined);
-
-export function ModelsProvider({ children }: { children: ReactNode }) {
-  return (
-    <ModelsContext.Provider value={{}}>
-      {children}
-    </ModelsContext.Provider>
-  );
-}
-
 export function useModels(): Model[] {
-  const context = useContext(ModelsContext);
-  if (!context) throw new Error('useModels must be used within ModelsProvider');
-
   const { data, error } = useModelsQuery();
 
   const models = useMemo(() => {

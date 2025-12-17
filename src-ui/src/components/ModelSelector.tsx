@@ -22,7 +22,7 @@ interface ModelSelectorAutocompleteProps {
 }
 
 export function ModelSelectorAutocomplete({ query, models, currentModel, agentDefaultModel, onSelect, onClose, maxHeight }: ModelSelectorAutocompleteProps) {
-  const { capabilities } = useModelCapabilities();
+  const capabilities = useModelCapabilities();
   
   const items = useMemo(() => {
     const searchTerm = (query || '').toLowerCase();

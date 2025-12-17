@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { useQueryClient, useInvalidateQuery } from '@stallion-ai/sdk';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
+import { useSessionManagementViewModel } from '../hooks/useSessionManagementViewModel';
 import { log } from '@/utils/logger';
 import { ConfirmModal } from './ConfirmModal';
 import { ContextPercentage } from './ConversationStats';
@@ -59,58 +60,9 @@ export function SessionManagementMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const invalidate = useInvalidateQuery();
-  const queryClient = useQueryClient();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const loadConversations = async () => {
-    setLoading(true);
-    try {
-      const allConversations: Conversation[] = [];
-      
-      for (const agent of agents) {
-        // Check React Query cache first
-        const cached = queryClient.getQueryData(['conversations', agent.slug]);
-        if (cached) {
-          const agentConvos = (cached as any[]).map((conv: any) => ({
-            ...conv,
-            agentSlug: agent.slug,
-            agentName: agent.name,
-          }));
-          allConversations.push(...agentConvos);
-        } else {
-          // Fetch if not in cache
-          try {
-            const response = await fetch(`${apiBase}/agents/${agent.slug}/conversations`);
-            if (response.ok) {
-              const data = await response.json();
-              const agentConvos = (data.data || []).map((conv: any) => ({
-                ...conv,
-                agentSlug: agent.slug,
-                agentName: agent.name,
-              }));
-              allConversations.push(...agentConvos);
-              // Update cache
-              queryClient.setQueryData(['conversations', agent.slug], data.data);
-            }
-          } catch (error) {
-            log.api(`Failed to load conversations for ${agent.slug}:`, error);
-          }
-        }
-      }
-      
-      // Sort by updatedAt descending
-      allConversations.sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
-      
-      setConversations(allConversations);
-    } catch (error) {
-      log.api('Failed to load conversations:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
+  // Use ViewModel to fetch and combine conversations from all agents
+  const { conversations, loading } = useSessionManagementViewModel(agents, isOpen);
 
   useEffect(() => {
     if (isOpen && chatDockRef.current) {
@@ -120,7 +72,6 @@ export function SessionManagementMenu({
         bottom: rect.bottom,
         left: rect.left,
       });
-      loadConversations();
     }
   }, [isOpen]);
 

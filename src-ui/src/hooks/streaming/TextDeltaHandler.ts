@@ -4,8 +4,7 @@
 
 import { StreamEventHandler } from './BaseHandler';
 import type { StreamEvent, StreamState, HandlerResult } from './types';
-import { createResult } from './stateHelpers';
-import { log } from '@/utils/logger';
+import { createResult, getTextFromParts } from './stateHelpers';
 
 export class TextDeltaHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {
@@ -16,28 +15,19 @@ export class TextDeltaHandler extends StreamEventHandler {
     const textDelta = event.delta || event.text;
     if (!textDelta) return this.noOp(state);
 
-    const timestamp = new Date().toISOString();
     const newTextChunk = state.currentTextChunk + textDelta;
-    log.chat('Text delta received:', newTextChunk.substring(0, 50));
+    const totalContent = getTextFromParts(state.contentParts) + newTextChunk;
     
-    // DEBUG: Log handler processing timing
-
     const streamingMessage = this.createStreamingMessage(
-      newTextChunk,
+      totalContent,
       state.contentParts.length > 0 ? state.contentParts : undefined
     );
     
-    // DEBUG: Log before updateChat
-
-    // Store in ActiveChats for data access (batched by React)
     this.updateChat({
       streamingMessage,
       isProcessingStep: true,
     });
-    
-    // DEBUG: Log after updateChat
 
-    // Also return in result for immediate UI rendering via StreamingContext
     return createResult(state, {
       currentTextChunk: newTextChunk,
       streamingMessage,

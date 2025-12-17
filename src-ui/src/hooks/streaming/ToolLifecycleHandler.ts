@@ -5,7 +5,7 @@
 
 import { StreamEventHandler } from './BaseHandler';
 import type { StreamEvent, StreamState, HandlerResult } from './types';
-import { createResult, appendContentPart } from './stateHelpers';
+import { createResult, appendContentPart, getTextFromParts } from './stateHelpers';
 
 export class ToolLifecycleHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {
@@ -55,7 +55,7 @@ export class ToolLifecycleHandler extends StreamEventHandler {
     });
 
     const streamingMessage = this.createStreamingMessage(
-      newContentParts.map(p => (p.type === 'text' ? p.content : '')).join(''),
+      getTextFromParts(newContentParts),
       newContentParts
     );
     this.updateChat({ streamingMessage });
@@ -88,7 +88,7 @@ export class ToolLifecycleHandler extends StreamEventHandler {
     });
 
     const streamingMessage = this.createStreamingMessage(
-      newContentParts.map(p => (p.type === 'text' ? p.content : '')).join(''),
+      getTextFromParts(newContentParts),
       newContentParts
     );
     this.updateChat({ streamingMessage });

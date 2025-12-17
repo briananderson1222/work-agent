@@ -67,3 +67,13 @@ export function appendContentPart(parts: ContentPart[], newPart: ContentPart): C
 export function hasContentPartOfType(parts: ContentPart[], type: ContentPart['type']): boolean {
   return parts.some(p => p.type === type);
 }
+
+/**
+ * Get concatenated text content from all text parts
+ */
+export function getTextFromParts(parts: ContentPart[]): string {
+  return parts
+    .filter(p => p.type === 'text')
+    .map(p => p.content || '')
+    .join('');
+}

@@ -13,6 +13,7 @@ import { mkdir, appendFile, readdir, readFile } from 'fs/promises';
 import { existsSync, createReadStream } from 'fs';
 import { join } from 'path';
 import { createInterface } from 'readline';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
 import { ConfigLoader } from '../domain/config-loader.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
@@ -487,6 +488,16 @@ export class WorkAgentRuntime {
               const toolsData = tools.map((tool: any) => {
                 const mapping = this.toolNameMapping.get(tool.name);
                 
+                // Convert Zod schema to JSON schema if parameters is a Zod object
+                let parameters = tool.parameters;
+                if (parameters && typeof parameters === 'object' && '_def' in parameters) {
+                  try {
+                    parameters = zodToJsonSchema(parameters);
+                  } catch (error) {
+                    this.logger.warn('Failed to convert Zod schema to JSON schema', { tool: tool.name, error });
+                  }
+                }
+                
                 return {
                   id: tool.id || tool.name,
                   name: tool.name,
@@ -494,7 +505,7 @@ export class WorkAgentRuntime {
                   server: mapping?.server || null,
                   toolName: mapping?.tool || tool.name,
                   description: tool.description,
-                  parameters: tool.parameters
+                  parameters
                 };
               });
 
@@ -2251,15 +2262,12 @@ export class WorkAgentRuntime {
                   const wrappedStream = injectableStream.wrap(result.fullStream);
                   
                   // Run pipeline and write chunks to stream
-                  let chunkCount = 0;
                   for await (const chunk of pipeline.run(wrappedStream)) {
-                    chunkCount++;
-                    console.log(`[STREAM ${chunkCount}] ${chunk.type} at ${new Date().toISOString()}`);
                     await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
-                    // Tiny delay to ensure write is flushed before next chunk
-                    await new Promise(resolve => setImmediate(resolve));
+                    // Force flush by yielding to event loop with setTimeout(0)
+                    // setImmediate doesn't flush network buffers, but setTimeout does
+                    await new Promise(resolve => setTimeout(resolve, 0));
                   }
-                  console.log(`[STREAM COMPLETE] Total chunks: ${chunkCount}`);
                   
                   // Write [DONE] marker
                   await streamWriter.write('data: [DONE]\n\n');

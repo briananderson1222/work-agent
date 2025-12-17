@@ -1,4 +1,3 @@
-import { createContext, useContext, ReactNode } from 'react';
 import { useAgentsQuery, useApiMutation, useInvalidateQuery } from '@stallion-ai/sdk';
 import { useApiBase } from './ApiBaseContext';
 import { log } from '@/utils/logger';
@@ -16,20 +15,7 @@ type AgentData = {
   workflowWarnings?: string[];
 };
 
-const AgentsContext = createContext<{} | undefined>(undefined);
-
-export function AgentsProvider({ children }: { children: ReactNode }) {
-  return (
-    <AgentsContext.Provider value={{}}>
-      {children}
-    </AgentsContext.Provider>
-  );
-}
-
 export function useAgents(): AgentData[] {
-  const context = useContext(AgentsContext);
-  if (!context) throw new Error('useAgents must be used within AgentsProvider');
-
   const { data, isLoading, error } = useAgentsQuery();
   
   if (error) log.api('Failed to fetch agents:', error);
@@ -43,9 +29,6 @@ export function useAgent(slug: string): AgentData | null {
 }
 
 export function useAgentActions() {
-  const context = useContext(AgentsContext);
-  if (!context) throw new Error('useAgentActions must be used within AgentsProvider');
-  
   const apiBase = useApiBase();
   const invalidate = useInvalidateQuery();
 

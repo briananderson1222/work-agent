@@ -1083,6 +1083,44 @@ body {
   30% { opacity: 1; }
 }
 
+/* Streaming message components */
+.streaming-message {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.streaming-message-icon {
+  margin-top: 4px;
+}
+
+.streaming-text {
+  white-space: pre-wrap;
+}
+
+.loading-dots-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  color: var(--text-muted);
+  font-size: 0.7em;
+  vertical-align: middle;
+}
+
+.loading-dots-inline span {
+  animation: loading-pulse 1.4s infinite;
+}
+
+.loading-dots-inline span:nth-child(1) { animation-delay: 0s; }
+.loading-dots-inline span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots-inline span:nth-child(3) { animation-delay: 0.4s; }
+
+.streaming-loading {
+  margin-top: 8px;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

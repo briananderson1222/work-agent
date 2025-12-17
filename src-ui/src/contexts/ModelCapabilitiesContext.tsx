@@ -1,4 +1,3 @@
-import { createContext, useContext, ReactNode } from 'react';
 import { useModelCapabilitiesQuery } from '@stallion-ai/sdk';
 
 export type ModelCapability = {
@@ -14,20 +13,7 @@ export type ModelCapability = {
   lifecycleStatus?: string;
 };
 
-const ModelCapabilitiesContext = createContext<{} | undefined>(undefined);
-
-export function ModelCapabilitiesProvider({ children }: { children: ReactNode }) {
-  return (
-    <ModelCapabilitiesContext.Provider value={{}}>
-      {children}
-    </ModelCapabilitiesContext.Provider>
-  );
-}
-
 export function useModelCapabilities(): ModelCapability[] {
-  const context = useContext(ModelCapabilitiesContext);
-  if (!context) throw new Error('useModelCapabilities must be used within ModelCapabilitiesProvider');
-
   const { data = [] } = useModelCapabilitiesQuery();
   return data;
 }

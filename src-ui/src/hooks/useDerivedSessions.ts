@@ -61,13 +61,10 @@ export function useDerivedSessions(apiBase: string, agentSlug: string | null): C
         timestamp: m.timestamp || (Date.now() - (messages.length - index) * 1000), // Fallback: recent timestamps in reverse order
       }));
       
-      // Include streaming message in timestamp sorting
-      const streamingMessages = chatState.streamingMessage ? [{
-        ...chatState.streamingMessage,
-        timestamp: chatState.streamingMessage.timestamp || Date.now(),
-      }] : [];
+      // NOTE: Streaming message is rendered separately via StreamingText component
+      // to bypass React batching and enable smooth character-by-character display
       
-      const allMessages = [...messagesWithTimestamps, ...ephemeralMessages, ...streamingMessages]
+      const allMessages = [...messagesWithTimestamps, ...ephemeralMessages]
         .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       
       // Compute isThinking: sending but not actively processing a step

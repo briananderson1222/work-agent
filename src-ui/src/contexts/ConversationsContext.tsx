@@ -271,12 +271,6 @@ class ConversationsStore {
             if (dataStr === '[DONE]') break;
             
             const data = JSON.parse(dataStr);
-            const timestamp = new Date().toISOString();
-            log.chat(`Stream event: ${data.type} at ${timestamp}`);
-            
-            // DEBUG: Log text-delta reception timing
-            if (data.type === 'text-delta') {
-            }
             
             // Handle conversation-started event
             if (data.type === 'conversation-started' && data.conversationId) {

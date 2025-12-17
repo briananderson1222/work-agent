@@ -378,7 +378,7 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
     activeChatsStore.clearInput(conversationId);
   }, []);
 
-  const addEphemeralMessage = useCallback((conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; attachments?: any[] }) => {
+  const addEphemeralMessage = useCallback((conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; contentType?: 'markdown' | 'html'; attachments?: any[] }) => {
     activeChatsStore.addEphemeralMessage(conversationId, message);
   }, []);
 
@@ -492,6 +492,7 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
     // Handle slash commands if handler provided
     if (content.startsWith('/') && handleSlashCommand) {
       const result = await handleSlashCommand(sessionId, content);
+      
       if (result === true || result === 'CLEAR') {
         // Command handled, don't send to backend
         return;

@@ -4,18 +4,12 @@ import App from './App';
 import './index.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { _setApiBase } from '@stallion-ai/sdk';
-import { ModelsProvider } from './contexts/ModelsContext';
-import { ModelCapabilitiesProvider } from './contexts/ModelCapabilitiesContext';
-import { ConfigProvider } from './contexts/ConfigContext';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { WorkspacesProvider } from './contexts/WorkspacesContext';
-import { AgentsProvider } from './contexts/AgentsContext';
-import { AgentToolsProvider } from './contexts/AgentToolsContext';
 import { WorkflowsProvider } from './contexts/WorkflowsContext';
 import { ConversationsProvider } from './contexts/ConversationsContext';
 import { ActiveChatsProvider } from './contexts/ActiveChatsContext';
 import { StreamingProvider } from './contexts/StreamingContext';
-import { StatsProvider } from './contexts/StatsContext';
 import { AnalyticsProvider } from './contexts/AnalyticsContext';
 import { ApiBaseProvider } from './contexts/ApiBaseContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -48,52 +42,33 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3141';
 // Set API base for SDK before rendering
 _setApiBase(API_BASE);
 
-// SDK Provider for plugins (simplified version)
-const SDKProvider = ({ children }: { children: React.ReactNode }) => {
-  return <>{children}</>;
-};
-
 // Initialize plugins before rendering
 pluginRegistry.initialize().then(() => {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <ApiBaseProvider>
-          <ConfigProvider>
-            <NavigationProvider>
-              <KeyboardShortcutsProvider>
-                <ToastProvider>
-                  <ModelsProvider>
-                    <ModelCapabilitiesProvider>
-                      <WorkspacesProvider>
-                      <AgentsProvider>
-                        <AgentToolsProvider>
-                          <WorkflowsProvider>
-                            <ConversationsProvider>
-                              <ActiveChatsProvider>
-                                <StreamingProvider>
-                                  <StatsProvider>
-                                    <AnalyticsProvider>
-                                      <SDKProvider>
-                                        <App />
-                                        <NotificationContainer />
-                                      </SDKProvider>
-                                    </AnalyticsProvider>
-                                  </StatsProvider>
-                                </StreamingProvider>
-                              </ActiveChatsProvider>
-                            </ConversationsProvider>
-                        </WorkflowsProvider>
-                      </AgentToolsProvider>
-                    </AgentsProvider>
-                  </WorkspacesProvider>
-                  </ModelCapabilitiesProvider>
-                </ModelsProvider>
+          <NavigationProvider>
+            <KeyboardShortcutsProvider>
+              <ToastProvider>
+                <WorkspacesProvider>
+                  <WorkflowsProvider>
+                    <ConversationsProvider>
+                      <ActiveChatsProvider>
+                        <StreamingProvider>
+                          <AnalyticsProvider>
+                            <App />
+                            <NotificationContainer />
+                          </AnalyticsProvider>
+                        </StreamingProvider>
+                      </ActiveChatsProvider>
+                    </ConversationsProvider>
+                  </WorkflowsProvider>
+                </WorkspacesProvider>
               </ToastProvider>
             </KeyboardShortcutsProvider>
           </NavigationProvider>
-        </ConfigProvider>
-      </ApiBaseProvider>
+        </ApiBaseProvider>
       </QueryClientProvider>
     </React.StrictMode>
   );

@@ -18,10 +18,6 @@ export class TextDeltaHandler implements StreamHandler {
       if (this.config.debug && chunk.type === 'text-delta') {
         console.log('[text-delta]', chunk.text?.substring(0, 50));
       }
-      // DEBUG: Log timestamp when text-delta is yielded
-      if (chunk.type === 'text-delta') {
-        console.log(`[STREAM DEBUG] Backend yielding text-delta at ${new Date().toISOString()}, text: "${chunk.text?.substring(0, 30)}"`);
-      }
       yield chunk;
     }
   }
