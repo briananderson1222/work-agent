@@ -160,6 +160,82 @@ This ensures:
 - Core refactoring doesn't break plugins
 - Plugins can be distributed as standalone packages
 
+## Core vs Plugin Boundaries
+
+Understanding the separation between core application code and plugin/workspace code is critical for maintainability.
+
+### What belongs in Core (`src-ui/src/`)
+
+- **Contexts**: Global state providers (AgentsContext, NavigationContext, etc.)
+- **SDK Adapter**: Bridge between core contexts and SDK
+- **App Shell**: Header, ChatDock, routing, layout
+- **Management Views**: Settings, AgentEditor, WorkspaceEditor
+- **Shared UI Components**: Generic buttons, modals, inputs used across the app
+
+### What belongs in SDK (`packages/sdk/`)
+
+- **Hook wrappers**: Stable API for plugins to access core functionality
+- **API utilities**: `transformTool`, `invokeAgent`, `sendMessage`
+- **Type definitions**: Shared types for plugins
+- **Generic UI components**: `Button`, `Pill`, `AutoSelectModal`
+- **Query hooks**: `useApiQuery`, `useWorkspacesQuery`, etc.
+
+### What belongs in Plugins/Workspaces (`examples/*/`, installed to `src-ui/src/workspaces/`)
+
+- **Plugin-specific components**: Calendar, CRM, custom dashboards
+- **Plugin-specific hooks**: `useSalesQueries`, `useCRMViewModel`
+- **Plugin-specific utilities**: Cache helpers, data transformers, formatters
+- **Plugin-specific state**: Local state management within the plugin
+- **Plugin-specific styles**: CSS for plugin components
+
+### Key Principles
+
+1. **Plugins are self-contained**: A plugin should work with only SDK imports. If a plugin needs functionality not in the SDK, the SDK should be extended.
+
+2. **Plugins define their own agents**: Plugins should explicitly specify which agent(s) they use. There is no "default agent" assumption.
+
+3. **Plugin utilities stay in plugins**: Helper functions like cache management, data formatting, or business logic specific to a plugin should NOT be extracted to core or SDK.
+
+4. **SDK provides capabilities, not implementations**: The SDK provides hooks like `useSendToChat(agentSlug)` where the plugin specifies the agent. The SDK never assumes which agent to use.
+
+5. **Core doesn't know about plugins**: Core code should never import from or reference specific plugins. The plugin registry handles discovery.
+
+### Example: Correct Plugin Structure
+
+```
+examples/my-workspace/
+├── plugin.json           # Plugin manifest
+├── index.tsx             # Main component (imports from @stallion-ai/sdk only)
+├── MyFeature.tsx         # Feature component
+├── useMyViewModel.ts     # Plugin-specific ViewModel
+├── useMyQueries.ts       # Plugin-specific React Query hooks
+├── utils/
+│   └── cache.ts          # Plugin-specific cache utility (NOT in SDK)
+└── workspace.css         # Plugin-specific styles
+```
+
+### Anti-patterns to Avoid
+
+```typescript
+// ❌ WRONG: Plugin assuming a default agent
+const sendToChat = useSendToChat(); // No agent specified
+
+// ✅ CORRECT: Plugin explicitly specifies agent
+const sendToChat = useSendToChat('my-plugin-agent');
+
+// ❌ WRONG: Extracting plugin utility to SDK
+// packages/sdk/src/utils/cache.ts - DON'T DO THIS
+
+// ✅ CORRECT: Keep plugin utilities in plugin
+// examples/my-workspace/utils/cache.ts
+
+// ❌ WRONG: Core importing from plugin
+import { Calendar } from '@/workspaces/stallion-workspace/Calendar';
+
+// ✅ CORRECT: Core uses plugin registry
+const Component = workspaceRegistry.get(workspace.component);
+```
+
 ### Creating a Custom Workspace Component
 
 1. **Define the component in your workspace:**

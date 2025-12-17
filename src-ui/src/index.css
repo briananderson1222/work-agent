@@ -1310,6 +1310,122 @@ body {
   line-height: 1.4;
 }
 
+.tool-call__server-badge {
+  font-size: 0.7em;
+  padding: 2px 6px;
+  background: var(--color-bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.tool-call__status-badge {
+  font-size: 0.7em;
+  padding: 2px 6px;
+  background: var(--color-bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 3px;
+  margin-left: 0.25rem;
+}
+
+.tool-call__status-badge--success {
+  background: var(--success-secondary);
+  color: var(--success-primary);
+}
+
+.tool-call__status-badge--error {
+  background: var(--error-secondary);
+  color: var(--error-primary);
+}
+
+.tool-call__args-preview {
+  font-size: 0.85em;
+  opacity: 0.7;
+  padding-left: 1rem;
+  width: 100%;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.tool-call__meta {
+  font-size: 0.85em;
+  opacity: 0.7;
+  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.tool-call__meta code {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.tool-call__code {
+  margin: 0.25rem 0;
+  padding: 0.5rem;
+  background: var(--color-bg);
+  border-radius: 2px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tool-call__code--scrollable {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tool-call__code--error {
+  color: var(--error-primary);
+}
+
+.tool-call__approve-btn {
+  padding: 2px 6px;
+  font-size: 0.7em;
+  border-radius: 3px;
+  cursor: pointer;
+  font-weight: 400;
+  transition: transform 0.1s, opacity 0.1s;
+}
+
+.tool-call__approve-btn:active {
+  transform: scale(0.95);
+}
+
+.tool-call__approve-btn--primary {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  margin-left: 0.25rem;
+}
+
+.tool-call__approve-btn--primary:hover {
+  opacity: 0.8;
+}
+
+.tool-call__approve-btn--secondary {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.tool-call__approve-btn--secondary:hover {
+  background: var(--color-bg-secondary);
+}
+
+.tool-call__approve-btn--danger {
+  background: var(--color-error);
+  color: white;
+  border: none;
+}
+
+.tool-call__approve-btn--danger:hover {
+  opacity: 0.8;
+}
+
 .chat-input-container {
   padding: 20px;
   border-top: 1px solid var(--border-primary);
