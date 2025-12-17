@@ -54,7 +54,9 @@ export class ConfigLoader {
       // Create default config on first run
       const defaultConfig: AppConfig = {
         region: 'us-east-1',
-        defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+        defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        invokeModel: 'us.amazon.nova-2-lite-v1:0',
+        structureModel: 'us.amazon.nova-micro-v1:0'
       };
 
       await this.saveAppConfig(defaultConfig);
@@ -63,6 +65,11 @@ export class ConfigLoader {
 
     const content = await readFile(path, 'utf-8');
     const data = JSON.parse(content);
+    
+    // Migrate: add defaults for new required fields
+    if (!data.invokeModel) data.invokeModel = 'us.amazon.nova-2-lite-v1:0';
+    if (!data.structureModel) data.structureModel = 'us.amazon.nova-micro-v1:0';
+    
     validator.validateAppConfig(data);
     return data;
   }

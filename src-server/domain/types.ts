@@ -111,6 +111,10 @@ export interface ToolDef {
 export interface AppConfig {
   region: string;
   defaultModel: string;
+  /** Model for /invoke endpoint tool calling */
+  invokeModel: string;
+  /** Model for /invoke endpoint structured output */
+  structureModel: string;
   defaultMaxTurns?: number;
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];

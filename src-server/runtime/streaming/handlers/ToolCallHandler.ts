@@ -25,7 +25,7 @@ export class ToolCallHandler implements StreamHandler {
           ...chunk,
           server,
           tool,
-        };
+        } as unknown as StreamChunk;
       } else {
         yield chunk;
       }

@@ -37,6 +37,10 @@ import { createAgentRoutes } from '../routes/agents.js';
 import { createToolRoutes } from '../routes/tools.js';
 import { createWorkspaceRoutes, createWorkflowRoutes } from '../routes/workspaces.js';
 import { createAnalyticsRoutes } from '../routes/analytics.js';
+import { createConfigRoutes } from '../routes/config.js';
+import { createBedrockRoutes } from '../routes/bedrock.js';
+import { createMonitoringRoutes } from '../routes/monitoring.js';
+import { createConversationRoutes } from '../routes/conversations.js';
 
 /**
  * Check if tool name matches any auto-approve pattern
@@ -526,382 +530,29 @@ export class WorkAgentRuntime {
           // === Workspace Management Endpoints ===
           app.route('/workspaces', createWorkspaceRoutes(this.workspaceService));
 
-          // === Workflow File Management Endpoints ===
+          // === Workspace & Workflow Management ===
+          app.route('/workspaces', createWorkspaceRoutes(this.workspaceService));
+          app.route('/agents', createWorkflowRoutes(this.workspaceService));
 
-          // List workflow files for agent
-          app.get('/agents/:slug/workflows/files', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workflows = await this.configLoader.listAgentWorkflows(slug);
-              return c.json({ success: true, data: workflows });
-            } catch (error: any) {
-              this.logger.error('Failed to list workflows', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
+          // === Route Modules ===
+          app.route('/config', createConfigRoutes(this.configLoader, this.logger));
+          app.route('/bedrock', createBedrockRoutes(
+            () => this.modelCatalog,
+            this.appConfig,
+            this.logger
+          ));
+          app.route('/monitoring', createMonitoringRoutes({
+            activeAgents: this.activeAgents,
+            agentStats: this.agentStats,
+            agentStatus: this.agentStatus,
+            memoryAdapters: this.memoryAdapters,
+            metricsLog: this.metricsLog,
+            monitoringEvents: this.monitoringEvents,
+            queryEventsFromDisk: (start, end, userId) => this.queryEventsFromDisk(start, end, userId)
+          }));
+          app.route('/agents', createConversationRoutes(this.memoryAdapters, this.logger));
 
-          // Get workflow file content
-          app.get('/agents/:slug/workflows/:workflowId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workflowId = c.req.param('workflowId');
-              const content = await this.configLoader.readWorkflow(slug, workflowId);
-              return c.json({ success: true, data: { content } });
-            } catch (error: any) {
-              this.logger.error('Failed to read workflow', { error });
-              return c.json({ success: false, error: error.message }, 404);
-            }
-          });
-
-          // Create workflow file
-          app.post('/agents/:slug/workflows', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const { filename, content } = await c.req.json();
-
-              await this.configLoader.createWorkflow(slug, filename, content);
-
-              return c.json({ success: true, data: { filename } }, 201);
-            } catch (error: any) {
-              this.logger.error('Failed to create workflow', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Update workflow file
-          app.put('/agents/:slug/workflows/:workflowId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workflowId = c.req.param('workflowId');
-              const { content } = await c.req.json();
-
-              await this.configLoader.updateWorkflow(slug, workflowId, content);
-
-              return c.json({ success: true });
-            } catch (error: any) {
-              this.logger.error('Failed to update workflow', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Delete workflow file
-          app.delete('/agents/:slug/workflows/:workflowId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workflowId = c.req.param('workflowId');
-
-              await this.configLoader.deleteWorkflow(slug, workflowId);
-
-              return c.json({ success: true }, 200);
-            } catch (error: any) {
-              this.logger.error('Failed to delete workflow', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // === App Configuration Endpoints ===
-
-          // Get app config
-          app.get('/config/app', async (c) => {
-            try {
-              const config = await this.configLoader.loadAppConfig();
-              return c.json({ success: true, data: config });
-            } catch (error: any) {
-              this.logger.error('Failed to load app config', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Update app config
-          app.put('/config/app', async (c) => {
-            try {
-              const updates = await c.req.json();
-              const updated = await this.configLoader.updateAppConfig(updates);
-
-              // Note: Some config changes require restart to take effect
-              this.logger.info('App config updated', { config: updated });
-
-              return c.json({ success: true, data: updated });
-            } catch (error: any) {
-              this.logger.error('Failed to update app config', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // === Bedrock Model Catalog Endpoints ===
-
-          // List all available Bedrock models
-          app.get('/bedrock/models', async (c) => {
-            try {
-              if (!this.modelCatalog) {
-                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
-              }
-              
-              const [models, profiles] = await Promise.all([
-                this.modelCatalog.listModels(),
-                this.modelCatalog.listInferenceProfiles()
-              ]);
-              
-              // Filter models to only include those with ON_DEMAND support
-              // Exclude PROVISIONED-only models (they require capacity reservation)
-              const onDemandModels = models.filter(m => 
-                m.inferenceTypesSupported?.includes('ON_DEMAND')
-              );
-              
-              // Create set of base model IDs that have inference profiles
-              const profileBaseIds = new Set(
-                profiles.map(p => p.inferenceProfileId.replace(/^(us|eu|ap|sa|ca|af|me)\./, ''))
-              );
-              
-              // Filter out base models that have inference profile equivalents
-              const filteredModels = onDemandModels.filter(m => !profileBaseIds.has(m.modelId));
-              
-              const combinedModels = [
-                ...filteredModels,
-                ...profiles.map(p => ({
-                  modelId: p.inferenceProfileId,
-                  modelArn: p.inferenceProfileArn,
-                  modelName: p.inferenceProfileName,
-                  providerName: 'AWS',
-                  inputModalities: [],
-                  outputModalities: ['TEXT'],
-                  responseStreamingSupported: true,
-                  customizationsSupported: [],
-                  inferenceTypesSupported: ['INFERENCE_PROFILE'],
-                  isInferenceProfile: true,
-                  profileType: p.type,
-                  status: p.status
-                }))
-              ];
-              
-              return c.json({ success: true, data: combinedModels });
-            } catch (error: any) {
-              this.logger.error('Failed to list Bedrock models', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Get pricing for Bedrock models
-          app.get('/bedrock/pricing', async (c) => {
-            try {
-              if (!this.modelCatalog) {
-                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
-              }
-              const region = c.req.query('region') || this.appConfig.region;
-              const pricing = await this.modelCatalog.getModelPricing(region);
-              return c.json({ success: true, data: pricing });
-            } catch (error: any) {
-              this.logger.error('Failed to get Bedrock pricing', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Validate a model ID
-          app.get('/bedrock/models/:modelId/validate', async (c) => {
-            try {
-              if (!this.modelCatalog) {
-                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
-              }
-              const modelId = c.req.param('modelId');
-              const isValid = await this.modelCatalog.validateModelId(modelId);
-              return c.json({ success: true, data: { modelId, isValid } });
-            } catch (error: any) {
-              this.logger.error('Failed to validate model ID', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Get model info
-          app.get('/bedrock/models/:modelId', async (c) => {
-            try {
-              if (!this.modelCatalog) {
-                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
-              }
-              const modelId = c.req.param('modelId');
-              const model = await this.modelCatalog.getModelInfo(modelId);
-              if (!model) {
-                return c.json({ success: false, error: 'Model not found' }, 404);
-              }
-              return c.json({ success: true, data: model });
-            } catch (error: any) {
-              this.logger.error('Failed to get model info', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // === Monitoring Endpoints ===
-
-          // Get overall system stats
-          app.get('/monitoring/stats', async (c) => {
-            try {
-              const agents = await Promise.all(
-                Array.from(this.activeAgents.entries()).map(async ([slug, agent]) => {
-                  // Use cached stats or initialize
-                  let stats = this.agentStats.get(slug);
-                  if (!stats) {
-                    const adapter = this.memoryAdapters.get(slug);
-                    if (adapter) {
-                      const conversations = await adapter.getConversations(slug);
-                      let totalMessages = 0;
-                      for (const conv of conversations) {
-                        const messages = await adapter.getMessages(conv.userId, conv.id);
-                        totalMessages += messages.length;
-                      }
-                      stats = {
-                        conversationCount: conversations.length,
-                        messageCount: totalMessages,
-                        lastUpdated: Date.now(),
-                      };
-                      this.agentStats.set(slug, stats);
-                    } else {
-                      stats = { conversationCount: 0, messageCount: 0, lastUpdated: Date.now() };
-                    }
-                  }
-
-                  const modelId = typeof agent.model === 'string' 
-                    ? agent.model 
-                    : (agent.model as any)?.modelId || 'unknown';
-
-                  return {
-                    slug,
-                    name: agent.name,
-                    status: this.agentStatus.get(slug) || 'idle',
-                    model: modelId,
-                    conversationCount: stats.conversationCount,
-                    messageCount: stats.messageCount,
-                    cost: 0,
-                    healthy: !!agent.model && this.memoryAdapters.has(slug),
-                  };
-                })
-              );
-
-              const totalCost = agents.reduce((sum, a) => sum + a.cost, 0);
-              const totalMessages = agents.reduce((sum, a) => sum + a.messageCount, 0);
-
-              return c.json({
-                success: true,
-                data: {
-                  agents,
-                  summary: {
-                    totalAgents: agents.length,
-                    activeAgents: 0,
-                    runningAgents: 0,
-                    totalMessages,
-                    totalCost,
-                  },
-                },
-              });
-            } catch (error: any) {
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Get historical metrics with date filtering
-          app.get('/monitoring/metrics', async (c) => {
-            try {
-              const range = c.req.query('range') || 'all';
-              const now = Date.now();
-              let startTime = 0;
-              
-              switch (range) {
-                case 'today':
-                  startTime = now - (24 * 60 * 60 * 1000);
-                  break;
-                case 'week':
-                  startTime = now - (7 * 24 * 60 * 60 * 1000);
-                  break;
-                case 'month':
-                  startTime = now - (30 * 24 * 60 * 60 * 1000);
-                  break;
-                default:
-                  startTime = 0;
-              }
-              
-              const filteredMetrics = this.metricsLog.filter(m => m.timestamp >= startTime);
-              
-              // Aggregate by agent
-              const agentMetrics = new Map<string, { messages: number; conversations: Set<string>; cost: number }>();
-              for (const metric of filteredMetrics) {
-                if (!agentMetrics.has(metric.agentSlug)) {
-                  agentMetrics.set(metric.agentSlug, { messages: 0, conversations: new Set(), cost: 0 });
-                }
-                const stats = agentMetrics.get(metric.agentSlug)!;
-                stats.messages += metric.messageCount || 0;
-                stats.cost += metric.cost || 0;
-                if (metric.conversationId) {
-                  stats.conversations.add(metric.conversationId);
-                }
-              }
-              
-              const summary = Array.from(agentMetrics.entries()).map(([slug, stats]) => ({
-                agentSlug: slug,
-                messageCount: stats.messages,
-                conversationCount: stats.conversations.size,
-                totalCost: stats.cost,
-              }));
-              
-              return c.json({ success: true, data: { range, metrics: summary } });
-            } catch (error: any) {
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Get historical events or stream live events (SSE)
-          app.get('/monitoring/events', async (c) => {
-            const startTime = c.req.query('start');
-            const endTime = c.req.query('end');
-            const userId = c.req.query('userId') || c.req.header('x-user-id') || 'default-user';
-            
-            // If time range specified, return historical events as JSON
-            if (startTime || endTime) {
-              const start = startTime ? new Date(startTime).getTime() : 0;
-              const end = endTime ? new Date(endTime).getTime() : Date.now();
-              
-              // Always query from disk to ensure complete results
-              const filteredEvents = await this.queryEventsFromDisk(start, end, userId);
-              
-              return c.json({ success: true, data: filteredEvents });
-            }
-            
-            // Otherwise, stream live events via SSE
-            c.header('Content-Type', 'text/event-stream');
-            c.header('Cache-Control', 'no-cache');
-            c.header('Connection', 'keep-alive');
-
-            return stream(c, async (streamWriter) => {
-              await streamWriter.write(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() })}\n\n`);
-
-              // Listen for monitoring events
-              const eventHandler = async (event: any) => {
-                // Filter by userId
-                if (event.userId && event.userId !== userId) {
-                  return;
-                }
-                
-                try {
-                  await streamWriter.write(`data: ${JSON.stringify(event)}\n\n`);
-                } catch (error) {
-                  // Client disconnected
-                }
-              };
-
-              this.monitoringEvents.on('event', eventHandler);
-
-              // Heartbeat
-              const interval = setInterval(async () => {
-                try {
-                  await streamWriter.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`);
-                } catch (error) {
-                  clearInterval(interval);
-                  this.monitoringEvents.off('event', eventHandler);
-                }
-              }, 30000);
-
-              await new Promise(() => {});
-            });
-          });
-
-          // Agent health check
+          // Agent health check (agent-specific, not in monitoring routes)
           app.get('/agents/:slug/health', async (c) => {
             const slug = c.req.param('slug');
             const agent = this.activeAgents.get(slug);
@@ -976,86 +627,7 @@ export class WorkAgentRuntime {
             });
           });
 
-          // === Conversation Endpoints ===
-
-          // Get conversations for an agent
-          app.get('/agents/:slug/conversations', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const adapter = this.memoryAdapters.get(slug);
-              
-              if (!adapter) {
-                return c.json({ success: true, data: [] });
-              }
-
-              const conversations = await adapter.getConversations(slug);
-              
-              return c.json({ success: true, data: conversations });
-            } catch (error: any) {
-              this.logger.error('Failed to load conversations', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Update conversation (e.g., title)
-          app.patch('/agents/:slug/conversations/:conversationId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const conversationId = c.req.param('conversationId');
-              const adapter = this.memoryAdapters.get(slug);
-              
-              if (!adapter) {
-                return c.json({ success: false, error: 'Agent not found' }, 404);
-              }
-
-              const body = await c.req.json();
-              const updated = await adapter.updateConversation(conversationId, body);
-              
-              return c.json({ success: true, data: updated });
-            } catch (error: any) {
-              this.logger.error('Failed to update conversation', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Delete conversation
-          app.delete('/agents/:slug/conversations/:conversationId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const conversationId = c.req.param('conversationId');
-              const adapter = this.memoryAdapters.get(slug);
-              
-              if (!adapter) {
-                return c.json({ success: false, error: 'Agent not found' }, 404);
-              }
-
-              await adapter.deleteConversation(conversationId);
-              
-              return c.json({ success: true });
-            } catch (error: any) {
-              this.logger.error('Failed to delete conversation', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          app.get('/agents/:slug/conversations/:conversationId/messages', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const conversationId = c.req.param('conversationId');
-              const adapter = this.memoryAdapters.get(slug);
-              
-              if (!adapter) {
-                return c.json({ success: true, data: [] });
-              }
-
-              const messages = await adapter.getMessages(`agent:${slug}`, conversationId);
-              
-              return c.json({ success: true, data: messages });
-            } catch (error: any) {
-              this.logger.error('Failed to load messages', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
+          // === Conversation Context & Stats (not in route module) ===
 
           // Conversation context management
           app.post('/api/agents/:slug/conversations/:conversationId/context', async (c) => {
@@ -1256,7 +828,7 @@ export class WorkAgentRuntime {
               }
 
               const options: any = {};
-              if (model) {
+              if (model && this.modelCatalog) {
                 const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
                   appConfig: this.appConfig, 
@@ -1264,9 +836,10 @@ export class WorkAgentRuntime {
                 });
               }
               
-              // Override tools if specified
+              // Override tools if specified - get from our cached tools
               if (toolNames && Array.isArray(toolNames)) {
-                const agentTools = agent.tools || [];
+                const slug = c.req.param('slug');
+                const agentTools = this.agentTools.get(slug) || [];
                 options.tools = agentTools.filter((t: any) => 
                   toolNames.includes(t.name)
                 );
@@ -1549,7 +1122,7 @@ export class WorkAgentRuntime {
               console.log(`Agent lookup: ${(performance.now() - agentLookupStart).toFixed(2)}ms`);
 
               const options: any = { maxSteps, maxOutputTokens: 2000 };
-              if (model) {
+              if (model && this.modelCatalog) {
                 const modelStart = performance.now();
                 const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
@@ -1635,7 +1208,7 @@ export class WorkAgentRuntime {
               // For multi-turn, use generateText/generateObject and return result
               const generateStart = performance.now();
               const result = schemaJson
-                ? await agent.generateObject(prompt, jsonSchema(schemaJson), options)
+                ? await agent.generateObject(prompt, jsonSchema(schemaJson) as any, options)
                 : await agent.generateText(prompt, options);
               
               console.log(`generate${schemaJson ? 'Object' : 'Text'}: ${(performance.now() - generateStart).toFixed(2)}ms`);
@@ -1643,7 +1216,7 @@ export class WorkAgentRuntime {
               
               return c.json({ 
                 success: true, 
-                response: schemaJson ? result.object : result.text,
+                response: schemaJson ? (result as any).object : (result as any).text,
                 usage: result.usage,
                 debug: options.debugInfo || { message: 'No tool filtering applied' }
               });
@@ -1692,36 +1265,31 @@ export class WorkAgentRuntime {
 
               // Get tools from global registry
               const filteredTools = toolIds.length > 0
-                ? toolIds.map(id => this.globalToolRegistry.get(id)).filter(Boolean)
+                ? toolIds.map((id: string) => this.globalToolRegistry.get(id)).filter(Boolean)
                 : [];
 
               console.log('[INVOKE] Requested:', toolIds);
               console.log('[INVOKE] Available in registry:', this.globalToolRegistry.size);
-              console.log('[INVOKE] Filtered:', filteredTools.map(t => t.name));
+              console.log('[INVOKE] Filtered:', filteredTools.map((t: any) => t.name));
               console.log('[INVOKE] Schema provided:', !!schema);
 
-              // Resolve models - use nova-lite for tool calling (better at tools), micro for structuring
-              const defaultModel = model || 'us.amazon.nova-lite-v1:0';
+              // Resolve models from config - invokeModel for tool calling, structureModel for output formatting
+              const invokeModelId = model || this.appConfig.invokeModel;
+              const structureModelId = structureModel || this.appConfig.structureModel;
+              
               const mainModel = createBedrockProvider({ 
                 appConfig: this.appConfig,
                 agentSpec: { 
-                  model: await this.modelCatalog.resolveModelId(defaultModel)
+                  model: this.modelCatalog ? await this.modelCatalog.resolveModelId(invokeModelId) : invokeModelId
                 } as any
               });
               
-              const fastModel = structureModel
-                ? createBedrockProvider({ 
-                    appConfig: this.appConfig,
-                    agentSpec: { 
-                      model: await this.modelCatalog.resolveModelId(structureModel)
-                    } as any
-                  })
-                : createBedrockProvider({ 
-                    appConfig: this.appConfig,
-                    agentSpec: { 
-                      model: await this.modelCatalog.resolveModelId('us.amazon.nova-micro-v1:0')
-                    } as any
-                  });
+              const fastModel = createBedrockProvider({ 
+                appConfig: this.appConfig,
+                agentSpec: { 
+                  model: this.modelCatalog ? await this.modelCatalog.resolveModelId(structureModelId) : structureModelId
+                } as any
+              });
 
               const defaultSystem = 'You are a helpful assistant. Use the available tools to answer the user\'s request accurately and concisely.';
               
@@ -1767,7 +1335,7 @@ export class WorkAgentRuntime {
               
               const objectResult = await structureAgent.generateObject(
                 `${textResult.text}\n\nFormat the above information as structured JSON.`,
-                jsonSchema(schema),
+                jsonSchema(schema) as any,
                 {
                   conversationId: tempConvId,
                   userId: 'invoke-user'
@@ -1778,9 +1346,9 @@ export class WorkAgentRuntime {
                 success: true,
                 response: objectResult.object,
                 usage: {
-                  promptTokens: textResult.usage.promptTokens + objectResult.usage.promptTokens,
-                  completionTokens: textResult.usage.completionTokens + objectResult.usage.completionTokens,
-                  totalTokens: textResult.usage.totalTokens + objectResult.usage.totalTokens
+                  promptTokens: (textResult.usage.inputTokens || 0) + (objectResult.usage.inputTokens || 0),
+                  completionTokens: (textResult.usage.outputTokens || 0) + (objectResult.usage.outputTokens || 0),
+                  totalTokens: (textResult.usage.totalTokens || 0) + (objectResult.usage.totalTokens || 0)
                 },
                 steps: textResult.steps?.length || 0
               });
@@ -1837,7 +1405,9 @@ export class WorkAgentRuntime {
                     const originalMemory = agent.getMemory();
                     const originalHooks = agent.hooks;
                     
-                    const resolvedModel = await this.modelCatalog.resolveModelId(modelOverride);
+                    const resolvedModel = this.modelCatalog 
+                      ? await this.modelCatalog.resolveModelId(modelOverride)
+                      : modelOverride;
                     const newModel = createBedrockProvider({
                       appConfig: this.appConfig,
                       agentSpec: { 
@@ -2008,6 +1578,7 @@ export class WorkAgentRuntime {
                         resourceId: slug,
                         userId: operationContext.userId,
                         title,
+                        metadata: {},
                       });
                     }
                   }
@@ -2084,7 +1655,8 @@ export class WorkAgentRuntime {
 
                   // Send conversationId as first event for new conversations
                   if (isNewConversation && operationContext.conversationId) {
-                    const conversation = await agent.getMemory()?.getConversation(operationContext.conversationId);
+                    const mem = agent.getMemory();
+                    const conversation = mem ? await mem.getConversation(operationContext.conversationId) : null;
                     await streamWriter.write(`data: ${JSON.stringify({
                       type: 'conversation-started',
                       conversationId: operationContext.conversationId,
@@ -2132,13 +1704,14 @@ export class WorkAgentRuntime {
                   
                   // Log model and tool configuration for debugging
                   const agentTools = this.agentTools.get(slug) || [];
+                  const agentModel = agent.model as { modelId?: string; settings?: { maxTokens?: number; temperature?: number } } | undefined;
                   this.logger.debug('Stream starting', {
                     conversationId,
-                    model: agent.model?.modelId,
+                    model: agentModel?.modelId,
                     toolCount: agentTools.length,
                     toolNames: agentTools.map(t => t.name).slice(0, 5),
-                    maxTokens: agent.model?.settings?.maxTokens,
-                    temperature: agent.model?.settings?.temperature,
+                    maxTokens: agentModel?.settings?.maxTokens,
+                    temperature: agentModel?.settings?.temperature,
                     debugStreaming
                   });
                   
@@ -2174,9 +1747,10 @@ export class WorkAgentRuntime {
                     if (!hasOutput) await saveCancellationMessage();
                   }
                 } catch (error: any) {
+                  const agentModelForError = agent.model as { modelId?: string } | undefined;
                   this.logger.error('Stream error occurred', {
                     agentId: slug,
-                    modelName: agent.model?.modelId,
+                    modelName: agentModelForError?.modelId,
                     conversationId: conversationId,
                     agentName: slug,
                     error,
@@ -2587,7 +2161,10 @@ export class WorkAgentRuntime {
    * Create Bedrock model instance
    */
   private async createBedrockModel(spec: AgentSpec) {
-    const resolvedModel = await this.modelCatalog.resolveModelId(spec.model || this.appConfig.defaultModel);
+    const modelId = spec.model || this.appConfig.defaultModel;
+    const resolvedModel = this.modelCatalog 
+      ? await this.modelCatalog.resolveModelId(modelId)
+      : modelId;
     return createBedrockProvider({
       appConfig: this.appConfig,
       agentSpec: { ...spec, model: resolvedModel },
@@ -2685,9 +2262,9 @@ export class WorkAgentRuntime {
 
     return createHooks({
       onToolStart: async ({ tool, context }) => {
-        // Track tool call count in context metadata
-        if (!context.metadata) context.metadata = {};
-        context.metadata.toolCallCount = (context.metadata.toolCallCount || 0) + 1;
+        // Track tool call count in context Map
+        const currentCount = (context.context.get('toolCallCount') as number) || 0;
+        context.context.set('toolCallCount', currentCount + 1);
         
         this.logger.debug('Tool execution starting', {
           toolName: tool.name,
@@ -2726,8 +2303,11 @@ export class WorkAgentRuntime {
           // Extract usage data (may be undefined if aborted)
           const usage = 'usage' in output ? output.usage : undefined;
 
-          // Count tool calls from context metadata (tracked in onToolStart)
-          const toolCallCount = context.metadata?.toolCallCount || 0;
+          // Count tool calls from context (tracked in onToolStart)
+          const toolCallCount = (context.context.get('toolCallCount') as number) || 0;
+
+          // Get messages for this conversation
+          const messages = await memory.getMessages(context.userId || '', context.conversationId);
 
           // Log stats (even if usage is incomplete due to abortion)
           this.logger.info('[Usage Stats]', {
@@ -2735,8 +2315,7 @@ export class WorkAgentRuntime {
             promptTokens: usage?.promptTokens || 0,
             completionTokens: usage?.completionTokens || 0,
             totalTokens: usage?.totalTokens || 0,
-            messageCount: conversation.messages?.length || 0,
-            stepCount: context.steps?.length || 0,
+            messageCount: messages.length,
             toolCallCount,
             aborted: !usage,
           });
@@ -2745,7 +2324,7 @@ export class WorkAgentRuntime {
           if (!usage) return;
 
           // Get existing stats or initialize
-          const existingStats = conversation.metadata?.stats || {
+          const existingStats = (conversation.metadata?.stats as any) || {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
@@ -2778,13 +2357,12 @@ export class WorkAgentRuntime {
           // Optimize: only calculate new user message tokens, not all messages
           const existingUserMessageTokens = existingBreakdown.userMessageTokens || 0;
           
-          // Get the latest conversation state (should include the new message)
-          const latestConversation = await memory.getConversation(context.conversationId);
-          const userMessages = latestConversation?.messages?.filter(m => m.role === 'user') || [];
+          // Get messages for user message token calculation
+          const userMessages = messages.filter((m: any) => m.role === 'user');
           
           this.logger.info('[Token Calculation Debug]', {
             conversationId: context.conversationId,
-            totalMessages: latestConversation?.messages?.length || 0,
+            totalMessages: messages.length,
             userMessageCount: userMessages.length,
             existingUserMessageTokens,
             turn: existingStats.turns + 1,
@@ -2795,11 +2373,12 @@ export class WorkAgentRuntime {
           
           let newUserMessageTokens = 0;
           if (latestUserMessage) {
-            const content = typeof latestUserMessage.content === 'string' 
-              ? latestUserMessage.content 
-              : Array.isArray(latestUserMessage.content) 
-                ? latestUserMessage.content.map((p: any) => p.text || '').join('') 
-                : '';
+            // UIMessage uses 'parts' array with text parts
+            const parts = (latestUserMessage as any).parts || [];
+            const content = parts
+              .filter((p: any) => p.type === 'text')
+              .map((p: any) => p.text || '')
+              .join('');
             newUserMessageTokens = Math.ceil(content.length / 4);
             
             this.logger.info('[New User Message]', {
