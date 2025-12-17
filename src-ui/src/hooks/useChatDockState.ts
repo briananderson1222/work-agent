@@ -26,7 +26,6 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
-  const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
 
   // Session state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -37,7 +36,7 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
 
   // Update CSS variable for content-view padding
   useEffect(() => {
-    const height = !isDockOpen ? 43 : isDockMaximized ? window.innerHeight - 107 : dockHeight;
+    const height = !isDockOpen ? 49 : isDockMaximized ? window.innerHeight - 107 : dockHeight;
     document.documentElement.style.setProperty('--chat-dock-height', `${height}px`);
   }, [isDockOpen, isDockMaximized, dockHeight]);
 
@@ -56,7 +55,6 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
     isUserScrolledUp, setIsUserScrolledUp,
     showNewChatModal, setShowNewChatModal,
     showSessionPicker, setShowSessionPicker,
-    showScrollButtons, setShowScrollButtons,
     // Session
     activeSessionId, setActiveSessionId,
     // Animation

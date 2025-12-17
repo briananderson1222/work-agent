@@ -1,0 +1,80 @@
+import React from 'react';
+
+interface ChatSettingsPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  chatFontSize: number;
+  setChatFontSize: (fn: (prev: number) => number) => void;
+  defaultFontSize: number;
+  showReasoning: boolean;
+  setShowReasoning: (show: boolean) => void;
+  showToolDetails: boolean;
+  setShowToolDetails: (show: boolean) => void;
+}
+
+export function ChatSettingsPanel({
+  isOpen, onClose,
+  chatFontSize, setChatFontSize, defaultFontSize,
+  showReasoning, setShowReasoning,
+  showToolDetails, setShowToolDetails,
+}: ChatSettingsPanelProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="chat-settings-overlay" onClick={onClose}>
+      <div className="chat-settings-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 className="chat-settings-modal__title">Chat Settings</h3>
+        
+        <div className="chat-settings-modal__section">
+          <label className="chat-settings-modal__label">Font Size</label>
+          <div className="chat-settings-modal__control">
+            <button
+              className="chat-settings-modal__btn"
+              onClick={() => setChatFontSize(prev => Math.max(10, prev - 1))}
+              disabled={chatFontSize <= 10}
+            >
+              A−
+            </button>
+            <button
+              className="chat-settings-modal__btn"
+              onClick={() => setChatFontSize(() => defaultFontSize)}
+              style={{ opacity: chatFontSize === defaultFontSize ? 0.5 : 1 }}
+            >
+              A
+            </button>
+            <button
+              className="chat-settings-modal__btn"
+              onClick={() => setChatFontSize(prev => Math.min(24, prev + 1))}
+              disabled={chatFontSize >= 24}
+            >
+              A+
+            </button>
+            <span className="chat-settings-modal__value">
+              {chatFontSize}px ({Math.round((chatFontSize / defaultFontSize) * 100)}%)
+            </span>
+          </div>
+        </div>
+
+        <div className="chat-settings-modal__section">
+          <label className="chat-settings-modal__checkbox">
+            <input type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
+            <span>Show reasoning</span>
+          </label>
+          <p className="chat-settings-modal__hint">Display model reasoning steps in chat messages</p>
+        </div>
+
+        <div className="chat-settings-modal__section">
+          <label className="chat-settings-modal__checkbox">
+            <input type="checkbox" checked={showToolDetails} onChange={(e) => setShowToolDetails(e.target.checked)} />
+            <span>Show tool details</span>
+          </label>
+          <p className="chat-settings-modal__hint">Allow expanding tool calls to view arguments and results</p>
+        </div>
+
+        <div className="chat-settings-modal__actions">
+          <button className="chat-settings-modal__done" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </div>
+  );
+}
