@@ -187,7 +187,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           height: !isDockOpen 
             ? 'var(--chat-dock-header-height)' 
             : isDockMaximized 
-              ? `calc(100vh - 46px)` 
+              ? `calc(100vh - var(--app-toolbar-height))` 
               : `${dockHeight}px`
         }}
         ref={chatSectionRef}

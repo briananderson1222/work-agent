@@ -48,9 +48,10 @@ export function ChatDockHeader({
       setDockHeight(previousDockHeight);
       setDockState(previousDockOpen, false);
     } else {
+      const toolbarHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--app-toolbar-height'));
       setPreviousDockHeight(dockHeight);
       setPreviousDockOpen(isDockOpen);
-      setDockHeight(window.innerHeight - 107);
+      setDockHeight(window.innerHeight - toolbarHeight);
       setDockState(true, true);
     }
   };

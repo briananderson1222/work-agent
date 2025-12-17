@@ -36,8 +36,10 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
 
   // Update CSS variable for content-view padding
   useEffect(() => {
-    const headerHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat-dock-header-height'));
-    const height = !isDockOpen ? headerHeight : isDockMaximized ? window.innerHeight - 107 : dockHeight;
+    const styles = getComputedStyle(document.documentElement);
+    const headerHeight = parseInt(styles.getPropertyValue('--chat-dock-header-height'));
+    const toolbarHeight = parseInt(styles.getPropertyValue('--app-toolbar-height'));
+    const height = !isDockOpen ? headerHeight : isDockMaximized ? window.innerHeight - toolbarHeight : dockHeight;
     document.documentElement.style.setProperty('--chat-dock-height', `${height}px`);
   }, [isDockOpen, isDockMaximized, dockHeight]);
 
