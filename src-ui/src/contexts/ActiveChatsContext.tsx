@@ -44,6 +44,8 @@ type ChatUIState = {
   sessionAutoApprove?: string[];
   // Pending tool approvals (approvalId -> toolName)
   pendingApprovals?: string[];
+  // Mapping of approvalId -> toastId for dismissing notifications
+  approvalToasts?: Map<string, string>;
 };
 
 type ActiveChatsMap = Record<string, ChatUIState>; // keyed by conversationId
@@ -473,7 +475,7 @@ export function useAllActiveChats(): Record<string, ChatUIState> {
 
 export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSessionId: string) => void, onError?: (error: Error) => void, handleSlashCommand?: (sessionId: string, content: string) => Promise<boolean | string | 'CLEAR'>) {
   const { updateChat, clearInput, assignConversationId, addEphemeralMessage } = useActiveChatActions();
-  const { sendMessage: sendToServer } = useConversationActions();
+  const { sendMessage: sendToServer, fetchMessages } = useConversationActions();
   const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage(apiBase, onActiveSessionChange);
 
   const sendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string) => {
@@ -558,6 +560,11 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
       
       // Replace messages with backend truth (use sessionId, not conversationId)
       try {
+        // Fetch messages from backend to get the complete conversation
+        if (newConversationId) {
+          await fetchMessages(apiBase, agentSlug, newConversationId);
+        }
+        
         const messagesKey = `messages:${agentSlug}:${newConversationId}`;
         const backendMessages = conversationsStore.getSnapshot().messages[messagesKey] || [];
         
@@ -611,7 +618,7 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
       updateChat(sessionId, { status: 'error', error: err.message, abortController: undefined });
       clearStreamingMessage(sessionId);
     }
-  }, [apiBase, updateChat, clearInput, assignConversationId, sendToServer, handleStreamEvent, clearStreamingMessage, onActiveSessionChange, onError, addEphemeralMessage, handleSlashCommand]);
+  }, [apiBase, updateChat, clearInput, assignConversationId, sendToServer, fetchMessages, handleStreamEvent, clearStreamingMessage, onActiveSessionChange, onError, addEphemeralMessage, handleSlashCommand]);
   
   return sendMessage;
 }

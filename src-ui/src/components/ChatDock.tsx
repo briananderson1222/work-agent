@@ -1,24 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { SessionManagementMenu } from './SessionManagementMenu';
 import { SessionPickerModal } from './SessionPickerModal';
-import { ConversationStats, ContextPercentage } from './ConversationStats';
-import { FileAttachmentInput } from './FileAttachmentInput';
-import { SlashCommandSelector } from './SlashCommandSelector';
-import { ModelSelectorAutocomplete } from './ModelSelector';
+import { ConversationStats } from './ConversationStats';
 import { AgentBadge } from './AgentBadge';
 import { StreamingMessage } from './StreamingMessage';
 import { ReasoningSection } from './ReasoningSection';
 import { ToolCallDisplay } from './ToolCallDisplay';
 import { ChatEmptyState } from './ChatEmptyState';
 import { SystemEventMessage } from './SystemEventMessage';
+import { MessageBubble } from './MessageBubble';
+import { EphemeralMessage } from './EphemeralMessage';
+import { ChatInputArea } from './ChatInputArea';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
-import { useSlashCommands } from '../hooks/useSlashCommands';
-import { useAutocompleteState } from '../hooks/useAutocompleteState';
+import { useChatInput } from '../hooks/useChatInput';
 import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
-import { useActiveChatActions, useActiveChatState, useSendMessage, useCreateChatSession, useCancelMessage, useOpenConversation, useRehydrateSessions } from '../contexts/ActiveChatsContext';
-import { useConversationStatus, useConversationActions } from '../contexts/ConversationsContext';
+import { useActiveChatActions, useActiveChatState, useCreateChatSession, useCancelMessage, useOpenConversation, useRehydrateSessions } from '../contexts/ActiveChatsContext';
 import { useToast } from '../contexts/ToastContext';
 import { useConfig, CONFIG_DEFAULTS } from '../contexts/ConfigContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -27,13 +23,10 @@ import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
 
 import { useToolApproval } from '../hooks/useToolApproval';
-import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { getAgentIcon, getAgentIconStyle, getUserIconStyle, getInitials } from '../utils/workspace';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
-import { useAgentTools } from '../contexts/AgentToolsContext';
 import { log } from '@/utils/logger';
 import type { AgentSummary } from '../types';
-import type { SlashCommand } from '../hooks/useSlashCommands';
 
 interface ChatDockProps {
   onRequestAuth?: () => void;
@@ -49,7 +42,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const appConfig = useConfig();
   const defaultFontSize = appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
   const handleToolApproval = useToolApproval(apiBase);
-  const handleSlashCommand = useSlashCommandHandler();
   
   // DEBUG: Log when component renders
   const renderTimestamp = new Date().toISOString();
@@ -83,10 +75,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const [newChatSearch, setNewChatSearch] = useState('');
   const [newChatSelectedIndex, setNewChatSelectedIndex] = useState(0);
   const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
-  const { commandQuery, modelQuery, updateFromInput, closeCommand, closeModel, openModel, closeAll, onInputCleared } = useAutocompleteState();
-  
-  // History navigation index (local UI state only)
-  const [historyIndex, setHistoryIndex] = useState<Map<string, number>>(new Map());
   
   // Session state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -101,13 +89,25 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const openConversationAction = useOpenConversation(apiBase);
   const rehydrateSessions = useRehydrateSessions(apiBase);
   
-  // Wrap slash command handler with callbacks (after updateChat is available)
-  const slashCommandHandler = useCallback(async (sessionId: string, command: string) => {
-    return handleSlashCommand(sessionId, command, {
-      onInputCleared,
-      autocomplete: { openModel, closeCommand, closeAll },
-    });
-  }, [handleSlashCommand, openModel, closeCommand, closeAll, onInputCleared]);
+  // Get active session for chat input hook
+  const activeSessionForHook = sessions.find(s => s.id === activeSessionId) || null;
+  const agentForHook = activeSessionForHook ? agents.find(a => a.slug === activeSessionForHook.agentSlug) : null;
+  const agentDefaultModelId = agentForHook ? (typeof agentForHook.model === 'string' ? agentForHook.model : agentForHook.model?.modelId) : undefined;
+  
+  // Chat input hook - encapsulates autocomplete, history, and input handling
+  const chatInput = useChatInput({
+    apiBase,
+    sessionId: activeSessionId,
+    agentSlug: activeSessionForHook?.agentSlug || null,
+    conversationId: activeSessionForHook?.conversationId,
+    availableModels,
+    agentDefaultModel: agentDefaultModelId,
+    onSessionMigrate: (newSessionId) => {
+      setActiveSessionId(newSessionId);
+      setActiveChat(newSessionId);
+    },
+    onAuthError: () => onRequestAuth?.(),
+  });
   
   // Rehydrate sessions on mount
   useEffect(() => {
@@ -128,33 +128,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     }
   }, [activeChat, sessions]);
   
-  // Send message handler
-  const sendMessage = useSendMessage(
-    apiBase,
-    (newSessionId) => {
-      // Update activeSessionId when session migrates to conversationId
-      setActiveSessionId(newSessionId);
-      setActiveChat(newSessionId);
-    },
-    (error) => {
-      if (error.message.includes('401')) {
-        onRequestAuth?.();
-      } else {
-        showToast(`Error: ${error.message}`, 'error');
-      }
-    },
-    slashCommandHandler
-  );
-
-  // Wrapper for backward compatibility - now just calls sendMessage directly
-  const handleSendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string) => {
-    // Save to history
-    addToInputHistory(sessionId, content);
-    setHistoryIndex(prev => new Map(prev).set(sessionId, -1));
-    
-    await sendMessage(sessionId, agentSlug, conversationId, content);
-  }, [sendMessage, addToInputHistory]);
-  
   // Cancel message handler
   const cancelMessage = useCancelMessage();
   
@@ -170,8 +143,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     typeof currentModelId === 'string' ? currentModelId : currentModelId?.modelId
   );
   
-  // Get slash commands for current agent
-  const slashCommands = useSlashCommands(activeSession?.agentSlug || null);
   const ephemeralMessages = activeChatState?.ephemeralMessages || [];
   const unreadCount = sessions.filter(s => s.hasUnread).length;
   
@@ -873,95 +844,33 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                           if (msg.ephemeral) {
                             const messageId = msg.id || `ephemeral-${idx}`;
                             return (
-                              <div 
+                              <EphemeralMessage
                                 key={messageId}
-                                className={`message system ephemeral-message ${removingMessages.has(messageId) ? 'removing' : ''}`}
-                                style={{
-                                  padding: '12px 40px 12px 12px',
-                                  background: 'var(--bg-secondary)',
-                                  border: '1px solid var(--border-primary)',
-                                  borderRadius: '6px',
-                                  marginTop: '8px',
-                                  marginBottom: '0',
-                                  position: 'relative',
-                                  fontSize: `${chatFontSize}px`,
-                                  textAlign: 'left',
-                                  alignSelf: 'flex-start',
-                                  width: '100%',
-                                  opacity: removingMessages.has(messageId) ? 0 : 1,
-                                  transform: removingMessages.has(messageId) ? 'translateY(-10px)' : 'translateY(0px)',
-                                  transition: 'opacity 0.3s ease, transform 0.3s ease'
-                                }}
-                              >
-                                <button
-                                  onClick={() => {
-                                    setRemovingMessages(prev => new Set(prev).add(messageId));
-                                    
-                                    // Wait for animation, then remove from data
-                                    setTimeout(() => {
-                                      const updated = ephemeralMessages.filter(m => (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId);
-                                      if (updated.length === 0) {
-                                        clearEphemeralMessages(activeSession.id);
-                                      } else {
-                                        updateChat(activeSession.id, { ephemeralMessages: updated });
-                                      }
-                                      setRemovingMessages(prev => {
-                                        const next = new Set(prev);
-                                        next.delete(messageId);
-                                        return next;
-                                      });
-                                    }, 300);
-                                  }}
-                                  style={{
-                                    position: 'absolute',
-                                    top: '8px',
-                                    right: '8px',
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    fontSize: '18px',
-                                    color: 'var(--text-muted)',
-                                    padding: '4px',
-                                    lineHeight: 1,
-                                  }}
-                                  title="Dismiss"
-                                >
-                                  ×
-                                </button>
-                                {msg.contentType === 'html' ? (
-                                  <div 
-                                    ref={(el) => {
-                                      if (el && !el.dataset.initialized) {
-                                        el.innerHTML = msg.content;
-                                        el.dataset.initialized = 'true';
-                                      }
-                                    }}
-                                  />
-                                ) : (
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
-                                )}
-                                {msg.action && (
-                                  <button
-                                    onClick={() => {
-                                      msg.action.handler();
+                                msg={msg}
+                                idx={idx}
+                                fontSize={chatFontSize}
+                                isRemoving={removingMessages.has(messageId)}
+                                onDismiss={() => {
+                                  setRemovingMessages(prev => new Set(prev).add(messageId));
+                                  setTimeout(() => {
+                                    const updated = ephemeralMessages.filter(m => (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId);
+                                    if (updated.length === 0) {
                                       clearEphemeralMessages(activeSession.id);
-                                    }}
-                                    style={{
-                                      marginTop: '12px',
-                                      padding: '8px 16px',
-                                      borderRadius: '6px',
-                                      border: 'none',
-                                      background: 'var(--color-primary)',
-                                      color: 'white',
-                                      cursor: 'pointer',
-                                      fontSize: '13px',
-                                      fontWeight: 500
-                                    }}
-                                  >
-                                    {msg.action.label}
-                                  </button>
-                                )}
-                              </div>
+                                    } else {
+                                      updateChat(activeSession.id, { ephemeralMessages: updated });
+                                    }
+                                    setRemovingMessages(prev => {
+                                      const next = new Set(prev);
+                                      next.delete(messageId);
+                                      return next;
+                                    });
+                                  }, 300);
+                                }}
+                                onAction={msg.action ? () => {
+                                  msg.action.handler();
+                                  clearEphemeralMessages(activeSession.id);
+                                } : undefined}
+                              />
                             );
                           }
                           
@@ -981,203 +890,21 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                           }
                           
                           return (
-                            <div 
-                              key={`${activeSession.id}-msg-${idx}`} 
-                              style={{ 
-                                display: 'flex',
-                                gap: '8px',
-                                alignItems: 'flex-start',
-                                flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-                                marginBottom: '12px'
+                            <MessageBubble
+                              key={`${activeSession.id}-msg-${idx}`}
+                              msg={msg}
+                              idx={idx}
+                              activeSession={activeSession}
+                              agents={agents}
+                              chatFontSize={chatFontSize}
+                              showReasoning={showReasoning}
+                              showToolDetails={showToolDetails}
+                              onCopy={(text) => {
+                                navigator.clipboard.writeText(text);
+                                showToast('Copied to clipboard');
                               }}
-                            >
-                              <div style={{ 
-                                ...(msg.role === 'assistant' 
-                                  ? (() => {
-                                      const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                                      return agent ? getAgentIconStyle(agent, 20) : {
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        width: '20px',
-                                        height: '20px',
-                                        borderRadius: '50%',
-                                        background: 'var(--accent-primary)',
-                                        fontSize: '11px',
-                                        flexShrink: 0,
-                                        color: 'var(--text-primary)',
-                                      };
-                                    })()
-                                  : getUserIconStyle({ name: 'Default User' }, 20)),
-                                marginTop: '4px'
-                              }}>
-                                {msg.role === 'assistant' 
-                                  ? (() => {
-                                      const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                                      return agent?.icon || getInitials(agent?.name || 'AI');
-                                    })()
-                                  : getInitials('Default User')
-                                }
-                              </div>
-                              <div 
-                                className={`message ${msg.role}`} 
-                                style={{ 
-                                  position: 'relative',
-                                  maxWidth: '70%',
-                                  ...(msg.role === 'user' && msg.fromPrompt ? {
-                                    background: 'var(--bg-tertiary)',
-                                    borderLeft: '3px solid var(--accent-primary, #0066cc)'
-                                  } : {})
-                                }}
-                              >
-                              {msg.traceId && (
-                                <a
-                                  href={`/monitoring?filters=${encodeURIComponent(JSON.stringify({ trace: [msg.traceId] }))}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    position: 'absolute',
-                                    top: '8px',
-                                    right: '8px',
-                                    fontSize: '0.65em',
-                                    color: 'var(--text-muted)',
-                                    textDecoration: 'none',
-                                    opacity: 0.4,
-                                    fontFamily: 'monospace',
-                                    letterSpacing: '0.5px',
-                                    transition: 'opacity 0.2s',
-                                  }}
-                                  onMouseOver={(e) => (e.currentTarget.style.opacity = '0.7')}
-                                  onMouseOut={(e) => (e.currentTarget.style.opacity = '0.4')}
-                                  title={`Trace: ${msg.traceId}`}
-                                >
-                                  {msg.traceId.slice(-8)}
-                                </a>
-                              )}
-                              {msg.role === 'assistant' && textContent && (
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(textContent);
-                                    showToast('Copied to clipboard');
-                                  }}
-                                  style={{
-                                    position: 'absolute',
-                                    bottom: '5px',
-                                    right: '5px',
-                                    padding: '0.25rem',
-                                    background: 'var(--bg-secondary)',
-                                    border: '1px solid var(--border-primary)',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    opacity: 0.6,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: 'var(--text-secondary)',
-                                  }}
-                                  onMouseOver={(e) => (e.currentTarget.style.opacity = '1')}
-                                  onMouseOut={(e) => (e.currentTarget.style.opacity = '0.6')}
-                                  title="Copy message"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                  </svg>
-                                </button>
-                              )}
-                              {msg.role === 'assistant' && msg.model && (
-                                <div style={{ fontSize: '0.64em', color: 'var(--text-muted)', marginBottom: '4px', fontStyle: 'italic', opacity: 0.6 }}>
-                                  {msg.model.includes('claude-3-7-sonnet') ? '🤖 Claude 3.7 Sonnet' :
-                                   msg.model.includes('claude-3-5-sonnet-20241022') ? '🤖 Claude 3.5 Sonnet v2' :
-                                   msg.model.includes('claude-3-5-sonnet') ? '🤖 Claude 3.5 Sonnet' :
-                                   msg.model.includes('claude-3-opus') ? '🤖 Claude 3 Opus' :
-                                   msg.model.includes('claude-3-haiku') ? '🤖 Claude 3 Haiku' : '🤖 Custom'}
-                                </div>
-                              )}
-                              {msg.attachments && msg.attachments.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-                                  {msg.attachments.map((att) => (
-                                    <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '4px', maxWidth: '200px' }}>
-                                      {att.preview && <img src={att.preview} alt={att.name} style={{ maxWidth: '120px', maxHeight: '120px', borderRadius: '4px' }} />}
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: '0.85em', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</div>
-                                        <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>{att.type}</div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {msg.contentParts && msg.contentParts.length > 0 ? (
-                                (() => {
-                                  return msg.contentParts.map((part, i) => {
-                                    if (part.type === 'reasoning' && part.content) {
-                                      return <ReasoningSection key={i} content={part.content} fontSize={chatFontSize} show={showReasoning} />;
-                                    } else if (part.type === 'text' && part.content) {
-                                      return <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>;
-                                    } else if (part.type === 'tool' || part.type?.startsWith('tool-')) {
-                                      // Tool parts are already enriched by ConversationsContext
-                                      const isStreamingMessage = idx === activeSession.messages.length - 1 && msg.role === 'assistant';
-                                      return (
-                                        <ToolCallDisplay 
-                                          key={i} 
-                                          toolCall={part}
-                                          showDetails={showToolDetails}
-                                          onApprove={isStreamingMessage && part.tool?.needsApproval ? (action) => {
-                                            handleToolApproval(
-                                              activeSession.id,
-                                              activeSession.agentSlug,
-                                              part.tool!.approvalId!,
-                                              part.tool!.name,
-                                              action
-                                            );
-                                          } : undefined}
-                                        />
-                                      );
-                                    }
-                                    return null;
-                                  });
-                                })()
-                              ) : (
-                                textContent && <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
-                              )}
-                              {/* Show loading/approval indicators at the end of last assistant message when it has content */}
-                              {msg.role === 'assistant' && idx === activeSession.messages.length - 1 && (
-                                <>
-                                  {activeSession.isThinking && textContent && (
-                                    <div style={{ 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      gap: '8px', 
-                                      color: 'var(--text-muted)',
-                                      marginTop: '8px'
-                                    }}>
-                                      <span className="loading-dots">
-                                        <span style={{ animationDelay: '0s' }}>●</span>
-                                        <span style={{ animationDelay: '0.2s' }}>●</span>
-                                        <span style={{ animationDelay: '0.4s' }}>●</span>
-                                      </span>
-                                    </div>
-                                  )}
-                                  {activeSession.pendingApprovals && activeSession.pendingApprovals.length > 0 && (
-                                    <div style={{ 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      gap: '8px', 
-                                      color: 'var(--warning-primary, orange)',
-                                      marginTop: '8px',
-                                      padding: '8px',
-                                      background: 'var(--warning-bg, rgba(255, 165, 0, 0.1))',
-                                      borderRadius: '4px',
-                                      fontSize: '0.9em'
-                                    }}>
-                                      <span>⏸</span>
-                                      <span>Awaiting tool approval ({activeSession.pendingApprovals.length})</span>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                              </div>
-                            </div>
+                              onToolApproval={handleToolApproval}
+                            />
                           );
                         })}
                         
@@ -1270,369 +997,43 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                       ↓
                     </button>
                   )}
-                  {activeSession.attachments && activeSession.attachments.length > 0 && (
-                    <div style={{ 
-                      padding: '8px 12px', 
-                      borderTop: '1px solid var(--border-primary)',
-                      background: 'var(--bg-secondary)',
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '8px'
-                    }}>
-                      {activeSession.attachments.map((att) => (
-                        <div 
-                          key={att.id} 
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '8px', 
-                            padding: '6px 10px', 
-                            background: 'var(--bg-primary)', 
-                            border: '1px solid var(--border-primary)', 
-                            borderRadius: '6px',
-                            fontSize: '0.85em'
-                          }}
-                        >
-                          {att.preview && (
-                            <img 
-                              src={att.preview} 
-                              alt={att.name} 
-                              style={{ 
-                                width: '32px', 
-                                height: '32px', 
-                                objectFit: 'cover', 
-                                borderRadius: '4px' 
-                              }} 
-                            />
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {att.name}
-                            </div>
-                            <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                              {att.type}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              const newAttachments = activeSession.attachments?.filter(a => a.id !== att.id) || [];
-                              updateChat(activeSession.id, { attachments: newAttachments });
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--text-muted)',
-                              cursor: 'pointer',
-                              padding: '2px',
-                              fontSize: '16px',
-                              lineHeight: 1,
-                            }}
-                            title="Remove attachment"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="chat-input" style={{ display: 'flex', alignItems: 'stretch' }}>
-                    <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
-                      {modelQuery !== null && activeSession && (
-                        <ModelSelectorAutocomplete
-                          query={modelQuery}
-                          models={availableModels}
-                          currentModel={activeChatState?.model || agents.find(a => a.slug === activeSession.agentSlug)?.model}
-                          agentDefaultModel={agents.find(a => a.slug === activeSession.agentSlug)?.model}
-                          maxHeight={`calc(${dockHeight}px - 200px)`}
-                          onSelect={(model) => {
-                            const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                            const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                            const currentModelStr = activeChatState?.model || agentModelId || '';
-                            const isAlreadyActive = currentModelStr === model.id;
-                            
-                            updateChat(activeSession.id, { 
-                              input: '',
-                              model: model.id
-                            });
-                            
-                            if (!isAlreadyActive) {
-                              addEphemeralMessage(activeSession.id, { 
-                                role: 'system', 
-                                content: `Model changed to **${model.name}**` 
-                              });
-                            }
-                            
-                            closeModel();
-                          }}
-                          onClose={() => {
-                            closeModel();
-                          }}
-                        />
-                      )}
-                      {commandQuery !== null && activeSession && (
-                        <SlashCommandSelector
-                          query={commandQuery}
-                          commands={slashCommands}
-                          maxHeight={`calc(${dockHeight}px - 200px)`}
-                          onSelect={async (command) => {
-                            // Just send the command - sendMessage will handle slash command logic
-                            await sendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, command.cmd);
-                            // Refocus textarea after command (needed for /model to show sub-autocomplete)
-                            textareaRef.current?.focus();
-                          }}
-                          onClose={() => {
-                            closeCommand();
-                          }}
-                        />
-                      )}
-                      <textarea
-                        ref={textareaRef}
-                        placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-                        value={activeSession.input || ''}
-                        disabled={!agent}
-                        tabIndex={0}
-                        onFocus={() => {
-                          updateFromInput(activeSession.input || '');
-                        }}
-                        onBlur={() => {
-                          closeAll();
-                        }}
-                        onChange={(e) => {
-                          let value = e.target.value;
-                          
-                          // Strip [SYSTEM_EVENT] prefix if user tries to type it
-                          if (value.includes('[SYSTEM_EVENT]')) {
-                            value = value.replace(/\[SYSTEM_EVENT\]\s*/g, '');
-                        }
-                        
-                        updateChat(activeSession.id, { input: value });
-                        
-                        // Reset history index when user types
-                        setHistoryIndex(prev => new Map(prev).set(activeSession.id, -1));
-                        
-                        // Update autocomplete state
-                        updateFromInput(value);
-                      }}
-                      onKeyDown={async (e) => {
-                        // If autocomplete already handled the event, don't process it
-                        if (e.defaultPrevented) return;
-                        
-                        // Handle Escape to dismiss autocomplete
-                        if (e.key === 'Escape' && (commandQuery !== null || modelQuery !== null)) {
-                          e.preventDefault();
-                          closeAll();
-                          return;
-                        }
-                        
-                        // Allow Tab to navigate to chat controls
-                        if (e.key === 'Tab' && !e.shiftKey) {
-                          // Let default tab behavior work
-                          return;
-                        }
-                        
-                        // Handle arrow up/down for history navigation
-                        if (e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          navigateHistoryUp(activeSession.id);
-                          return;
-                        }
-                        
-                        if (e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          navigateHistoryDown(activeSession.id);
-                          return;
-                        }
-                        
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          if (activeSession.input?.trim()) {
-                            await handleSendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
-                          }
-                        }
-                      }}
-                      style={{ fontSize: `${chatFontSize}px`, flex: 1, resize: 'none', minHeight: 0 }}
-                    />
-                    {activeSession.input && (
-                      <button
-                        onClick={() => clearInput(activeSession.id)}
-                        style={{
-                          position: 'absolute',
-                          right: '20px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '18px',
-                          color: 'var(--text-muted)',
-                          padding: '4px',
-                          lineHeight: '1',
-                          zIndex: 1
-                        }}
-                        title="Clear input"
-                      >
-                        ×
-                      </button>
-                    )}
-                    </div>
-                    <div className="chat-controls">
-                      <div className="chat-controls-row">
-                        <FileAttachmentInput
-                          attachments={activeSession.attachments || []}
-                          onAdd={(files) => {
-                            const existing = activeSession.attachments || [];
-                            updateChat(activeSession.id, { attachments: [...existing, ...files] });
-                          }}
-                          onRemove={(id) => {
-                            const newAttachments = activeSession.attachments?.filter(a => a.id !== id) || [];
-                            updateChat(activeSession.id, { attachments: newAttachments });
-                          }}
-                          disabled={!agent || activeSession.status === 'sending' || !modelSupportsAttachments}
-                          supportsImages={modelSupportsAttachments}
-                          supportsFiles={modelSupportsAttachments}
-                          style={{ flex: '0 0 25%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        />
-                        {activeSession.abortController ? (
-                          <button
-                            onClick={() => {
-                              cancelMessage(activeSession.id);
-                              addEphemeralMessage(activeSession.id, {
-                                role: 'system',
-                                content: 'User canceled the ongoing request.'
-                              });
-                            }}
-                            tabIndex={0}
-                            className="send-button"
-                            style={{ 
-                              background: 'var(--error-bg)',
-                              padding: 0,
-                              border: '1px solid var(--error-border)',
-                              color: 'var(--error-text)',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                              fontWeight: 500,
-                              flex: '0 0 75%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        ) : (
-                          <button
-                            onClick={async () => {
-                              if (activeSession.input?.trim()) {
-                                await handleSendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && activeSession.input?.trim()) {
-                                e.preventDefault();
-                                handleSendMessage(activeSession.id, activeSession.agentSlug, activeSession.conversationId, activeSession.input.trim());
-                              }
-                            }}
-                            disabled={!activeSession.input?.trim()}
-                            tabIndex={0}
-                            className="send-button"
-                            style={{
-                              padding: 0,
-                              border: 'none',
-                              background: activeSession.input?.trim() ? 'var(--color-primary)' : 'var(--bg-tertiary)',
-                              color: activeSession.input?.trim() ? 'white' : 'var(--text-muted)',
-                              cursor: activeSession.input?.trim() ? 'pointer' : 'not-allowed',
-                              fontSize: '13px',
-                              fontWeight: 500,
-                              opacity: activeSession.input?.trim() ? 1 : 0.25,
-                              flex: '0 0 75%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            Send
-                          </button>
-                        )}
-                      </div>
-                      <button 
-                        onClick={() => {
-                          closeCommand();
-                          updateChat(activeSession.id, { input: '/model ' });
-                          setTimeout(() => openModel(), 0);
-                          if (textareaRef.current) {
-                            textareaRef.current.focus();
-                          }
-                        }}
-                        onMouseEnter={(e) => {
-                          const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                          const currentModelId = activeChatState?.model;
-                          const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
-                          e.currentTarget.style.background = isOverride 
-                            ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.25)' 
-                            : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.2)';
-                        }}
-                        onMouseLeave={(e) => {
-                          const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                          const currentModelId = activeChatState?.model;
-                          const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
-                          e.currentTarget.style.background = isOverride 
-                            ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)' 
-                            : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)';
-                        }}
-                        style={{
-                          fontSize: '10px',
-                          color: (() => {
-                            const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                            const currentModelId = activeChatState?.model;
-                            const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
-                            return isOverride ? 'var(--accent-yellow)' : 'var(--text-muted)';
-                          })(),
-                          padding: '4px 8px',
-                          textAlign: 'center',
-                          cursor: 'pointer',
-                          fontWeight: (() => {
-                            const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                            const currentModelId = activeChatState?.model;
-                            const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
-                            return isOverride ? 600 : 400;
-                          })(),
-                          borderBottom: '1px solid var(--border-primary)',
-                          border: 'none',
-                          width: '100%',
-                          background: (() => {
-                            const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                            const currentModelId = activeChatState?.model;
-                            const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
-                            return isOverride 
-                              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)' 
-                              : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)';
-                          })(),
-                          transition: 'background 0.2s',
-                        }}
-                        title={(() => {
-                          const agentDefaultModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                          const currentModelId = activeChatState?.model;
-                          const isOverride = currentModelId && currentModelId !== agentDefaultModelId;
-                          return isOverride ? "Model override active - click to change" : "Click to change model";
-                        })()}
-                      >
-                        {(() => {
-                          const modelId = activeChatState?.model || agent?.model;
-                          const modelInfo = availableModels.find(m => m.id === modelId);
-                          return modelInfo?.name || 'Default Model';
-                        })()}
-                      </button>
-                      {activeSession.conversationId && (
-                        <ContextPercentage
-                          agentSlug={activeSession.agentSlug}
-                          conversationId={activeSession.conversationId}
-                          apiBase={apiBase}
-                          messageCount={activeSession.messages.length}
-                          onClick={() => setShowStatsPanel(true)}
-                        />
-                      )}
-                    </div>
-                  </div>
+                  <ChatInputArea
+                    agentSlug={activeSession.agentSlug}
+                    conversationId={activeSession.conversationId}
+                    messageCount={activeSession.messages.length}
+                    input={chatInput.input}
+                    attachments={chatInput.attachments}
+                    textareaRef={chatInput.textareaRef}
+                    disabled={!agent}
+                    isSending={activeSession.status === 'sending'}
+                    hasAbortController={!!activeSession.abortController}
+                    modelSupportsAttachments={modelSupportsAttachments}
+                    fontSize={chatFontSize}
+                    dockHeight={dockHeight}
+                    apiBase={apiBase}
+                    currentModel={chatInput.currentModel}
+                    agentDefaultModel={agentDefaultModelId}
+                    availableModels={availableModels}
+                    modelQuery={chatInput.modelQuery}
+                    commandQuery={chatInput.commandQuery}
+                    slashCommands={chatInput.slashCommands}
+                    onInputChange={chatInput.handleInputChange}
+                    onSend={chatInput.handleSend}
+                    onCancel={chatInput.handleCancel}
+                    onClearInput={chatInput.handleClearInput}
+                    onAddAttachments={chatInput.handleAddAttachments}
+                    onRemoveAttachment={chatInput.handleRemoveAttachment}
+                    onModelSelect={chatInput.handleModelSelect}
+                    onModelClose={chatInput.handleModelClose}
+                    onModelOpen={chatInput.handleModelOpen}
+                    onCommandSelect={chatInput.handleCommandSelect}
+                    onCommandClose={chatInput.handleCommandClose}
+                    onHistoryUp={chatInput.handleHistoryUp}
+                    onHistoryDown={chatInput.handleHistoryDown}
+                    onShowStats={() => setShowStatsPanel(true)}
+                    updateFromInput={chatInput.updateFromInput}
+                    closeAll={chatInput.closeAll}
+                  />
                       </>
                     );
                   })()}

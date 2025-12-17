@@ -91,6 +91,9 @@ export {
   // Workflows
   useWorkflows,
   useWorkflowFiles,
+  
+  // Chat utilities
+  useSendToChat,
 } from './hooks';
 
 // Re-export utility functions

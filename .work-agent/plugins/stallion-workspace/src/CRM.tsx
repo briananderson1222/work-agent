@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useToast, transformTool, useAgents, useCreateChatSession, useNavigation, useWorkspaceNavigation, useActiveChatActions, resolveAgentName, Button, Pill, useSendMessage, useApiBase } from '@stallion-ai/sdk';
+import { useToast, transformTool, useWorkspaceNavigation, Button, Pill, useSendToChat, invokeAgent } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { LeadershipInsightModal } from './LeadershipInsightModal';
 import './workspace.css';
@@ -70,29 +70,14 @@ interface CRMProps {
 export function CRM({ activeTab }: CRMProps) {
   const { showToast } = useToast();
   const { getTabState, setTabState } = useWorkspaceNavigation();
-  const createChatSession = useCreateChatSession();
-  const { setDockState, setActiveChat } = useNavigation();
-  const { updateChat } = useActiveChatActions();
-  const { apiBase } = useApiBase();
-  const sendMessage = useSendMessage(apiBase);
-  const agents = useAgents();
   const agentSlug = 'work-agent';
+  const sendToChat = useSendToChat(agentSlug);
   const salesContext = useSalesContext();
   
   const userDetails = salesContext.myDetails ? {
     alias: salesContext.myDetails.name,
     sfdcId: salesContext.myDetails.userId
   } : null;
-  
-  const sendToChat = useCallback((message: string) => {
-    const resolvedSlug = resolveAgentName(agentSlug);
-    const agent = agents.find(a => a.slug === resolvedSlug);
-    if (!agent) return;
-    const sessionId = createChatSession(resolvedSlug, agent.name);
-    setDockState(true);
-    setActiveChat(sessionId);
-    sendMessage(sessionId, resolvedSlug, undefined, message);
-  }, [agents, agentSlug, createChatSession, setDockState, setActiveChat, sendMessage]);
   
   // Parse initial state
   const initialState = useMemo(() => {
@@ -921,17 +906,7 @@ ${activityFormData.description ? `Current description: ${activityFormData.descri
 
 Provide a concise, professional description (2-3 sentences) suitable for Salesforce activity logging.`;
                         
-                        const sessionId = await createChatSession(agentSlug);
-                        const response = await fetch(`${apiBase}/agents/${agentSlug}/text`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            input: prompt,
-                            conversationId: sessionId,
-                            userId: `agent:${agentSlug}:user:temp`
-                          })
-                        });
-                        const data = await response.json();
+                        const data = await invokeAgent('work-agent', prompt);
                         setAiGeneratedText(data.output);
                         setShowAiPreview(true);
                       } catch (error) {
@@ -1241,10 +1216,7 @@ Existing insights: [count] insights already created
 - Suggest relevant AWS services and tags based on activity content
 - MAY group related activities into single insight when appropriate`;
 
-            // Send to chat dock
-            window.dispatchEvent(new CustomEvent('sendChatMessage', { 
-              detail: { message: prompt, agentSlug: 'stallion-workspace:work-agent' }
-            }));
+            sendToChat(prompt);
           }}
           style={{
             padding: '0.5rem',

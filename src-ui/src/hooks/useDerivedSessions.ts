@@ -38,18 +38,30 @@ export function useDerivedSessions(apiBase: string, agentSlug: string | null): C
       const messagesKey = chatState.conversationId ? `messages:${chatState.agentSlug}:${chatState.conversationId}` : null;
       const backendMessages = messagesKey ? conversationsSnapshot.messages[messagesKey] || [] : [];
       
-      // Get optimistic messages (user's message before backend confirms)
-      // Only show optimistic messages that are newer than what backend has
-      const optimisticMessages = (chatState.messages || [])
-        .slice(backendMessages.length) // Only messages after backend count
-        .map(m => ({
+      // During sending, use chatState.messages as source of truth to avoid race conditions
+      // with fetchMessages updating conversationsSnapshot before chatState.messages is updated
+      let messages: any[];
+      if (sessionStatus === 'sending' && chatState.messages && chatState.messages.length > 0) {
+        // Use optimistic messages during sending
+        messages = chatState.messages.map(m => ({
           ...m,
           timestamp: m.timestamp || Date.now(),
           optimistic: true,
         }));
-      
-      // Merge all message sources
-      const messages = [...backendMessages, ...optimisticMessages];
+      } else {
+        // Get optimistic messages (user's message before backend confirms)
+        // Only show optimistic messages that are newer than what backend has
+        const optimisticMessages = (chatState.messages || [])
+          .slice(backendMessages.length) // Only messages after backend count
+          .map(m => ({
+            ...m,
+            timestamp: m.timestamp || Date.now(),
+            optimistic: true,
+          }));
+        
+        // Merge all message sources
+        messages = [...backendMessages, ...optimisticMessages];
+      }
       
       
       // Merge backend and ephemeral messages, sort by timestamp

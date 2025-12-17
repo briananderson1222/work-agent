@@ -26,6 +26,27 @@ export function FileAttachmentInput({
   const clearAllRef = useRef<HTMLButtonElement>(null);
   const previewModalRef = useRef<HTMLDivElement>(null);
   const attachButtonRef = useRef<HTMLButtonElement>(null);
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showMenu = () => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+    setShowPreview(true);
+  };
+
+  const hideMenu = () => {
+    hideTimeoutRef.current = setTimeout(() => {
+      setShowPreview(false);
+    }, 150);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (showPreview && clearAllRef.current) {
@@ -117,6 +138,9 @@ export function FileAttachmentInput({
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             fileInputRef.current?.click();
+          } else if (e.key === 'ArrowUp' && attachments.length > 0) {
+            e.preventDefault();
+            setShowPreview(true);
           }
         }}
         disabled={disabled}
@@ -138,13 +162,13 @@ export function FileAttachmentInput({
         onMouseEnter={(e) => {
           if (!disabled) {
             e.currentTarget.style.opacity = '1';
-            if (attachments.length > 0) setShowPreview(true);
+            if (attachments.length > 0) showMenu();
           }
         }}
         onMouseLeave={(e) => {
           if (!disabled) {
             e.currentTarget.style.opacity = '0.7';
-            setShowPreview(false);
+            hideMenu();
           }
         }}
         title={disabled && !canAttach ? "Current model doesn't support attachments" : "Attach files"}
@@ -153,27 +177,7 @@ export function FileAttachmentInput({
           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
         </svg>
         {attachments.length > 0 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowPreview(prev => !prev);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowPreview(prev => !prev);
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowPreview(false);
-              }
-            }}
-            onMouseEnter={(e) => {
-              e.stopPropagation();
-              setShowPreview(true);
-            }}
-            tabIndex={0}
+          <span
             style={{
               position: 'absolute',
               top: '50%',
@@ -189,22 +193,19 @@ export function FileAttachmentInput({
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              padding: 0,
+              pointerEvents: 'none',
             }}
-            title={`View ${attachments.length} attachment${attachments.length !== 1 ? 's' : ''}`}
           >
             {attachments.length}
-          </button>
+          </span>
         )}
       </button>
 
       {showPreview && attachments.length > 0 && (
         <div
           role="dialog"
-          onMouseEnter={() => setShowPreview(true)}
-          onMouseLeave={() => setShowPreview(false)}
+          onMouseEnter={showMenu}
+          onMouseLeave={hideMenu}
           style={{
             position: 'fixed',
             bottom: '80px',

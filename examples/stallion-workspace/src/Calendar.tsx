@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { useToast, transformTool, useNavigation, useCreateChatSession, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useApiBase, useActiveChatActions, useAgents, resolveAgentName, useSendMessage } from '@stallion-ai/sdk';
+import { useToast, transformTool, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useSendToChat } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { useLocalSalesState } from './SalesDataContext';
 import { useCalendarEvents } from './useSalesQueries';
@@ -146,22 +146,8 @@ export function Calendar({ activeTab }: CalendarProps) {
   
   const { showToast } = useToast();
   const { notify } = useNotifications();
-  const { setDockState, setActiveChat } = useNavigation();
   const { getTabState, setTabState } = useWorkspaceNavigation();
-  const { apiBase } = useApiBase();
-  const createChatSession = useCreateChatSession();
-  const sendMessage = useSendMessage(apiBase);
-  const agents = useAgents();
-  
-  const sendToChat = (message: string) => {
-    const resolvedSlug = resolveAgentName('work-agent');
-    const agent = agents.find(a => a.slug === resolvedSlug);
-    if (!agent) return;
-    const sessionId = createChatSession(resolvedSlug, agent.name);
-    setDockState(true);
-    setActiveChat(sessionId);
-    sendMessage(sessionId, resolvedSlug, undefined, message);
-  };
+  const sendToChat = useSendToChat('work-agent');
 
   // Helper to format date as YYYY-MM-DD in local timezone
   const formatLocalDate = (date: Date): string => {
@@ -2205,7 +2191,6 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                   style={{
                     width: '100%',
                     padding: '1rem 1.5rem',
-                    borderBottom: '1px solid var(--border-primary)',
                     background: 'transparent',
                     border: 'none',
                     borderBottom: '1px solid var(--border-primary)',

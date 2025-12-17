@@ -5,8 +5,9 @@
  * They delegate to the actual context implementations in the core app.
  */
 
-import { useContext } from 'react';
+import { useContext, useCallback } from 'react';
 import { SDKContext } from './providers';
+import { resolveAgentName } from './agentResolver';
 import type { AgentSummary } from './types';
 
 // SDK Context Access
@@ -224,4 +225,42 @@ export function useWorkflowFiles(agentSlug: string) {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.workflows) throw new Error('WorkflowsContext not available');
   return sdk.contexts.workflows.useWorkflowFiles(agentSlug);
+}
+
+// Chat Utilities
+
+/**
+ * Hook to send a message to chat and open the dock.
+ * Plugins MUST specify the agent slug - there is no default.
+ * 
+ * @param agentSlug - The agent to send messages to (required). Can be short name (e.g., 'work-agent') 
+ *                    which will be resolved using current workspace context, or fully qualified 
+ *                    (e.g., 'stallion-workspace:work-agent').
+ * @returns Function to send a message and open chat
+ * 
+ * @example
+ * ```typescript
+ * const sendToChat = useSendToChat('work-agent');
+ * sendToChat('Summarize this account');
+ * ```
+ */
+export function useSendToChat(agentSlug: string) {
+  const agents = useAgents();
+  const createChatSession = useCreateChatSession();
+  const navigation = useNavigation();
+  const sendMessage = useSendMessage();
+
+  return useCallback((message: string) => {
+    // Resolve short name to full slug using workspace context
+    const resolvedSlug = resolveAgentName(agentSlug);
+    const agent = agents.find((a: any) => a.slug === resolvedSlug);
+    if (!agent) {
+      console.warn(`[useSendToChat] Agent '${agentSlug}' (resolved: '${resolvedSlug}') not found`);
+      return;
+    }
+    const sessionId = createChatSession(resolvedSlug, agent.name);
+    navigation.setDockState(true);
+    navigation.setActiveChat(sessionId);
+    sendMessage(sessionId, resolvedSlug, undefined, message);
+  }, [agents, agentSlug, createChatSession, navigation, sendMessage]);
 }

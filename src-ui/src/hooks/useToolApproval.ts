@@ -15,14 +15,21 @@ export function useToolApproval(apiBase: string) {
     action: 'once' | 'trust' | 'deny'
   ) => {
     const state = activeChatsStore.getSnapshot()[sessionId];
-    if (!state?.streamingMessage?.contentParts) return;
+    if (!state) return;
 
     const approved = action !== 'deny';
 
     // Dismiss the toast for this approval
-    const toastId = state.streamingMessage.approvalToasts?.get(approvalId);
+    const toastId = state.approvalToasts?.get(approvalId);
     if (toastId) {
       dismissToast(toastId);
+    }
+
+    // Clean up approvalToasts mapping
+    if (state.approvalToasts) {
+      const newApprovalToasts = new Map(state.approvalToasts);
+      newApprovalToasts.delete(approvalId);
+      updateChat(sessionId, { approvalToasts: newApprovalToasts });
     }
 
     // For 'trust', add tool to session-specific autoApprove list
@@ -38,30 +45,32 @@ export function useToolApproval(apiBase: string) {
     const pendingApprovals = (state.pendingApprovals || []).filter(id => id !== approvalId);
     updateChat(sessionId, { pendingApprovals });
 
-    // Update tool call state immediately
-    const updatedParts = state.streamingMessage.contentParts.map(part => {
-      if (part.type === 'tool' && part.tool?.approvalId === approvalId) {
-        return {
-          ...part,
-          tool: {
-            ...part.tool,
-            needsApproval: false,
-            cancelled: !approved,
-            approvalStatus: action === 'trust' ? 'auto-approved' : (approved ? 'user-approved' : 'user-denied'),
-          }
-        };
-      }
-      return part;
-    });
+    // Update tool call state in streaming message if present
+    if (state.streamingMessage?.contentParts) {
+      const updatedParts = state.streamingMessage.contentParts.map(part => {
+        if (part.type === 'tool' && part.tool?.approvalId === approvalId) {
+          return {
+            ...part,
+            tool: {
+              ...part.tool,
+              needsApproval: false,
+              cancelled: !approved,
+              approvalStatus: action === 'trust' ? 'auto-approved' : (approved ? 'user-approved' : 'user-denied'),
+            }
+          };
+        }
+        return part;
+      });
 
-    updateChat(sessionId, {
-      streamingMessage: {
-        ...state.streamingMessage,
-        contentParts: updatedParts,
-      }
-    });
+      updateChat(sessionId, {
+        streamingMessage: {
+          ...state.streamingMessage,
+          contentParts: updatedParts,
+        }
+      });
+    }
     
-    // Send approval to backend (same for 'once' and 'trust')
+    // Send approval to backend
     try {
       await fetch(`${apiBase}/tool-approval/${approvalId}`, {
         method: 'POST',

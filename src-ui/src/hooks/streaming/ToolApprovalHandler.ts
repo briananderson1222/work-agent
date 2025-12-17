@@ -34,13 +34,17 @@ export class ToolApprovalHandler extends StreamEventHandler {
     const approvalToasts = new Map(state.approvalToasts || []);
     approvalToasts.set(event.approvalId, toastId);
 
-    // Update chat state with pending approval
+    // Update chat state with pending approval and toast mapping
     const chatPendingApprovals = chatState?.pendingApprovals || [];
-    if (!chatPendingApprovals.includes(event.approvalId)) {
-      this.context.updateChat(this.context.sessionId, {
-        pendingApprovals: [...chatPendingApprovals, event.approvalId]
-      });
-    }
+    const chatApprovalToasts = new Map(chatState?.approvalToasts || []);
+    chatApprovalToasts.set(event.approvalId, toastId);
+    
+    this.context.updateChat(this.context.sessionId, {
+      pendingApprovals: chatPendingApprovals.includes(event.approvalId) 
+        ? chatPendingApprovals 
+        : [...chatPendingApprovals, event.approvalId],
+      approvalToasts: chatApprovalToasts,
+    });
 
     return createResult(state, {
       updated: false,
