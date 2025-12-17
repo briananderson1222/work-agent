@@ -11,6 +11,8 @@ import { AgentBadge } from './AgentBadge';
 import { StreamingMessage } from './StreamingMessage';
 import { ReasoningSection } from './ReasoningSection';
 import { ToolCallDisplay } from './ToolCallDisplay';
+import { ChatEmptyState } from './ChatEmptyState';
+import { SystemEventMessage } from './SystemEventMessage';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useSlashCommands } from '../hooks/useSlashCommands';
 import { useAutocompleteState } from '../hooks/useAutocompleteState';
@@ -860,18 +862,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                     }}
                   >
                     {activeSession.messages.length === 0 ? (
-                      <div className="empty-state">
-                        <h3>Start a conversation</h3>
-                        <p>Type a message below to chat with {activeSession.agentName}</p>
-                        <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginTop: '8px' }}>
-                          💡 Type <code style={{ 
-                            padding: '2px 6px', 
-                            background: 'var(--bg-tertiary)', 
-                            borderRadius: '3px',
-                            fontFamily: 'monospace'
-                          }}>/</code> to see available commands
-                        </p>
-                      </div>
+                      <ChatEmptyState agentName={activeSession.agentName} />
                     ) : (
                       <>
                         {activeSession.messages.map((msg, idx) => {
@@ -981,19 +972,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                           // Render system events with special styling
                           if (isSystemEvent) {
                             return (
-                              <div key={`${activeSession.id}-msg-${idx}`} className="message system-event" style={{
-                                padding: '8px 12px',
-                                margin: '8px 0',
-                                background: 'var(--bg-secondary)',
-                                border: '1px solid var(--border-primary)',
-                                borderRadius: '6px',
-                                fontSize: '0.85em',
-                                fontStyle: 'italic',
-                                color: 'var(--text-muted)',
-                                textAlign: 'center'
-                              }}>
-                                {displayContent}
-                              </div>
+                              <SystemEventMessage 
+                                key={`${activeSession.id}-msg-${idx}`}
+                                messageKey={`${activeSession.id}-msg-${idx}`}
+                                content={displayContent}
+                              />
                             );
                           }
                           
