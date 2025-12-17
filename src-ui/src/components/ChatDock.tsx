@@ -1,20 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { SessionPickerModal } from './SessionPickerModal';
-import { ConversationStats } from './ConversationStats';
-import { AgentBadge } from './AgentBadge';
-import { StreamingMessage } from './StreamingMessage';
-import { ReasoningSection } from './ReasoningSection';
-import { ToolCallDisplay } from './ToolCallDisplay';
-import { ChatEmptyState } from './ChatEmptyState';
-import { SystemEventMessage } from './SystemEventMessage';
-import { MessageBubble } from './MessageBubble';
-import { EphemeralMessage } from './EphemeralMessage';
-import { ChatInputArea } from './ChatInputArea';
-import { ScrollToBottomButton } from './ScrollToBottomButton';
 import { NewChatModal } from './NewChatModal';
-import { QueuedMessages } from './QueuedMessages';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
+import { ChatDockBody } from './ChatDockBody';
 import { ChatSettingsPanel } from './ChatSettingsPanel';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useChatInput } from '../hooks/useChatInput';
@@ -32,9 +21,7 @@ import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
 
 import { useToolApproval } from '../hooks/useToolApproval';
-import { getAgentIconStyle, getInitials } from '../utils/workspace';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
-import { log } from '@/utils/logger';
 import type { AgentSummary } from '../types';
 
 interface ChatDockProps {
@@ -242,210 +229,31 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
 
             <div className="chat-dock__body">
               {activeSession ? (
-                <>
-                  {(() => {
-                    const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                    return (
-                      <>
-                  {showStatsPanel && (
-                    <ConversationStats
-                      agentSlug={activeSession.agentSlug}
-                      conversationId={activeSession.conversationId || ''}
-                      apiBase={apiBase}
-                      isVisible={showStatsPanel}
-                      onToggle={() => setShowStatsPanel(!showStatsPanel)}
-                      messageCount={activeSession.messages.length}
-                      key={`${activeSession.conversationId || activeSession.agentSlug}-${activeSession.status}`}
-                    />
-                  )}
-                  <div 
-                    className="chat-messages"
-                    ref={messagesContainerRef}
-                    style={{ fontSize: `${chatFontSize}px` }}
-                    onScroll={(e) => {
-                      const target = e.currentTarget;
-                      const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 10;
-                      setIsUserScrolledUp(!isAtBottom);
-                    }}
-                  >
-                    {activeSession.messages.length === 0 ? (
-                      <ChatEmptyState agentName={activeSession.agentName} />
-                    ) : (
-                      <>
-                        {activeSession.messages.map((msg, idx) => {
-                          
-                          const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
-                          
-                          // Handle ephemeral messages with special styling
-                          if (msg.ephemeral) {
-                            const messageId = msg.id || `ephemeral-${idx}`;
-                            return (
-                              <EphemeralMessage
-                                key={messageId}
-                                msg={msg}
-                                idx={idx}
-                                fontSize={chatFontSize}
-                                isRemoving={removingMessages.has(messageId)}
-                                onDismiss={() => {
-                                  setRemovingMessages(prev => new Set(prev).add(messageId));
-                                  setTimeout(() => {
-                                    const updated = ephemeralMessages.filter(m => (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId);
-                                    if (updated.length === 0) {
-                                      clearEphemeralMessages(activeSession.id);
-                                    } else {
-                                      updateChat(activeSession.id, { ephemeralMessages: updated });
-                                    }
-                                    setRemovingMessages(prev => {
-                                      const next = new Set(prev);
-                                      next.delete(messageId);
-                                      return next;
-                                    });
-                                  }, 300);
-                                }}
-                                onAction={msg.action ? () => {
-                                  msg.action.handler();
-                                  clearEphemeralMessages(activeSession.id);
-                                } : undefined}
-                              />
-                            );
-                          }
-                          
-                          // Check if this is a system event message
-                          const isSystemEvent = msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
-                          const displayContent = isSystemEvent ? textContent.replace(/^\[SYSTEM_EVENT\]\s*/, '') : textContent;
-                          
-                          // Render system events with special styling
-                          if (isSystemEvent) {
-                            return (
-                              <SystemEventMessage 
-                                key={`${activeSession.id}-msg-${idx}`}
-                                messageKey={`${activeSession.id}-msg-${idx}`}
-                                content={displayContent}
-                              />
-                            );
-                          }
-                          
-                          return (
-                            <MessageBubble
-                              key={`${activeSession.id}-msg-${idx}`}
-                              msg={msg}
-                              idx={idx}
-                              activeSession={activeSession}
-                              agents={agents}
-                              chatFontSize={chatFontSize}
-                              showReasoning={showReasoning}
-                              showToolDetails={showToolDetails}
-                              onCopy={(text) => {
-                                navigator.clipboard.writeText(text);
-                                showToast('Copied to clipboard');
-                              }}
-                              onToolApproval={handleToolApproval}
-                            />
-                          );
-                        })}
-                        
-                        {/* Render streaming message with direct DOM updates (bypasses React batching) */}
-                        {activeSession.status === 'sending' && (
-                          <StreamingMessage
-                            sessionId={activeSession.id}
-                            agentIcon={(() => {
-                              const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                              return agent?.icon || getInitials(agent?.name || 'AI');
-                            })()}
-                            agentIconStyle={(() => {
-                              const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                              return agent ? getAgentIconStyle(agent, 20) : {
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '20px',
-                                height: '20px',
-                                borderRadius: '50%',
-                                background: 'var(--accent-primary)',
-                                fontSize: '11px',
-                                flexShrink: 0,
-                                color: 'var(--text-primary)',
-                              };
-                            })()}
-                            fontSize={chatFontSize}
-                            showReasoning={showReasoning}
-                            renderReasoning={(content, i) => (
-                              <ReasoningSection key={i} content={content} fontSize={chatFontSize} show={showReasoning} />
-                            )}
-                            renderToolCall={(part, i) => (
-                              <ToolCallDisplay 
-                                key={i} 
-                                toolCall={part}
-                                showDetails={showToolDetails}
-                                onApprove={part.tool?.needsApproval ? (action) => {
-                                  handleToolApproval(
-                                    activeSession.id,
-                                    activeSession.agentSlug,
-                                    part.tool!.approvalId!,
-                                    part.tool!.name,
-                                    action
-                                  );
-                                } : undefined}
-                              />
-                            )}
-                          />
-                        )}
-                        
-                      </>
-                    )}
-                  </div>
-                  {isUserScrolledUp && (
-                    <ScrollToBottomButton
-                      onClick={() => {
-                        if (messagesContainerRef.current) {
-                          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-                          setIsUserScrolledUp(false);
-                        }
-                      }}
-                    />
-                  )}
-                  <QueuedMessages sessionId={activeSession.id} messages={activeSession.queuedMessages} />
-                  <ChatInputArea
-                    agentSlug={activeSession.agentSlug}
-                    conversationId={activeSession.conversationId}
-                    messageCount={activeSession.messages.length}
-                    input={chatInput.input}
-                    attachments={chatInput.attachments}
-                    textareaRef={chatInput.textareaRef}
-                    disabled={!agent}
-                    isSending={activeSession.status === 'sending'}
-                    hasAbortController={!!activeSession.abortController}
-                    modelSupportsAttachments={modelSupportsAttachments}
-                    fontSize={chatFontSize}
-                    dockHeight={dockHeight}
-                    apiBase={apiBase}
-                    currentModel={chatInput.currentModel}
-                    agentDefaultModel={agentDefaultModelId}
-                    availableModels={availableModels}
-                    modelQuery={chatInput.modelQuery}
-                    commandQuery={chatInput.commandQuery}
-                    slashCommands={chatInput.slashCommands}
-                    onInputChange={chatInput.handleInputChange}
-                    onSend={chatInput.handleSend}
-                    onCancel={chatInput.handleCancel}
-                    onClearInput={chatInput.handleClearInput}
-                    onAddAttachments={chatInput.handleAddAttachments}
-                    onRemoveAttachment={chatInput.handleRemoveAttachment}
-                    onModelSelect={chatInput.handleModelSelect}
-                    onModelClose={chatInput.handleModelClose}
-                    onModelOpen={chatInput.handleModelOpen}
-                    onCommandSelect={chatInput.handleCommandSelect}
-                    onCommandClose={chatInput.handleCommandClose}
-                    onHistoryUp={chatInput.handleHistoryUp}
-                    onHistoryDown={chatInput.handleHistoryDown}
-                    onShowStats={() => setShowStatsPanel(true)}
-                    updateFromInput={chatInput.updateFromInput}
-                    closeAll={chatInput.closeAll}
-                  />
-                      </>
-                    );
-                  })()}
-                </>
+                <ChatDockBody
+                  activeSession={activeSession}
+                  agents={agents}
+                  apiBase={apiBase}
+                  chatFontSize={chatFontSize}
+                  dockHeight={dockHeight}
+                  showStatsPanel={showStatsPanel}
+                  showReasoning={showReasoning}
+                  showToolDetails={showToolDetails}
+                  isUserScrolledUp={isUserScrolledUp}
+                  modelSupportsAttachments={modelSupportsAttachments}
+                  agentDefaultModelId={agentDefaultModelId}
+                  availableModels={availableModels}
+                  ephemeralMessages={ephemeralMessages}
+                  removingMessages={removingMessages}
+                  messagesContainerRef={messagesContainerRef}
+                  chatInput={chatInput}
+                  setShowStatsPanel={setShowStatsPanel}
+                  setIsUserScrolledUp={setIsUserScrolledUp}
+                  setRemovingMessages={setRemovingMessages}
+                  updateChat={updateChat}
+                  clearEphemeralMessages={clearEphemeralMessages}
+                  handleToolApproval={handleToolApproval}
+                  showToast={showToast}
+                />
               ) : (
                 <div className="empty-state">
                   <h3>No active session</h3>
@@ -457,7 +265,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         )}
       </div>
 
-      {/* New Chat Modal */}
       {showNewChatModal && (
         <NewChatModal
           agents={agents}
