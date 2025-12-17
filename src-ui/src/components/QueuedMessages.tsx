@@ -34,8 +34,12 @@ export function QueuedMessages({ sessionId, messages }: QueuedMessagesProps) {
         {messages.length} message{messages.length !== 1 ? 's' : ''} queued
       </div>
       <div className="queued-messages__list">
-        {messages.map((msg, idx) => (
+        {[...messages].reverse().map((msg, displayIdx) => {
+          const idx = messages.length - 1 - displayIdx; // actual index in array
+          const orderNum = idx + 1; // 1-based order (1 = next to send)
+          return (
           <div key={idx} className="queued-message">
+            <span className="queued-message__order">{orderNum}</span>
             {editingIndex === idx ? (
               <input
                 ref={editInputRef}
@@ -103,7 +107,8 @@ export function QueuedMessages({ sessionId, messages }: QueuedMessagesProps) {
               </>
             )}
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );

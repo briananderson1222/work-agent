@@ -1468,6 +1468,13 @@ body {
   color: var(--text-secondary);
 }
 
+.queued-message__order {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 16px;
+}
+
 .queued-message__btn {
   background: none;
   border: none;

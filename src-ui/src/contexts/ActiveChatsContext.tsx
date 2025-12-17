@@ -487,6 +487,7 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
     // If already sending, queue the message instead of aborting
     if (currentState?.status === 'sending') {
       // Queue message if already sending
+      clearInput(sessionId);
       updateChat(sessionId, { 
         queuedMessages: [...(currentState.queuedMessages || []), content]
       });
