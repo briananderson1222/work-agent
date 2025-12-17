@@ -92,17 +92,17 @@ export class MetadataHandler implements StreamHandler {
           type: 'tool-result',
           toolName: chunk.toolName,
           toolCallId: chunk.toolCallId,
-          result: chunk.output || chunk.result,
+          result: chunk.output || (chunk as any).result,
         });
         break;
 
       case 'reasoning-end':
         // Only emit reasoning event at the end with complete content
-        if (chunk.text) {
+        if ((chunk as any).text) {
           this.monitoringEvents.emit('event', {
             ...baseEvent,
             type: 'reasoning',
-            data: chunk.text,
+            data: (chunk as any).text,
           });
         }
         break;

@@ -29,6 +29,13 @@ import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';
 import { MetadataHandler } from './streaming/handlers/MetadataHandler.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
 import { InjectableStream } from './streaming/InjectableStream.js';
+import { AgentService } from '../services/agent-service.js';
+import { MCPService } from '../services/mcp-service.js';
+import { WorkspaceService } from '../services/workspace-service.js';
+import { createAgentRoutes } from '../routes/agents.js';
+import { createToolRoutes } from '../routes/tools.js';
+import { createWorkspaceRoutes, createWorkflowRoutes } from '../routes/workspaces.js';
+import { createAnalyticsRoutes } from '../routes/analytics.js';
 
 /**
  * Check if tool name matches any auto-approve pattern
@@ -83,6 +90,11 @@ export class WorkAgentRuntime {
   private pendingApprovals: Map<string, { resolve: (approved: boolean) => void; reject: (error: Error) => void }> = new Map();
   private healthCheckInterval: NodeJS.Timeout | null = null;
 
+  // Services
+  private agentService!: AgentService;
+  private mcpService!: MCPService;
+  private workspaceService!: WorkspaceService;
+
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const workAgentDir = options.workAgentDir || '.work-agent';
     this.port = options.port || 3141;
@@ -97,6 +109,25 @@ export class WorkAgentRuntime {
       name: 'work-agent',
       level: options.logLevel || 'info',
     });
+
+    // Initialize services
+    this.agentService = new AgentService(
+      this.configLoader,
+      this.activeAgents,
+      this.agentMetadataMap,
+      this.agentSpecs,
+      this.logger
+    );
+    this.mcpService = new MCPService(
+      this.configLoader,
+      this.mcpConfigs,
+      this.mcpConnectionStatus,
+      this.integrationMetadata,
+      this.agentTools,
+      this.toolNameMapping,
+      this.logger
+    );
+    this.workspaceService = new WorkspaceService(this.configLoader, this.logger);
     
     // Log versions for debugging
     this.logger.info('Work Agent Runtime initializing', {
@@ -271,44 +302,7 @@ export class WorkAgentRuntime {
           app.route('/api/models', modelsRoute.default);
 
           // Analytics endpoints
-          app.get('/api/analytics/usage', async (c) => {
-            try {
-              if (!this.usageAggregator) {
-                return c.json({ success: false, error: 'Analytics not initialized' }, 500);
-              }
-              const stats = await this.usageAggregator.loadStats();
-              return c.json({ data: stats });
-            } catch (error: any) {
-              this.logger.error('Failed to fetch usage stats', { error: error.message });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          app.get('/api/analytics/achievements', async (c) => {
-            try {
-              if (!this.usageAggregator) {
-                return c.json({ success: false, error: 'Analytics not initialized' }, 500);
-              }
-              const achievements = await this.usageAggregator.getAchievements();
-              return c.json({ data: achievements });
-            } catch (error: any) {
-              this.logger.error('Failed to fetch achievements', { error: error.message });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          app.post('/api/analytics/rescan', async (c) => {
-            try {
-              if (!this.usageAggregator) {
-                return c.json({ success: false, error: 'Analytics not initialized' }, 500);
-              }
-              const stats = await this.usageAggregator.fullRescan();
-              return c.json({ data: stats, message: 'Full rescan completed' });
-            } catch (error: any) {
-              this.logger.error('Failed to rescan analytics', { error: error.message });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
+          app.route('/api/analytics', createAnalyticsRoutes(this.usageAggregator));
 
           // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
           app.get('/api/agents', async (c) => {
@@ -365,79 +359,13 @@ export class WorkAgentRuntime {
           });
 
           // === Agent CRUD Endpoints ===
-
-          // Create new agent
-          app.post('/agents', async (c) => {
-            try {
-              const body = await c.req.json();
-              const { slug, spec } = await this.configLoader.createAgent(body);
-
-              // Reload agents to include the new one
-              await this.initialize();
-
-              return c.json({ success: true, data: { slug, ...spec } }, 201);
-            } catch (error: any) {
-              this.logger.error('Failed to create agent', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Update existing agent
-          app.put('/agents/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const updates = await c.req.json();
-
-              // Remove null values to allow unsetting optional fields
-              const filtered = Object.entries(updates).reduce((acc, [key, value]) => {
-                if (value !== null) {
-                  acc[key] = value;
-                }
-                return acc;
-              }, {} as any);
-
-              const updated = await this.configLoader.updateAgent(slug, filtered);
-
-              // Reload agents to reflect changes
-              await this.initialize();
-
-              return c.json({ success: true, data: updated });
-            } catch (error: any) {
-              this.logger.error('Failed to update agent', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Delete agent
-          app.delete('/agents/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-
-              // Check if any workspaces reference this agent
-              const dependentWorkspaces = await this.configLoader.getWorkspacesUsingAgent(slug);
-              if (dependentWorkspaces.length > 0) {
-                return c.json({
-                  success: false,
-                  error: `Cannot delete agent '${slug}' - it is referenced by workspaces: ${dependentWorkspaces.join(', ')}`
-                }, 400);
-              }
-
-              // Drain agent if active
-              if (this.activeAgents.has(slug)) {
-                this.activeAgents.delete(slug);
-              }
-
-              await this.configLoader.deleteAgent(slug);
-
-              // Reload agents
-              await this.initialize();
-
-              return c.json({ success: true }, 200);
-            } catch (error: any) {
-              this.logger.error('Failed to delete agent', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
+          // Mount agent routes for CRUD operations
+          const agentRoutes = createAgentRoutes(
+            this.agentService,
+            () => this.initialize(),
+            () => this.voltAgent
+          );
+          app.route('/agents', agentRoutes);
 
           // === Tool Management Endpoints ===
 
@@ -463,15 +391,7 @@ export class WorkAgentRuntime {
           });
 
           // List all tools
-          app.get('/tools', async (c) => {
-            try {
-              const tools = await this.configLoader.listTools();
-              return c.json({ success: true, data: tools });
-            } catch (error: any) {
-              this.logger.error('Failed to list tools', { error });
-              return c.json({ success: true, error: error.message }, 500);
-            }
-          });
+          app.route('/tools', createToolRoutes(this.mcpService, () => this.initialize()));
 
           // Get agent tools with full schemas
           // Get agent tools with full schemas
@@ -603,66 +523,7 @@ export class WorkAgentRuntime {
           });
 
           // === Workspace Management Endpoints ===
-
-          // List all workspaces
-          app.get('/workspaces', async (c) => {
-            try {
-              const workspaces = await this.configLoader.listWorkspaces();
-              return c.json({ success: true, data: workspaces });
-            } catch (error: any) {
-              this.logger.error('Failed to list workspaces', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Get workspace config
-          app.get('/workspaces/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workspace = await this.configLoader.loadWorkspace(slug);
-              return c.json({ success: true, data: workspace });
-            } catch (error: any) {
-              this.logger.error('Failed to load workspace', { error });
-              return c.json({ success: false, error: error.message }, 404);
-            }
-          });
-
-          // Create new workspace
-          app.post('/workspaces', async (c) => {
-            try {
-              const config = await c.req.json();
-              await this.configLoader.createWorkspace(config);
-              return c.json({ success: true, data: config }, 201);
-            } catch (error: any) {
-              this.logger.error('Failed to create workspace', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Update workspace
-          app.put('/workspaces/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const updates = await c.req.json();
-              const updated = await this.configLoader.updateWorkspace(slug, updates);
-              return c.json({ success: true, data: updated });
-            } catch (error: any) {
-              this.logger.error('Failed to update workspace', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Delete workspace
-          app.delete('/workspaces/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              await this.configLoader.deleteWorkspace(slug);
-              return c.json({ success: true }, 200);
-            } catch (error: any) {
-              this.logger.error('Failed to delete workspace', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
+          app.route('/workspaces', createWorkspaceRoutes(this.workspaceService));
 
           // === Workflow File Management Endpoints ===
 

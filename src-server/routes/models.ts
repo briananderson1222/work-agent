@@ -33,9 +33,9 @@ app.get('/capabilities', async (c) => {
         inputModalities: model.inputModalities || [],
         outputModalities: model.outputModalities || [],
         supportsStreaming: model.responseStreamingSupported,
-        supportsImages: model.inputModalities?.includes('IMAGE') || false,
-        supportsVideo: model.inputModalities?.includes('VIDEO') || false,
-        supportsAudio: model.inputModalities?.includes('AUDIO') || model.inputModalities?.includes('SPEECH') || false,
+        supportsImages: (model.inputModalities as string[] || []).includes('IMAGE'),
+        supportsVideo: (model.inputModalities as string[] || []).includes('VIDEO'),
+        supportsAudio: (model.inputModalities as string[] || []).includes('AUDIO') || (model.inputModalities as string[] || []).includes('SPEECH'),
         lifecycleStatus: model.modelLifecycle?.status,
       }));
     

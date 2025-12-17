@@ -185,7 +185,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         className={`chat-dock ${!isDockOpen ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''}`}
         style={{ 
           height: !isDockOpen 
-            ? '49px' 
+            ? 'var(--chat-dock-header-height)' 
             : isDockMaximized 
               ? `calc(100vh - 46px)` 
               : `${dockHeight}px`

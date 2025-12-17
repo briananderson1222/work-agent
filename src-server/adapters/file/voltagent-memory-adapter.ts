@@ -430,10 +430,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     const parsedMessage = parseReasoningFromMessage(message);
 
     // Add timestamp and analytics metadata
-    const messageWithMetadata = {
+    const messageWithMetadata: any = {
       ...parsedMessage,
       metadata: {
-        ...parsedMessage.metadata,
+        ...(parsedMessage as any).metadata,
         timestamp: Date.now(),
         modelMetadata: context?.modelMetadata,
         usage: context?.usage,

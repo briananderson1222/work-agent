@@ -19,7 +19,7 @@ export interface InferenceProfile {
   inferenceProfileName: string;
   type: string;
   status: string;
-  models: Array<{ modelArn: string }>;
+  models: Array<{ modelArn?: string }>;
 }
 
 export interface ModelPricing {
@@ -70,7 +70,7 @@ export class BedrockModelCatalog {
     const command = new ListInferenceProfilesCommand({});
     const response = await this.bedrockClient.send(command);
 
-    this.profilesCache = (response.inferenceProfileSummaries || []).map((profile) => ({
+    const profiles = (response.inferenceProfileSummaries || []).map((profile) => ({
       inferenceProfileId: profile.inferenceProfileId!,
       inferenceProfileArn: profile.inferenceProfileArn!,
       inferenceProfileName: profile.inferenceProfileName!,
@@ -79,7 +79,8 @@ export class BedrockModelCatalog {
       models: profile.models || [],
     }));
 
-    return this.profilesCache;
+    this.profilesCache = profiles;
+    return profiles;
   }
 
   async getModelPricing(region: string = "us-east-1"): Promise<ModelPricing[]> {

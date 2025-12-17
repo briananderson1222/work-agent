@@ -100,7 +100,7 @@ export class ReasoningHandler implements StreamHandler {
   private async *handleTextEnd(chunk: StreamChunk): AsyncGenerator<StreamChunk> {
     if (this.inThinking) {
       // Still in thinking block - close it and flush buffered chunks
-      yield this.createReasoningEnd(chunk.id);
+      yield this.createReasoningEnd((chunk as any).id);
       yield* this.flushBuffer();
       this.inThinking = false;
       this.thinkingContent = '';
@@ -119,8 +119,8 @@ export class ReasoningHandler implements StreamHandler {
    * Process character by character to detect <thinking> tags
    */
   private async *handleTextDelta(chunk: StreamChunk): AsyncGenerator<StreamChunk> {
-    const text = chunk.text || '';
-    const id = chunk.id || '0';
+    const text = (chunk as any).text || '';
+    const id = (chunk as any).id || '0';
     
     for (const char of text) {
       yield* this.processCharacter(char, id);
@@ -170,7 +170,7 @@ export class ReasoningHandler implements StreamHandler {
     // Start reasoning block
     if (this.config.enableThinking !== false) {
       // Use pending text-start's id if available, otherwise use current id
-      const startId = this.pendingTextStart?.id || id;
+      const startId = (this.pendingTextStart as any)?.id || id;
       yield this.createReasoningStart(startId);
       this.pendingTextStart = null; // Consumed
     }
@@ -262,15 +262,15 @@ export class ReasoningHandler implements StreamHandler {
   // Factory methods for creating chunks
 
   private createReasoningStart(id: string): StreamChunk {
-    return { type: 'reasoning-start', id, text: '' };
+    return { type: 'reasoning-start', id } as StreamChunk;
   }
 
   private createReasoningDelta(id: string, text: string): StreamChunk {
-    return { type: 'reasoning-delta', id, text };
+    return { type: 'reasoning-delta', id, text } as StreamChunk;
   }
 
   private createReasoningEnd(id: string): StreamChunk {
-    return { type: 'reasoning-end', id, text: this.thinkingContent };
+    return { type: 'reasoning-end', id } as StreamChunk;
   }
 
   private createTextStart(id: string): StreamChunk {

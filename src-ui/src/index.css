@@ -1,3 +1,7 @@
+:root {
+  --chat-dock-header-height: 55px;
+}
+
 :root,
 [data-theme="dark"] {
   --bg-primary: #1a1a1a;
@@ -739,6 +743,7 @@ body {
 .chat-dock.is-collapsed {
   border-top: 1px solid var(--border-primary);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .chat-dock__resize-handle {
