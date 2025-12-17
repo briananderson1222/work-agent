@@ -11,6 +11,10 @@ import { SystemEventMessage } from './SystemEventMessage';
 import { MessageBubble } from './MessageBubble';
 import { EphemeralMessage } from './EphemeralMessage';
 import { ChatInputArea } from './ChatInputArea';
+import { ScrollToBottomButton } from './ScrollToBottomButton';
+import { NewChatModal } from './NewChatModal';
+import { SessionTab } from './SessionTab';
+import { QueuedMessages } from './QueuedMessages';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useChatInput } from '../hooks/useChatInput';
 import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
@@ -23,7 +27,7 @@ import { useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
 
 import { useToolApproval } from '../hooks/useToolApproval';
-import { getAgentIcon, getAgentIconStyle, getUserIconStyle, getInitials } from '../utils/workspace';
+import { getAgentIconStyle, getInitials } from '../utils/workspace';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
 import { log } from '@/utils/logger';
 import type { AgentSummary } from '../types';
@@ -72,8 +76,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
-  const [newChatSearch, setNewChatSearch] = useState('');
-  const [newChatSelectedIndex, setNewChatSelectedIndex] = useState(0);
   const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
   
   // Session state
@@ -657,95 +659,19 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                     }
                   }}
                 >
-                  {sessions.map((session, idx) => {
-                    const agent = agents.find(a => a.slug === session.agentSlug);
-                    const agentIcon = agent ? getAgentIcon(agent) : null;
-                    
-                    // Build tooltip content
-                    const tooltipParts = [
-                      `Title: ${session.title}`,
-                      `Agent: ${session.agentName}`,
-                      `Messages: ${session.messages.length}`,
-                    ];
-                    if (session.conversationId) {
-                      tooltipParts.push(`Conversation: ${session.conversationId.slice(-6)}`);
-                    }
-                    const tooltip = tooltipParts.join('\n');
-                    
-                    return (
-                    <button
-                      type="button"
+                  {sessions.map((session, idx) => (
+                    <SessionTab
                       key={session.id}
-                      ref={(el) => {
-                        if (el && session.id === activeSessionId) {
-                          el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                        }
-                      }}
-                      className={`chat-dock__tab ${
-                        session.id === activeSessionId ? 'is-active' : ''
-                      } ${session.hasUnread ? 'has-unread' : ''} ${session.status === 'sending' ? 'is-processing' : ''}`}
-                      onClick={() => focusSession(session.id)}
-                      title={tooltip}
-                    >
-                      {agentIcon && (
-                        <div style={{
-                          ...getAgentIconStyle(agent!, 20),
-                          marginRight: '8px'
-                        }}>
-                          {agentIcon.display}
-                        </div>
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="chat-dock__tab-title">
-                          {session.title}
-                          {session.status === 'sending' && (
-                            <span className="chat-dock__tab-badge">●</span>
-                          )}
-                        </div>
-                        <div className="chat-dock__tab-agent">
-                          <AgentBadge agentSlug={session.agentSlug} size="sm" />
-                        </div>
-                        {(() => {
-                          const agent = agents.find(a => a.slug === session.agentSlug);
-                          const agentModelId = typeof agent?.model === 'string' ? agent.model : agent?.model?.modelId;
-                          const isCustomModel = session.model && session.model !== agentModelId;
-                          if (!isCustomModel) return null;
-                          const modelInfo = availableModels.find(m => m.id === session.model);
-                          return (
-                            <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
-                              {modelInfo?.name || 'Custom'}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      {idx < 9 && (
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>
-                          ⌘{idx + 1}
-                        </span>
-                      )}
-                      <span
-                        className="chat-dock__tab-close"
-                        role="button"
-                        tabIndex={0}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          removeSession(session.id);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            removeSession(session.id);
-                          }
-                        }}
-                        title={`Close (${closeTabShortcut})`}
-                        style={{ flexShrink: 0 }}
-                      >
-                        ×
-                      </span>
-                    </button>
-                  );
-                  })}
+                      session={session}
+                      index={idx}
+                      isActive={session.id === activeSessionId}
+                      agent={agents.find(a => a.slug === session.agentSlug)}
+                      availableModels={availableModels}
+                      closeTabShortcut={closeTabShortcut}
+                      onFocus={() => focusSession(session.id)}
+                      onRemove={() => removeSession(session.id)}
+                    />
+                  ))}
                 </div>
                 {showScrollButtons.right && (
                   <button
@@ -909,94 +835,66 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                         })}
                         
                         {/* Render streaming message with direct DOM updates (bypasses React batching) */}
-                        {activeSession.status === 'sending' && (() => {
-                          const agent = agents.find(a => a.slug === activeSession.agentSlug);
-                          const iconStyle = agent ? getAgentIconStyle(agent, 20) : {
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '20px',
-                            height: '20px',
-                            borderRadius: '50%',
-                            background: 'var(--accent-primary)',
-                            fontSize: '11px',
-                            flexShrink: 0,
-                            color: 'var(--text-primary)',
-                          };
-                          return (
-                            <StreamingMessage
-                              sessionId={activeSession.id}
-                              agentIcon={agent?.icon || getInitials(agent?.name || 'AI')}
-                              agentIconStyle={iconStyle}
-                              fontSize={chatFontSize}
-                              showReasoning={showReasoning}
-                              renderReasoning={(content, i) => (
-                                <ReasoningSection key={i} content={content} fontSize={chatFontSize} show={showReasoning} />
-                              )}
-                              renderToolCall={(part, i) => (
-                                <ToolCallDisplay 
-                                  key={i} 
-                                  toolCall={part}
-                                  showDetails={showToolDetails}
-                                  onApprove={part.tool?.needsApproval ? (action) => {
-                                    handleToolApproval(
-                                      activeSession.id,
-                                      activeSession.agentSlug,
-                                      part.tool!.approvalId!,
-                                      part.tool!.name,
-                                      action
-                                    );
-                                  } : undefined}
-                                />
-                              )}
-                            />
-                          );
-                        })()}
+                        {activeSession.status === 'sending' && (
+                          <StreamingMessage
+                            sessionId={activeSession.id}
+                            agentIcon={(() => {
+                              const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                              return agent?.icon || getInitials(agent?.name || 'AI');
+                            })()}
+                            agentIconStyle={(() => {
+                              const agent = agents.find(a => a.slug === activeSession.agentSlug);
+                              return agent ? getAgentIconStyle(agent, 20) : {
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                background: 'var(--accent-primary)',
+                                fontSize: '11px',
+                                flexShrink: 0,
+                                color: 'var(--text-primary)',
+                              };
+                            })()}
+                            fontSize={chatFontSize}
+                            showReasoning={showReasoning}
+                            renderReasoning={(content, i) => (
+                              <ReasoningSection key={i} content={content} fontSize={chatFontSize} show={showReasoning} />
+                            )}
+                            renderToolCall={(part, i) => (
+                              <ToolCallDisplay 
+                                key={i} 
+                                toolCall={part}
+                                showDetails={showToolDetails}
+                                onApprove={part.tool?.needsApproval ? (action) => {
+                                  handleToolApproval(
+                                    activeSession.id,
+                                    activeSession.agentSlug,
+                                    part.tool!.approvalId!,
+                                    part.tool!.name,
+                                    action
+                                  );
+                                } : undefined}
+                              />
+                            )}
+                          />
+                        )}
                         
                       </>
                     )}
                   </div>
                   {isUserScrolledUp && (
-                    <button
+                    <ScrollToBottomButton
                       onClick={() => {
                         if (messagesContainerRef.current) {
                           messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
                           setIsUserScrolledUp(false);
                         }
                       }}
-                      style={{
-                        position: 'absolute',
-                        bottom: '80px',
-                        right: '20px',
-                        background: 'var(--color-primary)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '50%',
-                        width: '40px',
-                        height: '40px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                        zIndex: 10,
-                        fontSize: '20px',
-                        fontWeight: 'bold',
-                        transition: 'all 0.2s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.1)';
-                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.3)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-                      }}
-                      title="Scroll to bottom"
-                    >
-                      ↓
-                    </button>
+                    />
                   )}
+                  <QueuedMessages messages={activeSession.queuedMessages} />
                   <ChatInputArea
                     agentSlug={activeSession.agentSlug}
                     conversationId={activeSession.conversationId}
@@ -1050,103 +948,16 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       </div>
 
       {/* New Chat Modal */}
-      {showNewChatModal && (() => {
-        const filteredAgents = (agents || []).filter(a => 
-          a.name.toLowerCase().includes(newChatSearch.toLowerCase()) ||
-          a.slug.toLowerCase().includes(newChatSearch.toLowerCase())
-        );
-        
-        return (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000,
+      {showNewChatModal && (
+        <NewChatModal
+          agents={agents}
+          onSelect={(agent) => {
+            openChatForAgent(agent);
+            setShowNewChatModal(false);
           }}
-          onClick={() => setShowNewChatModal(false)}
-        >
-          <div
-            style={{
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '12px',
-              width: '90%',
-              maxWidth: '500px',
-              maxHeight: '600px',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: '20px', borderBottom: '1px solid var(--border-primary)' }}>
-              <h3 style={{ margin: '0 0 12px 0' }}>New Chat</h3>
-              <input
-                type="text"
-                placeholder="Search agents..."
-                value={newChatSearch}
-                onChange={(e) => {
-                  setNewChatSearch(e.target.value);
-                  setNewChatSelectedIndex(0);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setNewChatSelectedIndex((prev) => Math.min(prev + 1, filteredAgents.length - 1));
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setNewChatSelectedIndex((prev) => Math.max(prev - 1, 0));
-                  } else if (e.key === 'Enter' && filteredAgents[newChatSelectedIndex]) {
-                    openChatForAgent(filteredAgents[newChatSelectedIndex]);
-                    setShowNewChatModal(false);
-                  } else if (e.key === 'Escape') {
-                    setShowNewChatModal(false);
-                  }
-                }}
-                autoFocus
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1px solid var(--border-primary)',
-                  borderRadius: '8px',
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  fontSize: '14px',
-                }}
-              />
-            </div>
-            <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
-              {filteredAgents.map((agent, idx) => (
-                  <button
-                    key={agent.slug}
-                    onClick={() => {
-                      openChatForAgent(agent);
-                      setShowNewChatModal(false);
-                    }}
-                    onMouseEnter={() => setNewChatSelectedIndex(idx)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 20px',
-                      border: 'none',
-                      borderBottom: '1px solid var(--border-primary)',
-                      background: idx === newChatSelectedIndex ? 'var(--accent-primary)' : 'transparent',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      color: idx === newChatSelectedIndex ? 'white' : 'var(--text-primary)',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <div style={{ fontWeight: 600 }}>{agent.name}</div>
-                  </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        );
-      })()}
+          onClose={() => setShowNewChatModal(false)}
+        />
+      )}
 
       {/* Session Picker Modal */}
       {showChatSettings && (

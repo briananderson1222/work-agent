@@ -46,6 +46,8 @@ type ChatUIState = {
   pendingApprovals?: string[];
   // Mapping of approvalId -> toastId for dismissing notifications
   approvalToasts?: Map<string, string>;
+  // Whether user is editing a queued message (pauses queue processing)
+  isEditingQueue?: boolean;
 };
 
 type ActiveChatsMap = Record<string, ChatUIState>; // keyed by conversationId
@@ -595,9 +597,9 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
         updateChat(sessionId, updates);
         
         
-        // Process next queued message if any
+        // Process next queued message if any (unless user is editing)
         const updatedState = activeChatsStore.getSnapshot()[sessionId];
-        if (updatedState?.queuedMessages && updatedState.queuedMessages.length > 0) {
+        if (updatedState?.queuedMessages && updatedState.queuedMessages.length > 0 && !updatedState.isEditingQueue) {
           const [nextMessage, ...remainingQueue] = updatedState.queuedMessages;
           updateChat(sessionId, { queuedMessages: remainingQueue });
           // Process next message asynchronously
