@@ -49,16 +49,23 @@ interface Opportunity {
 }
 
 interface Task {
-  Id: string;
-  Subject: string;
-  Status: string;
-  ActivityDate?: string;
-  Description?: string;
-  Priority?: string;
+  id: string;
+  subject: string;
+  status: string;
+  activityDate?: string;
+  description?: string;
+  priority?: string;
   sa_Activity__c?: string;
-  Type?: string;
-  CreatedDate?: string;
-  LastModifiedDate?: string;
+  type?: string;
+  createdDate?: string;
+  lastModifiedDate?: string;
+  isClosed?: boolean;
+  ownerId?: string;
+  whatId?: string;
+  what?: {
+    __typename: string;
+    name: string;
+  };
 }
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -503,14 +510,14 @@ export function CRM({ activeTab }: CRMProps) {
     try {
       // Load opportunities and tasks in parallel
       const [oppsResult, tasksResult] = await Promise.all([
-        transformTool(agentSlug, 'sat-sfdc_get_opportunities_for_account',
-          { accountId: account.id },
-          `(data) => data.opportunities || data.response || data || []`
+        transformTool(agentSlug, 'sat-sfdc_search_opportunities',
+          { condition: { field: 'accountId', operator: 'EXACT_MATCH', value: account.id } },
+          `(data) => data.data?.opportunities || data.opportunities || []`
         ).finally(() => setLoadingOpportunities(false)),
-        transformTool(agentSlug, 'sat-sfdc_list_user_tasks',
-          { accountId: account.id },
-          `(data) => data.tasks || data.records || data || []`
-        ).finally(() => setLoadingTasks(false))
+        userDetails?.alias ? transformTool(agentSlug, 'sat-sfdc_list_user_tasks',
+          { userAlias: userDetails.alias, accountId: account.id },
+          `(data) => data.data?.tasks || data.tasks || []`
+        ).finally(() => setLoadingTasks(false)) : Promise.resolve([])
       ]);
 
       setOpportunities(oppsResult || []);
@@ -2090,13 +2097,13 @@ Existing insights: [count] insights already created
                       ) : tasks.length > 0 ? (
                         <div>
                           {(showAllTasks ? tasks : tasks.slice(0, 5)).map((task) => (
-                            <div key={task.Id} className="workspace-dashboard__card-content">
+                            <div key={task.id} className="workspace-dashboard__card-content">
                               <div className="workspace-dashboard__card-item">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                  <div className="workspace-dashboard__card-item-title">{task.Subject}</div>
+                                  <div className="workspace-dashboard__card-item-title">{task.subject}</div>
                                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                     <button
-                                      onClick={() => sendToChat(`Help me with task "${task.Subject}" (Task ID: ${task.Id}, Account ID: ${selectedAccount?.id})`)}
+                                      onClick={() => sendToChat(`Help me with task "${task.subject}" (Task ID: ${task.id}, Account ID: ${selectedAccount?.id})`)}
                                       style={{
                                         background: 'none',
                                         border: 'none',
@@ -2112,7 +2119,7 @@ Existing insights: [count] insights already created
                                       </svg>
                                     </button>
                                     <a
-                                      href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.Id}/view`}
+                                      href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.id}/view`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       style={{
@@ -2126,27 +2133,59 @@ Existing insights: [count] insights already created
                                     </a>
                                   </div>
                                 </div>
+                                <div style={{ 
+                                  display: 'flex', 
+                                  gap: '0.5rem', 
+                                  marginTop: '0.5rem',
+                                  flexWrap: 'wrap'
+                                }}>
+                                  <span style={{
+                                    padding: '0.125rem 0.5rem',
+                                    borderRadius: '4px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500,
+                                    background: task.isClosed ? 'var(--color-success-bg)' : 'var(--color-warning-bg)',
+                                    color: task.isClosed ? 'var(--color-success)' : 'var(--color-warning)'
+                                  }}>
+                                    {task.status}
+                                  </span>
+                                  {task.type && (
+                                    <span style={{
+                                      padding: '0.125rem 0.5rem',
+                                      borderRadius: '4px',
+                                      fontSize: '0.75rem',
+                                      background: 'var(--bg-tertiary)',
+                                      color: 'var(--text-secondary)'
+                                    }}>
+                                      {task.type}
+                                    </span>
+                                  )}
+                                </div>
                                 {task.sa_Activity__c && (
                                   <div style={{ 
-                                    fontSize: '0.875rem', 
-                                    color: 'var(--color-text-secondary)', 
-                                    marginTop: '0.25rem',
+                                    fontSize: '0.8125rem', 
+                                    color: 'var(--color-primary)', 
+                                    marginTop: '0.375rem',
                                     fontWeight: '500'
                                   }}>
-                                    SA Activity: {task.sa_Activity__c}
+                                    {task.sa_Activity__c}
                                   </div>
                                 )}
-                                <div className="workspace-dashboard__card-item-meta">
-                                  <span>Status: {task.Status}</span>
-                                  {task.Type && <span> • Type: {task.Type}</span>}
-                                  {task.ActivityDate && (
-                                    <span> • Due: {new Date(task.ActivityDate).toLocaleDateString()}</span>
+                                {task.what && (
+                                  <div style={{ 
+                                    fontSize: '0.8125rem', 
+                                    color: 'var(--text-secondary)', 
+                                    marginTop: '0.25rem'
+                                  }}>
+                                    Related: {task.what.name}
+                                  </div>
+                                )}
+                                <div className="workspace-dashboard__card-item-meta" style={{ marginTop: '0.375rem' }}>
+                                  {task.activityDate && (
+                                    <span>Due: {new Date(task.activityDate).toLocaleDateString()}</span>
                                   )}
-                                  {task.CreatedDate && (
-                                    <span> • Created: {new Date(task.CreatedDate).toLocaleDateString()}</span>
-                                  )}
-                                  {task.LastModifiedDate && (
-                                    <span> • Modified: {new Date(task.LastModifiedDate).toLocaleDateString()}</span>
+                                  {task.createdDate && (
+                                    <span>{task.activityDate ? ' • ' : ''}Created: {new Date(task.createdDate).toLocaleDateString()}</span>
                                   )}
                                 </div>
                               </div>

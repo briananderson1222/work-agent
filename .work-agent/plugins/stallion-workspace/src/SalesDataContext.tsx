@@ -95,12 +95,12 @@ export function useMyPersonalDetails() {
   return useApiQuery(
     ['sfdc', 'personalDetails'],
     async () => {
-      const details = await transformTool('work-agent', 'sat-sfdc_get_my_personal_details', {}, 'data => data');
+      const result = await transformTool('work-agent', 'sat-sfdc_get_my_personal_details', {}, 'data => data.data');
       return {
-        userId: details.sfdcId,
-        name: details.alias,
-        email: details.email,
-        role: details.role,
+        userId: result.sfdcId,
+        name: result.alias,
+        email: result.email,
+        role: result.role,
       };
     },
     { staleTime: 10 * 60 * 1000 } // 10 min - rarely changes
@@ -111,7 +111,7 @@ export function useMyTerritories(userId: string | undefined) {
   return useApiQuery(
     ['sfdc', 'territories', userId],
     async () => {
-      const result = await transformTool('work-agent', 'sat-sfdc_list_user_assigned_territories', { userId }, 'data => data');
+      const result = await transformTool('work-agent', 'sat-sfdc_list_user_assigned_territories', { userId }, 'data => data.data');
       return result?.territories || [];
     },
     { 
@@ -125,7 +125,7 @@ export function useMyAccounts(userId: string | undefined) {
   return useApiQuery(
     ['sfdc', 'accounts', userId],
     async () => {
-      const result = await transformTool('work-agent', 'sat-sfdc_list_user_assigned_accounts', { userId }, 'data => data');
+      const result = await transformTool('work-agent', 'sat-sfdc_list_user_assigned_accounts', { userId }, 'data => data.data');
       return result?.accountTeamMembers || [];
     },
     { 

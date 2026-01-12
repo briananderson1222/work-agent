@@ -60,10 +60,10 @@ export function useAccountOpportunities(accountId: string | null) {
   return useApiQuery(
     ['sfdc', 'opportunities', accountId],
     async () => {
-      const result = await transformTool('work-agent', 'sat-sfdc_get_opportunities_for_account', { 
-        accountId 
-      }, 'data => data');
-      return result;
+      const result = await transformTool('work-agent', 'sat-sfdc_search_opportunities', { 
+        condition: { field: 'accountId', operator: 'EXACT_MATCH', value: accountId }
+      }, 'data => data.data');
+      return result?.opportunities || [];
     },
     { 
       enabled: !!accountId,
@@ -75,13 +75,16 @@ export function useAccountOpportunities(accountId: string | null) {
 /**
  * Fetch user tasks
  */
-export function useUserTasks(params: any) {
+export function useUserTasks(userAlias: string | undefined, params?: { accountId?: string; opportunityId?: string }) {
   return useApiQuery(
-    ['sfdc', 'tasks', params],
+    ['sfdc', 'tasks', userAlias, params],
     async () => {
-      const result = await transformTool('work-agent', 'sat-sfdc_list_user_tasks', params, 'data => data');
-      return result;
+      const result = await transformTool('work-agent', 'sat-sfdc_list_user_tasks', { userAlias, ...params }, 'data => data.data');
+      return result?.tasks || [];
     },
-    { staleTime: 2 * 60 * 1000 }
+    { 
+      enabled: !!userAlias,
+      staleTime: 2 * 60 * 1000 
+    }
   );
 }
