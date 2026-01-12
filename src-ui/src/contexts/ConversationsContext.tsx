@@ -2,6 +2,7 @@ import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore
 import { useConversationsQuery, useQueryClient } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 import { CONFIG_DEFAULTS } from './ConfigContext';
+import type { FileAttachment } from '../types';
 
 export type ConversationStatus = 'idle' | 'streaming' | 'processing';
 
@@ -19,6 +20,7 @@ type MessageData = {
   content: string;
   timestamp?: string;
   traceId?: string;
+  contentParts?: Array<{ type: string; content?: string; url?: string; mediaType?: string; name?: string }>;
 };
 
 type ConversationsMap = Record<string, ConversationData[]>;
@@ -122,6 +124,11 @@ class ConversationsStore {
                 return { type: 'text', content: p.text };
               } else if (p.type === 'reasoning') {
                 return { type: 'reasoning', content: p.text };
+              } else if (p.type === 'file') {
+                // Preserve file parts (images) from UIMessage format
+                // Derive name from mediaType if not stored (e.g., "image/png" -> "Image")
+                const typeName = p.mediaType?.split('/')[0] || 'File';
+                return { type: 'file', url: p.url, mediaType: p.mediaType, name: p.name || `${typeName.charAt(0).toUpperCase() + typeName.slice(1)}` };
               } else if (p.type?.startsWith('tool-')) {
                 // Enrich tool parts with server and toolName from mappings
                 const toolName = p.type.replace('tool-', '');
@@ -194,14 +201,46 @@ class ConversationsStore {
     onConversationStarted?: (conversationId: string, title?: string) => void,
     onError?: (error: Error) => void,
     signal?: AbortSignal,
-    model?: string
+    model?: string,
+    attachments?: FileAttachment[]
   ): Promise<{ conversationId?: string; finishReason?: string }> {
     const key = conversationId ? `${agentSlug}:${conversationId}` : `${agentSlug}:temp`;
     this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
 
     try {
+      // Build input - either string or UIMessage array with parts
+      // UIMessage format uses FileUIPart for images: { type: 'file', url: dataUri, mediaType: string }
+      let input: string | Array<{ id: string; role: string; parts: Array<{ type: string; text?: string; url?: string; mediaType?: string }> }>;
+      
+      if (attachments && attachments.length > 0) {
+        const parts: Array<{ type: string; text?: string; url?: string; mediaType?: string }> = [];
+        
+        // Add text part only if user provided content
+        if (content) {
+          parts.push({ type: 'text', text: content });
+        }
+        
+        // Add file parts for each attachment (UIMessage FileUIPart format)
+        for (const att of attachments) {
+          parts.push({
+            type: 'file',
+            url: att.data,
+            mediaType: att.type,
+          });
+        }
+        
+        // Wrap in UIMessage format that VoltAgent expects
+        input = [{
+          id: `msg-${Date.now()}`,
+          role: 'user',
+          parts,
+        }];
+      } else {
+        input = content;
+      }
+      
       const payload = {
-        input: content,
+        input,
         options: {
           userId: CONFIG_DEFAULTS.userId,
           ...(conversationId ? { conversationId } : {}),
@@ -360,10 +399,14 @@ type ConversationsContextType = {
     agentSlug: string,
     conversationId: string | undefined,
     content: string,
+    title: string | undefined,
     onStreamEvent: (data: any, state: any) => any,
-    onConversationStarted?: (conversationId: string) => void,
-    onError?: (error: Error) => void
-  ) => Promise<string | undefined>;
+    onConversationStarted?: (conversationId: string, title?: string) => void,
+    onError?: (error: Error) => void,
+    signal?: AbortSignal,
+    model?: string,
+    attachments?: FileAttachment[]
+  ) => Promise<{ conversationId?: string; finishReason?: string }>;
   setStatus: (agentSlug: string, conversationId: string, status: ConversationStatus) => void;
 };
 
@@ -398,9 +441,10 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
     onConversationStarted?: (conversationId: string, title?: string) => void,
     onError?: (error: Error) => void,
     signal?: AbortSignal,
-    model?: string
+    model?: string,
+    attachments?: FileAttachment[]
   ) => {
-    return conversationsStore.sendMessage(apiBase, agentSlug, conversationId, content, title, onStreamEvent, onConversationStarted, onError, signal, model);
+    return conversationsStore.sendMessage(apiBase, agentSlug, conversationId, content, title, onStreamEvent, onConversationStarted, onError, signal, model, attachments);
   }, []);
 
   const setStatus = useCallback((agentSlug: string, conversationId: string, status: ConversationStatus) => {

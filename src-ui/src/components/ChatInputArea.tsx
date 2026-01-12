@@ -217,25 +217,25 @@ export function ChatInputArea({
             </button>
           ) : (
             <button
-              onClick={async () => { if (input.trim()) await onSend(); }}
+              onClick={async () => { if (input.trim() || attachments.length > 0) await onSend(); }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && input.trim()) {
+                if (e.key === 'Enter' && (input.trim() || attachments.length > 0)) {
                   e.preventDefault();
                   onSend();
                 }
               }}
-              disabled={!input.trim()}
+              disabled={!input.trim() && attachments.length === 0}
               tabIndex={0}
               className="send-button"
               style={{
                 padding: 0,
                 border: 'none',
-                background: input.trim() ? 'var(--color-primary)' : 'var(--bg-tertiary)',
-                color: input.trim() ? 'white' : 'var(--text-muted)',
-                cursor: input.trim() ? 'pointer' : 'not-allowed',
+                background: (input.trim() || attachments.length > 0) ? 'var(--color-primary)' : 'var(--bg-tertiary)',
+                color: (input.trim() || attachments.length > 0) ? 'white' : 'var(--text-muted)',
+                cursor: (input.trim() || attachments.length > 0) ? 'pointer' : 'not-allowed',
                 fontSize: '13px',
                 fontWeight: 500,
-                opacity: input.trim() ? 1 : 0.25,
+                opacity: (input.trim() || attachments.length > 0) ? 1 : 0.25,
                 flex: '0 0 75%',
                 display: 'flex',
                 alignItems: 'center',

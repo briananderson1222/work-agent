@@ -480,7 +480,7 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
   const { sendMessage: sendToServer, fetchMessages } = useConversationActions();
   const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage(apiBase, onActiveSessionChange);
 
-  const sendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string) => {
+  const sendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string, attachments?: FileAttachment[]) => {
     const allChats = activeChatsStore.getSnapshot();
     const currentState = allChats[sessionId];
     
@@ -512,17 +512,28 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
       }
     }
     
-    // Add user message to messages array
+    // Add user message to messages array - convert attachments to contentParts (AI SDK format)
+    const contentParts: Array<{ type: string; content?: string; url?: string; mediaType?: string; name?: string }> = [];
+    if (content) {
+      contentParts.push({ type: 'text', content });
+    }
+    if (attachments) {
+      for (const att of attachments) {
+        contentParts.push({ type: 'file', url: att.data, mediaType: att.type, name: att.name });
+      }
+    }
+    
     const updatedMessages = [
       ...(currentState?.messages || []),
-      { role: 'user' as const, content }
+      { role: 'user' as const, content, contentParts: contentParts.length > 0 ? contentParts : undefined }
     ];
     
     // Create abort controller for this request
     const abortController = new AbortController();
     
+    // Clear input AND attachments
     clearInput(sessionId);
-    updateChat(sessionId, { status: 'sending', messages: updatedMessages, abortController });
+    updateChat(sessionId, { status: 'sending', messages: updatedMessages, abortController, attachments: [] });
 
     // Track the current session ID (will change after migration)
     let currentSessionId = sessionId;
@@ -553,7 +564,8 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
         },
         onError,
         abortController.signal,
-        model
+        model,
+        attachments
       );
       
       const newConversationId = result?.conversationId;

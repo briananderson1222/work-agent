@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 type StreamingMessage = {
   role: 'assistant';
   content: string;
-  contentParts?: Array<{ type: 'text' | 'tool'; content?: string; tool?: any }>;
+  contentParts?: Array<{ type: string; content?: string; url?: string; mediaType?: string; name?: string; tool?: any }>;
 };
 
 type StreamingContextType = {

@@ -97,11 +97,15 @@ export function useChatInput({
   }, [sessionId, updateChat]);
   
   const handleSend = useCallback(async () => {
-    if (!sessionId || !agentSlug || !input.trim()) return;
-    addToInputHistory(sessionId, input.trim());
-    setHistoryIndex(prev => new Map(prev).set(sessionId, -1));
-    await sendMessageAction(sessionId, agentSlug, conversationId, input.trim());
-  }, [sessionId, agentSlug, conversationId, input, sendMessageAction, addToInputHistory]);
+    if (!sessionId || !agentSlug) return;
+    if (!input.trim() && attachments.length === 0) return;
+    
+    if (input.trim()) {
+      addToInputHistory(sessionId, input.trim());
+      setHistoryIndex(prev => new Map(prev).set(sessionId, -1));
+    }
+    await sendMessageAction(sessionId, agentSlug, conversationId, input.trim(), attachments);
+  }, [sessionId, agentSlug, conversationId, input, attachments, sendMessageAction, addToInputHistory]);
   
   const handleCancel = useCallback(() => {
     if (!sessionId) return;
