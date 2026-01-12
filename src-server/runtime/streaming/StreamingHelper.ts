@@ -89,10 +89,6 @@ export class StreamingHelper {
   async processTextChunk(text: string): Promise<string> {
     if (!text) return '';
 
-    if (this.options.debug) {
-      console.log('[StreamingHelper] Processing chunk:', text.substring(0, 50));
-    }
-
     // Just pass through for now - no reasoning logic
     return text;
   }

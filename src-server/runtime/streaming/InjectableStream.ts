@@ -16,20 +16,14 @@ export class InjectableStream {
     for await (const chunk of source) {
       // Emit any buffered events before this chunk
       while (this.buffer.length > 0) {
-        const buffered = this.buffer.shift()!;
-        console.log('[InjectableStream] Yielding buffered event:', buffered.type, 'before chunk:', chunk.type);
-        yield buffered;
+        yield this.buffer.shift()!;
       }
-      
-      console.log('[InjectableStream] Yielding chunk from source:', chunk.type);
       yield chunk;
     }
     
     // Yield remaining buffered events
     while (this.buffer.length > 0) {
-      const buffered = this.buffer.shift()!;
-      console.log('[InjectableStream] Yielding buffered event at end:', buffered.type);
-      yield buffered;
+      yield this.buffer.shift()!;
     }
   }
   
@@ -37,7 +31,6 @@ export class InjectableStream {
    * Inject an event to be emitted before the next chunk
    */
   inject(event: StreamChunk) {
-    console.log('[InjectableStream] Injecting event:', event.type, 'buffer size:', this.buffer.length);
     this.buffer.push(event);
   }
 }

@@ -63,9 +63,6 @@ export class ReasoningHandler implements StreamHandler {
    */
   private bufferChunk(chunk: StreamChunk): void {
     this.chunkBuffer.push(chunk);
-    if (this.config.debug) {
-      console.log('[reasoning] Buffering chunk:', chunk.type, 'buffer size:', this.chunkBuffer.length);
-    }
   }
 
   /**
@@ -73,9 +70,6 @@ export class ReasoningHandler implements StreamHandler {
    */
   private async *flushBuffer(): AsyncGenerator<StreamChunk> {
     if (this.chunkBuffer.length > 0) {
-      if (this.config.debug) {
-        console.log('[reasoning] Flushing', this.chunkBuffer.length, 'buffered chunks');
-      }
       for (const chunk of this.chunkBuffer) {
         yield chunk;
       }
@@ -169,20 +163,15 @@ export class ReasoningHandler implements StreamHandler {
     
     // Start reasoning block
     if (this.config.enableThinking !== false) {
-      // Use pending text-start's id if available, otherwise use current id
       const startId = (this.pendingTextStart as any)?.id || id;
       yield this.createReasoningStart(startId);
-      this.pendingTextStart = null; // Consumed
+      this.pendingTextStart = null;
     }
     
     this.inThinking = true;
     this.thinkingContent = '';
     this.hasEmittedContent = true;
     this.partialTag = '';
-    
-    if (this.config.debug) {
-      console.log('[reasoning] Detected <thinking> tag, starting buffer');
-    }
   }
 
   /**
@@ -201,11 +190,7 @@ export class ReasoningHandler implements StreamHandler {
     this.thinkingContent = '';
     this.hasEmittedContent = true;
     this.partialTag = '';
-    this.needsTextStart = true; // Next text needs a text-start
-    
-    if (this.config.debug) {
-      console.log('[reasoning] Detected </thinking> tag, flushed buffer');
-    }
+    this.needsTextStart = true;
   }
 
   /**

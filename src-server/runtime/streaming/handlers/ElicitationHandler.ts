@@ -55,19 +55,12 @@ export class ElicitationHandler implements StreamHandler {
     
     // Check if auto-approved
     if (this.isAutoApproved(toolName)) {
-      if (this.config.debug) {
-        console.log('[elicitation] Auto-approved:', toolName);
-      }
       yield chunk; // Pass through immediately
       return;
     }
     
     // Need user approval
     const approvalId = this.generateApprovalId();
-    
-    if (this.config.debug) {
-      console.log('[elicitation] Requesting approval:', toolName, approvalId);
-    }
     
     // Emit approval request
     yield {
@@ -87,17 +80,9 @@ export class ElicitationHandler implements StreamHandler {
     });
     
     if (approved) {
-      if (this.config.debug) {
-        console.log('[elicitation] Approved:', toolName);
-      }
       yield chunk; // Pass through original tool-call
-    } else {
-      if (this.config.debug) {
-        console.log('[elicitation] Denied:', toolName);
-      }
-      // Don't yield - block the tool call
-      // VoltAgent will see the tool wasn't executed and handle accordingly
     }
+    // If not approved, don't yield - block the tool call
   }
 
   /**
