@@ -96,6 +96,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const ephemeralMessages = activeChatState?.ephemeralMessages || [];
   const unreadCount = sessions.filter(s => s.hasUnread).length;
   
+  // Get updateChat from context
+  const { updateChat } = useActiveChatActions();
+  
   // Refs
   const chatSectionRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

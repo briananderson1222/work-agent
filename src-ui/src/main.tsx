@@ -13,6 +13,7 @@ import { StreamingProvider } from './contexts/StreamingContext';
 import { AnalyticsProvider } from './contexts/AnalyticsContext';
 import { ApiBaseProvider } from './contexts/ApiBaseContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { PreviewProvider } from './contexts/PreviewContext';
 import { NotificationContainer } from './components/NotificationContainer';
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext';
 import { pluginRegistry } from './core/PluginRegistry';
@@ -57,8 +58,10 @@ pluginRegistry.initialize().then(() => {
                       <ActiveChatsProvider>
                         <StreamingProvider>
                           <AnalyticsProvider>
-                            <App />
-                            <NotificationContainer />
+                            <PreviewProvider>
+                              <App />
+                              <NotificationContainer />
+                            </PreviewProvider>
                           </AnalyticsProvider>
                         </StreamingProvider>
                       </ActiveChatsProvider>

@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ReasoningSection } from './ReasoningSection';
 import { ToolCallDisplay } from './ToolCallDisplay';
+import { FilePartPreview } from './FilePartPreview';
 import { getAgentIconStyle, getUserIconStyle, getInitials } from '../utils/workspace';
 import type { AgentSummary } from '../types';
 
@@ -16,6 +17,9 @@ interface Attachment {
 interface ContentPart {
   type: string;
   content?: string;
+  url?: string;
+  mediaType?: string;
+  name?: string;
   tool?: {
     name: string;
     needsApproval?: boolean;
@@ -182,30 +186,18 @@ export function MessageBubble({
           </div>
         )}
         
-        {msg.attachments && msg.attachments.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-            {msg.attachments.map((att) => (
-              <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '4px', maxWidth: '200px' }}>
-                {att.preview && <img src={att.preview} alt={att.name} style={{ maxWidth: '120px', maxHeight: '120px', borderRadius: '4px' }} />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.85em', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</div>
-                  <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>{att.type}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        
         {msg.contentParts && msg.contentParts.length > 0 ? (
           msg.contentParts.map((part, i) => {
             if (part.type === 'reasoning' && part.content) {
               return <ReasoningSection key={i} content={part.content} fontSize={chatFontSize} show={showReasoning} />;
             } else if (part.type === 'text' && part.content) {
               return <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>;
+            } else if (part.type === 'file') {
+              return <FilePartPreview key={i} part={part} allParts={msg.contentParts} />;
             } else if (part.type === 'tool' || part.type?.startsWith('tool-')) {
               return (
                 <ToolCallDisplay 
-                  key={i} 
+                  key={i}
                   toolCall={part}
                   showDetails={showToolDetails}
                   onApprove={isStreamingMessage && part.tool?.needsApproval && onToolApproval ? (action) => {
