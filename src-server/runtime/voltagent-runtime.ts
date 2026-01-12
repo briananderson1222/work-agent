@@ -889,9 +889,7 @@ export class WorkAgentRuntime {
 
           // Raw MCP tool call (no transformation, no LLM)
           app.post('/agents/:slug/tools/:toolName', async (c) => {
-            const endpointStart = performance.now();
-            console.log('\n=== RAW TOOL CALL START ===');
-            
+            const startTime = performance.now();
             try {
               const slug = c.req.param('slug');
               const toolName = c.req.param('toolName');
@@ -915,11 +913,9 @@ export class WorkAgentRuntime {
                 return c.json({ success: false, error: `Tool ${toolName} not found` }, 404);
               }
               
-              console.log(`[Tool Call] ${toolName}`);
               const toolStart = performance.now();
               const toolResult = await (tool as any).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
-              console.log(`[Tool Complete] ${toolDuration.toFixed(2)}ms`);
               
               // Unwrap MCP result
               let unwrappedResult = toolResult;
@@ -936,20 +932,16 @@ export class WorkAgentRuntime {
                 }
               }
               
-              console.log(`=== RAW TOOL TOTAL: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
-              
               return c.json({
                 success: true,
                 response: unwrappedResult,
-                debug: {
-                  toolDuration,
-                  totalDuration: performance.now() - endpointStart
+                metadata: {
+                  toolDuration: Math.round(toolDuration),
+                  totalDuration: Math.round(performance.now() - startTime)
                 }
               });
             } catch (error: any) {
-              console.log(`=== RAW TOOL ERROR: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
               this.logger.error('Failed to call tool', { error });
-              // Check if it's an authentication error
               const errorMsg = error.message || '';
               const isAuthError = errorMsg.includes('authentication failed') ||
                                   errorMsg.includes('status code 403') ||
@@ -962,14 +954,11 @@ export class WorkAgentRuntime {
 
           // Pure transformation endpoint (no LLM, just data mapping)
           app.post('/agents/:slug/tool/:toolName', async (c) => {
-            console.log('[TRANSFORM] Endpoint called');
-            const endpointStart = performance.now();
-            
+            const startTime = performance.now();
             try {
               const slug = c.req.param('slug');
               const toolName = c.req.param('toolName');
               const { toolArgs, transform } = await c.req.json();
-              console.log('[TRANSFORM] Tool:', toolName, 'Args:', toolArgs);
               
               const agent = this.activeAgents.get(slug);
               if (!agent) {
@@ -991,12 +980,13 @@ export class WorkAgentRuntime {
               
               // Execute tool
               const toolStart = performance.now();
-              this.logger.debug('[Tool] Args', { toolName, args: toolArgs });
               const toolResult = await (tool as any).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
               
               // Unwrap MCP result
               let unwrappedResult = toolResult;
+              let parseError: string | undefined;
+              
               if (toolResult?.content?.[0]?.text) {
                 try {
                   const parsed = JSON.parse(toolResult.content[0].text);
@@ -1010,50 +1000,29 @@ export class WorkAgentRuntime {
                 }
               }
               
-              this.logger.debug('[Tool] Result', { toolName, result: unwrappedResult });
-              console.log('[PARSE] unwrappedResult type:', typeof unwrappedResult);
-              
-              let parseError: string | undefined;
-              
-              // Check if unwrappedResult itself is a string containing both error and valid data
+              // Generic handling: if result is a string with error text followed by JSON, extract the JSON
               if (typeof unwrappedResult === 'string') {
-                console.log('[PARSE] unwrappedResult is a string, checking for embedded JSON');
                 const lastBrace = unwrappedResult.lastIndexOf(', {');
-                console.log('[PARSE] Last brace position:', lastBrace);
                 if (lastBrace > 0) {
                   try {
                     parseError = unwrappedResult.substring(0, lastBrace);
                     const jsonStr = unwrappedResult.substring(lastBrace + 2);
-                    console.log('[PARSE] Attempting to parse JSON (first 100 chars):', jsonStr.substring(0, 100));
-                    const parsed = JSON.parse(jsonStr);
-                    console.log('[PARSE] Successfully parsed, extracting task');
-                    // Replace unwrappedResult with the parsed data
-                    unwrappedResult = parsed?.data?.sfdc?.task || parsed;
-                    console.log('[PARSE] Extracted task subject:', unwrappedResult?.subject);
-                  } catch (e) {
-                    console.error('[PARSE] Failed to parse embedded JSON:', e);
+                    unwrappedResult = JSON.parse(jsonStr);
+                  } catch {
                     parseError = undefined;
                   }
                 }
               }
               
-              // Check if response field contains both error and valid data
+              // Same for response field if it's a string with embedded JSON
               if (unwrappedResult?.response && typeof unwrappedResult.response === 'string') {
-                console.log('[PARSE] Checking response string for embedded JSON');
                 const lastBrace = unwrappedResult.response.lastIndexOf(', {');
-                console.log('[PARSE] Last brace position:', lastBrace);
                 if (lastBrace > 0) {
                   try {
                     parseError = unwrappedResult.response.substring(0, lastBrace);
                     const jsonStr = unwrappedResult.response.substring(lastBrace + 2);
-                    console.log('[PARSE] Attempting to parse JSON (first 100 chars):', jsonStr.substring(0, 100));
-                    const parsed = JSON.parse(jsonStr);
-                    console.log('[PARSE] Successfully parsed, extracting task');
-                    // Replace unwrappedResult with the parsed data
-                    unwrappedResult = parsed?.data?.sfdc?.task || parsed;
-                    console.log('[PARSE] Extracted task subject:', unwrappedResult?.subject);
-                  } catch (e) {
-                    console.error('[PARSE] Failed to parse embedded JSON:', e);
+                    unwrappedResult = JSON.parse(jsonStr);
+                  } catch {
                     parseError = undefined;
                   }
                 }
@@ -1086,85 +1055,64 @@ export class WorkAgentRuntime {
               return c.json({
                 success: true,
                 response: transformed,
-                debug: {
-                  toolDuration,
-                  transformDuration,
-                  totalDuration: performance.now() - endpointStart,
+                metadata: {
+                  toolDuration: Math.round(toolDuration),
+                  transformDuration: Math.round(transformDuration),
+                  totalDuration: Math.round(performance.now() - startTime),
                   ...(parseError && { parseError })
                 }
               });
             } catch (error: any) {
               this.logger.error('Failed to transform invoke', { error });
-              // Check if it's an authentication error
               const errorMsg = error.message || '';
-              console.log('[Auth Check]', { errorMsg, includes403: errorMsg.includes('status code 403') });
               const isAuthError = errorMsg.includes('authentication failed') ||
                                   errorMsg.includes('status code 403') ||
                                   errorMsg.includes('Request failed with status code 403') ||
                                   errorMsg.includes('Midway') ||
                                   errorMsg.includes('Form action URL not found');
-              console.log('[Auth Error?]', isAuthError);
               return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
             }
           });
 
           app.post('/agents/:slug/invoke/stream', async (c) => {
-            const endpointStart = performance.now();
             try {
               const slug = c.req.param('slug');
               const { prompt, silent = true, model, tools: toolNames, maxSteps = 10, schema: schemaJson } = await c.req.json();
 
-              const agentLookupStart = performance.now();
               const agent = this.activeAgents.get(slug);
               if (!agent) {
                 return c.json({ success: false, error: 'Agent not found' }, 404);
               }
-              console.log(`Agent lookup: ${(performance.now() - agentLookupStart).toFixed(2)}ms`);
 
               const options: any = { maxSteps, maxOutputTokens: 2000 };
               if (model && this.modelCatalog) {
-                const modelStart = performance.now();
                 const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
                   appConfig: this.appConfig, 
                   agentSpec: { model: resolvedModel } as any 
                 });
-                console.log(`Model creation: ${(performance.now() - modelStart).toFixed(2)}ms`);
               }
               
               // Override tools if specified - create temp agent with only filtered tools
               if (toolNames && Array.isArray(toolNames)) {
-                const toolFilterStart = performance.now();
                 const allTools = this.agentTools.get(slug) || [];
                 const filteredTools = allTools.filter(t => toolNames.includes(t.name));
-                console.log(`Tool filtering: ${(performance.now() - toolFilterStart).toFixed(2)}ms`);
-                
-                console.log('=== TOOL FILTERING ===');
-                console.log('Requested:', toolNames);
-                console.log('Available:', allTools.length);
-                console.log('Filtered:', filteredTools.length);
                 
                 // Create temporary agent with ONLY the filtered tools
-                const agentCreateStart = performance.now();
                 const tempAgent = new Agent({
                   name: `${slug}-temp`,
                   instructions: agent.instructions,
                   model: options.model || agent.model,
                   tools: filteredTools,
                   maxSteps,
-                  hooks: agent.hooks, // Copy hooks from main agent
+                  hooks: agent.hooks,
                 });
-                console.log(`Agent creation: ${(performance.now() - agentCreateStart).toFixed(2)}ms`);
-                
-                const generateStart = performance.now();
                 
                 // generateObject cannot use tools, so use generateText with JSON mode
                 if (schemaJson) {
                   const textResult = await tempAgent.generateText(
                     `${prompt}\n\nReturn ONLY valid JSON matching this schema (no markdown, no explanation):\n${JSON.stringify(schemaJson, null, 2)}`
                   );
-                  console.log(`generateText: ${(performance.now() - generateStart).toFixed(2)}ms`);
-                  console.log(`=== ENDPOINT TOTAL: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
                   
                   // Extract JSON from response (handles markdown code blocks)
                   let parsed;
@@ -1172,7 +1120,6 @@ export class WorkAgentRuntime {
                     const cleaned = textResult.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
                     parsed = JSON.parse(cleaned);
                   } catch {
-                    // Fallback: try to find JSON object in text
                     const jsonMatch = textResult.text.match(/\{[\s\S]*\}/);
                     parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to parse JSON' };
                   }
@@ -1180,45 +1127,28 @@ export class WorkAgentRuntime {
                   return c.json({ 
                     success: true, 
                     response: parsed,
-                    usage: textResult.usage,
-                    debug: {
-                      totalTools: allTools.length,
-                      filteredTools: filteredTools.length,
-                      toolNames: filteredTools.map(t => t.name)
-                    }
+                    usage: textResult.usage
                   });
                 }
                 
                 const result = await tempAgent.generateText(prompt);
-                console.log(`generateText: ${(performance.now() - generateStart).toFixed(2)}ms`);
-                console.log(`=== ENDPOINT TOTAL: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
                 
                 return c.json({ 
                   success: true, 
                   response: result.text,
-                  usage: result.usage,
-                  debug: {
-                    totalTools: allTools.length,
-                    filteredTools: filteredTools.length,
-                    toolNames: filteredTools.map(t => t.name)
-                  }
+                  usage: result.usage
                 });
               }
 
               // For multi-turn, use generateText/generateObject and return result
-              const generateStart = performance.now();
               const result = schemaJson
                 ? await agent.generateObject(prompt, jsonSchema(schemaJson) as any, options)
                 : await agent.generateText(prompt, options);
               
-              console.log(`generate${schemaJson ? 'Object' : 'Text'}: ${(performance.now() - generateStart).toFixed(2)}ms`);
-              console.log(`=== ENDPOINT TOTAL: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
-              
               return c.json({ 
                 success: true, 
                 response: schemaJson ? (result as any).object : (result as any).text,
-                usage: result.usage,
-                debug: options.debugInfo || { message: 'No tool filtering applied' }
+                usage: result.usage
               });
             } catch (error: any) {
               this.logger.error('Failed to stream invoke', { error });
@@ -1268,11 +1198,6 @@ export class WorkAgentRuntime {
                 ? toolIds.map((id: string) => this.globalToolRegistry.get(id)).filter(Boolean)
                 : [];
 
-              console.log('[INVOKE] Requested:', toolIds);
-              console.log('[INVOKE] Available in registry:', this.globalToolRegistry.size);
-              console.log('[INVOKE] Filtered:', filteredTools.map((t: any) => t.name));
-              console.log('[INVOKE] Schema provided:', !!schema);
-
               // Resolve models from config - invokeModel for tool calling, structureModel for output formatting
               const invokeModelId = model || this.appConfig.invokeModel;
               const structureModelId = structureModel || this.appConfig.structureModel;
@@ -1309,8 +1234,6 @@ export class WorkAgentRuntime {
                 conversationId: tempConvId,
                 userId: 'invoke-user'
               });
-              
-              console.log('[INVOKE] Phase 1 complete - Steps:', textResult.steps?.length, 'Text length:', textResult.text.length);
               
               if (!schema) {
                 return c.json({
@@ -1361,15 +1284,30 @@ export class WorkAgentRuntime {
           // Custom chat endpoint with elicitation - use different path to avoid VoltAgent conflicts
           app.post('/api/agents/:slug/chat', async (c) => {
             const slug = c.req.param('slug');
-            console.log(`[CHAT ENDPOINT] Called for agent: ${slug}`);
-            this.logger.info('[Chat Endpoint] Called', { slug });
             
             try {
               const { input, options = {} } = await c.req.json();
+              
+              // DEBUG: Log image data to trace truncation
+              if (Array.isArray(input)) {
+                for (const msg of input) {
+                  if (msg.parts) {
+                    for (const part of msg.parts) {
+                      if (part.type === 'file' && part.url) {
+                        const dataUrl = part.url as string;
+                        this.logger.info('[DEBUG Image] Received file part', {
+                          mediaType: part.mediaType,
+                          urlLength: dataUrl.length,
+                          urlStart: dataUrl.substring(0, 50),
+                          urlEnd: dataUrl.substring(dataUrl.length - 50),
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+              
               const { model: modelOverride, ...restOptions } = options;
-
-              console.log(`[CHAT ENDPOINT] Processing request for ${slug}`);
-              this.logger.info('[Chat Endpoint] Processing request', { slug, hasInput: !!input });
 
               let agent = this.activeAgents.get(slug);
               if (!agent) {
@@ -1696,9 +1634,9 @@ export class WorkAgentRuntime {
                   
                   // Add handlers in order (elicitation handled via callback + injectable stream)
                   pipeline
-                    .use(new ReasoningHandler({ enableThinking: true, debug: debugStreaming }))
-                    .use(new TextDeltaHandler({ debug: debugStreaming }))
-                    .use(new ToolCallHandler({ debug: debugStreaming }))
+                    .use(new ReasoningHandler({ enableThinking: true }))
+                    .use(new TextDeltaHandler())
+                    .use(new ToolCallHandler())
                     .use(metadataHandler)
                     .use(completionHandler);
                   

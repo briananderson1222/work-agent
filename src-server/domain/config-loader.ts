@@ -610,17 +610,14 @@ export class ConfigLoader {
     });
 
     this.watcher.on('change', (path) => {
-      console.log(`Config file changed: ${path}`);
       this.notifyListeners('change', path);
     });
 
     this.watcher.on('add', (path) => {
-      console.log(`Config file added: ${path}`);
       this.notifyListeners('add', path);
     });
 
     this.watcher.on('unlink', (path) => {
-      console.log(`Config file removed: ${path}`);
       this.notifyListeners('remove', path);
     });
   }
