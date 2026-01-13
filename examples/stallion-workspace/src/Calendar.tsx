@@ -2,10 +2,20 @@ import { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { useToast, transformTool, useWorkspaceNavigation, invokeAgent, invoke, useNotifications, useSendToChat } from '@stallion-ai/sdk';
+import { useToast, useWorkspaceNavigation, invoke, useNotifications, useSendToChat } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { useLocalSalesState } from './SalesDataContext';
-import { useCalendarEvents } from './useSalesQueries';
+import { 
+  useCalendarEvents, 
+  useMeetingDetails,
+  useUserTasks,
+  useAccountOpportunities,
+  useCreateTask,
+  useUpdateTask,
+  useTaskDetails,
+  salesforceProvider,
+  outlookProvider,
+} from './data';
 import { SearchModal } from './components/SearchModal';
 import './workspace.css';
 
@@ -399,27 +409,24 @@ export function Calendar({ activeTab }: CalendarProps) {
       }
       
       try {
-        const data = await transformTool('work-agent', 'sat-outlook_calendar_view', {
-          view: 'day',
-          start_date: dateStr.split('-').slice(1).join('-') + '-' + dateStr.split('-')[0]
-        }, `(data) => ({
-          events: data.map(e => ({
-            meetingId: e.meetingId,
-            meetingChangeKey: e.meetingChangeKey,
-            subject: e.subject,
-            start: e.start,
-            end: e.end,
-            location: e.location || '',
-            organizer: e.organizer?.name || '',
-            status: e.status,
-            isCanceled: e.isCanceled || false,
-            categories: e.categories || [],
-            isAllDay: e.isAllDay || false
-          }))
-        })`);
+        const events = await outlookProvider.getEvents(today);
+        // Map back to CalendarEvent format for compatibility
+        const mapped = events.map(e => ({
+          meetingId: e.id,
+          meetingChangeKey: e.changeKey || '',
+          subject: e.subject,
+          start: e.start.toISOString(),
+          end: e.end.toISOString(),
+          location: e.location || '',
+          organizer: e.organizer || '',
+          status: e.status,
+          isCanceled: e.isCancelled || false,
+          categories: e.categories || [],
+          isAllDay: e.isAllDay || false
+        }));
         
-        setTodayEvents(data.events);
-        setCache(cacheKey, data.events);
+        setTodayEvents(mapped);
+        setCache(cacheKey, mapped);
       } catch (err) {
         console.error('Failed to fetch today events:', err);
       }
@@ -519,52 +526,32 @@ export function Calendar({ activeTab }: CalendarProps) {
     setLoadingDetails(true);
     
     try {
-      const data = await transformTool('work-agent', 'sat-outlook_calendar_meeting', {
-        operation: 'read',
-        meetingId: meetingId, 
-        meetingChangeKey: event.meetingChangeKey 
-      }, `(data) => {
-        const meeting = data.success ? data.content : data;
-        
-        const normalizeStatus = (status) => {
-          if (!status || status === 'Unknown' || status === 'NoResponseReceived') return 'No Response';
-          if (status === 'Accept' || status === 'Accepted') return 'Accepted';
-          if (status === 'Decline' || status === 'Declined') return 'Declined';
-          return status;
-        };
-        const mapAttendees = (list) => (list || []).map(a => {
-          if (typeof a === 'string') return { email: a, status: 'No Response' };
-          const email = a.emailAddress?.address || a.email;
-          const name = a.emailAddress?.name || a.name;
-          
-          return {
-            email,
-            name: name && name !== email ? name : undefined,
-            status: normalizeStatus(a.responseStatus)
-          };
-        });
-        return {
-          meetingId: meeting.meetingId,
-          meetingChangeKey: meeting.changeKey,
-          subject: meeting.subject,
-          body: meeting.body || '',
-          attendees: [...mapAttendees(meeting.attendees), ...mapAttendees(meeting.optionalAttendees || [])],
-          start: meeting.start,
-          end: meeting.end,
-          location: meeting.location || '',
-          organizer: meeting.organizer || '',
-          organizerEmail: meeting.organizer?.email,
-          organizerName: meeting.organizer?.name,
-          responseStatus: normalizeStatus(meeting.myResponseStatus || meeting.responseStatus)
-        };
-      }`);
+      const vm = await outlookProvider.getMeetingDetails(meetingId, event.meetingChangeKey);
       
-      const details = data;
+      // Map ViewModel to MeetingDetails format for compatibility
+      const details: MeetingDetails = {
+        meetingId: vm.id,
+        meetingChangeKey: vm.changeKey || '',
+        subject: vm.subject,
+        body: vm.body || '',
+        attendees: (vm.attendees || []).map(a => ({
+          email: a.email,
+          name: a.name,
+          status: a.status === 'none' ? 'No Response' : a.status === 'accepted' ? 'Accepted' : a.status === 'declined' ? 'Declined' : a.status
+        })),
+        start: vm.start.toISOString(),
+        end: vm.end.toISOString(),
+        location: vm.location || '',
+        organizer: vm.organizer || '',
+        responseStatus: 'No Response'
+      };
       
-      // Populate emailToName map from organizer if available
-      if (details.organizerEmail && details.organizerName) {
-        addEmailName(details.organizerEmail, details.organizerName);
-      }
+      // Populate emailToName map from attendees
+      details.attendees?.forEach(a => {
+        if (a.email && a.name) {
+          addEmailName(a.email, a.name);
+        }
+      });
       
       // Enrich attendee names from emailToName map
       if (details.attendees) {
@@ -679,19 +666,21 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
   // Fetch opportunities for selected account
   const fetchOpportunitiesForAccount = async (accountId: string, keyword: string) => {
     try {
-      const result = await transformTool('work-agent', 'satSfdc_getOpportunitiesForAccount', { 
-        accountId,
-        includeClosed: true
-      }, 'data => data');
+      const opps = await salesforceProvider.getAccountOpportunities(accountId);
       
-      // Sort by lastModifiedDate descending (most recent first) and add accountId
-      const opportunities = (result?.opportunities || [])
-        .map((opp: any) => ({ ...opp, accountId }))
-        .sort((a: any, b: any) => {
-          const dateA = new Date(a.lastModifiedDate || 0).getTime();
-          const dateB = new Date(b.lastModifiedDate || 0).getTime();
-          return dateB - dateA;
-        });
+      // Sort by closeDate descending and map to expected format
+      const opportunities = opps
+        .map((opp) => ({ 
+          id: opp.id,
+          name: opp.name,
+          accountId: opp.accountId,
+          amount: opp.amount,
+          closeDate: opp.closeDate.toISOString().split('T')[0],
+          stageName: opp.stage,
+          probability: opp.probability,
+          owner: opp.owner
+        }))
+        .sort((a, b) => new Date(b.closeDate).getTime() - new Date(a.closeDate).getTime());
       
       setSfdcContext(prev => ({
         ...prev,
@@ -744,22 +733,40 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
   const fetchTasksForItem = async (item: {type: 'account' | 'opportunity' | 'campaign', data: any}) => {
     setLoadingTasks(true);
     try {
-      // Use listUserTasks with appropriate filter
-      const params: any = { limit: 50 };
+      // Use getUserTasks with appropriate filter
+      const filters: { accountId?: string; opportunityId?: string } = {};
       if (item.type === 'opportunity') {
-        params.opportunityId = item.data.id;
-      } else if (item.type === 'campaign') {
-        params.campaignId = item.data.id;
-      } else {
-        params.accountId = item.data.id;
+        filters.opportunityId = item.data.id;
+      } else if (item.type === 'account') {
+        filters.accountId = item.data.id;
+      }
+      // Note: campaign filter not supported in current provider interface
+      
+      const userAlias = salesContext.myDetails?.name;
+      if (!userAlias) {
+        console.warn('No user alias available for task fetch');
+        return;
       }
       
-      const tasksResult = await transformTool('work-agent', 'satSfdc_listUserTasks', params, 'data => data');
+      const tasks = await salesforceProvider.getUserTasks(userAlias, filters);
+      
+      // Map to expected format
+      const mappedTasks = tasks.map(t => ({
+        id: t.id,
+        subject: t.subject,
+        status: t.status,
+        activityDate: t.dueDate?.toISOString().split('T')[0],
+        description: t.description,
+        priority: t.priority,
+        sa_Activity__c: t.activityType,
+        what: t.relatedTo ? { __typename: t.relatedTo.type, name: t.relatedTo.name } : undefined,
+        whatId: t.relatedTo?.id
+      }));
       
       // Update context with tasks
       setSfdcContext(prev => ({
         ...prev,
-        tasks: tasksResult?.tasks || []
+        tasks: mappedTasks
       }));
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
@@ -2169,10 +2176,9 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                   onClick={async () => {
                     setAssigningActivity(true);
                     try {
-                      await transformTool('work-agent', 'satSfdc_updateTechActivity', {
-                        taskId: activityToAssign.id,
-                        parentRecord: item.id
-                      }, 'data => data');
+                      await salesforceProvider.updateTask(activityToAssign.id, {
+                        relatedTo: { type: item.type, id: item.id, name: item.name }
+                      });
                       showToast(`Activity assigned to ${item.type.toLowerCase()}`, 'success');
                       setShowAssignOppModal(false);
                       setActivityToAssign(null);
@@ -2860,15 +2866,16 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                           
                           setSubmittingActivity(true);
                           try {
-                            const result = await transformTool('work-agent', 'satSfdc_createTechActivity', {
-                              parentRecord: selectedSfdcItem.data.id,
+                            const task = await salesforceProvider.createTask({
                               subject: activityFormData.subject,
-                              saActivity: activityFormData.saActivity,
-                              activityDate: activityFormData.activityDate,
-                              description: activityFormData.description
-                            }, 'data => data');
+                              activityType: activityFormData.saActivity,
+                              dueDate: activityFormData.activityDate ? new Date(activityFormData.activityDate) : undefined,
+                              description: activityFormData.description,
+                              relatedTo: { type: selectedSfdcItem.type, id: selectedSfdcItem.data.id, name: selectedSfdcItem.data.name },
+                              status: 'open'
+                            });
                             
-                            const taskId = result?.task?.id;
+                            const taskId = task?.id;
                             
                             // Store logged activity in workspace context
                             if (taskId && selectedEvent) {
@@ -2995,9 +3002,19 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                                   setShowActivityDetailModal(true);
                                   setLoadingActivityDetails(true);
                                   try {
-                                    const details = await transformTool('work-agent', 'satSfdc_fetchTaskDetails', {
-                                      taskId: task.id
-                                    }, 'data => data');
+                                    const taskVM = await salesforceProvider.getTaskDetails(task.id);
+                                    // Map to expected format
+                                    const details = {
+                                      id: taskVM.id,
+                                      subject: taskVM.subject,
+                                      status: taskVM.status,
+                                      activityDate: taskVM.dueDate?.toISOString().split('T')[0],
+                                      description: taskVM.description,
+                                      priority: taskVM.priority,
+                                      sa_Activity__c: taskVM.activityType,
+                                      what: taskVM.relatedTo ? { __typename: taskVM.relatedTo.type, name: taskVM.relatedTo.name } : undefined,
+                                      whatId: taskVM.relatedTo?.id
+                                    };
                                     setSelectedActivity(details);
                                   } catch (err) {
                                     console.error('Failed to fetch task details:', err);

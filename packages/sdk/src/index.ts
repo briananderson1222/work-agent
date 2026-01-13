@@ -128,3 +128,15 @@ export {
 
 // Re-export workspace utilities
 export { createWorkspaceContext } from './workspace/context';
+
+// Re-export workspace provider hooks (delegates to core app)
+export {
+  registerProvider,
+  configureProvider,
+  getProvider,
+  hasProvider,
+  getActiveProviderId,
+  _setProviderFunctions,
+} from './workspaceProviders';
+
+export type { ProviderMetadata } from './workspaceProviders';

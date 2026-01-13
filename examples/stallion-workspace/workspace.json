@@ -3,6 +3,7 @@
   "slug": "stallion",
   "icon": "🐎",
   "description": "Integrated calendar and CRM workspace with flexible agent support",
+  "requiredProviders": ["calendar", "crm", "user"],
   "availableAgents": [
     "stallion-workspace:work-agent"
   ],

@@ -1,11 +1,18 @@
 import { ReactNode, useEffect } from 'react';
-import { SDKProvider, type SDKContextValue, _setWorkspaceContext, _setApiBase, useWorkspacesQuery } from '@stallion-ai/sdk';
+import { SDKProvider, type SDKContextValue, _setWorkspaceContext, _setApiBase, _setProviderFunctions, useWorkspacesQuery } from '@stallion-ai/sdk';
 import { useAgents } from '../contexts/AgentsContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 import { useSendMessage, useCreateChatSession, useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import {
+  registerProvider,
+  configureProvider,
+  getProvider,
+  hasProvider,
+  getActiveProviderId,
+} from './workspaceProviders';
 import type { WorkspaceConfig } from '../types';
 
 interface SDKAdapterProps {
@@ -26,6 +33,16 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
   useEffect(() => {
     _setApiBase(apiBase);
     _setWorkspaceContext(workspace);
+    
+    // Inject provider functions into SDK
+    _setProviderFunctions({
+      getProvider,
+      hasProvider,
+      getActiveProviderId,
+      registerProvider,
+      configureProvider,
+    });
+    
     return () => {
       _setWorkspaceContext(undefined);
     };

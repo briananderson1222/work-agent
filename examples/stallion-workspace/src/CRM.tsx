@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useToast, transformTool, useWorkspaceNavigation, Button, Pill, useSendToChat, invokeAgent } from '@stallion-ai/sdk';
+import { useToast, useWorkspaceNavigation, Button, Pill, useSendToChat } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { LeadershipInsightModal } from './LeadershipInsightModal';
+import { salesforceProvider } from './data';
 import './workspace.css';
 
 const SALESFORCE_BASE_URL = 'https://aws-crm.lightning.force.com';
@@ -257,12 +258,9 @@ export function CRM({ activeTab }: CRMProps) {
 
     const timer = setTimeout(async () => {
       try {
-        const territories = await transformTool(agentSlug, 'sat-sfdc_search_territories',
-          { queryTerm: searchInput },
-          `(data) => data.territories || data || []`
-        );
+        const territories = await salesforceProvider.searchTerritories(searchInput);
         
-        const items: AutocompleteItem[] = (territories || []).map((t: any) => ({
+        const items: AutocompleteItem[] = territories.map((t) => ({
           id: t.id,
           title: t.name,
           description: t.id,
@@ -347,13 +345,15 @@ export function CRM({ activeTab }: CRMProps) {
   const loadTerritoryAccounts = async (territoryId: string, territoryName: string) => {
     setLoading(true);
     try {
-      const result = await transformTool(agentSlug, 'sat-sfdc_list_territory_accounts',
-        { territoryId },
-        `(data) => data.accounts || data || []`
-      );
+      const accounts = await salesforceProvider.getTerritoryAccounts(territoryId);
       
-      const newAccounts = (result || []).map((acc: Account) => ({
-        ...acc,
+      const newAccounts = accounts.map((acc) => ({
+        id: acc.id,
+        name: acc.name,
+        owner: acc.owner,
+        website: acc.website,
+        geo_Text__c: acc.geo,
+        awsci_customer: acc.segment ? { customerRevenue: { tShirtSize: acc.segment } } : undefined,
         _sources: [{ type: 'territory' as const, label: territoryName }]
       }));
       setAccounts(prev => {
@@ -391,15 +391,17 @@ export function CRM({ activeTab }: CRMProps) {
       const owners = ownerSearch.split(',').map(owner => owner.trim()).filter(owner => owner);
       
       const searchPromises = owners.map(owner =>
-        transformTool(agentSlug, 'sat-sfdc_search_accounts',
-          { owner, ownerFilterType: 'CONTAINS_WORD' },
-          `(data) => data.accounts || data || []`
-        )
+        salesforceProvider.searchAccounts({ field: 'owner', operator: 'CONTAINS', value: owner })
       );
       
       const results = await Promise.all(searchPromises);
-      const newAccounts = results.flat().map((acc: Account) => ({
-        ...acc,
+      const newAccounts = results.flat().map((acc) => ({
+        id: acc.id,
+        name: acc.name,
+        owner: acc.owner,
+        website: acc.website,
+        geo_Text__c: acc.geo,
+        awsci_customer: acc.segment ? { customerRevenue: { tShirtSize: acc.segment } } : undefined,
         _sources: [{ type: 'owner' as const, label: ownerSearch }]
       }));
       
@@ -459,15 +461,12 @@ export function CRM({ activeTab }: CRMProps) {
     if (!enrichedAccount || forceRefresh) {
       // Fetch full account details
       try {
-        const details = await transformTool(agentSlug, 'sat-sfdc_fetch_account_details',
-          { accountId: account.id },
-          `(data) => data`
-        );
+        const details = await salesforceProvider.getAccountDetails(account.id);
         enrichedAccount = {
           ...account,
           owner: details.owner,
-          geo_Text__c: details.geo_Text__c,
-          awsci_customer: details.awsci_customer,
+          geo_Text__c: details.geo,
+          awsci_customer: details.segment ? { customerRevenue: { tShirtSize: details.segment } } : undefined,
           website: details.website
         };
         // Cache the enriched account
@@ -509,16 +508,35 @@ export function CRM({ activeTab }: CRMProps) {
     
     try {
       // Load opportunities and tasks in parallel
-      const [oppsResult, tasksResult] = await Promise.all([
-        transformTool(agentSlug, 'sat-sfdc_search_opportunities',
-          { condition: { field: 'accountId', operator: 'EXACT_MATCH', value: account.id } },
-          `(data) => data.data?.opportunities || data.opportunities || []`
-        ).finally(() => setLoadingOpportunities(false)),
-        userDetails?.alias ? transformTool(agentSlug, 'sat-sfdc_list_user_tasks',
-          { userAlias: userDetails.alias, accountId: account.id },
-          `(data) => data.data?.tasks || data.tasks || []`
-        ).finally(() => setLoadingTasks(false)) : Promise.resolve([])
+      const [oppsVMs, tasksVMs] = await Promise.all([
+        salesforceProvider.getAccountOpportunities(account.id).finally(() => setLoadingOpportunities(false)),
+        userDetails?.alias 
+          ? salesforceProvider.getUserTasks(userDetails.alias, { accountId: account.id }).finally(() => setLoadingTasks(false)) 
+          : Promise.resolve([])
       ]);
+
+      // Map to expected format
+      const oppsResult = oppsVMs.map(o => ({
+        id: o.id,
+        name: o.name,
+        amount: o.amount,
+        closeDate: o.closeDate.toISOString().split('T')[0],
+        stageName: o.stage,
+        probability: o.probability,
+        owner: o.owner
+      }));
+      
+      const tasksResult = tasksVMs.map(t => ({
+        id: t.id,
+        subject: t.subject,
+        status: t.status,
+        activityDate: t.dueDate?.toISOString().split('T')[0],
+        description: t.description,
+        priority: t.priority,
+        sa_Activity__c: t.activityType,
+        what: t.relatedTo ? { __typename: t.relatedTo.type, name: t.relatedTo.name } : undefined,
+        whatId: t.relatedTo?.id
+      }));
 
       setOpportunities(oppsResult || []);
       setTasks(tasksResult || []);
@@ -551,25 +569,33 @@ export function CRM({ activeTab }: CRMProps) {
     // Refetch all active filters
     setLoading(true);
     try {
-      const allAccounts = [];
+      const allAccounts: Account[] = [];
       for (const filter of activeFilters) {
         if (filter.type === 'owner' && filter.value) {
           const owners = filter.value.split(',').map(owner => owner.trim()).filter(owner => owner);
           const searchPromises = owners.map(owner =>
-            transformTool(agentSlug, 'sat-sfdc_search_accounts',
-              { owner, ownerFilterType: 'CONTAINS_WORD' },
-              `(data) => data || []`
-            )
+            salesforceProvider.searchAccounts({ field: 'owner', operator: 'CONTAINS', value: owner })
           );
           const results = await Promise.all(searchPromises);
-          const accounts = results.flat();
+          const accounts = results.flat().map(acc => ({
+            id: acc.id,
+            name: acc.name,
+            owner: acc.owner,
+            website: acc.website,
+            geo_Text__c: acc.geo,
+            awsci_customer: acc.segment ? { customerRevenue: { tShirtSize: acc.segment } } : undefined
+          }));
           allAccounts.push(...accounts);
         } else if (filter.type === 'territory' && filter.id) {
-          const result = await transformTool(agentSlug, 'sat-sfdc_list_territory_accounts',
-            { territoryId: filter.id },
-            `(data) => data.accounts || data || []`
-          );
-          const accounts = result || [];
+          const result = await salesforceProvider.getTerritoryAccounts(filter.id);
+          const accounts = result.map(acc => ({
+            id: acc.id,
+            name: acc.name,
+            owner: acc.owner,
+            website: acc.website,
+            geo_Text__c: acc.geo,
+            awsci_customer: acc.segment ? { customerRevenue: { tShirtSize: acc.segment } } : undefined
+          }));
           allAccounts.push(...accounts);
         }
       }
@@ -602,17 +628,15 @@ export function CRM({ activeTab }: CRMProps) {
     
     setLoading(true);
     try {
-      await transformTool(agentSlug, 'sat-sfdc_create_opportunity',
-        {
-          name: oppFormData.name,
-          accountId: selectedAccount.id,
-          stageName: oppFormData.stageName,
-          closeDate: oppFormData.closeDate,
-          amount: oppFormData.amount ? parseFloat(oppFormData.amount) : undefined,
-          probability: parseInt(oppFormData.probability)
-        },
-        `(data) => data`
-      );
+      await salesforceProvider.createOpportunity({
+        name: oppFormData.name,
+        accountId: selectedAccount.id,
+        stage: oppFormData.stageName,
+        closeDate: new Date(oppFormData.closeDate),
+        amount: oppFormData.amount ? parseFloat(oppFormData.amount) : undefined,
+        probability: parseInt(oppFormData.probability),
+        owner: { id: '', name: '', email: '' }
+      });
       
       showToast('Opportunity created successfully', 'success');
       setShowCreateOppModal(false);
@@ -975,17 +999,14 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                   if (!activityFormData.subject || !activityFormData.saActivity) return;
                   setLoading(true);
                   try {
-                    await transformTool(agentSlug, 'sat-sfdc_create_sa_activity',
-                      {
-                        opportunityId: selectedOpportunity.id,
-                        subject: activityFormData.subject,
-                        saActivity: activityFormData.saActivity,
-                        activityDate: activityFormData.activityDate,
-                        description: activityFormData.description,
-                        status: 'Completed'
-                      },
-                      `(data) => data`
-                    );
+                    await salesforceProvider.createTask({
+                      subject: activityFormData.subject,
+                      activityType: activityFormData.saActivity,
+                      dueDate: activityFormData.activityDate ? new Date(activityFormData.activityDate) : undefined,
+                      description: activityFormData.description,
+                      relatedTo: { type: 'Opportunity', id: selectedOpportunity.id, name: selectedOpportunity.name },
+                      status: 'completed'
+                    });
                     showToast('Activity logged successfully', 'success');
                     setShowLogActivityModal(false);
                     if (selectedAccount) await loadAccountDetails(selectedAccount, true);

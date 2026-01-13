@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { transformTool } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { useSales } from './StallionContext';
 import { SearchModal } from './components/SearchModal';
+import { salesforceProvider } from './data';
 
 interface LeadershipInsightModalProps {
   isOpen: boolean;
@@ -57,9 +57,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
     if (enrichmentStatus === 'polling' && enrichmentId) {
       const interval = setInterval(async () => {
         try {
-          const result = await transformTool(agentSlug, 'sat-sfdc_fetch_insight_enrichment', {
-            enrichmentId
-          }, '(data) => data || {}');
+          const result = await salesforceProvider.fetchInsightEnrichment(enrichmentId);
           
           if (result.insightFeedback) {
             setEnrichmentResult(result);
@@ -78,9 +76,22 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
   }, [enrichmentStatus, enrichmentId, agentSlug]);
 
   const loadTasks = async () => {
+    if (!userDetails) return;
     try {
-      const tasks = await transformTool(agentSlug, 'sat-sfdc_list_user_tasks', {}, '(data) => data.tasks || []');
-      setState({ myTasks: tasks });
+      const tasks = await salesforceProvider.getUserTasks(userDetails.alias);
+      // Map to expected format
+      const mappedTasks = tasks.map(t => ({
+        id: t.id,
+        subject: t.subject,
+        status: t.status,
+        activityDate: t.dueDate?.toISOString().split('T')[0],
+        description: t.description,
+        priority: t.priority,
+        sa_Activity__c: t.activityType,
+        what: t.relatedTo ? { __typename: t.relatedTo.type, name: t.relatedTo.name } : undefined,
+        whatId: t.relatedTo?.id
+      }));
+      setState({ myTasks: mappedTasks });
     } catch (err) {
       console.error('Failed to load tasks:', err);
     }
@@ -89,10 +100,10 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
   const loadInsights = async () => {
     if (!userDetails) return;
     try {
-      const insights = await transformTool(agentSlug, 'sat-sfdc_list_my_insights', { 
+      const insights = await salesforceProvider.listMyInsights({ 
         pageSize: 50, 
         userAlias: userDetails.alias 
-      }, '(data) => data.insights || []');
+      });
       setState({ myInsights: insights });
     } catch (err) {
       console.error('Failed to load insights:', err);
@@ -149,11 +160,11 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
     
     setEnrichmentStatus('creating');
     try {
-      const result = await transformTool(agentSlug, 'sat-sfdc_create_insight_enrichment', {
+      const result = await salesforceProvider.createInsightEnrichment({
         userAlias: userDetails.alias,
         text: description,
         accountIds: selectedAccounts.map(a => a.id),
-      }, '(data) => data || {}');
+      });
       setEnrichmentId(result.id || '');
       setEnrichmentStatus('polling');
     } catch (err) {
@@ -167,7 +178,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
     
     setLoading(true);
     try {
-      await transformTool(agentSlug, 'sat-sfdc_create_leadership_insight', {
+      await salesforceProvider.createLeadershipInsight({
         title,
         description,
         category,
@@ -177,7 +188,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
         originalDescription: enrichmentResult.originalDescription,
         insightRating: enrichmentResult.insightRating,
         insightFeedback: enrichmentResult.insightFeedback
-      }, '(data) => data || {}');
+      });
 
       // Reset and close
       setCategory('Highlight');

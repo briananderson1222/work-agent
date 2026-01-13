@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { transformTool } from '@stallion-ai/sdk';
+import { salesforceProvider } from '../data';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -29,23 +29,16 @@ export function SearchModal({ isOpen, onClose, onSelect, type: initialType, agen
     const timer = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        let toolName = '';
-        let transformFn = '';
+        let results: any[] = [];
         if (type === 'account') {
-          toolName = 'sat-sfdc_search_accounts';
-          transformFn = '(data) => data.accounts || []';
+          const accounts = await salesforceProvider.searchAccounts({ field: 'name', operator: 'CONTAINS', value: searchInput });
+          results = accounts.map(a => ({ id: a.id, name: a.name, website: a.website }));
         } else if (type === 'campaign') {
-          toolName = 'sat-sfdc_search_campaigns';
-          transformFn = '(data) => data.campaigns || []';
+          results = await salesforceProvider.searchCampaigns(searchInput);
         } else if (type === 'opportunity') {
-          toolName = 'sat-sfdc_search_opportunities';
-          transformFn = '(data) => data.opportunities || []';
+          const opps = await salesforceProvider.searchOpportunities({ field: 'name', operator: 'CONTAINS', value: searchInput });
+          results = opps.map(o => ({ id: o.id, name: o.name, type: o.stage }));
         }
-
-        const results = await transformTool(agentSlug, toolName,
-          { queryTerm: searchInput },
-          transformFn
-        );
         setSearchResults(results);
       } catch (err) {
         console.error('Search failed:', err);

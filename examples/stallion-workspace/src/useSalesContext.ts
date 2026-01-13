@@ -1,17 +1,23 @@
-import { useSalesData } from './SalesDataContext';
+import { useUserProfile, useMyTerritories, useMyAccounts } from './data';
 
 /**
  * Hook to subscribe to sales context data
  */
 export function useSalesContext() {
-  const { data, isLoading, error } = useSalesData();
-  
+  const { data: profile, isLoading: profileLoading } = useUserProfile();
+  const { data: territories = [], isLoading: territoriesLoading } = useMyTerritories(profile?.id);
+  const { data: accounts = [], isLoading: accountsLoading } = useMyAccounts(profile?.id);
+
   return {
-    myDetails: data.myDetails,
-    myTerritories: data.myTerritories,
-    myAccounts: data.myAccounts,
-    loading: isLoading,
-    error: error ? (error as Error).message : null,
+    myDetails: profile ? {
+      userId: profile.id,
+      name: profile.alias || profile.name,
+      email: profile.email,
+      role: profile.role,
+    } : null,
+    myTerritories: territories,
+    myAccounts: accounts.map(a => ({ account: { id: a.id, name: a.name, owner: a.owner } })),
+    loading: profileLoading || territoriesLoading || accountsLoading,
+    error: null,
   };
 }
-

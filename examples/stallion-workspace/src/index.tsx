@@ -1,28 +1,30 @@
+// Initialize providers (must be first)
+import './data/init';
+
 import { Calendar } from './Calendar';
 import { CRM } from './CRM';
 import { SalesProvider } from './StallionContext';
-import { SalesDataProvider } from './SalesDataContext';
 
 // Wrap components with workspace context
 const CalendarWithContext = (props: any) => (
-  <SalesDataProvider>
-    <SalesProvider>
-      <Calendar {...props} />
-    </SalesProvider>
-  </SalesDataProvider>
+  <SalesProvider>
+    <Calendar {...props} />
+  </SalesProvider>
 );
 
 const CRMWithContext = (props: any) => (
-  <SalesDataProvider>
-    <SalesProvider>
-      <CRM {...props} />
-    </SalesProvider>
-  </SalesDataProvider>
+  <SalesProvider>
+    <CRM {...props} />
+  </SalesProvider>
 );
 
 export const components = {
   'stallion-workspace-calendar': CalendarWithContext,
   'stallion-workspace-crm': CRMWithContext,
 };
+
+// Export provider types for this workspace
+export { requiredProviders } from './data/providerTypes';
+export type { ProviderTypeMap, ProviderType } from './data/providerTypes';
 
 export default CalendarWithContext;
