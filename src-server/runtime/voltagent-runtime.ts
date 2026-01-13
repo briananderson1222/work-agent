@@ -278,8 +278,8 @@ export class WorkAgentRuntime {
             const isAuthError = errorMsg.includes('authentication failed') ||
                                 errorMsg.includes('status code 403') ||
                                 errorMsg.includes('Request failed with status code 403') ||
-                                errorMsg.includes('Midway') ||
-                                errorMsg.includes('Form action URL not found');
+                                errorMsg.includes('401') ||
+                                errorMsg.includes('unauthorized');
             
             if (isAuthError) {
               return c.json({ success: false, error: err.message }, 401);
@@ -881,8 +881,8 @@ export class WorkAgentRuntime {
               const isAuthError = errorMsg.includes('authentication failed') ||
                                   errorMsg.includes('status code 403') ||
                                   errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('Midway') ||
-                                  errorMsg.includes('Form action URL not found');
+                                  errorMsg.includes('401') ||
+                                  errorMsg.includes('unauthorized');
               return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
             }
           });
@@ -946,8 +946,8 @@ export class WorkAgentRuntime {
               const isAuthError = errorMsg.includes('authentication failed') ||
                                   errorMsg.includes('status code 403') ||
                                   errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('Midway') ||
-                                  errorMsg.includes('Form action URL not found');
+                                  errorMsg.includes('401') ||
+                                  errorMsg.includes('unauthorized');
               return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
             }
           });
@@ -1034,12 +1034,11 @@ export class WorkAgentRuntime {
                 const errorStr = typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage);
                 
                 // Check if it's an auth error
-                if (errorStr.includes('Form action URL not found') || 
-                    errorStr.includes('Midway') || 
-                    errorStr.includes('authentication') ||
+                if (errorStr.includes('authentication') ||
                     errorStr.includes('status code 403') ||
                     errorStr.includes('Request failed with status code 403') ||
-                    errorStr.includes('mwinit')) {
+                    errorStr.includes('401') ||
+                    errorStr.includes('unauthorized')) {
                   return c.json({ success: false, error: errorMessage }, 401);
                 }
                 
@@ -1068,8 +1067,8 @@ export class WorkAgentRuntime {
               const isAuthError = errorMsg.includes('authentication failed') ||
                                   errorMsg.includes('status code 403') ||
                                   errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('Midway') ||
-                                  errorMsg.includes('Form action URL not found');
+                                  errorMsg.includes('401') ||
+                                  errorMsg.includes('unauthorized');
               return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
             }
           });

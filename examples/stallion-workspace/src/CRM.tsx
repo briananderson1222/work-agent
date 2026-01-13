@@ -3,9 +3,8 @@ import { useToast, useWorkspaceNavigation, Button, Pill, useSendToChat } from '@
 import { useSalesContext } from './useSalesContext';
 import { LeadershipInsightModal } from './LeadershipInsightModal';
 import { salesforceProvider } from './data';
+import { SALESFORCE_BASE_URL } from './constants';
 import './workspace.css';
-
-const SALESFORCE_BASE_URL = 'https://aws-crm.lightning.force.com';
 
 // Feature flags
 const ENABLE_MY_ACCOUNTS = true;
