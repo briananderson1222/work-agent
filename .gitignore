@@ -8,6 +8,7 @@ dist-desktop/
 .work-agent/
 
 .amazonq/cli-todo-lists/
+.amazonq/.subagents/
 *.log
 .DS_Store
 .env
@@ -19,9 +20,11 @@ src-desktop/target/
 src-desktop/Cargo.lock
 src-desktop/binaries/
 
-# Plugins and workspaces (installed via npm)
-src-ui/src/workspaces/
+# Plugins and workspaces (installed via npm, except core files)
+src-ui/src/workspaces/stallion-workspace/
 src-ui/src/plugins/
 !src-ui/src/workspaces/.gitkeep
+!src-ui/src/workspaces/index.tsx
 !src-ui/src/plugins/.gitkeep
+!src-ui/src/plugins/shared/
 .bedrock-debug-*.json

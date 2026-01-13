@@ -3,7 +3,7 @@ import { useSalesContext } from './useSalesContext';
 import { useSales } from './StallionContext';
 import { SearchModal } from './components/SearchModal';
 import { salesforceProvider } from './data';
-import { SALESFORCE_BASE_URL } from './constants';
+import { CRM_BASE_URL } from './constants';
 
 interface LeadershipInsightModalProps {
   isOpen: boolean;
@@ -318,7 +318,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
                       }}
                     >
                       <a
-                        href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.id}/view`}
+                        href={`${CRM_BASE_URL}/lightning/r/Task/${task.id}/view`}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
@@ -411,7 +411,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
                       }}
                     >
                       <a
-                        href={insight.salesforceUrl || `${SALESFORCE_BASE_URL}/lightning/n/Sales_Insights_Field_Trends?c__insightId=${insight.id}`}
+                        href={insight.salesforceUrl || `${CRM_BASE_URL}/lightning/n/Sales_Insights_Field_Trends?c__insightId=${insight.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{

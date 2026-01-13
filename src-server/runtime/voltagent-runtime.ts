@@ -41,6 +41,7 @@ import { createConfigRoutes } from '../routes/config.js';
 import { createBedrockRoutes } from '../routes/bedrock.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
 import { createConversationRoutes } from '../routes/conversations.js';
+import { isAuthError } from '../utils/auth-errors.js';
 
 /**
  * Check if tool name matches any auto-approve pattern
@@ -274,17 +275,9 @@ export class WorkAgentRuntime {
         configureApp: (app) => {
           // Global error handler middleware
           app.onError((err, c) => {
-            const errorMsg = err.message || '';
-            const isAuthError = errorMsg.includes('authentication failed') ||
-                                errorMsg.includes('status code 403') ||
-                                errorMsg.includes('Request failed with status code 403') ||
-                                errorMsg.includes('401') ||
-                                errorMsg.includes('unauthorized');
-            
-            if (isAuthError) {
+            if (isAuthError(err)) {
               return c.json({ success: false, error: err.message }, 401);
             }
-            
             return c.json({ success: false, error: err.message }, 500);
           });
 
@@ -876,14 +869,7 @@ export class WorkAgentRuntime {
               });
             } catch (error: any) {
               this.logger.error('Failed to invoke agent', { error });
-              // Check if it's an authentication error
-              const errorMsg = error.message || '';
-              const isAuthError = errorMsg.includes('authentication failed') ||
-                                  errorMsg.includes('status code 403') ||
-                                  errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('401') ||
-                                  errorMsg.includes('unauthorized');
-              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
+              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
             }
           });
 
@@ -942,13 +928,7 @@ export class WorkAgentRuntime {
               });
             } catch (error: any) {
               this.logger.error('Failed to call tool', { error });
-              const errorMsg = error.message || '';
-              const isAuthError = errorMsg.includes('authentication failed') ||
-                                  errorMsg.includes('status code 403') ||
-                                  errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('401') ||
-                                  errorMsg.includes('unauthorized');
-              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
+              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
             }
           });
 
@@ -1031,17 +1011,9 @@ export class WorkAgentRuntime {
               // Check if the MCP tool returned an error
               if (unwrappedResult?.success === false && unwrappedResult?.error) {
                 const errorMessage = unwrappedResult.error?.message?.message || unwrappedResult.error?.message || unwrappedResult.error;
-                const errorStr = typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage);
-                
-                // Check if it's an auth error
-                if (errorStr.includes('authentication') ||
-                    errorStr.includes('status code 403') ||
-                    errorStr.includes('Request failed with status code 403') ||
-                    errorStr.includes('401') ||
-                    errorStr.includes('unauthorized')) {
+                if (isAuthError(errorMessage)) {
                   return c.json({ success: false, error: errorMessage }, 401);
                 }
-                
                 return c.json({ success: false, error: errorMessage }, 500);
               }
               
@@ -1063,13 +1035,7 @@ export class WorkAgentRuntime {
               });
             } catch (error: any) {
               this.logger.error('Failed to transform invoke', { error });
-              const errorMsg = error.message || '';
-              const isAuthError = errorMsg.includes('authentication failed') ||
-                                  errorMsg.includes('status code 403') ||
-                                  errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('401') ||
-                                  errorMsg.includes('unauthorized');
-              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
+              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
             }
           });
 

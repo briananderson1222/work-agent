@@ -17,7 +17,7 @@ import {
   outlookProvider,
 } from './data';
 import { SearchModal } from './components/SearchModal';
-import { SALESFORCE_BASE_URL } from './constants';
+import { CRM_BASE_URL } from './constants';
 import './workspace.css';
 
 const CalendarEventSchema = z.object({
@@ -1691,7 +1691,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                           ✓ Activity Logged
                         </div>
                         <a
-                          href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${salesContext.state.loggedActivities[selectedEvent.meetingId].id}/view`}
+                          href={`${CRM_BASE_URL}/lightning/r/Task/${salesContext.state.loggedActivities[selectedEvent.meetingId].id}/view`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
@@ -1943,7 +1943,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                 </button>
                 {selectedActivity?.id && (
                   <a
-                    href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${selectedActivity.id}/view`}
+                    href={`${CRM_BASE_URL}/lightning/r/Task/${selectedActivity.id}/view`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -2671,7 +2671,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                       position: 'relative'
                     }}>
                       <a
-                        href={`${SALESFORCE_BASE_URL}/lightning/r/${selectedSfdcItem.type === 'account' ? 'Account' : selectedSfdcItem.type === 'campaign' ? 'Campaign' : 'Opportunity'}/${selectedSfdcItem.data.id}/view`}
+                        href={`${CRM_BASE_URL}/lightning/r/${selectedSfdcItem.type === 'account' ? 'Account' : selectedSfdcItem.type === 'campaign' ? 'Campaign' : 'Opportunity'}/${selectedSfdcItem.data.id}/view`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -2893,7 +2893,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                                 title: 'Activity logged successfully',
                                 message: (
                                   <a
-                                    href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${taskId}/view`}
+                                    href={`${CRM_BASE_URL}/lightning/r/Task/${taskId}/view`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
@@ -2982,7 +2982,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                                 </button>
                                 {task.id && (
                                   <a
-                                    href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.id}/view`}
+                                    href={`${CRM_BASE_URL}/lightning/r/Task/${task.id}/view`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     style={{

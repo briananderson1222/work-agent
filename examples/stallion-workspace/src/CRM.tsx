@@ -3,7 +3,7 @@ import { useToast, useWorkspaceNavigation, Button, Pill, useSendToChat } from '@
 import { useSalesContext } from './useSalesContext';
 import { LeadershipInsightModal } from './LeadershipInsightModal';
 import { salesforceProvider } from './data';
-import { SALESFORCE_BASE_URL } from './constants';
+import { CRM_BASE_URL } from './constants';
 import './workspace.css';
 
 // Feature flags
@@ -1837,7 +1837,7 @@ Existing insights: [count] insights already created
                     right: '0.5rem'
                   }}>
                     <a
-                      href={`${SALESFORCE_BASE_URL}/lightning/r/Account/${account.id}/view`}
+                      href={`${CRM_BASE_URL}/lightning/r/Account/${account.id}/view`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
@@ -1909,7 +1909,7 @@ Existing insights: [count] insights already created
               <div className="workspace-dashboard__details-header" style={{ position: 'relative' }}>
                 <h1 className="workspace-dashboard__details-title">{selectedAccount.name}</h1>
                 <a
-                  href={`${SALESFORCE_BASE_URL}/lightning/r/Account/${selectedAccount.id}/view`}
+                  href={`${CRM_BASE_URL}/lightning/r/Account/${selectedAccount.id}/view`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -2031,7 +2031,7 @@ Existing insights: [count] insights already created
                                       </svg>
                                     </button>
                                     <a
-                                      href={`${SALESFORCE_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
+                                      href={`${CRM_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       style={{
@@ -2139,7 +2139,7 @@ Existing insights: [count] insights already created
                                       </svg>
                                     </button>
                                     <a
-                                      href={`${SALESFORCE_BASE_URL}/lightning/r/Task/${task.id}/view`}
+                                      href={`${CRM_BASE_URL}/lightning/r/Task/${task.id}/view`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       style={{
