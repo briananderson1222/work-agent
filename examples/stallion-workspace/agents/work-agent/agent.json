@@ -7,9 +7,64 @@
     "temperature": 0.7
   },
   "tools": {
-    "mcpServers": [],
-    "available": ["*"],
-    "autoApprove": []
+    "mcpServers": [
+      "sat-outlook",
+      "sat-sfdc"
+    ],
+    "available": [
+      "sat-outlook_*",
+      "sat-sfdc_*"
+    ],
+    "autoApprove": [
+      "sat-outlook_calendar_view",
+      "sat-outlook_calendar_search",
+      "sat-outlook_calendar_availability",
+      "sat-outlook_email_read",
+      "sat-outlook_email_inbox",
+      "sat-outlook_email_search",
+      "sat-outlook_email_folders",
+      "sat-outlook_email_contacts",
+      "sat-outlook_email_attachments",
+      "sat-sfdc_search_accounts",
+      "sat-sfdc_fetch_account_details",
+      "sat-sfdc_fetch_account_summary",
+      "sat-sfdc_get_account_spend_summary",
+      "sat-sfdc_get_account_spend_history",
+      "sat-sfdc_get_account_spend_by_service",
+      "sat-sfdc_search_account_spend_details",
+      "sat-sfdc_list_territory_accounts",
+      "sat-sfdc_search_opportunities",
+      "sat-sfdc_fetch_opportunity_details",
+      "sat-sfdc_get_opportunity_details",
+      "sat-sfdc_get_opportunities_for_account",
+      "sat-sfdc_get_opportunity_line_items",
+      "sat-sfdc_search_contacts",
+      "sat-sfdc_fetch_contact_details",
+      "sat-sfdc_search_leads",
+      "sat-sfdc_fetch_lead_details",
+      "sat-sfdc_search_campaigns",
+      "sat-sfdc_fetch_campaign_details",
+      "sat-sfdc_search_events",
+      "sat-sfdc_fetch_event_details",
+      "sat-sfdc_search_tasks",
+      "sat-sfdc_fetch_task_details",
+      "sat-sfdc_list_user_tasks",
+      "sat-sfdc_list_account_tasks",
+      "sat-sfdc_list_opportunity_tasks",
+      "sat-sfdc_search_leadership_insights",
+      "sat-sfdc_fetch_leadership_insight",
+      "sat-sfdc_list_my_insights",
+      "sat-sfdc_fetch_insight_enrichment",
+      "sat-sfdc_search_territories",
+      "sat-sfdc_list_territories",
+      "sat-sfdc_fetch_territory_details",
+      "sat-sfdc_search_users",
+      "sat-sfdc_get_my_personal_details",
+      "sat-sfdc_list_user_assigned_territories",
+      "sat-sfdc_list_user_assigned_accounts",
+      "sat-sfdc_fetch_customer_influence_details",
+      "sat-sfdc_fetch_pfr_details"
+    ]
   },
   "commands": {
     "activity": {
