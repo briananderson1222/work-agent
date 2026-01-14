@@ -44,11 +44,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
 
+      - name: Install and build SDK
+        run: |
+          cd packages/sdk
+          npm install
+          npm run build
+
       - name: Install dependencies
         run: npm install
-
-      - name: Build SDK
-        run: npm run build -w @stallion-ai/sdk
 
       - name: Build
         uses: tauri-apps/tauri-action@v0
