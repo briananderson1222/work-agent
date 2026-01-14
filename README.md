@@ -235,8 +235,8 @@ Reference the tool in your agent's `tools.use` array.
 Work Agent automatically normalizes MCP tool names for compatibility with Amazon Bedrock's Nova models, which don't support hyphens in tool names. This normalization is completely transparent:
 
 **How it works:**
-- Tool names like `sat-outlook_calendar_view` are normalized to `satOutlook_calendarView` when sent to Bedrock
-- Original names are preserved and displayed in the UI as `[sat-outlook] calendar_view`
+- Tool names like `my-server_tool_name` are normalized to `myServer_toolName` when sent to Bedrock
+- Original names are preserved and displayed in the UI as `[my-server] tool_name`
 - The server badge and tool name are shown separately for clarity
 
 **Benefits:**
@@ -247,9 +247,9 @@ Work Agent automatically normalizes MCP tool names for compatibility with Amazon
 
 **Example:**
 ```
-Original:   sat-outlook_calendar_view
-Normalized: satOutlook_calendarView (sent to Bedrock)
-Displayed:  [sat-outlook] calendar_view (shown in UI)
+Original:   my-server_tool_name
+Normalized: myServer_toolName (sent to Bedrock)
+Displayed:  [my-server] tool_name (shown in UI)
 ```
 
 ## 🔄 Agent Switching
@@ -505,7 +505,7 @@ Custom Layer (Work Agent)
 **Tool Configuration:**
 
 - **`mcpServers`**: List of MCP server IDs to load from the tool catalog (`.work-agent/tools/`)
-- **`available`**: Filters which tools the agent can invoke. Supports wildcards (e.g., `["sat-outlook_*", "sat-sfdc_query"]`). Defaults to `["*"]` (all tools).
+- **`available`**: Filters which tools the agent can invoke. Supports wildcards (e.g., `["my-server_*", "other-server_query"]`). Defaults to `["*"]` (all tools).
 - **`autoApprove`**: Tools that execute automatically without user confirmation in chat mode. Supports wildcards. Tools not in this list will require user approval before execution. Silent invocations (via `/agents/:slug/invoke`) bypass approval checks.
 - **`aliases`**: Map custom names to tool IDs for easier invocation
 
@@ -513,9 +513,9 @@ Example `tools` block:
 
 ```json
 "tools": {
-  "mcpServers": ["sat-outlook", "sat-sfdc", "aws-knowledge-mcp-server"],
-  "available": ["sat-outlook_*", "sat-sfdc_query", "sat-sfdc_get_*"],
-  "autoApprove": ["sat-outlook_calendar_view", "sat-outlook_email_read", "sat-sfdc_query"]
+  "mcpServers": ["files", "fetch"],
+  "available": ["*"],
+  "autoApprove": ["files_read", "files_list"]
 }
 ```
 

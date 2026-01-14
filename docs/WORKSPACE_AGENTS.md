@@ -121,9 +121,9 @@ work-agent-plugins/
   "prompt": "You are a calendar assistant. Help users manage their schedule.",
   "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
   "tools": {
-    "mcpServers": ["sat-outlook"],
-    "available": ["sat-outlook_calendar_*"],
-    "autoApprove": ["sat-outlook_calendar_view"]
+    "mcpServers": ["files"],
+    "available": ["files_*"],
+    "autoApprove": ["files_read"]
   }
 }
 ```

@@ -7,8 +7,8 @@
  * Format: <serverNameInCamelCase>_<toolNameInCamelCase>
  * 
  * Examples:
- * - sat-outlook_calendar_view → satOutlook_calendarView
- * - sat-sfdc_query → satSfdc_query
+ * - my-server_tool_name → myServer_toolName
+ * - other-mcp_query → otherMcp_query
  * - my-tool → myTool
  */
 
@@ -58,7 +58,7 @@ export function createToolNameMap(toolNames: string[]): Map<string, string> {
 /**
  * Parse tool name into server and tool parts
  * Examples:
- *   "sat-outlook_calendar_view" → { server: "sat-outlook", tool: "calendar_view" }
+ *   "my-server_tool_name" → { server: "my-server", tool: "tool_name" }
  *   "simple_tool" → { server: null, tool: "simple_tool" }
  */
 export function parseToolName(toolName: string): { server: string | null; tool: string } {

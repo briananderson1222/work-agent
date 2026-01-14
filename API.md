@@ -356,7 +356,7 @@ GET /agents/:slug/health
   },
   "integrations": [
     {
-      "id": "sat-outlook",
+      "id": "files",
       "type": "mcp",
       "connected": true,
       "metadata": {
@@ -364,11 +364,11 @@ GET /agents/:slug/health
         "toolCount": 5,
         "tools": [
           {
-            "name": "satOutlook_calendarView",
-            "originalName": "sat-outlook_calendar_view",
-            "server": "sat-outlook",
-            "toolName": "calendar_view",
-            "description": "View calendar events"
+            "name": "files_readFile",
+            "originalName": "files_read_file",
+            "server": "files",
+            "toolName": "read_file",
+            "description": "Read file contents"
           }
         ]
       }
@@ -424,17 +424,16 @@ Returns tools available to a specific agent with full schemas.
   "success": true,
   "data": [
     {
-      "id": "satOutlook_calendarView",
-      "name": "satOutlook_calendarView",
-      "originalName": "sat-outlook_calendar_view",
-      "server": "sat-outlook",
-      "toolName": "calendar_view",
-      "description": "View calendar events",
+      "id": "files_readFile",
+      "name": "files_readFile",
+      "originalName": "files_read_file",
+      "server": "files",
+      "toolName": "read_file",
+      "description": "Read file contents",
       "parameters": {
         "type": "object",
         "properties": {
-          "startDate": { "type": "string" },
-          "endDate": { "type": "string" }
+          "path": { "type": "string" }
         }
       }
     }
@@ -494,7 +493,7 @@ PUT /agents/:slug/tools/allowed
 **Request Body**:
 ```json
 {
-  "allowed": ["sat-outlook_*", "sat-sfdc_query"]
+  "allowed": ["files_*", "fetch_get"]
 }
 ```
 
@@ -503,8 +502,8 @@ PUT /agents/:slug/tools/allowed
 {
   "success": true,
   "data": {
-    "mcpServers": ["sat-outlook", "sat-sfdc"],
-    "available": ["sat-outlook_*", "sat-sfdc_query"],
+    "mcpServers": ["files", "fetch"],
+    "available": ["files_*", "fetch_get"],
     "autoApprove": []
   }
 }
@@ -1322,7 +1321,7 @@ Invoke agent without loading conversation history. Used for dashboard data fetch
   "prompt": "What's the weather today?",
   "silent": true,
   "model": "anthropic.claude-3-haiku-20240307-v1:0",
-  "tools": ["sat-outlook_calendar_view"]
+  "tools": ["files_read_file"]
 }
 ```
 
@@ -1405,12 +1404,11 @@ Execute a tool and apply a JavaScript transformation function.
 **Request Body**:
 ```json
 {
-  "toolName": "sat-outlook_calendar_view",
+  "toolName": "files_list_directory",
   "toolArgs": {
-    "startDate": "2025-12-08",
-    "endDate": "2025-12-15"
+    "path": "/home/user/documents"
   },
-  "transform": "(data) => data.events.map(e => ({ title: e.subject, start: e.start }))"
+  "transform": "(data) => data.files.map(f => ({ name: f.name, size: f.size }))"
 }
 ```
 
@@ -1443,21 +1441,21 @@ Invoke agent with streaming response and optional structured output.
 **Request Body**:
 ```json
 {
-  "prompt": "List upcoming meetings",
+  "prompt": "List files in the documents folder",
   "silent": true,
   "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-  "tools": ["sat-outlook_calendar_view"],
+  "tools": ["files_list_directory"],
   "maxSteps": 10,
   "schema": {
     "type": "object",
     "properties": {
-      "meetings": {
+      "files": {
         "type": "array",
         "items": {
           "type": "object",
           "properties": {
-            "title": { "type": "string" },
-            "start": { "type": "string" }
+            "name": { "type": "string" },
+            "size": { "type": "number" }
           }
         }
       }
@@ -1470,11 +1468,11 @@ Invoke agent with streaming response and optional structured output.
 ```
 data: {"type":"text-delta","text":"Looking"}
 
-data: {"type":"tool-call","toolName":"sat-outlook_calendar_view"}
+data: {"type":"tool-call","toolName":"files_list_directory"}
 
 data: {"type":"tool-result","result":{...}}
 
-data: {"type":"finish","text":"Here are your meetings..."}
+data: {"type":"finish","text":"Here are your files..."}
 ```
 
 **Used by**: Streaming responses with structured output
@@ -1539,7 +1537,6 @@ All endpoints follow a consistent error response format:
 Triggered when error message contains:
 - `authentication failed`
 - `status code 403`
-- `Midway`
 - `Form action URL not found`
 
 ---

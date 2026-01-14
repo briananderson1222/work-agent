@@ -162,7 +162,7 @@ POST   /agents/:slug/invoke           # Invoke workflow
   "name": "SA Agent",
   "prompt": "You are a solutions architect assistant...",
   "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-  "tools": { "mcpServers": ["sat-outlook", "sat-sfdc"] },
+  "tools": { "mcpServers": ["files", "fetch"] },
   "ui": {
     "component": "sa-dashboard",
     "quickPrompts": [
@@ -180,7 +180,7 @@ POST   /agents/:slug/invoke           # Invoke workflow
   "name": "SA Agent",
   "prompt": "You are a solutions architect assistant...",
   "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-  "tools": { "mcpServers": ["sat-outlook", "sat-sfdc"] }
+  "tools": { "mcpServers": ["files", "fetch"] }
 }
 ```
 

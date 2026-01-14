@@ -2139,13 +2139,13 @@ export class WorkAgentRuntime {
       // Exact match (check both normalized and original)
       if (pattern === toolName || pattern === originalName) return true;
       
-      // Wildcard pattern (e.g., "sat-outlook_*" or "satOutlook_*")
+      // Wildcard pattern (e.g., "my-server_*" or "myServer_*")
       if (pattern.endsWith('_*')) {
         const prefix = pattern.slice(0, -2);
         if (toolName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}_`)) return true;
       }
       
-      // Legacy slash pattern support (e.g., "sat-outlook/*")
+      // Legacy slash pattern support (e.g., "my-server/*")
       if (pattern.endsWith('/*')) {
         const prefix = pattern.slice(0, -2);
         if (toolName.startsWith(`${prefix}_`) || toolName.startsWith(`${prefix}/`) ||

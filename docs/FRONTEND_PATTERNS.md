@@ -151,27 +151,27 @@ ViewModel hooks combine queries and add business logic. **These live in the plug
 // examples/my-plugin/useMyViewModel.ts
 import { useTransformTool, useAgents } from '@stallion-ai/sdk';
 
-export function useCRMViewModel() {
+export function useFilesViewModel() {
   // Use SDK query hooks
-  const { data: myDetails } = useTransformTool(
+  const { data: fileList } = useTransformTool(
     'work-agent',
-    'sat-sfdc_get_my_personal_details',
-    {},
+    'files_list_directory',
+    { path: '/documents' },
     'data => data'
   );
   
-  const { data: myAccounts = [] } = useTransformTool(
+  const { data: fileContents = [] } = useTransformTool(
     'work-agent',
-    'sat-sfdc_list_user_assigned_accounts',
-    { userId: myDetails?.userId },
+    'files_read_file',
+    { path: fileList?.selectedFile },
     'data => data',
-    { enabled: !!myDetails?.userId }
+    { enabled: !!fileList?.selectedFile }
   );
   
   // Derived state (business logic)
-  const userDetails = myDetails ? {
-    alias: myDetails.name,
-    sfdcId: myDetails.userId
+  const fileDetails = fileList ? {
+    name: fileList.name,
+    path: fileList.path
   } : null;
   
   const processedAccounts = myAccounts.map(member => ({
