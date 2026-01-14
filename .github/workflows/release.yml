@@ -46,13 +46,6 @@ jobs:
 
       - name: Install and build SDK
         run: |
-          echo "Current directory: $(pwd)"
-          echo "Contents of packages/sdk:"
-          ls -la packages/sdk/
-          echo "npm config:"
-          npm config list
-          echo "Global npmrc:"
-          cat ~/.npmrc || echo "No global .npmrc"
           cd packages/sdk
           npm install
           npm run build
