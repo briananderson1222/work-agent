@@ -9,15 +9,15 @@ phases:
   
   pre_build:
     commands:
-      - $env:Path = "C:\Users\ContainerAdministrator\.cargo\bin;" + [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+      - '[System.Environment]::SetEnvironmentVariable("Path", "C:\Users\ContainerAdministrator\.cargo\bin;" + [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User"), "Process")'
       - node --version
-      - rustc --version
-      - cargo --version
+      - C:\Users\ContainerAdministrator\.cargo\bin\rustc.exe --version
+      - C:\Users\ContainerAdministrator\.cargo\bin\cargo.exe --version
       - npm install
   
   build:
     commands:
-      - $env:Path = "C:\Users\ContainerAdministrator\.cargo\bin;" + [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+      - '[System.Environment]::SetEnvironmentVariable("Path", "C:\Users\ContainerAdministrator\.cargo\bin;" + [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User"), "Process")'
       - Set-Location packages/sdk; npm install; npm run build; Set-Location ../..
       - npm run build:desktop
 
