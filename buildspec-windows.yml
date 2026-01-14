@@ -6,8 +6,7 @@ phases:
       - choco install nodejs --version=20.18.0 -y --no-progress
       - choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended" -y --no-progress
       - choco install rustup.install -y --no-progress
-      - refreshenv
-      - $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+      - $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") + ";$env:USERPROFILE\.cargo\bin"
   
   pre_build:
     commands:
