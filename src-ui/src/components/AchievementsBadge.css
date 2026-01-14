@@ -1,0 +1,140 @@
+.achievements-panel {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.achievements-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.achievements-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+}
+
+.achievements-count {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background-color: var(--accent-success)20;
+  color: var(--accent-success);
+}
+
+.achievements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.achievement-card {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  transition: transform 0.2s;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.achievement-card:hover {
+  transform: scale(1.02);
+}
+
+.achievement-card-unlocked {
+  background-color: var(--accent-success)10;
+  border: 2px solid var(--accent-success)40;
+  opacity: 1;
+}
+
+.achievement-card-locked {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  opacity: 0.7;
+}
+
+.achievement-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.achievement-icon-locked {
+  filter: grayscale(100%);
+}
+
+.achievement-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.achievement-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.achievement-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.achievement-unlocked-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+  background-color: var(--accent-success);
+  color: var(--text-on-accent);
+}
+
+.achievement-description {
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.achievement-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  margin-bottom: 0.375rem;
+  color: var(--text-secondary);
+}
+
+.achievement-progress-bar {
+  height: 8px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
+
+.achievement-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.5s;
+}
+
+.achievement-unlocked-date {
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--accent-success);
+}
+
+.achievements-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}

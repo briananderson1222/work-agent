@@ -7,9 +7,11 @@
 import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
 
 async function main() {
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 3141;
+  
   const runtime = new WorkAgentRuntime({
     workAgentDir: '.work-agent',
-    port: 3141,
+    port,
     logLevel: 'info',
   });
 
@@ -19,8 +21,8 @@ async function main() {
     console.log('\\n═══════════════════════════════════════════════════');
     console.log('  WORK AGENT SYSTEM STARTED');
     console.log('═══════════════════════════════════════════════════');
-    console.log('  ✓ HTTP Server:  http://localhost:3141');
-    console.log('  ✓ Swagger UI:   http://localhost:3141/ui');
+    console.log(`  ✓ HTTP Server:  http://localhost:${port}`);
+    console.log(`  ✓ Swagger UI:   http://localhost:${port}/ui`);
     console.log('  ✓ VoltOps:      https://console.voltagent.dev');
     console.log('');
     console.log('  Loaded agents:', runtime.listAgents().join(', '));

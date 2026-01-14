@@ -8,13 +8,22 @@
 export interface AgentSpec {
   name: string;
   prompt: string; // system instructions
+  description?: string; // Agent description for display
+  icon?: string; // Agent icon (emoji or URL)
   model?: string; // falls back to app.defaultModel
   region?: string;
+  maxTurns?: number; // Maximum conversation turns before requiring continue
   guardrails?: {
     maxTokens?: number;
     temperature?: number;
     topP?: number;
     stopSequences?: string[];
+    maxSteps?: number; // Maximum number of tool call rounds (default: 5)
+  };
+  streaming?: {
+    useNewPipeline?: boolean; // Feature flag for new streaming architecture
+    enableThinking?: boolean; // Send thinking blocks to client
+    debugStreaming?: boolean; // Enable debug logging
   };
   tools?: {
     mcpServers: string[]; // MCP server IDs to load
@@ -22,7 +31,22 @@ export interface AgentSpec {
     autoApprove?: string[]; // tools that execute without user confirmation in chat mode
     aliases?: Record<string, string>; // alias → tool ID
   };
+  commands?: Record<string, SlashCommand>; // Custom slash commands
   ui?: AgentUIConfig;
+}
+
+export interface SlashCommand {
+  name: string;
+  description?: string;
+  prompt: string;
+  params?: SlashCommandParam[];
+}
+
+export interface SlashCommandParam {
+  name: string;
+  description?: string;
+  required?: boolean;
+  default?: string;
 }
 
 export interface AgentUIConfig {
@@ -87,8 +111,14 @@ export interface ToolDef {
 export interface AppConfig {
   region: string;
   defaultModel: string;
+  /** Model for /invoke endpoint tool calling */
+  invokeModel: string;
+  /** Model for /invoke endpoint structured output */
+  structureModel: string;
+  defaultMaxTurns?: number;
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
+  defaultChatFontSize?: number;
 }
 
 export interface TemplateVariable {

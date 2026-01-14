@@ -6,13 +6,56 @@
 import { Agent, Memory, VoltAgent, MCPConfiguration, createHooks, type Tool } from '@voltagent/core';
 import { honoServer } from '@voltagent/server-hono';
 import { createPinoLogger } from '@voltagent/logger';
+import { jsonSchema } from 'ai';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
+import { EventEmitter } from 'events';
+import { mkdir, appendFile, readdir, readFile } from 'fs/promises';
+import { existsSync, createReadStream } from 'fs';
+import { join } from 'path';
+import { createInterface } from 'readline';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
 import { ConfigLoader } from '../domain/config-loader.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import { UsageAggregator } from '../analytics/usage-aggregator.js';
+import { normalizeToolName, parseToolName } from '../utils/tool-name-normalizer.js';
+import { StreamPipeline } from './streaming/StreamPipeline.js';
+import { ReasoningHandler } from './streaming/handlers/ReasoningHandler.js';
+import { ElicitationHandler } from './streaming/handlers/ElicitationHandler.js';
+import { TextDeltaHandler } from './streaming/handlers/TextDeltaHandler.js';
+import { ToolCallHandler } from './streaming/handlers/ToolCallHandler.js';
+import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';
+import { MetadataHandler } from './streaming/handlers/MetadataHandler.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
+import { InjectableStream } from './streaming/InjectableStream.js';
+import { AgentService } from '../services/agent-service.js';
+import { MCPService } from '../services/mcp-service.js';
+import { WorkspaceService } from '../services/workspace-service.js';
+import { createAgentRoutes } from '../routes/agents.js';
+import { createToolRoutes } from '../routes/tools.js';
+import { createWorkspaceRoutes, createWorkflowRoutes } from '../routes/workspaces.js';
+import { createAnalyticsRoutes } from '../routes/analytics.js';
+import { createConfigRoutes } from '../routes/config.js';
+import { createBedrockRoutes } from '../routes/bedrock.js';
+import { createMonitoringRoutes } from '../routes/monitoring.js';
+import { createConversationRoutes } from '../routes/conversations.js';
+import { isAuthError } from '../utils/auth-errors.js';
+
+/**
+ * Check if tool name matches any auto-approve pattern
+ * Supports wildcards: "tool_*" matches "tool_read", "tool_write", etc.
+ */
+function isAutoApproved(toolName: string, patterns: string[]): boolean {
+  return patterns.some(pattern => {
+    if (pattern === '*') return true;
+    const regexPattern = pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*');
+    return new RegExp(`^${regexPattern}$`).test(toolName);
+  });
+}
 
 export interface WorkAgentRuntimeOptions {
   workAgentDir?: string;
@@ -30,16 +73,38 @@ export class WorkAgentRuntime {
   private logger: ReturnType<typeof createPinoLogger>;
   private voltAgent?: VoltAgent;
   private mcpConfigs: Map<string, MCPConfiguration> = new Map();
+  private mcpConnectionStatus: Map<string, { connected: boolean; error?: string }> = new Map();
+  private integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }> = new Map();
   private activeAgents: Map<string, Agent> = new Map();
   private agentMetadataMap: Map<string, any> = new Map();
+  private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
+  private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
+  private agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }> = new Map(); // Cache fixed token counts per agent
+  private toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }> = new Map(); // Tool name mapping with parsed data
+  private toolNameReverseMapping: Map<string, string> = new Map(); // Original -> Normalized for O(1) lookup
+  private monitoringEvents = new EventEmitter();
+  private agentStats = new Map<string, { conversationCount: number; messageCount: number; lastUpdated: number }>();
+  private agentStatus = new Map<string, 'idle' | 'running'>();
+  private metricsLog: Array<{ timestamp: number; agentSlug: string; event: string; conversationId?: string; messageCount?: number; cost?: number }> = [];
+  private eventLogPath: string;
+  private persistedEvents: Array<any> = [];
   private modelCatalog?: BedrockModelCatalog;
+  private usageAggregator?: UsageAggregator;
   private port: number;
+  private pendingApprovals: Map<string, { resolve: (approved: boolean) => void; reject: (error: Error) => void }> = new Map();
+  private healthCheckInterval: NodeJS.Timeout | null = null;
+
+  // Services
+  private agentService!: AgentService;
+  private mcpService!: MCPService;
+  private workspaceService!: WorkspaceService;
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const workAgentDir = options.workAgentDir || '.work-agent';
     this.port = options.port || 3141;
+    this.eventLogPath = `${workAgentDir}/monitoring`;
 
     this.configLoader = new ConfigLoader({
       workAgentDir,
@@ -50,13 +115,90 @@ export class WorkAgentRuntime {
       name: 'work-agent',
       level: options.logLevel || 'info',
     });
+
+    // Initialize services
+    this.agentService = new AgentService(
+      this.configLoader,
+      this.activeAgents,
+      this.agentMetadataMap,
+      this.agentSpecs,
+      this.logger
+    );
+    this.mcpService = new MCPService(
+      this.configLoader,
+      this.mcpConfigs,
+      this.mcpConnectionStatus,
+      this.integrationMetadata,
+      this.agentTools,
+      this.toolNameMapping,
+      this.logger
+    );
+    this.workspaceService = new WorkspaceService(this.configLoader, this.logger);
+    
+    // Log versions for debugging
+    this.logger.info('Work Agent Runtime initializing', {
+      voltagentCore: '1.1.37',
+      aiSdkBedrock: '3.0.56',
+      nodeVersion: process.version
+    });
+  }
+
+  /**
+   * Reload agents from disk
+   */
+  async reloadAgents(): Promise<void> {
+    const agentMetadataList = await this.configLoader.listAgents();
+    const currentSlugs = new Set(agentMetadataList.map(m => m.slug));
+    
+    // Remove deleted agents and cleanup MCP servers
+    for (const slug of this.activeAgents.keys()) {
+      if (!currentSlugs.has(slug)) {
+        // Cleanup MCP configs for this agent
+        for (const [key, config] of this.mcpConfigs.entries()) {
+          if (key.startsWith(`${slug}:`)) {
+            await config.disconnect();
+            this.mcpConfigs.delete(key);
+            this.mcpConnectionStatus.delete(key);
+            this.integrationMetadata.delete(key);
+          }
+        }
+        
+        this.activeAgents.delete(slug);
+        this.agentMetadataMap.delete(slug);
+        this.agentSpecs.delete(slug);
+        this.agentTools.delete(slug);
+        this.memoryAdapters.delete(slug);
+        this.logger.info('Agent removed', { agent: slug });
+      }
+    }
+    
+    // Add new agents
+    for (const meta of agentMetadataList) {
+      if (!this.activeAgents.has(meta.slug)) {
+        try {
+          const agent = await this.createVoltAgentInstance(meta.slug);
+          this.activeAgents.set(meta.slug, agent);
+          this.voltAgent?.registerAgent(agent);
+          this.logger.info('Agent added', { agent: meta.slug });
+        } catch (error) {
+          this.logger.error('Failed to add agent', { agent: meta.slug, error });
+        }
+      }
+    }
+    
+    // Update metadata map
+    this.agentMetadataMap = new Map(
+      agentMetadataList.map(meta => [meta.slug, meta])
+    );
+    
+    this.logger.info('Agents reloaded', { count: agentMetadataList.length });
   }
 
   /**
    * Initialize the runtime
    */
   async initialize(): Promise<void> {
-    this.logger.info('Initializing Work Agent Runtime...');
+    this.logger.debug('Initializing Work Agent Runtime...');
 
     // Load app configuration
     this.appConfig = await this.configLoader.loadAppConfig();
@@ -67,7 +209,11 @@ export class WorkAgentRuntime {
 
     // Initialize Bedrock model catalog
     this.modelCatalog = new BedrockModelCatalog(this.appConfig.region);
-    this.logger.info('Bedrock model catalog initialized');
+    this.logger.debug('Bedrock model catalog initialized');
+
+    // Initialize usage aggregator
+    this.usageAggregator = new UsageAggregator(this.configLoader.getWorkAgentDir());
+    this.logger.debug('Usage aggregator initialized');
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
@@ -75,6 +221,26 @@ export class WorkAgentRuntime {
 
     // Create VoltAgent instances for each agent
     const agents: Record<string, Agent> = {};
+
+    // Create default agent (always available, uses defaultModel, no tools)
+    const defaultAgent = new Agent({
+      name: 'default',
+      instructions: 'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
+      model: createBedrockProvider({ 
+        appConfig: this.appConfig, 
+        agentSpec: { model: this.appConfig.defaultModel } as any 
+      }),
+      tools: [], // No tools
+    });
+    agents['default'] = defaultAgent;
+    this.activeAgents.set('default', defaultAgent);
+    this.agentMetadataMap.set('default', {
+      slug: 'default',
+      name: 'Default Agent',
+      description: 'System default agent with no tools',
+      updatedAt: new Date().toISOString()
+    });
+    this.logger.info('Default agent created', { model: this.appConfig.defaultModel });
 
     for (const meta of agentMetadataList) {
       try {
@@ -97,6 +263,9 @@ export class WorkAgentRuntime {
       sample: this.agentMetadataMap.get(agentMetadataList[0]?.slug)
     });
 
+    // Import routes before configuring app
+    const modelsRoute = await import('../routes/models.js');
+
     // Initialize VoltAgent with all agents and server
     this.voltAgent = new VoltAgent({
       agents,
@@ -106,17 +275,9 @@ export class WorkAgentRuntime {
         configureApp: (app) => {
           // Global error handler middleware
           app.onError((err, c) => {
-            const errorMsg = err.message || '';
-            const isAuthError = errorMsg.includes('authentication failed') ||
-                                errorMsg.includes('status code 403') ||
-                                errorMsg.includes('Request failed with status code 403') ||
-                                errorMsg.includes('Midway') ||
-                                errorMsg.includes('Form action URL not found');
-            
-            if (isAuthError) {
+            if (isAuthError(err)) {
               return c.json({ success: false, error: err.message }, 401);
             }
-            
             return c.json({ success: false, error: err.message }, 500);
           });
 
@@ -135,31 +296,59 @@ export class WorkAgentRuntime {
             })
           );
 
+          // Models capabilities and pricing endpoints
+          app.route('/api/models', modelsRoute.default);
+
+          // Analytics endpoints
+          app.route('/api/analytics', createAnalyticsRoutes(this.usageAggregator));
+
           // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
           app.get('/api/agents', async (c) => {
             try {
               if (!this.voltAgent) {
                 return c.json({ success: false, error: 'VoltAgent not initialized' }, 500);
               }
+              await this.reloadAgents();
               const coreAgents = await this.voltAgent.getAgents();
-              const enrichedAgents = await Promise.all(coreAgents.map(async (agent: any) => {
+              const enrichedAgents = (await Promise.all(coreAgents.map(async (agent: any) => {
                 const metadata = this.agentMetadataMap.get(agent.id);
-                if (!metadata) return agent;
+                if (!metadata) return null;
                 
-                // Load full agent spec to get prompt, description, icon, commands
-                const spec = await this.configLoader.loadAgent(metadata.slug);
-                
-                return {
-                  ...agent,
-                  slug: metadata.slug,
-                  name: metadata.name,
-                  prompt: spec.prompt,
-                  description: spec.description,
-                  icon: spec.icon,
-                  commands: spec.commands,
-                  updatedAt: metadata.updatedAt,
-                };
-              }));
+                try {
+                  const spec = await this.configLoader.loadAgent(metadata.slug);
+                  
+                  this.logger.debug('[Agent Enrichment] Loading spec', { 
+                    agent: metadata.slug,
+                    hasSpec: !!spec,
+                    hasTools: !!spec.tools
+                  });
+                  
+                  return {
+                    ...agent,
+                    slug: metadata.slug,
+                    name: metadata.name,
+                    prompt: spec.prompt,
+                    description: spec.description,
+                    model: spec.model,
+                    region: spec.region,
+                    guardrails: spec.guardrails,
+                    maxTurns: spec.maxTurns,
+                    icon: spec.icon,
+                    commands: spec.commands,
+                    toolsConfig: spec.tools,
+                    updatedAt: metadata.updatedAt,
+                  };
+                } catch (error) {
+                  this.logger.warn('Agent spec not found, skipping', { agent: metadata.slug });
+                  return null;
+                }
+              }))).filter(a => a !== null);
+              
+              this.logger.debug('[Agent Enrichment] Enriched agents', { 
+                count: enrichedAgents.length,
+                agents: enrichedAgents.map(a => ({ slug: a.slug, hasToolsConfig: !!a.toolsConfig }))
+              });
+              
               return c.json({ success: true, data: enrichedAgents });
             } catch (error: any) {
               this.logger.error('Failed to fetch agents', { error: error.message, stack: error.stack });
@@ -168,71 +357,13 @@ export class WorkAgentRuntime {
           });
 
           // === Agent CRUD Endpoints ===
-
-          // Create new agent
-          app.post('/agents', async (c) => {
-            try {
-              const body = await c.req.json();
-              const { slug, spec } = await this.configLoader.createAgent(body);
-
-              // Reload agents to include the new one
-              await this.initialize();
-
-              return c.json({ success: true, data: { slug, ...spec } }, 201);
-            } catch (error: any) {
-              this.logger.error('Failed to create agent', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Update existing agent
-          app.put('/agents/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const updates = await c.req.json();
-
-              const updated = await this.configLoader.updateAgent(slug, updates);
-
-              // Reload agents to reflect changes
-              await this.initialize();
-
-              return c.json({ success: true, data: updated });
-            } catch (error: any) {
-              this.logger.error('Failed to update agent', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Delete agent
-          app.delete('/agents/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-
-              // Check if any workspaces reference this agent
-              const dependentWorkspaces = await this.configLoader.getWorkspacesUsingAgent(slug);
-              if (dependentWorkspaces.length > 0) {
-                return c.json({
-                  success: false,
-                  error: `Cannot delete agent '${slug}' - it is referenced by workspaces: ${dependentWorkspaces.join(', ')}`
-                }, 400);
-              }
-
-              // Drain agent if active
-              if (this.activeAgents.has(slug)) {
-                this.activeAgents.delete(slug);
-              }
-
-              await this.configLoader.deleteAgent(slug);
-
-              // Reload agents
-              await this.initialize();
-
-              return c.json({ success: true }, 200);
-            } catch (error: any) {
-              this.logger.error('Failed to delete agent', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
+          // Mount agent routes for CRUD operations
+          const agentRoutes = createAgentRoutes(
+            this.agentService,
+            () => this.initialize(),
+            () => this.voltAgent
+          );
+          app.route('/agents', agentRoutes);
 
           // === Tool Management Endpoints ===
 
@@ -258,12 +389,47 @@ export class WorkAgentRuntime {
           });
 
           // List all tools
-          app.get('/tools', async (c) => {
+          app.route('/tools', createToolRoutes(this.mcpService, () => this.initialize()));
+
+          // Get agent tools with full schemas
+          // Get agent tools with full schemas
+          app.get('/agents/:slug/tools', async (c) => {
             try {
-              const tools = await this.configLoader.listTools();
-              return c.json({ success: true, data: tools });
+              const slug = c.req.param('slug');
+              const agent = this.activeAgents.get(slug);
+              
+              if (!agent) {
+                return c.json({ success: false, error: 'Agent not found or not active' }, 404);
+              }
+
+              const tools = this.agentTools.get(slug) || [];
+              const toolsData = tools.map((tool: any) => {
+                const mapping = this.toolNameMapping.get(tool.name);
+                
+                // Convert Zod schema to JSON schema if parameters is a Zod object
+                let parameters = tool.parameters;
+                if (parameters && typeof parameters === 'object' && '_def' in parameters) {
+                  try {
+                    parameters = zodToJsonSchema(parameters);
+                  } catch (error) {
+                    this.logger.warn('Failed to convert Zod schema to JSON schema', { tool: tool.name, error });
+                  }
+                }
+                
+                return {
+                  id: tool.id || tool.name,
+                  name: tool.name,
+                  originalName: mapping?.original || tool.name,
+                  server: mapping?.server || null,
+                  toolName: mapping?.tool || tool.name,
+                  description: tool.description,
+                  parameters
+                };
+              });
+
+              return c.json({ success: true, data: toolsData });
             } catch (error: any) {
-              this.logger.error('Failed to list tools', { error });
+              this.logger.error('Failed to get agent tools', { error });
               return c.json({ success: false, error: error.message }, 500);
             }
           });
@@ -275,16 +441,16 @@ export class WorkAgentRuntime {
               const { toolId } = await c.req.json();
 
               const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { use: [], allowed: ['*'] };
+              const tools = agent.tools || { mcpServers: [], available: ['*'] };
 
-              if (!tools.use.includes(toolId)) {
-                tools.use.push(toolId);
+              if (!tools.mcpServers.includes(toolId)) {
+                tools.mcpServers.push(toolId);
               }
 
               await this.configLoader.updateAgent(slug, { tools });
               await this.initialize();
 
-              return c.json({ success: true, data: tools.use });
+              return c.json({ success: true, data: tools.mcpServers });
             } catch (error: any) {
               this.logger.error('Failed to add tool', { error });
               return c.json({ success: false, error: error.message }, 400);
@@ -298,9 +464,9 @@ export class WorkAgentRuntime {
               const toolId = c.req.param('toolId');
 
               const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { use: [] };
+              const tools = agent.tools || { mcpServers: [] };
 
-              tools.use = tools.use.filter(id => id !== toolId);
+              tools.mcpServers = tools.mcpServers.filter((id: string) => id !== toolId);
 
               await this.configLoader.updateAgent(slug, { tools });
               await this.initialize();
@@ -319,9 +485,9 @@ export class WorkAgentRuntime {
               const { allowed } = await c.req.json();
 
               const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { use: [] };
+              const tools = agent.tools || { mcpServers: [] };
 
-              tools.allowed = allowed;
+              tools.available = allowed;
 
               await this.configLoader.updateAgent(slug, { tools });
               await this.initialize();
@@ -340,7 +506,7 @@ export class WorkAgentRuntime {
               const { aliases } = await c.req.json();
 
               const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { use: [] };
+              const tools = agent.tools || { mcpServers: [] };
 
               tools.aliases = aliases;
 
@@ -355,269 +521,148 @@ export class WorkAgentRuntime {
           });
 
           // === Workspace Management Endpoints ===
+          app.route('/workspaces', createWorkspaceRoutes(this.workspaceService));
 
-          // List all workspaces
-          app.get('/workspaces', async (c) => {
-            try {
-              const workspaces = await this.configLoader.listWorkspaces();
-              return c.json({ success: true, data: workspaces });
-            } catch (error: any) {
-              this.logger.error('Failed to list workspaces', { error });
-              return c.json({ success: false, error: error.message }, 500);
+          // === Workspace & Workflow Management ===
+          app.route('/workspaces', createWorkspaceRoutes(this.workspaceService));
+          app.route('/agents', createWorkflowRoutes(this.workspaceService));
+
+          // === Route Modules ===
+          app.route('/config', createConfigRoutes(this.configLoader, this.logger));
+          app.route('/bedrock', createBedrockRoutes(
+            () => this.modelCatalog,
+            this.appConfig,
+            this.logger
+          ));
+          app.route('/monitoring', createMonitoringRoutes({
+            activeAgents: this.activeAgents,
+            agentStats: this.agentStats,
+            agentStatus: this.agentStatus,
+            memoryAdapters: this.memoryAdapters,
+            metricsLog: this.metricsLog,
+            monitoringEvents: this.monitoringEvents,
+            queryEventsFromDisk: (start, end, userId) => this.queryEventsFromDisk(start, end, userId)
+          }));
+          app.route('/agents', createConversationRoutes(this.memoryAdapters, this.logger));
+
+          // Agent health check (agent-specific, not in monitoring routes)
+          app.get('/agents/:slug/health', async (c) => {
+            const slug = c.req.param('slug');
+            const agent = this.activeAgents.get(slug);
+            
+            if (!agent) {
+              return c.json({ 
+                success: false, 
+                healthy: false, 
+                error: 'Agent not found',
+                checks: { loaded: false }
+              }, 404);
             }
-          });
 
-          // Get workspace config
-          app.get('/workspaces/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workspace = await this.configLoader.loadWorkspace(slug);
-              return c.json({ success: true, data: workspace });
-            } catch (error: any) {
-              this.logger.error('Failed to load workspace', { error });
-              return c.json({ success: false, error: error.message }, 404);
-            }
-          });
+            const checks: Record<string, boolean> = {
+              loaded: true,
+              hasModel: !!agent.model,
+              hasMemory: this.memoryAdapters.has(slug),
+            };
 
-          // Create new workspace
-          app.post('/workspaces', async (c) => {
-            try {
-              const config = await c.req.json();
-              await this.configLoader.createWorkspace(config);
-              return c.json({ success: true, data: config }, 201);
-            } catch (error: any) {
-              this.logger.error('Failed to create workspace', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Update workspace
-          app.put('/workspaces/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const updates = await c.req.json();
-              const updated = await this.configLoader.updateWorkspace(slug, updates);
-              return c.json({ success: true, data: updated });
-            } catch (error: any) {
-              this.logger.error('Failed to update workspace', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Delete workspace
-          app.delete('/workspaces/:slug', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              await this.configLoader.deleteWorkspace(slug);
-              return c.json({ success: true }, 200);
-            } catch (error: any) {
-              this.logger.error('Failed to delete workspace', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // === Workflow File Management Endpoints ===
-
-          // List workflow files for agent
-          app.get('/agents/:slug/workflows/files', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workflows = await this.configLoader.listAgentWorkflows(slug);
-              return c.json({ success: true, data: workflows });
-            } catch (error: any) {
-              this.logger.error('Failed to list workflows', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Get workflow file content
-          app.get('/agents/:slug/workflows/:workflowId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workflowId = c.req.param('workflowId');
-              const content = await this.configLoader.readWorkflow(slug, workflowId);
-              return c.json({ success: true, data: { content } });
-            } catch (error: any) {
-              this.logger.error('Failed to read workflow', { error });
-              return c.json({ success: false, error: error.message }, 404);
-            }
-          });
-
-          // Create workflow file
-          app.post('/agents/:slug/workflows', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const { filename, content } = await c.req.json();
-
-              await this.configLoader.createWorkflow(slug, filename, content);
-
-              return c.json({ success: true, data: { filename } }, 201);
-            } catch (error: any) {
-              this.logger.error('Failed to create workflow', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Update workflow file
-          app.put('/agents/:slug/workflows/:workflowId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workflowId = c.req.param('workflowId');
-              const { content } = await c.req.json();
-
-              await this.configLoader.updateWorkflow(slug, workflowId, content);
-
-              return c.json({ success: true });
-            } catch (error: any) {
-              this.logger.error('Failed to update workflow', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Delete workflow file
-          app.delete('/agents/:slug/workflows/:workflowId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const workflowId = c.req.param('workflowId');
-
-              await this.configLoader.deleteWorkflow(slug, workflowId);
-
-              return c.json({ success: true }, 200);
-            } catch (error: any) {
-              this.logger.error('Failed to delete workflow', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // === App Configuration Endpoints ===
-
-          // Get app config
-          app.get('/config/app', async (c) => {
-            try {
-              const config = await this.configLoader.loadAppConfig();
-              return c.json({ success: true, data: config });
-            } catch (error: any) {
-              this.logger.error('Failed to load app config', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Update app config
-          app.put('/config/app', async (c) => {
-            try {
-              const updates = await c.req.json();
-              const updated = await this.configLoader.updateAppConfig(updates);
-
-              // Note: Some config changes require restart to take effect
-              this.logger.info('App config updated', { config: updated });
-
-              return c.json({ success: true, data: updated });
-            } catch (error: any) {
-              this.logger.error('Failed to update app config', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // === Bedrock Model Catalog Endpoints ===
-
-          // List all available Bedrock models
-          app.get('/bedrock/models', async (c) => {
-            try {
-              if (!this.modelCatalog) {
-                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
-              }
-              const models = await this.modelCatalog.listModels();
-              return c.json({ success: true, data: models });
-            } catch (error: any) {
-              this.logger.error('Failed to list Bedrock models', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Get pricing for Bedrock models
-          app.get('/bedrock/pricing', async (c) => {
-            try {
-              if (!this.modelCatalog) {
-                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
-              }
-              const region = c.req.query('region') || this.appConfig.region;
-              const pricing = await this.modelCatalog.getModelPricing(region);
-              return c.json({ success: true, data: pricing });
-            } catch (error: any) {
-              this.logger.error('Failed to get Bedrock pricing', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Validate a model ID
-          app.get('/bedrock/models/:modelId/validate', async (c) => {
-            try {
-              if (!this.modelCatalog) {
-                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
-              }
-              const modelId = c.req.param('modelId');
-              const isValid = await this.modelCatalog.validateModelId(modelId);
-              return c.json({ success: true, data: { modelId, isValid } });
-            } catch (error: any) {
-              this.logger.error('Failed to validate model ID', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Get model info
-          app.get('/bedrock/models/:modelId', async (c) => {
-            try {
-              if (!this.modelCatalog) {
-                return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
-              }
-              const modelId = c.req.param('modelId');
-              const model = await this.modelCatalog.getModelInfo(modelId);
-              if (!model) {
-                return c.json({ success: false, error: 'Model not found' }, 404);
-              }
-              return c.json({ success: true, data: model });
-            } catch (error: any) {
-              this.logger.error('Failed to get model info', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // === Conversation Endpoints ===
-
-          // Get conversations for an agent
-          app.get('/agents/:slug/conversations', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const adapter = this.memoryAdapters.get(slug);
+            // Check integrations (MCP tools)
+            const spec = this.agentSpecs.get(slug);
+            const integrations: Array<{ id: string; type: string; connected: boolean; error?: string; metadata?: any }> = [];
+            
+            if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
+              checks.integrationsConfigured = true;
               
-              if (!adapter) {
-                return c.json({ success: true, data: [] });
+              for (const id of spec.tools.mcpServers) {
+                const key = `${slug}:${id}`;
+                const status = this.mcpConnectionStatus.get(key);
+                const metadata = this.integrationMetadata.get(key);
+                
+                // Get tools for this MCP server with original names
+                const agentTools = this.agentTools.get(slug) || [];
+                const serverTools = agentTools
+                  .filter(t => t.name.startsWith(id.replace(/-/g, ''))) // Match by server prefix
+                  .map(t => {
+                    const mapping = this.toolNameMapping.get(t.name);
+                    
+                    return {
+                      name: t.name,
+                      originalName: mapping?.original || t.name,
+                      server: mapping?.server || null,
+                      toolName: mapping?.tool || t.name,
+                      description: (t as any).description
+                    };
+                  });
+                
+                integrations.push({
+                  id,
+                  type: metadata?.type || 'mcp',
+                  connected: status?.connected === true,
+                  error: status?.error,
+                  metadata: metadata ? {
+                    transport: metadata.transport,
+                    toolCount: metadata.toolCount,
+                    tools: serverTools
+                  } : undefined,
+                });
               }
-
-              const conversations = await adapter.getConversations(`agent:${slug}`);
               
-              return c.json({ success: true, data: conversations });
-            } catch (error: any) {
-              this.logger.error('Failed to load conversations', { error });
-              return c.json({ success: false, error: error.message }, 500);
+              checks.integrationsConnected = integrations.every(i => i.connected);
             }
+
+            const healthy = Object.values(checks).every(v => v);
+            
+            return c.json({ 
+              success: true, 
+              healthy,
+              checks,
+              integrations,
+              status: this.agentStatus.get(slug) || 'idle'
+            });
           });
 
-          app.get('/agents/:slug/conversations/:conversationId/messages', async (c) => {
+          // === Conversation Context & Stats (not in route module) ===
+
+          // Conversation context management
+          app.post('/api/agents/:slug/conversations/:conversationId/context', async (c) => {
             try {
               const slug = c.req.param('slug');
               const conversationId = c.req.param('conversationId');
               const adapter = this.memoryAdapters.get(slug);
               
               if (!adapter) {
-                return c.json({ success: true, data: [] });
+                return c.json({ success: false, error: 'Agent not found' }, 404);
               }
 
-              const messages = await adapter.getMessages(`agent:${slug}`, conversationId);
+              const { action, content } = await c.req.json();
               
-              return c.json({ success: true, data: messages });
+              switch (action) {
+                case 'add-system-message':
+                  if (!content) {
+                    return c.json({ success: false, error: 'content is required for add-system-message' }, 400);
+                  }
+                  
+                  // Inject as user message with special prefix for UI treatment
+                  await adapter.addMessage(
+                    {
+                      id: crypto.randomUUID(),
+                      role: 'user',
+                      parts: [{ type: 'text', text: `[SYSTEM_EVENT] ${content}` }]
+                    } as any,
+                    `agent:${slug}`,
+                    conversationId
+                  );
+                  
+                  return c.json({ success: true, message: 'System event added' });
+                
+                case 'clear-history':
+                  await adapter.clearMessages(`agent:${slug}`, conversationId);
+                  return c.json({ success: true, message: 'Conversation history cleared' });
+                
+                default:
+                  return c.json({ success: false, error: `Unknown action: ${action}` }, 400);
+              }
             } catch (error: any) {
-              this.logger.error('Failed to load messages', { error });
+              this.logger.error('Failed to manage conversation context', { error });
               return c.json({ success: false, error: error.message }, 500);
             }
           });
@@ -627,6 +672,50 @@ export class WorkAgentRuntime {
             try {
               const slug = c.req.param('slug');
               const conversationId = c.req.param('conversationId');
+              
+              if (!slug || slug === 'undefined') {
+                return c.json({ success: false, error: 'Invalid agent slug' }, 400);
+              }
+              
+              const spec = await this.configLoader.loadAgent(slug);
+              const modelId = spec.model || this.appConfig.defaultModel;
+              
+              // Calculate base stats from system prompt and tools
+              const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
+              const agentTools = this.agentTools.get(slug) || [];
+              const toolsJson = JSON.stringify(agentTools.map((t: any) => ({
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters
+              })));
+              const mcpServerTokens = Math.ceil(toolsJson.length / 4);
+              
+              // If no conversationId or conversation doesn't exist, return agent-level stats
+              if (!conversationId) {
+                const contextTokens = systemPromptTokens + mcpServerTokens;
+                const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, contextTokens);
+                
+                return c.json({ 
+                  success: true, 
+                  data: {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    totalTokens: 0,
+                    contextTokens,
+                    turns: 0,
+                    toolCalls: 0,
+                    estimatedCost: 0,
+                    contextWindowPercentage,
+                    modelId,
+                    systemPromptTokens,
+                    mcpServerTokens,
+                    userMessageTokens: 0,
+                    assistantMessageTokens: 0,
+                    contextFilesTokens: 0,
+                  }
+                });
+              }
+              
               const adapter = this.memoryAdapters.get(slug);
               
               if (!adapter) {
@@ -639,7 +728,23 @@ export class WorkAgentRuntime {
                 return c.json({ success: false, error: 'Conversation not found' }, 404);
               }
 
-              const stats = conversation.metadata?.stats || {
+              interface ConversationStats {
+                inputTokens: number;
+                outputTokens: number;
+                totalTokens: number;
+                contextTokens?: number;
+                turns: number;
+                toolCalls: number;
+                estimatedCost: number;
+                tokenBreakdown?: {
+                  userMessageTokens?: number;
+                  assistantMessageTokens?: number;
+                  systemPromptTokens?: number;
+                  mcpServerTokens?: number;
+                };
+              }
+
+              const stats: ConversationStats = (conversation.metadata as any)?.stats || {
                 inputTokens: 0,
                 outputTokens: 0,
                 totalTokens: 0,
@@ -648,14 +753,34 @@ export class WorkAgentRuntime {
                 estimatedCost: 0,
               };
 
-              const modelStats = conversation.metadata?.modelStats || {};
-
-              // Calculate context window percentage using actual total tokens
-              const agent = this.activeAgents.get(slug);
-              const spec = await this.configLoader.loadAgent(slug);
-              const modelId = spec.model || this.appConfig.defaultModel;
+              const modelStats = (conversation.metadata as any)?.modelStats || {};
               
-              const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, stats.totalTokens);
+              const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, stats.contextTokens || stats.totalTokens);
+
+              // Get token breakdown from stats or calculate on-the-fly
+              const breakdown = stats.tokenBreakdown || {};
+              let userMessageTokens = breakdown.userMessageTokens;
+              let assistantMessageTokens = breakdown.assistantMessageTokens;
+              
+              // If breakdown doesn't exist, calculate user message tokens from conversation
+              // Note: messages are stored separately, not on conversation object
+              if (userMessageTokens === undefined) {
+                const messages = await adapter.getMessages(conversation.userId, conversationId);
+                const userMessages = messages?.filter((m: any) => m.role === 'user') || [];
+                userMessageTokens = userMessages.reduce((sum: number, m: any) => {
+                  const content = typeof m.content === 'string' 
+                    ? m.content 
+                    : Array.isArray(m.content) 
+                      ? m.content.map((p: any) => p.text || '').join('') 
+                      : '';
+                  return sum + Math.ceil(content.length / 4);
+                }, 0);
+              }
+              
+              // If assistant tokens not in breakdown, use outputTokens
+              if (assistantMessageTokens === undefined) {
+                assistantMessageTokens = stats.outputTokens || 0;
+              }
 
               return c.json({ 
                 success: true, 
@@ -665,6 +790,11 @@ export class WorkAgentRuntime {
                   conversationId,
                   modelId,
                   modelStats,
+                  systemPromptTokens,
+                  mcpServerTokens,
+                  userMessageTokens,
+                  assistantMessageTokens,
+                  contextFilesTokens: 0, // Placeholder for future context files support
                 }
               });
             } catch (error: any) {
@@ -677,56 +807,75 @@ export class WorkAgentRuntime {
           app.post('/agents/:slug/invoke', async (c) => {
             try {
               const slug = c.req.param('slug');
-              const { prompt, silent = true, model, tools: toolNames } = await c.req.json();
+              const { input, silent = true, model, tools: toolNames, schema } = await c.req.json();
 
               const agent = this.activeAgents.get(slug);
               if (!agent) {
                 return c.json({ success: false, error: 'Agent not found' }, 404);
               }
 
-              // Invoke agent using generateText with simple prompt string
-              // Don't pass userId/conversationId to avoid loading empty conversation history
+              // Build prompt with schema instruction if provided
+              let prompt = input;
+              if (schema) {
+                prompt = `${input}\n\nYou must return your response as valid JSON matching this exact schema:\n${JSON.stringify(schema, null, 2)}\n\nReturn ONLY the JSON object, no markdown formatting, no explanations.`;
+              }
+
               const options: any = {};
-              if (model) {
+              if (model && this.modelCatalog) {
+                const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
                   appConfig: this.appConfig, 
-                  agentSpec: { model } as any 
+                  agentSpec: { model: resolvedModel } as any 
                 });
               }
               
-              // Override tools if specified - filter agent's tools by name
+              // Override tools if specified - get from our cached tools
               if (toolNames && Array.isArray(toolNames)) {
-                const agentTools = agent.tools || [];
+                const slug = c.req.param('slug');
+                const agentTools = this.agentTools.get(slug) || [];
                 options.tools = agentTools.filter((t: any) => 
                   toolNames.includes(t.name)
                 );
               }
               
+              // Use generateText to support multi-turn tool calling
               const result = await agent.generateText(prompt, options);
+
+              // Parse response if schema provided
+              let response = result.text;
+              if (schema && typeof result.text === 'string') {
+                try {
+                  // Extract JSON from markdown code blocks if present
+                  let jsonText = result.text.trim();
+                  const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                  if (jsonMatch) {
+                    jsonText = jsonMatch[1].trim();
+                  }
+                  response = JSON.parse(jsonText);
+                } catch (e) {
+                  this.logger.warn('Failed to parse JSON response', { error: e, text: result.text });
+                  // Return raw text if parsing fails
+                }
+              }
 
               return c.json({ 
                 success: true, 
-                response: result.text,
-                usage: result.usage
+                response,
+                usage: result.usage,
+                steps: result.steps,
+                toolCalls: result.toolCalls,
+                toolResults: result.toolResults,
+                reasoning: result.reasoning
               });
             } catch (error: any) {
               this.logger.error('Failed to invoke agent', { error });
-              // Check if it's an authentication error
-              const errorMsg = error.message || '';
-              const isAuthError = errorMsg.includes('authentication failed') ||
-                                  errorMsg.includes('status code 403') ||
-                                  errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('Midway') ||
-                                  errorMsg.includes('Form action URL not found');
-              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
+              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
             }
           });
 
           // Raw MCP tool call (no transformation, no LLM)
           app.post('/agents/:slug/tools/:toolName', async (c) => {
-            const endpointStart = performance.now();
-            console.log('\n=== RAW TOOL CALL START ===');
-            
+            const startTime = performance.now();
             try {
               const slug = c.req.param('slug');
               const toolName = c.req.param('toolName');
@@ -738,16 +887,21 @@ export class WorkAgentRuntime {
               }
               
               const allTools = this.agentTools.get(slug) || [];
-              const tool = allTools.find(t => t.name === toolName);
+              
+              // Try to find tool by normalized name first, then by original name
+              let tool = allTools.find(t => t.name === toolName);
+              if (!tool) {
+                const normalized = this.getNormalizedToolName(toolName);
+                tool = allTools.find(t => t.name === normalized);
+              }
+              
               if (!tool) {
                 return c.json({ success: false, error: `Tool ${toolName} not found` }, 404);
               }
               
-              console.log(`[Tool Call] ${toolName}`);
               const toolStart = performance.now();
               const toolResult = await (tool as any).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
-              console.log(`[Tool Complete] ${toolDuration.toFixed(2)}ms`);
               
               // Unwrap MCP result
               let unwrappedResult = toolResult;
@@ -764,37 +918,27 @@ export class WorkAgentRuntime {
                 }
               }
               
-              console.log(`=== RAW TOOL TOTAL: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
-              
               return c.json({
                 success: true,
                 response: unwrappedResult,
-                debug: {
-                  toolDuration,
-                  totalDuration: performance.now() - endpointStart
+                metadata: {
+                  toolDuration: Math.round(toolDuration),
+                  totalDuration: Math.round(performance.now() - startTime)
                 }
               });
             } catch (error: any) {
-              console.log(`=== RAW TOOL ERROR: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
               this.logger.error('Failed to call tool', { error });
-              // Check if it's an authentication error
-              const errorMsg = error.message || '';
-              const isAuthError = errorMsg.includes('authentication failed') ||
-                                  errorMsg.includes('status code 403') ||
-                                  errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('Midway') ||
-                                  errorMsg.includes('Form action URL not found');
-              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
+              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
             }
           });
 
           // Pure transformation endpoint (no LLM, just data mapping)
-          app.post('/agents/:slug/invoke/transform', async (c) => {
-            const endpointStart = performance.now();
-            
+          app.post('/agents/:slug/tool/:toolName', async (c) => {
+            const startTime = performance.now();
             try {
               const slug = c.req.param('slug');
-              const { toolName, toolArgs, transform } = await c.req.json();
+              const toolName = c.req.param('toolName');
+              const { toolArgs, transform } = await c.req.json();
               
               const agent = this.activeAgents.get(slug);
               if (!agent) {
@@ -802,19 +946,27 @@ export class WorkAgentRuntime {
               }
               
               const allTools = this.agentTools.get(slug) || [];
-              const tool = allTools.find(t => t.name === toolName);
+              
+              // Try to find tool by normalized name first, then by original name
+              let tool = allTools.find(t => t.name === toolName);
+              if (!tool) {
+                const normalized = this.getNormalizedToolName(toolName);
+                tool = allTools.find(t => t.name === normalized);
+              }
+              
               if (!tool) {
                 return c.json({ success: false, error: `Tool ${toolName} not found` }, 404);
               }
               
               // Execute tool
               const toolStart = performance.now();
-              console.log('[Tool args]', JSON.stringify(toolArgs));
               const toolResult = await (tool as any).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
               
               // Unwrap MCP result
               let unwrappedResult = toolResult;
+              let parseError: string | undefined;
+              
               if (toolResult?.content?.[0]?.text) {
                 try {
                   const parsed = JSON.parse(toolResult.content[0].text);
@@ -828,23 +980,40 @@ export class WorkAgentRuntime {
                 }
               }
               
-              console.log('[Unwrapped result]', JSON.stringify(unwrappedResult));
+              // Generic handling: if result is a string with error text followed by JSON, extract the JSON
+              if (typeof unwrappedResult === 'string') {
+                const lastBrace = unwrappedResult.lastIndexOf(', {');
+                if (lastBrace > 0) {
+                  try {
+                    parseError = unwrappedResult.substring(0, lastBrace);
+                    const jsonStr = unwrappedResult.substring(lastBrace + 2);
+                    unwrappedResult = JSON.parse(jsonStr);
+                  } catch {
+                    parseError = undefined;
+                  }
+                }
+              }
+              
+              // Same for response field if it's a string with embedded JSON
+              if (unwrappedResult?.response && typeof unwrappedResult.response === 'string') {
+                const lastBrace = unwrappedResult.response.lastIndexOf(', {');
+                if (lastBrace > 0) {
+                  try {
+                    parseError = unwrappedResult.response.substring(0, lastBrace);
+                    const jsonStr = unwrappedResult.response.substring(lastBrace + 2);
+                    unwrappedResult = JSON.parse(jsonStr);
+                  } catch {
+                    parseError = undefined;
+                  }
+                }
+              }
               
               // Check if the MCP tool returned an error
               if (unwrappedResult?.success === false && unwrappedResult?.error) {
                 const errorMessage = unwrappedResult.error?.message?.message || unwrappedResult.error?.message || unwrappedResult.error;
-                const errorStr = typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage);
-                
-                // Check if it's an auth error
-                if (errorStr.includes('Form action URL not found') || 
-                    errorStr.includes('Midway') || 
-                    errorStr.includes('authentication') ||
-                    errorStr.includes('status code 403') ||
-                    errorStr.includes('Request failed with status code 403') ||
-                    errorStr.includes('mwinit')) {
+                if (isAuthError(errorMessage)) {
                   return c.json({ success: false, error: errorMessage }, 401);
                 }
-                
                 return c.json({ success: false, error: errorMessage }, 500);
               }
               
@@ -857,83 +1026,58 @@ export class WorkAgentRuntime {
               return c.json({
                 success: true,
                 response: transformed,
-                debug: {
-                  toolDuration,
-                  transformDuration,
-                  totalDuration: performance.now() - endpointStart
+                metadata: {
+                  toolDuration: Math.round(toolDuration),
+                  transformDuration: Math.round(transformDuration),
+                  totalDuration: Math.round(performance.now() - startTime),
+                  ...(parseError && { parseError })
                 }
               });
             } catch (error: any) {
               this.logger.error('Failed to transform invoke', { error });
-              // Check if it's an authentication error
-              const errorMsg = error.message || '';
-              console.log('[Auth Check]', { errorMsg, includes403: errorMsg.includes('status code 403') });
-              const isAuthError = errorMsg.includes('authentication failed') ||
-                                  errorMsg.includes('status code 403') ||
-                                  errorMsg.includes('Request failed with status code 403') ||
-                                  errorMsg.includes('Midway') ||
-                                  errorMsg.includes('Form action URL not found');
-              console.log('[Auth Error?]', isAuthError);
-              return c.json({ success: false, error: error.message }, isAuthError ? 401 : 500);
+              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
             }
           });
 
           app.post('/agents/:slug/invoke/stream', async (c) => {
-            const endpointStart = performance.now();
             try {
               const slug = c.req.param('slug');
               const { prompt, silent = true, model, tools: toolNames, maxSteps = 10, schema: schemaJson } = await c.req.json();
 
-              const agentLookupStart = performance.now();
               const agent = this.activeAgents.get(slug);
               if (!agent) {
                 return c.json({ success: false, error: 'Agent not found' }, 404);
               }
-              console.log(`Agent lookup: ${(performance.now() - agentLookupStart).toFixed(2)}ms`);
 
               const options: any = { maxSteps, maxOutputTokens: 2000 };
-              if (model) {
-                const modelStart = performance.now();
+              if (model && this.modelCatalog) {
+                const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
                   appConfig: this.appConfig, 
-                  agentSpec: { model } as any 
+                  agentSpec: { model: resolvedModel } as any 
                 });
-                console.log(`Model creation: ${(performance.now() - modelStart).toFixed(2)}ms`);
               }
               
               // Override tools if specified - create temp agent with only filtered tools
               if (toolNames && Array.isArray(toolNames)) {
-                const toolFilterStart = performance.now();
                 const allTools = this.agentTools.get(slug) || [];
                 const filteredTools = allTools.filter(t => toolNames.includes(t.name));
-                console.log(`Tool filtering: ${(performance.now() - toolFilterStart).toFixed(2)}ms`);
-                
-                console.log('=== TOOL FILTERING ===');
-                console.log('Requested:', toolNames);
-                console.log('Available:', allTools.length);
-                console.log('Filtered:', filteredTools.length);
                 
                 // Create temporary agent with ONLY the filtered tools
-                const agentCreateStart = performance.now();
                 const tempAgent = new Agent({
                   name: `${slug}-temp`,
                   instructions: agent.instructions,
                   model: options.model || agent.model,
                   tools: filteredTools,
                   maxSteps,
-                  hooks: agent.hooks, // Copy hooks from main agent
+                  hooks: agent.hooks,
                 });
-                console.log(`Agent creation: ${(performance.now() - agentCreateStart).toFixed(2)}ms`);
-                
-                const generateStart = performance.now();
                 
                 // generateObject cannot use tools, so use generateText with JSON mode
                 if (schemaJson) {
                   const textResult = await tempAgent.generateText(
                     `${prompt}\n\nReturn ONLY valid JSON matching this schema (no markdown, no explanation):\n${JSON.stringify(schemaJson, null, 2)}`
                   );
-                  console.log(`generateText: ${(performance.now() - generateStart).toFixed(2)}ms`);
-                  console.log(`=== ENDPOINT TOTAL: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
                   
                   // Extract JSON from response (handles markdown code blocks)
                   let parsed;
@@ -941,7 +1085,6 @@ export class WorkAgentRuntime {
                     const cleaned = textResult.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
                     parsed = JSON.parse(cleaned);
                   } catch {
-                    // Fallback: try to find JSON object in text
                     const jsonMatch = textResult.text.match(/\{[\s\S]*\}/);
                     parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to parse JSON' };
                   }
@@ -949,45 +1092,28 @@ export class WorkAgentRuntime {
                   return c.json({ 
                     success: true, 
                     response: parsed,
-                    usage: textResult.usage,
-                    debug: {
-                      totalTools: allTools.length,
-                      filteredTools: filteredTools.length,
-                      toolNames: filteredTools.map(t => t.name)
-                    }
+                    usage: textResult.usage
                   });
                 }
                 
                 const result = await tempAgent.generateText(prompt);
-                console.log(`generateText: ${(performance.now() - generateStart).toFixed(2)}ms`);
-                console.log(`=== ENDPOINT TOTAL: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
                 
                 return c.json({ 
                   success: true, 
                   response: result.text,
-                  usage: result.usage,
-                  debug: {
-                    totalTools: allTools.length,
-                    filteredTools: filteredTools.length,
-                    toolNames: filteredTools.map(t => t.name)
-                  }
+                  usage: result.usage
                 });
               }
 
               // For multi-turn, use generateText/generateObject and return result
-              const generateStart = performance.now();
               const result = schemaJson
-                ? await agent.generateObject(prompt, jsonSchema(schemaJson), options)
+                ? await agent.generateObject(prompt, jsonSchema(schemaJson) as any, options)
                 : await agent.generateText(prompt, options);
-              
-              console.log(`generate${schemaJson ? 'Object' : 'Text'}: ${(performance.now() - generateStart).toFixed(2)}ms`);
-              console.log(`=== ENDPOINT TOTAL: ${(performance.now() - endpointStart).toFixed(2)}ms ===\n`);
               
               return c.json({ 
                 success: true, 
-                response: schemaJson ? result.object : result.text,
-                usage: result.usage,
-                debug: options.debugInfo || { message: 'No tool filtering applied' }
+                response: schemaJson ? (result as any).object : (result as any).text,
+                usage: result.usage
               });
             } catch (error: any) {
               this.logger.error('Failed to stream invoke', { error });
@@ -995,11 +1121,157 @@ export class WorkAgentRuntime {
             }
           });
 
-          // Chat endpoint for UI - handles streaming with model overrides
-          app.post('/agents/:slug/chat', async (c) => {
+          // Tool approval response endpoint
+          app.post('/tool-approval/:approvalId', async (c) => {
             try {
-              const slug = c.req.param('slug');
+              const approvalId = c.req.param('approvalId');
+              const { approved } = await c.req.json();
+              
+              this.logger.info('[Approval Endpoint] Received approval response', { approvalId, approved });
+              
+              const pending = this.pendingApprovals.get(approvalId);
+              if (pending) {
+                pending.resolve(approved);
+                this.pendingApprovals.delete(approvalId);
+                this.logger.info('[Approval Endpoint] Approval resolved', { approvalId, approved });
+                return c.json({ success: true });
+              }
+              
+              this.logger.warn('[Approval Endpoint] Approval request not found', { approvalId });
+              return c.json({ success: false, error: 'Approval request not found' }, 404);
+            } catch (error: any) {
+              this.logger.error('Approval response error', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // New lightweight invoke endpoint - uses global tool registry
+          app.post('/invoke', async (c) => {
+            try {
+              const { 
+                prompt, 
+                schema, 
+                tools: toolIds = [],
+                maxSteps = 10,
+                model,
+                structureModel,
+                system
+              } = await c.req.json();
+
+              // Get tools from global registry
+              const filteredTools = toolIds.length > 0
+                ? toolIds.map((id: string) => this.globalToolRegistry.get(id)).filter(Boolean)
+                : [];
+
+              // Resolve models from config - invokeModel for tool calling, structureModel for output formatting
+              const invokeModelId = model || this.appConfig.invokeModel;
+              const structureModelId = structureModel || this.appConfig.structureModel;
+              
+              const mainModel = createBedrockProvider({ 
+                appConfig: this.appConfig,
+                agentSpec: { 
+                  model: this.modelCatalog ? await this.modelCatalog.resolveModelId(invokeModelId) : invokeModelId
+                } as any
+              });
+              
+              const fastModel = createBedrockProvider({ 
+                appConfig: this.appConfig,
+                agentSpec: { 
+                  model: this.modelCatalog ? await this.modelCatalog.resolveModelId(structureModelId) : structureModelId
+                } as any
+              });
+
+              const defaultSystem = 'You are a helpful assistant. Use the available tools to answer the user\'s request accurately and concisely.';
+              
+              // Create temp agent for tool execution
+              const tempAgent = new Agent({
+                name: `invoke-${Date.now()}`,
+                instructions: system || defaultSystem,
+                model: mainModel,
+                tools: filteredTools,
+                maxSteps
+              });
+
+              const tempConvId = `invoke-${Date.now()}`;
+              
+              // Phase 1: Tool execution
+              const textResult = await tempAgent.generateText(prompt, {
+                conversationId: tempConvId,
+                userId: 'invoke-user'
+              });
+              
+              if (!schema) {
+                return c.json({
+                  success: true,
+                  response: textResult.text,
+                  usage: textResult.usage,
+                  steps: textResult.steps?.length || 0
+                });
+              }
+              
+              // Phase 2: Structure output (no tools needed)
+              const { jsonSchema } = await import('ai');
+              
+              // Create new agent without tools for structuring
+              const structureAgent = new Agent({
+                name: `invoke-structure-${Date.now()}`,
+                instructions: 'Format the provided information as structured JSON.',
+                model: fastModel || mainModel,
+                tools: [],  // No tools for structuring
+                maxSteps: 1
+              });
+              
+              const objectResult = await structureAgent.generateObject(
+                `${textResult.text}\n\nFormat the above information as structured JSON.`,
+                jsonSchema(schema) as any,
+                {
+                  conversationId: tempConvId,
+                  userId: 'invoke-user'
+                }
+              );
+              
+              return c.json({
+                success: true,
+                response: objectResult.object,
+                usage: {
+                  promptTokens: (textResult.usage.inputTokens || 0) + (objectResult.usage.inputTokens || 0),
+                  completionTokens: (textResult.usage.outputTokens || 0) + (objectResult.usage.outputTokens || 0),
+                  totalTokens: (textResult.usage.totalTokens || 0) + (objectResult.usage.totalTokens || 0)
+                },
+                steps: textResult.steps?.length || 0
+              });
+            } catch (error: any) {
+              this.logger.error('Failed to invoke', { error });
+              return c.json({ success: false, error: error.message }, 500);
+            }
+          });
+
+          // Custom chat endpoint with elicitation - use different path to avoid VoltAgent conflicts
+          app.post('/api/agents/:slug/chat', async (c) => {
+            const slug = c.req.param('slug');
+            
+            try {
               const { input, options = {} } = await c.req.json();
+              
+              // DEBUG: Log image data to trace truncation
+              if (Array.isArray(input)) {
+                for (const msg of input) {
+                  if (msg.parts) {
+                    for (const part of msg.parts) {
+                      if (part.type === 'file' && part.url) {
+                        const dataUrl = part.url as string;
+                        this.logger.info('[DEBUG Image] Received file part', {
+                          mediaType: part.mediaType,
+                          urlLength: dataUrl.length,
+                          urlStart: dataUrl.substring(0, 50),
+                          urlEnd: dataUrl.substring(dataUrl.length - 50),
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+              
               const { model: modelOverride, ...restOptions } = options;
 
               let agent = this.activeAgents.get(slug);
@@ -1030,13 +1302,19 @@ export class WorkAgentRuntime {
                 
                 if (!cachedAgent) {
                   try {
-                    // Get the original agent spec to preserve region and other settings
+                    // Get the original agent spec and tools
                     const originalSpec = this.agentSpecs.get(slug);
+                    const originalTools = this.agentTools.get(slug);
+                    const originalMemory = agent.getMemory();
+                    const originalHooks = agent.hooks;
                     
+                    const resolvedModel = this.modelCatalog 
+                      ? await this.modelCatalog.resolveModelId(modelOverride)
+                      : modelOverride;
                     const newModel = createBedrockProvider({
                       appConfig: this.appConfig,
                       agentSpec: { 
-                        model: modelOverride,
+                        model: resolvedModel,
                         region: originalSpec?.region || this.appConfig.region
                       } as any
                     });
@@ -1045,6 +1323,9 @@ export class WorkAgentRuntime {
                       ...agent,
                       name: cacheKey,
                       model: newModel,
+                      tools: originalTools,
+                      memory: originalMemory,
+                      hooks: originalHooks,
                     });
                     
                     this.activeAgents.set(cacheKey, cachedAgent);
@@ -1065,35 +1346,622 @@ export class WorkAgentRuntime {
                 agent = cachedAgent;
               }
 
-              // Use VoltAgent's streamText for proper SSE formatting
-              const result = await agent.streamText(input, restOptions);
-
               // Set SSE headers
               c.header('Content-Type', 'text/event-stream');
               c.header('Cache-Control', 'no-cache');
               c.header('Connection', 'keep-alive');
+              c.header('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
               return stream(c, async (streamWriter) => {
+                let conversationId: string | undefined;
+                let operationContext: any = {};
+                let completionReason = 'completed';
+                let hasOutput = false;
+                let accumulatedText = '';
+                let reasoningText = '';
+                let toolCallCount = 0;
+                let currentStep = 0;
+                let requestTraceId = '';
+                let isNewConversation = false;
+                let result: any;
+                const artifacts: Array<{ type: string; name?: string; content?: any }> = [];
+                
                 try {
-                  for await (const chunk of result.fullStream) {
-                    await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                  // Create injectable stream for elicitation
+                  const injectableStream = new InjectableStream();
+                  
+                  // Get auto-approve list from agent spec
+                  const agentSpec = this.agentSpecs.get(slug);
+                  const autoApprove = agentSpec?.tools?.autoApprove || [];
+                  
+                  // Elicitation callback that injects events instead of writing directly
+                  const elicitation = async (request: any) => {
+                    if (request.type === 'tool-approval') {
+                      const toolName = request.toolName;
+                      
+                      // Check if auto-approved (check both normalized and original names)
+                      const isApproved = isAutoApproved(toolName, autoApprove);
+                      
+                      // Also check if the original (non-normalized) name matches
+                      const toolMapping = Array.from(this.toolNameMapping.values()).find(
+                        m => m.normalized === toolName
+                      );
+                      const isApprovedOriginal = toolMapping ? isAutoApproved(toolMapping.original, autoApprove) : false;
+                      
+                      if (isApproved || isApprovedOriginal) {
+                        this.logger.info('[Elicitation] Auto-approved, returning true immediately', { 
+                          toolName,
+                          originalName: toolMapping?.original,
+                          matched: isApproved ? 'normalized' : 'original'
+                        });
+                        return true;
+                      }
+                      
+                      // Not auto-approved - inject approval request into stream
+                      const approvalId = `approval-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                      
+                      // Parse tool name for UI display
+                      const { server, tool } = parseToolName(toolName);
+                      
+                      this.logger.info('[Elicitation] NOT auto-approved, injecting approval request', {
+                        approvalId,
+                        toolName,
+                        originalName: toolMapping?.original,
+                        autoApproveList: autoApprove
+                      });
+                      
+                      // Inject event (will appear at next chunk boundary)
+                      injectableStream.inject({
+                        type: 'tool-approval-request',
+                        approvalId,
+                        toolName,
+                        server,
+                        tool,
+                        toolDescription: request.toolDescription,
+                        toolArgs: request.toolArgs,
+                      } as any);
+                      
+                      // Wait for user approval
+                      return new Promise<boolean>((resolve, reject) => {
+                        this.pendingApprovals.set(approvalId, { resolve, reject });
+                        
+                        const timeout = setTimeout(() => {
+                          if (this.pendingApprovals.has(approvalId)) {
+                            this.pendingApprovals.delete(approvalId);
+                            this.logger.warn('[Elicitation] Approval timeout', { approvalId });
+                            resolve(false);
+                          }
+                        }, 60000);
+                        
+                        const originalResolve = resolve;
+                        const wrappedResolve = (value: boolean) => {
+                          clearTimeout(timeout);
+                          originalResolve(value);
+                        };
+                        this.pendingApprovals.set(approvalId, { resolve: wrappedResolve, reject });
+                      });
+                    }
+                    return false;
+                  };
+                  
+                  operationContext = {
+                    ...restOptions,
+                    elicitation,
+                  };
+                  
+                  // Generate conversationId if not provided (new conversation)
+                  isNewConversation = !operationContext.conversationId;
+                  if (isNewConversation && operationContext.userId) {
+                    operationContext.conversationId = `${operationContext.userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
                   }
+                  
+                  // Create AbortController tied to client connection
+                  const abortController = new AbortController();
+                  conversationId = operationContext.conversationId;
+                  
+                  // Listen for client disconnect and abort operation
+                  c.req.raw.signal?.addEventListener('abort', () => {
+                    this.logger.debug('Client disconnected, aborting operation', { conversationId });
+                    abortController.abort('Client disconnected');
+                  });
+                  
+                  // Pass abort signal to VoltAgent (it will create its own controller that listens to this)
+                  operationContext.abortSignal = abortController.signal;
+                  this.logger.debug('Abort signal configured', { conversationId });
+                  
+                  // Ensure conversation exists before streaming
+                  const memory = agent.getMemory();
+                  if (memory && operationContext.conversationId && operationContext.userId) {
+                    const existing = await memory.getConversation(operationContext.conversationId);
+                    if (!existing) {
+                      // Use provided title or generate from first 50 chars of user message
+                      const title = operationContext.title || (input.length > 50 ? input.substring(0, 50) + '...' : input);
+                      await memory.createConversation({
+                        id: operationContext.conversationId,
+                        resourceId: slug,
+                        userId: operationContext.userId,
+                        title,
+                        metadata: {},
+                      });
+                    }
+                  }
+                  
+                  // Generate trace ID for this request (before streamText so it's available in message metadata)
+                  const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+                  operationContext.traceId = traceId;
+                  
+                  result = await agent.streamText(input, operationContext);
+                  
+                  // Set agent status to running
+                  this.agentStatus.set(slug, 'running');
+                  
+                  // Emit monitoring event
+                  const agentStartEvent = {
+                    type: 'agent-start',
+                    timestamp: new Date().toISOString(),
+                    timestampMs: Date.now(),
+                    agentSlug: slug,
+                    conversationId: operationContext.conversationId,
+                    userId: operationContext.userId,
+                    traceId,
+                    input: typeof input === 'string' ? input : input?.text || '[complex input]',
+                  };
+                  this.monitoringEvents.emit('event', agentStartEvent);
+                  await this.persistEvent(agentStartEvent);
+                  
+                  // Initialize stats if needed
+                  if (!this.agentStats.has(slug)) {
+                    const adapter = this.memoryAdapters.get(slug);
+                    if (adapter) {
+                      const conversations = await adapter.getConversations(slug);
+                      let totalMessages = 0;
+                      for (const conv of conversations) {
+                        const messages = await adapter.getMessages(conv.userId, conv.id);
+                        totalMessages += messages.length;
+                      }
+                      this.agentStats.set(slug, {
+                        conversationCount: conversations.length,
+                        messageCount: totalMessages,
+                        lastUpdated: Date.now(),
+                      });
+                    }
+                  }
+                  
+                  // Prevent unhandled rejections when stream is aborted mid-flight
+                  const suppressAbortError = (err: any) => 
+                    abortController.signal.aborted ? undefined : Promise.reject(err);
+                  
+                  result.text?.catch(suppressAbortError);
+                  result.usage?.catch(suppressAbortError);
+                  result.finishReason?.catch(suppressAbortError);
+                  
+                  // Helper to save standalone cancellation message
+                  const saveCancellationMessage = async () => {
+                    const mem = agent.getMemory();
+                    if (mem && operationContext.conversationId && operationContext.userId) {
+                      await mem.addMessage(
+                        {
+                          id: crypto.randomUUID(),
+                          role: 'assistant',
+                          parts: [{ type: 'text', text: '_⚠️ Response cancelled by user_' }]
+                        },
+                        operationContext.userId,
+                        operationContext.conversationId
+                      );
+                    }
+                  };
+                  
+                  this.logger.info('Agent stream started', { 
+                    conversationId: operationContext.conversationId,
+                    isNewConversation 
+                  });
+
+                  // Send conversationId as first event for new conversations
+                  if (isNewConversation && operationContext.conversationId) {
+                    const mem = agent.getMemory();
+                    const conversation = mem ? await mem.getConversation(operationContext.conversationId) : null;
+                    await streamWriter.write(`data: ${JSON.stringify({
+                      type: 'conversation-started',
+                      conversationId: operationContext.conversationId,
+                      title: conversation?.title || 'New Conversation'
+                    })}\n\n`);
+                  }
+
+                  // Initialize streaming state variables
+                  completionReason = 'completed';
+                  hasOutput = false;
+                  accumulatedText = '';
+                  let currentTextSegment = '';
+                  reasoningText = '';
+                  let lastChunkWasToolResult = false;
+                  let hasEmittedReasoningForCurrentSegment = false;
+                  toolCallCount = 0;
+                  currentStep = 0;
+                  requestTraceId = traceId; // Capture traceId for use in events
+                  let thinkingBuffer = ''; // Buffer for incomplete thinking tags
+                  let inThinkingBlock = false; // Track if we're currently in a <thinking> block
+                  let currentReasoningContent = ''; // Accumulate reasoning for monitoring event
+                  const recentChunks: any[] = []; // Track last 10 chunks for debugging
+                  let suppressTextStart = false; // Suppress text-start if response begins with <thinking>
+                  
+                  // Use DEBUG_STREAMING env var for debug logging
+                  const debugStreaming = process.env.DEBUG_STREAMING === 'true';
+                  
+                  // Initialize StreamPipeline
+                  const pipeline = new StreamPipeline(abortController.signal);
+                  const completionHandler = new CompletionHandler();
+                  const metadataHandler = new MetadataHandler(this.monitoringEvents, {
+                    slug,
+                    conversationId: operationContext.conversationId,
+                    userId: operationContext.userId,
+                    traceId,
+                  });
+                  
+                  // Add handlers in order (elicitation handled via callback + injectable stream)
+                  pipeline
+                    .use(new ReasoningHandler({ enableThinking: true }))
+                    .use(new TextDeltaHandler())
+                    .use(new ToolCallHandler())
+                    .use(metadataHandler)
+                    .use(completionHandler);
+                  
+                  // Log model and tool configuration for debugging
+                  const agentTools = this.agentTools.get(slug) || [];
+                  const agentModel = agent.model as { modelId?: string; settings?: { maxTokens?: number; temperature?: number } } | undefined;
+                  this.logger.debug('Stream starting', {
+                    conversationId,
+                    model: agentModel?.modelId,
+                    toolCount: agentTools.length,
+                    toolNames: agentTools.map(t => t.name).slice(0, 5),
+                    maxTokens: agentModel?.settings?.maxTokens,
+                    temperature: agentModel?.settings?.temperature,
+                    debugStreaming
+                  });
+                  
+                  // Wrap fullStream with injectable stream
+                  // ReasoningHandler buffers all chunks during thinking, so approval-request
+                  // will be held until reasoning-end is emitted
+                  const wrappedStream = injectableStream.wrap(result.fullStream);
+                  
+                  // Run pipeline and write chunks to stream
+                  for await (const chunk of pipeline.run(wrappedStream)) {
+                    await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                    // Force flush by yielding to event loop with setTimeout(0)
+                    // setImmediate doesn't flush network buffers, but setTimeout does
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                  }
+                  
+                  // Write [DONE] marker
                   await streamWriter.write('data: [DONE]\n\n');
+                  
+                  // Get completion state from handlers
+                  const results = await pipeline.finalize();
+                  
+                  // Extract completion state for finally block
+                  if (results.completion) {
+                    hasOutput = results.completion.hasOutput;
+                    completionReason = results.completion.completionReason;
+                    accumulatedText = results.completion.accumulatedText;
+                  }
+                  
+                  // Check if aborted
+                  if (abortController.signal.aborted) {
+                    completionReason = 'aborted';
+                    if (!hasOutput) await saveCancellationMessage();
+                  }
                 } catch (error: any) {
-                  this.logger.error('Stream error', { error });
-                  await streamWriter.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+                  const agentModelForError = agent.model as { modelId?: string } | undefined;
+                  this.logger.error('Stream error occurred', {
+                    agentId: slug,
+                    modelName: agentModelForError?.modelId,
+                    conversationId: conversationId,
+                    agentName: slug,
+                    error,
+                  });
+                  const isCredentialError = error.message?.includes('credential') || 
+                                           error.message?.includes('accessKeyId') ||
+                                           error.message?.includes('secretAccessKey');
+                  await streamWriter.write(`data: ${JSON.stringify({ 
+                    type: 'error', 
+                    errorText: error.message,
+                    statusCode: isCredentialError ? 401 : undefined
+                  })}\n\n`);
+                  await streamWriter.write('data: [DONE]\n\n');
+                } finally {
+                  // Agent stream completed
+                  this.logger.info('Agent stream completed', { 
+                    conversationId: operationContext.conversationId,
+                    reason: completionReason
+                  });
+                  
+                  // Set agent status to idle
+                  this.agentStatus.set(slug, 'idle');
+                  
+                  // Add final text output to artifacts (excluding reasoning text)
+                  const finalOutput = accumulatedText.replace(reasoningText, '').trim();
+                  if (finalOutput) {
+                    artifacts.push({
+                      type: 'text',
+                      content: finalOutput,
+                    });
+                  }
+                  
+                  // Collect usage stats
+                  let usage;
+                  try {
+                    usage = await result.usage;
+                  } catch (e) {
+                    // Usage might not be available
+                  }
+                  
+                  // Emit monitoring event
+                  const agentCompleteEvent = {
+                    type: 'agent-complete',
+                    timestamp: new Date().toISOString(),
+                    timestampMs: Date.now(), // High-precision timestamp
+                    agentSlug: slug,
+                    conversationId: operationContext.conversationId,
+                    userId: operationContext.userId,
+                    traceId: requestTraceId,
+                    reason: completionReason,
+                    artifacts,
+                    steps: currentStep,
+                    toolCallCount,
+                    maxSteps: this.agentSpecs.get(slug)?.guardrails?.maxSteps,
+                    inputChars: typeof input === 'string' ? input.length : (input?.text?.length || 0),
+                    outputChars: finalOutput.length,
+                    usage: usage ? {
+                      promptTokens: usage.promptTokens,
+                      completionTokens: usage.completionTokens,
+                      totalTokens: usage.totalTokens,
+                    } : undefined,
+                  };
+                  this.monitoringEvents.emit('event', agentCompleteEvent);
+                  await this.persistEvent(agentCompleteEvent);
+                  
+                  // Update cached stats (increment by 2: user message + assistant response)
+                  const stats = this.agentStats.get(slug);
+                  if (stats) {
+                    stats.messageCount += 2;
+                    stats.lastUpdated = Date.now();
+                    if (isNewConversation) {
+                      stats.conversationCount += 1;
+                    }
+                  }
+                  
+                  // Log metrics for historical tracking
+                  this.metricsLog.push({
+                    timestamp: Date.now(),
+                    agentSlug: slug,
+                    event: 'completion',
+                    conversationId: operationContext.conversationId,
+                    messageCount: 2,
+                    cost: 0, // TODO: Calculate from usage
+                  });
                 }
               });
             } catch (error: any) {
               this.logger.error('Chat error', { error });
-              return c.json({ success: false, error: error.message }, 500);
+              const isCredentialError = error.message?.includes('credential') || 
+                                       error.message?.includes('accessKeyId') ||
+                                       error.message?.includes('secretAccessKey');
+              return c.json({ success: false, error: error.message }, isCredentialError ? 401 : 500);
             }
           });
         },
       }),
     });
 
-    this.logger.info('Work Agent Runtime initialized', { port: this.port });
+    this.logger.debug('Work Agent Runtime initialized', { port: this.port });
+    
+    // Load persisted events from disk
+    await this.loadEventsFromDisk();
+    
+    // Start periodic health checks (every 60 seconds)
+    this.startHealthChecks();
+  }
+
+  /**
+   * Start periodic health checks for all agents
+   */
+  private startHealthChecks() {
+    const interval = 60000; // 60 seconds
+    
+    const runHealthChecks = async () => {
+      for (const [slug, agent] of this.activeAgents.entries()) {
+        const checks: Record<string, boolean> = {
+          loaded: true,
+          hasModel: !!agent.model,
+          hasMemory: this.memoryAdapters.has(slug),
+        };
+
+        const spec = this.agentSpecs.get(slug);
+        const integrations: Array<{ id: string; type: string; connected: boolean; metadata?: any }> = [];
+        
+        // Only check integrations if agent has MCP servers configured
+        if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
+          checks.integrationsConfigured = true;
+          
+          for (const id of spec.tools.mcpServers) {
+            const key = `${slug}:${id}`;
+            const status = this.mcpConnectionStatus.get(key);
+            const metadata = this.integrationMetadata.get(key);
+            
+            integrations.push({
+              id,
+              type: metadata?.type || 'mcp',
+              connected: status?.connected === true,
+              metadata: metadata ? {
+                transport: metadata.transport,
+                toolCount: metadata.toolCount,
+              } : undefined,
+            });
+          }
+          
+          checks.integrationsConnected = integrations.every(i => i.connected);
+        }
+
+        const healthy = Object.values(checks).every(v => v);
+        
+        // Generate trace ID for health check
+        const traceId = `health:${slug}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+        
+        const healthEvent = {
+          type: 'agent-health',
+          timestamp: new Date().toISOString(),
+          timestampMs: Date.now(),
+          agentSlug: slug,
+          userId: 'default-user', // Health checks are system-level but we need userId for filtering
+          traceId,
+          healthy,
+          checks,
+          integrations,
+        };
+        
+        this.monitoringEvents.emit('event', healthEvent);
+        await this.persistEvent(healthEvent);
+      }
+    };
+    
+    // Run initial health check immediately
+    runHealthChecks();
+    
+    // Then run periodically
+    this.healthCheckInterval = setInterval(runHealthChecks, interval);
+    
+    this.logger.debug('Health checks started', { interval });
+  }
+
+  /**
+   * Extract userId from conversationId format: agent:<slug>:user:<id>:timestamp:random
+   */
+  private extractUserId(conversationId: string): string | null {
+    const match = conversationId.match(/^agent:[^:]+:user:([^:]+):/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * Get today's event log file path
+   */
+  private getTodayEventLogPath(): string {
+    const today = new Date().toISOString().split('T')[0];
+    return join(this.eventLogPath, `events-${today}.ndjson`);
+  }
+
+  /**
+   * Load recent events from disk (last 1000 or last 24 hours)
+   */
+  /**
+   * Query events from disk for a specific time range
+   */
+  private async queryEventsFromDisk(start: number, end: number, userId: string): Promise<any[]> {
+    const events: any[] = [];
+    
+    try {
+      const eventFiles = await readdir(this.eventLogPath);
+      const logFiles = eventFiles.filter(f => f.startsWith('events-') && f.endsWith('.ndjson'));
+      
+      for (const file of logFiles) {
+        const filePath = join(this.eventLogPath, file);
+        const fileStream = createReadStream(filePath);
+        const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+
+        for await (const line of rl) {
+          if (line.trim()) {
+            try {
+              const event = JSON.parse(line);
+              const eventTime = new Date(event.timestamp).getTime();
+              
+              if (eventTime >= start && eventTime <= end && event.userId === userId) {
+                events.push(event);
+              }
+            } catch (err) {
+              this.logger.warn('Failed to parse event line', { line, error: err });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to query events from disk', { error, start, end });
+    }
+    
+    return events;
+  }
+
+  /**
+   * Load events from disk for the last 24 hours
+   */
+  private async loadEventsFromDisk(): Promise<void> {
+    try {
+      // Ensure monitoring directory exists
+      if (!existsSync(this.eventLogPath)) {
+        await mkdir(this.eventLogPath, { recursive: true });
+        this.logger.debug('Created monitoring directory', { path: this.eventLogPath });
+        return;
+      }
+
+      const files = await readdir(this.eventLogPath);
+      const eventFiles = files
+        .filter(f => f.startsWith('events-') && f.endsWith('.ndjson'))
+        .sort()
+        .reverse()
+        .slice(0, 2); // Last 2 days
+
+      const events: any[] = [];
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+      for (const file of eventFiles) {
+        const filePath = join(this.eventLogPath, file);
+        const fileStream = createReadStream(filePath);
+        const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+
+        for await (const line of rl) {
+          if (line.trim()) {
+            try {
+              const event = JSON.parse(line);
+              const eventTime = new Date(event.timestamp).getTime();
+              
+              if (eventTime >= oneDayAgo) {
+                events.push(event);
+              }
+            } catch (err) {
+              this.logger.warn('Failed to parse event line', { line, error: err });
+            }
+          }
+        }
+      }
+
+      // Keep only last 1000 events
+      this.persistedEvents = events.slice(-1000);
+      this.logger.info('Loaded persisted events', { count: this.persistedEvents.length });
+    } catch (error) {
+      this.logger.error('Failed to load events from disk', { error });
+    }
+  }
+
+  /**
+   * Persist event to disk
+   */
+  private async persistEvent(event: any): Promise<void> {
+    try {
+      // Ensure monitoring directory exists
+      if (!existsSync(this.eventLogPath)) {
+        await mkdir(this.eventLogPath, { recursive: true });
+      }
+
+      const logPath = this.getTodayEventLogPath();
+      await appendFile(logPath, JSON.stringify(event) + '\n', 'utf-8');
+      
+      // Add to in-memory cache
+      this.persistedEvents.push(event);
+      
+      // Keep only last 1000 in memory
+      if (this.persistedEvents.length > 1000) {
+        this.persistedEvents = this.persistedEvents.slice(-1000);
+      }
+    } catch (error) {
+      this.logger.error('Failed to persist event', { error, event });
+    }
   }
 
   /**
@@ -1102,13 +1970,17 @@ export class WorkAgentRuntime {
   private async createVoltAgentInstance(agentSlug: string): Promise<Agent> {
     // Load agent spec
     const spec = await this.configLoader.loadAgent(agentSlug);
+    
+    // Cache spec for later use
+    this.agentSpecs.set(agentSlug, spec);
 
     // Create Bedrock provider
-    const model = this.createBedrockModel(spec);
+    const model = await this.createBedrockModel(spec);
 
     // Create memory adapter
     const memoryAdapter = new FileVoltAgentMemoryAdapter({
       workAgentDir: this.configLoader.getWorkAgentDir(),
+      usageAggregator: this.usageAggregator,
     });
     const memory = new Memory({
       storage: memoryAdapter,
@@ -1122,6 +1994,35 @@ export class WorkAgentRuntime {
     
     // Cache tools for runtime filtering
     this.agentTools.set(agentSlug, tools);
+    
+    // Add to global tool registry (deduplicated by name)
+    for (const tool of tools) {
+      if (!this.globalToolRegistry.has(tool.name)) {
+        this.globalToolRegistry.set(tool.name, tool);
+      }
+    }
+
+    // Calculate and cache fixed token counts (system prompt + tools)
+    // These don't change unless the agent is reloaded
+    const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
+    const toolsJson = JSON.stringify(tools.map((t: any) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters
+    })));
+    const mcpServerTokens = Math.ceil(toolsJson.length / 4);
+    
+    this.agentFixedTokens.set(agentSlug, {
+      systemPromptTokens,
+      mcpServerTokens
+    });
+    
+    this.logger.info('[Agent Initialized]', {
+      agent: agentSlug,
+      systemPromptTokens,
+      mcpServerTokens,
+      totalFixedTokens: systemPromptTokens + mcpServerTokens
+    });
 
     // Create hooks for tool approval (if autoApprove is configured)
     const hooks = this.createToolApprovalHooks(spec);
@@ -1145,10 +2046,14 @@ export class WorkAgentRuntime {
       memory,
       tools,
       hooks,
+      ...(spec.maxTurns !== undefined || this.appConfig.defaultMaxTurns !== undefined ? {
+        maxTurns: spec.maxTurns ?? this.appConfig.defaultMaxTurns
+      } : {}),
       ...(spec.guardrails && {
         temperature: spec.guardrails.temperature,
         maxOutputTokens: spec.guardrails.maxTokens,
         topP: spec.guardrails.topP,
+        maxSteps: spec.guardrails.maxSteps,
       }),
     });
 
@@ -1158,10 +2063,14 @@ export class WorkAgentRuntime {
   /**
    * Create Bedrock model instance
    */
-  private createBedrockModel(spec: AgentSpec) {
+  private async createBedrockModel(spec: AgentSpec) {
+    const modelId = spec.model || this.appConfig.defaultModel;
+    const resolvedModel = this.modelCatalog 
+      ? await this.modelCatalog.resolveModelId(modelId)
+      : modelId;
     return createBedrockProvider({
       appConfig: this.appConfig,
-      agentSpec: spec,
+      agentSpec: { ...spec, model: resolvedModel },
     });
   }
 
@@ -1222,20 +2131,25 @@ export class WorkAgentRuntime {
    * Check if tool name matches any pattern in the list
    */
   private matchesToolPattern(toolName: string, patterns: string[]): boolean {
+    // Get original name if this is a normalized name
+    const mapping = this.toolNameMapping.get(toolName);
+    const originalName = mapping?.original || toolName;
+    
     for (const pattern of patterns) {
-      // Exact match
-      if (pattern === toolName) return true;
+      // Exact match (check both normalized and original)
+      if (pattern === toolName || pattern === originalName) return true;
       
-      // Wildcard pattern (e.g., "sat-outlook_*")
+      // Wildcard pattern (e.g., "my-server_*" or "myServer_*")
       if (pattern.endsWith('_*')) {
         const prefix = pattern.slice(0, -2);
-        if (toolName.startsWith(`${prefix}_`)) return true;
+        if (toolName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}_`)) return true;
       }
       
-      // Legacy slash pattern support (e.g., "sat-outlook/*")
+      // Legacy slash pattern support (e.g., "my-server/*")
       if (pattern.endsWith('/*')) {
         const prefix = pattern.slice(0, -2);
-        if (toolName.startsWith(`${prefix}_`) || toolName.startsWith(`${prefix}/`)) return true;
+        if (toolName.startsWith(`${prefix}_`) || toolName.startsWith(`${prefix}/`) ||
+            originalName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}/`)) return true;
       }
     }
     
@@ -1251,6 +2165,15 @@ export class WorkAgentRuntime {
 
     return createHooks({
       onToolStart: async ({ tool, context }) => {
+        // Track tool call count in context Map
+        const currentCount = (context.context.get('toolCallCount') as number) || 0;
+        context.context.set('toolCallCount', currentCount + 1);
+        
+        this.logger.debug('Tool execution starting', {
+          toolName: tool.name,
+          conversationId: context.conversationId,
+        });
+        
         // Check if this is a silent invocation (no conversationId means silent mode)
         const isSilentInvocation = !context.conversationId;
         
@@ -1259,73 +2182,153 @@ export class WorkAgentRuntime {
         }
 
         // Check if tool is in autoApprove list
-        if (autoApprove.length > 0) {
-          const isAutoApproved = this.matchesToolPattern(tool.name, autoApprove);
-          
-          if (!isAutoApproved) {
-            if (context.elicitation) {
-              const approved = await context.elicitation({
-                type: 'tool-approval',
-                toolName: tool.name,
-                message: `Allow ${tool.name}?`,
-              });
-              
-              if (!approved) {
-                throw new Error(`Tool ${tool.name} requires user approval`);
-              }
-            } else {
-              this.logger.warn('Tool requires approval but no elicitation available', {
-                tool: tool.name,
-                context: context.operationId,
-              });
-            }
-          }
-        }
+        const isAutoApproved = this.matchesToolPattern(tool.name, autoApprove);
+        
+        this.logger.info('[Tool] Executing', {
+          toolName: tool.name,
+          isAutoApproved,
+        });
       },
-      onEnd: async ({ context, output, agent }) => {
+      onEnd: async ({ context, output, agent, error }) => {
         // Only track stats for conversations (not silent invocations)
         if (!context.conversationId || !output) {
           return;
         }
 
         try {
-          const memory = agent.memory;
+          const memory = agent.getMemory();
           if (!memory) return;
 
           // Get current conversation
           const conversation = await memory.getConversation(context.conversationId);
           if (!conversation) return;
 
-          // Extract usage data
+          // Extract usage data (may be undefined if aborted)
           const usage = 'usage' in output ? output.usage : undefined;
+
+          // Count tool calls from context (tracked in onToolStart)
+          const toolCallCount = (context.context.get('toolCallCount') as number) || 0;
+
+          // Get messages for this conversation
+          const messages = await memory.getMessages(context.userId || '', context.conversationId);
+
+          // Log stats (even if usage is incomplete due to abortion)
+          this.logger.info('[Usage Stats]', {
+            conversationId: context.conversationId,
+            promptTokens: usage?.promptTokens || 0,
+            completionTokens: usage?.completionTokens || 0,
+            totalTokens: usage?.totalTokens || 0,
+            messageCount: messages.length,
+            toolCallCount,
+            aborted: !usage,
+          });
+
+          // Only update conversation stats if we have usage data
           if (!usage) return;
 
-          // Count tool calls from context steps
-          const toolCallCount = context.steps?.reduce((count, step) => {
-            return count + (step.toolInvocations?.length || 0);
-          }, 0) || 0;
-
           // Get existing stats or initialize
-          const existingStats = conversation.metadata?.stats || {
+          const existingStats = (conversation.metadata?.stats as any) || {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
+            contextTokens: 0,
             turns: 0,
             toolCalls: 0,
             estimatedCost: 0,
           };
 
-          const modelId = spec.model || this.appConfig.defaultModel;
+          // Get agent spec for model info
+          const agentSlug = conversation.resourceId;
+          const agentSpec = await this.configLoader.loadAgent(agentSlug);
+          const modelId = agentSpec.model || this.appConfig.defaultModel;
           const cost = await this.calculateCost(modelId, usage);
 
-          // Update cumulative stats
+          // Calculate context tokens: accumulated outputs + latest input
+          // Context represents what's in memory (grows with conversation)
+          const newOutputTokens = existingStats.outputTokens + (usage.completionTokens || 0);
+          const newInputTokens = existingStats.inputTokens + (usage.promptTokens || 0);
+          
+          // Get fixed token counts from cache (calculated once at agent initialization)
+          const fixedTokens = this.agentFixedTokens.get(agentSlug);
+          const systemPromptTokens = fixedTokens?.systemPromptTokens || 0;
+          const mcpServerTokens = fixedTokens?.mcpServerTokens || 0;
+          
+          // Get existing breakdown for incremental calculation
+          const existingBreakdown = existingStats.tokenBreakdown || {};
+          
+          // Context = system prompt + tools + all user messages + all assistant responses
+          // Optimize: only calculate new user message tokens, not all messages
+          const existingUserMessageTokens = existingBreakdown.userMessageTokens || 0;
+          
+          // Get messages for user message token calculation
+          const userMessages = messages.filter((m: any) => m.role === 'user');
+          
+          this.logger.info('[Token Calculation Debug]', {
+            conversationId: context.conversationId,
+            totalMessages: messages.length,
+            userMessageCount: userMessages.length,
+            existingUserMessageTokens,
+            turn: existingStats.turns + 1,
+          });
+          
+          // Find the latest user message (should be the last one added)
+          const latestUserMessage = userMessages[userMessages.length - 1];
+          
+          let newUserMessageTokens = 0;
+          if (latestUserMessage) {
+            // UIMessage uses 'parts' array with text parts
+            const parts = (latestUserMessage as any).parts || [];
+            const content = parts
+              .filter((p: any) => p.type === 'text')
+              .map((p: any) => p.text || '')
+              .join('');
+            newUserMessageTokens = Math.ceil(content.length / 4);
+            
+            this.logger.info('[New User Message]', {
+              conversationId: context.conversationId,
+              contentLength: content.length,
+              tokens: newUserMessageTokens,
+            });
+          } else {
+            this.logger.warn('[No User Message Found]', {
+              conversationId: context.conversationId,
+              userMessageCount: userMessages.length,
+            });
+          }
+          
+          const userMessageTokens = existingUserMessageTokens + newUserMessageTokens;
+          const assistantMessageTokens = newOutputTokens;
+          
+          this.logger.info('[Token Breakdown]', {
+            conversationId: context.conversationId,
+            turn: existingStats.turns + 1,
+            newUserMessageTokens,
+            totalUserMessageTokens: userMessageTokens,
+            systemPromptTokens,
+            mcpServerTokens,
+            assistantMessageTokens,
+          });
+          
+          const contextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + assistantMessageTokens;
+
+          // Store breakdown for stats endpoint
+          const tokenBreakdown = {
+            systemPromptTokens,
+            mcpServerTokens,
+            userMessageTokens,
+            assistantMessageTokens,
+          };
+
+          // Update stats
           const updatedStats = {
-            inputTokens: existingStats.inputTokens + (usage.promptTokens || 0),
-            outputTokens: existingStats.outputTokens + (usage.completionTokens || 0),
-            totalTokens: existingStats.totalTokens + (usage.totalTokens || 0),
+            inputTokens: newInputTokens, // Total consumed across all LLM calls
+            outputTokens: newOutputTokens, // Total generated
+            totalTokens: newInputTokens + newOutputTokens,
+            contextTokens, // Current memory size
             turns: existingStats.turns + 1,
             toolCalls: existingStats.toolCalls + toolCallCount,
             estimatedCost: existingStats.estimatedCost + cost,
+            tokenBreakdown,
           };
 
           // Track per-model stats
@@ -1334,15 +2337,23 @@ export class WorkAgentRuntime {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
+            contextTokens: 0,
             turns: 0,
             toolCalls: 0,
             estimatedCost: 0,
           };
 
+          const newModelOutputTokens = currentModelStats.outputTokens + (usage.completionTokens || 0);
+          const newModelInputTokens = currentModelStats.inputTokens + (usage.promptTokens || 0);
+          
+          // Per-model context is harder to track accurately, use accumulated outputs as approximation
+          const modelContextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + newModelOutputTokens;
+          
           modelStats[modelId] = {
-            inputTokens: currentModelStats.inputTokens + (usage.promptTokens || 0),
-            outputTokens: currentModelStats.outputTokens + (usage.completionTokens || 0),
-            totalTokens: currentModelStats.totalTokens + (usage.totalTokens || 0),
+            inputTokens: newModelInputTokens,
+            outputTokens: newModelOutputTokens,
+            totalTokens: newModelInputTokens + newModelOutputTokens,
+            contextTokens: modelContextTokens,
             turns: currentModelStats.turns + 1,
             toolCalls: currentModelStats.toolCalls + toolCallCount,
             estimatedCost: currentModelStats.estimatedCost + cost,
@@ -1356,6 +2367,63 @@ export class WorkAgentRuntime {
               modelStats,
             },
           });
+
+          // Enrich the last assistant message with model metadata and usage
+          try {
+            const adapter = this.memoryAdapters.get(agentSlug);
+            if (!adapter) {
+              this.logger.warn('No adapter found for agent', { agent: agentSlug });
+              return;
+            }
+
+            const messages = await adapter.getMessages(`agent:${agentSlug}`, context.conversationId);
+            const lastMessage = messages[messages.length - 1];
+            
+            if (lastMessage && lastMessage.role === 'assistant') {
+              // Get model capabilities
+              const models = await this.modelCatalog?.listModels();
+              const modelInfo = models?.find(m => m.modelId === modelId);
+              
+              // Get pricing
+              const pricing = await this.modelCatalog?.getModelPricing(this.appConfig.region);
+              const pricingInfo = pricing?.find(p => 
+                p.modelId === modelId || 
+                modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-'))
+              );
+
+              // Remove and re-add with metadata
+              await adapter.removeLastMessage(`agent:${agentSlug}`, context.conversationId);
+              await adapter.addMessage(
+                lastMessage,
+                `agent:${agentSlug}`,
+                context.conversationId,
+                {
+                  model: modelId,
+                  modelMetadata: modelInfo ? {
+                    capabilities: {
+                      inputModalities: modelInfo.inputModalities,
+                      outputModalities: modelInfo.outputModalities,
+                      supportsStreaming: modelInfo.responseStreamingSupported,
+                    },
+                    pricing: pricingInfo ? {
+                      inputTokenPrice: pricingInfo.inputTokenPrice,
+                      outputTokenPrice: pricingInfo.outputTokenPrice,
+                      currency: 'USD',
+                      region: this.appConfig.region,
+                    } : undefined,
+                  } : undefined,
+                  usage: {
+                    inputTokens: usage.promptTokens || 0,
+                    outputTokens: usage.completionTokens || 0,
+                    totalTokens: usage.totalTokens || 0,
+                    estimatedCost: cost,
+                  },
+                }
+              );
+            }
+          } catch (error) {
+            this.logger.error('Failed to enrich message with model metadata', { error });
+          }
         } catch (error) {
           this.logger.error('Failed to update conversation stats', { error });
         }
@@ -1405,6 +2473,21 @@ export class WorkAgentRuntime {
   }
 
   /**
+   * Get original tool name from normalized name
+   */
+  private getOriginalToolName(normalizedName: string): string {
+    const mapping = this.toolNameMapping.get(normalizedName);
+    return mapping?.original || normalizedName;
+  }
+
+  /**
+   * Get normalized tool name from original name
+   */
+  private getNormalizedToolName(originalName: string): string {
+    return this.toolNameReverseMapping.get(originalName) || originalName;
+  }
+
+  /**
    * Create MCP tools for a tool definition
    */
   private async createMCPTools(
@@ -1414,34 +2497,178 @@ export class WorkAgentRuntime {
   ): Promise<Tool<any>[]> {
     const mcpKey = `${agentSlug}:${toolId}`;
 
+    let mcpConfig: MCPConfiguration;
+    let isNewConfig = false;
+
     // Check if MCP config already exists
     if (this.mcpConfigs.has(mcpKey)) {
-      const mcpConfig = this.mcpConfigs.get(mcpKey)!;
-      return await mcpConfig.getTools();
+      mcpConfig = this.mcpConfigs.get(mcpKey)!;
+    } else {
+      // Create new MCP configuration
+      const serverConfig: any = {
+        [toolId]: this.createMCPServerConfig(toolDef),
+      };
+
+      mcpConfig = new MCPConfiguration({
+        servers: serverConfig,
+      });
+
+      this.mcpConfigs.set(mcpKey, mcpConfig);
+      isNewConfig = true;
+      
+      // Set up event listeners for connection status
+      const clients = await mcpConfig.getClients();
+      const client = clients[toolId];
+      
+      if (client) {
+        client.on('connect', () => {
+          this.mcpConnectionStatus.set(mcpKey, { connected: true });
+          this.logger.debug('MCP client connected', { agent: agentSlug, tool: toolId });
+        });
+        
+        client.on('disconnect', () => {
+          this.mcpConnectionStatus.set(mcpKey, { connected: false });
+          this.logger.debug('MCP client disconnected', { agent: agentSlug, tool: toolId });
+        });
+        
+        client.on('error', (error: Error) => {
+          this.mcpConnectionStatus.set(mcpKey, { connected: false, error: error.message });
+          this.logger.error('MCP client error', { agent: agentSlug, tool: toolId, error: error.message });
+        });
+      }
     }
-
-    // Create new MCP configuration
-    const serverConfig: any = {
-      [toolId]: this.createMCPServerConfig(toolDef),
-    };
-
-    const mcpConfig = new MCPConfiguration({
-      servers: serverConfig,
-    });
-
-    this.mcpConfigs.set(mcpKey, mcpConfig);
 
     // Get tools from MCP server
     const tools = await mcpConfig.getTools();
-
-    this.logger.info('MCP tools loaded', { 
-      agent: agentSlug, 
-      tool: toolId, 
-      count: tools.length,
-      sampleNames: tools.slice(0, 3).map(t => t.name)
+    
+    // Normalize tool names for Nova compatibility and store mapping with parsed data
+    const normalizedTools = tools.map(tool => {
+      const normalized = normalizeToolName(tool.name);
+      
+      // Store mapping with parsed data if name changed
+      if (normalized !== tool.name) {
+        const parsed = parseToolName(tool.name);
+        this.toolNameMapping.set(normalized, {
+          original: tool.name,
+          normalized: normalized,
+          server: parsed.server,
+          tool: parsed.tool
+        });
+        this.toolNameReverseMapping.set(tool.name, normalized);
+        
+        this.logger.debug('Tool name normalized', {
+          agent: agentSlug,
+          original: tool.name,
+          normalized: normalized,
+          server: parsed.server,
+          tool: parsed.tool
+        });
+      }
+      
+      return {
+        ...tool,
+        name: normalized
+      };
+    });
+    
+    // Mark as connected after successful getTools
+    this.mcpConnectionStatus.set(mcpKey, { connected: true });
+    
+    // Store integration metadata
+    this.integrationMetadata.set(mcpKey, {
+      type: 'mcp',
+      transport: toolDef.transport,
+      toolCount: normalizedTools.length,
     });
 
-    return tools;
+    if (isNewConfig) {
+      this.logger.info('MCP tools loaded', { 
+        agent: agentSlug, 
+        tool: toolId, 
+        count: normalizedTools.length,
+        sampleNames: normalizedTools.slice(0, 3).map(t => t.name)
+      });
+    }
+
+    // Always wrap tools with elicitation for approval (agent config may have changed)
+    const spec = await this.configLoader.loadAgent(agentSlug);
+    const wrappedTools = normalizedTools.map(tool => this.wrapToolWithElicitation(tool, spec));
+
+    return wrappedTools;
+  }
+
+  /**
+   * Wrap a tool to add elicitation-based approval for non-auto-approved tools
+   */
+  private wrapToolWithElicitation(tool: Tool<any>, spec: AgentSpec): Tool<any> {
+    if (!spec?.tools) return tool;
+
+    const autoApprove = spec.tools.autoApprove || [];
+    const isAutoApproved = autoApprove.some(pattern => {
+      if (pattern === '*') return true;
+      if (pattern.endsWith('*')) {
+        return tool.name.startsWith(pattern.slice(0, -1));
+      }
+      return tool.name === pattern;
+    });
+
+    if (isAutoApproved) {
+      this.logger.debug('[Wrapper] Tool auto-approved, skipping wrapper', { toolName: tool.name });
+      return tool;
+    }
+
+    this.logger.debug('[Wrapper] Wrapping tool with elicitation', { toolName: tool.name });
+
+    // Wrap the execute function
+    const originalExecute = tool.execute;
+    if (!originalExecute) return tool;
+
+    return {
+      ...tool,
+      execute: async (args: any, options: any) => {
+        // Get elicitation from options (VoltAgent passes OperationContext properties directly)
+        const elicitation = options?.elicitation;
+        
+        this.logger.debug('[Wrapper] Tool execute called, requesting approval', { 
+          toolName: tool.name,
+          hasElicitation: !!elicitation
+        });
+
+        // Request approval via elicitation
+        if (elicitation) {
+          this.logger.debug('[Wrapper] Calling elicitation for approval', { toolName: tool.name });
+          
+          const approved = await elicitation({
+            type: 'tool-approval',
+            toolName: tool.name,
+            toolDescription: (tool as any).description || '',
+            toolArgs: args,
+          });
+
+          this.logger.info('[Wrapper] Tool approval decision', { 
+            toolName: tool.name, 
+            approved,
+            reason: approved ? 'user_approved' : 'user_denied'
+          });
+
+          if (!approved) {
+            // Return a clear message to the LLM instead of throwing an error
+            return {
+              success: false,
+              error: 'USER_DENIED',
+              message: `I requested permission to use this tool, but the user explicitly denied the request. I should ask what I should do differently.`
+            };
+          }
+        } else {
+          this.logger.info('[Wrapper] Tool auto-approved (no elicitation available)', { 
+            toolName: tool.name 
+          });
+        }
+
+        // Execute the original tool
+        return originalExecute(args, options);
+      }
+    };
   }
 
   /**
@@ -1585,6 +2812,7 @@ export class WorkAgentRuntime {
     // Load new agent
     const agent = await this.createVoltAgentInstance(targetSlug);
     this.activeAgents.set(targetSlug, agent);
+    this.voltAgent?.registerAgent(agent);
 
     this.logger.info('Agent switched successfully', { agent: targetSlug });
     return agent;

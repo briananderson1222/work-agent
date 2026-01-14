@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
+import { log } from '@/utils/logger';
 import type { AgentSummary, Tool } from '../types';
 import { getAgentIcon } from '../utils/workspace';
-import { useAppData } from '../contexts/AppDataContext';
+import { AgentIcon } from '../components/AgentIcon';
+import { useModels } from '../contexts/ModelsContext';
+import { useConfig } from '../contexts/ConfigContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
+import { ImportPromptsModal } from '../components/ImportPromptsModal';
 
 export interface AgentEditorViewProps {
   apiBase: string;
@@ -22,7 +26,7 @@ interface AgentFormData {
   modelId: string;
   region: string;
   guardrails: string;
-  maxTurns: string;
+  maxSteps: string;
   tools: string[];
   icon?: string;
   commands?: Record<string, any>;
@@ -33,7 +37,8 @@ type FormStep = 'basic' | 'model' | 'tools' | 'commands';
 const FORM_STEPS: readonly FormStep[] = ['basic', 'model', 'tools', 'commands'] as const;
 
 export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: AgentEditorViewProps) {
-  const { models: availableModels } = useAppData();
+  const availableModels = useModels(apiBase);
+  const appConfig = useConfig();
   const [currentStep, setCurrentStep] = useState<FormStep>(initialTab || 'basic');
   const [expandedCommands, setExpandedCommands] = useState<Record<string, boolean>>({});
   
@@ -48,7 +53,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
     modelId: '',
     region: '',
     guardrails: '',
-    maxTurns: '',
+    maxSteps: '',
     tools: [],
   });
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
@@ -70,8 +75,8 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
   const [isCreatingTool, setIsCreatingTool] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'failed' | null>(null);
-  const [appConfig, setAppConfig] = useState<{ region?: string; defaultModel?: string; defaultMaxTurns?: number } | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const isEditMode = !!slug;
 
@@ -80,19 +85,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
       loadAgent(slug);
     }
     loadTools();
-    loadAppConfig();
   }, [slug]);
-
-  const loadAppConfig = async () => {
-    try {
-      const response = await fetch(`${apiBase}/config/app`);
-      if (!response.ok) throw new Error('Failed to load app config');
-      const data = await response.json();
-      setAppConfig(data.data);
-    } catch (err) {
-      console.error('Failed to load app config:', err);
-    }
-  };
 
   const loadAgent = async (agentSlug: string) => {
     try {
@@ -113,7 +106,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         modelId: typeof agent.model === 'string' ? agent.model : agent.model?.modelId || '',
         region: agent.region || '',
         guardrails: agent.guardrails || '',
-        maxTurns: agent.maxTurns?.toString() || '',
+        maxSteps: agent.maxSteps?.toString() || '',
         tools: agent.tools || [],
         icon: agent.icon || '',
         commands: agent.commands || {},
@@ -132,7 +125,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
       const data = await response.json();
       setAvailableTools(data.data || []);
     } catch (err: any) {
-      console.error('Failed to load tools:', err);
+      log.api('Failed to load tools:', err);
     }
   };
 
@@ -147,7 +140,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
     }
 
     if (step === 'model') {
-      if (!formData.modelId.trim()) errors.modelId = 'Model ID is required';
+      // modelId is optional - empty means use default model
     }
 
     setValidationErrors(errors);
@@ -184,13 +177,13 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         name: formData.name,
         description: formData.description,
         prompt: formData.prompt,
-        model: formData.modelId || undefined,
-        region: formData.region || undefined,
-        guardrails: formData.guardrails || undefined,
-        maxTurns: formData.maxTurns ? parseInt(formData.maxTurns) : undefined,
-        tools: formData.tools.length > 0 ? { use: formData.tools } : undefined,
-        icon: formData.icon || undefined,
-        commands: formData.commands && Object.keys(formData.commands).length > 0 ? formData.commands : undefined,
+        model: formData.modelId || null,
+        region: formData.region || null,
+        guardrails: formData.guardrails || null,
+        maxSteps: formData.maxSteps ? parseInt(formData.maxSteps) : null,
+        tools: formData.tools.length > 0 ? { use: formData.tools } : null,
+        icon: formData.icon || null,
+        commands: formData.commands && Object.keys(formData.commands).length > 0 ? formData.commands : null,
       };
 
       const url = isEditMode ? `${apiBase}/agents/${slug}` : `${apiBase}/agents`;
@@ -243,19 +236,19 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         : `Please generate a professional system prompt for an AI assistant named "${formData.name}". The assistant should be helpful, clear, and professional.`;
 
       // Use the default agent to generate the prompt
-      const response = await fetch(`${apiBase}/agents/work-agent/text`, {
+      const response = await fetch(`${apiBase}/agents/default/invoke`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          input: [{ role: 'user', content: userMessage }],
-          options: { userId: 'ui-user' },
+          prompt: userMessage,
+          silent: true
         }),
       });
 
       if (!response.ok) throw new Error('Failed to generate prompt');
 
       const data = await response.json();
-      const generatedPrompt = data.data?.text || data.text || '';
+      const generatedPrompt = data.response || '';
 
       setFormData({ ...formData, prompt: generatedPrompt });
     } catch (err: any) {
@@ -516,22 +509,11 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
               <div className="form-group">
                 <label>Icon</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div
-                    style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '12px',
-                      background: 'var(--accent-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: formData.icon ? '24px' : '16px',
-                      fontWeight: formData.icon ? 'normal' : 600,
-                      color: formData.icon ? 'inherit' : 'var(--color-bg)',
-                    }}
-                  >
-                    {formData.icon || getAgentIcon({ name: formData.name || 'Agent' }).display}
-                  </div>
+                  <AgentIcon 
+                    agent={{ name: formData.name || 'Agent', icon: formData.icon }} 
+                    size="large"
+                    style={{ borderRadius: '12px' }}
+                  />
                   <div style={{ flex: 1 }}>
                     <input
                       type="text"
@@ -590,6 +572,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   value={formData.modelId}
                   onChange={(modelId) => setFormData({ ...formData, modelId })}
                   placeholder="Select a model..."
+                  defaultModel={appConfig?.defaultModel}
                 />
                 {validationErrors.modelId && (
                   <span className="form-error">{validationErrors.modelId}</span>
@@ -624,17 +607,17 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
               </div>
 
               <div className="form-group">
-                <label htmlFor="maxTurns">Max Turns</label>
+                <label htmlFor="maxSteps">Max Steps</label>
                 <input
-                  id="maxTurns"
+                  id="maxSteps"
                   type="number"
                   min="1"
                   max="100"
-                  value={formData.maxTurns}
-                  onChange={(e) => setFormData({ ...formData, maxTurns: e.target.value })}
-                  placeholder={appConfig?.defaultMaxTurns?.toString() || '10'}
+                  value={formData.maxSteps}
+                  onChange={(e) => setFormData({ ...formData, maxSteps: e.target.value })}
+                  placeholder={appConfig?.defaultMaxSteps?.toString() || '10'}
                 />
-                <span className="form-help">Maximum conversation turns (default: {appConfig?.defaultMaxTurns || 10})</span>
+                <span className="form-help">Maximum conversation steps (default: {appConfig?.defaultMaxSteps || 10})</span>
               </div>
             </div>
           )}
@@ -786,7 +769,21 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                         onChange={() => toggleTool(tool.id)}
                       />
                       <div className="tool-info">
-                        <span className="tool-name">{tool.name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {tool.server && (
+                            <span style={{ 
+                              fontSize: '0.8em',
+                              padding: '2px 6px',
+                              background: 'var(--color-bg-tertiary)',
+                              color: 'var(--text-secondary)',
+                              borderRadius: '3px',
+                              fontFamily: 'monospace'
+                            }}>
+                              {tool.server}
+                            </span>
+                          )}
+                          <span className="tool-name">{tool.toolName || tool.name}</span>
+                        </div>
                         {tool.description && <span className="tool-desc">{tool.description}</span>}
                         <span className="tool-meta">
                           {tool.kind} {tool.transport && `· ${tool.transport}`}
@@ -811,31 +808,37 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                 {(() => {
                   const hasCommands = formData.commands && Object.keys(formData.commands).length > 0;
                   return hasCommands ? (
-                    <button
-                      type="button"
-                      className="button button--primary button--small"
-                      onClick={() => {
-                        const commandKey = `cmd-${Date.now()}`;
-                        console.log('Adding command:', commandKey);
-                        setFormData({
-                          ...formData,
-                          commands: {
-                            [commandKey]: {
-                              name: '',
-                              description: '',
-                              prompt: '',
-                              params: []
-                            },
-                            ...formData.commands
-                          }
-                        });
-                        // Auto-expand the new command
-                        setExpandedCommands({ ...expandedCommands, [commandKey]: true });
-                      }}
-                      style={{ flexShrink: 0 }}
-                    >
-                      + Add Command
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        className="button button--secondary button--small"
+                        onClick={() => setShowImportModal(true)}
+                      >
+                        📁 Import Markdown
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--primary button--small"
+                        onClick={() => {
+                          const commandKey = `cmd-${Date.now()}`;
+                          setFormData({
+                            ...formData,
+                            commands: {
+                              [commandKey]: {
+                                name: '',
+                                description: '',
+                                prompt: '',
+                                params: []
+                              },
+                              ...formData.commands
+                            }
+                          });
+                          setExpandedCommands({ ...expandedCommands, [commandKey]: true });
+                        }}
+                      >
+                        + Add Command
+                      </button>
+                    </div>
                   ) : null;
                 })()}
               </div>
@@ -849,28 +852,36 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   borderRadius: '8px'
                 }}>
                   <p>No slash commands defined yet.</p>
-                  <button
-                    type="button"
-                    className="button button--primary button--small"
-                    style={{ marginTop: '12px' }}
-                    onClick={() => {
-                      const commandKey = 'cmd-1';
-                      setFormData({
-                        ...formData,
-                        commands: {
-                          [commandKey]: {
-                            name: '',
-                            description: '',
-                            prompt: '',
-                            params: []
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="button button--secondary button--small"
+                      onClick={() => setShowImportModal(true)}
+                    >
+                      📁 Import Markdown
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--primary button--small"
+                      onClick={() => {
+                        const commandKey = 'cmd-1';
+                        setFormData({
+                          ...formData,
+                          commands: {
+                            [commandKey]: {
+                              name: '',
+                              description: '',
+                              prompt: '',
+                              params: []
+                            }
                           }
-                        }
-                      });
-                      setExpandedCommands({ [commandKey]: true });
-                    }}
-                  >
-                    + Add First Command
-                  </button>
+                        });
+                        setExpandedCommands({ [commandKey]: true });
+                      }}
+                    >
+                      + Add First Command
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -990,6 +1001,18 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
           </button>
         </div>
       </div>
+
+      <ImportPromptsModal
+        isOpen={showImportModal}
+        onImport={(commands) => {
+          setFormData({
+            ...formData,
+            commands: { ...formData.commands, ...commands }
+          });
+          setShowImportModal(false);
+        }}
+        onCancel={() => setShowImportModal(false)}
+      />
     </div>
   );
 }

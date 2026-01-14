@@ -1,0 +1,21 @@
+{
+  "name": "stallion-workspace",
+  "version": "1.0.0",
+  "type": "workspace",
+  "sdkVersion": "^0.4.0",
+  "displayName": "Stallion Workspace",
+  "description": "Calendar and CRM workspace with flexible agent support",
+  "entrypoint": "index.tsx",
+  "capabilities": ["chat", "navigation", "agents"],
+  "permissions": ["navigation.dock", "agents.invoke"],
+  "agents": [
+    {
+      "slug": "work-agent",
+      "source": "./agents/work-agent/agent.json"
+    }
+  ],
+  "workspace": {
+    "slug": "stallion",
+    "source": "./workspace.json"
+  }
+}

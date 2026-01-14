@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
+import { log } from '@/utils/logger';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { AgentIcon } from '../components/AgentIcon';
+import { ThemeToggle } from '../components/ThemeToggle';
 import type { AppConfig } from '../types';
-import { getWorkspaceIcon, getAgentIcon } from '../utils/workspace';
-import { useAppData } from '../contexts/AppDataContext';
+import { getWorkspaceIcon } from '../utils/workspace';
+import { useModels } from '../contexts/ModelsContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
+import { useConfig, useConfigActions } from '../contexts/ConfigContext';
+import { useAgents } from '../contexts/AgentsContext';
+import { useWorkspacesQuery, useInvalidateQuery } from '@stallion-ai/sdk';
 
 export interface SettingsViewProps {
   apiBase: string;
@@ -15,31 +22,49 @@ export interface SettingsViewProps {
   onCreateAgent?: () => void;
   onEditWorkspace?: (slug: string) => void;
   onCreateWorkspace?: () => void;
+  chatFontSize?: number;
+  onChatFontSizeChange?: (size: number) => void;
 }
 
-export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAgent, onEditWorkspace, onCreateWorkspace }: SettingsViewProps) {
-  const { models: availableModels } = useAppData();
+export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAgent, onEditWorkspace, onCreateWorkspace, chatFontSize = 14, onChatFontSizeChange }: SettingsViewProps) {
+  const availableModels = useModels(apiBase);
+  const { apiBase: currentApiBase, setApiBase, resetToDefault, isCustom } = useApiBase();
+  
+  // Use React Query hooks
+  const configData = useConfig();
+  const agents = useAgents();
+  const { data: workspaces = [] } = useWorkspacesQuery();
+  const { updateConfig } = useConfigActions();
+  const invalidate = useInvalidateQuery();
+  
   const [activeTab, setActiveTab] = useState<'general' | 'agents' | 'workspaces' | 'prompts' | 'notifications' | 'advanced' | 'debug'>(() => {
     const hash = window.location.hash.slice(1);
     return (hash && ['general', 'agents', 'workspaces', 'prompts', 'notifications', 'advanced', 'debug'].includes(hash)) 
       ? hash as any 
       : 'general';
   });
-  const [config, setConfig] = useState<AppConfig>({});
-  const [originalConfig, setOriginalConfig] = useState<AppConfig>({});
-  const [agents, setAgents] = useState<any[]>([]);
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [config, setConfig] = useState<AppConfig>(configData || {});
+  const [originalConfig, setOriginalConfig] = useState<AppConfig>(configData || {});
   const [prompts, setPrompts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [showResetModal, setShowResetModal] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{type: 'agent' | 'workspace', slug: string, name: string} | null>(null);
   const [modelSearch, setModelSearch] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [qAgents, setQAgents] = useState<any[]>([]);
   const [selectedQAgent, setSelectedQAgent] = useState<any>(null);
+  
+  // Update local state when config loads
+  useEffect(() => {
+    if (configData) {
+      setConfig(configData);
+      setOriginalConfig(configData);
+    }
+  }, [configData]);
   const [importForm, setImportForm] = useState({ name: '', slug: '' });
   const [editingPrompt, setEditingPrompt] = useState<any>(null);
 
@@ -50,70 +75,20 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
 
   const hasChanges = JSON.stringify(config) !== JSON.stringify(originalConfig);
 
-  // Update hash when tab changes
+  // Update hash when tab changes (only if this view is active)
   useEffect(() => {
-    window.location.hash = activeTab;
+    // Only manage hash if we're in the settings route
+    if (window.location.pathname.includes('/settings')) {
+      window.location.hash = activeTab;
+    }
   }, [activeTab]);
-
-  useEffect(() => {
-    loadConfig();
-    loadAgents();
-    loadWorkspaces();
-  }, []);
-
-  const loadConfig = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(`${apiBase}/config/app`);
-      if (!response.ok) throw new Error('Failed to load configuration');
-      const data = await response.json();
-      const loadedConfig = data.data || {};
-      setConfig(loadedConfig);
-      setOriginalConfig(loadedConfig);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadAgents = async () => {
-    try {
-      const response = await fetch(`${apiBase}/api/agents`);
-      if (!response.ok) throw new Error('Failed to load agents');
-      const data = await response.json();
-      setAgents(data.data || []);
-    } catch (err: any) {
-      console.error('Failed to load agents:', err);
-    }
-  };
-
-  const loadWorkspaces = async () => {
-    try {
-      const response = await fetch(`${apiBase}/workspaces`);
-      if (!response.ok) throw new Error('Failed to load workspaces');
-      const data = await response.json();
-      setWorkspaces(data.data || []);
-    } catch (err: any) {
-      console.error('Failed to load workspaces:', err);
-    }
-  };
 
   const saveConfig = async () => {
     try {
       setIsSaving(true);
       setError(null);
       
-      const response = await fetch(`${apiBase}/config/app`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save configuration');
-      }
+      await updateConfig(config);
       
       // Update original config after successful save
       setOriginalConfig(config);
@@ -147,18 +122,50 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
     try {
       setIsSaving(true);
       setError(null);
-      const response = await fetch(`${apiBase}/config/app`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) throw new Error('Failed to reset configuration');
-      await loadConfig();
+      await updateConfig({});
+      invalidate(['config']);
       onSaved?.();
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAgent = (slug: string, name: string) => {
+    setDeleteConfirm({ type: 'agent', slug, name });
+  };
+
+  const handleDeleteWorkspace = (slug: string, name: string) => {
+    setDeleteConfirm({ type: 'workspace', slug, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm || !deleteConfirm.slug) {
+      log.api('Delete confirmation missing slug:', deleteConfirm);
+      setError('Cannot delete: missing identifier');
+      setDeleteConfirm(null);
+      return;
+    }
+    
+    try {
+      const endpoint = deleteConfirm.type === 'agent' 
+        ? `${apiBase}/agents/${deleteConfirm.slug}`
+        : `${apiBase}/workspaces/${deleteConfirm.slug}`;
+      
+      const response = await fetch(endpoint, { method: 'DELETE' });
+      if (!response.ok) throw new Error(`Failed to delete ${deleteConfirm.type}`);
+      
+      // Invalidate cache to refetch
+      if (deleteConfirm.type === 'agent') {
+        invalidate(['agents']);
+      } else {
+        invalidate(['workspaces']);
+      }
+      
+      setDeleteConfirm(null);
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
@@ -179,6 +186,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
         <div className="management-view__header">
           <h2>Settings</h2>
           <div className="management-view__header-actions">
+            <ThemeToggle />
             <button
               type="button"
               className="button button--secondary"
@@ -297,7 +305,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
                 {agents.map((agent) => (
                   <div
-                    key={agent.slug}
+                    key={agent.slug || agent.id}
                     style={{
                       background: 'var(--color-bg-secondary)',
                       border: '1px solid var(--color-border)',
@@ -317,28 +325,47 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                       e.currentTarget.style.borderColor = 'var(--color-border)';
                       e.currentTarget.style.transform = 'translateY(0)';
                     }}
-                    onClick={() => onEditAgent?.(agent.slug)}
+                    onClick={() => onEditAgent?.(agent.slug || agent.id)}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                          {agent.slug}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
+                        <AgentIcon agent={agent} size="medium" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                            {agent.slug}
+                          </div>
                         </div>
                       </div>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          background: 'var(--accent-primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '16px',
-                        }}
-                      >
-                        {getAgentIcon(agent).display}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteAgent(agent.slug || agent.id, agent.name);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--color-text-secondary)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Delete agent"
+                          onMouseOver={(e) => e.currentTarget.style.color = 'var(--color-error)'}
+                          onMouseOut={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline key="top" points="3,6 5,6 21,6"></polyline>
+                            <path key="body" d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            <line key="line1" x1="10" y1="11" x2="10" y2="17"></line>
+                            <line key="line2" x1="14" y1="11" x2="14" y2="17"></line>
+                          </svg>
+                        </button>
                       </div>
                     </div>
                     {agent.description && (
@@ -450,6 +477,34 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                           {workspace.tabCount} tab{workspace.tabCount !== 1 ? 's' : ''}
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteWorkspace(workspace.slug, workspace.name);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--color-text-secondary)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Delete workspace"
+                        onMouseOver={(e) => e.currentTarget.style.color = 'var(--color-error)'}
+                        onMouseOut={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline key="top" points="3,6 5,6 21,6"></polyline>
+                          <path key="body" d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                          <line key="line1" x1="10" y1="11" x2="10" y2="17"></line>
+                          <line key="line2" x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                      </button>
                     </div>
                     {workspace.description && (
                       <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
@@ -561,20 +616,6 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
           {activeTab === 'general' && (
             <div className="settings-panel">
               <div className="form-group">
-                <label htmlFor="apiEndpoint">API Endpoint</label>
-                <input
-                  id="apiEndpoint"
-                  type="text"
-                  value={config.apiEndpoint || ''}
-                  onChange={(e) => setConfig({ ...config, apiEndpoint: e.target.value })}
-                  placeholder="http://localhost:3141"
-                />
-                <span className="form-help">
-                  Base URL for the backend API. Leave empty to use default.
-                </span>
-              </div>
-
-              <div className="form-group">
                 <label htmlFor="defaultModel">Default Model</label>
                 <ModelSelector
                   value={config.defaultModel || ''}
@@ -583,6 +624,29 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                 />
                 <span className="form-help">
                   Default model for agents that don't specify one.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="chatFontSize">Chat Font Size</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <input
+                    id="chatFontSize"
+                    type="range"
+                    min="10"
+                    max="24"
+                    value={chatFontSize}
+                    onChange={(e) => {
+                      const newSize = parseInt(e.target.value, 10);
+                      onChatFontSizeChange?.(newSize);
+                      setConfig({ ...config, defaultChatFontSize: newSize });
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ minWidth: '3rem', textAlign: 'right' }}>{chatFontSize}px</span>
+                </div>
+                <span className="form-help">
+                  Default font size for chat messages (10-24px).
                 </span>
               </div>
 
@@ -796,6 +860,34 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
           {activeTab === 'advanced' && (
             <div className="settings-panel">
               <div className="form-group">
+                <label htmlFor="apiBase">Backend API Base URL</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                  <input
+                    id="apiBase"
+                    type="text"
+                    value={currentApiBase}
+                    onChange={(e) => setApiBase(e.target.value)}
+                    placeholder="http://localhost:3141"
+                    style={{ flex: 1 }}
+                  />
+                  {isCustom && (
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      onClick={resetToDefault}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="form-help">
+                  Base URL for the backend API. Changes take effect immediately. 
+                  {isCustom && <span style={{ color: 'var(--color-warning)' }}> Using custom URL.</span>}
+                </span>
+              </div>
+
+              <div className="form-group">
                 <label htmlFor="region">AWS Region</label>
                 <input
                   id="region"
@@ -998,7 +1090,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                       setShowImportModal(false);
                       setSelectedQAgent(null);
                       setQAgents([]);
-                      loadAgents();
+                      invalidate(['agents']);
                     } catch (err: any) {
                       setError(err.message);
                     }
@@ -1096,6 +1188,19 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
             </div>
           </div>
         </div>
+      )}
+
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen={true}
+          title={`Delete ${deleteConfirm.type === 'agent' ? 'Agent' : 'Workspace'}`}
+          message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+          variant="danger"
+        />
       )}
     </>
   );

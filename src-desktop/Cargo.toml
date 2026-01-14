@@ -1,5 +1,5 @@
 [package]
-name = "work-agent"
+name = "project-stallion"
 version = "0.1.0"
 description = "VoltAgent-native local-first AI work agent system"
 authors = ["you"]

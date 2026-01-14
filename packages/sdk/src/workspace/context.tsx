@@ -1,0 +1,70 @@
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+
+interface WorkspaceContextConfig<T> {
+  workspaceSlug: string;
+  initialState: T;
+  persist?: boolean; // Auto-save to sessionStorage
+}
+
+export function createWorkspaceContext<T extends Record<string, any>>(config: WorkspaceContextConfig<T>) {
+  const { workspaceSlug, initialState, persist = true } = config;
+  const storageKey = `workspace:${workspaceSlug}:context`;
+
+  type ContextValue = {
+    state: T;
+    setState: (updates: Partial<T>) => void;
+    resetState: () => void;
+  };
+
+  const Context = createContext<ContextValue | null>(null);
+
+  function Provider({ children }: { children: ReactNode }) {
+    const [state, setStateInternal] = useState<T>(() => {
+      if (!persist) return initialState;
+      
+      try {
+        const stored = sessionStorage.getItem(storageKey);
+        return stored ? { ...initialState, ...JSON.parse(stored) } : initialState;
+      } catch {
+        return initialState;
+      }
+    });
+
+    const setState = (updates: Partial<T>) => {
+      setStateInternal(prev => {
+        const next = { ...prev, ...updates };
+        if (persist) {
+          try {
+            sessionStorage.setItem(storageKey, JSON.stringify(next));
+          } catch (err) {
+            console.warn(`Failed to persist workspace context for ${workspaceSlug}:`, err);
+          }
+        }
+        return next;
+      });
+    };
+
+    const resetState = () => {
+      setStateInternal(initialState);
+      if (persist) {
+        sessionStorage.removeItem(storageKey);
+      }
+    };
+
+    return (
+      <Context.Provider value={{ state, setState, resetState }}>
+        {children}
+      </Context.Provider>
+    );
+  }
+
+  function useWorkspaceContext() {
+    const context = useContext(Context);
+    if (!context) {
+      throw new Error(`useWorkspaceContext must be used within ${workspaceSlug} workspace Provider`);
+    }
+    return context;
+  }
+
+  return { Provider, useWorkspaceContext };
+}

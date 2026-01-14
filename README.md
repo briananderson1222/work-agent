@@ -75,6 +75,22 @@ npm run cli
 npm run dev:desktop
 ```
 
+**Running Multiple Instances Side-by-Side:**
+
+To test changes by running multiple instances simultaneously, use environment variables:
+
+```bash
+# Terminal 1: Original instance (default ports)
+npm run dev:server
+npm run dev:ui
+
+# Terminal 2: Test instance (custom ports)
+PORT=3142 npm run dev:server
+VITE_API_BASE=http://localhost:3142 npm run dev:ui -- --port 5174
+```
+
+You can also override the backend URL at runtime through **Settings > Advanced > Backend API Base URL** in the UI.
+
 The server will be available at:
 - **HTTP API**: http://localhost:3141
 - **Swagger UI**: http://localhost:3141/ui
@@ -213,6 +229,28 @@ Create `.work-agent/tools/files/tool.json`:
 ```
 
 Reference the tool in your agent's `tools.use` array.
+
+### Tool Name Normalization
+
+Work Agent automatically normalizes MCP tool names for compatibility with Amazon Bedrock's Nova models, which don't support hyphens in tool names. This normalization is completely transparent:
+
+**How it works:**
+- Tool names like `my-server_tool_name` are normalized to `myServer_toolName` when sent to Bedrock
+- Original names are preserved and displayed in the UI as `[my-server] tool_name`
+- The server badge and tool name are shown separately for clarity
+
+**Benefits:**
+- Nova models work without crashes (`NGHTTP2_INTERNAL_ERROR` prevented)
+- Clean, readable tool names in the UI
+- No configuration needed - works automatically
+- Backward compatible with all existing tools
+
+**Example:**
+```
+Original:   my-server_tool_name
+Normalized: myServer_toolName (sent to Bedrock)
+Displayed:  [my-server] tool_name (shown in UI)
+```
 
 ## 🔄 Agent Switching
 
@@ -406,13 +444,15 @@ VoltAgent Runtime (Built-In)
 ├─ Memory system (custom file adapter)
 ├─ Tool registry (MCP + built-in)
 ├─ Workflow engine (VoltAgent)
+├─ Streaming pipeline (handler-based)
 └─ Hono HTTP server
 
 Custom Layer (Work Agent)
 ├─ ConfigLoader (load agents/tools from files)
 ├─ WorkAgentRuntime (manages VoltAgent)
 ├─ FileVoltAgentMemoryAdapter (StorageAdapter impl)
-└─ MCP lifecycle management
+├─ MCP lifecycle management
+└─ Streaming handlers (ReasoningHandler, TextDeltaHandler, etc.)
 ```
 
 ## 🔧 Configuration
@@ -439,6 +479,11 @@ Custom Layer (Work Agent)
     temperature?: number;
     topP?: number;
   };
+  streaming?: {
+    useNewPipeline?: boolean;    // Enable new streaming architecture (default: false)
+    enableThinking?: boolean;    // Send thinking blocks to client (default: true)
+    debugStreaming?: boolean;    // Enable debug logging (default: false)
+  };
   tools?: {
     mcpServers: string[];        // MCP server IDs to load
     available?: string[];        // Tools agent can invoke (supports wildcards, defaults to ["*"])
@@ -460,7 +505,7 @@ Custom Layer (Work Agent)
 **Tool Configuration:**
 
 - **`mcpServers`**: List of MCP server IDs to load from the tool catalog (`.work-agent/tools/`)
-- **`available`**: Filters which tools the agent can invoke. Supports wildcards (e.g., `["sat-outlook_*", "sat-sfdc_query"]`). Defaults to `["*"]` (all tools).
+- **`available`**: Filters which tools the agent can invoke. Supports wildcards (e.g., `["my-server_*", "other-server_query"]`). Defaults to `["*"]` (all tools).
 - **`autoApprove`**: Tools that execute automatically without user confirmation in chat mode. Supports wildcards. Tools not in this list will require user approval before execution. Silent invocations (via `/agents/:slug/invoke`) bypass approval checks.
 - **`aliases`**: Map custom names to tool IDs for easier invocation
 
@@ -468,9 +513,9 @@ Example `tools` block:
 
 ```json
 "tools": {
-  "mcpServers": ["sat-outlook", "sat-sfdc", "aws-knowledge-mcp-server"],
-  "available": ["sat-outlook_*", "sat-sfdc_query", "sat-sfdc_get_*"],
-  "autoApprove": ["sat-outlook_calendar_view", "sat-outlook_email_read", "sat-sfdc_query"]
+  "mcpServers": ["files", "fetch"],
+  "available": ["*"],
+  "autoApprove": ["files_read", "files_list"]
 }
 ```
 
@@ -570,7 +615,7 @@ Work Agent integrates with **VoltOps Console** for full observability:
    - Token usage
    - Execution traces
 
-## 🧪 Development
+## 🛠️ Development
 
 ```bash
 # Install dependencies
@@ -596,6 +641,27 @@ npm run cli           # Interactive CLI
 npm run test          # Run tests
 npm run clean         # Remove build artifacts
 ```
+
+### Frontend Debugging
+
+The frontend uses the `debug` package for structured logging. Control log output in the browser console:
+
+```javascript
+// Enable all logs
+localStorage.debug = 'app:*'
+
+// Enable specific namespaces
+localStorage.debug = 'app:api,app:chat'
+
+// Disable all logs
+localStorage.debug = ''
+
+// Then refresh the page
+```
+
+Available namespaces: `app:context`, `app:api`, `app:chat`, `app:workflow`, `app:plugin`, `app:auth`
+
+See [AGENTS.md](./AGENTS.md#debugging) for detailed debugging documentation.
 
 ## 🔄 Migrating from Agent UI Metadata to Workspaces
 
@@ -625,6 +691,135 @@ If you prefer to migrate manually:
 
 If you need to rollback, restore files from the backup directory created by the migration script.
 
+## 🔌 Plugin Development
+
+Work Agent uses a plugin architecture that separates custom workspaces from the core application. Plugins are distributed as npm packages and automatically discovered at runtime.
+
+### Quick Start
+
+```bash
+# Install a plugin from local directory
+npx tsx scripts/cli-plugin.ts install ./examples/stallion-workspace
+
+# Or install from examples directory
+npx tsx scripts/cli-plugin.ts install ./examples/minimal-workspace
+
+# List installed plugins
+npx tsx scripts/cli-plugin.ts list
+
+# Remove a plugin
+npx tsx scripts/cli-plugin.ts remove stallion-workspace
+```
+
+### Creating a Plugin
+
+**CRITICAL: Workspace components MUST only import from `@stallion-ai/sdk`**
+
+Never import directly from core application code (e.g., `@/utils/logger`, `@/contexts/*`). This ensures plugins remain portable and decoupled from core implementation.
+
+1. **Create plugin structure:**
+
+```bash
+mkdir my-workspace
+cd my-workspace
+npm init -y
+```
+
+2. **Add plugin manifest (`plugin.json`):**
+
+```json
+{
+  "name": "my-workspace",
+  "version": "1.0.0",
+  "type": "workspace",
+  "sdkVersion": "^0.4.0",
+  "displayName": "My Workspace",
+  "entrypoint": "./index.tsx",
+  "capabilities": ["chat", "navigation"],
+  "permissions": ["navigation.dock"]
+}
+```
+
+3. **Create component (`src/index.tsx`):**
+
+```typescript
+import { useAgents, useNavigation, useToast } from '@stallion-ai/sdk';
+import type { WorkspaceComponentProps } from '@stallion-ai/sdk';
+
+export default function MyWorkspace({ workspace }: WorkspaceComponentProps) {
+  const agents = useAgents();
+  const { setDockState } = useNavigation();
+  const { showToast } = useToast();
+
+  return (
+    <div>
+      <h1>{workspace?.name}</h1>
+      <button onClick={() => setDockState(true)}>Open Chat</button>
+    </div>
+  );
+}
+```
+
+4. **Build and install:**
+
+```bash
+npm run build
+npm link
+cd ../work-agent
+npm link my-workspace
+```
+
+### SDK API
+
+Plugins access core functionality via `@stallion-ai/sdk`:
+
+```typescript
+import {
+  // Contexts
+  useAgents,           // List all agents
+  useWorkspaces,       // List all workspaces
+  useConversations,    // Get conversation history
+  useModels,           // Available models
+  
+  // Chat operations
+  useCreateChatSession,  // Create new chat
+  useSendMessage,        // Send message to agent
+  
+  // Navigation
+  useNavigation,       // Control dock, navigate views
+  useToast,            // Show notifications
+  
+  // Slash commands
+  useSlashCommandHandler,  // Handle slash commands
+  
+  // Types
+  WorkspaceComponentProps,
+  AgentSummary,
+  Message,
+} from '@stallion-ai/sdk';
+```
+
+### Plugin Installation
+
+Plugins are installed using the CLI tool:
+
+```bash
+# Install from local directory
+npx tsx scripts/cli-plugin.ts install ./examples/stallion-workspace
+
+# The CLI automatically:
+# - Copies plugin files to .work-agent/plugins/
+# - Installs agent definitions to .work-agent/agents/
+# - Installs workspace configs to .work-agent/workspaces/
+# - Copies UI components to src-ui/src/workspaces/
+```
+
+### Documentation
+
+- **[Plugin Architecture](./PLUGIN_ARCHITECTURE.md)** - Complete plugin system documentation
+- **[Example Plugins](./examples/)** - Stallion workspace and minimal workspace examples
+- **[Agent Development Guide](./AGENTS.md)** - Component patterns and best practices
+
 ## 🏢 Production Deployment
 
 For production, you can:
@@ -637,9 +832,14 @@ The architecture supports clean adapter swaps without changing agent logic.
 
 ## 📚 Learn More
 
+- **API Documentation**: 
+  - [API.md](./API.md) - Complete REST API reference with usage indicators
+  - [ENDPOINTS_IN_USE.md](./ENDPOINTS_IN_USE.md) - Active endpoint usage report
+  - [API_SUMMARY.md](./API_SUMMARY.md) - Quick reference and endpoint counts
 - **VoltAgent Docs**: https://voltagent.dev/docs/
 - **Amazon Bedrock**: https://aws.amazon.com/bedrock/
 - **Model Context Protocol**: https://modelcontextprotocol.io/
+- **Plugin Architecture**: [PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md)
 
 ## 🤝 Contributing
 
@@ -648,6 +848,7 @@ Contributions welcome! This is a VoltAgent-first implementation demonstrating:
 - Dynamic agent loading from configuration files
 - MCP lifecycle management
 - Agent switching without server restarts
+- Plugin architecture with npm-based distribution
 
 ## 📄 License
 

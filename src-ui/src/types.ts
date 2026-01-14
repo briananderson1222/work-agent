@@ -37,13 +37,50 @@ export interface AgentSummary {
   icon?: string;
   ui?: AgentUIConfig;
   commands?: AgentCommands;
+  toolsConfig?: {
+    mcpServers?: string[];
+    available?: string[];
+    autoApprove?: string[];
+    aliases?: Record<string, string>;
+  };
   workflowWarnings?: string[];
+}
+
+export interface FileAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  data: string; // base64 or URL
+  preview?: string; // For images
+}
+
+export interface FileAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  data: string; // base64 or URL
+  preview?: string; // For images
 }
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   model?: string;
+  isEphemeral?: boolean;
+  showContinue?: boolean;
+  timestamp?: number;
+  traceId?: string;
+  contentParts?: Array<{
+    type: 'text' | 'image' | 'file' | 'tool' | 'reasoning';
+    content?: string;
+    image?: string;
+    mediaType?: string;
+    url?: string;
+    tool?: any;
+  }>;
+  attachments?: FileAttachment[];
   toolCalls?: Array<{
     toolCallId: string;
     toolName: string;
@@ -73,23 +110,28 @@ export interface ChatSession {
   sourceId?: string;
   messages: ChatMessage[];
   input: string;
+  attachments: FileAttachment[];
   queuedMessages: string[];
   status: ChatSessionStatus;
+  isThinking?: boolean;
   error?: string | null;
   createdAt: number;
   updatedAt: number;
   hasUnread: boolean;
   model?: string;
   inputHistory: string[];
+  attachments?: FileAttachment[];
+  abortController?: AbortController;
 }
 
 export interface Tool {
   id: string;
   name: string;
   description?: string;
-  kind: 'mcp' | 'builtin' | 'custom';
+  kind?: 'mcp' | 'builtin' | 'custom';
   transport?: string;
   enabled?: boolean;
+  parameters?: any;
 }
 
 export interface WorkflowFile {
@@ -105,6 +147,7 @@ export interface AppConfig {
   apiEndpoint?: string;
   region?: string;
   defaultModel?: string;
+  defaultChatFontSize?: number;
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
   logLevel?: string;
@@ -123,6 +166,13 @@ export interface TemplateVariable {
 
 export type NavigationView =
   | { type: 'workspace' }
+  | { type: 'workspaces' }
+  | { type: 'agents' }
+  | { type: 'prompts' }
+  | { type: 'integrations' }
+  | { type: 'monitoring' }
+  | { type: 'profile' }
+  | { type: 'notifications' }
   | { type: 'agent-new' }
   | { type: 'agent-edit'; slug: string; initialTab?: 'basic' | 'model' | 'tools' | 'commands' }
   | { type: 'tools'; slug: string }

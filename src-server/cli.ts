@@ -45,6 +45,9 @@ async function main() {
     input: process.stdin,
     output: process.stdout,
     prompt: `[${currentAgentSlug}] > `,
+    history: [],
+    historySize: 100,
+    removeHistoryDuplicates: true,
   });
 
   rl.prompt();

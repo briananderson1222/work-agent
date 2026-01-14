@@ -54,7 +54,9 @@ export class ConfigLoader {
       // Create default config on first run
       const defaultConfig: AppConfig = {
         region: 'us-east-1',
-        defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+        defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        invokeModel: 'us.amazon.nova-2-lite-v1:0',
+        structureModel: 'us.amazon.nova-micro-v1:0'
       };
 
       await this.saveAppConfig(defaultConfig);
@@ -63,6 +65,11 @@ export class ConfigLoader {
 
     const content = await readFile(path, 'utf-8');
     const data = JSON.parse(content);
+    
+    // Migrate: add defaults for new required fields
+    if (!data.invokeModel) data.invokeModel = 'us.amazon.nova-2-lite-v1:0';
+    if (!data.structureModel) data.structureModel = 'us.amazon.nova-micro-v1:0';
+    
     validator.validateAppConfig(data);
     return data;
   }
@@ -139,12 +146,10 @@ export class ConfigLoader {
     // Filter out metadata fields that aren't part of AgentSpec
     const { slug: _, updatedAt, description, workflowWarnings, ...cleanUpdates } = updates as any;
 
-    // Remove undefined, null, empty strings, and empty objects/arrays
+    // Remove only undefined values (allow null/empty to clear fields)
     const filteredUpdates: any = {};
     for (const [key, value] of Object.entries(cleanUpdates)) {
-      if (value === undefined || value === null || value === '') continue;
-      if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) continue;
-      if (Array.isArray(value) && value.length === 0) continue;
+      if (value === undefined) continue;
       filteredUpdates[key] = value;
     }
 
@@ -476,7 +481,7 @@ export class ConfigLoader {
           name: config.name,
           icon: config.icon,
           description: config.description,
-          tabCount: config.tabs.length
+          tabCount: config.tabs?.length || 0,
         });
       } catch (error) {
         console.error(`Failed to load workspace '${entry.name}':`, error);
@@ -605,17 +610,14 @@ export class ConfigLoader {
     });
 
     this.watcher.on('change', (path) => {
-      console.log(`Config file changed: ${path}`);
       this.notifyListeners('change', path);
     });
 
     this.watcher.on('add', (path) => {
-      console.log(`Config file added: ${path}`);
       this.notifyListeners('add', path);
     });
 
     this.watcher.on('unlink', (path) => {
-      console.log(`Config file removed: ${path}`);
       this.notifyListeners('remove', path);
     });
   }

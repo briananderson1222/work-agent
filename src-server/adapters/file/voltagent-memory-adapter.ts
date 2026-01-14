@@ -25,9 +25,11 @@ import type {
   WorkflowStateEntry,
 } from '@voltagent/core';
 import type { UIMessage } from 'ai';
+import { parseReasoningFromMessage } from '../../utils/reasoning-parser.js';
 
 export interface FileVoltAgentMemoryAdapterOptions {
   workAgentDir: string;
+  usageAggregator?: any;
 }
 
 type SerializedSuspension = Omit<NonNullable<WorkflowStateEntry['suspension']>, 'suspendedAt'> & {
@@ -46,11 +48,13 @@ type WorkflowStateJson = Omit<WorkflowStateEntry, 'createdAt' | 'updatedAt' | 's
  */
 export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   private workAgentDir: string;
+  private usageAggregator?: any;
   private conversationCache = new Map<string, Conversation>();
   private conversationResourceCache = new Map<string, string>();
 
   constructor(options: FileVoltAgentMemoryAdapterOptions) {
     this.workAgentDir = options.workAgentDir;
+    this.usageAggregator = options.usageAggregator;
   }
 
   /**
@@ -418,13 +422,47 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   // Message Operations
   // ===========================================================================
 
-  async addMessage(message: UIMessage, userId: string, conversationId: string): Promise<void> {
+  async addMessage(message: UIMessage, userId: string, conversationId: string, context?: any): Promise<void> {
     const resourceId = await this.resolveResourceId(conversationId, userId);
     await mkdir(this.getSessionsDir(resourceId), { recursive: true });
 
+    // Parse reasoning blocks from message text before saving
+    const parsedMessage = parseReasoningFromMessage(message);
+
+    // Add timestamp and analytics metadata
+    const messageWithMetadata: any = {
+      ...parsedMessage,
+      metadata: {
+        ...(parsedMessage as any).metadata,
+        timestamp: Date.now(),
+        modelMetadata: context?.modelMetadata,
+        usage: context?.usage,
+        model: context?.model,
+        traceId: context?.traceId,
+      }
+    };
+
+    // Check if operation was aborted and append cancellation notice to assistant messages
+    const abortController = context?.abortController;
+    if (abortController?.signal.aborted && messageWithMetadata.role === 'assistant') {
+      messageWithMetadata.parts = [
+        ...messageWithMetadata.parts,
+        { type: 'text', text: '\n\n---\n\n_⚠️ Response cancelled by user_' }
+      ];
+    }
+
     const messagesPath = this.getMessagesPath(resourceId, conversationId);
-    await appendFile(messagesPath, JSON.stringify(message) + '\n', 'utf-8');
+    await appendFile(messagesPath, JSON.stringify(messageWithMetadata) + '\n', 'utf-8');
     await this.touchConversation(conversationId);
+
+    // Update analytics if aggregator is available and message has usage data
+    if (this.usageAggregator && messageWithMetadata.metadata?.usage && messageWithMetadata.role === 'assistant') {
+      try {
+        await this.usageAggregator.incrementalUpdate(messageWithMetadata, resourceId, conversationId);
+      } catch (error) {
+        console.error('[Analytics] Failed to update usage stats:', error);
+      }
+    }
   }
 
   async addMessages(messages: UIMessage[], userId: string, conversationId: string): Promise<void> {
@@ -502,6 +540,32 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
         }
       })
     );
+  }
+
+  async removeLastMessage(userId: string, conversationId: string): Promise<void> {
+    const resourceId = await this.resolveResourceId(conversationId, userId);
+    const path = this.getMessagesPath(resourceId, conversationId);
+    
+    if (!existsSync(path)) {
+      return;
+    }
+
+    // Read all lines except the last one
+    const lines: string[] = [];
+    const fileStream = createReadStream(path);
+    const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+    
+    for await (const line of rl) {
+      if (line.trim()) {
+        lines.push(line);
+      }
+    }
+    
+    // Remove last line and rewrite file
+    if (lines.length > 0) {
+      lines.pop();
+      await writeFile(path, lines.join('\n') + (lines.length > 0 ? '\n' : ''));
+    }
   }
 
   // ===========================================================================

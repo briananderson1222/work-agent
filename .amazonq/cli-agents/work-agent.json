@@ -27,7 +27,16 @@
     "*"
   ],
   "toolAliases": {},
-  "allowedTools": [],
+  "allowedTools": [
+    "fs_read",
+    "fs_write",
+    "execute_bash",
+    "introspect",
+    "thinking",
+    "knowledge",
+    "todo_list",
+    "@voltagent"
+  ],
   "resources": [
     "file://AmazonQ.md",
     "file://AGENTS.md",
@@ -37,5 +46,5 @@
   "hooks": {},
   "toolsSettings": {},
   "useLegacyMcpJson": false,
-  "model": null
+  "model": "claude-sonnet-4.5"
 }
