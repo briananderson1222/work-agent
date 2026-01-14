@@ -16,6 +16,7 @@ phases:
   
   build:
     commands:
+      - cd packages/sdk && npm install && npm run build && cd ../..
       - npm run build:desktop
 
 artifacts:
