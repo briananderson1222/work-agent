@@ -45,7 +45,9 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
 
       - name: Build SDK
-        run: cd packages/sdk && npm install --registry=https://registry.npmjs.org && npm run build
+        run: |
+          rm -f ~/.npmrc
+          cd packages/sdk && npm install && npm run build
 
       - name: Install frontend dependencies
         run: npm install
