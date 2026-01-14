@@ -6,21 +6,16 @@ phases:
       - choco install nodejs --version=20.18.0 -y --no-progress
       - choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended" -y --no-progress
       - choco install rustup.install -y --no-progress
-      - '[System.Environment]::SetEnvironmentVariable("Path", "C:\Users\ContainerAdministrator\.cargo\bin;" + [System.Environment]::GetEnvironmentVariable("Path","Machine"), "Machine")'
   
   pre_build:
     commands:
-      - $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
       - node --version
-      - rustc --version
-      - cargo --version
       - npm install
   
   build:
     commands:
-      - $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
       - Set-Location packages/sdk; npm install; npm run build; Set-Location ../..
-      - npm run build:desktop
+      - $env:Path = "C:\Users\ContainerAdministrator\.cargo\bin;" + $env:Path; npm run build:desktop
 
 artifacts:
   files:
