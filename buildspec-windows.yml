@@ -3,12 +3,13 @@ version: 0.2
 phases:
   install:
     commands:
-      - choco install nodejs-lts -y --no-progress
+      - choco install nodejs --version=20.18.0 -y --no-progress
       - choco install rust -y --no-progress
       - $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
   
   pre_build:
     commands:
+      - Remove-Item -Path .npmrc -ErrorAction SilentlyContinue
       - node --version
       - rustc --version
       - cargo --version
