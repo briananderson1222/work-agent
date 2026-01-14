@@ -1,0 +1,24 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - choco install nodejs-lts -y --no-progress
+      - choco install rust -y --no-progress
+      - $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+  
+  pre_build:
+    commands:
+      - node --version
+      - rustc --version
+      - cargo --version
+      - npm install
+  
+  build:
+    commands:
+      - npm run build:desktop
+
+artifacts:
+  files:
+    - 'src-desktop/target/release/bundle/**/*'
+  name: tauri-windows-build
