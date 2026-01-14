@@ -15,7 +15,14 @@ phases:
   build:
     commands:
       - Set-Location packages/sdk; npm install; npm run build; Set-Location ../..
-      - cmd /c "call `"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvars64.bat`" && set PATH=C:\Users\ContainerAdministrator\.cargo\bin;%PATH% && npm run build:desktop"
+      - |
+        @'
+        @echo off
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+        set PATH=C:\Users\ContainerAdministrator\.cargo\bin;%PATH%
+        npm run build:desktop
+        '@ | Out-File -FilePath build.bat -Encoding ASCII
+      - cmd /c build.bat
 
 artifacts:
   files:
