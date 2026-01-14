@@ -9,7 +9,6 @@ phases:
   
   pre_build:
     commands:
-      - Remove-Item -Path .npmrc -ErrorAction SilentlyContinue
       - node --version
       - rustc --version
       - cargo --version
