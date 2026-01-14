@@ -19,7 +19,8 @@
     "cli": "tsx ./src-server/cli.ts",
     "test": "vitest",
     "clean": "rm -rf dist-server dist-ui dist-desktop && cd src-desktop && cargo clean",
-    "volt": "volt"
+    "volt": "volt",
+    "tauri": "tauri" 
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.0",
