@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { log } from '@/utils/logger';
 import type { KeyboardEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { AgentSelector } from './components/AgentSelector';
 import { Header } from './components/Header';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
@@ -27,6 +28,7 @@ import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { SettingsView } from './views/SettingsView';
 import { MonitoringView } from './views/MonitoringView';
+import { SchedulerView } from './views/SchedulerView';
 import { ProfilePage } from './pages/ProfilePage';
 import { useAwsAuth } from './hooks/useAwsAuth';
 import { setAuthCallback } from './lib/apiClient';
@@ -66,6 +68,7 @@ function App() {
     if (path === '/prompts') return { type: 'prompts' };
     if (path === '/integrations') return { type: 'integrations' };
     if (path === '/monitoring') return { type: 'monitoring' };
+    if (path === '/scheduler') return { type: 'scheduler' };
     if (path === '/profile') return { type: 'profile' };
     if (path === '/notifications') return { type: 'notifications' };
     if (path === '/settings') return { type: 'settings' };
@@ -115,6 +118,9 @@ function App() {
         return;
       } else if (path === '/monitoring') {
         setCurrentView({ type: 'monitoring' });
+        return;
+      } else if (path === '/scheduler') {
+        setCurrentView({ type: 'scheduler' });
         return;
       } else if (path === '/settings') {
         setCurrentView({ type: 'settings' });
@@ -172,6 +178,19 @@ function App() {
     return () => {
       window.removeEventListener('popstate', handlePathChange);
     };
+  }, []);
+
+  // Listen for tray navigation events from Tauri
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<{ type: string }>('navigate', (event) => {
+      const viewType = event.payload?.type;
+      if (viewType === 'scheduler' || viewType === 'monitoring' || viewType === 'settings') {
+        setCurrentView({ type: viewType } as NavigationView);
+        window.history.pushState({}, '', `/${viewType}`);
+      }
+    }).then(fn => { unlisten = fn; });
+    return () => { unlisten?.(); };
   }, []);
 
   const generateId = () =>
@@ -407,6 +426,8 @@ function App() {
       navigate('/settings');
     } else if (view.type === 'monitoring') {
       navigate('/monitoring');
+    } else if (view.type === 'scheduler') {
+      navigate('/scheduler');
     } else if (view.type === 'agent-new') {
       navigate('/agents/new');
     } else if (view.type === 'agent-edit' && 'slug' in view) {
@@ -865,6 +886,7 @@ function App() {
           {currentView.type === 'profile' && <ProfilePage />}
           {currentView.type === 'notifications' && <NotificationsPage />}
           {currentView.type === 'monitoring' && <MonitoringView />}
+          {currentView.type === 'scheduler' && <SchedulerView />}
         </>
     );
   };

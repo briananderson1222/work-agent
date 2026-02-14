@@ -161,6 +161,20 @@ export function Header({
           >
             Monitoring
           </button>
+          <button
+            type="button"
+            className={`header-nav-btn ${currentView?.type === 'scheduler' ? 'is-active' : ''}`}
+            onClick={() => {
+              if (currentView?.type === 'scheduler') {
+                onNavigate({ type: 'workspace' });
+              } else {
+                onNavigate({ type: 'scheduler' });
+              }
+            }}
+            title="Scheduler"
+          >
+            Scheduler
+          </button>
         </nav>
 
         <button

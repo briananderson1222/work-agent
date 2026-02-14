@@ -41,6 +41,8 @@ import { createConfigRoutes } from '../routes/config.js';
 import { createBedrockRoutes } from '../routes/bedrock.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
 import { createConversationRoutes } from '../routes/conversations.js';
+import { createSchedulerRoutes } from '../routes/scheduler.js';
+import { SchedulerService } from '../scheduler/index.js';
 import { isAuthError } from '../utils/auth-errors.js';
 
 /**
@@ -100,6 +102,7 @@ export class WorkAgentRuntime {
   private agentService!: AgentService;
   private mcpService!: MCPService;
   private workspaceService!: WorkspaceService;
+  private scheduler!: SchedulerService;
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const workAgentDir = options.workAgentDir || '.work-agent';
@@ -262,6 +265,15 @@ export class WorkAgentRuntime {
       keys: Array.from(this.agentMetadataMap.keys()),
       sample: this.agentMetadataMap.get(agentMetadataList[0]?.slug)
     });
+
+    // Initialize scheduler
+    this.scheduler = new SchedulerService({
+      workAgentDir: this.configLoader.getWorkAgentDir(),
+      getAgent: (slug: string) => this.activeAgents.get(slug),
+      monitoringEvents: this.monitoringEvents,
+    });
+    await this.scheduler.initialize();
+    this.logger.info('Scheduler initialized', { jobCount: this.scheduler.getJobs().length });
 
     // Import routes before configuring app
     const modelsRoute = await import('../routes/models.js');
@@ -544,6 +556,7 @@ export class WorkAgentRuntime {
             queryEventsFromDisk: (start, end, userId) => this.queryEventsFromDisk(start, end, userId)
           }));
           app.route('/agents', createConversationRoutes(this.memoryAdapters, this.logger));
+          app.route('/api/scheduler', createSchedulerRoutes(this.scheduler));
 
           // Agent health check (agent-specific, not in monitoring routes)
           app.get('/agents/:slug/health', async (c) => {
@@ -2837,6 +2850,12 @@ export class WorkAgentRuntime {
    */
   async shutdown(): Promise<void> {
     this.logger.info('Shutting down Work Agent Runtime...');
+
+    // Stop scheduler
+    if (this.scheduler) {
+      await this.scheduler.shutdown();
+      this.logger.info('Scheduler stopped');
+    }
 
     // Disconnect all MCP configurations
     for (const [key, mcpConfig] of this.mcpConfigs.entries()) {

@@ -178,6 +178,7 @@ export type NavigationView =
   | { type: 'tools'; slug: string }
   | { type: 'workflows'; slug: string }
   | { type: 'settings' }
+  | { type: 'scheduler' }
   | { type: 'workspace-new' }
   | { type: 'workspace-edit'; slug: string };
 

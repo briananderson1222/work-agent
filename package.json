@@ -20,7 +20,7 @@
     "test": "vitest",
     "clean": "rm -rf dist-server dist-ui dist-desktop && cd src-desktop && cargo clean",
     "volt": "volt",
-    "tauri": "tauri" 
+    "tauri": "tauri"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.0",
@@ -41,6 +41,7 @@
     "ai": "^5.0.76",
     "ajv": "^8.12.0",
     "chokidar": "^3.6.0",
+    "croner": "^10.0.1",
     "debug": "^4.4.3",
     "dompurify": "^3.3.0",
     "dotenv": "^17.2.3",
