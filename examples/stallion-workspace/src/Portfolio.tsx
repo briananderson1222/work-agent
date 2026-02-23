@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useSendToChat, useConversations, useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
-import { useUserProfile, useMyAccounts, useAccountDetails, useAccountSpend, useSiftQueue, useCalendarEvents } from './data';
+import { useUserProfile, useMyAccounts, useAccountDetails, useAccountSpend, useSiftQueue, useCalendarEvents, useMyTasks } from './data';
 import { CRM_BASE_URL } from './constants';
 import type { AccountVM } from './data';
 import './workspace.css';
@@ -57,10 +57,6 @@ function AccountRow({ account, onNavigate, onExpand }: { account: AccountVM; onN
           onClick={e => { e.preventDefault(); e.stopPropagation(); onNavigate(account.id); }}>
           {account.name}
         </a>
-        <a href={`${CRM_BASE_URL}/lightning/r/Account/${account.id}/view`} target="_blank" rel="noopener noreferrer"
-          className="workspace-dashboard__sfdc-link" onClick={e => e.stopPropagation()} title="Open in Salesforce">
-          ↗
-        </a>
       </td>
       <td className="portfolio-account-meta">
         {loadingDetails ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : (merged.segment || '-')}
@@ -79,6 +75,12 @@ function AccountRow({ account, onNavigate, onExpand }: { account: AccountVM; onN
           <span className="workspace-dashboard__badge" style={{ backgroundColor: health.color }}>{health.label}</span>
         )}
       </td>
+      <td onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
+        <a href={`${CRM_BASE_URL}/lightning/r/Account/${account.id}/view`} target="_blank" rel="noopener noreferrer"
+          className="workspace-dashboard__external-link" title="Open in Salesforce">
+          ↗
+        </a>
+      </td>
     </tr>
   );
 }
@@ -89,6 +91,7 @@ export function Portfolio() {
   const { data: user, isLoading: loadingUser } = useUserProfile();
   const { data: accounts = [], isLoading: loadingAccounts } = useMyAccounts(user?.id);
   const { data: sifts = [], isLoading: loadingSifts } = useSiftQueue();
+  const { data: tasksResult, isLoading: loadingTasks } = useMyTasks(user?.sfdcId, 10);
   const isLoading = loadingUser || loadingAccounts;
   const nav = useNavigation();
   const { setTabState } = useWorkspaceNavigation();
@@ -231,6 +234,7 @@ export function Portfolio() {
                   <th>YTD Spend</th>
                   <th>MTD Spend</th>
                   <th>Health</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -241,6 +245,32 @@ export function Portfolio() {
         ) : (
           <div className="workspace-dashboard__empty"><div>No accounts found</div></div>
         )}
+      </div>
+
+      {/* Recent Activities */}
+      <div className="workspace-dashboard__card">
+        <div className="workspace-dashboard__card-header">
+          <h3 className="workspace-dashboard__card-title">
+            Recent Activities
+            {loadingTasks && <span className="workspace-dashboard__spinner portfolio-spinner-margin" />}
+          </h3>
+        </div>
+        <div className="workspace-dashboard__scroll-sm workspace-dashboard__card-content">
+          {loadingTasks ? (
+            <div className="workspace-dashboard__empty"><div>Loading activities...</div></div>
+          ) : tasksResult?.tasks && tasksResult.tasks.length > 0 ? tasksResult.tasks.map(t => (
+            <div key={t.id} className="workspace-dashboard__card-item">
+              <div className="workspace-dashboard__card-item-title">{t.subject}</div>
+              <div className="workspace-dashboard__card-item-meta">
+                {t.relatedTo?.name && `${t.relatedTo.name} • `}
+                {t.dueDate ? t.dueDate.toLocaleDateString() : 'No date'}
+                {t.activityType && ` • ${t.activityType}`}
+              </div>
+            </div>
+          )) : (
+            <div className="workspace-dashboard__empty"><div>No recent activities</div></div>
+          )}
+        </div>
       </div>
 
       {/* Recent SIFTs */}

@@ -69,7 +69,7 @@ export function EventDetail({
 
   if (!selectedEvent) {
     return (
-      <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+      <div className="event-detail-empty">
         <p>Select an event to view details</p>
       </div>
     );
@@ -79,43 +79,24 @@ export function EventDetail({
 
   return (
     <div className="workspace-dashboard__card">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, flexWrap: 'wrap' }}>
-            <h3 style={{ minWidth: 'fit-content', marginBottom: '0' }}>{selectedEvent.subject}</h3>
+      <div className="event-detail-container">
+        <div className="event-detail-header">
+          <div className="event-detail-title-section">
+            <h3 className="event-detail-title">{selectedEvent.subject}</h3>
             {selectedEvent.categories && selectedEvent.categories.length > 0 && (
-              <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+              <div className="event-detail-categories">
                 {selectedEvent.categories.map(cat => (
-                  <span key={cat} style={{
-                    fontSize: '0.7rem',
-                    padding: '2px 6px',
-                    borderRadius: '8px',
-                    background: 'var(--color-bg)',
-                    color: 'var(--color-text-secondary)',
-                    border: '1px solid var(--color-border)'
-                  }}>
+                  <span key={cat} className="event-detail-category-tag">
                     {cat}
                   </span>
                 ))}
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+          <div className="event-detail-actions">
             <button 
               onClick={onLogActivity}
-              style={{
-                padding: '0.5rem 1rem',
-                background: 'transparent',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              className="event-detail-log-btn"
             >
               Log Activity
             </button>
@@ -124,21 +105,8 @@ export function EventDetail({
                 const meetingInfo = `Meeting: ${meetingDetails?.subject || selectedEvent.subject}\nTime: ${new Date(selectedEvent.start).toLocaleString()} - ${new Date(selectedEvent.end).toLocaleTimeString()}\nLocation: ${meetingDetails?.location || 'Not specified'}${meetingDetails?.attendees ? `\nAttendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}`;
                 sendToChat(`I need to log an SA activity for this meeting:\n\n${meetingInfo}\n\nWorkflow:\n- Search my email for meeting notes or follow-ups related to "${selectedEvent.subject}"\n- Use the attendee list and meeting subject to identify the relevant Salesforce account\n- Find any related opportunities for this account\n- Present matching accounts/opportunities as a numbered list for me to choose from\n- Help me create the SA activity log with the meeting notes and context`);
               }}
-              style={{
-                padding: '0.5rem 0.75rem',
-                background: 'transparent',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s'
-              }}
+              className="event-detail-agent-btn"
               title="Ask agent for help"
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -147,22 +115,15 @@ export function EventDetail({
           </div>
         </div>
         {selectedEvent && salesContext?.state?.loggedActivities?.[selectedEvent.meetingId] && (
-          <div style={{ 
-            marginTop: '0.75rem',
-            padding: '0.75rem',
-            background: 'var(--bg-tertiary)',
-            border: '1px solid var(--color-primary)',
-            borderRadius: '6px',
-            fontSize: '0.875rem'
-          }}>
-            <div style={{ color: 'var(--color-primary)', fontWeight: 600, marginBottom: '0.25rem' }}>
+          <div className="event-detail-logged-activity">
+            <div className="event-detail-logged-status">
               ✓ Activity Logged
             </div>
             <a
               href={`${CRM_BASE_URL}/lightning/r/Task/${salesContext.state.loggedActivities[selectedEvent.meetingId].id}/view`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+              className="event-detail-logged-link"
             >
               {salesContext.state.loggedActivities[selectedEvent.meetingId].subject}
             </a>
@@ -170,10 +131,10 @@ export function EventDetail({
         )}
         <div>
           {meetingDetails?.organizer && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+            <div className="event-detail-organizer-section">
               <span>
                 Organized by{' '}
-                <a href={`mailto:${meetingDetails.organizer}`} style={{ color: 'var(--color-primary)' }}>
+                <a href={`mailto:${meetingDetails.organizer}`} className="event-detail-organizer-link">
                   {meetingDetails.organizer}
                 </a>
               </span>
@@ -182,23 +143,7 @@ export function EventDetail({
                   href={meetingProvider.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    padding: '0.25rem 0.5rem',
-                    background: 'var(--color-primary)',
-                    color: 'var(--color-bg)',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    cursor: 'pointer',
-                    transition: 'opacity 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                  className="event-detail-join-btn"
                 >
                   Join {meetingProvider.provider} →
                 </a>
@@ -217,22 +162,21 @@ export function EventDetail({
             {meetingDetails.attendees && meetingDetails.attendees.length > 0 && (
               <div>
                 <strong>Attendees ({meetingDetails.attendees.length}):</strong>
-                <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
+                <ul className="event-detail-attendees-list">
                   {(showAllAttendees ? meetingDetails.attendees : meetingDetails.attendees.slice(0, 5)).map((a, i) => (
                     <li key={i}>
-                      <a href={`mailto:${a.email}`} style={{ color: 'var(--color-primary)' }}>
+                      <a href={`mailto:${a.email}`} className="event-detail-attendee-link">
                         {a.name || a.email}
                       </a>
                       {a.email?.endsWith('@amazon.com') && (
                         <button
                           onClick={() => onPhoneLookup(a.email.replace('@amazon.com', ''))}
                           title="Phonetool lookup"
-                          style={{ marginLeft: '0.35rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85em', padding: 0 }}
+                          className="event-detail-phone-btn"
                         >📞</button>
                       )}
                       <span 
-                        className={`attendee-status attendee-status--${a.status.toLowerCase().replace(' ', '-')}`}
-                        style={{ marginLeft: '0.5rem', fontSize: '0.85em' }}
+                        className={`attendee-status attendee-status--${a.status.toLowerCase().replace(' ', '-')} event-detail-attendee-status`}
                       >
                         ({a.status})
                       </span>
@@ -242,15 +186,7 @@ export function EventDetail({
                 {meetingDetails.attendees.length > 5 && (
                   <button 
                     onClick={() => setShowAllAttendees(!showAllAttendees)}
-                    style={{ 
-                      marginTop: '0.5rem',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-primary)',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem',
-                      textDecoration: 'underline'
-                    }}
+                    className="event-detail-show-attendees-btn"
                   >
                     {showAllAttendees ? 'Show less' : `Show ${meetingDetails.attendees.length - 5} more`}
                   </button>
@@ -259,21 +195,13 @@ export function EventDetail({
             )}
             
             {meetingDetails.body?.replace(/<[^>]*>/g, '').trim() ? (
-              <div style={{ marginTop: '1rem' }}>
-                <div style={{ marginBottom: '0.5rem' }}>
+              <div className="event-detail-content-section">
+                <div className="event-detail-content-header">
                   <strong>Content:</strong>
                 </div>
-                <div style={{ position: 'relative' }}>
+                <div className="event-detail-content-wrapper">
                   <div 
-                    className="meeting-body-content"
-                    style={{ 
-                      padding: '1rem', 
-                      background: 'var(--color-bg-secondary)', 
-                      borderRadius: '4px', 
-                      border: '1px solid var(--color-border)',
-                      maxHeight: contentExpanded ? 'none' : '200px',
-                      overflow: 'hidden'
-                    }}
+                    className={`meeting-body-content event-detail-content-body ${!contentExpanded ? 'event-detail-content-body--collapsed' : ''}`}
                     dangerouslySetInnerHTML={{ 
                     __html: DOMPurify.sanitize(meetingDetails.body, {
                       FORBID_ATTR: ['style'],
@@ -292,47 +220,20 @@ export function EventDetail({
                   }}
                 />
                 {!contentExpanded && (
-                  <div style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: '60px',
-                    background: 'linear-gradient(transparent, var(--color-bg-secondary))',
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    justifyContent: 'center',
-                    paddingBottom: '0.5rem'
-                  }}>
+                  <div className="event-detail-content-fade">
                     <button
                       onClick={() => setContentExpanded(true)}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        background: 'var(--color-bg)',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: '4px',
-                        color: 'var(--color-primary)',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem'
-                      }}
+                      className="event-detail-show-more-btn"
                     >
                       Show more
                     </button>
                   </div>
                 )}
                 {contentExpanded && (
-                  <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
+                  <div className="event-detail-show-less-wrapper">
                     <button
                       onClick={() => setContentExpanded(false)}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        background: 'var(--color-bg)',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: '4px',
-                        color: 'var(--color-primary)',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem'
-                      }}
+                      className="event-detail-show-less-btn"
                     >
                       Show less
                     </button>
@@ -341,14 +242,14 @@ export function EventDetail({
                 </div>
               </div>
             ) : (
-              <div style={{ marginTop: '1rem' }}>
-                <p style={{ fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>No content to show.</p>
+              <div className="event-detail-no-content">
+                <p className="event-detail-no-content-text">No content to show.</p>
               </div>
             )}
           </div>
 
           {/* RSVP + Take Notes */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div className="event-detail-rsvp-section">
             {(['accept', 'tentative', 'decline'] as const).map(resp => (
               <button key={resp}
                 onClick={async () => {
@@ -365,41 +266,26 @@ export function EventDetail({
                     showToast?.({ title: `Failed: ${error.message}`, type: 'error' });
                   }
                 }}
-                style={{
-                  padding: '0.35rem 0.75rem', border: 'none', borderRadius: '4px',
-                  cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
-                  background: resp === 'accept' ? 'var(--health-success)' : resp === 'decline' ? 'var(--health-error)' : 'var(--warning-text)',
-                  color: 'var(--text-inverted)',
-                }}
+                className={`event-detail-rsvp-btn event-detail-rsvp-btn--${resp}`}
               >
                 {resp === 'accept' ? '✓ Accept' : resp === 'decline' ? '✗ Decline' : '? Tentative'}
               </button>
             ))}
             <button
               onClick={() => setMeetingNotes(prev => prev !== null ? null : '')}
-              style={{
-                padding: '0.35rem 0.75rem', border: '1px solid var(--color-border)',
-                borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
-                background: meetingNotes !== null ? 'var(--color-primary)' : 'var(--color-bg)',
-                color: meetingNotes !== null ? 'var(--text-inverted)' : 'var(--color-text)',
-              }}
+              className={`event-detail-notes-btn ${meetingNotes !== null ? 'event-detail-notes-btn--active' : 'event-detail-notes-btn--inactive'}`}
             >📝 Take Notes</button>
           </div>
 
           {meetingNotes !== null && (
-            <div style={{ marginTop: '0.75rem' }}>
+            <div className="event-detail-notes-section">
               <textarea
                 value={meetingNotes}
                 onChange={e => setMeetingNotes(e.target.value)}
                 placeholder="Meeting notes..."
-                style={{
-                  width: '100%', minHeight: '120px', padding: '0.75rem',
-                  border: '1px solid var(--color-border)', borderRadius: '4px',
-                  background: 'var(--color-bg)', color: 'var(--color-text)',
-                  fontSize: '0.85rem', resize: 'vertical', fontFamily: 'inherit',
-                }}
+                className="event-detail-notes-textarea"
               />
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <div className="event-detail-notes-actions">
                 <button
                   disabled={!meetingNotes.trim()}
                   onClick={async () => {
@@ -411,20 +297,11 @@ export function EventDetail({
                       showToast?.({ title: 'Failed to copy notes', type: 'error' });
                     }
                   }}
-                  style={{
-                    padding: '0.35rem 0.75rem', border: 'none',
-                    borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem',
-                    background: 'var(--color-primary)', color: 'var(--text-inverted)', fontWeight: 500,
-                    opacity: meetingNotes.trim() ? 1 : 0.5,
-                  }}
+                  className="event-detail-save-notes-btn"
                 >Save to Obsidian</button>
                 <button
                   onClick={() => setMeetingNotes(null)}
-                  style={{
-                    padding: '0.35rem 0.75rem', border: '1px solid var(--color-border)',
-                    borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem',
-                    background: 'var(--color-bg)', color: 'var(--color-text)',
-                  }}
+                  className="event-detail-cancel-notes-btn"
                 >Cancel</button>
               </div>
             </div>

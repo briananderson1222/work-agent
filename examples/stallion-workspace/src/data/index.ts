@@ -129,14 +129,19 @@ export function useSearchOpportunities(condition: SearchCondition | null) {
   });
 }
 
-export function useUserTasks(userAlias: string | undefined, filters?: { accountId?: string; opportunityId?: string }) {
+export function useUserTasks(userId: string | undefined, filters?: { accountId?: string; opportunityId?: string; limit?: number; after?: string }) {
   const providerId = activeId('crm');
   return useQuery({
-    queryKey: ['crm', 'userTasks', userAlias, filters, providerId],
-    queryFn: () => get('crm').getUserTasks(userAlias!, filters),
+    queryKey: ['crm', 'userTasks', userId, filters, providerId],
+    queryFn: () => get('crm').getUserTasks(userId!, filters),
     staleTime: 2 * 60 * 1000,
-    enabled: !!userAlias && has('crm'),
+    enabled: !!userId && has('crm'),
   });
+}
+
+/** Convenience: my recent tasks (newest first, paginated) */
+export function useMyTasks(userId: string | undefined, limit = 10) {
+  return useUserTasks(userId, { limit });
 }
 
 export function useSearchTerritories(query: string | null) {

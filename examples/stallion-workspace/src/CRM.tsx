@@ -456,7 +456,11 @@ export function CRM({ activeTab }: CRMProps) {
 
   const loadAccountDetails = async (account: Account, forceRefresh = false) => {
     
-    // Clear previous account data immediately
+    // Set loading states immediately before clearing data
+    setLoadingOpportunities(true);
+    setLoadingTasks(true);
+    
+    // Clear previous account data
     setOpportunities([]);
     setTasks([]);
     
@@ -504,12 +508,11 @@ export function CRM({ activeTab }: CRMProps) {
       if (cachedOpps && cachedTasks) {
         setOpportunities(JSON.parse(cachedOpps));
         setTasks(JSON.parse(cachedTasks));
+        setLoadingOpportunities(false);
+        setLoadingTasks(false);
         return;
       }
     }
-    
-    setLoadingOpportunities(true);
-    setLoadingTasks(true);
     
     try {
       // Load opportunities and tasks in parallel
