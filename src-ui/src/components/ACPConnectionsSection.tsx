@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { ConfirmModal } from './ConfirmModal';
 import type { AgentSummary } from '../types';
 
 interface ACPConnectionsSectionProps {
@@ -18,11 +19,13 @@ interface ConnectionInfo {
   modes: string[];
   sessionId: string | null;
   mcpServers: string[];
+  configOptions?: { category: string; currentValue?: string; options?: string[] }[];
+  currentModel?: string | null;
 }
 
 function ConnectionIcon({ icon, size = 24 }: { icon?: string; size?: number }) {
   if (!icon) return <span style={{ fontSize: size * 0.75 }}>🔌</span>;
-  if (icon.startsWith('http')) {
+  if (icon.startsWith('http') || icon.startsWith('/')) {
     return <img src={icon} alt="" style={{ width: size, height: size, borderRadius: 4 }} />;
   }
   return <span style={{ fontSize: size * 0.75 }}>{icon}</span>;
@@ -31,6 +34,7 @@ function ConnectionIcon({ icon, size = 24 }: { icon?: string; size?: number }) {
 export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSectionProps) {
   const [connections, setConnections] = useState<ConnectionInfo[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedConn, setSelectedConn] = useState<ConnectionInfo | null>(null);
 
   const refresh = useCallback(() => {
     fetch(`${apiBase}/acp/connections`).then(r => r.json())
@@ -49,7 +53,6 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
   };
 
   const removeConnection = async (id: string) => {
-    if (!confirm(`Remove ACP connection "${id}"?`)) return;
     await fetch(`${apiBase}/acp/connections/${id}`, { method: 'DELETE' });
     refresh();
   };
@@ -66,11 +69,10 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '32px', marginBottom: '12px' }}>
-        <h2 style={{ fontSize: '14px', fontWeight: 600, color: '#f90', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent-acp)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           🔌 ACP Connections
         </h2>
-        <button onClick={() => setShowAddForm(!showAddForm)}
-          style={{ fontSize: '13px', padding: '6px 12px', background: '#f9015', color: '#f90', border: '1px solid #f9030', borderRadius: '6px', cursor: 'pointer' }}>
+        <button className="button button--secondary" onClick={() => setShowAddForm(!showAddForm)}>
           + Add Connection
         </button>
       </div>
@@ -81,6 +83,7 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
         {connections.map(conn => (
           <ConnectionCard key={conn.id} conn={conn}
             agents={acpAgents.filter(a => a.slug.startsWith(conn.id + '-'))}
+            onClick={() => setSelectedConn(conn)}
             onToggle={(enabled) => toggleEnabled(conn.id, enabled)}
             onRemove={() => removeConnection(conn.id)} />
         ))}
@@ -95,22 +98,36 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
           </p>
         </div>
       )}
+
+      {selectedConn && (
+        <ConnectionDetailModal
+          conn={selectedConn}
+          agents={acpAgents.filter(a => a.slug.startsWith(selectedConn.id + '-'))}
+          onClose={() => setSelectedConn(null)}
+        />
+      )}
     </>
   );
 }
 
-function ConnectionCard({ conn, agents, onToggle, onRemove }: {
+function ConnectionCard({ conn, agents, onClick, onToggle, onRemove }: {
   conn: ConnectionInfo; agents: AgentSummary[];
-  onToggle: (enabled: boolean) => void; onRemove: () => void;
+  onClick: () => void; onToggle: (enabled: boolean) => void; onRemove: () => void;
 }) {
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const isConnected = conn.status === 'connected';
-  const statusColor = isConnected ? '#4caf50' : conn.status === 'connecting' ? '#ff9800' : conn.status === 'error' ? '#f44336' : '#666';
+  const statusColor = isConnected ? 'var(--success-text)' : conn.status === 'connecting' ? 'var(--accent-acp)' : conn.status === 'error' ? 'var(--error-text)' : 'var(--text-muted)';
 
   return (
-    <div style={{
+    <div onClick={onClick} style={{
       background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
       borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px',
-    }}>
+      cursor: 'pointer', transition: 'border-color 0.2s',
+    }}
+    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-acp)'}
+    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ConnectionIcon icon={conn.icon} size={32} />
@@ -128,43 +145,58 @@ function ConnectionCard({ conn, agents, onToggle, onRemove }: {
         </div>
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 500,
-          padding: '3px 8px', borderRadius: '4px', background: `${statusColor}15`, color: statusColor,
+          padding: '3px 8px', borderRadius: '4px', background: `color-mix(in srgb, ${statusColor} 12%, transparent)`, color: statusColor,
         }}>
           <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: statusColor }} />
           {conn.status}
         </span>
       </div>
 
-      {isConnected && conn.modes.length > 0 && (
+      {isConnected && agents.length > 0 && (
         <div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            {conn.modes.length} modes
+            {agents.length} agents
           </div>
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-            {conn.modes.slice(0, 8).map(m => (
-              <span key={m} style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '3px', background: '#f9010', color: '#f90', border: '1px solid #f9020' }}>{m}</span>
+            {agents.slice(0, 8).map(a => (
+              <span key={a.slug} style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '3px', background: 'color-mix(in srgb, var(--accent-acp) 12%, transparent)', color: 'var(--accent-acp)', border: '1px solid color-mix(in srgb, var(--accent-acp) 25%, transparent)' }}>{a.name}</span>
             ))}
-            {conn.modes.length > 8 && (
-              <span style={{ fontSize: '11px', padding: '2px 6px', color: 'var(--text-muted)' }}>+{conn.modes.length - 8} more</span>
+            {agents.length > 8 && (
+              <span style={{ fontSize: '11px', padding: '2px 6px', color: 'var(--text-muted)' }}>+{agents.length - 8} more</span>
             )}
           </div>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-        <button onClick={() => onToggle(!conn.enabled)}
-          style={{
-            fontSize: '12px', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', border: '1px solid var(--color-border)',
-            background: conn.enabled ? '#4caf5015' : 'var(--color-bg)', color: conn.enabled ? '#4caf50' : 'var(--text-muted)',
-          }}>
+        <button className={`button button--small ${conn.enabled ? 'button--success' : 'button--secondary'}`} onClick={e => { e.stopPropagation(); if (conn.enabled) setShowDisableConfirm(true); else onToggle(true); }}>
           {conn.enabled ? '● Enabled' : '○ Disabled'}
         </button>
         <div style={{ flex: 1 }} />
-        <button onClick={onRemove}
-          style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', border: '1px solid #f4434430', background: '#f4434410', color: '#f44336' }}>
+        <button className="button button--small button--danger-outline" onClick={e => { e.stopPropagation(); setShowRemoveConfirm(true); }}>
           Remove
         </button>
       </div>
+      <ConfirmModal
+        isOpen={showDisableConfirm}
+        title="Disable Connection"
+        message={`Disable "${conn.name}"? This will disconnect the ACP session and its agents will become unavailable.`}
+        confirmLabel="Disable"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => { setShowDisableConfirm(false); onToggle(false); }}
+        onCancel={() => setShowDisableConfirm(false)}
+      />
+      <ConfirmModal
+        isOpen={showRemoveConfirm}
+        title="Remove Connection"
+        message={`Remove "${conn.name}"? This will permanently delete the connection configuration.`}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => { setShowRemoveConfirm(false); onRemove(); }}
+        onCancel={() => setShowRemoveConfirm(false)}
+      />
     </div>
   );
 }
@@ -187,7 +219,7 @@ function AddConnectionForm({ onAdd, onCancel }: {
 
   return (
     <div style={{
-      background: 'var(--color-bg-secondary)', border: '1px solid #f9030', borderRadius: '12px',
+      background: 'var(--color-bg-secondary)', border: '1px solid color-mix(in srgb, var(--accent-acp) 30%, transparent)', borderRadius: '12px',
       padding: '20px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px',
     }}>
       <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Add ACP Connection</h3>
@@ -218,14 +250,97 @@ function AddConnectionForm({ onAdd, onCancel }: {
         </div>
       </div>
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-        <button onClick={onCancel} style={{ fontSize: '13px', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--text-primary)' }}>
-          Cancel
-        </button>
-        <button onClick={() => id && command && onAdd({ id, name: name || id, command, args, icon, cwd })}
-          disabled={!id || !command}
-          style={{ fontSize: '13px', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', border: 'none', background: '#f90', color: '#000', fontWeight: 600, opacity: (!id || !command) ? 0.5 : 1 }}>
+        <button className="button button--secondary" onClick={onCancel}>Cancel</button>
+        <button className="button button--primary" onClick={() => id && command && onAdd({ id, name: name || id, command, args, icon, cwd })}
+          disabled={!id || !command}>
           Add Connection
         </button>
+      </div>
+    </div>
+  );
+}
+
+function ConnectionDetailModal({ conn, agents, onClose }: {
+  conn: ConnectionInfo; agents: AgentSummary[]; onClose: () => void;
+}) {
+  const isConnected = conn.status === 'connected';
+  const statusColor = isConnected ? 'var(--success-text)' : conn.status === 'error' ? 'var(--error-text)' : 'var(--text-muted)';
+
+  const sectionLabel: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }} onClick={onClose}>
+      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)', borderRadius: '12px', width: '90%', maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-primary)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <ConnectionIcon icon={conn.icon} size={32} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '18px', fontWeight: 600 }}>{conn.name}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{conn.id}</div>
+          </div>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 500, padding: '4px 10px', borderRadius: '4px', background: `color-mix(in srgb, ${statusColor} 12%, transparent)`, color: statusColor }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusColor }} />
+            {conn.status}
+          </span>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Command */}
+          <div>
+            <div style={sectionLabel}>Command</div>
+            <code style={{ fontSize: '13px', color: 'var(--text-primary)', background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: '6px', display: 'block', fontFamily: 'monospace' }}>
+              {conn.command} {(conn.args || []).join(' ')}
+            </code>
+            {conn.cwd && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>📁 {conn.cwd}</div>}
+          </div>
+
+          {/* Agents */}
+          {agents.length > 0 && (
+            <div>
+              <div style={sectionLabel}>Agents ({agents.length})</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {agents.map(a => (
+                  <div key={a.slug} style={{ fontSize: '13px', padding: '8px 10px', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 500 }}>{a.name}</span>
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '11px' }}>{a.slug}</span>
+                    </div>
+                    {a.description && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{a.description}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Config Options */}
+          {conn.configOptions && conn.configOptions.length > 0 && (
+            <div>
+              <div style={sectionLabel}>Configuration</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {conn.configOptions.map((opt, i) => (
+                  <div key={i} style={{ fontSize: '13px', padding: '6px 10px', borderRadius: '6px', background: 'var(--bg-tertiary)', display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{opt.category}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{opt.currentValue || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Session ID */}
+          {conn.sessionId && (
+            <div>
+              <div style={sectionLabel}>Session</div>
+              <code style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{conn.sessionId}</code>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="button button--secondary" onClick={onClose}>Close</button>
+        </div>
       </div>
     </div>
   );

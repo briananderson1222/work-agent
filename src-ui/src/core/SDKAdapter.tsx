@@ -4,7 +4,8 @@ import { useAgents } from '../contexts/AgentsContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
-import { useSendMessage, useCreateChatSession, useActiveChatActions } from '../contexts/ActiveChatsContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useSendMessage, useCreateChatSession, useActiveChatActions, useOpenConversation } from '../contexts/ActiveChatsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import {
   registerProvider,
@@ -57,6 +58,8 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
   const sendMessage = useSendMessage(apiBase);
   const createChatSession = useCreateChatSession();
   const activeChatActions = useActiveChatActions();
+  const openConversation = useOpenConversation(apiBase);
+  const auth = useAuth();
 
   // Create SDK context value with injected contexts
   const sdkValue: SDKContextValue = {
@@ -68,10 +71,12 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
       navigation: { useNavigation: () => navigation },
       toast: { useToast: () => toast },
       config: { useApiBase: () => ({ apiBase }) },
+      auth: { useAuth: () => auth },
       activeChats: { 
         useSendMessage: () => sendMessage,
         useCreateChatSession: () => createChatSession,
-        useActiveChatActions: () => activeChatActions
+        useActiveChatActions: () => activeChatActions,
+        useOpenConversation: () => openConversation,
       },
     },
     hooks: {

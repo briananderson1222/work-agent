@@ -33,6 +33,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { useAwsAuth } from './hooks/useAwsAuth';
 import { setAuthCallback } from './lib/apiClient';
 import { getAgentIcon, getAgentIconStyle } from './utils/workspace';
+import { AgentIcon } from './components/AgentIcon';
 import type {
   AgentSummary,
   NavigationView,
@@ -602,9 +603,7 @@ function App() {
                     onClick={() => navigateToView({ type: 'agent-edit', slug: agent.slug || agent.id })}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
-                      <div style={getAgentIconStyle(agent, 48)}>
-                        {getAgentIcon(agent).display}
-                      </div>
+                      <AgentIcon agent={agent} size={48} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
                         <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
@@ -713,9 +712,7 @@ function App() {
                     onClick={() => navigateToView({ type: 'agent-edit', slug: agent.slug || agent.id })}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
-                      <div style={getAgentIconStyle(agent, 48)}>
-                        {getAgentIcon(agent).display}
-                      </div>
+                      <AgentIcon agent={agent} size={48} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
                         <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
@@ -863,13 +860,9 @@ function App() {
           )}
           {currentView.type === 'settings' && (
             <SettingsView
-              apiBase={API_BASE}
               onBack={navigateToWorkspace}
               onSaved={handleSettingsSaved}
-              onEditAgent={(slug) => navigateToView({ type: 'agent-edit', slug })}
-              onCreateAgent={() => navigateToView({ type: 'agent-new' })}
-              onEditWorkspace={(slug) => navigateToView({ type: 'workspace-edit', slug })}
-              onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
+              onNavigate={navigateToView}
               chatFontSize={14}
               onChatFontSizeChange={() => {}}
             />

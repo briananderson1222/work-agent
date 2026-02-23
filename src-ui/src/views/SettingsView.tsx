@@ -1,84 +1,58 @@
 import { useState, useEffect } from 'react';
-import { log } from '@/utils/logger';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { AgentIcon } from '../components/AgentIcon';
 import { ThemeToggle } from '../components/ThemeToggle';
-import type { AppConfig } from '../types';
-import { getWorkspaceIcon } from '../utils/workspace';
-import { useModels } from '../contexts/ModelsContext';
+import type { AppConfig, NavigationView } from '../types';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
-import { useAgents } from '../contexts/AgentsContext';
-import { useWorkspacesQuery, useInvalidateQuery } from '@stallion-ai/sdk';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
 
 export interface SettingsViewProps {
-  apiBase: string;
   onBack: () => void;
   onSaved?: () => void;
-  onEditAgent?: (slug: string) => void;
-  onCreateAgent?: () => void;
-  onEditWorkspace?: (slug: string) => void;
-  onCreateWorkspace?: () => void;
+  onNavigate?: (view: NavigationView) => void;
   chatFontSize?: number;
   onChatFontSizeChange?: (size: number) => void;
 }
 
-export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAgent, onEditWorkspace, onCreateWorkspace, chatFontSize = 14, onChatFontSizeChange }: SettingsViewProps) {
-  const availableModels = useModels(apiBase);
+export function SettingsView({ onBack, onSaved, onNavigate, chatFontSize = 14, onChatFontSizeChange }: SettingsViewProps) {
   const { apiBase: currentApiBase, setApiBase, resetToDefault, isCustom } = useApiBase();
   
-  // Use React Query hooks
   const configData = useConfig();
-  const agents = useAgents();
-  const { data: workspaces = [] } = useWorkspacesQuery();
   const { updateConfig } = useConfigActions();
   const invalidate = useInvalidateQuery();
   
-  const [activeTab, setActiveTab] = useState<'general' | 'agents' | 'workspaces' | 'prompts' | 'notifications' | 'advanced' | 'debug'>(() => {
+  const [activeTab, setActiveTab] = useState<'general' | 'notifications' | 'advanced' | 'debug'>(() => {
     const hash = window.location.hash.slice(1);
-    const validTabs = ['general', 'agents', 'workspaces', 'prompts', 'notifications', 'advanced', 'debug'] as const;
+    const validTabs = ['general', 'notifications', 'advanced', 'debug'] as const;
     return (hash && validTabs.includes(hash as typeof validTabs[number])) 
       ? hash as typeof validTabs[number]
       : 'general';
   });
   const [config, setConfig] = useState<AppConfig>(configData || {});
   const [originalConfig, setOriginalConfig] = useState<AppConfig>(configData || {});
-  const [prompts, setPrompts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [showResetModal, setShowResetModal] = useState(false);
-  const [showModelSelector, setShowModelSelector] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{type: 'agent' | 'workspace', slug: string, name: string} | null>(null);
-  const [modelSearch, setModelSearch] = useState('');
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [qAgents, setQAgents] = useState<any[]>([]);
-  const [selectedQAgent, setSelectedQAgent] = useState<any>(null);
   
-  // Update local state when config loads
   useEffect(() => {
     if (configData) {
       setConfig(configData);
       setOriginalConfig(configData);
     }
   }, [configData]);
-  const [importForm, setImportForm] = useState({ name: '', slug: '' });
-  const [editingPrompt, setEditingPrompt] = useState<any>(null);
 
-  const tabs = ['general', 'agents', 'workspaces', 'prompts', 'notifications', 'advanced', 'debug'] as const;
+  const tabs = ['general', 'notifications', 'advanced', 'debug'] as const;
 
   useTabKeyboardShortcuts(tabs, activeTab, setActiveTab);
   useCloseShortcut(onBack);
 
   const hasChanges = JSON.stringify(config) !== JSON.stringify(originalConfig);
 
-  // Update hash when tab changes (only if this view is active)
   useEffect(() => {
-    // Only manage hash if we're in the settings route
     if (window.location.pathname.includes('/settings')) {
       window.location.hash = activeTab;
     }
@@ -88,33 +62,13 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
     try {
       setIsSaving(true);
       setError(null);
-      
       await updateConfig(config);
-      
-      // Update original config after successful save
       setOriginalConfig(config);
       onSaved?.();
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const testConnection = async () => {
-    setTestStatus('testing');
-    try {
-      const response = await fetch(`${apiBase}/agents`);
-      if (response.ok) {
-        setTestStatus('success');
-        setTimeout(() => setTestStatus('idle'), 3000);
-      } else {
-        setTestStatus('failed');
-        setTimeout(() => setTestStatus('idle'), 3000);
-      }
-    } catch {
-      setTestStatus('failed');
-      setTimeout(() => setTestStatus('idle'), 3000);
     }
   };
 
@@ -133,74 +87,22 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
     }
   };
 
-  const handleDeleteAgent = (slug: string, name: string) => {
-    setDeleteConfirm({ type: 'agent', slug, name });
-  };
-
-  const handleDeleteWorkspace = (slug: string, name: string) => {
-    setDeleteConfirm({ type: 'workspace', slug, name });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteConfirm || !deleteConfirm.slug) {
-      log.api('Delete confirmation missing slug:', deleteConfirm);
-      setError('Cannot delete: missing identifier');
-      setDeleteConfirm(null);
-      return;
-    }
-    
-    try {
-      const endpoint = deleteConfirm.type === 'agent' 
-        ? `${apiBase}/agents/${deleteConfirm.slug}`
-        : `${apiBase}/workspaces/${deleteConfirm.slug}`;
-      
-      const response = await fetch(endpoint, { method: 'DELETE' });
-      if (!response.ok) throw new Error(`Failed to delete ${deleteConfirm.type}`);
-      
-      // Invalidate cache to refetch
-      if (deleteConfirm.type === 'agent') {
-        invalidate(['agents']);
-      } else {
-        invalidate(['workspaces']);
-      }
-      
-      setDeleteConfirm(null);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="management-view">
-        <div className="management-view__header">
-          <h2>Settings</h2>
-        </div>
-        <div className="management-view__loading">Loading settings...</div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="management-view">
         <div className="management-view__header">
-          <h2>Settings</h2>
-          <div className="management-view__header-actions">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+            <h2>Settings</h2>
             <ThemeToggle />
+          </div>
+          <div className="management-view__header-actions">
             <button
               type="button"
               className="button button--secondary"
-              onClick={testConnection}
-              disabled={testStatus === 'testing'}
+              onClick={() => onNavigate?.({ type: 'monitoring' })}
+              title="Monitoring"
             >
-              {testStatus === 'testing'
-                ? 'Testing...'
-                : testStatus === 'success'
-                  ? 'Connection OK'
-                  : testStatus === 'failed'
-                    ? 'Connection Failed'
-                    : 'Test Connection'}
+              Monitoring
             </button>
             <button
               type="button"
@@ -226,394 +128,31 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
           </button>
           <button
             type="button"
-            className={`settings-tab ${activeTab === 'agents' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('agents')}
-            title="Agents (⌘2)"
-          >
-            Agents <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘2</span>
-          </button>
-          <button
-            type="button"
-            className={`settings-tab ${activeTab === 'workspaces' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('workspaces')}
-            title="Workspaces (⌘3)"
-          >
-            Workspaces <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘3</span>
-          </button>
-          <button
-            type="button"
-            className={`settings-tab ${activeTab === 'prompts' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('prompts')}
-            title="Prompts (⌘4)"
-          >
-            Prompts <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘4</span>
-          </button>
-          <button
-            type="button"
             className={`settings-tab ${activeTab === 'notifications' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('notifications')}
-            title="Notifications (⌘5)"
+            title="Notifications (⌘2)"
           >
-            Notifications <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘5</span>
+            Notifications <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘2</span>
           </button>
           <button
             type="button"
             className={`settings-tab ${activeTab === 'advanced' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('advanced')}
-            title="Advanced (⌘6)"
+            title="Advanced (⌘3)"
           >
-            Advanced <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘6</span>
+            Advanced <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘3</span>
           </button>
           <button
             type="button"
             className={`settings-tab ${activeTab === 'debug' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('debug')}
-            title="Debug (⌘7)"
+            title="Debug (⌘4)"
           >
-            Debug <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘7</span>
+            Debug <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘4</span>
           </button>
         </div>
 
         <div className="settings-content">
-          {activeTab === 'agents' && (
-            <div className="settings-panel">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Agents</h3>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Manage AI agents with custom prompts, models, and tools
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className="button button--secondary"
-                    onClick={() => setShowImportModal(true)}
-                  >
-                    Import from Q
-                  </button>
-                  {onCreateAgent && (
-                    <button
-                      type="button"
-                      className="button button--primary"
-                      onClick={onCreateAgent}
-                    >
-                      + New Agent
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                {agents.map((agent) => (
-                  <div
-                    key={agent.slug || agent.id}
-                    style={{
-                      background: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      transition: 'all 0.2s ease',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                    onClick={() => onEditAgent?.(agent.slug || agent.id)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
-                        <AgentIcon agent={agent} size="medium" />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
-                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                            {agent.slug}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteAgent(agent.slug || agent.id, agent.name);
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--color-text-secondary)',
-                            cursor: 'pointer',
-                            padding: '4px',
-                            borderRadius: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Delete agent"
-                          onMouseOver={(e) => e.currentTarget.style.color = 'var(--color-error)'}
-                          onMouseOut={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline key="top" points="3,6 5,6 21,6"></polyline>
-                            <path key="body" d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
-                            <line key="line1" x1="10" y1="11" x2="10" y2="17"></line>
-                            <line key="line2" x1="14" y1="11" x2="14" y2="17"></line>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    {agent.description && (
-                      <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                        {agent.description.length > 100 ? `${agent.description.substring(0, 100)}...` : agent.description}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto' }}>
-                      {(agent.model || config.defaultModel) && (() => {
-                        const modelId = typeof agent.model === 'string' ? agent.model : config.defaultModel;
-                        const isInherited = !agent.model && config.defaultModel;
-                        const modelInfo = availableModels.find(m => m.id === modelId);
-                        
-                        return (
-                          <div
-                            style={{
-                              fontSize: '12px',
-                              padding: '6px 10px',
-                              borderRadius: '6px',
-                              background: 'var(--color-bg)',
-                              color: 'var(--text-secondary)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '2px',
-                              alignItems: 'flex-start'
-                            }}
-                          >
-                            <div style={{ fontWeight: 500 }}>
-                              {modelInfo?.name || modelId?.split('.').pop()?.split('-')[0] || 'model'}
-                              {isInherited && <span style={{ marginLeft: '4px', fontSize: '10px', opacity: 0.7 }}>(inherited)</span>}
-                            </div>
-                            <div style={{ fontSize: '10px', opacity: 0.6 }}>
-                              {modelId}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {activeTab === 'workspaces' && (
-            <div className="settings-panel">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Workspaces</h3>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Organize your work with custom layouts and quick prompts
-                  </p>
-                </div>
-                {onCreateWorkspace && (
-                  <button
-                    type="button"
-                    className="button button--primary"
-                    onClick={onCreateWorkspace}
-                  >
-                    + New Workspace
-                  </button>
-                )}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                {workspaces.map((workspace) => (
-                  <div
-                    key={workspace.slug}
-                    style={{
-                      background: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      transition: 'all 0.2s ease',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                    onClick={() => onEditWorkspace?.(workspace.slug)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '48px',
-                          height: '48px',
-                          borderRadius: '12px',
-                          background: 'var(--accent-primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: getWorkspaceIcon(workspace).isCustomIcon ? '24px' : '16px',
-                          fontWeight: getWorkspaceIcon(workspace).isCustomIcon ? 'normal' : 600,
-                          flexShrink: 0,
-                          color: getWorkspaceIcon(workspace).isCustomIcon ? 'inherit' : 'var(--color-bg)',
-                        }}
-                      >
-                        {getWorkspaceIcon(workspace).display}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{workspace.name}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                          {workspace.tabCount} tab{workspace.tabCount !== 1 ? 's' : ''}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteWorkspace(workspace.slug, workspace.name);
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--color-text-secondary)',
-                          cursor: 'pointer',
-                          padding: '4px',
-                          borderRadius: '4px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="Delete workspace"
-                        onMouseOver={(e) => e.currentTarget.style.color = 'var(--color-error)'}
-                        onMouseOut={(e) => e.currentTarget.style.color = 'var(--color-text-secondary)'}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline key="top" points="3,6 5,6 21,6"></polyline>
-                          <path key="body" d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
-                          <line key="line1" x1="10" y1="11" x2="10" y2="17"></line>
-                          <line key="line2" x1="14" y1="11" x2="14" y2="17"></line>
-                        </svg>
-                      </button>
-                    </div>
-                    {workspace.description && (
-                      <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                        {workspace.description.length > 100 ? `${workspace.description.substring(0, 100)}...` : workspace.description}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {activeTab === 'prompts' && (
-            <div className="settings-panel">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Global Prompts</h3>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Create reusable prompts for workspaces and agent commands
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="button button--primary"
-                  onClick={() => setEditingPrompt({ id: '', name: '', prompt: '', params: [] })}
-                >
-                  + New Prompt
-                </button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                {prompts.map((prompt) => (
-                  <div
-                    key={prompt.id}
-                    style={{
-                      background: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      transition: 'all 0.2s ease',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                    onClick={() => setEditingPrompt(prompt)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{prompt.name}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                          {prompt.id}
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          background: 'var(--accent-primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '16px',
-                        }}
-                      >
-                        💬
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                      {prompt.prompt.length > 100 ? `${prompt.prompt.substring(0, 100)}...` : prompt.prompt}
-                    </div>
-                    {prompt.params && prompt.params.length > 0 && (
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {prompt.params.map((param: any) => (
-                          <span
-                            key={param.name}
-                            style={{
-                              fontSize: '11px',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              background: 'var(--color-bg)',
-                              color: 'var(--text-secondary)',
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {'{{'}{param.name}{'}}'}{param.required === false ? '?' : ''}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {prompts.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
-                  <p>No prompts yet. Create your first reusable prompt.</p>
-                </div>
-              )}
-            </div>
-          )}
           {activeTab === 'general' && (
             <div className="settings-panel">
               <div className="form-group">
@@ -886,6 +425,24 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                   Base URL for the backend API. Changes take effect immediately. 
                   {isCustom && <span style={{ color: 'var(--color-warning)' }}> Using custom URL.</span>}
                 </span>
+                <button
+                  type="button"
+                  className="button button--secondary button--small"
+                  style={{ marginTop: '8px' }}
+                  disabled={testStatus === 'testing'}
+                  onClick={async () => {
+                    setTestStatus('testing');
+                    try {
+                      const res = await fetch(`${currentApiBase}/agents`);
+                      setTestStatus(res.ok ? 'success' : 'failed');
+                    } catch {
+                      setTestStatus('failed');
+                    }
+                    setTimeout(() => setTestStatus('idle'), 3000);
+                  }}
+                >
+                  {testStatus === 'testing' ? 'Testing...' : testStatus === 'success' ? '✓ Connected' : testStatus === 'failed' ? '✗ Failed' : 'Test Connection'}
+                </button>
               </div>
 
               <div className="form-group">
@@ -949,260 +506,6 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
         onConfirm={resetToDefaults}
         onCancel={() => setShowResetModal(false)}
       />
-
-      {showImportModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000,
-          }}
-          onClick={() => setShowImportModal(false)}
-        >
-          <div
-            style={{
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '12px',
-              width: '90%',
-              maxWidth: '600px',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: '20px', borderBottom: '1px solid var(--border-primary)' }}>
-              <h3 style={{ margin: 0 }}>Import Agent from Q Developer</h3>
-            </div>
-            <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-              {!selectedQAgent ? (
-                <div>
-                  <p style={{ marginBottom: '16px', color: 'var(--text-secondary)' }}>
-                    Select an agent from Q Developer CLI to import
-                  </p>
-                  <button
-                    type="button"
-                    className="button button--secondary"
-                    style={{ marginBottom: '16px' }}
-                    onClick={async () => {
-                      try {
-                        const response = await fetch(`${apiBase}/q-agents`);
-                        const data = await response.json();
-                        if (!data.success) {
-                          alert(data.error || 'Failed to load Q agents. Make sure Q Developer CLI is configured at ~/.aws/amazonq/cli-agents.json');
-                          return;
-                        }
-                        setQAgents(data.agents || []);
-                        if (data.agents.length === 0) {
-                          alert('No Q Developer agents found. Make sure you have agents configured in Q Developer CLI.');
-                        }
-                      } catch (err: any) {
-                        alert('Error loading Q agents: ' + err.message);
-                      }
-                    }}
-                  >
-                    Load Q Agents
-                  </button>
-                  {qAgents.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {qAgents.map((agent, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          style={{
-                            padding: '12px',
-                            border: '1px solid var(--border-primary)',
-                            borderRadius: '8px',
-                            background: 'var(--bg-secondary)',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                          }}
-                          onClick={() => {
-                            setSelectedQAgent(agent);
-                            setImportForm({
-                              name: agent.name,
-                              slug: agent.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-                            });
-                          }}
-                        >
-                          <div style={{ fontWeight: 500 }}>{agent.name}</div>
-                          <div style={{ fontSize: '0.9em', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                            {agent.instructions?.substring(0, 100)}...
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <div className="form-group">
-                    <label>Agent Name</label>
-                    <input
-                      type="text"
-                      value={importForm.name}
-                      onChange={(e) => setImportForm({ ...importForm, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Slug</label>
-                    <input
-                      type="text"
-                      value={importForm.slug}
-                      onChange={(e) => setImportForm({ ...importForm, slug: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-            <div style={{ padding: '20px', borderTop: '1px solid var(--border-primary)', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="button button--secondary"
-                onClick={() => {
-                  setShowImportModal(false);
-                  setSelectedQAgent(null);
-                  setQAgents([]);
-                }}
-              >
-                Cancel
-              </button>
-              {selectedQAgent && (
-                <button
-                  type="button"
-                  className="button button--primary"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch(`${apiBase}/agents`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          slug: importForm.slug,
-                          name: importForm.name,
-                          prompt: selectedQAgent.instructions,
-                        }),
-                      });
-                      if (!response.ok) throw new Error('Import failed');
-                      setShowImportModal(false);
-                      setSelectedQAgent(null);
-                      setQAgents([]);
-                      invalidate(['agents']);
-                    } catch (err: any) {
-                      setError(err.message);
-                    }
-                  }}
-                >
-                  Import
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editingPrompt && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000,
-          }}
-          onClick={() => setEditingPrompt(null)}
-        >
-          <div
-            style={{
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '12px',
-              width: '90%',
-              maxWidth: '600px',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: '20px', borderBottom: '1px solid var(--border-primary)' }}>
-              <h3 style={{ margin: 0 }}>{editingPrompt.id ? 'Edit Prompt' : 'New Prompt'}</h3>
-            </div>
-            <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-              <div className="form-group">
-                <label>Prompt ID</label>
-                <input
-                  type="text"
-                  value={editingPrompt.id}
-                  onChange={(e) => setEditingPrompt({ ...editingPrompt, id: e.target.value })}
-                  placeholder="my-prompt"
-                  disabled={!!editingPrompt.id}
-                />
-                <span className="form-help">Unique identifier (lowercase, hyphens only)</span>
-              </div>
-              <div className="form-group">
-                <label>Name</label>
-                <input
-                  type="text"
-                  value={editingPrompt.name}
-                  onChange={(e) => setEditingPrompt({ ...editingPrompt, name: e.target.value })}
-                  placeholder="My Prompt"
-                />
-              </div>
-              <div className="form-group">
-                <label>Prompt Template</label>
-                <textarea
-                  value={editingPrompt.prompt}
-                  onChange={(e) => setEditingPrompt({ ...editingPrompt, prompt: e.target.value })}
-                  placeholder="Enter your prompt template. Use {{paramName}} for parameters."
-                  rows={6}
-                  style={{ fontFamily: 'monospace', fontSize: '13px' }}
-                />
-                <span className="form-help">Use {'{{'} and {'}}'}  for parameters</span>
-              </div>
-            </div>
-            <div style={{ padding: '20px', borderTop: '1px solid var(--border-primary)', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="button button--secondary"
-                onClick={() => setEditingPrompt(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="button button--primary"
-                onClick={() => {
-                  // TODO: Save prompt to backend
-                  alert('Prompt saving not yet implemented - backend endpoint needed');
-                  setEditingPrompt(null);
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {deleteConfirm && (
-        <ConfirmModal
-          isOpen={true}
-          title={`Delete ${deleteConfirm.type === 'agent' ? 'Agent' : 'Workspace'}`}
-          message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone.`}
-          confirmText="Delete"
-          cancelText="Cancel"
-          onConfirm={confirmDelete}
-          onCancel={() => setDeleteConfirm(null)}
-          variant="danger"
-        />
-      )}
     </>
   );
 }

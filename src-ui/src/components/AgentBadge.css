@@ -29,9 +29,9 @@
 }
 
 .agent-badge--acp {
-  background: color-mix(in srgb, var(--accent-acp) 12%, transparent);
+  background: transparent;
   color: var(--accent-acp);
-  border: 1px solid color-mix(in srgb, var(--accent-acp) 25%, transparent);
+  border: none;
 }
 
 .agent-badge__namespace {

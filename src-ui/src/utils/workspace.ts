@@ -9,19 +9,30 @@ export function getInitials(name: string): string {
     .toUpperCase();
 }
 
+/** Returns true if the icon string is a URL/path that should be rendered as <img> */
+export function isIconUrl(icon?: string): boolean {
+  return !!icon && (icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('/'));
+}
+
 type IconEntity = { name: string; icon?: string };
 
-function getIcon(entity: IconEntity): { display: string; isCustomIcon: boolean } {
+function isUrl(s: string): boolean {
+  return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/');
+}
+
+function getIcon(entity: IconEntity): { display: string; isCustomIcon: boolean; isUrl: boolean } {
   if (entity.icon) {
     return {
       display: entity.icon,
       isCustomIcon: true,
+      isUrl: isUrl(entity.icon),
     };
   }
   
   return {
     display: getInitials(entity.name),
     isCustomIcon: false,
+    isUrl: false,
   };
 }
 
@@ -31,8 +42,8 @@ function getIconStyle(entity: IconEntity, size: number = 48, variant: 'default' 
     width: `${size}px`,
     height: `${size}px`,
     borderRadius: variant === 'user' ? '50%' : `${size / 4}px`,
-    background: 'var(--color-primary)',
-    color: 'var(--text-primary)',
+    background: 'var(--accent-primary)',
+    color: '#fff',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,42 +1,26 @@
-import { getAgentIcon } from '../utils/workspace';
+import { getAgentIcon, getAgentIconStyle } from '../utils/workspace';
 
 interface AgentIconProps {
   agent: { name: string; icon?: string };
-  size?: 'small' | 'medium' | 'large';
+  size?: 'small' | 'medium' | 'large' | number;
   className?: string;
   style?: React.CSSProperties;
 }
 
+const SIZE_MAP = { small: 24, medium: 32, large: 48 };
+
 export function AgentIcon({ agent, size = 'medium', className, style }: AgentIconProps) {
+  const px = typeof size === 'number' ? size : SIZE_MAP[size];
   const iconInfo = getAgentIcon(agent);
-  
-  const sizeMap = {
-    small: { width: '24px', height: '24px', fontSize: '12px' },
-    medium: { width: '32px', height: '32px', fontSize: '16px' },
-    large: { width: '48px', height: '48px', fontSize: '24px' }
-  };
-  
-  const dimensions = sizeMap[size];
-  
+  const baseStyle = getAgentIconStyle(agent, px);
+
   return (
-    <div
-      className={className}
-      style={{
-        width: dimensions.width,
-        height: dimensions.height,
-        borderRadius: '8px',
-        background: 'var(--accent-primary)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: agent.icon ? dimensions.fontSize : '14px',
-        fontWeight: agent.icon ? 'normal' : 600,
-        flexShrink: 0,
-        color: agent.icon ? 'inherit' : 'var(--color-bg)',
-        ...style
-      }}
-    >
-      {agent.icon || iconInfo.display}
+    <div className={className} style={{ ...baseStyle, overflow: 'hidden', ...style }}>
+      {iconInfo.isUrl ? (
+        <img src={iconInfo.display} alt={agent.name} width={px} height={px} style={{ borderRadius: 'inherit', objectFit: 'cover' }} />
+      ) : (
+        iconInfo.display
+      )}
     </div>
   );
 }

@@ -1,8 +1,11 @@
 import { useAnalytics } from '../contexts/AnalyticsContext';
+import { useAgents } from '../contexts/AgentsContext';
 import './AchievementsBadge.css';
 
 export function AchievementsBadge({ compact = false }: { compact?: boolean }) {
-  const { achievements, loading } = useAnalytics();
+  const { achievements, loading, usageStats } = useAnalytics();
+  const agents = useAgents();
+  const hasAcp = agents.some((a: any) => a.source === 'acp');
 
   if (loading || !achievements.length) return null;
 
@@ -25,8 +28,16 @@ export function AchievementsBadge({ compact = false }: { compact?: boolean }) {
           <span>🏆</span>
           <span>Achievements</span>
         </h3>
-        <div className="achievements-count">
-          {unlockedCount}/{totalCount} unlocked
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {hasAcp && (
+            <a href="https://console.harmony.a2z.com/amazonqactivitydashboard/main" target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: '12px', color: 'var(--accent-primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <img src="/kiro-icon.png" alt="" width={14} height={14} style={{ borderRadius: 2 }} /> Activity Dashboard ↗
+            </a>
+          )}
+          <div className="achievements-count">
+            {unlockedCount}/{totalCount} unlocked
+          </div>
         </div>
       </div>
 

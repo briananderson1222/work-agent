@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { AgentSummary } from '../types';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
+import { AgentIcon } from './AgentIcon';
 
 interface NewChatModalProps {
   agents: AgentSummary[];
@@ -121,7 +122,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
                 color: 'var(--accent-acp)',
                 borderTop: localAgents.length > 0 ? '1px solid var(--border-primary)' : undefined,
               }}>
-                🔌 kiro-cli (ACP)
+                🔌 ACP Agents
               </div>
               {acpAgents.map((agent) => {
                 const idx = flatList.indexOf(agent);
@@ -157,9 +158,9 @@ function AgentRow({ agent, isSelected, onSelect, onHover }: {
         transition: 'all 0.15s',
       }}
     >
-      <div style={{ fontWeight: 600 }}>
-        {agent.icon && <span style={{ marginRight: '6px' }}>{agent.icon}</span>}
-        {agent.source === 'acp' ? agent.slug.replace(/^kiro-/, '') : agent.name}
+      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <AgentIcon agent={agent} size="small" />
+        {agent.name}
       </div>
       {agent.description && (
         <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '2px' }}>{agent.description}</div>

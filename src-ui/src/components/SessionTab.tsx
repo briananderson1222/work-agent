@@ -1,6 +1,6 @@
 import React from 'react';
 import { AgentBadge } from './AgentBadge';
-import { getAgentIcon, getAgentIconStyle } from '../utils/workspace';
+import { AgentIcon } from './AgentIcon';
 import type { AgentSummary } from '../types';
 
 interface Model {
@@ -41,8 +41,6 @@ export function SessionTab({
   onFocus,
   onRemove,
 }: SessionTabProps) {
-  const agentIcon = agent ? getAgentIcon(agent) : null;
-  
   const tooltipParts = [
     `Title: ${session.title}`,
     `Agent: ${session.agentName}`,
@@ -69,10 +67,8 @@ export function SessionTab({
       onClick={onFocus}
       title={tooltip}
     >
-      {agentIcon && (
-        <div style={{ ...getAgentIconStyle(agent!, 20), marginRight: '8px' }}>
-          {agentIcon.display}
-        </div>
+      {agent && (
+        <AgentIcon agent={agent} size={20} style={{ marginRight: '8px' }} />
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="chat-dock__tab-title">

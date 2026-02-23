@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useAgents } from '../contexts/AgentsContext';
 
@@ -7,6 +7,7 @@ export interface SlashCommand {
   description: string;
   aliases?: string[];
   isCustom?: boolean;
+  source?: 'builtin' | 'custom' | 'acp';
   handler?: (args: string[]) => void | Promise<void>;
   currentModel?: string;
 }
@@ -25,7 +26,6 @@ export function useSlashCommands(agentSlug: string | null) {
   const agents = useAgents(apiBase);
   const [acpCommands, setAcpCommands] = useState<SlashCommand[]>([]);
 
-  // Fetch ACP slash commands for ACP agents
   const currentAgent = agentSlug ? agents.find(a => a.slug === agentSlug) : null;
   const isAcp = currentAgent?.source === 'acp';
 
@@ -38,12 +38,13 @@ export function useSlashCommands(agentSlug: string | null) {
           cmd: c.name.startsWith('/') ? c.name : `/${c.name}`,
           description: c.description || c.hint || 'ACP command',
           isCustom: true,
+          source: 'acp' as const,
         })));
       })
       .catch(() => setAcpCommands([]));
   }, [isAcp, agentSlug, apiBase]);
   
-  return useMemo(() => {
+  const commands = useMemo(() => {
     const currentModelId = currentAgent 
       ? (typeof currentAgent.model === 'string' ? currentAgent.model : currentAgent.model?.modelId || 'default')
       : 'default';
@@ -59,17 +60,33 @@ export function useSlashCommands(agentSlug: string | null) {
     ];
     
     if (!agentSlug || !currentAgent) return BUILTIN_COMMANDS;
+    if (isAcp) return acpCommands;
     
-    if (!currentAgent.commands) {
-      return BUILTIN_COMMANDS;
-    }
+    const customCommands = currentAgent.commands
+      ? Object.values(currentAgent.commands).map((cmd: any) => ({
+          cmd: `/${cmd.name}`,
+          description: cmd.description || 'Custom command',
+          isCustom: true,
+          source: 'custom' as const,
+        }))
+      : [];
     
-    const customCommands = Object.values(currentAgent.commands).map((cmd: any) => ({
-      cmd: `/${cmd.name}`,
-      description: cmd.description || 'Custom command',
-      isCustom: true,
-    }));
-    
-    return [...BUILTIN_COMMANDS, ...customCommands, ...acpCommands];
+    return [...BUILTIN_COMMANDS, ...customCommands];
   }, [agents, agentSlug, apiBase, acpCommands]);
+
+  // Fetch live autocomplete options from kiro-cli for ACP agents
+  const fetchCommandOptions = useCallback(async (partial: string): Promise<SlashCommand[]> => {
+    if (!isAcp || !agentSlug || !partial) return [];
+    try {
+      const r = await fetch(`${apiBase}/acp/commands/${agentSlug}/options?q=${encodeURIComponent(partial)}`);
+      const { data } = await r.json();
+      return (data || []).map((o: any) => ({
+        cmd: o.name?.startsWith('/') ? o.name : `/${o.name || o.label || o}`,
+        description: o.description || o.hint || '',
+        source: 'acp' as const,
+      }));
+    } catch { return []; }
+  }, [isAcp, agentSlug, apiBase]);
+
+  return { commands, fetchCommandOptions };
 }

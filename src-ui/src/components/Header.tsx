@@ -152,20 +152,6 @@ export function Header({
           </button>
           <button
             type="button"
-            className={`header-nav-btn ${currentView?.type === 'monitoring' ? 'is-active' : ''}`}
-            onClick={() => {
-              if (currentView?.type === 'monitoring') {
-                onNavigate({ type: 'workspace' });
-              } else {
-                onNavigate({ type: 'monitoring' });
-              }
-            }}
-            title="Monitoring"
-          >
-            Monitoring
-          </button>
-          <button
-            type="button"
             className={`header-nav-btn ${currentView?.type === 'schedule' ? 'is-active' : ''}`}
             onClick={() => {
               if (currentView?.type === 'schedule') {
@@ -234,7 +220,7 @@ export function Header({
 
         <button
           type="button"
-          className="button button--secondary app-toolbar__settings"
+          className={`button button--secondary app-toolbar__settings ${currentView?.type === 'settings' ? 'is-active' : ''}`}
           onClick={onToggleSettings}
           title={`Settings (${settingsShortcut})`}
           style={{ fontSize: '14px', padding: '6px 12px', fontWeight: 600 }}

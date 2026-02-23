@@ -15,6 +15,7 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useToast } from '../contexts/ToastContext';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useToolApproval } from '../hooks/useToolApproval';
+import { AgentIcon } from './AgentIcon';
 import { getAgentIconStyle, getInitials } from '../utils/workspace';
 
 interface Message {
@@ -206,12 +207,8 @@ export function ChatDockBody({
             {activeSession.status === 'sending' && (
               <StreamingMessage
                 sessionId={activeSession.id}
-                agentIcon={agent?.icon || getInitials(agent?.name || 'AI')}
-                agentIconStyle={agent ? getAgentIconStyle(agent, 20) : {
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: '20px', height: '20px', borderRadius: '50%',
-                  background: 'var(--accent-primary)', fontSize: '11px', flexShrink: 0, color: 'var(--text-primary)',
-                }}
+                agentIcon={<AgentIcon agent={agent || { name: 'AI' }} size={20} />}
+                agentIconStyle={{}}
                 fontSize={chatFontSize}
                 showReasoning={showReasoning}
                 renderReasoning={(content, i) => <ReasoningSection key={i} content={content} fontSize={chatFontSize} show={showReasoning} />}

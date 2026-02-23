@@ -97,9 +97,19 @@ Agents live in `.work-agent/agents/<slug>/agent.json`:
 | `POST /agents/:slug/stream` | Streaming chat |
 | `POST /agents/:slug/invoke` | Silent tool invocation |
 
-### ⛔ NEVER run long-lived processes from execute_bash
+### ⛔ NEVER run long-lived processes via the test-workspace.sh script from execute_bash
 
-This includes `npm run dev:server`, `npm run dev:ui`, `bash scripts/test-workspace.sh`, or ANY command that doesn't exit on its own. The tool will hang indefinitely and the user will have to interrupt you. **Tell the user to run it in their own terminal instead.**
+The `test-workspace.sh` script uses `wait` and is designed for interactive terminals. Instead, start the server and UI directly as background processes:
+
+```bash
+# From execute_bash:
+cd /path/to/project
+PORT=3142 npm run dev:server > /tmp/stallion-test-server.log 2>&1 &
+VITE_API_BASE=http://localhost:3142 npm run dev:ui -- --port 5174 > /tmp/stallion-test-ui.log 2>&1 &
+sleep 8  # wait for startup
+```
+
+For interactive use in a terminal, `./scripts/test-workspace.sh` works as-is.
 
 ### Testing with Playwright
 
@@ -126,6 +136,40 @@ log.api('message');  // Enable: localStorage.debug = 'app:*'
 ### Theming & Colors
 
 Never use hardcoded hex colors. Use CSS variables from `src-ui/src/index.css` (`--text-primary`, `--bg-secondary`, `--border-primary`, `--accent-primary`, `--accent-acp`, etc). For status colors use the Tailwind palette: green `#22c55e`, amber `#f59e0b`, red `#ef4444`. Buttons use `className="button button--secondary"`. See [FRONTEND_PATTERNS.md](./docs/FRONTEND_PATTERNS.md) for details.
+
+### Confirmation Dialogs
+
+Never use `window.confirm()` or `window.alert()`. Always use the `ConfirmModal` component for destructive or significant actions:
+
+```tsx
+import { ConfirmModal } from '@/components/ConfirmModal';
+
+<ConfirmModal
+  isOpen={showConfirm}
+  title="Delete Item"
+  message="This cannot be undone."
+  confirmLabel="Delete"
+  cancelLabel="Cancel"
+  variant="danger"
+  onConfirm={handleConfirm}
+  onCancel={() => setShowConfirm(false)}
+/>
+```
+
+This ensures consistent theming, accessibility, and UX across all confirmation flows.
+
+### Agent Icons
+
+Always use the `AgentIcon` component — never manually check icon URLs or render `<img>` tags for agent icons:
+
+```tsx
+import { AgentIcon } from '@/components/AgentIcon';
+<AgentIcon agent={agent} size={20} />
+```
+
+### ACP Agent Detection
+
+Never hardcode ACP connection prefixes (e.g., `startsWith('kiro-')`). Use `agent.source === 'acp'` from the agents list. ACP metadata (`planUrl`, `planLabel`, `connectionName`) is available on agent configs for dynamic UI.
 
 ### Plugin Workflow
 

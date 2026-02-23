@@ -3,7 +3,9 @@ import { log } from '@/utils/logger';
 import { useAnalytics } from '../contexts/AnalyticsContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { ConfirmModal } from './ConfirmModal';
 import { useAgents } from '../contexts/AgentsContext';
+import { AgentIcon } from './AgentIcon';
 import './UsageStatsPanel.css';
 
 type DrillDownType = 'model' | 'agent' | null;
@@ -11,6 +13,8 @@ type DrillDownType = 'model' | 'agent' | null;
 export function UsageStatsPanel() {
   const { usageStats, loading, error, refresh, rescan } = useAnalytics();
   const { apiBase } = useApiBase();
+  const [resetting, setResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const models = useModels(apiBase);
   const agents = useAgents();
   const [drillDown, setDrillDown] = useState<{ type: DrillDownType; id: string } | null>(null);
@@ -64,15 +68,31 @@ export function UsageStatsPanel() {
           <span>📊</span>
           <span>Usage Statistics</span>
         </h3>
-        <div className="usage-stats-actions">
-          <button onClick={refresh} className="usage-stats-button usage-stats-button-refresh">
-            🔄 Refresh
-          </button>
-          <button onClick={rescan} className="usage-stats-button usage-stats-button-rescan">
-            🔍 Rescan
-          </button>
-        </div>
+        <button
+          onClick={() => setShowResetConfirm(true)}
+          disabled={resetting}
+          style={{ fontSize: '11px', padding: '3px 8px', border: '1px solid var(--border-primary)', borderRadius: '4px', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}
+        >{resetting ? 'Resetting...' : 'Reset'}</button>
       </div>
+
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        title="Reset Usage Statistics"
+        message="This will permanently clear all usage data including message counts, costs, and agent statistics. This cannot be undone."
+        confirmLabel="Reset All"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          setShowResetConfirm(false);
+          setResetting(true);
+          try {
+            await fetch(`${apiBase}/api/analytics/usage`, { method: 'DELETE' });
+            refresh();
+          } catch { /* ignore */ }
+          finally { setResetting(false); }
+        }}
+        onCancel={() => setShowResetConfirm(false)}
+      />
 
       <div className="usage-stats-cards">
         <StatCard icon="💬" label="Messages" value={lifetime.totalMessages.toLocaleString()} color="var(--accent-primary)" />
@@ -98,6 +118,7 @@ export function UsageStatsPanel() {
                   stats={stats} 
                   total={lifetime.totalMessages} 
                   models={models}
+                  agents={agents}
                   onClick={() => setDrillDown({ type: 'model', id: model })}
                 />
               ))}
@@ -122,6 +143,7 @@ export function UsageStatsPanel() {
                   agent={agent} 
                   stats={stats} 
                   total={lifetime.totalMessages}
+                  agents={agents}
                   onClick={() => setDrillDown({ type: 'agent', id: agent })}
                 />
               ))}
@@ -146,7 +168,7 @@ export function UsageStatsPanel() {
   );
 }
 
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
+function StatCard({ icon, label, value, color }: { icon: string; label: string; value: React.ReactNode; color: string }) {
   return (
     <div className="usage-stat-card">
       <div className="usage-stat-icon">{icon}</div>
@@ -156,23 +178,22 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
   );
 }
 
-function ModelRow({ model, stats, total, models, onClick }: { model: string; stats: any; total: number; models: any[]; onClick: () => void }) {
+function ModelRow({ model, stats, total, models, onClick, agents }: { model: string; stats: any; total: number; models: any[]; onClick: () => void; agents: any[] }) {
   const percentage = (stats.messages / total) * 100;
   
-  // Find model info from context
   const modelInfo = models.find(m => m.id === model || m.originalId === model);
   const displayName = modelInfo?.name || model;
   
-  // Build tooltip with all known information
+  // Find agents using this model
+  const usingAgents = agents.filter((a: any) => a.model === model || a.model === modelInfo?.originalId);
+  const isAcpOnly = usingAgents.length > 0 && usingAgents.every((a: any) => a.source === 'acp');
+  
   const tooltipLines = [
-    `Display Name: ${displayName}`,
-    `Model ID: ${model}`,
-    modelInfo?.originalId && modelInfo.originalId !== model ? `Original ID: ${modelInfo.originalId}` : null,
+    `Model: ${displayName}`,
+    `ID: ${model}`,
     `Messages: ${stats.messages}`,
-    `Input Tokens: ${stats.inputTokens.toLocaleString()}`,
-    `Output Tokens: ${stats.outputTokens.toLocaleString()}`,
-    `Total Cost: $${stats.cost.toFixed(4)}`,
-    `Avg Cost/Message: $${(stats.cost / stats.messages).toFixed(4)}`,
+    `Cost: $${stats.cost.toFixed(4)}`,
+    usingAgents.length > 0 ? `Agents: ${usingAgents.map((a: any) => a.name || a.slug).join(', ')}` : null,
   ].filter(Boolean).join('\n');
   
   return (
@@ -180,15 +201,28 @@ function ModelRow({ model, stats, total, models, onClick }: { model: string; sta
       <div className="usage-breakdown-header">
         <span className="usage-breakdown-name">{displayName}</span>
         <span className="usage-breakdown-stats">
-          {stats.messages} msgs · ${stats.cost.toFixed(2)}
+          {stats.messages} msgs · {isAcpOnly
+            ? <a href={usingAgents[0]?.planUrl || '#'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} 
+                style={{ color: 'var(--accent-acp)', textDecoration: 'none' }}
+                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>
+                {usingAgents[0]?.planLabel || usingAgents[0]?.connectionName || 'ACP'} plan ↗
+              </a>
+            : `$${stats.cost.toFixed(2)}`}
         </span>
       </div>
+      {usingAgents.length > 0 && (
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+          {usingAgents.slice(0, 3).map((a: any) => a.name || a.slug.split(':').pop() || a.slug).join(', ')}
+          {usingAgents.length > 3 && ` +${usingAgents.length - 3} more`}
+        </div>
+      )}
       <div className="usage-breakdown-bar">
         <div 
           className="usage-breakdown-bar-fill"
           style={{ 
             width: `${percentage}%`,
-            backgroundColor: 'var(--accent-primary)'
+            backgroundColor: isAcpOnly ? 'var(--accent-acp)' : 'var(--accent-primary)'
           }}
         />
       </div>
@@ -196,24 +230,28 @@ function ModelRow({ model, stats, total, models, onClick }: { model: string; sta
   );
 }
 
-function AgentRow({ agent, stats, total, onClick }: { agent: string; stats: any; total: number; onClick: () => void }) {
+function AgentRow({ agent, stats, total, onClick, agents }: { agent: string; stats: any; total: number; onClick: () => void; agents: any[] }) {
   const percentage = (stats.messages / total) * 100;
-  const agentName = agent.split(':').pop() || agent;
-  const isAcp = agent.startsWith('kiro-');
+  const agentConfig = agents.find((a: any) => a.slug === agent);
+  const isAcp = agentConfig?.source === 'acp';
+  const displayName = agentConfig?.name || agent.split(':').pop() || agent;
   
   return (
     <div className="usage-breakdown-item" onClick={onClick} style={{ cursor: 'pointer' }}>
       <div className="usage-breakdown-header">
-        <span className="usage-breakdown-name">
-          {isAcp && <span style={{ marginRight: '4px' }}>🔌</span>}
-          {isAcp ? agent.replace(/^kiro-/, '') : agentName}
+        <span className="usage-breakdown-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {agentConfig ? <AgentIcon agent={agentConfig} size="small" /> : <span>🤖</span>}
+          {displayName}
         </span>
         <span className="usage-breakdown-stats">
-          {stats.messages} msgs
-          {isAcp
-            ? <> · <a href="https://app.kiro.dev" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-acp)', textDecoration: 'none', fontSize: '11px' }} onClick={e => e.stopPropagation()}>Manage plan ↗</a></>
-            : <> · ${stats.cost.toFixed(2)}</>
-          }
+          {stats.messages} msgs · {isAcp && agentConfig?.planUrl
+            ? <a href={agentConfig.planUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} 
+                style={{ color: 'var(--accent-acp)', textDecoration: 'none' }}
+                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>
+                {agentConfig.planLabel || agentConfig.connectionName || 'ACP'} plan ↗
+              </a>
+            : `$${stats.cost.toFixed(2)}`}
         </span>
       </div>
       <div className="usage-breakdown-bar">
@@ -341,7 +379,9 @@ function DrillDownModal({ type, id, usageStats, models, agents, onClose }: {
       <div className="drill-down-overlay" onClick={onClose}>
         <div className="drill-down-modal" onClick={(e) => e.stopPropagation()}>
           <div className="drill-down-header">
-            <h3>🎯 {agentName}</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {agent ? <AgentIcon agent={agent} size="medium" /> : '🎯'} {agent?.name || agentName}
+            </h3>
             <button onClick={onClose} className="drill-down-close">✕</button>
           </div>
           <div className="drill-down-content">

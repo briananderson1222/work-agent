@@ -4,7 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { ReasoningSection } from './ReasoningSection';
 import { ToolCallDisplay } from './ToolCallDisplay';
 import { FilePartPreview } from './FilePartPreview';
-import { getAgentIconStyle, getUserIconStyle, getInitials } from '../utils/workspace';
+import { AgentIcon } from './AgentIcon';
+import { UserIcon } from './UserIcon';
 import type { AgentSummary } from '../types';
 
 interface Attachment {
@@ -83,24 +84,10 @@ export function MessageBubble({
 
   const agent = agents.find(a => a.slug === activeSession.agentSlug);
   
-  const avatarStyle = msg.role === 'assistant'
-    ? (agent ? getAgentIconStyle(agent, 20) : {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '20px',
-        height: '20px',
-        borderRadius: '50%',
-        background: 'var(--accent-primary)',
-        fontSize: '11px',
-        flexShrink: 0,
-        color: 'var(--text-primary)',
-      })
-    : getUserIconStyle({ name: 'Default User' }, 20);
-
-  const avatarContent = msg.role === 'assistant'
-    ? (agent?.icon || getInitials(agent?.name || 'AI'))
-    : getInitials('Default User');
+  const isAssistant = msg.role === 'assistant';
+  const avatarContent = isAssistant
+    ? <AgentIcon agent={agent || { name: 'AI' }} size={20} />
+    : <UserIcon size={20} />;
 
   return (
     <div 
@@ -112,7 +99,7 @@ export function MessageBubble({
         marginBottom: '12px'
       }}
     >
-      <div style={{ ...avatarStyle, marginTop: '4px' }}>
+      <div style={{ marginTop: '4px', flexShrink: 0 }}>
         {avatarContent}
       </div>
       <div 

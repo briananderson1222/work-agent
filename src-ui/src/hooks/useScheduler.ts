@@ -119,6 +119,16 @@ export function useDeleteJob() {
   return useMutation({ mutationFn: (target: string) => mutate(`/jobs/${target}`, 'DELETE'), onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }) });
 }
 
+export function useAddJob() {
+  const qc = useQueryClient();
+  const { mutate } = useSchedulerFetch();
+  return useMutation({
+    mutationFn: (opts: { name: string; cron?: string; prompt: string; agent?: string; openArtifact?: string; notifyStart?: boolean }) =>
+      mutate('/jobs', 'POST', opts),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
+  });
+}
+
 export function useOpenArtifact() {
   const { mutate } = useSchedulerFetch();
   return useMutation({ mutationFn: (path: string) => mutate('/open', 'POST', { path }) });

@@ -2,8 +2,9 @@ import { useState, useCallback } from 'react';
 import {
   useSchedulerJobs, useSchedulerStats, useSchedulerStatus,
   useJobLogs, useRunJob, useToggleJob, useDeleteJob, useFetchRunOutput,
-  useSchedulerEvents, useOpenArtifact,
+  useSchedulerEvents, useOpenArtifact, useAddJob,
 } from '../hooks/useScheduler';
+import { useSortableTable, SortHeader, TableFilter } from './SortableTable';
 
 function relTime(iso: string | null) {
   if (!iso) return 'never';
@@ -125,7 +126,7 @@ function JobDetail({ name }: { name: string }) {
 }
 
 export function ScheduleView() {
-  const { data: jobs = [], isLoading } = useSchedulerJobs();
+  const { data: jobs = [], isLoading, isError: jobsError } = useSchedulerJobs();
   const { data: stats, isLoading: loadingStats } = useSchedulerStats();
   const { data: status, isLoading: loadingStatus, isError: statusError } = useSchedulerStatus();
   const { isRunning } = useSchedulerEvents();
@@ -133,10 +134,45 @@ export function ScheduleView() {
   const toggleJob = useToggleJob();
   const deleteJob = useDeleteJob();
   const openArtifact = useOpenArtifact();
+  const addJob = useAddJob();
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Boo not installed — show setup instructions
+  if (jobsError && statusError) {
+    return (
+      <div style={{ padding: '3rem', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏰</div>
+        <h2 style={{ margin: '0 0 0.5rem', color: 'var(--text-primary)' }}>Scheduler Not Available</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+          The <strong>boo</strong> scheduler requires <strong>kiro-cli</strong> and runs scheduled prompts against your ACP agents (not workspace agents).
+        </p>
+        <div style={{ textAlign: 'left', background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '0.5rem', padding: '1rem', fontSize: '0.85rem' }}>
+          <p style={{ margin: '0 0 0.5rem', fontWeight: 500 }}>To get started:</p>
+          <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <li>Install <strong>kiro-cli</strong> if you haven't already</li>
+            <li>Download <strong>boo</strong> from{' '}
+              <a href="https://github.com/briananderson1222/boo/releases" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)' }}>
+                GitHub releases
+              </a>
+            </li>
+            <li>Run <code style={{ padding: '2px 6px', background: 'var(--bg-tertiary)', borderRadius: '0.25rem', fontSize: '0.8rem' }}>boo install</code></li>
+          </ol>
+        </div>
+      </div>
+    );
+  }
 
   const statsMap = new Map<string, any>();
   if (stats?.jobs) for (const s of stats.jobs) statsMap.set(s.name, s);
+
+  // Enrich jobs with stats for sorting
+  const enrichedJobs = jobs.map((job: any) => ({
+    ...job,
+    success_rate: statsMap.get(job.name)?.success_rate ?? -1,
+  }));
+
+  const { sorted: sortedJobs, sortKey, sortDir, toggle, filterText, setFilterText } =
+    useSortableTable(enrichedJobs, 'name', 'asc', ['name']);
 
   const handleRun = useCallback((name: string) => {
     runJob.mutate(name);
@@ -171,23 +207,54 @@ export function ScheduleView() {
 
       {/* Job table */}
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '0.5rem' }}>
+        <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-primary)' }}>
+          <TableFilter value={filterText} onChange={setFilterText} placeholder="Filter jobs…" />
+        </div>
         {isLoading ? (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading jobs...</div>
-        ) : jobs.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No scheduled jobs</div>
+        ) : sortedJobs.length === 0 ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filterText ? 'No matching jobs' : (
+            <div>
+              <p style={{ marginBottom: '1rem' }}>No scheduled jobs yet. Get started with a recommended schedule:</p>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {[
+                  { name: 'good-morning', label: '☀️ Morning Briefing', cron: '0 14 * * 1-5', prompt: 'Review my calendar and email for today. Summarize priorities, prep for meetings, and flag anything urgent.', artifact: 'daily-*.html' },
+                  { name: 'catch-up-emails', label: '📧 Email Catch-up', cron: '0 18 * * 1-5', prompt: 'Check my recent emails and summarize anything I need to respond to or follow up on.', artifact: 'daily-*.html' },
+                  { name: 'wrap-up-day', label: '🌙 End of Day Wrap', cron: '0 22 * * 1-5', prompt: 'Summarize what I accomplished today. Check for any customer meetings that need activity logging. Preview tomorrow.', artifact: 'daily-*.html' },
+                  { name: 'prep-week', label: '📋 Weekly Prep', cron: '0 3 * * 1', prompt: 'Prepare my weekly overview: key meetings, customer engagements, deadlines, and priorities for the week ahead.', artifact: 'daily-*.html' },
+                ].map(t => (
+                  <button key={t.name} disabled={addJob.isPending}
+                    onClick={() => addJob.mutate({ name: t.name, cron: t.cron, prompt: t.prompt, openArtifact: t.artifact, notifyStart: true })}
+                    style={{
+                      padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)',
+                      borderRadius: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '0.85rem', textAlign: 'left', minWidth: 180,
+                    }}>
+                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{t.label}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{t.cron.includes('* 1') ? 'Mondays' : 'Weekdays'} · kiro-cli</div>
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.75rem' }}>
+                Schedules run via <strong>kiro-cli</strong> against your ACP agents. Times are UTC.
+              </p>
+            </div>
+          )}</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
-                  <th style={thStyle}>Name</th><th style={thStyle}>Schedule</th>
-                  <th style={thStyle}>Status</th><th style={thStyle}>Last Run</th>
-                  <th style={thStyle}>Next Fire</th><th style={thStyle}>Success%</th>
+                  <SortHeader label="Name" sortKey="name" active={sortKey === 'name'} dir={sortDir} onClick={toggle} style={thStyle} />
+                  <th style={thStyle}>Schedule</th>
+                  <th style={thStyle}>Status</th>
+                  <SortHeader label="Last Run" sortKey="last_run" active={sortKey === 'last_run'} dir={sortDir} onClick={toggle} style={thStyle} />
+                  <SortHeader label="Next Fire" sortKey="next_fire" active={sortKey === 'next_fire'} dir={sortDir} onClick={toggle} style={thStyle} />
+                  <SortHeader label="Success%" sortKey="success_rate" active={sortKey === 'success_rate'} dir={sortDir} onClick={toggle} style={thStyle} />
                   <th style={thStyle}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {jobs.map((job: any) => {
+                {sortedJobs.map((job: any) => {
                   const jobStats = statsMap.get(job.name);
                   const isExpanded = expanded === job.name;
                   const running = isRunning(job.name);

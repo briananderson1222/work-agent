@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-export function AuthStatusBadge({ inline }: { inline?: boolean }) {
-  const { status, expiresAt, renew, isRenewing } = useAuth();
+export function AuthStatusBadge({ inline, expanded }: { inline?: boolean; expanded?: boolean }) {
+  const { status, expiresAt, renew, isRenewing, provider } = useAuth();
   const [showConfirm, setShowConfirm] = useState(false);
 
   if (status === 'loading') return null;
@@ -51,6 +51,29 @@ export function AuthStatusBadge({ inline }: { inline?: boolean }) {
       </div>
     </div>
   );
+
+  if (expanded) {
+    return (
+      <>
+        <button onClick={() => setShowConfirm(true)} disabled={isRenewing}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            fontSize: '13px', padding: '6px 12px', borderRadius: '6px',
+            background: `${color}15`, border: `1px solid ${color}30`,
+            color, cursor: isRenewing ? 'wait' : 'pointer',
+          }}>
+          {isRenewing ? (
+            <span style={{ width: 7, height: 7, border: '1.5px solid #666', borderTop: `1.5px solid ${color}`, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          ) : dot}
+          🔐 {provider} — {isRenewing ? 'Renewing...' : status === 'valid' || status === 'expiring'
+            ? `expires ${expiresAt?.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+            : status || 'click to renew'}
+        </button>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        {confirmModal}
+      </>
+    );
+  }
 
   if (inline) {
     return (
