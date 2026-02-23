@@ -553,6 +553,30 @@ export function CRM({ activeTab }: CRMProps) {
 
   // Auto-load on mount - restore selected account only
 
+  // Restore selectedAccount from URL hash (e.g., deep link from Portfolio)
+  const restoredAccountRef = useRef(false);
+  useEffect(() => {
+    if (restoredAccountRef.current || selectedAccount) return;
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    const accountId = params.get('selectedAccount');
+    if (!accountId) return;
+    
+    restoredAccountRef.current = true;
+    salesforceProvider.getAccountDetails(accountId).then(details => {
+      const account = {
+        id: details.id,
+        name: details.name,
+        owner: details.owner,
+        geo_Text__c: details.geo,
+        awsci_customer: details.segment ? { customerRevenue: { tShirtSize: details.segment } } : undefined,
+        website: details.website,
+      } as Account;
+      loadAccountDetails(account);
+    }).catch(() => {});
+  }, []);
+
   const handleRefresh = async () => {
     // Clear opportunity and task caches
     accounts.forEach(account => {

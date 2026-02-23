@@ -77,8 +77,7 @@ export function Portfolio() {
   const isLoading = loadingUser || loadingAccounts;
 
   const navigateToAccount = (accountId: string) => {
-    const url = `/workspaces/stallion/crm?selectedAccount=${accountId}`;
-    window.history.pushState({}, '', url);
+    window.history.pushState({}, '', `/workspaces/stallion/crm#selectedAccount=${accountId}`);
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
