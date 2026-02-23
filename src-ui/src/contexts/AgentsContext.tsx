@@ -13,6 +13,9 @@ type AgentData = {
   ui?: any;
   toolsConfig?: any;
   workflowWarnings?: string[];
+  source?: 'local' | 'acp';
+  supportsAttachments?: boolean;
+  modelOptions?: Array<{ id: string; name: string; originalId: string }> | null;
 };
 
 export function useAgents(): AgentData[] {

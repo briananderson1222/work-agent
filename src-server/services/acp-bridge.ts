@@ -63,6 +63,11 @@ interface InitializeResult {
   };
   agentCapabilities?: {
     loadSession?: boolean;
+    promptCapabilities?: {
+      image?: boolean;
+      audio?: boolean;
+      embeddedContext?: boolean;
+    };
   };
 }
 
@@ -183,6 +188,7 @@ export class ACPConnection {
   private slashCommands: ACPSlashCommand[] = [];
   private mcpServers: string[] = [];
   private configOptions: any[] = [];
+  private promptCapabilities: { image?: boolean; audio?: boolean; embeddedContext?: boolean } = {};
   private detectedModel: string | null = null;
   private terminals = new Map<string, ManagedTerminal>();
   private terminalCounter = 0;
@@ -268,6 +274,9 @@ export class ACPConnection {
         protocolVersion: initResult.protocolVersion,
         agent: initResult.agentInfo?.name,
       });
+
+      // Capture prompt capabilities from agent
+      this.promptCapabilities = initResult.agentCapabilities?.promptCapabilities || {};
 
       // Try to resume previous session, fall back to new session
       let sessionResult: SessionResult;
@@ -382,6 +391,14 @@ export class ACPConnection {
   }
 
   getVirtualAgents(): any[] {
+    // Build model options from configOptions with category=model
+    const modelConfig = this.configOptions.find((o: any) => o.category === 'model');
+    const modelOptions = modelConfig?.options?.map((o: any) => ({
+      id: o.value,
+      name: o.name || o.value,
+      originalId: o.value,
+    })) || null;
+
     return this.modes.map(mode => ({
       slug: `${this.prefix}-${mode.id}`,
       name: `${mode.name}`,
@@ -389,7 +406,12 @@ export class ACPConnection {
       model: this.getCurrentModelName() || this.config.name,
       icon: this.config.icon || '🔌',
       source: 'acp' as const,
+      connectionName: this.config.name,
+      planUrl: (this.config as any).planUrl,
+      planLabel: (this.config as any).planLabel,
       updatedAt: new Date().toISOString(),
+      supportsAttachments: this.promptCapabilities.image || false,
+      modelOptions,
     }));
   }
 
@@ -397,6 +419,23 @@ export class ACPConnection {
   getSlashCommands(slug: string): ACPSlashCommand[] {
     if (!this.hasAgent(slug)) return [];
     return this.slashCommands;
+  }
+
+  /** Get autocomplete suggestions for a partial command via _kiro.dev/commands/options */
+  async getCommandOptions(partialCommand: string): Promise<any[]> {
+    if (!this.connection || !this.sessionId) return [];
+    try {
+      const result = await Promise.race([
+        this.connection.extMethod('_kiro.dev/commands/options', {
+          sessionId: this.sessionId,
+          partialCommand,
+        }),
+        new Promise<any>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000)),
+      ]);
+      return (result as any)?.options || [];
+    } catch {
+      return [];
+    }
   }
 
   // ── Chat Handling ──────────────────────────────────────────────
@@ -413,11 +452,57 @@ export class ACPConnection {
       this.currentModeId = modeId;
     }
 
+    // Switch model if requested via configOption
+    if (options.model) {
+      const modelConfig = this.configOptions.find((o: any) => o.category === 'model');
+      if (modelConfig && modelConfig.currentValue !== options.model) {
+        try {
+          const result = await this.connection.setSessionConfigOption({
+            sessionId: this.sessionId,
+            configId: modelConfig.id,
+            value: options.model,
+          });
+          this.configOptions = (result as any).configOptions || this.configOptions;
+        } catch (e: any) {
+          this.logger.warn('[ACPBridge] Failed to set model', { model: options.model, error: e.message });
+        }
+      }
+    }
+
     // Resolve userId and conversationId (same format as VoltAgent)
-    const userId = options.userId || `agent:${slug}:user:default`;
+    let resolvedAlias = 'default';
+    try {
+      const { getCachedUser } = await import('../routes/auth.js');
+      resolvedAlias = getCachedUser().alias || 'default';
+    } catch { /* fallback */ }
+    const userId = options.userId || `agent:${slug}:user:${resolvedAlias}`;
     const isNewConversation = !options.conversationId;
     const conversationId = options.conversationId || `${userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
-    const inputText = typeof input === 'string' ? input : JSON.stringify(input);
+
+    // Parse input: string or UIMessage array (with text + file parts)
+    let inputText: string;
+    const promptContent: Array<
+      | { type: 'text'; text: string }
+      | { type: 'image'; data: string; mimeType: string }
+    > = [];
+
+    if (Array.isArray(input) && input[0]?.parts) {
+      // UIMessage format: [{ id, role, parts: [{ type: 'text', text }, { type: 'file', url, mediaType }] }]
+      const parts = input[0].parts as Array<{ type: string; text?: string; url?: string; mediaType?: string }>;
+      inputText = parts.filter(p => p.type === 'text').map(p => p.text || '').join('\n');
+      for (const p of parts) {
+        if (p.type === 'file' && p.url) {
+          // Strip data URL prefix: "data:image/png;base64,ABC..." → "ABC..."
+          const base64 = p.url.replace(/^data:[^;]+;base64,/, '');
+          promptContent.push({ type: 'image' as const, data: base64, mimeType: p.mediaType || 'image/png' });
+        } else if (p.type === 'text' && p.text) {
+          promptContent.push({ type: 'text' as const, text: p.text });
+        }
+      }
+    } else {
+      inputText = typeof input === 'string' ? input : JSON.stringify(input);
+      promptContent.push({ type: 'text' as const, text: inputText });
+    }
 
     // Get or create memory adapter for this ACP agent
     const adapter = this.getOrCreateAdapter(slug);
@@ -486,14 +571,41 @@ export class ACPConnection {
           });
         }
 
-        // Build prompt content
-        const promptContent = [{ type: 'text' as const, text: inputText }];
-
-        // Send prompt — blocks until turn completes
-        const result = await this.connection!.prompt({
-          sessionId: this.sessionId!,
-          prompt: promptContent,
-        });
+        // Slash commands: use kiro extension (response comes via session notifications → activeWriter)
+        if (inputText.startsWith('/')) {
+          const spaceIdx = inputText.indexOf(' ');
+          const cmdName = (spaceIdx > 0 ? inputText.substring(0, spaceIdx) : inputText).replace(/^\//, '');
+          const cmdInput = spaceIdx > 0 ? inputText.substring(spaceIdx + 1) : undefined;
+          try {
+            // Adjacently tagged Rust enum — try PascalCase variant name
+            const pascalCmd = cmdName.charAt(0).toUpperCase() + cmdName.slice(1);
+            const commandPayload = cmdInput
+              ? { command: pascalCmd, input: cmdInput }
+              : { command: pascalCmd };
+            // Fire the command — don't await the RPC response
+            this.connection!.extMethod('_kiro.dev/commands/execute', {
+              sessionId: this.sessionId!,
+              ...commandPayload,
+            }).catch((e) => this.logger.warn('[ACPBridge] extMethod error', { error: String(e) }));
+            // Brief wait for any immediate notifications
+            await new Promise(r => setTimeout(r, 500));
+            // If no response came through notifications, send an acknowledgment
+            if (this.responseAccumulator.length === 0) {
+              const ack = `/${cmdName}${cmdInput ? ' ' + cmdInput : ''} ✓`;
+              await write({ type: 'text-delta', text: ack });
+              this.responseAccumulator = ack;
+            }
+          } catch (e: any) {
+            this.logger.warn('[ACPBridge] Command extension failed, falling back to prompt', { error: e.message });
+            await this.connection!.prompt({ sessionId: this.sessionId!, prompt: promptContent });
+          }
+        } else {
+          // Regular prompt
+          await this.connection!.prompt({
+            sessionId: this.sessionId!,
+            prompt: promptContent,
+          });
+        }
 
         // Save assistant message
         if (adapter && (this.responseAccumulator || this.responseParts.length > 0)) {
@@ -511,7 +623,7 @@ export class ACPConnection {
           }
         }
 
-        const reason = cancelled ? 'cancelled' : (result.stopReason || 'end_turn');
+        const reason = cancelled ? 'cancelled' : 'end_turn';
         await write({ type: 'finish', finishReason: reason });
         await streamWriter.write('data: [DONE]\n\n');
       } catch (error: any) {
@@ -780,8 +892,28 @@ export class ACPConnection {
         this.configOptions = update.configOptions || [];
         break;
 
+      case 'available_commands_update':
+        // Standard ACP command advertisement
+        this.slashCommands = ((update as any).availableCommands || []).map((c: any) => ({
+          name: c.name.startsWith('/') ? c.name : `/${c.name}`,
+          description: c.description || '',
+          hint: c.input?.hint,
+        }));
+        this.logger.info('[ACPBridge] Commands updated (standard ACP)', { count: this.slashCommands.length });
+        break;
+
       default:
-        this.logger.debug('[ACPBridge] Unhandled session update', { type: update.sessionUpdate });
+        // Kiro extension status notifications (compaction, clear, etc.) may arrive as session updates
+        if (this.activeWriter && update.sessionUpdate?.startsWith('_kiro.dev/')) {
+          const msg = (update as any).message || (update as any).status || (update as any).text;
+          if (msg && typeof msg === 'string') {
+            this.responseAccumulator += msg + '\n';
+            await this.activeWriter({ type: 'text-delta', text: msg + '\n' });
+          }
+          this.logger.info('[ACPBridge] Kiro extension session update', { type: update.sessionUpdate, update });
+        } else {
+          this.logger.debug('[ACPBridge] Unhandled session update', { type: update.sessionUpdate });
+        }
         break;
     }
   }
@@ -870,11 +1002,26 @@ export class ACPConnection {
         break;
       }
       case '_kiro.dev/compaction/status':
-      case '_kiro.dev/clear/status':
-        this.logger.debug('[ACPBridge] Session maintenance', { method, params });
+      case '_kiro.dev/clear/status': {
+        const status = (params as any).status || 'done';
+        const message = (params as any).message || (method.includes('compaction') ? 'Context compacted.' : 'History cleared.');
+        if (this.activeWriter) {
+          this.activeWriter({ type: 'text-delta', text: message + '\n' }).catch(() => {});
+          this.responseAccumulator += message + '\n';
+        }
+        this.logger.info('[ACPBridge] Session maintenance', { method, status });
         break;
+      }
       default:
-        this.logger.debug('[ACPBridge] Unknown extension notification', { method });
+        // Stream any unknown extension notification text to the user if we have an active writer
+        if (this.activeWriter && params) {
+          const text = (params as any).message || (params as any).text || (params as any).status;
+          if (text && typeof text === 'string') {
+            this.activeWriter({ type: 'text-delta', text: text + '\n' }).catch(() => {});
+            this.responseAccumulator += text + '\n';
+          }
+        }
+        this.logger.debug('[ACPBridge] Extension notification', { method, params });
         break;
     }
   }
@@ -1103,6 +1250,11 @@ export class ACPManager {
   getSlashCommands(slug: string): any[] {
     const conn = this.findConnectionForSlug(slug);
     return conn?.getSlashCommands(slug) || [];
+  }
+
+  async getCommandOptions(slug: string, partialCommand: string): Promise<any[]> {
+    const conn = this.findConnectionForSlug(slug);
+    return conn?.getCommandOptions(partialCommand) || [];
   }
 
   async handleChat(c: Context, slug: string, input: any, options: any): Promise<Response> {

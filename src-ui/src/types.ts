@@ -45,6 +45,9 @@ export interface AgentSummary {
     aliases?: Record<string, string>;
   };
   workflowWarnings?: string[];
+  // ACP agent capabilities
+  supportsAttachments?: boolean;
+  modelOptions?: Array<{ id: string; name: string; originalId: string }> | null;
 }
 
 export interface FileAttachment {

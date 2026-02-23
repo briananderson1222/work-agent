@@ -57,13 +57,16 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const agentForHook = activeSessionForHook ? agents.find(a => a.slug === activeSessionForHook.agentSlug) : null;
   const agentDefaultModelId = agentForHook ? (typeof agentForHook.model === 'string' ? agentForHook.model : agentForHook.model?.modelId) : undefined;
   
+  // For ACP agents with their own model options, use those instead of Bedrock models
+  const effectiveModels = agentForHook?.modelOptions || availableModels;
+  
   // Chat input hook - encapsulates autocomplete, history, and input handling
   const chatInput = useChatInput({
     apiBase,
     sessionId: activeSessionId,
     agentSlug: activeSessionForHook?.agentSlug || null,
     conversationId: activeSessionForHook?.conversationId,
-    availableModels,
+    availableModels: effectiveModels,
     agentDefaultModel: agentDefaultModelId,
     onSessionMigrate: (newSessionId) => {
       setActiveSessionId(newSessionId);
@@ -89,9 +92,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   
   // Check if current model supports attachments
   const currentModelId = activeSession?.model || agents.find(a => a.slug === activeSession?.agentSlug)?.model;
-  const modelSupportsAttachments = useModelSupportsAttachments(
+  const bedrockModelSupportsAttachments = useModelSupportsAttachments(
     typeof currentModelId === 'string' ? currentModelId : currentModelId?.modelId
   );
+  const activeAgent = activeSession ? agents.find(a => a.slug === activeSession.agentSlug) : null;
+  const modelSupportsAttachments = bedrockModelSupportsAttachments || (activeAgent?.supportsAttachments ?? false);
   
   const ephemeralMessages = activeChatState?.ephemeralMessages || [];
   const unreadCount = sessions.filter(s => s.hasUnread).length;
@@ -191,7 +196,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                   showToolDetails={showToolDetails}
                   modelSupportsAttachments={modelSupportsAttachments}
                   agentDefaultModelId={agentDefaultModelId}
-                  availableModels={availableModels}
+                  availableModels={effectiveModels}
                   chatInput={chatInput}
                   setShowStatsPanel={setShowStatsPanel}
                 />
