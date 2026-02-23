@@ -35,6 +35,7 @@ export interface AgentSummary {
   updatedAt: string;
   description?: string;
   icon?: string;
+  source?: 'local' | 'acp';
   ui?: AgentUIConfig;
   commands?: AgentCommands;
   toolsConfig?: {
@@ -171,6 +172,7 @@ export type NavigationView =
   | { type: 'prompts' }
   | { type: 'integrations' }
   | { type: 'monitoring' }
+  | { type: 'schedule' }
   | { type: 'profile' }
   | { type: 'notifications' }
   | { type: 'agent-new' }

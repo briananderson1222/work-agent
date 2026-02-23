@@ -33,6 +33,8 @@ import { InjectableStream } from './streaming/InjectableStream.js';
 import { AgentService } from '../services/agent-service.js';
 import { MCPService } from '../services/mcp-service.js';
 import { WorkspaceService } from '../services/workspace-service.js';
+import { ApprovalRegistry } from '../services/approval-registry.js';
+import { ACPBridge } from '../services/acp-bridge.js';
 import { createAgentRoutes } from '../routes/agents.js';
 import { createToolRoutes } from '../routes/tools.js';
 import { createWorkspaceRoutes, createWorkflowRoutes } from '../routes/workspaces.js';
@@ -41,6 +43,9 @@ import { createConfigRoutes } from '../routes/config.js';
 import { createBedrockRoutes } from '../routes/bedrock.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
 import { createConversationRoutes } from '../routes/conversations.js';
+import { createSchedulerRoutes } from '../routes/scheduler.js';
+import { SchedulerService } from '../services/scheduler-service.js';
+import { createAuthRoutes } from '../routes/auth.js';
 import { isAuthError } from '../utils/auth-errors.js';
 
 /**
@@ -93,13 +98,14 @@ export class WorkAgentRuntime {
   private modelCatalog?: BedrockModelCatalog;
   private usageAggregator?: UsageAggregator;
   private port: number;
-  private pendingApprovals: Map<string, { resolve: (approved: boolean) => void; reject: (error: Error) => void }> = new Map();
+  private approvalRegistry: ApprovalRegistry;
   private healthCheckInterval: NodeJS.Timeout | null = null;
 
   // Services
   private agentService!: AgentService;
   private mcpService!: MCPService;
   private workspaceService!: WorkspaceService;
+  private acpBridge: ACPBridge;
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const workAgentDir = options.workAgentDir || '.work-agent';
@@ -117,6 +123,7 @@ export class WorkAgentRuntime {
     });
 
     // Initialize services
+    this.approvalRegistry = new ApprovalRegistry(this.logger);
     this.agentService = new AgentService(
       this.configLoader,
       this.activeAgents,
@@ -134,6 +141,20 @@ export class WorkAgentRuntime {
       this.logger
     );
     this.workspaceService = new WorkspaceService(this.configLoader, this.logger);
+    this.acpBridge = new ACPBridge(
+      this.approvalRegistry,
+      this.logger,
+      process.cwd(),
+      this.memoryAdapters,
+      (slug) => {
+        const adapter = new FileVoltAgentMemoryAdapter({
+          workAgentDir: this.configLoader.getWorkAgentDir(),
+          usageAggregator: this.usageAggregator,
+        });
+        return adapter;
+      },
+      { get: () => this.usageAggregator },
+    );
     
     // Log versions for debugging
     this.logger.info('Work Agent Runtime initializing', {
@@ -302,6 +323,9 @@ export class WorkAgentRuntime {
           // Analytics endpoints
           app.route('/api/analytics', createAnalyticsRoutes(this.usageAggregator));
 
+          // Auth endpoints
+          app.route('/api/auth', createAuthRoutes());
+
           // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
           app.get('/api/agents', async (c) => {
             try {
@@ -349,6 +373,11 @@ export class WorkAgentRuntime {
                 agents: enrichedAgents.map(a => ({ slug: a.slug, hasToolsConfig: !!a.toolsConfig }))
               });
               
+              // Append ACP virtual agents (kiro-cli modes)
+              if (this.acpBridge.isConnected()) {
+                enrichedAgents.push(...this.acpBridge.getVirtualAgents());
+              }
+
               return c.json({ success: true, data: enrichedAgents });
             } catch (error: any) {
               this.logger.error('Failed to fetch agents', { error: error.message, stack: error.stack });
@@ -390,6 +419,17 @@ export class WorkAgentRuntime {
 
           // List all tools
           app.route('/tools', createToolRoutes(this.mcpService, () => this.initialize()));
+
+          // ACP connection status
+          app.get('/acp/status', async (c) => {
+            return c.json({ success: true, data: this.acpBridge.getStatus() });
+          });
+
+          // ACP slash commands for a given agent
+          app.get('/acp/commands/:slug', async (c) => {
+            const slug = c.req.param('slug');
+            return c.json({ success: true, data: this.acpBridge.getSlashCommands(slug) });
+          });
 
           // Get agent tools with full schemas
           // Get agent tools with full schemas
@@ -544,6 +584,7 @@ export class WorkAgentRuntime {
             queryEventsFromDisk: (start, end, userId) => this.queryEventsFromDisk(start, end, userId)
           }));
           app.route('/agents', createConversationRoutes(this.memoryAdapters, this.logger));
+          app.route('/scheduler', createSchedulerRoutes(new SchedulerService(this.logger), this.logger));
 
           // Agent health check (agent-specific, not in monitoring routes)
           app.get('/agents/:slug/health', async (c) => {
@@ -1129,11 +1170,7 @@ export class WorkAgentRuntime {
               
               this.logger.info('[Approval Endpoint] Received approval response', { approvalId, approved });
               
-              const pending = this.pendingApprovals.get(approvalId);
-              if (pending) {
-                pending.resolve(approved);
-                this.pendingApprovals.delete(approvalId);
-                this.logger.info('[Approval Endpoint] Approval resolved', { approvalId, approved });
+              if (this.approvalRegistry.resolve(approvalId, approved)) {
                 return c.json({ success: true });
               }
               
@@ -1252,6 +1289,11 @@ export class WorkAgentRuntime {
             
             try {
               const { input, options = {} } = await c.req.json();
+
+              // ACP routing — delegate to kiro-cli if this is an ACP agent
+              if (this.acpBridge.hasAgent(slug)) {
+                return this.acpBridge.handleChat(c, slug, input, options);
+              }
               
               // DEBUG: Log image data to trace truncation
               if (Array.isArray(input)) {
@@ -1422,24 +1464,7 @@ export class WorkAgentRuntime {
                       } as any);
                       
                       // Wait for user approval
-                      return new Promise<boolean>((resolve, reject) => {
-                        this.pendingApprovals.set(approvalId, { resolve, reject });
-                        
-                        const timeout = setTimeout(() => {
-                          if (this.pendingApprovals.has(approvalId)) {
-                            this.pendingApprovals.delete(approvalId);
-                            this.logger.warn('[Elicitation] Approval timeout', { approvalId });
-                            resolve(false);
-                          }
-                        }, 60000);
-                        
-                        const originalResolve = resolve;
-                        const wrappedResolve = (value: boolean) => {
-                          clearTimeout(timeout);
-                          originalResolve(value);
-                        };
-                        this.pendingApprovals.set(approvalId, { resolve: wrappedResolve, reject });
-                      });
+                      return this.approvalRegistry.register(approvalId);
                     }
                     return false;
                   };
@@ -1759,6 +1784,15 @@ export class WorkAgentRuntime {
     
     // Start periodic health checks (every 60 seconds)
     this.startHealthChecks();
+
+    // Start ACP bridge (non-blocking — no-op if kiro-cli not found)
+    this.acpBridge.start().then(connected => {
+      if (connected) {
+        this.logger.info('[Runtime] ACP bridge connected, kiro-cli agents available');
+      }
+    }).catch(err => {
+      this.logger.warn('[Runtime] ACP bridge failed to start', { error: err.message });
+    });
   }
 
   /**
@@ -2850,6 +2884,9 @@ export class WorkAgentRuntime {
 
     this.mcpConfigs.clear();
     this.activeAgents.clear();
+
+    // Shutdown ACP bridge
+    await this.acpBridge.shutdown();
 
     // Dispose config loader
     await this.configLoader.dispose();

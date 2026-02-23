@@ -38,6 +38,7 @@ export interface AgentSummary {
   prompt?: string;
   model?: string;
   region?: string;
+  source?: 'local' | 'acp';
   guardrails?: AgentGuardrails;
   tools?: AgentTools;
   ui?: AgentUI;

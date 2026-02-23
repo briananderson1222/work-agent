@@ -1,0 +1,795 @@
+/**
+ * ACP Bridge — connects to kiro-cli via Agent Client Protocol.
+ * Spawns kiro-cli acp as a subprocess, translates ACP events to the
+ * existing SSE streaming format so the UI works unchanged.
+ */
+
+import { spawn, type ChildProcess } from 'child_process';
+import { Writable, Readable } from 'stream';
+import { readFile, writeFile, readdir } from 'fs/promises';
+import { existsSync, readdirSync } from 'fs';
+import { join } from 'path';
+import {
+  ClientSideConnection,
+  ndJsonStream,
+  PROTOCOL_VERSION,
+  type Client,
+  type SessionNotification,
+  type RequestPermissionRequest,
+  type RequestPermissionResponse,
+  type ReadTextFileRequest,
+  type ReadTextFileResponse,
+  type WriteTextFileRequest,
+  type WriteTextFileResponse,
+  type CreateTerminalRequest,
+  type CreateTerminalResponse,
+  type TerminalOutputRequest,
+  type TerminalOutputResponse,
+  type ReleaseTerminalRequest,
+  type WaitForTerminalExitRequest,
+  type WaitForTerminalExitResponse,
+  type KillTerminalCommandRequest,
+} from '@agentclientprotocol/sdk';
+import { stream as honoStream } from 'hono/streaming';
+import type { Context } from 'hono';
+import { ApprovalRegistry } from './approval-registry.js';
+import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+
+interface ACPMode {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface ACPSlashCommand {
+  name: string;
+  description: string;
+  hint?: string;
+}
+
+interface ManagedTerminal {
+  process: ChildProcess;
+  output: string;
+  exitCode: number | null;
+}
+
+export type ACPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+export class ACPBridge {
+  private proc: ChildProcess | null = null;
+  private connection: ClientSideConnection | null = null;
+  private sessionId: string | null = null;
+  private modes: ACPMode[] = [];
+  private currentModeId: string | null = null;
+  private slashCommands: ACPSlashCommand[] = [];
+  private mcpServers: string[] = [];
+  private terminals = new Map<string, ManagedTerminal>();
+  private terminalCounter = 0;
+  private status: ACPConnectionStatus = 'disconnected';
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private shuttingDown = false;
+
+  // Per-prompt SSE writer — set during handleChat, used by Client callbacks
+  private activeWriter: ((chunk: any) => Promise<void>) | null = null;
+  // Accumulated response text during a prompt turn
+  private responseAccumulator = '';
+
+  // conversationId → acpSessionId mapping for resumption
+  private sessionMap = new Map<string, string>();
+
+  constructor(
+    private approvalRegistry: ApprovalRegistry,
+    private logger: any,
+    private cwd: string,
+    private memoryAdapters?: Map<string, FileVoltAgentMemoryAdapter>,
+    private createMemoryAdapter?: (slug: string) => FileVoltAgentMemoryAdapter,
+    private usageAggregatorRef?: { get: () => any },
+  ) {}
+
+  // ── Lifecycle ──────────────────────────────────────────────────
+
+  async start(): Promise<boolean> {
+    if (this.shuttingDown) return false;
+    this.status = 'connecting';
+
+    const kiroBin = await this.findKiroCli();
+    if (!kiroBin) {
+      this.logger.info('[ACPBridge] kiro-cli not found on PATH, skipping ACP');
+      this.status = 'disconnected';
+      return false;
+    }
+
+    try {
+      this.proc = spawn(kiroBin, ['acp'], {
+        stdio: ['pipe', 'pipe', 'inherit'],
+        cwd: this.cwd,
+      });
+
+      this.proc.on('exit', (code) => {
+        this.logger.warn('[ACPBridge] kiro-cli exited', { code });
+        this.connection = null;
+        this.sessionId = null;
+        this.modes = [];
+        this.slashCommands = [];
+        this.status = 'disconnected';
+        this.scheduleReconnect();
+      });
+
+      const input = Writable.toWeb(this.proc.stdin!);
+      const output = Readable.toWeb(this.proc.stdout!) as ReadableStream<Uint8Array>;
+      const acpStream = ndJsonStream(input, output);
+
+      this.connection = new ClientSideConnection(
+        (_agent) => this.createClient(),
+        acpStream,
+      );
+
+      // Initialize
+      const initResult = await this.connection.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientCapabilities: {
+          fs: { readTextFile: true, writeTextFile: true },
+          terminal: true,
+        },
+        clientInfo: { name: 'work-agent', version: '1.0.0' },
+      });
+
+      this.logger.info('[ACPBridge] Connected', {
+        protocolVersion: initResult.protocolVersion,
+        agent: (initResult as any).agentInfo?.name,
+      });
+
+      // Try to resume previous session, fall back to new session
+      let sessionResult: any;
+
+      // Pre-create adapters so findPreviousSessionId can scan conversation metadata
+      // We don't know modes yet, but we can scan for existing kiro-* agent dirs
+      this.preCreateAdaptersFromDisk();
+
+      const previousSessionId = await this.findPreviousSessionId();
+      
+      if (previousSessionId && (initResult as any).agentCapabilities?.loadSession) {
+        try {
+          // Save modes from new session creation first (load doesn't return modes)
+          const tempSession = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] });
+          if ((tempSession as any).modes?.availableModes) {
+            this.modes = (tempSession as any).modes.availableModes;
+            this.currentModeId = (tempSession as any).modes.currentModeId || this.modes[0]?.id || null;
+          }
+          // Now load the previous session to restore kiro-cli's context
+          await this.connection.loadSession({
+            sessionId: previousSessionId,
+            cwd: this.cwd,
+            mcpServers: [],
+          });
+          sessionResult = { sessionId: previousSessionId };
+          this.logger.info('[ACPBridge] Resumed previous session', { sessionId: previousSessionId });
+        } catch (err: any) {
+          this.logger.warn('[ACPBridge] Failed to resume session, creating new', { error: err.message });
+          sessionResult = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] });
+        }
+      } else {
+        sessionResult = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] });
+      }
+
+      this.sessionId = sessionResult.sessionId;
+
+      // Extract modes
+      if ((sessionResult as any).modes?.availableModes) {
+        this.modes = (sessionResult as any).modes.availableModes;
+        this.currentModeId = (sessionResult as any).modes.currentModeId || this.modes[0]?.id || null;
+      }
+
+      this.status = 'connected';
+      this.reconnectAttempts = 0;
+
+      // Ensure adapters exist for all discovered modes
+      for (const mode of this.modes) {
+        this.getOrCreateAdapter(`kiro-${mode.id}`);
+      }
+
+      this.logger.info('[ACPBridge] Session created', {
+        sessionId: this.sessionId,
+        modes: this.modes.map(m => m.id),
+        currentMode: this.currentModeId,
+      });
+
+      return true;
+    } catch (error: any) {
+      this.logger.error('[ACPBridge] Failed to start', { error: error.message });
+      this.status = 'error';
+      this.cleanup();
+      this.scheduleReconnect();
+      return false;
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    this.shuttingDown = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.cleanup();
+  }
+
+  isConnected(): boolean {
+    return this.status === 'connected' && this.connection !== null && this.sessionId !== null;
+  }
+
+  getStatus(): { status: ACPConnectionStatus; modes: string[]; sessionId: string | null; mcpServers: string[] } {
+    return {
+      status: this.status,
+      modes: this.modes.map(m => m.id),
+      sessionId: this.sessionId,
+      mcpServers: this.mcpServers,
+    };
+  }
+
+  // ── Reconnect ──────────────────────────────────────────────────
+
+  private scheduleReconnect(): void {
+    if (this.shuttingDown || this.reconnectAttempts >= this.maxReconnectAttempts) return;
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+    this.reconnectAttempts++;
+    this.logger.info('[ACPBridge] Scheduling reconnect', { attempt: this.reconnectAttempts, delayMs: delay });
+    this.reconnectTimer = setTimeout(() => this.start(), delay);
+  }
+
+  // ── Agent Discovery ────────────────────────────────────────────
+
+  hasAgent(slug: string): boolean {
+    return this.modes.some(m => `kiro-${m.id}` === slug);
+  }
+
+  getVirtualAgents(): any[] {
+    return this.modes.map(mode => ({
+      slug: `kiro-${mode.id}`,
+      name: `${mode.name}`,
+      description: mode.description || `kiro-cli ${mode.id} mode`,
+      model: 'kiro-cli',
+      icon: '🔌',
+      source: 'acp' as const,
+      updatedAt: new Date().toISOString(),
+    }));
+  }
+
+  /** Get slash commands advertised by kiro-cli for a given agent slug */
+  getSlashCommands(slug: string): ACPSlashCommand[] {
+    if (!this.hasAgent(slug)) return [];
+    return this.slashCommands;
+  }
+
+  // ── Chat Handling ──────────────────────────────────────────────
+
+  async handleChat(c: Context, slug: string, input: any, options: any): Promise<Response> {
+    if (!this.connection || !this.sessionId) {
+      return c.json({ success: false, error: 'ACP not connected' }, 503);
+    }
+
+    // Switch mode if needed
+    const modeId = slug.replace(/^kiro-/, '');
+    if (modeId !== this.currentModeId) {
+      await this.connection.setSessionMode({ sessionId: this.sessionId, modeId });
+      this.currentModeId = modeId;
+    }
+
+    // Resolve userId and conversationId (same format as VoltAgent)
+    const userId = options.userId || `agent:${slug}:user:default`;
+    const isNewConversation = !options.conversationId;
+    const conversationId = options.conversationId || `${userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+    const inputText = typeof input === 'string' ? input : JSON.stringify(input);
+
+    // Get or create memory adapter for this ACP agent
+    const adapter = this.getOrCreateAdapter(slug);
+
+    // Create conversation if new
+    if (adapter && isNewConversation) {
+      const title = options.title || (inputText.length > 50 ? inputText.substring(0, 50) + '...' : inputText);
+      await adapter.createConversation({
+        id: conversationId,
+        resourceId: slug,
+        userId,
+        title,
+        metadata: { acpSessionId: this.sessionId },
+      });
+      // Store mapping for resumption
+      this.sessionMap.set(conversationId, this.sessionId!);
+    }
+
+    // Save user message
+    if (adapter) {
+      await adapter.addMessage(
+        { id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: inputText }] } as any,
+        userId,
+        conversationId,
+      );
+    }
+
+    // Set SSE headers
+    c.header('Content-Type', 'text/event-stream');
+    c.header('Cache-Control', 'no-cache');
+    c.header('Connection', 'keep-alive');
+    c.header('X-Accel-Buffering', 'no');
+
+    return honoStream(c, async (streamWriter) => {
+      const write = async (chunk: any) => {
+        await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      };
+
+      // Set active writer so Client callbacks can emit SSE events
+      this.activeWriter = write;
+      this.responseAccumulator = '';
+
+      // Wire up cancel
+      let cancelled = false;
+      const abortHandler = () => {
+        cancelled = true;
+        if (this.connection && this.sessionId) {
+          this.connection.cancel({ sessionId: this.sessionId }).catch(() => {});
+        }
+      };
+      c.req.raw.signal?.addEventListener('abort', abortHandler);
+
+      try {
+        // Emit conversation-started for new conversations
+        if (isNewConversation) {
+          await write({
+            type: 'conversation-started',
+            conversationId,
+            title: options.title || inputText.substring(0, 50),
+          });
+        }
+
+        // Build prompt content
+        const promptContent = [{ type: 'text' as const, text: inputText }];
+
+        // Send prompt — blocks until turn completes
+        const result = await this.connection!.prompt({
+          sessionId: this.sessionId!,
+          prompt: promptContent,
+        });
+
+        // Save assistant message
+        if (adapter && this.responseAccumulator) {
+          const assistantMsg = { id: crypto.randomUUID(), role: 'assistant', parts: [{ type: 'text', text: this.responseAccumulator }], metadata: { timestamp: Date.now() } } as any;
+          await adapter.addMessage(assistantMsg, userId, conversationId);
+          // Update analytics (no token data from ACP, but counts messages)
+          if (this.usageAggregatorRef?.get()) {
+            await this.usageAggregatorRef.get().incrementalUpdate(assistantMsg, slug, conversationId).catch(() => {});
+          }
+        }
+
+        const reason = cancelled ? 'cancelled' : (result.stopReason || 'end_turn');
+        await write({ type: 'finish', finishReason: reason });
+        await streamWriter.write('data: [DONE]\n\n');
+      } catch (error: any) {
+        // Save partial response if we have one
+        if (adapter && this.responseAccumulator) {
+          const text = cancelled
+            ? this.responseAccumulator + '\n\n---\n\n_⚠️ Response cancelled by user_'
+            : this.responseAccumulator;
+          await adapter.addMessage(
+            { id: crypto.randomUUID(), role: 'assistant', parts: [{ type: 'text', text }] } as any,
+            userId,
+            conversationId,
+          ).catch(() => {});
+        }
+
+        if (cancelled) {
+          await write({ type: 'finish', finishReason: 'cancelled' });
+        } else {
+          this.logger.error('[ACPBridge] Prompt error', { error: error.message });
+          await write({ type: 'error', errorText: error.message });
+        }
+        await streamWriter.write('data: [DONE]\n\n');
+      } finally {
+        c.req.raw.signal?.removeEventListener('abort', abortHandler);
+        this.activeWriter = null;
+        this.responseAccumulator = '';
+      }
+    });
+  }
+
+  // ── Session Persistence ────────────────────────────────────────
+
+  /** Load an existing ACP session (e.g., after reconnect) */
+  async loadSession(sessionId: string): Promise<boolean> {
+    if (!this.connection) return false;
+    try {
+      await this.connection.loadSession({
+        sessionId,
+        cwd: this.cwd,
+        mcpServers: [],
+      });
+      this.sessionId = sessionId;
+      this.logger.info('[ACPBridge] Session loaded', { sessionId });
+      return true;
+    } catch (error: any) {
+      this.logger.warn('[ACPBridge] Failed to load session', { sessionId, error: error.message });
+      return false;
+    }
+  }
+
+  // ── ACP Client Implementation ──────────────────────────────────
+
+  private createClient(): Client {
+    return {
+      sessionUpdate: async (params: SessionNotification) => {
+        await this.handleSessionUpdate(params);
+      },
+
+      requestPermission: async (params: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
+        return this.handlePermissionRequest(params);
+      },
+
+      readTextFile: async (params: ReadTextFileRequest): Promise<ReadTextFileResponse> => {
+        const content = await readFile(params.path, 'utf-8');
+        return { content };
+      },
+
+      writeTextFile: async (params: WriteTextFileRequest) => {
+        await writeFile(params.path, params.content);
+        return {};
+      },
+
+      createTerminal: async (params: CreateTerminalRequest): Promise<CreateTerminalResponse> => {
+        return this.handleCreateTerminal(params);
+      },
+
+      terminalOutput: async (params: TerminalOutputRequest): Promise<TerminalOutputResponse> => {
+        const term = this.terminals.get(params.terminalId);
+        if (!term) return { output: '', truncated: false };
+        return {
+          output: term.output,
+          truncated: false,
+          exitStatus: term.exitCode !== null ? { exitCode: term.exitCode } : null,
+        };
+      },
+
+      releaseTerminal: async (params: ReleaseTerminalRequest) => {
+        const term = this.terminals.get(params.terminalId);
+        if (term) {
+          term.process.kill();
+          this.terminals.delete(params.terminalId);
+        }
+      },
+
+      waitForTerminalExit: async (params: WaitForTerminalExitRequest): Promise<WaitForTerminalExitResponse> => {
+        const term = this.terminals.get(params.terminalId);
+        if (!term) return { exitCode: -1 };
+        if (term.exitCode !== null) return { exitCode: term.exitCode };
+        return new Promise((resolve) => {
+          term.process.on('exit', (code) => resolve({ exitCode: code ?? -1 }));
+        });
+      },
+
+      killTerminal: async (params: KillTerminalCommandRequest) => {
+        const term = this.terminals.get(params.terminalId);
+        if (term) term.process.kill();
+      },
+
+      // Kiro extensions — slash commands, MCP events, metadata
+      extNotification: async (method: string, params: Record<string, unknown>) => {
+        this.handleExtNotification(method, params);
+      },
+
+      extMethod: async (method: string, params: Record<string, unknown>) => {
+        return this.handleExtMethod(method, params);
+      },
+    };
+  }
+
+  // ── Event Translation ──────────────────────────────────────────
+
+  private async handleSessionUpdate(params: SessionNotification): Promise<void> {
+    const update = params.update as any;
+
+    switch (update.sessionUpdate) {
+      case 'agent_message_chunk':
+        if (!this.activeWriter) break;
+        if (update.content?.type === 'text') {
+          this.responseAccumulator += update.content.text;
+          await this.activeWriter({ type: 'text-delta', text: update.content.text });
+        } else if (update.content?.type === 'image') {
+          // Emit image as a text placeholder with the URL
+          await this.activeWriter({ type: 'text-delta', text: `\n![image](${update.content.url || update.content.data || ''})\n` });
+        } else if (update.content?.type === 'resource') {
+          // Emit resource content as text
+          const text = update.content.resource?.text || update.content.resource?.uri || '[resource]';
+          await this.activeWriter({ type: 'text-delta', text: `\n\`\`\`\n${text}\n\`\`\`\n` });
+        }
+        break;
+
+      case 'agent_thought_chunk':
+        if (!this.activeWriter) break;
+        if (update.content?.type === 'text') {
+          await this.activeWriter({ type: 'reasoning-delta', id: '0', text: update.content.text });
+        }
+        break;
+
+      case 'tool_call':
+        if (!this.activeWriter) break;
+        await this.activeWriter({
+          type: 'tool-call',
+          toolCallId: update.toolCallId,
+          toolName: update.title || 'unknown',
+          input: update.rawInput,
+          server: '',
+          tool: update.title,
+        });
+        break;
+
+      case 'tool_call_update': {
+        if (!this.activeWriter) break;
+        // Handle diff content from tool calls
+        const diffContent = update.content?.find((c: any) => c.type === 'diff');
+        if (diffContent) {
+          await this.activeWriter({
+            type: 'tool-result',
+            toolCallId: update.toolCallId,
+            output: formatDiff(diffContent.path, diffContent.oldText, diffContent.newText),
+            result: formatDiff(diffContent.path, diffContent.oldText, diffContent.newText),
+          });
+          break;
+        }
+
+        if (update.status === 'completed' || update.status === 'failed') {
+          const textContent = update.content
+            ?.filter((c: any) => c.type === 'content' && c.content?.type === 'text')
+            .map((c: any) => c.content.text)
+            .join('\n');
+          await this.activeWriter({
+            type: 'tool-result',
+            toolCallId: update.toolCallId,
+            ...(update.status === 'failed'
+              ? { error: textContent || 'Tool call failed' }
+              : { output: textContent, result: textContent }),
+          });
+        }
+        break;
+      }
+
+      case 'plan':
+        if (!this.activeWriter) break;
+        if (update.entries?.length) {
+          await this.activeWriter({ type: 'reasoning-start', id: '0' });
+          const planText = update.entries
+            .map((e: any) => {
+              const icon = e.status === 'completed' ? '✅' : e.status === 'in_progress' ? '🔄' : '⬜';
+              return `${icon} ${e.content}`;
+            })
+            .join('\n');
+          await this.activeWriter({ type: 'reasoning-delta', id: '0', text: planText });
+          await this.activeWriter({ type: 'reasoning-end', id: '0' });
+        }
+        break;
+
+      case 'current_mode_update':
+        this.currentModeId = update.modeId;
+        break;
+
+      default:
+        this.logger.debug('[ACPBridge] Unhandled session update', { type: update.sessionUpdate });
+        break;
+    }
+  }
+
+  private async handlePermissionRequest(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
+    const approvalId = ApprovalRegistry.generateId('acp');
+    const toolTitle = params.toolCall?.title || 'Unknown tool';
+
+    // Inject approval request into SSE stream
+    if (this.activeWriter) {
+      await this.activeWriter({
+        type: 'tool-approval-request',
+        approvalId,
+        toolName: toolTitle,
+        server: '',
+        tool: toolTitle,
+        toolArgs: (params.toolCall as any)?.rawInput,
+      });
+    }
+
+    // Block until user responds via POST /tool-approval/:approvalId
+    const approved = await this.approvalRegistry.register(approvalId);
+
+    // Map back to ACP response
+    const allowOption = params.options.find(o => o.kind === 'allow_once');
+    const rejectOption = params.options.find(o => o.kind === 'reject_once');
+    const selectedId = approved
+      ? (allowOption?.optionId || params.options[0]?.optionId || 'allow')
+      : (rejectOption?.optionId || params.options[params.options.length - 1]?.optionId || 'reject');
+
+    return { outcome: { outcome: 'selected', optionId: selectedId } };
+  }
+
+  private async handleCreateTerminal(params: CreateTerminalRequest): Promise<CreateTerminalResponse> {
+    const id = `term-${++this.terminalCounter}`;
+    const proc = spawn(params.command, params.args || [], {
+      cwd: params.cwd || this.cwd,
+      shell: true,
+      env: { ...process.env, ...(params.env ? Object.fromEntries(params.env.map((e: any) => [e.name, e.value])) : {}) },
+    });
+
+    const term: ManagedTerminal = { process: proc, output: '', exitCode: null };
+    proc.stdout?.on('data', (d: Buffer) => { term.output += d.toString(); });
+    proc.stderr?.on('data', (d: Buffer) => { term.output += d.toString(); });
+    proc.on('exit', (code) => { term.exitCode = code; });
+
+    this.terminals.set(id, term);
+    return { terminalId: id };
+  }
+
+  // ── Kiro Extensions ─────────────────────────────────────────────
+
+  private handleExtNotification(method: string, params: Record<string, unknown>): void {
+    switch (method) {
+      case '_kiro.dev/commands/available': {
+        const cmds = (params as any).commands || [];
+        this.slashCommands = cmds.map((c: any) => ({
+          name: c.name,
+          description: c.description || '',
+          hint: c.input?.hint,
+        }));
+        this.logger.info('[ACPBridge] Slash commands received', { count: this.slashCommands.length });
+        break;
+      }
+      case '_kiro.dev/mcp/server_initialized': {
+        const serverName = (params as any).serverName;
+        if (serverName && !this.mcpServers.includes(serverName)) {
+          this.mcpServers.push(serverName);
+        }
+        this.logger.debug('[ACPBridge] MCP server initialized', { serverName });
+        break;
+      }
+      case '_kiro.dev/mcp/oauth_request': {
+        const url = (params as any).url;
+        this.logger.info('[ACPBridge] MCP OAuth requested', { url });
+        // Surface to UI as an ephemeral message with a clickable link
+        if (this.activeWriter && url) {
+          this.activeWriter({
+            type: 'text-delta',
+            text: `\n\n🔐 **Authentication required** — An MCP server needs you to sign in:\n[Open authentication page](${url})\n\n`,
+          }).catch(() => {});
+        }
+        break;
+      }
+      case '_kiro.dev/compaction/status':
+      case '_kiro.dev/clear/status':
+        this.logger.debug('[ACPBridge] Session maintenance', { method, params });
+        break;
+      default:
+        this.logger.debug('[ACPBridge] Unknown extension notification', { method });
+        break;
+    }
+  }
+
+  private handleExtMethod(method: string, params: Record<string, unknown>): Record<string, unknown> {
+    switch (method) {
+      case '_kiro.dev/metadata':
+        // kiro-cli sends metadata about the session — acknowledge it
+        this.logger.debug('[ACPBridge] Metadata received', { params });
+        return {};
+      case '_kiro.dev/commands/execute':
+        // kiro-cli asking us to execute a command — pass through
+        this.logger.debug('[ACPBridge] Command execute request', { params });
+        return {};
+      case '_kiro.dev/commands/options':
+        // Autocomplete request — return empty for now
+        return { options: [] };
+      default:
+        this.logger.debug('[ACPBridge] Unknown extension method', { method });
+        return {};
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+
+  private async findKiroCli(): Promise<string | null> {
+    const { execSync } = await import('child_process');
+    try {
+      return execSync('which kiro-cli', { encoding: 'utf-8' }).trim();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Get or create a memory adapter for an ACP agent slug */
+  private getOrCreateAdapter(slug: string): FileVoltAgentMemoryAdapter | null {
+    if (!this.memoryAdapters || !this.createMemoryAdapter) return null;
+    let adapter = this.memoryAdapters.get(slug);
+    if (!adapter) {
+      adapter = this.createMemoryAdapter(slug);
+      this.memoryAdapters.set(slug, adapter);
+    }
+    return adapter;
+  }
+
+  /** Pre-create adapters for any existing kiro-* agent dirs on disk */
+  private preCreateAdaptersFromDisk(): void {
+    if (!this.memoryAdapters || !this.createMemoryAdapter) return;
+    try {
+      const agentsDir = join(this.cwd, '.work-agent', 'agents');
+      if (!existsSync(agentsDir)) return;
+      for (const dir of readdirSync(agentsDir) as string[]) {
+        if (dir.startsWith('kiro-') && !this.memoryAdapters.has(dir)) {
+          this.getOrCreateAdapter(dir);
+          this.logger.debug('[ACPBridge] Pre-created adapter from disk', { slug: dir });
+        }
+      }
+    } catch (err) {
+      this.logger.warn('[ACPBridge] Failed to pre-create adapters', { error: (err as Error).message });
+    }
+  }
+
+  /** Find the most recent acpSessionId from stored conversations */
+  private async findPreviousSessionId(): Promise<string | null> {
+    if (!this.memoryAdapters) return null;
+    if (this.sessionMap.size > 0) {
+      const sid = Array.from(this.sessionMap.values()).pop() || null;
+      this.logger.info('[ACPBridge] Found previous session from sessionMap', { sessionId: sid });
+      return sid;
+    }
+    for (const [slug, adapter] of this.memoryAdapters) {
+      if (!slug.startsWith('kiro-')) continue;
+      try {
+        const conversations = await adapter.getConversations(slug);
+        this.logger.debug('[ACPBridge] Scanning conversations for session', { slug, count: conversations.length });
+        const sorted = conversations.sort((a, b) => 
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+        for (const conv of sorted) {
+          const sid = (conv.metadata as any)?.acpSessionId;
+          if (sid) {
+            this.logger.info('[ACPBridge] Found previous session from conversation metadata', { sessionId: sid, conversationId: conv.id });
+            return sid;
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    this.logger.info('[ACPBridge] No previous session found');
+    return null;
+  }
+
+  private cleanup(): void {
+    for (const [, term] of this.terminals) {
+      term.process.kill();
+    }
+    this.terminals.clear();
+    this.proc?.kill();
+    this.proc = null;
+    this.connection = null;
+    this.sessionId = null;
+    this.modes = [];
+    this.slashCommands = [];
+    this.mcpServers = [];
+    this.currentModeId = null;
+  }
+}
+
+/** Format a diff as a readable markdown code block */
+function formatDiff(path: string, oldText: string | null, newText: string): string {
+  if (!oldText) return `**New file:** \`${path}\`\n\`\`\`\n${newText}\n\`\`\``;
+  return `**Modified:** \`${path}\`\n\`\`\`diff\n${simpleDiff(oldText, newText)}\n\`\`\``;
+}
+
+/** Minimal line-level diff */
+function simpleDiff(oldText: string, newText: string): string {
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+  const lines: string[] = [];
+  const max = Math.max(oldLines.length, newLines.length);
+  for (let i = 0; i < max; i++) {
+    if (i >= oldLines.length) {
+      lines.push(`+ ${newLines[i]}`);
+    } else if (i >= newLines.length) {
+      lines.push(`- ${oldLines[i]}`);
+    } else if (oldLines[i] !== newLines[i]) {
+      lines.push(`- ${oldLines[i]}`);
+      lines.push(`+ ${newLines[i]}`);
+    } else {
+      lines.push(`  ${oldLines[i]}`);
+    }
+  }
+  return lines.join('\n');
+}

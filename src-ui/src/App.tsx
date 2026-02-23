@@ -23,10 +23,12 @@ import { WorkspaceRenderer } from './workspaces';
 import { WorkspaceView } from './views/WorkspaceView';
 import { AgentEditorView } from './views/AgentEditorView';
 import { WorkspaceEditorView } from './views/WorkspaceEditorView';
+import { ACPConnectionsSection } from './components/ACPConnectionsSection';
 import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { SettingsView } from './views/SettingsView';
 import { MonitoringView } from './views/MonitoringView';
+import { ScheduleView } from './views/ScheduleView';
 import { ProfilePage } from './pages/ProfilePage';
 import { useAwsAuth } from './hooks/useAwsAuth';
 import { setAuthCallback } from './lib/apiClient';
@@ -559,7 +561,8 @@ function App() {
               
               {(() => {
                 const workspaceAgents = agents.filter(a => (a.slug || a.id).includes(':'));
-                const standaloneAgents = agents.filter(a => !(a.slug || a.id).includes(':'));
+                const standaloneAgents = agents.filter(a => !(a.slug || a.id).includes(':') && a.source !== 'acp');
+                const acpAgents = agents.filter(a => a.source === 'acp');
                 
                 return (
                   <>
@@ -761,6 +764,9 @@ function App() {
                         </div>
                       </>
                     )}
+
+                    {/* ACP Connections */}
+                    <ACPConnectionsSection acpAgents={acpAgents} apiBase={API_BASE} />
                   </>
                 );
               })()}
@@ -865,6 +871,7 @@ function App() {
           {currentView.type === 'profile' && <ProfilePage />}
           {currentView.type === 'notifications' && <NotificationsPage />}
           {currentView.type === 'monitoring' && <MonitoringView />}
+          {currentView.type === 'schedule' && <ScheduleView />}
         </>
     );
   };

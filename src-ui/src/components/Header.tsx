@@ -4,6 +4,7 @@ import { getInitials } from '../utils/workspace';
 import { WorkspaceIcon } from './WorkspaceIcon';
 import { WorkspaceAutocomplete } from './WorkspaceAutocomplete';
 import { NotificationHistory } from './NotificationHistory';
+import { AuthStatusBadge } from './AuthStatusBadge';
 import type { NavigationView } from '../types';
 
 interface HeaderProps {
@@ -161,6 +162,20 @@ export function Header({
           >
             Monitoring
           </button>
+          <button
+            type="button"
+            className={`header-nav-btn ${currentView?.type === 'schedule' ? 'is-active' : ''}`}
+            onClick={() => {
+              if (currentView?.type === 'schedule') {
+                onNavigate({ type: 'workspace' });
+              } else {
+                onNavigate({ type: 'schedule' });
+              }
+            }}
+            title="Schedule"
+          >
+            Schedule
+          </button>
         </nav>
 
         <button
@@ -212,6 +227,8 @@ export function Header({
         >
           {userInitials}
         </button>
+
+        <AuthStatusBadge />
 
         <button
           type="button"

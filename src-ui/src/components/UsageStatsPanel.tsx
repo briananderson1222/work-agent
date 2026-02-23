@@ -199,13 +199,21 @@ function ModelRow({ model, stats, total, models, onClick }: { model: string; sta
 function AgentRow({ agent, stats, total, onClick }: { agent: string; stats: any; total: number; onClick: () => void }) {
   const percentage = (stats.messages / total) * 100;
   const agentName = agent.split(':').pop() || agent;
+  const isAcp = agent.startsWith('kiro-');
   
   return (
     <div className="usage-breakdown-item" onClick={onClick} style={{ cursor: 'pointer' }}>
       <div className="usage-breakdown-header">
-        <span className="usage-breakdown-name">{agentName}</span>
+        <span className="usage-breakdown-name">
+          {isAcp && <span style={{ marginRight: '4px' }}>🔌</span>}
+          {isAcp ? agent.replace(/^kiro-/, '') : agentName}
+        </span>
         <span className="usage-breakdown-stats">
-          {stats.messages} msgs · ${stats.cost.toFixed(2)}
+          {stats.messages} msgs
+          {isAcp
+            ? <> · <a href="https://app.kiro.dev" target="_blank" rel="noopener noreferrer" style={{ color: '#f90', textDecoration: 'none', fontSize: '11px' }} onClick={e => e.stopPropagation()}>Manage plan ↗</a></>
+            : <> · ${stats.cost.toFixed(2)}</>
+          }
         </span>
       </div>
       <div className="usage-breakdown-bar">
@@ -213,7 +221,7 @@ function AgentRow({ agent, stats, total, onClick }: { agent: string; stats: any;
           className="usage-breakdown-bar-fill"
           style={{ 
             width: `${percentage}%`,
-            backgroundColor: 'var(--accent-yellow)'
+            backgroundColor: isAcp ? '#f90' : 'var(--accent-yellow)'
           }}
         />
       </div>

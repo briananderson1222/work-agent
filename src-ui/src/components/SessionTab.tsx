@@ -82,7 +82,7 @@ export function SessionTab({
           )}
         </div>
         <div className="chat-dock__tab-agent">
-          <AgentBadge agentSlug={session.agentSlug} size="sm" />
+          <AgentBadge agentSlug={session.agentSlug} size="sm" source={agent?.source} />
         </div>
         {modelInfo && (
           <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>

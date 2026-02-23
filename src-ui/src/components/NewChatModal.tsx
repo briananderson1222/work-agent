@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { AgentSummary } from '../types';
 
 interface NewChatModalProps {
@@ -15,6 +15,13 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.slug.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Group agents: local first, then ACP
+  const { localAgents, acpAgents, flatList } = useMemo(() => {
+    const local = filteredAgents.filter(a => a.source !== 'acp');
+    const acp = filteredAgents.filter(a => a.source === 'acp');
+    return { localAgents: local, acpAgents: acp, flatList: [...local, ...acp] };
+  }, [filteredAgents]);
 
   return (
     <div
@@ -55,12 +62,12 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setSelectedIndex((prev) => Math.min(prev + 1, filteredAgents.length - 1));
+                setSelectedIndex((prev) => Math.min(prev + 1, flatList.length - 1));
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 setSelectedIndex((prev) => Math.max(prev - 1, 0));
-              } else if (e.key === 'Enter' && filteredAgents[selectedIndex]) {
-                onSelect(filteredAgents[selectedIndex]);
+              } else if (e.key === 'Enter' && flatList[selectedIndex]) {
+                onSelect(flatList[selectedIndex]);
               } else if (e.key === 'Escape') {
                 onClose();
               }
@@ -78,28 +85,67 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
           />
         </div>
         <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
-          {filteredAgents.map((agent, idx) => (
-            <button
-              key={agent.slug}
-              onClick={() => onSelect(agent)}
-              onMouseEnter={() => setSelectedIndex(idx)}
-              style={{
-                width: '100%',
-                padding: '12px 20px',
-                border: 'none',
-                borderBottom: '1px solid var(--border-primary)',
-                background: idx === selectedIndex ? 'var(--accent-primary)' : 'transparent',
-                textAlign: 'left',
-                cursor: 'pointer',
-                color: idx === selectedIndex ? 'white' : 'var(--text-primary)',
-                transition: 'all 0.15s',
-              }}
-            >
-              <div style={{ fontWeight: 600 }}>{agent.name}</div>
-            </button>
-          ))}
+          {localAgents.map((agent) => {
+            const idx = flatList.indexOf(agent);
+            return (
+              <AgentRow key={agent.slug} agent={agent} isSelected={idx === selectedIndex}
+                onSelect={() => onSelect(agent)} onHover={() => setSelectedIndex(idx)} />
+            );
+          })}
+          {acpAgents.length > 0 && (
+            <>
+              <div style={{
+                padding: '8px 20px 4px',
+                fontSize: '11px',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: '#f90',
+                borderTop: localAgents.length > 0 ? '1px solid var(--border-primary)' : undefined,
+              }}>
+                🔌 kiro-cli (ACP)
+              </div>
+              {acpAgents.map((agent) => {
+                const idx = flatList.indexOf(agent);
+                return (
+                  <AgentRow key={agent.slug} agent={agent} isSelected={idx === selectedIndex}
+                    onSelect={() => onSelect(agent)} onHover={() => setSelectedIndex(idx)} />
+                );
+              })}
+            </>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+function AgentRow({ agent, isSelected, onSelect, onHover }: {
+  agent: AgentSummary; isSelected: boolean; onSelect: () => void; onHover: () => void;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      onMouseEnter={onHover}
+      style={{
+        width: '100%',
+        padding: '12px 20px',
+        border: 'none',
+        borderBottom: '1px solid var(--border-primary)',
+        background: isSelected ? 'var(--accent-primary)' : 'transparent',
+        textAlign: 'left',
+        cursor: 'pointer',
+        color: isSelected ? 'white' : 'var(--text-primary)',
+        transition: 'all 0.15s',
+      }}
+    >
+      <div style={{ fontWeight: 600 }}>
+        {agent.icon && <span style={{ marginRight: '6px' }}>{agent.icon}</span>}
+        {agent.source === 'acp' ? agent.slug.replace(/^kiro-/, '') : agent.name}
+      </div>
+      {agent.description && (
+        <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '2px' }}>{agent.description}</div>
+      )}
+    </button>
   );
 }

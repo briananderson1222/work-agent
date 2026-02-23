@@ -28,6 +28,12 @@
   border: 1px solid var(--color-border-primary);
 }
 
+.agent-badge--acp {
+  background: color-mix(in srgb, #f90 12%, transparent);
+  color: #f90;
+  border: 1px solid color-mix(in srgb, #f90 25%, transparent);
+}
+
 .agent-badge__namespace {
   opacity: 0.7;
   font-size: 0.85em;

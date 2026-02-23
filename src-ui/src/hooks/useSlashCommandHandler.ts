@@ -40,6 +40,12 @@ export function useSlashCommandHandler() {
       context.autocomplete.closeAll();
     };
 
+    // ACP agents: pass all slash commands through as prompt text to kiro-cli
+    if (agent?.source === 'acp') {
+      cleanup();
+      return command; // Return the command text to be sent as a message
+    }
+
     // 1. Check custom commands (send as message)
     if (agent?.commands?.[cmd]) {
       let expandedPrompt = agent.commands[cmd].prompt;

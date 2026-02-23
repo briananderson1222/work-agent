@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useAgents } from '../contexts/AgentsContext';
 
@@ -23,9 +23,27 @@ function getModelDisplayName(modelId: string): string {
 export function useSlashCommands(agentSlug: string | null) {
   const { apiBase } = useApiBase();
   const agents = useAgents(apiBase);
+  const [acpCommands, setAcpCommands] = useState<SlashCommand[]>([]);
+
+  // Fetch ACP slash commands for ACP agents
+  const currentAgent = agentSlug ? agents.find(a => a.slug === agentSlug) : null;
+  const isAcp = currentAgent?.source === 'acp';
+
+  useEffect(() => {
+    if (!isAcp || !agentSlug) { setAcpCommands([]); return; }
+    fetch(`${apiBase}/acp/commands/${agentSlug}`)
+      .then(r => r.json())
+      .then(({ data }) => {
+        setAcpCommands((data || []).map((c: any) => ({
+          cmd: c.name.startsWith('/') ? c.name : `/${c.name}`,
+          description: c.description || c.hint || 'ACP command',
+          isCustom: true,
+        })));
+      })
+      .catch(() => setAcpCommands([]));
+  }, [isAcp, agentSlug, apiBase]);
   
   return useMemo(() => {
-    const currentAgent = agentSlug ? agents.find(a => a.slug === agentSlug) : null;
     const currentModelId = currentAgent 
       ? (typeof currentAgent.model === 'string' ? currentAgent.model : currentAgent.model?.modelId || 'default')
       : 'default';
@@ -52,6 +70,6 @@ export function useSlashCommands(agentSlug: string | null) {
       isCustom: true,
     }));
     
-    return [...BUILTIN_COMMANDS, ...customCommands];
-  }, [agents, agentSlug, apiBase]);
+    return [...BUILTIN_COMMANDS, ...customCommands, ...acpCommands];
+  }, [agents, agentSlug, apiBase, acpCommands]);
 }
