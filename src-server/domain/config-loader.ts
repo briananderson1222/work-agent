@@ -665,7 +665,7 @@ export class ConfigLoader {
     if (!existsSync(path)) {
       const defaultConfig: ACPConfig = {
         connections: [
-          { id: 'kiro', name: 'kiro-cli', command: 'kiro-cli', args: ['acp'], icon: '🔌', enabled: true },
+          { id: 'kiro', name: 'kiro-cli', command: 'kiro-cli', args: ['acp'], icon: 'https://kiro.dev/favicon.ico', enabled: true },
         ],
       };
       await mkdir(join(this.workAgentDir, 'config'), { recursive: true });

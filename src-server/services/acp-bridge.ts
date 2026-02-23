@@ -90,7 +90,9 @@ export class ACPConnection {
     private memoryAdapters?: Map<string, FileVoltAgentMemoryAdapter>,
     private createMemoryAdapter?: (slug: string) => FileVoltAgentMemoryAdapter,
     private usageAggregatorRef?: { get: () => any },
-  ) {}
+  ) {
+    if (this.config.cwd) this.cwd = this.config.cwd;
+  }
 
   // ── Lifecycle ──────────────────────────────────────────────────
 

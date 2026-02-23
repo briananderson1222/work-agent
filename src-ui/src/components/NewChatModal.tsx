@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { AgentSummary } from '../types';
+import { activeChatsStore } from '../contexts/ActiveChatsContext';
 
 interface NewChatModalProps {
   agents: AgentSummary[];
@@ -20,6 +21,22 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
   const { localAgents, acpAgents, flatList } = useMemo(() => {
     const local = filteredAgents.filter(a => a.source !== 'acp');
     const acp = filteredAgents.filter(a => a.source === 'acp');
+
+    // Sort ACP agents: recently used (have active sessions) first, then alphabetical
+    const chats = activeChatsStore.getSnapshot();
+    const usedSlugs = new Set<string>();
+    for (const chat of Object.values(chats)) {
+      const c = chat as any;
+      if (c.agentSlug && c.messages?.length > 0) usedSlugs.add(c.agentSlug);
+    }
+
+    acp.sort((a, b) => {
+      const aUsed = usedSlugs.has(a.slug) ? 1 : 0;
+      const bUsed = usedSlugs.has(b.slug) ? 1 : 0;
+      if (aUsed !== bUsed) return bUsed - aUsed;
+      return a.name.localeCompare(b.name);
+    });
+
     return { localAgents: local, acpAgents: acp, flatList: [...local, ...acp] };
   }, [filteredAgents]);
 
@@ -100,7 +117,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
-                color: '#f90',
+                color: 'var(--accent-acp)',
                 borderTop: localAgents.length > 0 ? '1px solid var(--border-primary)' : undefined,
               }}>
                 🔌 kiro-cli (ACP)

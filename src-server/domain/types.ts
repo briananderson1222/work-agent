@@ -245,6 +245,7 @@ export interface ACPConnectionConfig {
   command: string;
   args?: string[];
   icon?: string;
+  cwd?: string;
   enabled: boolean;
 }
 
