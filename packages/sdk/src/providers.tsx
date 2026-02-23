@@ -23,6 +23,7 @@ export interface SDKContextValue {
     navigation?: any;
     toast?: any;
     stats?: any;
+    auth?: any;
     keyboardShortcuts?: any;
     workflows?: any;
   };

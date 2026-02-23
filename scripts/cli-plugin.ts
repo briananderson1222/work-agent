@@ -117,14 +117,19 @@ class PluginManager {
 
     const manifest = this.readManifest(pluginDir);
 
-    // Remove agents
+    // Remove agents (preserve memory/conversations data)
     if (manifest.agents) {
       manifest.agents.forEach(agent => {
         const agentSlug = `${name}:${agent.slug}`;
         const agentDir = join(AGENTS_DIR, agentSlug);
         if (existsSync(agentDir)) {
-          rmSync(agentDir, { recursive: true });
-          console.log(`  Removed agent: ${agentSlug}`);
+          // Only remove agent.json, keep memory/ intact
+          const agentJson = join(agentDir, 'agent.json');
+          if (existsSync(agentJson)) rmSync(agentJson);
+          // Remove workflows/ if present
+          const workflowsDir = join(agentDir, 'workflows');
+          if (existsSync(workflowsDir)) rmSync(workflowsDir, { recursive: true });
+          console.log(`  Removed agent: ${agentSlug} (memory preserved)`);
         }
       });
     }

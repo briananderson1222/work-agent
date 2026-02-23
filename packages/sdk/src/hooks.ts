@@ -87,6 +87,13 @@ export function useCreateChatSession() {
   return sdk.contexts.activeChats.useCreateChatSession();
 }
 
+/** Open/resume an existing conversation in the chat dock. Returns the session ID. */
+export function useOpenConversation() {
+  const sdk = useContext(SDKContext);
+  if (!sdk?.contexts?.activeChats?.useOpenConversation) throw new Error('ActiveChatsContext not available');
+  return sdk.contexts.activeChats.useOpenConversation();
+}
+
 export function useSendMessage() {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.activeChats) throw new Error('ActiveChatsContext not available');
@@ -123,6 +130,12 @@ export function useApiBase() {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.config) throw new Error('ConfigContext not available');
   return sdk.contexts.config.useApiBase();
+}
+
+export function useAuth() {
+  const sdk = useContext(SDKContext);
+  if (!sdk?.contexts?.auth) return { status: 'missing' as const, user: null, expiresAt: null, provider: '', renew: async () => {}, isRenewing: false };
+  return sdk.contexts.auth.useAuth();
 }
 
 export function useConfig() {

@@ -51,6 +51,7 @@ export {
   
   // Chat operations
   useCreateChatSession,
+  useOpenConversation,
   useSendMessage,
   useActiveChatActions,
   useActiveChatState,
@@ -62,6 +63,7 @@ export {
   // Configuration
   useApiBase,
   useConfig,
+  useAuth,
   
   // Navigation
   useNavigation,
