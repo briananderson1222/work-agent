@@ -34,7 +34,7 @@ import { AgentService } from '../services/agent-service.js';
 import { MCPService } from '../services/mcp-service.js';
 import { WorkspaceService } from '../services/workspace-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
-import { ACPBridge } from '../services/acp-bridge.js';
+import { ACPManager } from '../services/acp-bridge.js';
 import { createAgentRoutes } from '../routes/agents.js';
 import { createToolRoutes } from '../routes/tools.js';
 import { createWorkspaceRoutes, createWorkflowRoutes } from '../routes/workspaces.js';
@@ -105,7 +105,7 @@ export class WorkAgentRuntime {
   private agentService!: AgentService;
   private mcpService!: MCPService;
   private workspaceService!: WorkspaceService;
-  private acpBridge: ACPBridge;
+  private acpBridge: ACPManager;
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const workAgentDir = options.workAgentDir || '.work-agent';
@@ -141,12 +141,12 @@ export class WorkAgentRuntime {
       this.logger
     );
     this.workspaceService = new WorkspaceService(this.configLoader, this.logger);
-    this.acpBridge = new ACPBridge(
+    this.acpBridge = new ACPManager(
       this.approvalRegistry,
       this.logger,
       process.cwd(),
       this.memoryAdapters,
-      (slug) => {
+      (slug: string) => {
         const adapter = new FileVoltAgentMemoryAdapter({
           workAgentDir: this.configLoader.getWorkAgentDir(),
           usageAggregator: this.usageAggregator,
@@ -420,7 +420,7 @@ export class WorkAgentRuntime {
           // List all tools
           app.route('/tools', createToolRoutes(this.mcpService, () => this.initialize()));
 
-          // ACP connection status
+          // ACP connection status (all connections)
           app.get('/acp/status', async (c) => {
             return c.json({ success: true, data: this.acpBridge.getStatus() });
           });
@@ -429,6 +429,56 @@ export class WorkAgentRuntime {
           app.get('/acp/commands/:slug', async (c) => {
             const slug = c.req.param('slug');
             return c.json({ success: true, data: this.acpBridge.getSlashCommands(slug) });
+          });
+
+          // ACP connection CRUD
+          app.get('/acp/connections', async (c) => {
+            const config = await this.configLoader.loadACPConfig();
+            const status = this.acpBridge.getStatus();
+            const connections = config.connections.map(cfg => ({
+              ...cfg,
+              ...(status.connections.find(s => s.id === cfg.id) || { status: 'disconnected', modes: [], sessionId: null, mcpServers: [] }),
+            }));
+            return c.json({ success: true, data: connections });
+          });
+
+          app.post('/acp/connections', async (c) => {
+            const body = await c.req.json();
+            if (!body.id || !body.command) {
+              return c.json({ success: false, error: 'id and command are required' }, 400);
+            }
+            const config = await this.configLoader.loadACPConfig();
+            if (config.connections.some(conn => conn.id === body.id)) {
+              return c.json({ success: false, error: `Connection '${body.id}' already exists` }, 409);
+            }
+            const newConn = { id: body.id, name: body.name || body.id, command: body.command, args: body.args || [], icon: body.icon || '🔌', enabled: body.enabled !== false };
+            config.connections.push(newConn);
+            await this.configLoader.saveACPConfig(config);
+            if (newConn.enabled) await this.acpBridge.addConnection(newConn);
+            return c.json({ success: true, data: newConn });
+          });
+
+          app.put('/acp/connections/:id', async (c) => {
+            const id = c.req.param('id');
+            const body = await c.req.json();
+            const config = await this.configLoader.loadACPConfig();
+            const idx = config.connections.findIndex(conn => conn.id === id);
+            if (idx === -1) return c.json({ success: false, error: 'Connection not found' }, 404);
+            config.connections[idx] = { ...config.connections[idx], ...body, id };
+            await this.configLoader.saveACPConfig(config);
+            // Restart connection with new config
+            await this.acpBridge.removeConnection(id);
+            if (config.connections[idx].enabled) await this.acpBridge.addConnection(config.connections[idx]);
+            return c.json({ success: true, data: config.connections[idx] });
+          });
+
+          app.delete('/acp/connections/:id', async (c) => {
+            const id = c.req.param('id');
+            const config = await this.configLoader.loadACPConfig();
+            config.connections = config.connections.filter(conn => conn.id !== id);
+            await this.configLoader.saveACPConfig(config);
+            await this.acpBridge.removeConnection(id);
+            return c.json({ success: true });
           });
 
           // Get agent tools with full schemas
@@ -1786,12 +1836,14 @@ export class WorkAgentRuntime {
     this.startHealthChecks();
 
     // Start ACP bridge (non-blocking — no-op if kiro-cli not found)
-    this.acpBridge.start().then(connected => {
-      if (connected) {
-        this.logger.info('[Runtime] ACP bridge connected, kiro-cli agents available');
+    this.configLoader.loadACPConfig().then((acpConfig: any) => {
+      return this.acpBridge.startAll(acpConfig.connections);
+    }).then(() => {
+      if (this.acpBridge.isConnected()) {
+        this.logger.info('[Runtime] ACP connections established');
       }
-    }).catch(err => {
-      this.logger.warn('[Runtime] ACP bridge failed to start', { error: err.message });
+    }).catch((err: any) => {
+      this.logger.warn('[Runtime] ACP startup failed', { error: err.message });
     });
   }
 

@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
-type ACPStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
-
 export function ACPStatusBadge() {
   const { apiBase } = useApiBase();
-  const [status, setStatus] = useState<ACPStatus>('disconnected');
-  const [modes, setModes] = useState<string[]>([]);
+  const [connectedCount, setConnectedCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -16,8 +14,9 @@ export function ACPStatusBadge() {
         if (!res.ok) return;
         const { data } = await res.json();
         if (mounted) {
-          setStatus(data.status);
-          setModes(data.modes || []);
+          const conns = data.connections || [];
+          setTotalCount(conns.length);
+          setConnectedCount(conns.filter((c: any) => c.status === 'connected').length);
         }
       } catch { /* ignore */ }
     };
@@ -26,46 +25,23 @@ export function ACPStatusBadge() {
     return () => { mounted = false; clearInterval(interval); };
   }, [apiBase]);
 
-  if (status === 'disconnected') return null;
+  if (totalCount === 0) return null;
 
-  const colors: Record<ACPStatus, string> = {
-    connected: '#4caf50',
-    connecting: '#ff9800',
-    error: '#f44336',
-    disconnected: '#666',
-  };
-
-  const labels: Record<ACPStatus, string> = {
-    connected: `kiro-cli connected (${modes.length} modes)`,
-    connecting: 'kiro-cli connecting...',
-    error: 'kiro-cli error',
-    disconnected: '',
-  };
+  const allConnected = connectedCount === totalCount;
+  const someConnected = connectedCount > 0;
+  const color = allConnected ? '#4caf50' : someConnected ? '#ff9800' : '#f44336';
 
   return (
     <span
-      title={labels[status]}
+      title={`ACP: ${connectedCount}/${totalCount} connected`}
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '4px',
-        fontSize: '11px',
-        color: colors[status],
-        padding: '4px 8px',
-        borderRadius: '4px',
-        background: `${colors[status]}15`,
-        border: `1px solid ${colors[status]}30`,
-        cursor: 'default',
+        display: 'inline-flex', alignItems: 'center', gap: '4px',
+        fontSize: '11px', color, padding: '4px 8px', borderRadius: '4px',
+        background: `${color}15`, border: `1px solid ${color}30`, cursor: 'default',
       }}
     >
-      <span style={{
-        width: '6px',
-        height: '6px',
-        borderRadius: '50%',
-        background: colors[status],
-        animation: status === 'connecting' ? 'pulse 1.5s infinite' : undefined,
-      }} />
-      ACP
+      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }} />
+      ACP {connectedCount > 1 ? `${connectedCount}/${totalCount}` : ''}
     </span>
   );
 }

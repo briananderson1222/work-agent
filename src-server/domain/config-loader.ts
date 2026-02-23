@@ -10,6 +10,8 @@ import type {
   AgentSpec,
   ToolDef,
   AppConfig,
+  ACPConfig,
+  ACPConnectionConfig,
   AgentMetadata,
   ToolMetadata,
   WorkflowMetadata,
@@ -653,6 +655,33 @@ export class ConfigLoader {
         }
       }
     }
+  }
+
+  /**
+   * Load ACP configuration (connections to external agents)
+   */
+  async loadACPConfig(): Promise<ACPConfig> {
+    const path = join(this.workAgentDir, 'config', 'acp.json');
+    if (!existsSync(path)) {
+      const defaultConfig: ACPConfig = {
+        connections: [
+          { id: 'kiro', name: 'kiro-cli', command: 'kiro-cli', args: ['acp'], icon: '🔌', enabled: true },
+        ],
+      };
+      await mkdir(join(this.workAgentDir, 'config'), { recursive: true });
+      await writeFile(path, JSON.stringify(defaultConfig, null, 2), 'utf-8');
+      return defaultConfig;
+    }
+    return JSON.parse(await readFile(path, 'utf-8'));
+  }
+
+  /**
+   * Save ACP configuration
+   */
+  async saveACPConfig(config: ACPConfig): Promise<void> {
+    const path = join(this.workAgentDir, 'config', 'acp.json');
+    await mkdir(join(this.workAgentDir, 'config'), { recursive: true });
+    await writeFile(path, JSON.stringify(config, null, 2), 'utf-8');
   }
 
   /**

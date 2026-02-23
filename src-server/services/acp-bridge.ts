@@ -34,6 +34,7 @@ import { stream as honoStream } from 'hono/streaming';
 import type { Context } from 'hono';
 import { ApprovalRegistry } from './approval-registry.js';
 import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { ACPConnectionConfig } from '../domain/types.js';
 
 interface ACPMode {
   id: string;
@@ -55,7 +56,7 @@ interface ManagedTerminal {
 
 export type ACPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
-export class ACPBridge {
+export class ACPConnection {
   private proc: ChildProcess | null = null;
   private connection: ClientSideConnection | null = null;
   private sessionId: string | null = null;
@@ -79,7 +80,10 @@ export class ACPBridge {
   // conversationId → acpSessionId mapping for resumption
   private sessionMap = new Map<string, string>();
 
+  get prefix(): string { return this.config.id; }
+
   constructor(
+    public readonly config: ACPConnectionConfig,
     private approvalRegistry: ApprovalRegistry,
     private logger: any,
     private cwd: string,
@@ -92,17 +96,18 @@ export class ACPBridge {
 
   async start(): Promise<boolean> {
     if (this.shuttingDown) return false;
+    if (!this.config.enabled) return false;
     this.status = 'connecting';
 
-    const kiroBin = await this.findKiroCli();
-    if (!kiroBin) {
-      this.logger.info('[ACPBridge] kiro-cli not found on PATH, skipping ACP');
+    const bin = await this.findCommand();
+    if (!bin) {
+      this.logger.info(`[ACP:${this.prefix}] ${this.config.command} not found on PATH`);
       this.status = 'disconnected';
       return false;
     }
 
     try {
-      this.proc = spawn(kiroBin, ['acp'], {
+      this.proc = spawn(bin, this.config.args || [], {
         stdio: ['pipe', 'pipe', 'inherit'],
         cwd: this.cwd,
       });
@@ -145,7 +150,7 @@ export class ACPBridge {
       let sessionResult: any;
 
       // Pre-create adapters so findPreviousSessionId can scan conversation metadata
-      // We don't know modes yet, but we can scan for existing kiro-* agent dirs
+      // We don't know modes yet, but we can scan for existing agent dirs for this connection
       this.preCreateAdaptersFromDisk();
 
       const previousSessionId = await this.findPreviousSessionId();
@@ -187,7 +192,7 @@ export class ACPBridge {
 
       // Ensure adapters exist for all discovered modes
       for (const mode of this.modes) {
-        this.getOrCreateAdapter(`kiro-${mode.id}`);
+        this.getOrCreateAdapter(`${this.prefix}-${mode.id}`);
       }
 
       this.logger.info('[ACPBridge] Session created', {
@@ -238,16 +243,16 @@ export class ACPBridge {
   // ── Agent Discovery ────────────────────────────────────────────
 
   hasAgent(slug: string): boolean {
-    return this.modes.some(m => `kiro-${m.id}` === slug);
+    return this.modes.some(m => `${this.prefix}-${m.id}` === slug);
   }
 
   getVirtualAgents(): any[] {
     return this.modes.map(mode => ({
-      slug: `kiro-${mode.id}`,
+      slug: `${this.prefix}-${mode.id}`,
       name: `${mode.name}`,
-      description: mode.description || `kiro-cli ${mode.id} mode`,
-      model: 'kiro-cli',
-      icon: '🔌',
+      description: mode.description || `${this.config.name} ${mode.id} mode`,
+      model: this.config.name,
+      icon: this.config.icon || '🔌',
       source: 'acp' as const,
       updatedAt: new Date().toISOString(),
     }));
@@ -267,7 +272,7 @@ export class ACPBridge {
     }
 
     // Switch mode if needed
-    const modeId = slug.replace(/^kiro-/, '');
+    const modeId = slug.replace(this.prefix + '-', '');
     if (modeId !== this.currentModeId) {
       await this.connection.setSessionMode({ sessionId: this.sessionId, modeId });
       this.currentModeId = modeId;
@@ -685,10 +690,10 @@ export class ACPBridge {
 
   // ── Helpers ────────────────────────────────────────────────────
 
-  private async findKiroCli(): Promise<string | null> {
+  private async findCommand(): Promise<string | null> {
     const { execSync } = await import('child_process');
     try {
-      return execSync('which kiro-cli', { encoding: 'utf-8' }).trim();
+      return execSync(`which ${this.config.command}`, { encoding: 'utf-8' }).trim();
     } catch {
       return null;
     }
@@ -705,14 +710,14 @@ export class ACPBridge {
     return adapter;
   }
 
-  /** Pre-create adapters for any existing kiro-* agent dirs on disk */
+  /** Pre-create adapters for any existing agent dirs for this connection on disk */
   private preCreateAdaptersFromDisk(): void {
     if (!this.memoryAdapters || !this.createMemoryAdapter) return;
     try {
       const agentsDir = join(this.cwd, '.work-agent', 'agents');
       if (!existsSync(agentsDir)) return;
       for (const dir of readdirSync(agentsDir) as string[]) {
-        if (dir.startsWith('kiro-') && !this.memoryAdapters.has(dir)) {
+        if (dir.startsWith(this.prefix + '-') && !this.memoryAdapters.has(dir)) {
           this.getOrCreateAdapter(dir);
           this.logger.debug('[ACPBridge] Pre-created adapter from disk', { slug: dir });
         }
@@ -731,7 +736,7 @@ export class ACPBridge {
       return sid;
     }
     for (const [slug, adapter] of this.memoryAdapters) {
-      if (!slug.startsWith('kiro-')) continue;
+      if (!slug.startsWith(this.prefix + '-')) continue;
       try {
         const conversations = await adapter.getConversations(slug);
         this.logger.debug('[ACPBridge] Scanning conversations for session', { slug, count: conversations.length });
@@ -792,4 +797,102 @@ function simpleDiff(oldText: string, newText: string): string {
     }
   }
   return lines.join('\n');
+}
+
+// ── ACPManager ───────────────────────────────────────────────────
+
+/**
+ * Manages multiple ACPConnection instances from config.
+ * Drop-in replacement for the old single ACPBridge.
+ */
+export class ACPManager {
+  private connections = new Map<string, ACPConnection>();
+
+  constructor(
+    private approvalRegistry: ApprovalRegistry,
+    private logger: any,
+    private cwd: string,
+    private memoryAdapters?: Map<string, FileVoltAgentMemoryAdapter>,
+    private createMemoryAdapter?: (slug: string) => FileVoltAgentMemoryAdapter,
+    private usageAggregatorRef?: { get: () => any },
+  ) {}
+
+  /** Start connections for all enabled configs */
+  async startAll(configs: ACPConnectionConfig[]): Promise<void> {
+    await Promise.all(configs.map(cfg => this.addConnection(cfg)));
+  }
+
+  /** Add and start a single connection */
+  async addConnection(config: ACPConnectionConfig): Promise<boolean> {
+    if (this.connections.has(config.id)) {
+      await this.removeConnection(config.id);
+    }
+    const conn = new ACPConnection(
+      config, this.approvalRegistry, this.logger, this.cwd,
+      this.memoryAdapters, this.createMemoryAdapter, this.usageAggregatorRef,
+    );
+    this.connections.set(config.id, conn);
+    return conn.start();
+  }
+
+  /** Remove and shutdown a connection */
+  async removeConnection(id: string): Promise<void> {
+    const conn = this.connections.get(id);
+    if (conn) {
+      await conn.shutdown();
+      this.connections.delete(id);
+    }
+  }
+
+  /** Shutdown all connections */
+  async shutdown(): Promise<void> {
+    await Promise.all(Array.from(this.connections.values()).map(c => c.shutdown()));
+    this.connections.clear();
+  }
+
+  // ── Delegated methods (same interface as old ACPBridge) ──
+
+  hasAgent(slug: string): boolean {
+    return Array.from(this.connections.values()).some(c => c.hasAgent(slug));
+  }
+
+  getVirtualAgents(): any[] {
+    return Array.from(this.connections.values()).flatMap(c => c.getVirtualAgents());
+  }
+
+  isConnected(): boolean {
+    return Array.from(this.connections.values()).some(c => c.isConnected());
+  }
+
+  getSlashCommands(slug: string): any[] {
+    const conn = this.findConnectionForSlug(slug);
+    return conn?.getSlashCommands(slug) || [];
+  }
+
+  async handleChat(c: Context, slug: string, input: any, options: any): Promise<Response> {
+    const conn = this.findConnectionForSlug(slug);
+    if (!conn) return c.json({ success: false, error: 'ACP connection not found' }, 503);
+    return conn.handleChat(c, slug, input, options);
+  }
+
+  /** Get status of all connections */
+  getStatus(): { connections: Array<{ id: string; name: string; icon?: string } & ReturnType<ACPConnection['getStatus']>> } {
+    return {
+      connections: Array.from(this.connections.values()).map(c => ({
+        id: c.config.id,
+        name: c.config.name,
+        icon: c.config.icon,
+        ...c.getStatus(),
+      })),
+    };
+  }
+
+  /** Get a specific connection */
+  getConnection(id: string): ACPConnection | undefined {
+    return this.connections.get(id);
+  }
+
+  private findConnectionForSlug(slug: string): ACPConnection | undefined {
+    return Array.from(this.connections.values()).find(c => c.hasAgent(slug));
+  }
 }

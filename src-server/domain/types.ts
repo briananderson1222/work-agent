@@ -235,3 +235,22 @@ export interface WorkspaceMetadata {
   description?: string;
   tabCount: number;
 }
+
+/**
+ * ACP connection configuration — a single agent server entry
+ */
+export interface ACPConnectionConfig {
+  id: string;
+  name: string;
+  command: string;
+  args?: string[];
+  icon?: string;
+  enabled: boolean;
+}
+
+/**
+ * ACP configuration file — .work-agent/config/acp.json
+ */
+export interface ACPConfig {
+  connections: ACPConnectionConfig[];
+}
