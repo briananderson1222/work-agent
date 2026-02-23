@@ -97,14 +97,7 @@ export function AccountDetail({
           href={`${CRM_BASE_URL}/lightning/r/Account/${selectedAccount.id}/view`}
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            position: 'absolute',
-            top: '0.5rem',
-            right: '0.5rem',
-            color: 'var(--color-primary)',
-            fontSize: '1.25rem',
-            textDecoration: 'none'
-          }}
+          className="account-detail-header-link"
           title="Open in Salesforce"
         >
           ↗
@@ -118,7 +111,7 @@ export function AccountDetail({
                 href={selectedAccount.website.startsWith('http') ? selectedAccount.website : `https://${selectedAccount.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                className="account-detail-website-link"
               >
                 {selectedAccount.website}
               </a>
@@ -133,22 +126,15 @@ export function AccountDetail({
       
       <div className="workspace-dashboard__details-content">
         <div className="workspace-dashboard__card">
-          <div style={{ display: 'flex', gap: '2rem' }}>
+          <div className="account-detail-sections">
             {/* Opportunities Section */}
-            <div style={{ flex: 1 }}>
+            <div className="account-detail-section">
               <div className="workspace-dashboard__card-header">
                 <h3 className="workspace-dashboard__card-title">Opportunities</h3>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="account-detail-button-group">
                   <button
                     onClick={() => sendToChat(`Help me create a new opportunity for account ${selectedAccount?.name}`)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-text-secondary)',
-                      opacity: 0.6,
-                      cursor: 'pointer',
-                      padding: '0.25rem'
-                    }}
+                    className="account-detail-chat-btn"
                     title="Send to chat"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -164,7 +150,7 @@ export function AccountDetail({
                 </div>
               </div>
               {loadingOpportunities ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                <div className="account-detail-loading">
                   Loading opportunities...
                 </div>
               ) : opportunities.length > 0 ? (
@@ -172,34 +158,19 @@ export function AccountDetail({
                   {(showAllOpportunities ? opportunities : opportunities.slice(0, 5)).map((opp) => (
                     <div key={opp.id} className="workspace-dashboard__card-content">
                       <div className="workspace-dashboard__card-item">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div className="account-detail-item-header">
                           <div className="workspace-dashboard__card-item-title">{opp.name}</div>
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <div className="account-detail-item-actions">
                             <button
                               onClick={() => onLogActivity(opp)}
-                              style={{
-                                padding: '0.25rem 0.5rem',
-                                fontSize: '0.75rem',
-                                border: '1px solid var(--color-border)',
-                                borderRadius: '4px',
-                                background: 'var(--color-bg)',
-                                color: 'var(--color-text-primary)',
-                                cursor: 'pointer'
-                              }}
+                              className="account-detail-log-activity-btn"
                               title="Log SA Activity"
                             >
                               Log Activity
                             </button>
                             <button
                               onClick={() => sendToChat(`Help me log an SA activity for opportunity "${opp.name}" (Opportunity ID: ${opp.id}, Account ID: ${selectedAccount?.id})`)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--color-text-secondary)',
-                                opacity: 0.6,
-                                cursor: 'pointer',
-                                padding: '0.25rem'
-                              }}
+                              className="account-detail-chat-btn"
                               title="Send to chat"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -210,11 +181,7 @@ export function AccountDetail({
                               href={`${CRM_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              style={{
-                                color: 'var(--color-primary)',
-                                fontSize: '1rem',
-                                textDecoration: 'none'
-                              }}
+                              className="account-detail-sfdc-link"
                               title="Open in Salesforce"
                             >
                               ↗
@@ -234,14 +201,7 @@ export function AccountDetail({
                     <div className="workspace-dashboard__card-content">
                       <button
                         onClick={() => setShowAllOpportunities(!showAllOpportunities)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--color-primary)',
-                          cursor: 'pointer',
-                          padding: '0.5rem',
-                          fontSize: '0.875rem'
-                        }}
+                        className="account-detail-show-more-btn"
                       >
                         {showAllOpportunities ? 'Show less' : `Show ${opportunities.length - 5} more`}
                       </button>
@@ -258,20 +218,13 @@ export function AccountDetail({
             </div>
 
             {/* Tasks Section */}
-            <div style={{ flex: 1 }}>
+            <div className="account-detail-section">
               <div className="workspace-dashboard__card-header">
                 <h3 className="workspace-dashboard__card-title">Tasks ({tasks.length})</h3>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="account-detail-button-group">
                   <button
                     onClick={() => sendToChat(`Help me create a new task for account ${selectedAccount?.name}`)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-text-secondary)',
-                      opacity: 0.6,
-                      cursor: 'pointer',
-                      padding: '0.25rem'
-                    }}
+                    className="account-detail-chat-btn"
                     title="Send to chat"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -287,7 +240,7 @@ export function AccountDetail({
                 </div>
               </div>
               {loadingTasks ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                <div className="account-detail-loading">
                   Loading tasks...
                 </div>
               ) : tasks.length > 0 ? (
@@ -295,19 +248,12 @@ export function AccountDetail({
                   {(showAllTasks ? tasks : tasks.slice(0, 5)).map((task) => (
                     <div key={task.id} className="workspace-dashboard__card-content">
                       <div className="workspace-dashboard__card-item">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div className="account-detail-item-header">
                           <div className="workspace-dashboard__card-item-title">{task.subject}</div>
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <div className="account-detail-item-actions">
                             <button
                               onClick={() => sendToChat(`Help me with task "${task.subject}" (Task ID: ${task.id}, Account ID: ${selectedAccount?.id})`)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--color-text-secondary)',
-                                opacity: 0.6,
-                                cursor: 'pointer',
-                                padding: '0.25rem'
-                              }}
+                              className="account-detail-chat-btn"
                               title="Send to chat"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -318,65 +264,34 @@ export function AccountDetail({
                               href={`${CRM_BASE_URL}/lightning/r/Task/${task.id}/view`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              style={{
-                                color: 'var(--color-primary)',
-                                fontSize: '1rem',
-                                textDecoration: 'none'
-                              }}
+                              className="account-detail-sfdc-link"
                               title="Open in Salesforce"
                             >
                               ↗
                             </a>
                           </div>
                         </div>
-                        <div style={{ 
-                          display: 'flex', 
-                          gap: '0.5rem', 
-                          marginTop: '0.5rem',
-                          flexWrap: 'wrap'
-                        }}>
-                          <span style={{
-                            padding: '0.125rem 0.5rem',
-                            borderRadius: '4px',
-                            fontSize: '0.75rem',
-                            fontWeight: 500,
-                            background: task.isClosed ? 'var(--color-success-bg)' : 'var(--color-warning-bg)',
-                            color: task.isClosed ? 'var(--color-success)' : 'var(--color-warning)'
-                          }}>
+                        <div className="account-detail-task-badges">
+                          <span className={`account-detail-task-badge ${task.isClosed ? 'account-detail-task-badge--closed' : 'account-detail-task-badge--open'}`}>
                             {task.status}
                           </span>
                           {task.type && (
-                            <span style={{
-                              padding: '0.125rem 0.5rem',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem',
-                              background: 'var(--bg-tertiary)',
-                              color: 'var(--text-secondary)'
-                            }}>
+                            <span className="account-detail-task-badge account-detail-task-badge--type">
                               {task.type}
                             </span>
                           )}
                         </div>
                         {task.sa_Activity__c && (
-                          <div style={{ 
-                            fontSize: '0.8125rem', 
-                            color: 'var(--color-primary)', 
-                            marginTop: '0.375rem',
-                            fontWeight: '500'
-                          }}>
+                          <div className="account-detail-task-activity">
                             {task.sa_Activity__c}
                           </div>
                         )}
                         {task.what && (
-                          <div style={{ 
-                            fontSize: '0.8125rem', 
-                            color: 'var(--text-secondary)', 
-                            marginTop: '0.25rem'
-                          }}>
+                          <div className="account-detail-task-related">
                             Related: {task.what.name}
                           </div>
                         )}
-                        <div className="workspace-dashboard__card-item-meta" style={{ marginTop: '0.375rem' }}>
+                        <div className="workspace-dashboard__card-item-meta account-detail-task-meta">
                           {task.activityDate && (
                             <span>Due: {new Date(task.activityDate).toLocaleDateString()}</span>
                           )}
@@ -391,14 +306,7 @@ export function AccountDetail({
                     <div className="workspace-dashboard__card-content">
                       <button
                         onClick={() => setShowAllTasks(!showAllTasks)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--color-primary)',
-                          cursor: 'pointer',
-                          padding: '0.5rem',
-                          fontSize: '0.875rem'
-                        }}
+                        className="account-detail-show-more-btn"
                       >
                         {showAllTasks ? 'Show less' : `Show ${tasks.length - 5} more`}
                       </button>

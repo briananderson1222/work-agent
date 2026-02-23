@@ -689,7 +689,7 @@ export function CRM({ activeTab }: CRMProps) {
             <div className="crm-modal-header">
               <h3 className="crm-modal-title">Create Opportunity</h3>
             </div>
-            <div style={{ padding: '1.5rem' }}>
+            <div className="opp-modal-form-section">
               <div className="crm-form-group">
                 <div className="crm-form-field">
                   <label className="crm-form-label crm-form-label--required">Name</label>
@@ -774,15 +774,7 @@ export function CRM({ activeTab }: CRMProps) {
                       setShowLogActivityModal(false);
                       if (selectedAccount) loadAccountDetails(selectedAccount, true);
                     }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-primary)',
-                      cursor: 'pointer',
-                      padding: 0,
-                      textDecoration: 'underline',
-                      fontSize: '0.875rem'
-                    }}
+                    className="opp-modal-account-btn"
                   >
                     {selectedAccount?.name}
                   </button>
@@ -799,7 +791,7 @@ export function CRM({ activeTab }: CRMProps) {
             </div>
 
             {/* Form */}
-            <div style={{ padding: '1.5rem' }}>
+            <div className="opp-modal-form-section">
               <div className="crm-form-group">
                 <div className="crm-form-field">
                   <label className="crm-form-label crm-form-label--required">
@@ -848,7 +840,7 @@ export function CRM({ activeTab }: CRMProps) {
                 </div>
 
                 <div className="crm-form-field">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <div className="opp-modal-description-header">
                     <label className="crm-form-label">
                       Description
                     </label>
@@ -939,7 +931,7 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                 AI Generated Description
               </h3>
             </div>
-            <div style={{ padding: '1.5rem' }}>
+            <div className="opp-modal-form-section">
               <textarea
                 value={aiGeneratedText}
                 onChange={(e) => setAiGeneratedText(e.target.value)}
@@ -969,26 +961,10 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
       )}
 
     <div className="workspace-container">
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        padding: '0.5rem 1rem',
-        borderBottom: '1px solid var(--border-primary)',
-        background: 'var(--bg-primary)',
-        gap: '0.5rem',
-      }}>
+      <div className="crm-header-actions">
         <button
           onClick={() => setShowLeadershipModal(true)}
-          style={{
-            padding: '0.5rem 1rem',
-            background: 'transparent',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-primary)',
-            borderRadius: '0.375rem',
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            fontWeight: 500,
-          }}
+          className="crm-header-btn"
         >
           Leadership Insight
         </button>
@@ -1109,17 +1085,7 @@ Existing insights: [count] insights already created
 
             sendToChat(prompt);
           }}
-          style={{
-            padding: '0.5rem',
-            background: 'transparent',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-primary)',
-            borderRadius: '0.375rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          className="crm-header-btn--icon"
           title="Ask AI to generate insights"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1135,7 +1101,7 @@ Existing insights: [count] insights already created
             
             {/* Mode Toggle */}
             {ENABLE_MY_ACCOUNTS && (
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <div className="crm-mode-toggle">
               <button
                 onClick={() => {
                   if (mode !== 'my-accounts') {
@@ -1151,17 +1117,7 @@ Existing insights: [count] insights already created
                     }
                   }
                 }}
-                style={{
-                  flex: 1,
-                  padding: '0.5rem',
-                  fontSize: '0.875rem',
-                  border: mode === 'my-accounts' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  background: mode === 'my-accounts' ? 'var(--color-bg)' : 'var(--color-bg)',
-                  color: 'var(--color-text-primary)',
-                  cursor: 'pointer',
-                  fontWeight: mode === 'my-accounts' ? 600 : 400
-                }}
+                className={`crm-mode-btn ${mode === 'my-accounts' ? 'crm-mode-btn--active' : 'crm-mode-btn--inactive'}`}
               >
                 My Accounts
               </button>
@@ -1176,17 +1132,7 @@ Existing insights: [count] insights already created
                     setTasks([]);
                   }
                 }}
-                style={{
-                  flex: 1,
-                  padding: '0.5rem',
-                  fontSize: '0.875rem',
-                  border: mode === 'search' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  background: 'var(--color-bg)',
-                  color: 'var(--color-text-primary)',
-                  cursor: 'pointer',
-                  fontWeight: mode === 'search' ? 600 : 400
-                }}
+                className={`crm-mode-btn ${mode === 'search' ? 'crm-mode-btn--active' : 'crm-mode-btn--inactive'}`}
               >
                 Search
               </button>
@@ -1197,43 +1143,23 @@ Existing insights: [count] insights already created
             {mode === 'search' && (
             <div>
               {/* Search Type Selector */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div className="crm-search-type-toggle">
                   <button
                     onClick={() => setSearchType('owner')}
-                    style={{
-                      flex: 1,
-                      padding: '0.5rem',
-                      fontSize: '0.75rem',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '6px',
-                      background: searchType === 'owner' ? 'var(--color-primary)' : 'var(--color-bg)',
-                      color: searchType === 'owner' ? 'white' : 'var(--color-text-primary)',
-                      cursor: 'pointer',
-                      fontWeight: searchType === 'owner' ? 600 : 400
-                    }}
+                    className={`crm-search-type-btn ${searchType === 'owner' ? 'crm-search-type-btn--owner-active' : 'crm-search-type-btn--inactive'}`}
                   >
                     By Owner
                   </button>
                   <button
                     onClick={() => setSearchType('territory')}
-                    style={{
-                      flex: 1,
-                      padding: '0.5rem',
-                      fontSize: '0.75rem',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '6px',
-                      background: searchType === 'territory' ? 'var(--success-text)' : 'var(--color-bg)',
-                      color: searchType === 'territory' ? 'white' : 'var(--color-text-primary)',
-                      cursor: 'pointer',
-                      fontWeight: searchType === 'territory' ? 600 : 400
-                    }}
+                    className={`crm-search-type-btn ${searchType === 'territory' ? 'crm-search-type-btn--territory-active' : 'crm-search-type-btn--inactive'}`}
                   >
                     By Territory
                   </button>
                 </div>
 
             {/* Search Input with Autocomplete */}
-            <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
+            <div className="crm-search-container">
               <input
                 type="text"
                 placeholder={searchType === 'owner' ? 'First Last...' : 'Territory name...'}
@@ -1248,17 +1174,7 @@ Existing insights: [count] insights already created
                     }
                   }
                 }}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem 0.75rem',
-                  fontSize: '0.875rem',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  background: 'var(--color-bg)',
-                  color: 'var(--color-text-primary)',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
+                className="crm-search-input"
                 onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
                 onBlur={(e) => {
                   e.target.style.borderColor = 'var(--color-border)';
@@ -1267,49 +1183,25 @@ Existing insights: [count] insights already created
               />
               
               {showAutocomplete && autocompleteItems.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  background: 'var(--color-bg-secondary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '4px',
-                  marginTop: '4px',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  zIndex: 1000,
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                }}>
+                <div className="crm-autocomplete">
                   {autocompleteItems.map((item, idx) => (
                     <div
                       key={item.id}
                       onClick={() => handleAutocompleteSelect(item)}
-                      style={{
-                        padding: '8px 10px',
-                        cursor: 'pointer',
-                        borderBottom: idx < autocompleteItems.length - 1 ? '1px solid var(--color-border)' : 'none',
-                      }}
+                      className="crm-autocomplete-item"
                       onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-bg-hover)'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      <div style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: item.description ? '2px' : '0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div className={`crm-autocomplete-title ${item.description ? 'crm-autocomplete-title--with-desc' : ''}`}>
                         <span>{item.title}</span>
                         {item.badge && (
-                          <span style={{
-                            fontSize: '0.65rem',
-                            padding: '1px 6px',
-                            borderRadius: '10px',
-                            background: 'var(--color-primary)',
-                            color: 'white',
-                            fontWeight: 500,
-                          }}>
+                          <span className="crm-autocomplete-badge">
                             {item.badge}
                           </span>
                         )}
                       </div>
                       {item.description && (
-                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                        <div className="crm-autocomplete-desc">
                           {item.description}
                         </div>
                       )}
@@ -1323,29 +1215,19 @@ Existing insights: [count] insights already created
 
             {/* Active Filters */}
             {mode === 'search' && activeFilters.length > 0 && (
-              <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+              <div className="crm-active-filters">
                 {activeFilters.map((filter, idx) => {
-                  const getFilterColor = () => {
-                    if (filter.type === 'error') return 'var(--error-text)';
-                    if (filter.type === 'owner') return 'var(--accent-primary)';
-                    if (filter.type === 'territory') return 'var(--success-text)';
-                    return 'var(--color-primary)';
+                  const getFilterClass = () => {
+                    if (filter.type === 'error') return 'crm-active-filter--error';
+                    if (filter.type === 'owner') return 'crm-active-filter--owner';
+                    if (filter.type === 'territory') return 'crm-active-filter--territory';
+                    return 'crm-active-filter--owner';
                   };
                   
                   return (
                     <span
                       key={idx}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.25rem 0.5rem',
-                        background: getFilterColor(),
-                        color: 'white',
-                        borderRadius: '12px',
-                        fontSize: '0.7rem',
-                        fontWeight: 500
-                      }}
+                      className={`crm-active-filter ${getFilterClass()}`}
                     >
                       {filter.label}
                       <button
@@ -1374,15 +1256,7 @@ Existing insights: [count] insights already created
                             setAccounts(uniqueAccounts);
                           }
                         }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'white',
-                          cursor: 'pointer',
-                          padding: 0,
-                          fontSize: '0.9rem',
-                          lineHeight: 1
-                        }}
+                        className="crm-filter-remove-btn"
                         title="Remove"
                       >
                         ×
@@ -1395,21 +1269,12 @@ Existing insights: [count] insights already created
             
             {/* Filter Bar */}
             {accounts.length > 0 && (
-              <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
+              <div className="crm-filter-section">
                 <div 
                   onClick={() => setFilterExpanded(!filterExpanded)}
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    fontSize: '0.85rem', 
-                    fontWeight: 600, 
-                    color: 'var(--color-text-secondary)',
-                    cursor: 'pointer',
-                    padding: '0.75rem 0'
-                  }}
+                  className="crm-filter-header"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <div className="crm-filter-header-left">
                     <span>Filter</span>
                     {(selectedGeos.size > 0 || selectedSizes.size > 0 || nameFilter) && (
                       <button
@@ -1419,16 +1284,7 @@ Existing insights: [count] insights already created
                           setSelectedSizes(new Set());
                           setNameFilter('');
                         }}
-                        style={{
-                          padding: 0,
-                          fontSize: '0.75rem',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--color-primary)',
-                          fontWeight: 500,
-                          marginLeft: '0.25rem'
-                        }}
+                        className="crm-filter-clear-btn"
                       >
                         Clear
                       </button>
@@ -1438,31 +1294,13 @@ Existing insights: [count] insights already created
                 </div>
                 
                 {!filterExpanded && (selectedGeos.size > 0 || selectedSizes.size > 0 || nameFilter) && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
+                  <div className="crm-collapsed-filters">
                     {nameFilter && (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        fontSize: '0.75rem',
-                        padding: '2px 6px',
-                        borderRadius: '8px',
-                        background: 'var(--color-primary)',
-                        color: 'var(--text-inverted)'
-                      }}>
+                      <span className="crm-collapsed-filter crm-collapsed-filter--name">
                         Name: "{nameFilter}"
                         <button
                           onClick={() => setNameFilter('')}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'white',
-                            cursor: 'pointer',
-                            padding: 0,
-                            marginLeft: '0.25rem',
-                            fontSize: '0.9rem',
-                            lineHeight: 1
-                          }}
+                          className="crm-collapsed-filter-remove"
                           title="Clear filter"
                         >
                           ×
@@ -1470,24 +1308,12 @@ Existing insights: [count] insights already created
                       </span>
                     )}
                     {Array.from(selectedGeos).map(geo => (
-                      <span key={geo} style={{
-                        fontSize: '0.75rem',
-                        padding: '2px 6px',
-                        borderRadius: '8px',
-                        background: 'var(--color-primary)',
-                        color: 'var(--text-inverted)'
-                      }}>
+                      <span key={geo} className="crm-collapsed-filter crm-collapsed-filter--geo">
                         {geo}
                       </span>
                     ))}
                     {Array.from(selectedSizes).map(size => (
-                      <span key={size} style={{
-                        fontSize: '0.75rem',
-                        padding: '2px 6px',
-                        borderRadius: '8px',
-                        background: 'var(--color-success)',
-                        color: 'var(--text-inverted)'
-                      }}>
+                      <span key={size} className="crm-collapsed-filter crm-collapsed-filter--size">
                         {size}
                       </span>
                     ))}
@@ -1495,30 +1321,22 @@ Existing insights: [count] insights already created
                 )}
                 
                 {filterExpanded && (
-                  <>
-                    <div style={{ marginTop: '0.5rem' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Account Name</div>
+                  <div className="crm-expanded-section">
+                    <div>
+                      <div className="crm-field-label">Account Name</div>
                       <input
                         type="text"
                         placeholder="Filter by name..."
                         value={nameFilter}
                         onChange={(e) => setNameFilter(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.75rem',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: '4px',
-                          background: 'var(--color-bg)',
-                          color: 'var(--color-text-primary)'
-                        }}
+                        className="crm-name-input"
                       />
                     </div>
                     
                     {allGeos.length > 0 && (
-                      <div style={{ marginTop: '0.5rem' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Geo</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                      <div>
+                        <div className="crm-field-label">Geo</div>
+                        <div className="crm-option-grid">
                           {allGeos.map(geo => (
                             <button 
                               key={geo}
@@ -1531,17 +1349,7 @@ Existing insights: [count] insights already created
                                 }
                                 setSelectedGeos(newSet);
                               }}
-                              style={{ 
-                                padding: '0.25rem 0.5rem',
-                                background: selectedGeos.has(geo) ? 'var(--color-primary)' : 'var(--color-bg)',
-                                color: selectedGeos.has(geo) ? 'white' : 'var(--color-text)',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                fontSize: '0.75rem',
-                                border: '1px solid',
-                                borderColor: selectedGeos.has(geo) ? 'var(--color-primary)' : 'var(--color-border)',
-                                transition: 'all 0.15s'
-                              }}
+                              className={`crm-option-btn ${selectedGeos.has(geo) ? 'crm-option-btn--geo-active' : 'crm-option-btn--geo-inactive'}`}
                             >
                               {geo}
                             </button>
@@ -1551,9 +1359,9 @@ Existing insights: [count] insights already created
                     )}
                     
                     {allSizes.length > 0 && (
-                      <div style={{ marginTop: '0.5rem' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Size</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                      <div>
+                        <div className="crm-field-label">Size</div>
+                        <div className="crm-option-grid">
                           {allSizes.map(size => (
                             <button 
                               key={size}
@@ -1566,17 +1374,7 @@ Existing insights: [count] insights already created
                                 }
                                 setSelectedSizes(newSet);
                               }}
-                              style={{ 
-                                padding: '0.25rem 0.5rem',
-                                background: selectedSizes.has(size) ? 'var(--color-success)' : 'var(--color-bg)',
-                                color: selectedSizes.has(size) ? 'white' : 'var(--color-text)',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                fontSize: '0.75rem',
-                                border: '1px solid',
-                                borderColor: selectedSizes.has(size) ? 'var(--color-success)' : 'var(--color-border)',
-                                transition: 'all 0.15s'
-                              }}
+                              className={`crm-option-btn ${selectedSizes.has(size) ? 'crm-option-btn--size-active' : 'crm-option-btn--size-inactive'}`}
                             >
                               {size}
                             </button>
@@ -1586,12 +1384,12 @@ Existing insights: [count] insights already created
                     )}
                     
                     {(selectedGeos.size > 0 || selectedSizes.size > 0 || nameFilter) && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
+                      <div className="crm-filter-summary">
                         Showing {Math.min(filteredAccounts.length, displayLimit)} of {filteredAccounts.length} accounts
                         {filteredAccounts.length > accounts.length && ` (${accounts.length} total)`}
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             )}
@@ -1627,23 +1425,16 @@ Existing insights: [count] insights already created
                   </div>
                   
                   {/* Owner and Territory Pills */}
-                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                  <div className="crm-account-sources">
                     {account._sources?.map((source, idx) => {
-                      const getSourceColor = () => {
-                        if (source.type === 'owner') return 'var(--color-primary)';
-                        if (source.type === 'territory') return 'var(--color-success)';
-                        return 'var(--color-primary)';
+                      const getSourceClass = () => {
+                        if (source.type === 'owner') return 'crm-account-source-pill--owner';
+                        if (source.type === 'territory') return 'crm-account-source-pill--territory';
+                        return 'crm-account-source-pill--owner';
                       };
                       
                       return (
-                        <span key={idx} style={{
-                          fontSize: '0.65rem',
-                          padding: '2px 6px',
-                          borderRadius: '12px',
-                          background: getSourceColor(),
-                          color: 'white',
-                          fontWeight: 500
-                        }}>
+                        <span key={idx} className={`crm-account-source-pill ${getSourceClass()}`}>
                           {source.label}
                         </span>
                       );
@@ -1667,39 +1458,19 @@ Existing insights: [count] insights already created
                     )}
                   </div>
                   {/* Metadata Pills */}
-                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                  <div className="crm-account-metadata">
                     {account.geo_Text__c && (
-                      <span style={{
-                        fontSize: '0.65rem',
-                        padding: '2px 6px',
-                        borderRadius: '12px',
-                        background: 'transparent',
-                        color: 'var(--color-text-secondary)',
-                        border: '1px solid var(--color-text-secondary)',
-                        fontWeight: 500
-                      }}>
+                      <span className="crm-account-metadata-pill crm-account-metadata-pill--geo">
                         {account.geo_Text__c}
                       </span>
                     )}
                     {account.awsci_customer?.customerRevenue?.tShirtSize && (
-                      <span style={{
-                        fontSize: '0.65rem',
-                        padding: '2px 6px',
-                        borderRadius: '12px',
-                        background: 'transparent',
-                        color: 'var(--text-tertiary)',
-                        border: '1px solid var(--text-tertiary)',
-                        fontWeight: 500
-                      }}>
+                      <span className="crm-account-metadata-pill crm-account-metadata-pill--size">
                         {account.awsci_customer.customerRevenue.tShirtSize}
                       </span>
                     )}
                   </div>
-                  <div style={{
-                    position: 'absolute',
-                    top: '0.5rem',
-                    right: '0.5rem'
-                  }}>
+                  <div className="crm-account-sfdc-link">
                     <a
                       href={`${CRM_BASE_URL}/lightning/r/Account/${account.id}/view`}
                       target="_blank"
@@ -1729,36 +1500,20 @@ Existing insights: [count] insights already created
             
             {/* Show More/Less Button */}
             {filteredAccounts.length > displayLimit && (
-              <div style={{ padding: '1rem', textAlign: 'center', borderTop: '1px solid var(--color-border)' }}>
+              <div className="crm-show-more-section">
                 <button
                   onClick={() => setDisplayLimit(prev => prev + 50)}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    background: 'var(--color-primary)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.25rem',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
+                  className="crm-show-more-btn"
                 >
                   Show More ({filteredAccounts.length - displayLimit} remaining)
                 </button>
               </div>
             )}
             {displayLimit > 50 && filteredAccounts.length <= displayLimit && (
-              <div style={{ padding: '1rem', textAlign: 'center', borderTop: '1px solid var(--color-border)' }}>
+              <div className="crm-show-more-section">
                 <button
                   onClick={() => setDisplayLimit(50)}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    background: 'var(--color-secondary)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.25rem',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
+                  className="crm-show-less-btn"
                 >
                   Show Less
                 </button>
@@ -1776,14 +1531,7 @@ Existing insights: [count] insights already created
                   href={`${CRM_BASE_URL}/lightning/r/Account/${selectedAccount.id}/view`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{
-                    position: 'absolute',
-                    top: '0.5rem',
-                    right: '0.5rem',
-                    color: 'var(--color-primary)',
-                    fontSize: '1.25rem',
-                    textDecoration: 'none'
-                  }}
+                  className="account-detail-header-link"
                   title="Open in Salesforce"
                 >
                   ↗
@@ -1797,7 +1545,7 @@ Existing insights: [count] insights already created
                         href={selectedAccount.website.startsWith('http') ? selectedAccount.website : `https://${selectedAccount.website}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                        className="account-detail-website-link"
                       >
                         {selectedAccount.website}
                       </a>
@@ -1812,22 +1560,15 @@ Existing insights: [count] insights already created
               
               <div className="workspace-dashboard__details-content">
                 <div className="workspace-dashboard__card">
-                  <div style={{ display: 'flex', gap: '2rem' }}>
+                  <div className="account-detail-sections">
                     {/* Opportunities Section */}
-                    <div style={{ flex: 1 }}>
+                    <div className="account-detail-section">
                       <div className="workspace-dashboard__card-header">
                         <h3 className="workspace-dashboard__card-title">Opportunities</h3>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div className="account-detail-button-group">
                           <button
                             onClick={() => sendToChat(`Help me create a new opportunity for account ${selectedAccount?.name}`)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--color-text-secondary)',
-                              opacity: 0.6,
-                              cursor: 'pointer',
-                              padding: '0.25rem'
-                            }}
+                            className="account-detail-chat-btn"
                             title="Send to chat"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1843,7 +1584,7 @@ Existing insights: [count] insights already created
                         </div>
                       </div>
                       {loadingOpportunities ? (
-                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                        <div className="account-detail-loading">
                           Loading opportunities...
                         </div>
                       ) : opportunities.length > 0 ? (
@@ -1851,9 +1592,9 @@ Existing insights: [count] insights already created
                           {(showAllOpportunities ? opportunities : opportunities.slice(0, 5)).map((opp) => (
                             <div key={opp.id} className="workspace-dashboard__card-content">
                               <div className="workspace-dashboard__card-item">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div className="account-detail-item-header">
                                   <div className="workspace-dashboard__card-item-title">{opp.name}</div>
-                                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                  <div className="account-detail-item-actions">
                                     <button
                                       onClick={() => {
                                         setSelectedOpportunity(opp);
@@ -1865,29 +1606,14 @@ Existing insights: [count] insights already created
                                         });
                                         setShowLogActivityModal(true);
                                       }}
-                                      style={{
-                                        padding: '0.25rem 0.5rem',
-                                        fontSize: '0.75rem',
-                                        border: '1px solid var(--color-border)',
-                                        borderRadius: '4px',
-                                        background: 'var(--color-bg)',
-                                        color: 'var(--color-text-primary)',
-                                        cursor: 'pointer'
-                                      }}
+                                      className="account-detail-log-activity-btn"
                                       title="Log SA Activity"
                                     >
                                       Log Activity
                                     </button>
                                     <button
                                       onClick={() => sendToChat(`Help me log an SA activity for opportunity "${opp.name}" (Opportunity ID: ${opp.id}, Account ID: ${selectedAccount?.id})`)}
-                                      style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: 'var(--color-text-secondary)',
-                                        opacity: 0.6,
-                                        cursor: 'pointer',
-                                        padding: '0.25rem'
-                                      }}
+                                      className="account-detail-chat-btn"
                                       title="Send to chat"
                                     >
                                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1898,11 +1624,7 @@ Existing insights: [count] insights already created
                                       href={`${CRM_BASE_URL}/lightning/r/Opportunity/${opp.id}/view`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      style={{
-                                        color: 'var(--color-primary)',
-                                        fontSize: '1rem',
-                                        textDecoration: 'none'
-                                      }}
+                                      className="account-detail-sfdc-link"
                                       title="Open in Salesforce"
                                     >
                                       ↗
@@ -1922,14 +1644,7 @@ Existing insights: [count] insights already created
                             <div className="workspace-dashboard__card-content">
                               <button
                                 onClick={() => setShowAllOpportunities(!showAllOpportunities)}
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: 'var(--color-primary)',
-                                  cursor: 'pointer',
-                                  padding: '0.5rem',
-                                  fontSize: '0.875rem'
-                                }}
+                                className="account-detail-show-more-btn"
                               >
                                 {showAllOpportunities ? 'Show less' : `Show ${opportunities.length - 5} more`}
                               </button>
@@ -1946,20 +1661,13 @@ Existing insights: [count] insights already created
                     </div>
 
                     {/* Tasks Section */}
-                    <div style={{ flex: 1 }}>
+                    <div className="account-detail-section">
                       <div className="workspace-dashboard__card-header">
                         <h3 className="workspace-dashboard__card-title">Tasks ({tasks.length})</h3>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div className="account-detail-button-group">
                           <button
                             onClick={() => sendToChat(`Help me create a new task for account ${selectedAccount?.name}`)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--color-text-secondary)',
-                              opacity: 0.6,
-                              cursor: 'pointer',
-                              padding: '0.25rem'
-                            }}
+                            className="account-detail-chat-btn"
                             title="Send to chat"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1975,7 +1683,7 @@ Existing insights: [count] insights already created
                         </div>
                       </div>
                       {loadingTasks ? (
-                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                        <div className="account-detail-loading">
                           Loading tasks...
                         </div>
                       ) : tasks.length > 0 ? (
@@ -1983,19 +1691,12 @@ Existing insights: [count] insights already created
                           {(showAllTasks ? tasks : tasks.slice(0, 5)).map((task) => (
                             <div key={task.id} className="workspace-dashboard__card-content">
                               <div className="workspace-dashboard__card-item">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div className="account-detail-item-header">
                                   <div className="workspace-dashboard__card-item-title">{task.subject}</div>
-                                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                  <div className="account-detail-item-actions">
                                     <button
                                       onClick={() => sendToChat(`Help me with task "${task.subject}" (Task ID: ${task.id}, Account ID: ${selectedAccount?.id})`)}
-                                      style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: 'var(--color-text-secondary)',
-                                        opacity: 0.6,
-                                        cursor: 'pointer',
-                                        padding: '0.25rem'
-                                      }}
+                                      className="account-detail-chat-btn"
                                       title="Send to chat"
                                     >
                                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2006,65 +1707,34 @@ Existing insights: [count] insights already created
                                       href={`${CRM_BASE_URL}/lightning/r/Task/${task.id}/view`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      style={{
-                                        color: 'var(--color-primary)',
-                                        fontSize: '1rem',
-                                        textDecoration: 'none'
-                                      }}
+                                      className="account-detail-sfdc-link"
                                       title="Open in Salesforce"
                                     >
                                       ↗
                                     </a>
                                   </div>
                                 </div>
-                                <div style={{ 
-                                  display: 'flex', 
-                                  gap: '0.5rem', 
-                                  marginTop: '0.5rem',
-                                  flexWrap: 'wrap'
-                                }}>
-                                  <span style={{
-                                    padding: '0.125rem 0.5rem',
-                                    borderRadius: '4px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 500,
-                                    background: task.isClosed ? 'var(--color-success-bg)' : 'var(--color-warning-bg)',
-                                    color: task.isClosed ? 'var(--color-success)' : 'var(--color-warning)'
-                                  }}>
+                                <div className="account-detail-task-badges">
+                                  <span className={`account-detail-task-badge ${task.isClosed ? 'account-detail-task-badge--closed' : 'account-detail-task-badge--open'}`}>
                                     {task.status}
                                   </span>
                                   {task.type && (
-                                    <span style={{
-                                      padding: '0.125rem 0.5rem',
-                                      borderRadius: '4px',
-                                      fontSize: '0.75rem',
-                                      background: 'var(--bg-tertiary)',
-                                      color: 'var(--text-secondary)'
-                                    }}>
+                                    <span className="account-detail-task-badge account-detail-task-badge--type">
                                       {task.type}
                                     </span>
                                   )}
                                 </div>
                                 {task.sa_Activity__c && (
-                                  <div style={{ 
-                                    fontSize: '0.8125rem', 
-                                    color: 'var(--color-primary)', 
-                                    marginTop: '0.375rem',
-                                    fontWeight: '500'
-                                  }}>
+                                  <div className="account-detail-task-activity">
                                     {task.sa_Activity__c}
                                   </div>
                                 )}
                                 {task.what && (
-                                  <div style={{ 
-                                    fontSize: '0.8125rem', 
-                                    color: 'var(--text-secondary)', 
-                                    marginTop: '0.25rem'
-                                  }}>
+                                  <div className="account-detail-task-related">
                                     Related: {task.what.name}
                                   </div>
                                 )}
-                                <div className="workspace-dashboard__card-item-meta" style={{ marginTop: '0.375rem' }}>
+                                <div className="workspace-dashboard__card-item-meta account-detail-task-meta">
                                   {task.activityDate && (
                                     <span>Due: {new Date(task.activityDate).toLocaleDateString()}</span>
                                   )}
@@ -2079,14 +1749,7 @@ Existing insights: [count] insights already created
                             <div className="workspace-dashboard__card-content">
                               <button
                                 onClick={() => setShowAllTasks(!showAllTasks)}
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: 'var(--color-primary)',
-                                  cursor: 'pointer',
-                                  padding: '0.5rem',
-                                  fontSize: '0.875rem'
-                                }}
+                                className="account-detail-show-more-btn"
                               >
                                 {showAllTasks ? 'Show less' : `Show ${tasks.length - 5} more`}
                               </button>

@@ -44,7 +44,7 @@ export function AccountList({
 
   if (searchError) {
     return (
-      <div className="workspace-dashboard__loading" style={{ color: 'var(--color-error)', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border)' }}>
+      <div className="workspace-dashboard__loading account-list-error">
         {searchError}
       </div>
     );
@@ -84,23 +84,16 @@ export function AccountList({
           </div>
           
           {/* Owner and Territory Pills */}
-          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+          <div className="account-list-source-pills">
             {account._sources?.map((source, idx) => {
-              const getSourceColor = () => {
-                if (source.type === 'owner') return 'var(--color-primary)';
-                if (source.type === 'territory') return 'var(--color-success)';
-                return 'var(--color-primary)';
+              const getSourceClass = () => {
+                if (source.type === 'owner') return 'account-list-source-pill--owner';
+                if (source.type === 'territory') return 'account-list-source-pill--territory';
+                return 'account-list-source-pill--owner';
               };
               
               return (
-                <span key={idx} style={{
-                  fontSize: '0.65rem',
-                  padding: '2px 6px',
-                  borderRadius: '12px',
-                  background: getSourceColor(),
-                  color: 'white',
-                  fontWeight: 500
-                }}>
+                <span key={idx} className={`account-list-source-pill ${getSourceClass()}`}>
                   {source.label}
                 </span>
               );
@@ -113,11 +106,7 @@ export function AccountList({
                 href={account.website.startsWith('http') ? account.website : `https://${account.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{
-                  fontSize: '0.75rem',
-                  color: 'var(--color-primary)',
-                  textDecoration: 'none'
-                }}
+                className="account-list-website-link"
               >
                 {account.website.replace(/^https?:\/\//, '')}
               </a>
@@ -125,40 +114,20 @@ export function AccountList({
           </div>
           
           {/* Metadata Pills */}
-          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+          <div className="account-list-metadata-pills">
             {account.geo_Text__c && (
-              <span style={{
-                fontSize: '0.65rem',
-                padding: '2px 6px',
-                borderRadius: '12px',
-                background: 'transparent',
-                color: 'var(--color-text-secondary)',
-                border: '1px solid var(--color-text-secondary)',
-                fontWeight: 500
-              }}>
+              <span className="account-list-metadata-pill account-list-metadata-pill--geo">
                 {account.geo_Text__c}
               </span>
             )}
             {account.awsci_customer?.customerRevenue?.tShirtSize && (
-              <span style={{
-                fontSize: '0.65rem',
-                padding: '2px 6px',
-                borderRadius: '12px',
-                background: 'transparent',
-                color: 'var(--text-tertiary)',
-                border: '1px solid var(--text-tertiary)',
-                fontWeight: 500
-              }}>
+              <span className="account-list-metadata-pill account-list-metadata-pill--size">
                 {account.awsci_customer.customerRevenue.tShirtSize}
               </span>
             )}
           </div>
           
-          <div style={{
-            position: 'absolute',
-            top: '0.5rem',
-            right: '0.5rem'
-          }}>
+          <div className="account-list-sfdc-link">
             <a
               href={`${CRM_BASE_URL}/lightning/r/Account/${account.id}/view`}
               target="_blank"
@@ -178,36 +147,20 @@ export function AccountList({
       
       {/* Show More/Less Button */}
       {accounts.length > displayLimit && (
-        <div style={{ padding: '1rem', textAlign: 'center', borderTop: '1px solid var(--color-border)' }}>
+        <div className="account-list-show-more-section">
           <button
             onClick={onShowMore}
-            style={{
-              padding: '0.5rem 1rem',
-              background: 'var(--color-primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.25rem',
-              cursor: 'pointer',
-              fontSize: '0.875rem'
-            }}
+            className="account-list-show-more-btn"
           >
             Show More ({accounts.length - displayLimit} remaining)
           </button>
         </div>
       )}
       {displayLimit > 50 && accounts.length <= displayLimit && (
-        <div style={{ padding: '1rem', textAlign: 'center', borderTop: '1px solid var(--color-border)' }}>
+        <div className="account-list-show-more-section">
           <button
             onClick={onShowLess}
-            style={{
-              padding: '0.5rem 1rem',
-              background: 'var(--color-secondary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.25rem',
-              cursor: 'pointer',
-              fontSize: '0.875rem'
-            }}
+            className="account-list-show-less-btn"
           >
             Show Less
           </button>
