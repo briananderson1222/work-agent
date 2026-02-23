@@ -76,6 +76,10 @@ import { log } from '@/utils/logger';
 log.api('message');  // Enable: localStorage.debug = 'app:*'
 ```
 
+### Theming & Colors
+
+Never use hardcoded hex colors. Use CSS variables from `src-ui/src/index.css` (`--text-primary`, `--bg-secondary`, `--border-primary`, `--accent-primary`, `--accent-acp`, etc). For status colors use the Tailwind palette: green `#22c55e`, amber `#f59e0b`, red `#ef4444`. Buttons use `className="button button--secondary"`. See [FRONTEND_PATTERNS.md](./docs/FRONTEND_PATTERNS.md) for details.
+
 ### Plugin Workflow
 
 ```bash

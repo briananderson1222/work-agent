@@ -29,7 +29,7 @@ export function ACPStatusBadge() {
 
   const allConnected = connectedCount === totalCount;
   const someConnected = connectedCount > 0;
-  const color = allConnected ? '#4caf50' : someConnected ? '#ff9800' : '#f44336';
+  const color = allConnected ? '#22c55e' : someConnected ? '#f59e0b' : '#ef4444';
 
   return (
     <span

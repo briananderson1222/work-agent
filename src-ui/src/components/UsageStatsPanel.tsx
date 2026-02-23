@@ -211,7 +211,7 @@ function AgentRow({ agent, stats, total, onClick }: { agent: string; stats: any;
         <span className="usage-breakdown-stats">
           {stats.messages} msgs
           {isAcp
-            ? <> · <a href="https://app.kiro.dev" target="_blank" rel="noopener noreferrer" style={{ color: '#f90', textDecoration: 'none', fontSize: '11px' }} onClick={e => e.stopPropagation()}>Manage plan ↗</a></>
+            ? <> · <a href="https://app.kiro.dev" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-acp)', textDecoration: 'none', fontSize: '11px' }} onClick={e => e.stopPropagation()}>Manage plan ↗</a></>
             : <> · ${stats.cost.toFixed(2)}</>
           }
         </span>
@@ -221,7 +221,7 @@ function AgentRow({ agent, stats, total, onClick }: { agent: string; stats: any;
           className="usage-breakdown-bar-fill"
           style={{ 
             width: `${percentage}%`,
-            backgroundColor: isAcp ? '#f90' : 'var(--accent-yellow)'
+            backgroundColor: isAcp ? 'var(--accent-acp)' : 'var(--accent-yellow)'
           }}
         />
       </div>
