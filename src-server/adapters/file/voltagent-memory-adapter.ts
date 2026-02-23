@@ -463,8 +463,8 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     await appendFile(messagesPath, JSON.stringify(messageWithMetadata) + '\n', 'utf-8');
     await this.touchConversation(conversationId);
 
-    // Update analytics if aggregator is available and message has usage data
-    if (this.usageAggregator && messageWithMetadata.metadata?.usage && messageWithMetadata.role === 'assistant') {
+    // Update analytics if aggregator is available for assistant messages
+    if (this.usageAggregator && messageWithMetadata.role === 'assistant') {
       try {
         await this.usageAggregator.incrementalUpdate(messageWithMetadata, resourceId, conversationId);
       } catch (error) {

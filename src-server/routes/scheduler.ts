@@ -106,6 +106,17 @@ export function createSchedulerRoutes(schedulerService: SchedulerService, logger
     }
   });
 
+  app.post('/jobs', async (c) => {
+    try {
+      const body = await c.req.json();
+      const output = await schedulerService.addJob(body);
+      return c.json({ success: true, data: { output } });
+    } catch (error: any) {
+      logger.error('Failed to add job', { error });
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
   app.post('/jobs/:target/run', async (c) => {
     try {
       const output = await schedulerService.runJob(c.req.param('target'));

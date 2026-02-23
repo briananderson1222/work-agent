@@ -6,6 +6,14 @@ import { createPinoLogger } from '@voltagent/logger';
 
 const logger = createPinoLogger({ name: 'usage-aggregator' });
 
+export interface DailyStats {
+  messages: number;
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+  byAgent: Record<string, number>;
+}
+
 export interface UsageStats {
   lifetime: {
     totalMessages: number;
@@ -16,6 +24,8 @@ export interface UsageStats {
     uniqueAgents: string[];
     firstMessageDate?: string;
     lastMessageDate?: string;
+    streak?: number;
+    daysActive?: number;
   };
   byModel: Record<string, {
     messages: number;
@@ -28,6 +38,7 @@ export interface UsageStats {
     messages: number;
     cost: number;
   }>;
+  byDate: Record<string, DailyStats>;
 }
 
 export interface Achievement {
@@ -83,12 +94,52 @@ export class UsageAggregator {
       },
       byModel: {},
       byAgent: {},
+      byDate: {},
     };
   }
 
   async saveStats(stats: UsageStats): Promise<void> {
     await this.ensureAnalyticsDir();
+    // Compute streak + daysActive from byDate
+    this.computeStreakStats(stats);
     await writeFile(this.statsPath, JSON.stringify(stats, null, 2), 'utf-8');
+  }
+
+  async reset(): Promise<void> {
+    if (existsSync(this.statsPath)) {
+      await writeFile(this.statsPath, '{}', 'utf-8');
+    }
+  }
+
+  private updateDaily(stats: UsageStats, date: string, agentSlug: string, usage?: { inputTokens?: number; outputTokens?: number; estimatedCost?: number }) {
+    if (!stats.byDate) stats.byDate = {};
+    if (!stats.byDate[date]) {
+      stats.byDate[date] = { messages: 0, cost: 0, inputTokens: 0, outputTokens: 0, byAgent: {} };
+    }
+    const day = stats.byDate[date];
+    day.messages++;
+    if (usage) {
+      day.inputTokens += usage.inputTokens || 0;
+      day.outputTokens += usage.outputTokens || 0;
+      day.cost += usage.estimatedCost || 0;
+    }
+    day.byAgent[agentSlug] = (day.byAgent[agentSlug] || 0) + 1;
+  }
+
+  private computeStreakStats(stats: UsageStats) {
+    const dates = Object.keys(stats.byDate || {}).sort();
+    stats.lifetime.daysActive = dates.length;
+    if (!dates.length) { stats.lifetime.streak = 0; return; }
+    // Compute current streak from today backwards
+    const today = new Date().toISOString().split('T')[0];
+    let streak = 0;
+    let d = new Date(today);
+    while (true) {
+      const key = d.toISOString().split('T')[0];
+      if (stats.byDate[key]) { streak++; d.setDate(d.getDate() - 1); }
+      else break;
+    }
+    stats.lifetime.streak = streak;
   }
 
   async incrementalUpdate(message: any, agentSlug: string, conversationId: string): Promise<void> {
@@ -105,15 +156,14 @@ export class UsageAggregator {
     }
 
     const timestamp = message.metadata?.timestamp;
-    if (timestamp) {
-      const date = new Date(timestamp).toISOString().split('T')[0];
-      if (!stats.lifetime.firstMessageDate || date < stats.lifetime.firstMessageDate) {
-        stats.lifetime.firstMessageDate = date;
-      }
-      if (!stats.lifetime.lastMessageDate || date > stats.lifetime.lastMessageDate) {
-        stats.lifetime.lastMessageDate = date;
-      }
+    const date = timestamp ? new Date(timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    if (!stats.lifetime.firstMessageDate || date < stats.lifetime.firstMessageDate) {
+      stats.lifetime.firstMessageDate = date;
     }
+    if (!stats.lifetime.lastMessageDate || date > stats.lifetime.lastMessageDate) {
+      stats.lifetime.lastMessageDate = date;
+    }
+    this.updateDaily(stats, date, agentSlug, usage);
 
     if (!stats.lifetime.uniqueAgents.includes(agentSlug)) {
       stats.lifetime.uniqueAgents.push(agentSlug);
@@ -226,6 +276,7 @@ export class UsageAggregator {
               if (!currentStats.lifetime.lastMessageDate || date > currentStats.lifetime.lastMessageDate) {
                 currentStats.lifetime.lastMessageDate = date;
               }
+              this.updateDaily(currentStats, date, agentSlug, usage);
             }
 
             if (!currentStats.byModel[modelId]) {
@@ -306,6 +357,9 @@ export class UsageAggregator {
         stats.byAgent[agentSlug].cost = Math.max(stats.byAgent[agentSlug].cost, agentStats.cost);
       }
     }
+
+    // byDate: rescan is authoritative
+    stats.byDate = currentStats.byDate;
 
     await this.saveStats(stats);
     await this.updateAchievements(stats);

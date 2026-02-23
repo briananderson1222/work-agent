@@ -106,13 +106,28 @@ export async function getConversationStats(
   const adapter = memoryAdapters.get(slug);
   
   if (!adapter) {
-    throw new Error('Memory adapter not found');
+    const contextTokens = systemPromptTokens + mcpServerTokens;
+    return {
+      inputTokens: 0, outputTokens: 0, totalTokens: 0, contextTokens,
+      turns: 0, toolCalls: 0, estimatedCost: 0,
+      contextWindowPercentage: calculateContextWindowPercentage(modelId, contextTokens),
+      modelId, systemPromptTokens, mcpServerTokens,
+      userMessageTokens: 0, assistantMessageTokens: 0, contextFilesTokens: 0,
+    };
   }
 
   const conversation = await adapter.getConversation(conversationId);
   
   if (!conversation) {
-    throw new Error('Conversation not found');
+    return {
+      inputTokens: 0, outputTokens: 0, totalTokens: 0,
+      contextTokens: systemPromptTokens + mcpServerTokens,
+      turns: 0, toolCalls: 0, estimatedCost: 0,
+      contextWindowPercentage: calculateContextWindowPercentage(modelId, systemPromptTokens + mcpServerTokens),
+      modelId, systemPromptTokens, mcpServerTokens,
+      userMessageTokens: 0, assistantMessageTokens: 0, contextFilesTokens: 0,
+      notFound: true,
+    };
   }
 
   interface ConversationStats {

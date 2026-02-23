@@ -188,5 +188,34 @@ export function createAuthRoutes() {
     }
   });
 
+  // Proxy for internal badge photos (requires midway cookie)
+  app.get('/badge-photo/:id', async (c) => {
+    const id = c.req.param('id');
+    try {
+      const { readFile } = await import('fs/promises');
+      const raw = await readFile(COOKIE_PATH, 'utf-8');
+      // Parse Netscape cookie file into Cookie header
+      const cookies = raw.split('\n')
+        .filter(l => l && !l.startsWith('#'))
+        .map(l => {
+          const parts = l.split('\t');
+          return parts.length >= 7 ? `${parts[5]}=${parts[6]}` : null;
+        })
+        .filter(Boolean)
+        .join('; ');
+      const resp = await fetch(`https://atoz-badge-photo.amazon.work/${id}`, {
+        headers: { Cookie: cookies },
+        redirect: 'follow',
+      });
+      if (!resp.ok) return c.body(null, resp.status as any);
+      const contentType = resp.headers.get('content-type') || 'image/jpeg';
+      c.header('Content-Type', contentType);
+      c.header('Cache-Control', 'public, max-age=86400');
+      return c.body(await resp.arrayBuffer());
+    } catch {
+      return c.body(null, 502);
+    }
+  });
+
   return app;
 }

@@ -66,6 +66,16 @@ export class SchedulerService {
     return this.execJson(['status', '--format', 'json']);
   }
 
+  async addJob(opts: { name: string; cron?: string; prompt: string; agent?: string; openArtifact?: string; notifyStart?: boolean }): Promise<string> {
+    const args = ['add', '--name', opts.name];
+    if (opts.cron) args.push('--cron', opts.cron);
+    args.push('--prompt', opts.prompt);
+    if (opts.agent) args.push('--agent', opts.agent);
+    if (opts.openArtifact) args.push('--open-artifact', opts.openArtifact);
+    if (opts.notifyStart) args.push('--notify-start');
+    return this.exec(args);
+  }
+
   async getJobLogs(target: string, count = 20): Promise<any[]> {
     return this.execJson(['logs', target, '-c', String(count), '--format', 'json']);
   }
