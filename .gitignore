@@ -9,6 +9,7 @@ dist-desktop/
 
 .amazonq/cli-todo-lists/
 .amazonq/.subagents/
+.kiro/
 *.log
 .DS_Store
 .env
