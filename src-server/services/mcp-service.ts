@@ -7,6 +7,11 @@ import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, ToolDef } from '../domain/types.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
+// Type extensions for MCP service
+interface MCPConfigurationWithClose extends MCPConfiguration {
+  close?: () => Promise<void>;
+}
+
 export interface MCPConnectionStatus {
   connected: boolean;
   error?: string;
@@ -45,7 +50,7 @@ export class MCPService {
 
   getAgentTools(slug: string): ToolInfo[] {
     const tools = this.agentTools.get(slug) || [];
-    return tools.map((tool: any) => {
+    return tools.map((tool: Tool<any> & { description?: string }) => {
       const mapping = this.toolNameMapping.get(tool.name);
 
       // Convert Zod schema to JSON schema if parameters is a Zod object
@@ -124,7 +129,7 @@ export class MCPService {
   async cleanupAgentMCPConfigs(agentSlug: string): Promise<void> {
     for (const [key, config] of this.mcpConfigs.entries()) {
       if (key.startsWith(`${agentSlug}:`)) {
-        await (config as any).close?.();
+        await (config as MCPConfigurationWithClose).close?.();
         this.mcpConfigs.delete(key);
         this.mcpConnectionStatus.delete(key);
         this.integrationMetadata.delete(key);

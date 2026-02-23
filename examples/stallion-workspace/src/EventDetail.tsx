@@ -359,9 +359,10 @@ export function EventDetail({
                       meetingChangeKey: meetingDetails.meetingChangeKey,
                       rsvpResponse: resp,
                     }, 'data => data');
-                    showToast?.({ title: `Meeting ${resp}ed`, type: 'success' } as any);
-                  } catch (e: any) {
-                    showToast?.({ title: `Failed: ${e.message}`, type: 'error' } as any);
+                    showToast?.({ title: `Meeting ${resp}ed`, type: 'success' });
+                  } catch (e: unknown) {
+                    const error = e as Error;
+                    showToast?.({ title: `Failed: ${error.message}`, type: 'error' });
                   }
                 }}
                 style={{
@@ -405,9 +406,9 @@ export function EventDetail({
                     const context = `# ${meetingDetails.subject}\n**Date:** ${new Date(meetingDetails.start).toLocaleString()}\n**Attendees:** ${meetingDetails.attendees?.map((a: any) => a.name || a.email).join(', ') || 'None'}\n\n## Notes\n${meetingNotes}`;
                     try {
                       await navigator.clipboard.writeText(context);
-                      showToast?.({ title: 'Notes copied to clipboard (Obsidian integration pending)', type: 'info' } as any);
+                      showToast?.({ title: 'Notes copied to clipboard (Obsidian integration pending)', type: 'info' });
                     } catch {
-                      showToast?.({ title: 'Failed to copy notes', type: 'error' } as any);
+                      showToast?.({ title: 'Failed to copy notes', type: 'error' });
                     }
                   }}
                   style={{

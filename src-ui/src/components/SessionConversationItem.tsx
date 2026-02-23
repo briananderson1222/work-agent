@@ -4,6 +4,10 @@ interface Conversation {
   id: string;
   agentSlug: string;
   agentName?: string;
+  agentType?: 'acp' | 'workspace' | 'global';
+  agentLabel?: string;
+  agentContext?: string;
+  agentIcon?: string;
   title?: string;
   updatedAt: string;
   metadata?: {
@@ -96,7 +100,15 @@ export function SessionConversationItem({
           </span>
         </div>
         <div className="session-item__meta">
-          <span>{conv.agentName || conv.agentSlug}</span>
+          {conv.agentType === 'acp' ? (
+            <span className="session-item__badge session-item__badge--acp">ACP</span>
+          ) : conv.agentType === 'workspace' ? (
+            <span className="session-item__badge session-item__badge--workspace">Workspace</span>
+          ) : (
+            <span className="session-item__badge session-item__badge--global">Global</span>
+          )}
+          {conv.agentContext && <span>{conv.agentContext}</span>}
+          <span>{conv.agentLabel || conv.agentName || conv.agentSlug}</span>
           {conv.metadata?.stats?.turns && (
             <>
               <span>•</span>

@@ -33,6 +33,41 @@ import { ToolCallHandler } from './streaming/handlers/ToolCallHandler.js';
 import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';
 import { MetadataHandler } from './streaming/handlers/MetadataHandler.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
+
+// Type extensions for VoltAgent SDK
+interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
+  description?: string;
+}
+
+interface ModelProvider {
+  modelId?: string;
+  settings?: {
+    maxTokens?: number;
+    temperature?: number;
+  };
+}
+
+interface GenerateResult {
+  object?: any;
+  text?: string;
+  usage?: any;
+}
+
+interface ToolResult {
+  content?: Array<{ text: string }>;
+  success?: boolean;
+  error?: {
+    message?: string | { message?: string };
+  };
+  response?: any;
+  [key: string]: any; // Allow additional properties
+}
+
+interface BedrockProviderSpec {
+  model: string;
+  region?: string;
+  [key: string]: any; // Allow additional properties
+}
 import { InjectableStream } from './streaming/InjectableStream.js';
 import { AgentService } from '../services/agent-service.js';
 import { MCPService } from '../services/mcp-service.js';
@@ -239,7 +274,7 @@ export class WorkAgentRuntime {
       instructions: 'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
       model: createBedrockProvider({ 
         appConfig: this.appConfig, 
-        agentSpec: { model: this.appConfig.defaultModel } as any 
+        agentSpec: { model: this.appConfig.defaultModel } as unknown as AgentSpec 
       }),
       tools: [], // No tools
     });
@@ -670,7 +705,7 @@ export class WorkAgentRuntime {
                       originalName: mapping?.original || t.name,
                       server: mapping?.server || null,
                       toolName: mapping?.tool || t.name,
-                      description: (t as any).description
+                      description: (t as ToolWithDescription).description
                     };
                   });
                 
@@ -772,7 +807,7 @@ export class WorkAgentRuntime {
                 const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
                   appConfig: this.appConfig, 
-                  agentSpec: { model: resolvedModel } as any 
+                  agentSpec: { model: resolvedModel } as unknown as AgentSpec 
                 });
               }
               
@@ -847,21 +882,21 @@ export class WorkAgentRuntime {
               }
               
               const toolStart = performance.now();
-              const toolResult = await (tool as any).execute(toolArgs);
+              const toolResult = await (tool as ToolWithDescription & { execute: (args: any) => Promise<any> }).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
               
               // Unwrap MCP result
-              let unwrappedResult = toolResult;
-              if (toolResult?.content?.[0]?.text) {
+              let unwrappedResult: any = toolResult;
+              if ((toolResult as ToolResult)?.content?.[0]?.text) {
                 try {
-                  const parsed = JSON.parse(toolResult.content[0].text);
+                  const parsed = JSON.parse((toolResult as ToolResult).content![0].text);
                   if (parsed?.content?.[0]?.text) {
                     unwrappedResult = JSON.parse(parsed.content[0].text);
                   } else {
                     unwrappedResult = parsed;
                   }
                 } catch {
-                  unwrappedResult = toolResult.content[0].text;
+                  unwrappedResult = (toolResult as ToolResult).content![0].text;
                 }
               }
               
@@ -907,23 +942,23 @@ export class WorkAgentRuntime {
               
               // Execute tool
               const toolStart = performance.now();
-              const toolResult = await (tool as any).execute(toolArgs);
+              const toolResult = await (tool as ToolWithDescription & { execute: (args: any) => Promise<any> }).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
               
               // Unwrap MCP result
-              let unwrappedResult = toolResult;
+              let unwrappedResult: any = toolResult;
               let parseError: string | undefined;
               
-              if (toolResult?.content?.[0]?.text) {
+              if ((toolResult as ToolResult)?.content?.[0]?.text) {
                 try {
-                  const parsed = JSON.parse(toolResult.content[0].text);
+                  const parsed = JSON.parse((toolResult as ToolResult).content![0].text);
                   if (parsed?.content?.[0]?.text) {
                     unwrappedResult = JSON.parse(parsed.content[0].text);
                   } else {
                     unwrappedResult = parsed;
                   }
                 } catch {
-                  unwrappedResult = toolResult.content[0].text;
+                  unwrappedResult = (toolResult as ToolResult).content![0].text;
                 }
               }
               
@@ -957,7 +992,10 @@ export class WorkAgentRuntime {
               
               // Check if the MCP tool returned an error
               if (unwrappedResult?.success === false && unwrappedResult?.error) {
-                const errorMessage = unwrappedResult.error?.message?.message || unwrappedResult.error?.message || unwrappedResult.error;
+                const errorObj = unwrappedResult.error;
+                const errorMessage = typeof errorObj === 'string' 
+                  ? errorObj 
+                  : errorObj?.message?.message || errorObj?.message || errorObj;
                 if (isAuthError(errorMessage)) {
                   return c.json({ success: false, error: errorMessage }, 401);
                 }
@@ -1001,7 +1039,7 @@ export class WorkAgentRuntime {
                 const resolvedModel = await this.modelCatalog.resolveModelId(model);
                 options.model = createBedrockProvider({ 
                   appConfig: this.appConfig, 
-                  agentSpec: { model: resolvedModel } as any 
+                  agentSpec: { model: resolvedModel } as unknown as AgentSpec 
                 });
               }
               
@@ -1054,12 +1092,12 @@ export class WorkAgentRuntime {
 
               // For multi-turn, use generateText/generateObject and return result
               const result = schemaJson
-                ? await agent.generateObject(prompt, jsonSchema(schemaJson) as any, options)
+                ? await agent.generateObject(prompt, jsonSchema(schemaJson) as unknown as any, options)
                 : await agent.generateText(prompt, options);
               
               return c.json({ 
                 success: true, 
-                response: schemaJson ? (result as any).object : (result as any).text,
+                response: schemaJson ? (result as GenerateResult).object : (result as GenerateResult).text,
                 usage: result.usage
               });
             } catch (error: any) {
@@ -1114,14 +1152,14 @@ export class WorkAgentRuntime {
                 appConfig: this.appConfig,
                 agentSpec: { 
                   model: this.modelCatalog ? await this.modelCatalog.resolveModelId(invokeModelId) : invokeModelId
-                } as any
+                } as unknown as AgentSpec
               });
               
               const fastModel = createBedrockProvider({ 
                 appConfig: this.appConfig,
                 agentSpec: { 
                   model: this.modelCatalog ? await this.modelCatalog.resolveModelId(structureModelId) : structureModelId
-                } as any
+                } as unknown as AgentSpec
               });
 
               const defaultSystem = 'You are a helpful assistant. Use the available tools to answer the user\'s request accurately and concisely.';
@@ -1166,7 +1204,7 @@ export class WorkAgentRuntime {
               
               const objectResult = await structureAgent.generateObject(
                 `${textResult.text}\n\nFormat the above information as structured JSON.`,
-                jsonSchema(schema) as any,
+                jsonSchema(schema) as unknown as any,
                 {
                   conversationId: tempConvId,
                   userId: 'invoke-user'
@@ -1264,7 +1302,7 @@ export class WorkAgentRuntime {
                       agentSpec: { 
                         model: resolvedModel,
                         region: originalSpec?.region || this.appConfig.region
-                      } as any
+                      } as unknown as AgentSpec
                     });
                     
                     cachedAgent = new Agent({

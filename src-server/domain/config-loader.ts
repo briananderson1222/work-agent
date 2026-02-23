@@ -6,6 +6,7 @@ import { readFile, readdir, stat, writeFile, mkdir, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { basename, extname, join, resolve } from 'path';
 import { watch, type FSWatcher } from 'chokidar';
+import { createPinoLogger } from '@voltagent/logger';
 import type {
   AgentSpec,
   ToolDef,
@@ -19,6 +20,8 @@ import type {
   WorkspaceMetadata,
 } from './types.js';
 import { validator } from './validator.js';
+
+const logger = createPinoLogger({ name: 'config-loader' });
 
 export interface ConfigLoaderOptions {
   workAgentDir?: string;
@@ -146,10 +149,15 @@ export class ConfigLoader {
     const existing = await this.loadAgent(slug);
 
     // Filter out metadata fields that aren't part of AgentSpec
-    const { slug: _, updatedAt, description, workflowWarnings, ...cleanUpdates } = updates as any;
+    const { slug: _, updatedAt, description, workflowWarnings, ...cleanUpdates } = updates as Partial<AgentSpec> & {
+      slug?: string;
+      updatedAt?: string;
+      description?: string;
+      workflowWarnings?: string[];
+    };
 
     // Remove only undefined values (allow null/empty to clear fields)
-    const filteredUpdates: any = {};
+    const filteredUpdates: Record<string, any> = {};
     for (const [key, value] of Object.entries(cleanUpdates)) {
       if (value === undefined) continue;
       filteredUpdates[key] = value;
@@ -230,9 +238,9 @@ export class ConfigLoader {
           workflowWarnings: workflowWarnings.length > 0 ? workflowWarnings : undefined
         });
       } catch (error: any) {
-        console.error(`Failed to load agent '${entry.name}':`, error.message || error);
+        logger.error('Failed to load agent', { agent: entry.name, error: error.message || error });
         if (error.name === 'ValidationError') {
-          console.error(`  Validation errors:`, JSON.stringify(error.errors, null, 2));
+          logger.error('Validation errors', { errors: error.errors });
         }
       }
     }
@@ -350,14 +358,15 @@ export class ConfigLoader {
       const missing = shortcuts.filter((id) => !knownIds.has(id));
 
       if (missing.length > 0) {
-        console.warn(
-          `Agent '${slug}' references missing workflows in ui.workflowShortcuts: ${missing.join(', ')}`
-        );
+        logger.warn('Agent references missing workflows in ui.workflowShortcuts', { 
+          agent: slug, 
+          missing: missing.join(', ') 
+        });
       }
 
       return missing;
     } catch (error) {
-      console.error(`Failed to validate workflow shortcuts for agent '${slug}':`, error);
+      logger.error('Failed to validate workflow shortcuts', { agent: slug, error });
       return shortcuts;
     }
   }
@@ -419,7 +428,7 @@ export class ConfigLoader {
           description: def.description
         });
       } catch (error) {
-        console.error(`Failed to load tool '${entry.name}':`, error);
+        logger.error('Failed to load tool', { tool: entry.name, error });
       }
     }
 
@@ -486,7 +495,7 @@ export class ConfigLoader {
           tabCount: config.tabs?.length || 0,
         });
       } catch (error) {
-        console.error(`Failed to load workspace '${entry.name}':`, error);
+        logger.error('Failed to load workspace', { workspace: entry.name, error });
       }
     }
 
@@ -565,7 +574,7 @@ export class ConfigLoader {
           using.push(ws.slug);
         }
       } catch (error) {
-        console.error(`Error checking workspace ${ws.slug}:`, error);
+        logger.error('Error checking workspace', { workspace: ws.slug, error });
       }
     }
 
@@ -651,7 +660,7 @@ export class ConfigLoader {
         try {
           listener(data);
         } catch (error) {
-          console.error(`Error in config listener:`, error);
+          logger.error('Error in config listener', { error });
         }
       }
     }

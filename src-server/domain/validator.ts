@@ -9,6 +9,13 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
+// Type extensions for validator
+interface WorkspaceConfigCandidate {
+  name?: unknown;
+  slug?: unknown;
+  tabs?: unknown;
+}
+
 export class ValidationError extends Error {
   constructor(
     message: string,
@@ -73,7 +80,7 @@ export class SchemaValidator {
       throw new ValidationError('Workspace config must be an object', []);
     }
 
-    const config = data as any;
+    const config = data as WorkspaceConfigCandidate;
 
     if (!config.name || typeof config.name !== 'string') {
       throw new ValidationError('Workspace must have a name', []);

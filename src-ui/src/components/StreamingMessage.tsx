@@ -43,7 +43,7 @@ export function StreamingMessage({
           if (part.type === 'text' && part.content) {
             return <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>{part.content}</ReactMarkdown>;
           }
-          if ((part.type === 'tool' || (part as any).type?.startsWith('tool-')) && renderToolCall) {
+          if ((part.type === 'tool' || (part as ContentPart & { type: string }).type?.startsWith('tool-')) && renderToolCall) {
             return renderToolCall(part, i);
           }
           return null;

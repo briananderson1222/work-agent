@@ -8,6 +8,16 @@ import { tmpdir } from 'node:os';
 import { validator } from '../validator.js';
 import { ConfigLoader } from '../config-loader.js';
 
+// Mock the logger
+vi.mock('@voltagent/logger', () => ({
+  createPinoLogger: vi.fn(() => ({
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
+  }))
+}));
+
 const createTempDir = () => mkdtempSync(join(tmpdir(), 'work-agent-test-'));
 
 describe('Agent schema validation', () => {
@@ -89,14 +99,18 @@ describe('ConfigLoader workflow metadata', () => {
   });
 
   it('reports missing workflow shortcuts during agent listing', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const loader = new ConfigLoader({ workAgentDir: workDir });
     const agents = await loader.listAgents();
 
     expect(agents[0].workflowWarnings).toEqual(['missing.ts']);
-    expect(warnSpy).toHaveBeenCalledWith(
-      "Agent 'example' references missing workflows in ui.workflowShortcuts: missing.ts"
+    
+    // Get the mocked logger instance
+    const { createPinoLogger } = await import('@voltagent/logger');
+    const mockLogger = vi.mocked(createPinoLogger).mock.results[0].value;
+    
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Agent references missing workflows in ui.workflowShortcuts',
+      { agent: 'example', missing: 'missing.ts' }
     );
-    warnSpy.mockRestore();
   });
 });

@@ -15,6 +15,7 @@ import {
 import { existsSync, createReadStream } from 'fs';
 import { join, dirname } from 'path';
 import { createInterface } from 'readline';
+import { createPinoLogger } from '@voltagent/logger';
 import type {
   StorageAdapter,
   Conversation,
@@ -26,6 +27,13 @@ import type {
 } from '@voltagent/core';
 import type { UIMessage } from 'ai';
 import { parseReasoningFromMessage } from '../../utils/reasoning-parser.js';
+
+// Type extensions for memory adapter
+interface UIMessageWithMetadata extends UIMessage {
+  metadata?: Record<string, any>;
+}
+
+const logger = createPinoLogger({ name: 'voltagent-memory-adapter' });
 
 export interface FileVoltAgentMemoryAdapterOptions {
   workAgentDir: string;
@@ -168,7 +176,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
       this.cacheConversation(conversation);
       return conversation;
     } catch (error) {
-      console.error(`[FileVoltAgentMemoryAdapter] Failed to read conversation ${conversationId}:`, error);
+      logger.error('Failed to read conversation', { conversationId, error });
       return null;
     }
   }
@@ -283,7 +291,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
         this.cacheConversation(conversation);
         conversations.push(conversation);
       } catch (error) {
-        console.error(`[FileVoltAgentMemoryAdapter] Failed to parse conversation file ${file}:`, error);
+        logger.error('Failed to parse conversation file', { file, error });
       }
     }
 
@@ -413,7 +421,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
           : undefined,
       };
     } catch (error) {
-      console.error('[FileVoltAgentMemoryAdapter] Failed to deserialize workflow state:', error);
+      logger.error('Failed to deserialize workflow state', { error });
       return null;
     }
   }
@@ -430,10 +438,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     const parsedMessage = parseReasoningFromMessage(message);
 
     // Add timestamp and analytics metadata
-    const messageWithMetadata: any = {
+    const messageWithMetadata: UIMessageWithMetadata = {
       ...parsedMessage,
       metadata: {
-        ...(parsedMessage as any).metadata,
+        ...(parsedMessage as UIMessageWithMetadata).metadata,
         timestamp: Date.now(),
         modelMetadata: context?.modelMetadata,
         usage: context?.usage,
@@ -460,7 +468,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
       try {
         await this.usageAggregator.incrementalUpdate(messageWithMetadata, resourceId, conversationId);
       } catch (error) {
-        console.error('[Analytics] Failed to update usage stats:', error);
+        logger.error('Failed to update usage stats', { error });
       }
     }
   }
@@ -510,7 +518,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
       try {
         messages.push(JSON.parse(trimmed) as UIMessage);
       } catch (error) {
-        console.error('[FileVoltAgentMemoryAdapter] Failed to parse message:', error);
+        logger.error('Failed to parse message', { error });
       }
     }
 
@@ -758,7 +766,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
       const state = this.deserializeWorkflowState(JSON.parse(content) as WorkflowStateJson);
       return state ?? null;
     } catch (error) {
-      console.error('[FileVoltAgentMemoryAdapter] Failed to read workflow state:', error);
+      logger.error('Failed to read workflow state', { error });
       return null;
     }
   }
@@ -816,7 +824,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
           states.push(state);
         }
       } catch (error) {
-        console.error('[FileVoltAgentMemoryAdapter] Failed to parse workflow state:', error);
+        logger.error('Failed to parse workflow state', { error });
       }
     }
 

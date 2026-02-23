@@ -252,7 +252,7 @@ class ConversationsStore {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       
       // Mark user-initiated cancels with a header (checked before abort)
-      if ((signal as any)?._userInitiated) {
+      if (signal && '_userInitiated' in signal && (signal as AbortSignal & { _userInitiated?: boolean })._userInitiated) {
         headers['X-Abort-Reason'] = 'user-cancel';
       }
       

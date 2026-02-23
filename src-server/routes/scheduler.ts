@@ -13,11 +13,11 @@ export function createSchedulerRoutes(schedulerService: SchedulerService, logger
   app.get('/events', (c) => {
     return streamSSE(c, async (stream) => {
       const unsub = schedulerService.subscribe((data) => {
-        stream.writeSSE({ data }).catch((e) => console.error('[scheduler] SSE write failed:', e));
+        stream.writeSSE({ data }).catch((e) => logger.error('SSE write failed', { error: e }));
       });
       // Keep alive
       const keepAlive = setInterval(() => {
-        stream.writeSSE({ event: 'ping', data: '' }).catch((e) => console.error('[scheduler] SSE ping failed:', e));
+        stream.writeSSE({ event: 'ping', data: '' }).catch((e) => logger.error('SSE ping failed', { error: e }));
       }, 30_000);
       // Wait until client disconnects
       try {

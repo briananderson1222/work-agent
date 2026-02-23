@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock';
 import { PricingClient, GetProductsCommand } from '@aws-sdk/client-pricing';
+import { createPinoLogger } from '@voltagent/logger';
+
+const logger = createPinoLogger({ name: 'models' });
 
 const app = new Hono();
 
@@ -44,7 +47,7 @@ app.get('/capabilities', async (c) => {
     
     return c.json({ data: capabilities });
   } catch (error: any) {
-    console.error('Error fetching model capabilities:', error);
+    logger.error('Error fetching model capabilities', { error });
     
     // Return 401 for credential errors
     if (error.name === 'CredentialsProviderError' || error.message?.includes('credentials')) {
@@ -107,7 +110,7 @@ app.get('/pricing/:modelId', async (c) => {
     
     return c.json({ data: modelPricing });
   } catch (error: any) {
-    console.error('Error fetching model pricing:', error);
+    logger.error('Error fetching model pricing', { error });
     return c.json({ error: error.message }, 500);
   }
 });

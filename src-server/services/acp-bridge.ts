@@ -54,6 +54,124 @@ interface ManagedTerminal {
   exitCode: number | null;
 }
 
+// ACP SDK response types that are missing proper interfaces
+interface InitializeResult {
+  protocolVersion: number;
+  agentInfo?: {
+    name: string;
+    version?: string;
+  };
+  agentCapabilities?: {
+    loadSession?: boolean;
+  };
+}
+
+interface SessionResult {
+  sessionId: string;
+  modes?: {
+    availableModes: ACPMode[];
+    currentModeId?: string;
+  };
+  configOptions?: ConfigOption[];
+}
+
+interface ConfigOption {
+  category: string;
+  currentValue?: string;
+  options?: Array<{
+    name: string;
+    value: string;
+  }>;
+}
+
+interface SessionUpdate {
+  sessionUpdate: string;
+  content?: {
+    type: string;
+    text?: string;
+    url?: string;
+    data?: string;
+    resource?: {
+      text?: string;
+      uri?: string;
+    };
+  } | Array<{
+    type: string;
+    content?: {
+      type: string;
+      text?: string;
+    };
+    path?: string;
+    oldText?: string | null;
+    newText?: string;
+  }>;
+  toolCallId?: string;
+  title?: string;
+  rawInput?: any;
+  status?: string;
+  entries?: Array<{
+    status: string;
+    content: string;
+  }>;
+  modeId?: string;
+  configOptions?: ConfigOption[];
+}
+
+interface MessagePart {
+  type: string;
+  text?: string;
+  toolCallId?: string;
+  toolName?: string;
+  args?: any;
+  state?: string;
+  result?: string;
+  isError?: boolean;
+}
+
+interface ConversationMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  parts: MessagePart[];
+  metadata?: {
+    timestamp?: number;
+    model?: string | null;
+  };
+}
+
+interface ExtNotificationParams {
+  commands?: Array<{
+    name: string;
+    description?: string;
+    input?: {
+      hint?: string;
+    };
+  }>;
+  serverName?: string;
+  url?: string;
+}
+
+interface ConversationMetadata {
+  acpSessionId?: string;
+}
+
+interface ToolCall {
+  title?: string | null;
+  rawInput?: any;
+}
+
+interface ExtendedRequestPermissionRequest extends Omit<RequestPermissionRequest, 'toolCall'> {
+  toolCall?: ToolCall;
+}
+
+interface EnvironmentVariable {
+  name: string;
+  value: string;
+}
+
+interface ExtendedCreateTerminalRequest extends CreateTerminalRequest {
+  env?: EnvironmentVariable[];
+}
+
 export type ACPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 export class ACPConnection {
@@ -144,15 +262,15 @@ export class ACPConnection {
           terminal: true,
         },
         clientInfo: { name: 'work-agent', version: '1.0.0' },
-      });
+      }) as InitializeResult;
 
       this.logger.info('[ACPBridge] Connected', {
         protocolVersion: initResult.protocolVersion,
-        agent: (initResult as any).agentInfo?.name,
+        agent: initResult.agentInfo?.name,
       });
 
       // Try to resume previous session, fall back to new session
-      let sessionResult: any;
+      let sessionResult: SessionResult;
 
       // Pre-create adapters so findPreviousSessionId can scan conversation metadata
       // We don't know modes yet, but we can scan for existing agent dirs for this connection
@@ -160,13 +278,13 @@ export class ACPConnection {
 
       const previousSessionId = await this.findPreviousSessionId();
       
-      if (previousSessionId && (initResult as any).agentCapabilities?.loadSession) {
+      if (previousSessionId && initResult.agentCapabilities?.loadSession) {
         try {
           // Save modes from new session creation first (load doesn't return modes)
-          const tempSession = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] });
-          if ((tempSession as any).modes?.availableModes) {
-            this.modes = (tempSession as any).modes.availableModes;
-            this.currentModeId = (tempSession as any).modes.currentModeId || this.modes[0]?.id || null;
+          const tempSession = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] }) as SessionResult;
+          if (tempSession.modes?.availableModes) {
+            this.modes = tempSession.modes.availableModes;
+            this.currentModeId = tempSession.modes.currentModeId || this.modes[0]?.id || null;
           }
           // Now load the previous session to restore kiro-cli's context
           await this.connection.loadSession({
@@ -178,23 +296,23 @@ export class ACPConnection {
           this.logger.info('[ACPBridge] Resumed previous session', { sessionId: previousSessionId });
         } catch (err: any) {
           this.logger.warn('[ACPBridge] Failed to resume session, creating new', { error: err.message });
-          sessionResult = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] });
+          sessionResult = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] }) as SessionResult;
         }
       } else {
-        sessionResult = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] });
+        sessionResult = await this.connection.newSession({ cwd: this.cwd, mcpServers: [] }) as SessionResult;
       }
 
       this.sessionId = sessionResult.sessionId;
 
       // Extract modes
-      if ((sessionResult as any).modes?.availableModes) {
-        this.modes = (sessionResult as any).modes.availableModes;
-        this.currentModeId = (sessionResult as any).modes.currentModeId || this.modes[0]?.id || null;
+      if (sessionResult.modes?.availableModes) {
+        this.modes = sessionResult.modes.availableModes;
+        this.currentModeId = sessionResult.modes.currentModeId || this.modes[0]?.id || null;
       }
 
       // Extract config options (includes model selector)
-      if ((sessionResult as any).configOptions) {
-        this.configOptions = (sessionResult as any).configOptions;
+      if (sessionResult.configOptions) {
+        this.configOptions = sessionResult.configOptions;
       }
 
       this.status = 'connected';
@@ -320,8 +438,13 @@ export class ACPConnection {
 
     // Save user message
     if (adapter) {
+      const userMessage: ConversationMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        parts: [{ type: 'text', text: inputText }]
+      };
       await adapter.addMessage(
-        { id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: inputText }] } as any,
+        userMessage as unknown as any,
         userId,
         conversationId,
       );
@@ -348,7 +471,7 @@ export class ACPConnection {
       const abortHandler = () => {
         cancelled = true;
         if (this.connection && this.sessionId) {
-          this.connection.cancel({ sessionId: this.sessionId }).catch((e) => console.error('[acp] cancel failed:', e));
+          this.connection.cancel({ sessionId: this.sessionId }).catch((e) => this.logger.error('[acp] cancel failed:', e));
         }
       };
       c.req.raw.signal?.addEventListener('abort', abortHandler);
@@ -375,11 +498,16 @@ export class ACPConnection {
         // Save assistant message
         if (adapter && (this.responseAccumulator || this.responseParts.length > 0)) {
           const parts = this.buildAssistantParts();
-          const assistantMsg = { id: crypto.randomUUID(), role: 'assistant', parts, metadata: { timestamp: Date.now(), model: this.getCurrentModelName() } } as any;
-          await adapter.addMessage(assistantMsg, userId, conversationId);
+          const assistantMsg: ConversationMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            parts,
+            metadata: { timestamp: Date.now(), model: this.getCurrentModelName() }
+          };
+          await adapter.addMessage(assistantMsg as unknown as any, userId, conversationId);
           // Update analytics (no token data from ACP, but counts messages)
           if (this.usageAggregatorRef?.get()) {
-            await this.usageAggregatorRef.get().incrementalUpdate(assistantMsg, slug, conversationId).catch((e: unknown) => console.error('[acp] usage update failed:', e));
+            await this.usageAggregatorRef.get().incrementalUpdate(assistantMsg, slug, conversationId).catch((e: unknown) => this.logger.error('[acp] usage update failed:', e));
           }
         }
 
@@ -393,11 +521,16 @@ export class ACPConnection {
             this.responseAccumulator += '\n\n---\n\n_⚠️ Response cancelled by user_';
           }
           const parts = this.buildAssistantParts();
+          const partialMessage: ConversationMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            parts
+          };
           await adapter.addMessage(
-            { id: crypto.randomUUID(), role: 'assistant', parts } as any,
+            partialMessage as unknown as any,
             userId,
             conversationId,
-          ).catch((e) => console.error('[acp] operation failed:', e));
+          ).catch((e) => this.logger.error('[acp] operation failed:', e));
         }
 
         if (cancelled) {
@@ -445,7 +578,7 @@ export class ACPConnection {
       },
 
       requestPermission: async (params: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
-        return this.handlePermissionRequest(params);
+        return this.handlePermissionRequest(params as ExtendedRequestPermissionRequest);
       },
 
       readTextFile: async (params: ReadTextFileRequest): Promise<ReadTextFileResponse> => {
@@ -459,7 +592,7 @@ export class ACPConnection {
       },
 
       createTerminal: async (params: CreateTerminalRequest): Promise<CreateTerminalResponse> => {
-        return this.handleCreateTerminal(params);
+        return this.handleCreateTerminal(params as ExtendedCreateTerminalRequest);
       },
 
       terminalOutput: async (params: TerminalOutputRequest): Promise<TerminalOutputResponse> => {
@@ -541,18 +674,18 @@ export class ACPConnection {
   }
 
   private async handleSessionUpdate(params: SessionNotification): Promise<void> {
-    const update = params.update as any;
+    const update = params.update as SessionUpdate;
 
     switch (update.sessionUpdate) {
       case 'agent_message_chunk':
         if (!this.activeWriter) break;
-        if (update.content?.type === 'text') {
-          this.responseAccumulator += update.content.text;
-          await this.activeWriter({ type: 'text-delta', text: update.content.text });
-        } else if (update.content?.type === 'image') {
+        if (!Array.isArray(update.content) && update.content?.type === 'text') {
+          this.responseAccumulator += update.content.text || '';
+          await this.activeWriter({ type: 'text-delta', text: update.content.text || '' });
+        } else if (!Array.isArray(update.content) && update.content?.type === 'image') {
           // Emit image as a text placeholder with the URL
           await this.activeWriter({ type: 'text-delta', text: `\n![image](${update.content.url || update.content.data || ''})\n` });
-        } else if (update.content?.type === 'resource') {
+        } else if (!Array.isArray(update.content) && update.content?.type === 'resource') {
           // Emit resource content as text
           const text = update.content.resource?.text || update.content.resource?.uri || '[resource]';
           await this.activeWriter({ type: 'text-delta', text: `\n\`\`\`\n${text}\n\`\`\`\n` });
@@ -561,8 +694,8 @@ export class ACPConnection {
 
       case 'agent_thought_chunk':
         if (!this.activeWriter) break;
-        if (update.content?.type === 'text') {
-          await this.activeWriter({ type: 'reasoning-delta', id: '0', text: update.content.text });
+        if (!Array.isArray(update.content) && update.content?.type === 'text') {
+          await this.activeWriter({ type: 'reasoning-delta', id: '0', text: update.content.text || '' });
         }
         break;
 
@@ -589,25 +722,30 @@ export class ACPConnection {
       case 'tool_call_update': {
         if (!this.activeWriter) break;
         // Handle diff content from tool calls
-        const diffContent = update.content?.find((c: any) => c.type === 'diff');
-        if (diffContent) {
-          const output = formatDiff(diffContent.path, diffContent.oldText, diffContent.newText);
-          this.updateToolResult(update.toolCallId, output);
-          await this.activeWriter({
-            type: 'tool-result',
-            toolCallId: update.toolCallId,
-            output,
-            result: output,
-          });
-          break;
+        if (Array.isArray(update.content)) {
+          const diffContent = update.content.find((c) => c.type === 'diff');
+          if (diffContent) {
+            const output = formatDiff(diffContent.path || '', diffContent.oldText ?? null, diffContent.newText || '');
+            this.updateToolResult(update.toolCallId || '', output);
+            await this.activeWriter({
+              type: 'tool-result',
+              toolCallId: update.toolCallId,
+              output,
+              result: output,
+            });
+            break;
+          }
         }
 
         if (update.status === 'completed' || update.status === 'failed') {
-          const textContent = update.content
-            ?.filter((c: any) => c.type === 'content' && c.content?.type === 'text')
-            .map((c: any) => c.content.text)
-            .join('\n');
-          this.updateToolResult(update.toolCallId, textContent, update.status === 'failed');
+          let textContent = '';
+          if (Array.isArray(update.content)) {
+            textContent = update.content
+              .filter((c) => c.type === 'content' && c.content?.type === 'text')
+              .map((c) => c.content?.text || '')
+              .join('\n');
+          }
+          this.updateToolResult(update.toolCallId || '', textContent, update.status === 'failed');
           await this.activeWriter({
             type: 'tool-result',
             toolCallId: update.toolCallId,
@@ -635,7 +773,7 @@ export class ACPConnection {
         break;
 
       case 'current_mode_update':
-        this.currentModeId = update.modeId;
+        this.currentModeId = update.modeId || null;
         break;
 
       case 'config_options_update':
@@ -648,7 +786,7 @@ export class ACPConnection {
     }
   }
 
-  private async handlePermissionRequest(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
+  private async handlePermissionRequest(params: ExtendedRequestPermissionRequest): Promise<RequestPermissionResponse> {
     const approvalId = ApprovalRegistry.generateId('acp');
     const toolTitle = params.toolCall?.title || 'Unknown tool';
 
@@ -660,7 +798,7 @@ export class ACPConnection {
         toolName: toolTitle,
         server: '',
         tool: toolTitle,
-        toolArgs: (params.toolCall as any)?.rawInput,
+        toolArgs: params.toolCall?.rawInput,
       });
     }
 
@@ -677,12 +815,12 @@ export class ACPConnection {
     return { outcome: { outcome: 'selected', optionId: selectedId } };
   }
 
-  private async handleCreateTerminal(params: CreateTerminalRequest): Promise<CreateTerminalResponse> {
+  private async handleCreateTerminal(params: ExtendedCreateTerminalRequest): Promise<CreateTerminalResponse> {
     const id = `term-${++this.terminalCounter}`;
     const proc = spawn(params.command, params.args || [], {
       cwd: params.cwd || this.cwd,
       shell: true,
-      env: { ...process.env, ...(params.env ? Object.fromEntries(params.env.map((e: any) => [e.name, e.value])) : {}) },
+      env: { ...process.env, ...(params.env ? Object.fromEntries(params.env.map((e) => [e.name, e.value])) : {}) },
     });
 
     const term: ManagedTerminal = { process: proc, output: '', exitCode: null };
@@ -699,8 +837,9 @@ export class ACPConnection {
   private handleExtNotification(method: string, params: Record<string, unknown>): void {
     switch (method) {
       case '_kiro.dev/commands/available': {
-        const cmds = (params as any).commands || [];
-        this.slashCommands = cmds.map((c: any) => ({
+        const notificationParams = params as ExtNotificationParams;
+        const cmds = notificationParams.commands || [];
+        this.slashCommands = cmds.map((c) => ({
           name: c.name,
           description: c.description || '',
           hint: c.input?.hint,
@@ -709,7 +848,8 @@ export class ACPConnection {
         break;
       }
       case '_kiro.dev/mcp/server_initialized': {
-        const serverName = (params as any).serverName;
+        const notificationParams = params as ExtNotificationParams;
+        const serverName = notificationParams.serverName;
         if (serverName && !this.mcpServers.includes(serverName)) {
           this.mcpServers.push(serverName);
         }
@@ -717,14 +857,15 @@ export class ACPConnection {
         break;
       }
       case '_kiro.dev/mcp/oauth_request': {
-        const url = (params as any).url;
+        const notificationParams = params as ExtNotificationParams;
+        const url = notificationParams.url;
         this.logger.info('[ACPBridge] MCP OAuth requested', { url });
         // Surface to UI as an ephemeral message with a clickable link
         if (this.activeWriter && url) {
           this.activeWriter({
             type: 'text-delta',
             text: `\n\n🔐 **Authentication required** — An MCP server needs you to sign in:\n[Open authentication page](${url})\n\n`,
-          }).catch((e) => console.error('[acp] cleanup failed:', e));
+          }).catch((e) => this.logger.error('[acp] cleanup failed:', e));
         }
         break;
       }
@@ -828,7 +969,7 @@ export class ACPConnection {
       this.logger.info('[ACPBridge] Found previous session from sessionMap', { sessionId: sid });
       return sid;
     }
-    for (const [slug, adapter] of this.memoryAdapters) {
+    for (const [slug, adapter] of Array.from(this.memoryAdapters)) {
       if (!slug.startsWith(this.prefix + '-')) continue;
       try {
         const conversations = await adapter.getConversations(slug);
@@ -837,7 +978,8 @@ export class ACPConnection {
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         );
         for (const conv of sorted) {
-          const sid = (conv.metadata as any)?.acpSessionId;
+          const metadata = conv.metadata as ConversationMetadata;
+          const sid = metadata?.acpSessionId;
           if (sid) {
             this.logger.info('[ACPBridge] Found previous session from conversation metadata', { sessionId: sid, conversationId: conv.id });
             return sid;
@@ -850,7 +992,7 @@ export class ACPConnection {
   }
 
   private cleanup(): void {
-    for (const [, term] of this.terminals) {
+    for (const [, term] of Array.from(this.terminals)) {
       term.process.kill();
     }
     this.terminals.clear();

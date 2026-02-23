@@ -2,6 +2,9 @@ import { readdir, readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync, createReadStream } from 'fs';
 import { join } from 'path';
 import { createInterface } from 'readline';
+import { createPinoLogger } from '@voltagent/logger';
+
+const logger = createPinoLogger({ name: 'usage-aggregator' });
 
 export interface UsageStats {
   lifetime: {
@@ -166,7 +169,7 @@ export class UsageAggregator {
         defaultModel = appConfig.defaultModel || 'unknown';
       }
     } catch (error) {
-      console.error('Failed to load app config:', error);
+      logger.error('Failed to load app config', { error });
     }
 
     for (const agent of agents) {
@@ -182,7 +185,7 @@ export class UsageAggregator {
           agentModel = agentSpec.model || defaultModel;
         }
       } catch (error) {
-        console.error(`Failed to load agent spec for ${agentSlug}:`, error);
+        logger.error('Failed to load agent spec', { agentSlug, error });
       }
 
       const sessionsDir = join(agentsDir, agentSlug, 'memory', 'sessions');
@@ -243,7 +246,7 @@ export class UsageAggregator {
               currentStats.byAgent[agentSlug].cost += usage.estimatedCost || 0;
             }
           } catch (error) {
-            console.error(`Failed to parse message in ${file}:`, error);
+            logger.error('Failed to parse message', { file, error });
           }
         }
       }

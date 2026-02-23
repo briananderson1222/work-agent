@@ -248,7 +248,7 @@ function App() {
     
     setAuthCallback(authCallback);
     // Also expose globally for SDK
-    (globalThis as any).authCallback = authCallback;
+    (globalThis as typeof globalThis & { authCallback?: () => Promise<boolean> }).authCallback = authCallback;
   }, []);
 
   const handlePinSubmit = async (pin: string) => {

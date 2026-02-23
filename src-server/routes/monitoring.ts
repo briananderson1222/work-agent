@@ -8,6 +8,11 @@ import type { Agent } from '@voltagent/core';
 import type { EventEmitter } from 'events';
 import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
 
+// Type extensions for monitoring routes
+interface ModelWithId {
+  modelId?: string;
+}
+
 export interface MonitoringDeps {
   activeAgents: Map<string, Agent>;
   agentStats: Map<string, { conversationCount: number; messageCount: number; lastUpdated: number }>;
@@ -49,7 +54,7 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
 
           const modelId = typeof agent.model === 'string' 
             ? agent.model 
-            : (agent.model as any)?.modelId || 'unknown';
+            : (agent.model as ModelWithId)?.modelId || 'unknown';
 
           return {
             slug,

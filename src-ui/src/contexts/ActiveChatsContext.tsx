@@ -651,7 +651,7 @@ export function useCancelMessage() {
     
     if (state?.abortController && state?.status === 'sending') {
       // Mark as user-initiated cancel before aborting
-      (state.abortController as any)._userInitiated = true;
+      (state.abortController as AbortController & { _userInitiated?: boolean })._userInitiated = true;
       state.abortController.abort('User cancelled');
       
       // Backend will detect the abort and remove incomplete response from memory

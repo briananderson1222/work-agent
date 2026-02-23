@@ -10,8 +10,8 @@ export function EventRouter({ children }: { children: ReactNode }) {
       events.emit(event.type, event.detail);
     };
 
-    window.addEventListener('core:event' as any, handleCoreEvent);
-    return () => window.removeEventListener('core:event' as any, handleCoreEvent);
+    window.addEventListener('core:event', handleCoreEvent);
+    return () => window.removeEventListener('core:event', handleCoreEvent);
   }, [events]);
 
   return <>{children}</>;

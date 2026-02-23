@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useCalendarEvents, useMeetingDetails, outlookProvider } from './data';
-import type { CalendarEvent, MeetingDetails } from './Calendar';
+import type { CalendarEvent, MeetingDetails } from './calendar-utils';
 
 function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
   const today = new Date().toISOString().split('T')[0];

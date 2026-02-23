@@ -26,8 +26,9 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
     const chats = activeChatsStore.getSnapshot();
     const usedSlugs = new Set<string>();
     for (const chat of Object.values(chats)) {
-      const c = chat as any;
-      if (c.agentSlug && c.messages?.length > 0) usedSlugs.add(c.agentSlug);
+      if (chat.agentSlug && chat.messages?.length && chat.messages.length > 0) {
+        usedSlugs.add(chat.agentSlug);
+      }
     }
 
     acp.sort((a, b) => {

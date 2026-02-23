@@ -55,7 +55,7 @@ export function UsageStatsPanel() {
   const avgCostPerMessage = lifetime.totalMessages > 0 ? lifetime.totalCost / lifetime.totalMessages : 0;
   
   // Backward compatibility: old stats use totalSessions, new use totalConversations
-  const totalConversations = (lifetime as any).totalConversations ?? (lifetime as any).totalSessions ?? 0;
+  const totalConversations = (lifetime as typeof lifetime & { totalConversations?: number; totalSessions?: number }).totalConversations ?? (lifetime as typeof lifetime & { totalConversations?: number; totalSessions?: number }).totalSessions ?? 0;
 
   return (
     <div className="usage-stats-panel">

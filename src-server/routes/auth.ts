@@ -3,6 +3,24 @@ import { stat, writeFile } from 'fs/promises';
 import { homedir, tmpdir, userInfo as osUserInfo } from 'os';
 import { join } from 'path';
 import { execFile } from 'child_process';
+import { createPinoLogger } from '@voltagent/logger';
+
+const logger = createPinoLogger({ name: 'auth' });
+
+// Type extensions for auth routes
+interface AgentResponse {
+  data?: Array<{
+    slug: string;
+    toolsConfig?: {
+      mcpServers?: string[];
+    };
+  }>;
+}
+
+interface ToolCallResponse {
+  success: boolean;
+  response?: any;
+}
 
 const COOKIE_PATH = join(homedir(), '.midway', 'cookie');
 const COOKIE_LIFETIME_MS = 12 * 60 * 60 * 1000;
@@ -40,7 +58,7 @@ async function getUser(): Promise<UserIdentity> {
   if (cachedUser) return cachedUser;
   cachedUser = baseUser();
   // Async enrichment — don't block the response
-  enrichUser(cachedUser).catch((e) => console.error('[auth] enrichUser failed:', e));
+  enrichUser(cachedUser).catch((e) => logger.error('enrichUser failed', { error: e }));
   return cachedUser;
 }
 
@@ -52,8 +70,8 @@ async function enrichUser(user: UserIdentity): Promise<void> {
   try {
     // Find a workspace agent that has sat-sfdc tools
     const agentsRes = await fetch(`${base}/api/agents`);
-    const { data: agents } = await agentsRes.json() as any;
-    const agent = agents?.find((a: any) => a.toolsConfig?.mcpServers?.includes('sat-sfdc'));
+    const { data: agents } = await agentsRes.json() as AgentResponse;
+    const agent = agents?.find((a) => a.toolsConfig?.mcpServers?.includes('sat-sfdc'));
     if (!agent) return;
 
     const slug = encodeURIComponent(agent.slug);
@@ -63,7 +81,7 @@ async function enrichUser(user: UserIdentity): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolArgs: args, transform }),
       });
-      const d = await r.json() as any;
+      const d = await r.json() as ToolCallResponse;
       return d.success ? d.response : null;
     };
 

@@ -8,6 +8,39 @@ import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 
+// Type extensions for conversation manager
+interface ConversationMetadata {
+  stats?: ConversationStats;
+  modelStats?: Record<string, any>;
+}
+
+interface ConversationStats {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  contextTokens?: number;
+  turns: number;
+  toolCalls: number;
+  estimatedCost: number;
+  tokenBreakdown?: {
+    userMessageTokens?: number;
+    assistantMessageTokens?: number;
+    systemPromptTokens?: number;
+    mcpServerTokens?: number;
+  };
+}
+
+interface ConversationWithMetadata {
+  metadata?: ConversationMetadata;
+  userId: string;
+}
+
+interface UserMessage {
+  id: string;
+  role: 'user';
+  parts: Array<{ type: 'text'; text: string }>;
+}
+
 /**
  * Extract userId from conversationId format: agent:<slug>:user:<id>:timestamp:random
  */
@@ -98,7 +131,7 @@ export async function getConversationStats(
     };
   }
 
-  const stats: ConversationStats = (conversation.metadata as any)?.stats || {
+  const stats: ConversationStats = (conversation as ConversationWithMetadata).metadata?.stats || {
     inputTokens: 0,
     outputTokens: 0,
     totalTokens: 0,
@@ -107,7 +140,7 @@ export async function getConversationStats(
     estimatedCost: 0,
   };
 
-  const modelStats = (conversation.metadata as any)?.modelStats || {};
+  const modelStats = (conversation as ConversationWithMetadata).metadata?.modelStats || {};
   
   const contextWindowPercentage = calculateContextWindowPercentage(modelId, stats.contextTokens || stats.totalTokens);
 
@@ -187,7 +220,7 @@ export async function manageConversationContext(
           id: crypto.randomUUID(),
           role: 'user',
           parts: [{ type: 'text', text: `[SYSTEM_EVENT] ${content}` }]
-        } as any,
+        } as UserMessage,
         `agent:${slug}`,
         conversationId
       );

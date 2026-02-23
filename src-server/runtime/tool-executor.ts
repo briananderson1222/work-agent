@@ -11,6 +11,37 @@ import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memo
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import { parseToolName } from '../utils/tool-name-normalizer.js';
 
+// Type extensions for tool executor
+interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
+  description?: string;
+}
+
+interface ConversationStats {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  contextTokens: number;
+  turns: number;
+  toolCalls: number;
+  estimatedCost: number;
+  tokenBreakdown?: {
+    systemPromptTokens?: number;
+    mcpServerTokens?: number;
+    userMessageTokens?: number;
+    assistantMessageTokens?: number;
+  };
+}
+
+interface UIMessagePart {
+  type: string;
+  text?: string;
+}
+
+interface UIMessage {
+  role: string;
+  parts?: UIMessagePart[];
+}
+
 /**
  * Check if tool name matches any auto-approve pattern
  * Supports wildcards: "tool_*" matches "tool_read", "tool_write", etc.
@@ -75,7 +106,7 @@ export function wrapToolWithElicitation(
         const approved = await elicitation({
           type: 'tool-approval',
           toolName: tool.name,
-          toolDescription: (tool as any).description || '',
+          toolDescription: (tool as ToolWithDescription).description || '',
           toolArgs: args,
         });
 
@@ -184,7 +215,7 @@ export function createToolApprovalHooks(
         if (!usage) return;
 
         // Get existing stats or initialize
-        const existingStats = (conversation.metadata?.stats as any) || {
+        const existingStats = (conversation.metadata?.stats as ConversationStats) || {
           inputTokens: 0,
           outputTokens: 0,
           totalTokens: 0,
@@ -234,7 +265,7 @@ export function createToolApprovalHooks(
         let newUserMessageTokens = 0;
         if (latestUserMessage) {
           // UIMessage uses 'parts' array with text parts
-          const parts = (latestUserMessage as any).parts || [];
+          const parts = (latestUserMessage as UIMessage).parts || [];
           const content = parts
             .filter((p: any) => p.type === 'text')
             .map((p: any) => p.text || '')

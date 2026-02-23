@@ -696,7 +696,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
                   </label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as any)}
+                    onChange={(e) => setCategory(e.target.value as 'Highlight' | 'Lowlight' | 'Risk' | 'Observation' | 'Blocker' | 'Challenge')}
                     style={{
                       width: '100%',
                       padding: '0.5rem',

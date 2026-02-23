@@ -42,9 +42,9 @@ export class AgentService {
     return this.configLoader.listAgents();
   }
 
-  async getEnrichedAgents(coreAgents: any[]): Promise<EnrichedAgent[]> {
+  async getEnrichedAgents(coreAgents: Array<{ id: string; [key: string]: any }>): Promise<EnrichedAgent[]> {
     const enriched = await Promise.all(
-      coreAgents.map(async (agent: any) => {
+      coreAgents.map(async (agent: { id: string; [key: string]: any }) => {
         const metadata = this.agentMetadataMap.get(agent.id);
         if (!metadata) return null;
 
@@ -64,7 +64,7 @@ export class AgentService {
             commands: spec.commands,
             toolsConfig: spec.tools,
             updatedAt: metadata.updatedAt,
-          };
+          } as EnrichedAgent;
         } catch {
           this.logger.warn('Agent spec not found, skipping', { agent: metadata.slug });
           return null;
@@ -74,19 +74,19 @@ export class AgentService {
     return enriched.filter((a): a is EnrichedAgent => a !== null);
   }
 
-  async createAgent(body: any): Promise<{ slug: string; spec: AgentSpec }> {
-    const { slug, spec } = await this.configLoader.createAgent(body);
+  async createAgent(body: Record<string, any>): Promise<{ slug: string; spec: AgentSpec }> {
+    const { slug, spec } = await this.configLoader.createAgent(body as AgentSpec);
     return { slug, spec };
   }
 
-  async updateAgent(slug: string, updates: any): Promise<AgentSpec> {
+  async updateAgent(slug: string, updates: Record<string, any>): Promise<AgentSpec> {
     // Remove null values to allow unsetting optional fields
     const filtered = Object.entries(updates).reduce((acc, [key, value]) => {
       if (value !== null) {
         acc[key] = value;
       }
       return acc;
-    }, {} as any);
+    }, {} as Record<string, any>);
 
     return this.configLoader.updateAgent(slug, filtered);
   }

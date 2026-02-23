@@ -11,7 +11,7 @@ export class AgentsAPI {
 
     if (response.status === 401 || response.status === 403) {
       // Check if there's a global auth callback available
-      const authCallback = (globalThis as any).authCallback;
+      const authCallback = (globalThis as typeof globalThis & { authCallback?: () => Promise<boolean> }).authCallback;
       if (authCallback && typeof authCallback === 'function') {
         const success = await authCallback();
         if (success) {

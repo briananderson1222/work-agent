@@ -25,7 +25,7 @@ export const CONFIG_DEFAULTS = {
   region: 'us-east-1',
   userId: 'default-user', // Static userId until auth is implemented
   apiBase: typeof window !== 'undefined' 
-    ? (window as any).__API_BASE__ || (import.meta as any).env?.VITE_API_BASE || 'http://localhost:3141'
+    ? (window as Window & { __API_BASE__?: string }).__API_BASE__ || (import.meta as ImportMeta & { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE || 'http://localhost:3141'
     : 'http://localhost:3141',
 } as const;
 

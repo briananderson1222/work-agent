@@ -39,8 +39,9 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
   
   const [activeTab, setActiveTab] = useState<'general' | 'agents' | 'workspaces' | 'prompts' | 'notifications' | 'advanced' | 'debug'>(() => {
     const hash = window.location.hash.slice(1);
-    return (hash && ['general', 'agents', 'workspaces', 'prompts', 'notifications', 'advanced', 'debug'].includes(hash)) 
-      ? hash as any 
+    const validTabs = ['general', 'agents', 'workspaces', 'prompts', 'notifications', 'advanced', 'debug'] as const;
+    return (hash && validTabs.includes(hash as typeof validTabs[number])) 
+      ? hash as typeof validTabs[number]
       : 'general';
   });
   const [config, setConfig] = useState<AppConfig>(configData || {});
@@ -684,7 +685,7 @@ export function SettingsView({ apiBase, onBack, onSaved, onEditAgent, onCreateAg
                         value={variable.type}
                         onChange={(e) => {
                           const updated = [...(config.templateVariables || [])];
-                          updated[index] = { ...variable, type: e.target.value as any };
+                          updated[index] = { ...variable, type: e.target.value as 'static' | 'date' | 'time' | 'datetime' | 'custom' };
                           setConfig({ ...config, templateVariables: updated });
                         }}
                       >

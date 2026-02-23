@@ -48,13 +48,33 @@ export function useSessionManagementViewModel(agents: Agent[], enabled: boolean 
       if (!query.data) return;
       
       const agent = agents[index];
-      const agentConvos = query.data.map((conv: any) => ({
-        ...conv,
-        agentSlug: agent.slug,
-        agentName: agent.name,
-        agentSource: agent.source,
-        agentIcon: agent.icon,
-      }));
+      const agentConvos = query.data.map((conv: Conversation) => {
+        let agentType: 'acp' | 'workspace' | 'global' = 'global';
+        let agentLabel = agent.name;
+        let agentContext = '';
+
+        if (agent.source === 'acp') {
+          agentType = 'acp';
+          const dash = agent.slug.indexOf('-');
+          agentContext = dash > 0 ? agent.slug.substring(0, dash) : 'acp';
+          agentLabel = dash > 0 ? agent.slug.substring(dash + 1) : agent.name;
+        } else if (agent.slug.includes(':')) {
+          agentType = 'workspace';
+          const [ws, ag] = agent.slug.split(':', 2);
+          agentContext = ws;
+          agentLabel = ag || agent.name;
+        }
+
+        return {
+          ...conv,
+          agentSlug: agent.slug,
+          agentName: agent.name,
+          agentType,
+          agentLabel,
+          agentContext,
+          agentIcon: agent.icon,
+        };
+      });
       allConversations.push(...agentConvos);
     });
     

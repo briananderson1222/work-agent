@@ -16,6 +16,17 @@ import type { AgentSpec } from '../domain/types.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import { isAutoApproved } from './tool-executor.js';
 
+// Type extensions for stream orchestrator
+interface ToolApprovalRequestChunk {
+  type: 'tool-approval-request';
+  approvalId: string;
+  toolName: string;
+  server: string | null;
+  tool: string;
+  toolDescription: string;
+  toolArgs: any;
+}
+
 /**
  * Create elicitation callback for tool approval
  */
@@ -72,7 +83,7 @@ export function createElicitationCallback(
         tool,
         toolDescription: request.toolDescription,
         toolArgs: request.toolArgs,
-      } as any);
+      } as unknown as any);
       
       // Wait for user approval
       return approvalRegistry.register(approvalId);
