@@ -3,10 +3,45 @@
  */
 
 import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import type { SchedulerService } from '../services/scheduler-service.js';
 
 export function createSchedulerRoutes(schedulerService: SchedulerService, logger: any) {
   const app = new Hono();
+
+  // SSE endpoint for real-time job events
+  app.get('/events', (c) => {
+    return streamSSE(c, async (stream) => {
+      const unsub = schedulerService.subscribe((data) => {
+        stream.writeSSE({ data }).catch((e) => console.error('[scheduler] SSE write failed:', e));
+      });
+      // Keep alive
+      const keepAlive = setInterval(() => {
+        stream.writeSSE({ event: 'ping', data: '' }).catch((e) => console.error('[scheduler] SSE ping failed:', e));
+      }, 30_000);
+      // Wait until client disconnects
+      try {
+        await new Promise((_, reject) => {
+          stream.onAbort(() => reject(new Error('aborted')));
+        });
+      } catch { /* client disconnected */ }
+      clearInterval(keepAlive);
+      unsub();
+    });
+  });
+
+  // Webhook receiver (from boo)
+  app.post('/webhook', async (c) => {
+    try {
+      const event = await c.req.json();
+      logger.info('Scheduler webhook event', { event });
+      schedulerService.broadcast(event);
+      return c.json({ success: true });
+    } catch (error: any) {
+      logger.error('Webhook parse error', { error });
+      return c.json({ success: false, error: error.message }, 400);
+    }
+  });
 
   app.get('/jobs', async (c) => {
     try {
@@ -107,6 +142,24 @@ export function createSchedulerRoutes(schedulerService: SchedulerService, logger
       return c.json({ success: true });
     } catch (error: any) {
       logger.error('Failed to remove job', { error });
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
+  // Open a file with the system default handler
+  app.post('/open', async (c) => {
+    try {
+      const { path: filePath } = await c.req.json();
+      if (!filePath || typeof filePath !== 'string') {
+        return c.json({ success: false, error: 'path required' }, 400);
+      }
+      const { execFile } = await import('node:child_process');
+      const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+      execFile(cmd, [filePath], (err) => {
+        if (err) logger.error('Failed to open file', { error: err });
+      });
+      return c.json({ success: true });
+    } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
     }
   });

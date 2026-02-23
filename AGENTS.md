@@ -26,6 +26,27 @@ When working on this codebase:
 
 ## Quick Reference
 
+### Data Layer Architecture
+
+All workspace data flows through typed abstractions:
+
+```
+Provider Interface (contract)  →  Provider Impl (tool calls)  →  ViewModel (UI shape)
+  ICalendarProvider                 outlook.ts                    CalendarEventVM
+  ICRMProvider                      salesforce.ts                 AccountVM, OpportunityVM
+  ISiftProvider                     sift.ts                       InsightVM
+  IEmailProvider                    outlook-email.ts              EmailVM
+  IInternalProvider                 builder.ts                    PersonVM
+```
+
+**Rules:**
+- Components consume **ViewModels only** — never raw API/tool responses
+- Provider implementations map raw responses to ViewModels via mapper functions (e.g., `mapAccount`, `mapInsight`)
+- Hooks in `data/index.ts` wrap providers with React Query — components use hooks, not providers directly
+- **No `as any` in new code** — use proper ViewModel types. Existing `any` usage in Calendar.tsx, CRM.tsx, StallionContext.tsx is tech debt to be migrated
+- Core app (`src-ui/src/`) never imports from workspace providers — use SDK abstractions (`useAuth`, `useNavigation`, etc.)
+- The CRM page has a legacy local `Account` type that should be migrated to `AccountVM`
+
 ### Core Boundaries
 
 | Location | Contents |
@@ -35,6 +56,32 @@ When working on this codebase:
 | `examples/*/` | Plugins: Components, ViewModels, styles |
 
 **Key rule**: Plugins import from `@stallion-ai/sdk` only.
+
+### Cross-Tab Navigation
+
+Plugins must use SDK hooks for navigating between workspace tabs — never use raw `sessionStorage`, `window.history.pushState`, or `window.dispatchEvent` directly.
+
+```typescript
+import { useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
+
+const nav = useNavigation();
+const { setTabState, getTabState } = useWorkspaceNavigation();
+
+// Navigate to another tab with state:
+setTabState('crm', 'selectedAccount=<id>');       // write state for target tab
+nav.setWorkspaceTab('stallion', 'crm');            // navigate to tab
+
+// Read state on the receiving tab:
+const state = getTabState('crm');                  // read in useEffect([activeTab])
+const params = new URLSearchParams(state);
+const accountId = params.get('selectedAccount');
+```
+
+**Rules:**
+- `setTabState(tabId, state)` writes to sessionStorage + syncs URL hash
+- `setWorkspaceTab(workspaceSlug, tabId)` handles client-side URL navigation
+- Receiving tab reads state via `getTabState(tabId)` in a `useEffect` triggered by `activeTab`
+- State format is URL search params string (e.g., `'event=abc&date=2026-01-01'`)
 
 ### Agent Configuration
 

@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useToast, useWorkspaceNavigation, Button, Pill, useSendToChat } from '@stallion-ai/sdk';
+import { useToast, useWorkspaceNavigation, useSendToChat, invokeAgent } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { LeadershipInsightModal } from './LeadershipInsightModal';
 import { salesforceProvider } from './data';
-import { CRM_BASE_URL } from './constants';
+import { useCRMData } from './useCRMData';
+import { useCRMFilters } from './useCRMFilters';
+import { FilterBar } from './FilterBar';
+import { AccountList } from './AccountList';
+import { AccountDetail } from './AccountDetail';
+import { OpportunityModal } from './OpportunityModal';
 import './workspace.css';
 
 // Feature flags
@@ -510,7 +515,7 @@ export function CRM({ activeTab }: CRMProps) {
       const [oppsVMs, tasksVMs] = await Promise.all([
         salesforceProvider.getAccountOpportunities(account.id).finally(() => setLoadingOpportunities(false)),
         userDetails?.sfdcId 
-          ? salesforceProvider.getUserTasks(userDetails.sfdcId, { accountId: account.id }).finally(() => setLoadingTasks(false)) 
+          ? salesforceProvider.getUserTasks(userDetails.sfdcId, { accountId: account.id, limit: 25 }).then(r => r.tasks).finally(() => setLoadingTasks(false)) 
           : Promise.resolve([])
       ]);
 
@@ -553,17 +558,14 @@ export function CRM({ activeTab }: CRMProps) {
 
   // Auto-load on mount - restore selected account only
 
-  // Restore selectedAccount from URL hash (e.g., deep link from Portfolio)
-  const restoredAccountRef = useRef(false);
+  // Deep link: restore selectedAccount from tab state
   useEffect(() => {
-    if (restoredAccountRef.current || selectedAccount) return;
-    const hash = window.location.hash.slice(1);
-    if (!hash) return;
-    const params = new URLSearchParams(hash);
+    const storedState = getTabState('crm');
+    if (!storedState) return;
+    const params = new URLSearchParams(storedState);
     const accountId = params.get('selectedAccount');
-    if (!accountId) return;
+    if (!accountId || selectedAccount?.id === accountId) return;
     
-    restoredAccountRef.current = true;
     salesforceProvider.getAccountDetails(accountId).then(details => {
       const account = {
         id: details.id,
@@ -575,7 +577,7 @@ export function CRM({ activeTab }: CRMProps) {
       } as Account;
       loadAccountDetails(account);
     }).catch(() => {});
-  }, []);
+  }, [activeTab]);
 
   const handleRefresh = async () => {
     // Clear opportunity and task caches
@@ -681,115 +683,69 @@ export function CRM({ activeTab }: CRMProps) {
     <>
       {/* Create Opportunity Modal */}
       {showCreateOppModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }} onClick={() => setShowCreateOppModal(false)}>
-          <div style={{
-            background: 'var(--color-bg)',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            width: '500px',
-            maxWidth: '90vw',
-            border: '1px solid var(--color-border)'
-          }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, color: 'var(--color-text)' }}>Create Opportunity</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--color-text)' }}>Name *</label>
-                <input
-                  type="text"
-                  value={oppFormData.name}
-                  onChange={(e) => setOppFormData({...oppFormData, name: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '4px',
-                    background: 'var(--color-bg)',
-                    color: 'var(--color-text)',
-                    fontSize: '0.875rem'
-                  }}
-                />
+        <div className="crm-modal-overlay" onClick={() => setShowCreateOppModal(false)}>
+          <div className="crm-modal-content crm-modal-content--sm" onClick={(e) => e.stopPropagation()}>
+            <div className="crm-modal-header">
+              <h3 className="crm-modal-title">Create Opportunity</h3>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              <div className="crm-form-group">
+                <div className="crm-form-field">
+                  <label className="crm-form-label crm-form-label--required">Name</label>
+                  <input
+                    type="text"
+                    value={oppFormData.name}
+                    onChange={(e) => setOppFormData({...oppFormData, name: e.target.value})}
+                    className="crm-form-input"
+                  />
+                </div>
+                <div className="crm-form-field">
+                  <label className="crm-form-label crm-form-label--required">Stage</label>
+                  <select
+                    value={oppFormData.stageName}
+                    onChange={(e) => setOppFormData({...oppFormData, stageName: e.target.value})}
+                    className="crm-form-input"
+                  >
+                    <option>Prospecting</option>
+                    <option>Qualification</option>
+                    <option>Proposal</option>
+                    <option>Negotiation</option>
+                    <option>Closed Won</option>
+                    <option>Closed Lost</option>
+                  </select>
+                </div>
+                <div className="crm-form-field">
+                  <label className="crm-form-label crm-form-label--required">Close Date</label>
+                  <input
+                    type="date"
+                    value={oppFormData.closeDate}
+                    onChange={(e) => setOppFormData({...oppFormData, closeDate: e.target.value})}
+                    className="crm-form-input"
+                  />
+                </div>
+                <div className="crm-form-field">
+                  <label className="crm-form-label">Amount</label>
+                  <input
+                    type="number"
+                    value={oppFormData.amount}
+                    onChange={(e) => setOppFormData({...oppFormData, amount: e.target.value})}
+                    className="crm-form-input"
+                  />
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--color-text)' }}>Stage *</label>
-                <select
-                  value={oppFormData.stageName}
-                  onChange={(e) => setOppFormData({...oppFormData, stageName: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '4px',
-                    background: 'var(--color-bg)',
-                    color: 'var(--color-text)',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  <option>Prospecting</option>
-                  <option>Qualification</option>
-                  <option>Proposal</option>
-                  <option>Negotiation</option>
-                  <option>Closed Won</option>
-                  <option>Closed Lost</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--color-text)' }}>Close Date *</label>
-                <input
-                  type="date"
-                  value={oppFormData.closeDate}
-                  onChange={(e) => setOppFormData({...oppFormData, closeDate: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '4px',
-                    background: 'var(--color-bg)',
-                    color: 'var(--color-text)',
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: 'var(--color-text)' }}>Amount</label>
-                <input
-                  type="number"
-                  value={oppFormData.amount}
-                  onChange={(e) => setOppFormData({...oppFormData, amount: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '4px',
-                    background: 'var(--color-bg)',
-                    color: 'var(--color-text)',
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                <Button variant="ghost" onClick={() => setShowCreateOppModal(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={handleCreateOpportunity}
-                  disabled={!oppFormData.name || !oppFormData.closeDate}
-                  loading={loading}
-                >
-                  Create
-                </Button>
-              </div>
+            </div>
+            <div className="crm-form-actions">
+              <Button variant="ghost" onClick={() => setShowCreateOppModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleCreateOpportunity}
+                disabled={!oppFormData.name || !oppFormData.closeDate}
+                loading={loading}
+              >
+                Create
+              </Button>
             </div>
           </div>
         </div>
@@ -797,49 +753,20 @@ export function CRM({ activeTab }: CRMProps) {
 
       {/* Log SA Activity Modal */}
       {showLogActivityModal && selectedOpportunity && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          backdropFilter: 'blur(4px)'
-        }} onClick={() => setShowLogActivityModal(false)}>
-          <div style={{
-            background: 'var(--bg-primary)',
-            borderRadius: '12px',
-            width: '600px',
-            maxWidth: '90vw',
-            maxHeight: '90vh',
-            overflow: 'auto',
-            border: '1px solid var(--border-primary)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-          }} onClick={(e) => e.stopPropagation()}>
+        <div className="crm-modal-overlay" onClick={() => setShowLogActivityModal(false)}>
+          <div className="crm-modal-content" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div style={{
-              padding: '1.5rem',
-              borderBottom: '1px solid var(--border-primary)',
-              background: 'var(--bg-secondary)'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <div className="crm-modal-header">
+              <h3 className="crm-modal-title">
                 Log SA Activity
               </h3>
             </div>
 
             {/* Context Section */}
-            <div style={{
-              padding: '1.5rem',
-              background: 'var(--bg-tertiary)',
-              borderBottom: '1px solid var(--border-primary)'
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem' }}>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Account:</span>
+            <div className="crm-detail-section">
+              <div className="crm-context-section">
+                <div className="crm-context-row">
+                  <span className="crm-context-label">Account:</span>
                   <button
                     onClick={() => {
                       setSelectedOpportunity(null);
@@ -859,99 +786,76 @@ export function CRM({ activeTab }: CRMProps) {
                     {selectedAccount?.name}
                   </button>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Opportunity:</span>
-                  <span style={{ color: 'var(--text-primary)' }}>{selectedOpportunity.name}</span>
+                <div className="crm-context-row">
+                  <span className="crm-context-label">Opportunity:</span>
+                  <span className="crm-context-value">{selectedOpportunity.name}</span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Stage:</span>
-                  <span style={{ color: 'var(--text-primary)' }}>{selectedOpportunity.stageName}</span>
+                <div className="crm-context-row">
+                  <span className="crm-context-label">Stage:</span>
+                  <span className="crm-context-value">{selectedOpportunity.stageName}</span>
                 </div>
               </div>
             </div>
 
             {/* Form */}
-            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                  Subject <span style={{ color: 'var(--color-error)' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  value={activityFormData.subject}
-                  onChange={(e) => setActivityFormData({...activityFormData, subject: e.target.value})}
-                  placeholder="Brief summary of the activity"
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid var(--border-primary)',
-                    borderRadius: '6px',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                  SA Activity <span style={{ color: 'var(--color-error)' }}>*</span>
-                </label>
-                <select
-                  value={activityFormData.saActivity}
-                  onChange={(e) => setActivityFormData({...activityFormData, saActivity: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid var(--border-primary)',
-                    borderRadius: '6px',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  <option value="">Select activity type...</option>
-                  <option>Architecture Review [Architecture]</option>
-                  <option>Demo [Architecture]</option>
-                  <option>Prototype/PoC/Pilot [Architecture]</option>
-                  <option>Well Architected [Architecture]</option>
-                  <option>Meeting / Office Hours [Management]</option>
-                  <option>Account Planning [Management]</option>
-                  <option>Immersion Day [Workshops]</option>
-                  <option>GameDay [Workshops]</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                  Activity Date <span style={{ color: 'var(--color-error)' }}>*</span>
-                </label>
-                <input
-                  type="date"
-                  value={activityFormData.activityDate}
-                  onChange={(e) => setActivityFormData({...activityFormData, activityDate: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid var(--border-primary)',
-                    borderRadius: '6px',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                    Description
+            <div style={{ padding: '1.5rem' }}>
+              <div className="crm-form-group">
+                <div className="crm-form-field">
+                  <label className="crm-form-label crm-form-label--required">
+                    Subject
                   </label>
-                  <button
-                    onClick={async () => {
-                      setIsGeneratingAi(true);
-                      try {
-                        const prompt = `Generate a professional activity description for this SA activity:
+                  <input
+                    type="text"
+                    value={activityFormData.subject}
+                    onChange={(e) => setActivityFormData({...activityFormData, subject: e.target.value})}
+                    placeholder="Brief summary of the activity"
+                    className="crm-form-input"
+                  />
+                </div>
+
+                <div className="crm-form-field">
+                  <label className="crm-form-label crm-form-label--required">
+                    SA Activity
+                  </label>
+                  <select
+                    value={activityFormData.saActivity}
+                    onChange={(e) => setActivityFormData({...activityFormData, saActivity: e.target.value})}
+                    className="crm-form-input"
+                  >
+                    <option value="">Select activity type...</option>
+                    <option>Architecture Review [Architecture]</option>
+                    <option>Demo [Architecture]</option>
+                    <option>Prototype/PoC/Pilot [Architecture]</option>
+                    <option>Well Architected [Architecture]</option>
+                    <option>Meeting / Office Hours [Management]</option>
+                    <option>Account Planning [Management]</option>
+                    <option>Immersion Day [Workshops]</option>
+                    <option>GameDay [Workshops]</option>
+                  </select>
+                </div>
+
+                <div className="crm-form-field">
+                  <label className="crm-form-label crm-form-label--required">
+                    Activity Date
+                  </label>
+                  <input
+                    type="date"
+                    value={activityFormData.activityDate}
+                    onChange={(e) => setActivityFormData({...activityFormData, activityDate: e.target.value})}
+                    className="crm-form-input"
+                  />
+                </div>
+
+                <div className="crm-form-field">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label className="crm-form-label">
+                      Description
+                    </label>
+                    <button
+                      onClick={async () => {
+                        setIsGeneratingAi(true);
+                        try {
+                          const prompt = `Generate a professional activity description for this SA activity:
 Subject: ${activityFormData.subject || 'Not provided'}
 Activity Type: ${activityFormData.saActivity || 'Not provided'}
 Account: ${selectedAccount?.name}
@@ -959,60 +863,35 @@ Opportunity: ${selectedOpportunity.name}
 ${activityFormData.description ? `Current description: ${activityFormData.description}` : ''}
 
 Provide a concise, professional description (2-3 sentences) suitable for Salesforce activity logging.`;
-                        
-                        const data = await invokeAgent('work-agent', prompt);
-                        setAiGeneratedText(data.output);
-                        setShowAiPreview(true);
-                      } catch (error) {
-                        showToast('Failed to generate description', 'error');
-                      } finally {
-                        setIsGeneratingAi(false);
-                      }
-                    }}
-                    disabled={isGeneratingAi || !activityFormData.subject}
-                    style={{
-                      padding: '0.375rem 0.75rem',
-                      fontSize: '0.75rem',
-                      border: '1px solid var(--border-primary)',
-                      borderRadius: '4px',
-                      background: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      cursor: isGeneratingAi || !activityFormData.subject ? 'not-allowed' : 'pointer',
-                      opacity: isGeneratingAi || !activityFormData.subject ? 0.5 : 1
-                    }}
-                  >
-                    {isGeneratingAi ? '✨ Generating...' : '✨ AI Assist'}
-                  </button>
+                          
+                          const data = await invokeAgent('work-agent', prompt);
+                          setAiGeneratedText(data.output);
+                          setShowAiPreview(true);
+                        } catch (error) {
+                          showToast('Failed to generate description', 'error');
+                        } finally {
+                          setIsGeneratingAi(false);
+                        }
+                      }}
+                      disabled={isGeneratingAi || !activityFormData.subject}
+                      className="crm-ai-assist-btn"
+                    >
+                      {isGeneratingAi ? '✨ Generating...' : '✨ AI Assist'}
+                    </button>
+                  </div>
+                  <textarea
+                    value={activityFormData.description}
+                    onChange={(e) => setActivityFormData({...activityFormData, description: e.target.value})}
+                    rows={4}
+                    placeholder="Detailed description of the activity and outcomes"
+                    className="crm-form-textarea"
+                  />
                 </div>
-                <textarea
-                  value={activityFormData.description}
-                  onChange={(e) => setActivityFormData({...activityFormData, description: e.target.value})}
-                  rows={4}
-                  placeholder="Detailed description of the activity and outcomes"
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid var(--border-primary)',
-                    borderRadius: '6px',
-                    resize: 'vertical',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                    fontFamily: 'inherit'
-                  }}
-                />
               </div>
             </div>
 
             {/* Footer */}
-            <div style={{
-              padding: '1.5rem',
-              borderTop: '1px solid var(--border-primary)',
-              display: 'flex',
-              gap: '0.75rem',
-              justifyContent: 'flex-end',
-              background: 'var(--bg-secondary)'
-            }}>
+            <div className="crm-form-actions">
               <Button variant="ghost" onClick={() => setShowLogActivityModal(false)}>
                 Cancel
               </Button>
@@ -1052,33 +931,10 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
 
       {/* AI Preview Modal */}
       {showAiPreview && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1001,
-          backdropFilter: 'blur(4px)'
-        }} onClick={() => setShowAiPreview(false)}>
-          <div style={{
-            background: 'var(--bg-primary)',
-            borderRadius: '12px',
-            width: '500px',
-            maxWidth: '90vw',
-            border: '1px solid var(--border-primary)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-          }} onClick={(e) => e.stopPropagation()}>
-            <div style={{
-              padding: '1.5rem',
-              borderBottom: '1px solid var(--border-primary)',
-              background: 'var(--bg-secondary)'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+        <div className="crm-modal-overlay" onClick={() => setShowAiPreview(false)}>
+          <div className="crm-modal-content crm-modal-content--sm" onClick={(e) => e.stopPropagation()}>
+            <div className="crm-modal-header">
+              <h3 className="crm-modal-title crm-modal-title--sm">
                 AI Generated Description
               </h3>
             </div>
@@ -1087,30 +943,13 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                 value={aiGeneratedText}
                 onChange={(e) => setAiGeneratedText(e.target.value)}
                 rows={6}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid var(--border-primary)',
-                  borderRadius: '6px',
-                  resize: 'vertical',
-                  background: 'var(--bg-primary)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.875rem',
-                  fontFamily: 'inherit'
-                }}
+                className="crm-form-textarea"
               />
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: 0 }}>
+              <p className="crm-form-help-text">
                 Review and edit the generated text before applying
               </p>
             </div>
-            <div style={{
-              padding: '1.5rem',
-              borderTop: '1px solid var(--border-primary)',
-              display: 'flex',
-              gap: '0.75rem',
-              justifyContent: 'flex-end',
-              background: 'var(--bg-secondary)'
-            }}>
+            <div className="crm-form-actions">
               <Button variant="ghost" onClick={() => setShowAiPreview(false)}>
                 Cancel
               </Button>
@@ -1382,7 +1221,7 @@ Existing insights: [count] insights already created
                       fontSize: '0.75rem',
                       border: '1px solid var(--color-border)',
                       borderRadius: '6px',
-                      background: searchType === 'territory' ? '#198754' : 'var(--color-bg)',
+                      background: searchType === 'territory' ? 'var(--success-text)' : 'var(--color-bg)',
                       color: searchType === 'territory' ? 'white' : 'var(--color-text-primary)',
                       cursor: 'pointer',
                       fontWeight: searchType === 'territory' ? 600 : 400
@@ -1486,9 +1325,9 @@ Existing insights: [count] insights already created
               <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                 {activeFilters.map((filter, idx) => {
                   const getFilterColor = () => {
-                    if (filter.type === 'error') return '#dc3545';
-                    if (filter.type === 'owner') return '#0d6efd';
-                    if (filter.type === 'territory') return '#198754';
+                    if (filter.type === 'error') return 'var(--error-text)';
+                    if (filter.type === 'owner') return 'var(--accent-primary)';
+                    if (filter.type === 'territory') return 'var(--success-text)';
                     return 'var(--color-primary)';
                   };
                   
@@ -1608,7 +1447,7 @@ Existing insights: [count] insights already created
                         padding: '2px 6px',
                         borderRadius: '8px',
                         background: 'var(--color-primary)',
-                        color: '#fff'
+                        color: 'var(--text-inverted)'
                       }}>
                         Name: "{nameFilter}"
                         <button
@@ -1635,7 +1474,7 @@ Existing insights: [count] insights already created
                         padding: '2px 6px',
                         borderRadius: '8px',
                         background: 'var(--color-primary)',
-                        color: '#fff'
+                        color: 'var(--text-inverted)'
                       }}>
                         {geo}
                       </span>
@@ -1646,7 +1485,7 @@ Existing insights: [count] insights already created
                         padding: '2px 6px',
                         borderRadius: '8px',
                         background: 'var(--color-success)',
-                        color: '#fff'
+                        color: 'var(--text-inverted)'
                       }}>
                         {size}
                       </span>
@@ -1694,7 +1533,7 @@ Existing insights: [count] insights already created
                               style={{ 
                                 padding: '0.25rem 0.5rem',
                                 background: selectedGeos.has(geo) ? 'var(--color-primary)' : 'var(--color-bg)',
-                                color: selectedGeos.has(geo) ? '#fff' : 'var(--color-text)',
+                                color: selectedGeos.has(geo) ? 'white' : 'var(--color-text)',
                                 borderRadius: '8px',
                                 cursor: 'pointer',
                                 fontSize: '0.75rem',
@@ -1729,7 +1568,7 @@ Existing insights: [count] insights already created
                               style={{ 
                                 padding: '0.25rem 0.5rem',
                                 background: selectedSizes.has(size) ? 'var(--color-success)' : 'var(--color-bg)',
-                                color: selectedSizes.has(size) ? '#fff' : 'var(--color-text)',
+                                color: selectedSizes.has(size) ? 'white' : 'var(--color-text)',
                                 borderRadius: '8px',
                                 cursor: 'pointer',
                                 fontSize: '0.75rem',
@@ -1762,7 +1601,7 @@ Existing insights: [count] insights already created
               <div className="workspace-dashboard__loading">Loading...</div>
             )}
             {searchError && (
-              <div className="workspace-dashboard__loading" style={{ color: 'var(--color-error, #ef4444)', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border)' }}>
+              <div className="workspace-dashboard__loading" style={{ color: 'var(--color-error)', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border)' }}>
                 {searchError}
               </div>
             )}
@@ -1790,8 +1629,8 @@ Existing insights: [count] insights already created
                   <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
                     {account._sources?.map((source, idx) => {
                       const getSourceColor = () => {
-                        if (source.type === 'owner') return '#0d6efd';
-                        if (source.type === 'territory') return '#198754';
+                        if (source.type === 'owner') return 'var(--color-primary)';
+                        if (source.type === 'territory') return 'var(--color-success)';
                         return 'var(--color-primary)';
                       };
                       
@@ -1834,8 +1673,8 @@ Existing insights: [count] insights already created
                         padding: '2px 6px',
                         borderRadius: '12px',
                         background: 'transparent',
-                        color: '#6c757d',
-                        border: '1px solid #6c757d',
+                        color: 'var(--color-text-secondary)',
+                        border: '1px solid var(--color-text-secondary)',
                         fontWeight: 500
                       }}>
                         {account.geo_Text__c}
@@ -1847,8 +1686,8 @@ Existing insights: [count] insights already created
                         padding: '2px 6px',
                         borderRadius: '12px',
                         background: 'transparent',
-                        color: '#6c757d',
-                        border: '1px solid #6c757d',
+                        color: 'var(--text-tertiary)',
+                        border: '1px solid var(--text-tertiary)',
                         fontWeight: 500
                       }}>
                         {account.awsci_customer.customerRevenue.tShirtSize}

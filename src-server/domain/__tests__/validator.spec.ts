@@ -83,8 +83,8 @@ describe('ConfigLoader workflow metadata', () => {
     const workflows = await loader.listAgentWorkflows('example');
 
     expect(workflows).toEqual([
-      { id: 'existing.ts', label: 'Existing' },
-      { id: 'second-workflow.js', label: 'Second Workflow' },
+      expect.objectContaining({ id: 'existing.ts', label: 'Existing', filename: 'existing.ts' }),
+      expect.objectContaining({ id: 'second-workflow.js', label: 'Second Workflow', filename: 'second-workflow.js' }),
     ]);
   });
 

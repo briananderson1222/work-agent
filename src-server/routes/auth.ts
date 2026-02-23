@@ -40,7 +40,7 @@ async function getUser(): Promise<UserIdentity> {
   if (cachedUser) return cachedUser;
   cachedUser = baseUser();
   // Async enrichment — don't block the response
-  enrichUser(cachedUser).catch(() => {});
+  enrichUser(cachedUser).catch((e) => console.error('[auth] enrichUser failed:', e));
   return cachedUser;
 }
 
@@ -162,13 +162,9 @@ export function createAuthRoutes() {
   });
 
   app.post('/terminal', async (c) => {
-    const { command } = await c.req.json();
-    if (!command || typeof command !== 'string') {
-      return c.json({ success: false, error: 'command required' }, 400);
-    }
     try {
-      await openTerminal(command);
-      return c.json({ success: true, message: 'Terminal opened' });
+      await openTerminal('mwinit -o');
+      return c.json({ success: true, message: 'Terminal opened with mwinit -o' });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
     }

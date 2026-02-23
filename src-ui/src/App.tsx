@@ -68,6 +68,7 @@ function App() {
     if (path === '/prompts') return { type: 'prompts' };
     if (path === '/integrations') return { type: 'integrations' };
     if (path === '/monitoring') return { type: 'monitoring' };
+    if (path === '/schedule') return { type: 'schedule' };
     if (path === '/profile') return { type: 'profile' };
     if (path === '/notifications') return { type: 'notifications' };
     if (path === '/settings') return { type: 'settings' };
@@ -117,6 +118,9 @@ function App() {
         return;
       } else if (path === '/monitoring') {
         setCurrentView({ type: 'monitoring' });
+        return;
+      } else if (path === '/schedule') {
+        setCurrentView({ type: 'schedule' });
         return;
       } else if (path === '/settings') {
         setCurrentView({ type: 'settings' });
@@ -409,6 +413,8 @@ function App() {
       navigate('/settings');
     } else if (view.type === 'monitoring') {
       navigate('/monitoring');
+    } else if (view.type === 'schedule') {
+      navigate('/schedule');
     } else if (view.type === 'agent-new') {
       navigate('/agents/new');
     } else if (view.type === 'agent-edit' && 'slug' in view) {

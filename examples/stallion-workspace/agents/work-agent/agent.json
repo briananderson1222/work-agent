@@ -10,12 +10,14 @@
     "mcpServers": [
       "sat-outlook",
       "sat-sfdc",
-      "builder-mcp"
+      "builder-mcp",
+      "obsidian"
     ],
     "available": [
       "sat-outlook_*",
       "sat-sfdc_*",
-      "builder-mcp_*"
+      "builder-mcp_*",
+      "obsidian_*"
     ],
     "autoApprove": [
       "sat-outlook_calendar_view",

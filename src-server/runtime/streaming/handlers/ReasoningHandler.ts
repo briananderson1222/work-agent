@@ -94,7 +94,9 @@ export class ReasoningHandler implements StreamHandler {
   private async *handleTextEnd(chunk: StreamChunk): AsyncGenerator<StreamChunk> {
     if (this.inThinking) {
       // Still in thinking block - close it and flush buffered chunks
-      yield this.createReasoningEnd((chunk as any).id);
+      if (chunk.type === 'text-end') {
+        yield this.createReasoningEnd(chunk.id);
+      }
       yield* this.flushBuffer();
       this.inThinking = false;
       this.thinkingContent = '';
@@ -113,11 +115,13 @@ export class ReasoningHandler implements StreamHandler {
    * Process character by character to detect <thinking> tags
    */
   private async *handleTextDelta(chunk: StreamChunk): AsyncGenerator<StreamChunk> {
-    const text = (chunk as any).text || '';
-    const id = (chunk as any).id || '0';
-    
-    for (const char of text) {
-      yield* this.processCharacter(char, id);
+    if (chunk.type === 'text-delta') {
+      const text = chunk.text || '';
+      const id = chunk.id || '0';
+      
+      for (const char of text) {
+        yield* this.processCharacter(char, id);
+      }
     }
   }
 
@@ -163,7 +167,7 @@ export class ReasoningHandler implements StreamHandler {
     
     // Start reasoning block
     if (this.config.enableThinking !== false) {
-      const startId = (this.pendingTextStart as any)?.id || id;
+      const startId = (this.pendingTextStart?.type === 'text-start') ? this.pendingTextStart.id : id;
       yield this.createReasoningStart(startId);
       this.pendingTextStart = null;
     }

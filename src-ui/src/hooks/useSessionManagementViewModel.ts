@@ -1,9 +1,12 @@
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
+import { useApiBase } from '../contexts/ApiBaseContext';
 
 interface Agent {
   slug: string;
   name: string;
+  source?: string;
+  icon?: string;
 }
 
 interface Conversation {
@@ -21,19 +24,19 @@ interface Conversation {
  * Fetches conversations for all agents and combines them
  */
 export function useSessionManagementViewModel(agents: Agent[], enabled: boolean = true) {
+  const { apiBase } = useApiBase();
   // Fetch conversations for all agents using useQueries
   const queries = useQueries({
     queries: agents.map(agent => ({
       queryKey: ['conversations', agent.slug],
       queryFn: async () => {
-        const apiBase = (window as any).__API_BASE__ || 'http://localhost:3141';
         const response = await fetch(`${apiBase}/agents/${agent.slug}/conversations`);
         const result = await response.json();
         if (!result.success) throw new Error(result.error);
         return result.data;
       },
       enabled: enabled && !!agent.slug,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 0,
     })),
   });
 
@@ -49,6 +52,8 @@ export function useSessionManagementViewModel(agents: Agent[], enabled: boolean 
         ...conv,
         agentSlug: agent.slug,
         agentName: agent.name,
+        agentSource: agent.source,
+        agentIcon: agent.icon,
       }));
       allConversations.push(...agentConvos);
     });

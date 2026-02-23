@@ -21,6 +21,10 @@ import { createBedrockProvider } from '../providers/bedrock.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { UsageAggregator } from '../analytics/usage-aggregator.js';
 import { normalizeToolName, parseToolName } from '../utils/tool-name-normalizer.js';
+import * as MCPManager from './mcp-manager.js';
+import * as ToolExecutor from './tool-executor.js';
+import * as ConversationManager from './conversation-manager.js';
+import * as StreamOrchestrator from './stream-orchestrator.js';
 import { StreamPipeline } from './streaming/StreamPipeline.js';
 import { ReasoningHandler } from './streaming/handlers/ReasoningHandler.js';
 import { ElicitationHandler } from './streaming/handlers/ElicitationHandler.js';
@@ -47,20 +51,6 @@ import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { SchedulerService } from '../services/scheduler-service.js';
 import { createAuthRoutes } from '../routes/auth.js';
 import { isAuthError } from '../utils/auth-errors.js';
-
-/**
- * Check if tool name matches any auto-approve pattern
- * Supports wildcards: "tool_*" matches "tool_read", "tool_write", etc.
- */
-function isAutoApproved(toolName: string, patterns: string[]): boolean {
-  return patterns.some(pattern => {
-    if (pattern === '*') return true;
-    const regexPattern = pattern
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*');
-    return new RegExp(`^${regexPattern}$`).test(toolName);
-  });
-}
 
 export interface WorkAgentRuntimeOptions {
   workAgentDir?: string;
@@ -718,40 +708,17 @@ export class WorkAgentRuntime {
             try {
               const slug = c.req.param('slug');
               const conversationId = c.req.param('conversationId');
-              const adapter = this.memoryAdapters.get(slug);
-              
-              if (!adapter) {
-                return c.json({ success: false, error: 'Agent not found' }, 404);
-              }
-
               const { action, content } = await c.req.json();
               
-              switch (action) {
-                case 'add-system-message':
-                  if (!content) {
-                    return c.json({ success: false, error: 'content is required for add-system-message' }, 400);
-                  }
-                  
-                  // Inject as user message with special prefix for UI treatment
-                  await adapter.addMessage(
-                    {
-                      id: crypto.randomUUID(),
-                      role: 'user',
-                      parts: [{ type: 'text', text: `[SYSTEM_EVENT] ${content}` }]
-                    } as any,
-                    `agent:${slug}`,
-                    conversationId
-                  );
-                  
-                  return c.json({ success: true, message: 'System event added' });
-                
-                case 'clear-history':
-                  await adapter.clearMessages(`agent:${slug}`, conversationId);
-                  return c.json({ success: true, message: 'Conversation history cleared' });
-                
-                default:
-                  return c.json({ success: false, error: `Unknown action: ${action}` }, 400);
-              }
+              const result = await ConversationManager.manageConversationContext(
+                slug,
+                conversationId,
+                action,
+                content,
+                this.memoryAdapters
+              );
+              
+              return c.json(result);
             } catch (error: any) {
               this.logger.error('Failed to manage conversation context', { error });
               return c.json({ success: false, error: error.message }, 500);
@@ -764,130 +731,19 @@ export class WorkAgentRuntime {
               const slug = c.req.param('slug');
               const conversationId = c.req.param('conversationId');
               
-              if (!slug || slug === 'undefined') {
-                return c.json({ success: false, error: 'Invalid agent slug' }, 400);
-              }
-              
-              const spec = await this.configLoader.loadAgent(slug);
-              const modelId = spec.model || this.appConfig.defaultModel;
-              
-              // Calculate base stats from system prompt and tools
-              const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
-              const agentTools = this.agentTools.get(slug) || [];
-              const toolsJson = JSON.stringify(agentTools.map((t: any) => ({
-                name: t.name,
-                description: t.description,
-                parameters: t.parameters
-              })));
-              const mcpServerTokens = Math.ceil(toolsJson.length / 4);
-              
-              // If no conversationId or conversation doesn't exist, return agent-level stats
-              if (!conversationId) {
-                const contextTokens = systemPromptTokens + mcpServerTokens;
-                const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, contextTokens);
-                
-                return c.json({ 
-                  success: true, 
-                  data: {
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    totalTokens: 0,
-                    contextTokens,
-                    turns: 0,
-                    toolCalls: 0,
-                    estimatedCost: 0,
-                    contextWindowPercentage,
-                    modelId,
-                    systemPromptTokens,
-                    mcpServerTokens,
-                    userMessageTokens: 0,
-                    assistantMessageTokens: 0,
-                    contextFilesTokens: 0,
-                  }
-                });
-              }
-              
-              const adapter = this.memoryAdapters.get(slug);
-              
-              if (!adapter) {
-                return c.json({ success: false, error: 'Memory adapter not found' }, 404);
-              }
+              const data = await ConversationManager.getConversationStats(
+                slug,
+                conversationId,
+                this.memoryAdapters,
+                this.agentFixedTokens,
+                this.agentTools,
+                this.configLoader,
+                this.appConfig,
+                this.modelCatalog,
+                this.logger
+              );
 
-              const conversation = await adapter.getConversation(conversationId);
-              
-              if (!conversation) {
-                return c.json({ success: false, error: 'Conversation not found' }, 404);
-              }
-
-              interface ConversationStats {
-                inputTokens: number;
-                outputTokens: number;
-                totalTokens: number;
-                contextTokens?: number;
-                turns: number;
-                toolCalls: number;
-                estimatedCost: number;
-                tokenBreakdown?: {
-                  userMessageTokens?: number;
-                  assistantMessageTokens?: number;
-                  systemPromptTokens?: number;
-                  mcpServerTokens?: number;
-                };
-              }
-
-              const stats: ConversationStats = (conversation.metadata as any)?.stats || {
-                inputTokens: 0,
-                outputTokens: 0,
-                totalTokens: 0,
-                turns: 0,
-                toolCalls: 0,
-                estimatedCost: 0,
-              };
-
-              const modelStats = (conversation.metadata as any)?.modelStats || {};
-              
-              const contextWindowPercentage = this.calculateContextWindowPercentage(modelId, stats.contextTokens || stats.totalTokens);
-
-              // Get token breakdown from stats or calculate on-the-fly
-              const breakdown = stats.tokenBreakdown || {};
-              let userMessageTokens = breakdown.userMessageTokens;
-              let assistantMessageTokens = breakdown.assistantMessageTokens;
-              
-              // If breakdown doesn't exist, calculate user message tokens from conversation
-              // Note: messages are stored separately, not on conversation object
-              if (userMessageTokens === undefined) {
-                const messages = await adapter.getMessages(conversation.userId, conversationId);
-                const userMessages = messages?.filter((m: any) => m.role === 'user') || [];
-                userMessageTokens = userMessages.reduce((sum: number, m: any) => {
-                  const content = typeof m.content === 'string' 
-                    ? m.content 
-                    : Array.isArray(m.content) 
-                      ? m.content.map((p: any) => p.text || '').join('') 
-                      : '';
-                  return sum + Math.ceil(content.length / 4);
-                }, 0);
-              }
-              
-              // If assistant tokens not in breakdown, use outputTokens
-              if (assistantMessageTokens === undefined) {
-                assistantMessageTokens = stats.outputTokens || 0;
-              }
-
-              return c.json({ 
-                success: true, 
-                data: {
-                  ...stats,
-                  contextWindowPercentage,
-                  conversationId,
-                  modelId,
-                  modelStats,
-                  systemPromptTokens,
-                  mcpServerTokens,
-                  userMessageTokens,
-                  assistantMessageTokens,
-                  contextFilesTokens: 0, // Placeholder for future context files support
-                }
-              });
+              return c.json({ success: true, data });
             } catch (error: any) {
               this.logger.error('Failed to load conversation stats', { error });
               return c.json({ success: false, error: error.message }, 500);
@@ -1464,60 +1320,15 @@ export class WorkAgentRuntime {
                   
                   // Get auto-approve list from agent spec
                   const agentSpec = this.agentSpecs.get(slug);
-                  const autoApprove = agentSpec?.tools?.autoApprove || [];
                   
                   // Elicitation callback that injects events instead of writing directly
-                  const elicitation = async (request: any) => {
-                    if (request.type === 'tool-approval') {
-                      const toolName = request.toolName;
-                      
-                      // Check if auto-approved (check both normalized and original names)
-                      const isApproved = isAutoApproved(toolName, autoApprove);
-                      
-                      // Also check if the original (non-normalized) name matches
-                      const toolMapping = Array.from(this.toolNameMapping.values()).find(
-                        m => m.normalized === toolName
-                      );
-                      const isApprovedOriginal = toolMapping ? isAutoApproved(toolMapping.original, autoApprove) : false;
-                      
-                      if (isApproved || isApprovedOriginal) {
-                        this.logger.info('[Elicitation] Auto-approved, returning true immediately', { 
-                          toolName,
-                          originalName: toolMapping?.original,
-                          matched: isApproved ? 'normalized' : 'original'
-                        });
-                        return true;
-                      }
-                      
-                      // Not auto-approved - inject approval request into stream
-                      const approvalId = `approval-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                      
-                      // Parse tool name for UI display
-                      const { server, tool } = parseToolName(toolName);
-                      
-                      this.logger.info('[Elicitation] NOT auto-approved, injecting approval request', {
-                        approvalId,
-                        toolName,
-                        originalName: toolMapping?.original,
-                        autoApproveList: autoApprove
-                      });
-                      
-                      // Inject event (will appear at next chunk boundary)
-                      injectableStream.inject({
-                        type: 'tool-approval-request',
-                        approvalId,
-                        toolName,
-                        server,
-                        tool,
-                        toolDescription: request.toolDescription,
-                        toolArgs: request.toolArgs,
-                      } as any);
-                      
-                      // Wait for user approval
-                      return this.approvalRegistry.register(approvalId);
-                    }
-                    return false;
-                  };
+                  const elicitation = StreamOrchestrator.createElicitationCallback(
+                    agentSpec!,
+                    this.toolNameMapping,
+                    this.approvalRegistry,
+                    injectableStream,
+                    this.logger
+                  );
                   
                   operationContext = {
                     ...restOptions,
@@ -1612,18 +1423,7 @@ export class WorkAgentRuntime {
                   
                   // Helper to save standalone cancellation message
                   const saveCancellationMessage = async () => {
-                    const mem = agent.getMemory();
-                    if (mem && operationContext.conversationId && operationContext.userId) {
-                      await mem.addMessage(
-                        {
-                          id: crypto.randomUUID(),
-                          role: 'assistant',
-                          parts: [{ type: 'text', text: '_⚠️ Response cancelled by user_' }]
-                        },
-                        operationContext.userId,
-                        operationContext.conversationId
-                      );
-                    }
+                    await StreamOrchestrator.saveCancellationMessage(agent, operationContext);
                   };
                   
                   this.logger.info('Agent stream started', { 
@@ -1663,22 +1463,16 @@ export class WorkAgentRuntime {
                   const debugStreaming = process.env.DEBUG_STREAMING === 'true';
                   
                   // Initialize StreamPipeline
-                  const pipeline = new StreamPipeline(abortController.signal);
-                  const completionHandler = new CompletionHandler();
-                  const metadataHandler = new MetadataHandler(this.monitoringEvents, {
-                    slug,
-                    conversationId: operationContext.conversationId,
-                    userId: operationContext.userId,
-                    traceId,
-                  });
-                  
-                  // Add handlers in order (elicitation handled via callback + injectable stream)
-                  pipeline
-                    .use(new ReasoningHandler({ enableThinking: true }))
-                    .use(new TextDeltaHandler())
-                    .use(new ToolCallHandler())
-                    .use(metadataHandler)
-                    .use(completionHandler);
+                  const pipeline = StreamOrchestrator.createStreamingPipeline(
+                    abortController.signal,
+                    this.monitoringEvents,
+                    {
+                      slug,
+                      conversationId: operationContext.conversationId,
+                      userId: operationContext.userId,
+                      traceId,
+                    }
+                  );
                   
                   // Log model and tool configuration for debugging
                   const agentTools = this.agentTools.get(slug) || [];
@@ -1700,14 +1494,11 @@ export class WorkAgentRuntime {
                   
                   // Run pipeline and write chunks to stream
                   for await (const chunk of pipeline.run(wrappedStream)) {
-                    await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
-                    // Force flush by yielding to event loop with setTimeout(0)
-                    // setImmediate doesn't flush network buffers, but setTimeout does
-                    await new Promise(resolve => setTimeout(resolve, 0));
+                    await StreamOrchestrator.writeSSEChunk(streamWriter, chunk);
                   }
                   
                   // Write [DONE] marker
-                  await streamWriter.write('data: [DONE]\n\n');
+                  await StreamOrchestrator.writeSSEDone(streamWriter);
                   
                   // Get completion state from handlers
                   const results = await pipeline.finalize();
@@ -1733,15 +1524,8 @@ export class WorkAgentRuntime {
                     agentName: slug,
                     error,
                   });
-                  const isCredentialError = error.message?.includes('credential') || 
-                                           error.message?.includes('accessKeyId') ||
-                                           error.message?.includes('secretAccessKey');
-                  await streamWriter.write(`data: ${JSON.stringify({ 
-                    type: 'error', 
-                    errorText: error.message,
-                    statusCode: isCredentialError ? 401 : undefined
-                  })}\n\n`);
-                  await streamWriter.write('data: [DONE]\n\n');
+                  await StreamOrchestrator.writeSSEError(streamWriter, error);
+                  await StreamOrchestrator.writeSSEDone(streamWriter);
                 } finally {
                   // Agent stream completed
                   this.logger.info('Agent stream completed', { 
@@ -1916,14 +1700,6 @@ export class WorkAgentRuntime {
     this.healthCheckInterval = setInterval(runHealthChecks, interval);
     
     this.logger.debug('Health checks started', { interval });
-  }
-
-  /**
-   * Extract userId from conversationId format: agent:<slug>:user:<id>:timestamp:random
-   */
-  private extractUserId(conversationId: string): string | null {
-    const match = conversationId.match(/^agent:[^:]+:user:([^:]+):/);
-    return match ? match[1] : null;
   }
 
   /**
@@ -2164,82 +1940,17 @@ export class WorkAgentRuntime {
    * Load tools for an agent (regular tools + MCP tools)
    */
   private async loadAgentTools(agentSlug: string, spec: AgentSpec): Promise<Tool<any>[]> {
-    const tools: Tool<any>[] = [];
-
-    if (!spec.tools || !spec.tools.mcpServers || spec.tools.mcpServers.length === 0) {
-      return tools;
-    }
-
-    // Load each MCP server from catalog
-    for (const toolId of spec.tools.mcpServers) {
-      try {
-        const toolDef = await this.configLoader.loadTool(toolId);
-
-        if (toolDef.kind === 'mcp') {
-          const mcpTools = await this.createMCPTools(agentSlug, toolId, toolDef);
-          tools.push(...mcpTools);
-        } else if (toolDef.kind === 'builtin') {
-          const builtinTool = this.createBuiltinTool(toolDef);
-          if (builtinTool) {
-            tools.push(builtinTool);
-          }
-        }
-      } catch (error) {
-        this.logger.error('Failed to load tool', { agent: agentSlug, toolId, error });
-      }
-    }
-
-    // Apply available filter (defaults to all tools)
-    const available = spec.tools.available || ['*'];
-    
-    this.logger.debug('Tool filtering', {
-      agent: agentSlug,
-      totalTools: tools.length,
-      availablePatterns: available,
-      toolNames: tools.slice(0, 5).map(t => t.name)
-    });
-    
-    if (!available.includes('*')) {
-      const filtered = tools.filter(tool => this.matchesToolPattern(tool.name, available));
-      this.logger.info('Tools filtered', {
-        agent: agentSlug,
-        before: tools.length,
-        after: filtered.length,
-        removed: tools.length - filtered.length
-      });
-      return filtered;
-    }
-
-    return tools;
-  }
-
-  /**
-   * Check if tool name matches any pattern in the list
-   */
-  private matchesToolPattern(toolName: string, patterns: string[]): boolean {
-    // Get original name if this is a normalized name
-    const mapping = this.toolNameMapping.get(toolName);
-    const originalName = mapping?.original || toolName;
-    
-    for (const pattern of patterns) {
-      // Exact match (check both normalized and original)
-      if (pattern === toolName || pattern === originalName) return true;
-      
-      // Wildcard pattern (e.g., "my-server_*" or "myServer_*")
-      if (pattern.endsWith('_*')) {
-        const prefix = pattern.slice(0, -2);
-        if (toolName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}_`)) return true;
-      }
-      
-      // Legacy slash pattern support (e.g., "my-server/*")
-      if (pattern.endsWith('/*')) {
-        const prefix = pattern.slice(0, -2);
-        if (toolName.startsWith(`${prefix}_`) || toolName.startsWith(`${prefix}/`) ||
-            originalName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}/`)) return true;
-      }
-    }
-    
-    return false;
+    return MCPManager.loadAgentTools(
+      agentSlug,
+      spec,
+      this.configLoader,
+      this.mcpConfigs,
+      this.mcpConnectionStatus,
+      this.integrationMetadata,
+      this.toolNameMapping,
+      this.toolNameReverseMapping,
+      this.logger
+    );
   }
 
   /**
@@ -2247,558 +1958,42 @@ export class WorkAgentRuntime {
    * Tools in autoApprove list execute automatically, others require user confirmation
    */
   private createToolApprovalHooks(spec: AgentSpec) {
-    const autoApprove = spec.tools?.autoApprove || [];
-
-    return createHooks({
-      onToolStart: async ({ tool, context }) => {
-        // Track tool call count in context Map
-        const currentCount = (context.context.get('toolCallCount') as number) || 0;
-        context.context.set('toolCallCount', currentCount + 1);
-        
-        this.logger.debug('Tool execution starting', {
-          toolName: tool.name,
-          conversationId: context.conversationId,
-        });
-        
-        // Check if this is a silent invocation (no conversationId means silent mode)
-        const isSilentInvocation = !context.conversationId;
-        
-        if (isSilentInvocation) {
-          return;
-        }
-
-        // Check if tool is in autoApprove list
-        const isAutoApproved = this.matchesToolPattern(tool.name, autoApprove);
-        
-        this.logger.info('[Tool] Executing', {
-          toolName: tool.name,
-          isAutoApproved,
-        });
-      },
-      onEnd: async ({ context, output, agent, error }) => {
-        // Only track stats for conversations (not silent invocations)
-        if (!context.conversationId || !output) {
-          return;
-        }
-
-        try {
-          const memory = agent.getMemory();
-          if (!memory) return;
-
-          // Get current conversation
-          const conversation = await memory.getConversation(context.conversationId);
-          if (!conversation) return;
-
-          // Extract usage data (may be undefined if aborted)
-          const usage = 'usage' in output ? output.usage : undefined;
-
-          // Count tool calls from context (tracked in onToolStart)
-          const toolCallCount = (context.context.get('toolCallCount') as number) || 0;
-
-          // Get messages for this conversation
-          const messages = await memory.getMessages(context.userId || '', context.conversationId);
-
-          // Log stats (even if usage is incomplete due to abortion)
-          this.logger.info('[Usage Stats]', {
-            conversationId: context.conversationId,
-            promptTokens: usage?.promptTokens || 0,
-            completionTokens: usage?.completionTokens || 0,
-            totalTokens: usage?.totalTokens || 0,
-            messageCount: messages.length,
-            toolCallCount,
-            aborted: !usage,
-          });
-
-          // Only update conversation stats if we have usage data
-          if (!usage) return;
-
-          // Get existing stats or initialize
-          const existingStats = (conversation.metadata?.stats as any) || {
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
-            contextTokens: 0,
-            turns: 0,
-            toolCalls: 0,
-            estimatedCost: 0,
-          };
-
-          // Get agent spec for model info
-          const agentSlug = conversation.resourceId;
-          const agentSpec = await this.configLoader.loadAgent(agentSlug);
-          const modelId = agentSpec.model || this.appConfig.defaultModel;
-          const cost = await this.calculateCost(modelId, usage);
-
-          // Calculate context tokens: accumulated outputs + latest input
-          // Context represents what's in memory (grows with conversation)
-          const newOutputTokens = existingStats.outputTokens + (usage.completionTokens || 0);
-          const newInputTokens = existingStats.inputTokens + (usage.promptTokens || 0);
-          
-          // Get fixed token counts from cache (calculated once at agent initialization)
-          const fixedTokens = this.agentFixedTokens.get(agentSlug);
-          const systemPromptTokens = fixedTokens?.systemPromptTokens || 0;
-          const mcpServerTokens = fixedTokens?.mcpServerTokens || 0;
-          
-          // Get existing breakdown for incremental calculation
-          const existingBreakdown = existingStats.tokenBreakdown || {};
-          
-          // Context = system prompt + tools + all user messages + all assistant responses
-          // Optimize: only calculate new user message tokens, not all messages
-          const existingUserMessageTokens = existingBreakdown.userMessageTokens || 0;
-          
-          // Get messages for user message token calculation
-          const userMessages = messages.filter((m: any) => m.role === 'user');
-          
-          this.logger.info('[Token Calculation Debug]', {
-            conversationId: context.conversationId,
-            totalMessages: messages.length,
-            userMessageCount: userMessages.length,
-            existingUserMessageTokens,
-            turn: existingStats.turns + 1,
-          });
-          
-          // Find the latest user message (should be the last one added)
-          const latestUserMessage = userMessages[userMessages.length - 1];
-          
-          let newUserMessageTokens = 0;
-          if (latestUserMessage) {
-            // UIMessage uses 'parts' array with text parts
-            const parts = (latestUserMessage as any).parts || [];
-            const content = parts
-              .filter((p: any) => p.type === 'text')
-              .map((p: any) => p.text || '')
-              .join('');
-            newUserMessageTokens = Math.ceil(content.length / 4);
-            
-            this.logger.info('[New User Message]', {
-              conversationId: context.conversationId,
-              contentLength: content.length,
-              tokens: newUserMessageTokens,
-            });
-          } else {
-            this.logger.warn('[No User Message Found]', {
-              conversationId: context.conversationId,
-              userMessageCount: userMessages.length,
-            });
-          }
-          
-          const userMessageTokens = existingUserMessageTokens + newUserMessageTokens;
-          const assistantMessageTokens = newOutputTokens;
-          
-          this.logger.info('[Token Breakdown]', {
-            conversationId: context.conversationId,
-            turn: existingStats.turns + 1,
-            newUserMessageTokens,
-            totalUserMessageTokens: userMessageTokens,
-            systemPromptTokens,
-            mcpServerTokens,
-            assistantMessageTokens,
-          });
-          
-          const contextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + assistantMessageTokens;
-
-          // Store breakdown for stats endpoint
-          const tokenBreakdown = {
-            systemPromptTokens,
-            mcpServerTokens,
-            userMessageTokens,
-            assistantMessageTokens,
-          };
-
-          // Update stats
-          const updatedStats = {
-            inputTokens: newInputTokens, // Total consumed across all LLM calls
-            outputTokens: newOutputTokens, // Total generated
-            totalTokens: newInputTokens + newOutputTokens,
-            contextTokens, // Current memory size
-            turns: existingStats.turns + 1,
-            toolCalls: existingStats.toolCalls + toolCallCount,
-            estimatedCost: existingStats.estimatedCost + cost,
-            tokenBreakdown,
-          };
-
-          // Track per-model stats
-          const modelStats = (conversation.metadata?.modelStats || {}) as Record<string, any>;
-          const currentModelStats = modelStats[modelId] || {
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
-            contextTokens: 0,
-            turns: 0,
-            toolCalls: 0,
-            estimatedCost: 0,
-          };
-
-          const newModelOutputTokens = currentModelStats.outputTokens + (usage.completionTokens || 0);
-          const newModelInputTokens = currentModelStats.inputTokens + (usage.promptTokens || 0);
-          
-          // Per-model context is harder to track accurately, use accumulated outputs as approximation
-          const modelContextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + newModelOutputTokens;
-          
-          modelStats[modelId] = {
-            inputTokens: newModelInputTokens,
-            outputTokens: newModelOutputTokens,
-            totalTokens: newModelInputTokens + newModelOutputTokens,
-            contextTokens: modelContextTokens,
-            turns: currentModelStats.turns + 1,
-            toolCalls: currentModelStats.toolCalls + toolCallCount,
-            estimatedCost: currentModelStats.estimatedCost + cost,
-          };
-
-          // Update conversation metadata
-          await memory.updateConversation(context.conversationId, {
-            metadata: {
-              ...conversation.metadata,
-              stats: updatedStats,
-              modelStats,
-            },
-          });
-
-          // Enrich the last assistant message with model metadata and usage
-          try {
-            const adapter = this.memoryAdapters.get(agentSlug);
-            if (!adapter) {
-              this.logger.warn('No adapter found for agent', { agent: agentSlug });
-              return;
-            }
-
-            const messages = await adapter.getMessages(`agent:${agentSlug}`, context.conversationId);
-            const lastMessage = messages[messages.length - 1];
-            
-            if (lastMessage && lastMessage.role === 'assistant') {
-              // Get model capabilities
-              const models = await this.modelCatalog?.listModels();
-              const modelInfo = models?.find(m => m.modelId === modelId);
-              
-              // Get pricing
-              const pricing = await this.modelCatalog?.getModelPricing(this.appConfig.region);
-              const pricingInfo = pricing?.find(p => 
-                p.modelId === modelId || 
-                modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-'))
-              );
-
-              // Remove and re-add with metadata
-              await adapter.removeLastMessage(`agent:${agentSlug}`, context.conversationId);
-              await adapter.addMessage(
-                lastMessage,
-                `agent:${agentSlug}`,
-                context.conversationId,
-                {
-                  model: modelId,
-                  modelMetadata: modelInfo ? {
-                    capabilities: {
-                      inputModalities: modelInfo.inputModalities,
-                      outputModalities: modelInfo.outputModalities,
-                      supportsStreaming: modelInfo.responseStreamingSupported,
-                    },
-                    pricing: pricingInfo ? {
-                      inputTokenPrice: pricingInfo.inputTokenPrice,
-                      outputTokenPrice: pricingInfo.outputTokenPrice,
-                      currency: 'USD',
-                      region: this.appConfig.region,
-                    } : undefined,
-                  } : undefined,
-                  usage: {
-                    inputTokens: usage.promptTokens || 0,
-                    outputTokens: usage.completionTokens || 0,
-                    totalTokens: usage.totalTokens || 0,
-                    estimatedCost: cost,
-                  },
-                }
-              );
-            }
-          } catch (error) {
-            this.logger.error('Failed to enrich message with model metadata', { error });
-          }
-        } catch (error) {
-          this.logger.error('Failed to update conversation stats', { error });
-        }
-      },
-    });
-  }
-
-  /**
-   * Calculate estimated cost based on model and token usage
-   * Uses dynamic pricing from AWS Pricing API
-   */
-  private async calculateCost(modelId: string, usage: { promptTokens?: number; completionTokens?: number }): Promise<number> {
-    const inputTokens = usage.promptTokens || 0;
-    const outputTokens = usage.completionTokens || 0;
-
-    if (!this.modelCatalog) {
-      return 0;
-    }
-
-    try {
-      const pricing = await this.modelCatalog.getModelPricing(this.appConfig.region);
-      const modelPricing = pricing.find(p => 
-        p.modelId === modelId || 
-        modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-'))
-      );
-
-      if (modelPricing) {
-        const inputCost = (inputTokens / 1000) * (modelPricing.inputTokenPrice || 0);
-        const outputCost = (outputTokens / 1000) * (modelPricing.outputTokenPrice || 0);
-        return inputCost + outputCost;
-      }
-    } catch (error) {
-      this.logger.warn('Failed to fetch pricing, using default', { error });
-    }
-
-    // Fallback to default pricing
-    return (inputTokens / 1000) * 0.003 + (outputTokens / 1000) * 0.015;
-  }
-
-  /**
-   * Calculate context window usage percentage
-   * Note: Context window size is not available via API, using 200k default
-   */
-  private calculateContextWindowPercentage(modelId: string, totalTokens: number): number {
-    const maxTokens = 200000; // Default context window
-    return Math.round((totalTokens / maxTokens) * 100 * 100) / 100;
+    return ToolExecutor.createToolApprovalHooks(
+      spec,
+      this.appConfig,
+      this.configLoader,
+      this.modelCatalog,
+      this.agentFixedTokens,
+      this.memoryAdapters,
+      this.logger
+    );
   }
 
   /**
    * Get original tool name from normalized name
    */
   private getOriginalToolName(normalizedName: string): string {
-    const mapping = this.toolNameMapping.get(normalizedName);
-    return mapping?.original || normalizedName;
+    return MCPManager.getOriginalToolName(normalizedName, this.toolNameMapping);
   }
 
   /**
    * Get normalized tool name from original name
    */
   private getNormalizedToolName(originalName: string): string {
-    return this.toolNameReverseMapping.get(originalName) || originalName;
-  }
-
-  /**
-   * Create MCP tools for a tool definition
-   */
-  private async createMCPTools(
-    agentSlug: string,
-    toolId: string,
-    toolDef: ToolDef
-  ): Promise<Tool<any>[]> {
-    const mcpKey = `${agentSlug}:${toolId}`;
-
-    let mcpConfig: MCPConfiguration;
-    let isNewConfig = false;
-
-    // Check if MCP config already exists
-    if (this.mcpConfigs.has(mcpKey)) {
-      mcpConfig = this.mcpConfigs.get(mcpKey)!;
-    } else {
-      // Create new MCP configuration
-      const serverConfig: any = {
-        [toolId]: this.createMCPServerConfig(toolDef),
-      };
-
-      mcpConfig = new MCPConfiguration({
-        servers: serverConfig,
-      });
-
-      this.mcpConfigs.set(mcpKey, mcpConfig);
-      isNewConfig = true;
-      
-      // Set up event listeners for connection status
-      const clients = await mcpConfig.getClients();
-      const client = clients[toolId];
-      
-      if (client) {
-        client.on('connect', () => {
-          this.mcpConnectionStatus.set(mcpKey, { connected: true });
-          this.logger.debug('MCP client connected', { agent: agentSlug, tool: toolId });
-        });
-        
-        client.on('disconnect', () => {
-          this.mcpConnectionStatus.set(mcpKey, { connected: false });
-          this.logger.debug('MCP client disconnected', { agent: agentSlug, tool: toolId });
-        });
-        
-        client.on('error', (error: Error) => {
-          this.mcpConnectionStatus.set(mcpKey, { connected: false, error: error.message });
-          this.logger.error('MCP client error', { agent: agentSlug, tool: toolId, error: error.message });
-        });
-      }
-    }
-
-    // Get tools from MCP server
-    const tools = await mcpConfig.getTools();
-    
-    // Normalize tool names for Nova compatibility and store mapping with parsed data
-    const normalizedTools = tools.map(tool => {
-      const normalized = normalizeToolName(tool.name);
-      
-      // Store mapping with parsed data if name changed
-      if (normalized !== tool.name) {
-        const parsed = parseToolName(tool.name);
-        this.toolNameMapping.set(normalized, {
-          original: tool.name,
-          normalized: normalized,
-          server: parsed.server,
-          tool: parsed.tool
-        });
-        this.toolNameReverseMapping.set(tool.name, normalized);
-        
-        this.logger.debug('Tool name normalized', {
-          agent: agentSlug,
-          original: tool.name,
-          normalized: normalized,
-          server: parsed.server,
-          tool: parsed.tool
-        });
-      }
-      
-      return {
-        ...tool,
-        name: normalized
-      };
-    });
-    
-    // Mark as connected after successful getTools
-    this.mcpConnectionStatus.set(mcpKey, { connected: true });
-    
-    // Store integration metadata
-    this.integrationMetadata.set(mcpKey, {
-      type: 'mcp',
-      transport: toolDef.transport,
-      toolCount: normalizedTools.length,
-    });
-
-    if (isNewConfig) {
-      this.logger.info('MCP tools loaded', { 
-        agent: agentSlug, 
-        tool: toolId, 
-        count: normalizedTools.length,
-        sampleNames: normalizedTools.slice(0, 3).map(t => t.name)
-      });
-    }
-
-    // Always wrap tools with elicitation for approval (agent config may have changed)
-    const spec = await this.configLoader.loadAgent(agentSlug);
-    const wrappedTools = normalizedTools.map(tool => this.wrapToolWithElicitation(tool, spec));
-
-    return wrappedTools;
+    return MCPManager.getNormalizedToolName(originalName, this.toolNameReverseMapping);
   }
 
   /**
    * Wrap a tool to add elicitation-based approval for non-auto-approved tools
    */
   private wrapToolWithElicitation(tool: Tool<any>, spec: AgentSpec): Tool<any> {
-    if (!spec?.tools) return tool;
-
-    const autoApprove = spec.tools.autoApprove || [];
-    const isAutoApproved = autoApprove.some(pattern => {
-      if (pattern === '*') return true;
-      if (pattern.endsWith('*')) {
-        return tool.name.startsWith(pattern.slice(0, -1));
-      }
-      return tool.name === pattern;
-    });
-
-    if (isAutoApproved) {
-      this.logger.debug('[Wrapper] Tool auto-approved, skipping wrapper', { toolName: tool.name });
-      return tool;
-    }
-
-    this.logger.debug('[Wrapper] Wrapping tool with elicitation', { toolName: tool.name });
-
-    // Wrap the execute function
-    const originalExecute = tool.execute;
-    if (!originalExecute) return tool;
-
-    return {
-      ...tool,
-      execute: async (args: any, options: any) => {
-        // Get elicitation from options (VoltAgent passes OperationContext properties directly)
-        const elicitation = options?.elicitation;
-        
-        this.logger.debug('[Wrapper] Tool execute called, requesting approval', { 
-          toolName: tool.name,
-          hasElicitation: !!elicitation
-        });
-
-        // Request approval via elicitation
-        if (elicitation) {
-          this.logger.debug('[Wrapper] Calling elicitation for approval', { toolName: tool.name });
-          
-          const approved = await elicitation({
-            type: 'tool-approval',
-            toolName: tool.name,
-            toolDescription: (tool as any).description || '',
-            toolArgs: args,
-          });
-
-          this.logger.info('[Wrapper] Tool approval decision', { 
-            toolName: tool.name, 
-            approved,
-            reason: approved ? 'user_approved' : 'user_denied'
-          });
-
-          if (!approved) {
-            // Return a clear message to the LLM instead of throwing an error
-            return {
-              success: false,
-              error: 'USER_DENIED',
-              message: `I requested permission to use this tool, but the user explicitly denied the request. I should ask what I should do differently.`
-            };
-          }
-        } else {
-          this.logger.info('[Wrapper] Tool auto-approved (no elicitation available)', { 
-            toolName: tool.name 
-          });
-        }
-
-        // Execute the original tool
-        return originalExecute(args, options);
-      }
-    };
-  }
-
-  /**
-   * Create MCP server configuration from tool definition
-   */
-  private createMCPServerConfig(toolDef: ToolDef): any {
-    if (toolDef.transport === 'stdio' || toolDef.transport === 'process') {
-      // Replace ./ with actual cwd for cross-platform compatibility
-      const args = (toolDef.args || []).map(arg => 
-        arg === './' ? process.cwd() : arg
-      );
-      
-      return {
-        type: 'stdio',
-        command: toolDef.command,
-        args,
-        env: toolDef.env,
-        timeout: toolDef.timeouts?.startupMs,
-      };
-    } else if (toolDef.transport === 'ws') {
-      return {
-        type: 'streamable-http',
-        url: toolDef.endpoint,
-        timeout: toolDef.timeouts?.startupMs,
-      };
-    } else if (toolDef.transport === 'tcp') {
-      return {
-        type: 'http',
-        url: toolDef.endpoint,
-        timeout: toolDef.timeouts?.startupMs,
-      };
-    }
-
-    throw new Error(`Unsupported transport: ${toolDef.transport}`);
-  }
-
-  /**
-   * Create a built-in tool from definition
-   */
-  private createBuiltinTool(toolDef: ToolDef): Tool<any> | null {
-    // Built-in tools would be implemented here
-    // For now, returning null as they need specific implementations
-    this.logger.warn('Built-in tools not yet implemented', { tool: toolDef.id });
-    return null;
+    return ToolExecutor.wrapToolWithElicitation(
+      tool,
+      spec,
+      this.toolNameMapping,
+      this.approvalRegistry,
+      this.logger
+    );
   }
 
   /**

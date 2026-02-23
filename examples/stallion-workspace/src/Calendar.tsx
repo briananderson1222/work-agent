@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
-import { z } from 'zod';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import DOMPurify from 'dompurify';
-import { useToast, useWorkspaceNavigation, invoke, useNotifications, useSendToChat } from '@stallion-ai/sdk';
+import { useToast, useWorkspaceNavigation, invoke, useNotifications, useSendToChat, transformTool } from '@stallion-ai/sdk';
 import { useSalesContext } from './useSalesContext';
 import { useLocalSalesState } from './SalesDataContext';
 import { 
@@ -18,135 +17,18 @@ import {
 } from './data';
 import { SearchModal } from './components/SearchModal';
 import { CRM_BASE_URL } from './constants';
+import { PhoneLookupModal } from './PhoneLookupModal';
+import {
+  CalendarEventSchema,
+  getCacheKey,
+  getFromCache,
+  setCache,
+  parseCalendarResponse,
+  formatOrganizerName,
+  detectMeetingProvider,
+} from './calendar-utils';
+import type { CalendarEvent, MeetingDetails, SFDCContext, CalendarProps } from './calendar-utils';
 import './workspace.css';
-
-const CalendarEventSchema = z.object({
-  events: z.array(z.object({
-    meetingId: z.string(),
-    meetingChangeKey: z.string(),
-    subject: z.string(),
-    start: z.string(),
-    end: z.string(),
-    location: z.string().optional(),
-    organizer: z.string().optional(),
-    status: z.string().optional(),
-    isCanceled: z.boolean().optional(),
-    categories: z.array(z.string()).optional(),
-    isAllDay: z.boolean().optional(),
-  }))
-});
-
-interface CalendarEvent {
-  meetingId: string;
-  meetingChangeKey: string;
-  subject: string;
-  start: string;
-  end: string;
-  location?: string;
-  organizer?: string;
-  status?: string;
-  isCanceled?: boolean;
-  categories?: string[];
-  isAllDay?: boolean;
-}
-
-interface MeetingDetails extends CalendarEvent {
-  body?: string;
-  attendees?: Array<{email: string, name?: string, status: string}>;
-  responseStatus?: string;
-}
-
-interface SFDCContext {
-  accounts?: any[];
-  campaigns?: any[];
-  opportunities?: any[];
-  tasks?: any[];
-  suggestedKeyword?: string;
-  selectedAccountId?: string;
-}
-
-function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
-  const today = new Date().toISOString().split('T')[0];
-  return type === 'calendar' 
-    ? `sa-calendar-${today}` 
-    : `sa-sfdc-${identifier}`;
-}
-
-function getFromCache<T>(key: string): T | null {
-  try {
-    const cached = sessionStorage.getItem(key);
-    if (cached) {
-      const { data, timestamp } = JSON.parse(cached);
-      // Cache valid for 5 minutes
-      if (Date.now() - timestamp < 5 * 60 * 1000) {
-        return data;
-      }
-      sessionStorage.removeItem(key);
-    }
-  } catch {
-    // Ignore cache errors
-  }
-  return null;
-}
-
-function setCache(key: string, data: any): void {
-  try {
-    sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-  } catch {
-    // Ignore cache errors (quota exceeded, etc)
-  }
-}
-
-function parseCalendarResponse(text: string): CalendarEvent[] {
-  try {
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function formatOrganizerName(organizer?: { name: string; email: string }): string {
-  if (!organizer?.name) return 'Unknown';
-  
-  // Handle "Last, First" format
-  if (organizer.name.includes(',')) {
-    const [last, first] = organizer.name.split(',').map(s => s.trim());
-    return `${first} ${last}`;
-  }
-  
-  return organizer.name;
-}
-
-function detectMeetingProvider(location?: string, body?: string): { provider: string; url: string } | null {
-  const providers = [
-    { name: 'Teams', patterns: ['teams.microsoft.com', 'teams.live.com'], regex: /https?:\/\/[^\s<]+teams\.(microsoft|live)\.com[^\s<]*/i },
-    { name: 'Zoom', patterns: ['zoom.us'], regex: /https?:\/\/[^\s<]+zoom\.us[^\s<]*/i },
-    { name: 'Chime', patterns: ['chime.aws'], regex: /https?:\/\/[^\s<]+chime\.aws[^\s<]*/i },
-    { name: 'Google Meet', patterns: ['meet.google.com'], regex: /https?:\/\/meet\.google\.com[^\s<]*/i },
-    { name: 'Webex', patterns: ['webex.com'], regex: /https?:\/\/[^\s<]+webex\.com[^\s<]*/i },
-  ];
-
-  const checkText = (text: string) => {
-    const lowerText = text.toLowerCase();
-    for (const provider of providers) {
-      if (provider.patterns.some(p => lowerText.includes(p))) {
-        const match = text.match(provider.regex);
-        if (match) return { provider: provider.name, url: match[0] };
-      }
-    }
-    return null;
-  };
-
-  return checkText(location || '') || checkText(body || '');
-}
-
-interface CalendarProps {
-  activeTab?: any; // Will be defined when this tab is active
-}
 
 export function Calendar({ activeTab }: CalendarProps) {
   // Subscribe to sales context data (React Query auto-fetches)
@@ -249,6 +131,7 @@ export function Calendar({ activeTab }: CalendarProps) {
   const [contentExpanded, setContentExpanded] = useState(false);
   const [calendarCollapsed, setCalendarCollapsed] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
+  const [tasksCursor, setTasksCursor] = useState<string | undefined>();
   const [hidePastEvents, setHidePastEvents] = useState(false);
   const [hideCanceledEvents, setHideCanceledEvents] = useState(false);
   const [isNowLineVisible, setIsNowLineVisible] = useState(true);
@@ -277,6 +160,8 @@ export function Calendar({ activeTab }: CalendarProps) {
   const [showAssignOppModal, setShowAssignOppModal] = useState(false);
   const [activityToAssign, setActivityToAssign] = useState<any>(null);
   const [assigningActivity, setAssigningActivity] = useState(false);
+  const [phoneLookupAlias, setPhoneLookupAlias] = useState<string | null>(null);
+  const [meetingNotes, setMeetingNotes] = useState<string | null>(null);
   const [oppFilterText, setOppFilterText] = useState('');
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
@@ -368,6 +253,9 @@ export function Calendar({ activeTab }: CalendarProps) {
   }, [selectedDate, selectedCategories, selectedEventId, filterExpanded, allDayExpanded, isInitialMount, setTabState]);
 
   const selectedEvent = events.find((e) => e.meetingId === selectedEventId) ?? null;
+
+  // Reset notes when switching events
+  useEffect(() => { setMeetingNotes(null); }, [selectedEventId]);
   
   // Get unique categories from events
   const allCategories = Array.from(new Set(events.flatMap(e => e.categories || [])));
@@ -762,10 +650,10 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
         return;
       }
       
-      const tasks = await salesforceProvider.getUserTasks(userId, filters);
+      const result = await salesforceProvider.getUserTasks(userId, { ...filters, limit: 25 });
       
       // Map to expected format
-      const mappedTasks = tasks.map(t => ({
+      const mappedTasks = result.tasks.map(t => ({
         id: t.id,
         subject: t.subject,
         status: t.status,
@@ -782,6 +670,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
         ...prev,
         tasks: mappedTasks
       }));
+      setTasksCursor(result.hasNextPage ? result.cursor : undefined);
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
     } finally {
@@ -1224,7 +1113,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                       padding: '2px 6px',
                       borderRadius: '8px',
                       background: 'var(--color-primary)',
-                      color: '#fff'
+                      color: 'var(--text-inverted)'
                     }}>
                       {cat}
                     </span>
@@ -1253,7 +1142,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                           gap: '0.35rem',
                           padding: '0.35rem 0.6rem',
                           background: selectedCategories.has(cat) ? 'var(--color-primary)' : 'var(--color-bg)',
-                          color: selectedCategories.has(cat) ? '#fff' : 'var(--color-text)',
+                          color: selectedCategories.has(cat) ? 'var(--text-inverted)' : 'var(--color-text)',
                           borderRadius: '12px',
                           cursor: 'pointer',
                           fontSize: '0.85rem',
@@ -1770,6 +1659,13 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                                   <a href={`mailto:${a.email}`} style={{ color: 'var(--color-primary)' }}>
                                     {a.name || a.email}
                                   </a>
+                                  {a.email?.endsWith('@amazon.com') && (
+                                    <button
+                                      onClick={() => setPhoneLookupAlias(a.email.replace('@amazon.com', ''))}
+                                      title="Phonetool lookup"
+                                      style={{ marginLeft: '0.35rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85em', padding: 0 }}
+                                    >📞</button>
+                                  )}
                                   <span 
                                     className={`attendee-status attendee-status--${a.status.toLowerCase().replace(' ', '-')}`}
                                     style={{ marginLeft: '0.5rem', fontSize: '0.85em' }}
@@ -1889,6 +1785,88 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                         </div>
                       )}
                       </div>
+
+                      {/* RSVP + Take Notes */}
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                        {(['accept', 'tentative', 'decline'] as const).map(resp => (
+                          <button key={resp}
+                            onClick={async () => {
+                              try {
+                                await transformTool('work-agent', 'sat-outlook_calendar_meeting', {
+                                  operation: 'update',
+                                  meetingId: meetingDetails.meetingId || selectedEventId,
+                                  meetingChangeKey: meetingDetails.meetingChangeKey,
+                                  rsvpResponse: resp,
+                                }, 'data => data');
+                                showToast?.({ title: `Meeting ${resp}ed`, type: 'success' } as any);
+                              } catch (e: any) {
+                                showToast?.({ title: `Failed: ${e.message}`, type: 'error' } as any);
+                              }
+                            }}
+                            style={{
+                              padding: '0.35rem 0.75rem', border: 'none', borderRadius: '4px',
+                              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
+                              background: resp === 'accept' ? 'var(--health-success)' : resp === 'decline' ? 'var(--health-error)' : 'var(--warning-text)',
+                              color: 'var(--text-inverted)',
+                            }}
+                          >
+                            {resp === 'accept' ? '✓ Accept' : resp === 'decline' ? '✗ Decline' : '? Tentative'}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => setMeetingNotes(prev => prev !== null ? null : '')}
+                          style={{
+                            padding: '0.35rem 0.75rem', border: '1px solid var(--color-border)',
+                            borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
+                            background: meetingNotes !== null ? 'var(--color-primary)' : 'var(--color-bg)',
+                            color: meetingNotes !== null ? 'var(--text-inverted)' : 'var(--color-text)',
+                          }}
+                        >📝 Take Notes</button>
+                      </div>
+
+                      {meetingNotes !== null && (
+                        <div style={{ marginTop: '0.75rem' }}>
+                          <textarea
+                            value={meetingNotes}
+                            onChange={e => setMeetingNotes(e.target.value)}
+                            placeholder="Meeting notes..."
+                            style={{
+                              width: '100%', minHeight: '120px', padding: '0.75rem',
+                              border: '1px solid var(--color-border)', borderRadius: '4px',
+                              background: 'var(--color-bg)', color: 'var(--color-text)',
+                              fontSize: '0.85rem', resize: 'vertical', fontFamily: 'inherit',
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            <button
+                              disabled={!meetingNotes.trim()}
+                              onClick={async () => {
+                                const context = `# ${meetingDetails.subject}\n**Date:** ${new Date(meetingDetails.start).toLocaleString()}\n**Attendees:** ${meetingDetails.attendees?.map((a: any) => a.name || a.email).join(', ') || 'None'}\n\n## Notes\n${meetingNotes}`;
+                                try {
+                                  await navigator.clipboard.writeText(context);
+                                  showToast?.({ title: 'Notes copied to clipboard (Obsidian integration pending)', type: 'info' } as any);
+                                } catch {
+                                  showToast?.({ title: 'Failed to copy notes', type: 'error' } as any);
+                                }
+                              }}
+                              style={{
+                                padding: '0.35rem 0.75rem', border: 'none',
+                                borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem',
+                                background: 'var(--color-primary)', color: 'var(--text-inverted)', fontWeight: 500,
+                                opacity: meetingNotes.trim() ? 1 : 0.5,
+                              }}
+                            >Save to Obsidian</button>
+                            <button
+                              onClick={() => setMeetingNotes(null)}
+                              style={{
+                                padding: '0.35rem 0.75rem', border: '1px solid var(--color-border)',
+                                borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem',
+                                background: 'var(--color-bg)', color: 'var(--color-text)',
+                              }}
+                            >Cancel</button>
+                          </div>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
@@ -2230,7 +2208,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                       fontSize: '0.7rem',
                       padding: '2px 6px',
                       borderRadius: '10px',
-                      background: item.type === 'Account' ? '#0d6efd' : item.type === 'Campaign' ? '#198754' : '#6c757d',
+                      background: item.type === 'Account' ? 'var(--accent-primary)' : item.type === 'Campaign' ? 'var(--success-text)' : 'var(--text-tertiary)',
                       color: 'white',
                       fontWeight: 500
                     }}>
@@ -3087,6 +3065,39 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                               {showAllTasks ? 'Show Less' : `Show ${sfdcContext.tasks.length - 5} More`}
                             </button>
                           )}
+                          {showAllTasks && tasksCursor && (
+                            <button
+                              onClick={async () => {
+                                const userId = salesContext.myDetails?.userId;
+                                if (!userId || !selectedSfdcItem) return;
+                                const filters: any = { limit: 25, after: tasksCursor };
+                                if (selectedSfdcItem.type === 'opportunity') filters.opportunityId = selectedSfdcItem.data.id;
+                                else if (selectedSfdcItem.type === 'account') filters.accountId = selectedSfdcItem.data.id;
+                                const result = await salesforceProvider.getUserTasks(userId, filters);
+                                const mapped = result.tasks.map(t => ({
+                                  id: t.id, subject: t.subject, status: t.status,
+                                  activityDate: t.dueDate?.toISOString().split('T')[0],
+                                  description: t.description, priority: t.priority,
+                                  sa_Activity__c: t.activityType,
+                                  what: t.relatedTo ? { __typename: t.relatedTo.type, name: t.relatedTo.name } : undefined,
+                                  whatId: t.relatedTo?.id
+                                }));
+                                setSfdcContext(prev => ({ ...prev, tasks: [...(prev.tasks || []), ...mapped] }));
+                                setTasksCursor(result.hasNextPage ? result.cursor : undefined);
+                              }}
+                              style={{
+                                padding: '0.5rem',
+                                background: 'transparent',
+                                border: '1px solid var(--border-primary)',
+                                borderRadius: '6px',
+                                color: 'var(--accent-primary)',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem'
+                              }}
+                            >
+                              Load More…
+                            </button>
+                          )}
                         </div>
                       </details>
                     )}
@@ -3108,6 +3119,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
           </div>
         </div>
       )}
+      {phoneLookupAlias && <PhoneLookupModal alias={phoneLookupAlias} onClose={() => setPhoneLookupAlias(null)} />}
     </div>
   );
 }

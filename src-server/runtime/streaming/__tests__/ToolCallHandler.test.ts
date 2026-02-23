@@ -1,63 +1,35 @@
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { ToolCallHandler } from '../handlers/ToolCallHandler.js';
-import type { ProcessContext } from '../types.js';
-
-class MockStream {
-  written: string[] = [];
-  async write(data: string) {
-    this.written.push(data);
-  }
-}
+import type { StreamChunk } from '../types.js';
+import { toStream, collect } from './helpers.js';
 
 describe('ToolCallHandler', () => {
-  let stream: MockStream;
-  let handler: ToolCallHandler;
+  test('augments tool-call events with parsed server/tool fields', async () => {
+    const handler = new ToolCallHandler();
+    const input = { type: 'tool-call', toolCallId: '1', toolName: 'myServer_doThing', args: {} } as unknown as StreamChunk;
+    const result = await collect(handler.process(toStream([input])));
 
-  beforeEach(() => {
-    stream = new MockStream();
-    handler = new ToolCallHandler(stream, { debug: false });
-  });
-
-  test('writes tool-call events to stream', async () => {
-    const context: ProcessContext = {
-      originalChunk: { 
-        type: 'tool-call',
-        toolData: { name: 'test_tool', input: { arg: 'value' }, id: 'tool-1' }
-      },
-      metadata: new Map()
-    };
-
-    await handler.process(context);
-    
-    expect(stream.written.length).toBe(1);
-    expect(stream.written[0]).toContain('tool-call');
-    expect(stream.written[0]).toContain('test_tool');
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('tool-call');
+    expect((result[0] as any).server).toBeDefined();
+    expect((result[0] as any).tool).toBeDefined();
   });
 
   test('passes through non-tool-call events', async () => {
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: 'test' },
-      metadata: new Map()
-    };
+    const handler = new ToolCallHandler();
+    const input = { type: 'text-delta', id: '0', text: 'test' } as unknown as StreamChunk;
+    const result = await collect(handler.process(toStream([input])));
 
-    const result = await handler.process(context);
-    
-    expect(stream.written.length).toBe(0);
-    expect(result).toBe(context);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('text-delta');
   });
 
-  test('tracks tool call statistics', async () => {
-    const context: ProcessContext = {
-      originalChunk: { 
-        type: 'tool-call',
-        toolData: { name: 'test_tool', input: {}, id: 'tool-1' }
-      },
-      metadata: new Map()
-    };
+  test('passes through tool-call without toolName', async () => {
+    const handler = new ToolCallHandler();
+    const input = { type: 'tool-call', toolCallId: '1', args: {} } as unknown as StreamChunk;
+    const result = await collect(handler.process(toStream([input])));
 
-    await handler.process(context);
-    
-    expect(context.metadata.get('toolCalls')).toBe(1);
-    expect(context.eventType).toBe('tool-call');
+    expect(result).toHaveLength(1);
+    expect((result[0] as any).server).toBeUndefined();
   });
 });

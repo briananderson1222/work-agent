@@ -36,42 +36,26 @@ export function SiftQueue() {
 
   if (isLoading) {
     return (
-      <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>
-        Loading insights...
+      <div className="workspace-dashboard__loading">
+        <span className="workspace-dashboard__spinner" /> Loading insights…
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h2 style={{ color: 'var(--color-text)', margin: 0 }}>SIFT Queue</h2>
-        <button
-          onClick={() => setShowModal(true)}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'var(--color-primary)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '0.25rem',
-            cursor: 'pointer'
-          }}
-        >
+    <div className="workspace-dashboard__sift-container">
+      <div className="workspace-dashboard__sift-header">
+        <h2 className="workspace-dashboard__title">SIFT Queue</h2>
+        <button className="workspace-dashboard__btn workspace-dashboard__btn--primary" onClick={() => setShowModal(true)}>
           Create Insight
         </button>
       </div>
 
-      <div style={{ marginBottom: '1rem' }}>
+      <div className="workspace-dashboard__sift-filters">
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          style={{
-            padding: '0.5rem',
-            border: '1px solid var(--color-border)',
-            borderRadius: '0.25rem',
-            backgroundColor: 'var(--color-bg)',
-            color: 'var(--color-text)'
-          }}
+          className="workspace-dashboard__select"
         >
           {categories.map(category => (
             <option key={category} value={category}>{category}</option>
@@ -80,76 +64,58 @@ export function SiftQueue() {
       </div>
 
       {filteredInsights.length === 0 ? (
-        <div style={{ padding: '2rem', color: 'var(--color-text-secondary)' }}>
-          No insights found.
+        <div className="workspace-dashboard__empty">
+          <div className="workspace-dashboard__empty-title">No insights found</div>
         </div>
       ) : (
-        <div className="workspace-dashboard__card" style={{ overflow: 'visible' }}>
-          <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ position: 'sticky', top: 0, backgroundColor: 'var(--color-bg)', zIndex: 1 }}>
-                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--color-text)' }}>Category</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--color-text)' }}>Title</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--color-text)' }}>Account</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--color-text)' }}>Date</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--color-text)' }}>Status</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--color-text)' }}>Salesforce</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--color-text)' }}>Actions</th>
+        <div className="workspace-dashboard__card workspace-dashboard__sift-table-wrap">
+          <div className="workspace-dashboard__sift-scroll">
+            <table className="workspace-dashboard__table">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Title</th>
+                  <th>Segment</th>
+                  <th>Date</th>
+                  <th></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredInsights.map((insight) => (
-                  <tr key={insight.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '0.75rem' }}>
-                      <span style={{
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '0.25rem',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        color: 'white',
-                        backgroundColor: categoryColors[insight.category] || 'var(--color-text-secondary)'
-                      }}>
+                  <tr key={insight.id}>
+                    <td>
+                      <span className="workspace-dashboard__category-badge"
+                        style={{ backgroundColor: categoryColors[insight.category] || 'var(--color-text-secondary)' }}>
                         {insight.category}
                       </span>
                     </td>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text)' }}>{insight.title}</td>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                      {insight.accountName || 'N/A'}
+                    <td>
+                      {insight.title}
+                      {insight.opportunityName && (
+                        <div className="workspace-dashboard__cell--secondary" style={{ fontSize: '0.75rem', marginTop: '2px' }}>
+                          {insight.opportunityName}
+                        </div>
+                      )}
                     </td>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                      {insight.createdDate.toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                      {insight.status || 'N/A'}
-                    </td>
-                    <td style={{ padding: '0.75rem' }}>
+                    <td className="workspace-dashboard__cell--secondary">{insight.segment || insight.industry || '—'}</td>
+                    <td className="workspace-dashboard__cell--secondary">{insight.createdDate.toLocaleDateString()}</td>
+                    <td>
                       <a
-                        href={`${CRM_BASE_URL}/lightning/r/SIFT_Insight__c/${insight.id}/view`}
+                        href={insight.salesforceUrl || `${CRM_BASE_URL}/lightning/r/SIFT_Insight__c/${insight.id}/view`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{
-                          color: 'var(--color-primary)',
-                          textDecoration: 'none',
-                          fontSize: '0.875rem'
-                        }}
+                        className="workspace-dashboard__sfdc-link"
+                        title="Open in Salesforce"
                       >
-                        🔗
+                        ↗
                       </a>
                     </td>
-                    <td style={{ padding: '0.75rem' }}>
+                    <td>
                       <button
                         onClick={() => handleDelete(insight.id)}
                         disabled={deleteSift.isPending}
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          border: '1px solid #ef4444',
-                          backgroundColor: '#ef4444',
-                          color: 'white',
-                          borderRadius: '0.25rem',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem'
-                        }}
+                        className="workspace-dashboard__btn workspace-dashboard__btn--danger workspace-dashboard__btn--sm"
                       >
                         Delete
                       </button>

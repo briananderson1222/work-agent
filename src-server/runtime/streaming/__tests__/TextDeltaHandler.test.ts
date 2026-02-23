@@ -1,75 +1,43 @@
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { TextDeltaHandler } from '../handlers/TextDeltaHandler.js';
-import type { ProcessContext } from '../types.js';
-
-class MockStream {
-  written: string[] = [];
-  async write(data: string) {
-    this.written.push(data);
-  }
-}
+import type { StreamChunk } from '../types.js';
+import { toStream, collect } from './helpers.js';
 
 describe('TextDeltaHandler', () => {
-  let stream: MockStream;
-  let handler: TextDeltaHandler;
+  test('passes through text-delta events', async () => {
+    const handler = new TextDeltaHandler();
+    const input = { type: 'text-delta', id: '0', text: 'test' } as unknown as StreamChunk;
+    const result = await collect(handler.process(toStream([input])));
 
-  beforeEach(() => {
-    stream = new MockStream();
-    handler = new TextDeltaHandler(stream, { debug: false });
-  });
-
-  test('writes text-delta events to stream', async () => {
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: 'test' },
-      eventType: 'text-delta',
-      content: 'test content',
-      metadata: new Map()
-    };
-
-    await handler.process(context);
-    
-    expect(stream.written.length).toBe(1);
-    expect(stream.written[0]).toContain('text-delta');
-    expect(stream.written[0]).toContain('test content');
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('text-delta');
   });
 
   test('passes through non-text-delta events', async () => {
-    const context: ProcessContext = {
-      originalChunk: { type: 'tool-call' },
-      eventType: 'tool-call',
-      metadata: new Map()
-    };
+    const handler = new TextDeltaHandler();
+    const input = { type: 'tool-call', toolCallId: '1', toolName: 'test', args: {} } as unknown as StreamChunk;
+    const result = await collect(handler.process(toStream([input])));
 
-    const result = await handler.process(context);
-    
-    expect(stream.written.length).toBe(0);
-    expect(result).toBe(context);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('tool-call');
   });
 
-  test('tracks text statistics', async () => {
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta' },
-      eventType: 'text-delta',
-      content: 'hello',
-      metadata: new Map()
-    };
+  test('preserves all chunks in order', async () => {
+    const handler = new TextDeltaHandler();
+    const chunks: StreamChunk[] = [
+      { type: 'text-delta', id: '0', text: 'hello' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: ' world' } as unknown as StreamChunk,
+    ];
+    const result = await collect(handler.process(toStream(chunks)));
 
-    await handler.process(context);
-    
-    expect(context.metadata.get('textChunks')).toBe(1);
-    expect(context.metadata.get('textLength')).toBe(5);
+    expect(result).toHaveLength(2);
+    expect((result[0] as any).text).toBe('hello');
+    expect((result[1] as any).text).toBe(' world');
   });
 
-  test('handles empty content', async () => {
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta' },
-      eventType: 'text-delta',
-      content: '',
-      metadata: new Map()
-    };
-
-    await handler.process(context);
-    
-    expect(stream.written.length).toBe(0);
+  test('handles empty stream', async () => {
+    const handler = new TextDeltaHandler();
+    const result = await collect(handler.process(toStream([])));
+    expect(result).toHaveLength(0);
   });
 });

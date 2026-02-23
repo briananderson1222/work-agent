@@ -111,9 +111,12 @@ export interface InsightVM {
   summary: string;
   description?: string;
   category: string;
-  accountId?: string;
-  accountName?: string;
-  status?: string;
+  source?: string;
+  segment?: string;
+  industry?: string;
+  geo?: string;
+  opportunityName?: string;
+  salesforceUrl?: string;
   createdDate: Date;
   enrichmentId?: string;
 }

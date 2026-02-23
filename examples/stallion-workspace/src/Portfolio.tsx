@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useUserProfile, useMyAccounts, useAccountDetails, useAccountSpend, useSiftQueue } from './data';
+import { useState, useCallback, useEffect } from 'react';
+import { useSendToChat, useConversations, useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
+import { useUserProfile, useMyAccounts, useAccountDetails, useAccountSpend, useSiftQueue, useCalendarEvents } from './data';
 import { CRM_BASE_URL } from './constants';
 import type { AccountVM } from './data';
 import './workspace.css';
@@ -8,6 +9,18 @@ const CATEGORY_COLORS: Record<string, string> = {
   Highlight: '#10b981', Lowlight: '#f97316', Risk: '#ef4444',
   Observation: '#3b82f6', Blocker: '#ef4444', Challenge: '#f59e0b',
 };
+
+const STORAGE_KEY = 'portfolio-account-access';
+
+function getAccessTimes(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+
+function recordAccess(id: string) {
+  const times = getAccessTimes();
+  times[id] = Date.now();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(times));
+}
 
 function healthBadge(score?: number) {
   if (score == null) return { label: 'No Data', color: '#6b7280' };
@@ -21,9 +34,7 @@ function fmt(n?: number) {
   return n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n.toFixed(2)}`;
 }
 
-const spin = { display: 'inline-block', width: 12, height: 12, border: '2px solid var(--color-border)', borderTop: '2px solid var(--color-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' };
-
-function AccountRow({ account, onNavigate }: { account: AccountVM; onNavigate: (id: string) => void }) {
+function AccountRow({ account, onNavigate, onExpand }: { account: AccountVM; onNavigate: (id: string) => void; onExpand: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const { data: details, isLoading: loadingDetails } = useAccountDetails(expanded ? account.id : null);
   const { data: spend, isLoading: loadingSpend } = useAccountSpend(expanded ? account.id : null);
@@ -31,83 +42,199 @@ function AccountRow({ account, onNavigate }: { account: AccountVM; onNavigate: (
   const merged = details || account;
   const health = healthBadge(merged.healthScore);
 
+  const handleExpand = () => {
+    if (!expanded) {
+      setExpanded(true);
+      onExpand(account.id);
+    }
+  };
+
   return (
-    <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setExpanded(true)}>
-      <td style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <tr style={{ cursor: 'pointer' }} onClick={handleExpand}>
+      <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <a href={`/workspaces/stallion/crm?selectedAccount=${account.id}`}
-          style={{ color: 'var(--color-primary)', textDecoration: 'none', flex: 1, cursor: 'pointer' }}
+          className="workspace-dashboard__account-name"
           onClick={e => { e.preventDefault(); e.stopPropagation(); onNavigate(account.id); }}>
           {account.name}
         </a>
         <a href={`${CRM_BASE_URL}/lightning/r/Account/${account.id}/view`} target="_blank" rel="noopener noreferrer"
-          style={{ color: 'var(--color-text-secondary)', textDecoration: 'none', fontSize: '0.875rem', flexShrink: 0 }}
-          onClick={e => e.stopPropagation()} title="Open in Salesforce">
+          className="workspace-dashboard__sfdc-link" onClick={e => e.stopPropagation()} title="Open in Salesforce">
           ↗
         </a>
       </td>
-      <td style={{ padding: '0.5rem 0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-        {loadingDetails ? <span style={spin} /> : (merged.segment || '-')}
+      <td style={{ color: 'var(--color-text-secondary)' }}>
+        {loadingDetails ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : (merged.segment || '-')}
       </td>
-      <td style={{ padding: '0.5rem 0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-        {loadingDetails ? <span style={spin} /> : (merged.geo || '-')}
+      <td style={{ color: 'var(--color-text-secondary)' }}>
+        {loadingDetails ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : (merged.geo || '-')}
       </td>
-      <td style={{ padding: '0.5rem 0.75rem', color: 'var(--color-text)', fontSize: '0.875rem' }}>
-        {!expanded ? <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>click row</span> : loadingSpend ? <span style={spin} /> : fmt(spend?.ytdSpend)}
+      <td>
+        {!expanded ? <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>click row</span> : loadingSpend ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : fmt(spend?.ytdSpend)}
       </td>
-      <td style={{ padding: '0.5rem 0.75rem', color: 'var(--color-text)', fontSize: '0.875rem' }}>
-        {!expanded ? '-' : loadingSpend ? <span style={spin} /> : fmt(spend?.mtdSpend)}
+      <td>
+        {!expanded ? '-' : loadingSpend ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : fmt(spend?.mtdSpend)}
       </td>
-      <td style={{ padding: '0.5rem 0.75rem' }}>
-        {loading ? <span style={spin} /> : (
-          <span style={{ padding: '0.125rem 0.5rem', backgroundColor: health.color, color: 'white', borderRadius: '0.25rem', fontSize: '0.75rem' }}>
-            {health.label}
-          </span>
+      <td>
+        {loading ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : (
+          <span className="workspace-dashboard__badge" style={{ backgroundColor: health.color }}>{health.label}</span>
         )}
       </td>
     </tr>
   );
 }
 
+type ConversationItem = { id: string; title?: string; lastMessage?: string; updatedAt?: number; messageCount?: number };
+
 export function Portfolio() {
   const { data: user, isLoading: loadingUser } = useUserProfile();
   const { data: accounts = [], isLoading: loadingAccounts } = useMyAccounts(user?.id);
   const { data: sifts = [], isLoading: loadingSifts } = useSiftQueue();
-
-  const thStyle = { padding: '0.5rem 0.75rem', textAlign: 'left' as const, color: 'var(--color-text-secondary)', fontSize: '0.8rem', fontWeight: 500 };
   const isLoading = loadingUser || loadingAccounts;
+  const nav = useNavigation();
+  const { setTabState } = useWorkspaceNavigation();
+  const sendToChat = useSendToChat('work-agent');
+  const conversations = useConversations('work-agent') as ConversationItem[];
+  const today = new Date();
+  const { data: events } = useCalendarEvents(today);
+
+  const [accessTimes, setAccessTimes] = useState(getAccessTimes);
+
+  const sortedAccounts = [...accounts].sort((a, b) => {
+    const ta = accessTimes[a.id] || 0;
+    const tb = accessTimes[b.id] || 0;
+    return tb - ta; // most recent first, unaccessed stay at bottom
+  });
+
+  const handleExpand = useCallback((id: string) => {
+    recordAccess(id);
+    setAccessTimes(getAccessTimes());
+  }, []);
 
   const navigateToAccount = (accountId: string) => {
-    window.history.pushState({}, '', `/workspaces/stallion/crm#selectedAccount=${accountId}`);
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    const params = new URLSearchParams();
+    params.set('selectedAccount', accountId);
+    setTabState('crm', params.toString());
+    nav.setWorkspaceTab('stallion', 'crm');
   };
 
+  const fmtTime = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  const relTime = (ts: number) => {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  const recentConversations = (conversations || [])
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .slice(0, 5);
+
+  const prompts = [
+    { title: '📋 Daily Briefing', desc: 'Review calendar and email priorities', msg: 'Review my calendar and email for today. Summarize priorities and action items.' },
+    { title: '🤝 Meeting Prep', desc: 'Prepare for upcoming meetings', msg: 'Prepare me for my upcoming meetings today. Research attendees and gather account context.' },
+    { title: '📝 Log Activity', desc: 'Update Salesforce with meeting notes', msg: 'Review my customer meetings and help me log activities in Salesforce.' },
+    { title: '💡 Generate Insights', desc: 'Create leadership insights (SIFTs)', msg: 'Analyze my recent activities and suggest leadership insights (SIFTs) to create.' },
+  ];
+
   return (
-    <div style={{ padding: '1rem', display: 'grid', gap: '1.5rem' }}>
+    <div className="workspace-dashboard__page">
+      {/* Quick Actions */}
+      <div className="workspace-dashboard__prompt-grid">
+        {prompts.map(p => (
+          <button key={p.title} onClick={() => sendToChat(p.msg)} className="workspace-dashboard__prompt-btn">
+            <div className="workspace-dashboard__prompt-title">{p.title}</div>
+            <div className="workspace-dashboard__prompt-desc">{p.desc}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Today's Meetings + Recent Conversations side by side */}
+      <div className="workspace-dashboard__row">
+        <div className="workspace-dashboard__card workspace-dashboard__card--half">
+          <div className="workspace-dashboard__card-header">
+            <h3 className="workspace-dashboard__card-title">Today's Meetings ({events?.length || 0})</h3>
+          </div>
+          <div className="workspace-dashboard__scroll-sm workspace-dashboard__card-content">
+            {events && events.length > 0 ? events.map(e => (
+              <a key={e.id} href={`/workspaces/stallion/calendar`}
+                className="workspace-dashboard__card-item workspace-dashboard__meeting-link"
+                onClick={ev => {
+                  ev.preventDefault();
+                  const params = new URLSearchParams();
+                  params.set('event', e.id);
+                  params.set('date', new Date(e.start).toISOString().split('T')[0]);
+                  setTabState('calendar', params.toString());
+                  nav.setWorkspaceTab('stallion', 'calendar');
+                }}>
+                <span className="workspace-dashboard__meeting-time">{fmtTime(new Date(e.start))}</span>
+                <span className="workspace-dashboard__meeting-subject">{e.subject}</span>
+              </a>
+            )) : (
+              <div className="workspace-dashboard__empty"><div>No meetings today</div></div>
+            )}
+          </div>
+        </div>
+
+        <div className="workspace-dashboard__card workspace-dashboard__card--half">
+          <div className="workspace-dashboard__card-header">
+            <h3 className="workspace-dashboard__card-title">Recent Conversations</h3>
+          </div>
+          {recentConversations.length > 0 ? (
+            <div className="workspace-dashboard__scroll-sm">
+              <table className="workspace-dashboard__table">
+                <thead><tr><th>Conversation</th><th>Last Active</th><th></th></tr></thead>
+                <tbody>
+                  {recentConversations.map(c => (
+                    <tr key={c.id}>
+                      <td style={{ color: 'var(--color-text, var(--text-primary))' }}>
+                        {c.title || c.lastMessage?.slice(0, 50) || c.id.slice(0, 8)}
+                      </td>
+                      <td style={{ color: 'var(--color-text-secondary)' }}>{c.updatedAt ? relTime(c.updatedAt) : '-'}</td>
+                      <td>
+                        <button onClick={() => { nav.setDockState(true); nav.setActiveChat(c.id); }} className="workspace-dashboard__resume-btn">
+                          Resume
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="workspace-dashboard__empty"><div>No conversations yet</div></div>
+          )}
+        </div>
+      </div>
+
       {/* Accounts */}
-      <div className="workspace-dashboard__card" style={{ overflow: 'visible' }}>
+      <div className="workspace-dashboard__card">
         <div className="workspace-dashboard__card-header">
           <h3 className="workspace-dashboard__card-title">
             My Accounts {!isLoading && `(${accounts.length})`}
-            {isLoading && <span style={{ ...spin, marginLeft: 8 }} />}
+            {isLoading && <span className="workspace-dashboard__spinner" style={{ marginLeft: 8 }} />}
           </h3>
         </div>
         {isLoading ? (
           <div className="workspace-dashboard__empty"><div>Loading accounts...</div></div>
         ) : accounts.length > 0 ? (
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ position: 'sticky', top: 0, background: 'var(--color-bg, var(--bg-secondary))' }}>
-                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <th style={thStyle}>Name</th>
-                  <th style={thStyle}>Segment</th>
-                  <th style={thStyle}>Geo</th>
-                  <th style={thStyle}>YTD Spend</th>
-                  <th style={thStyle}>MTD Spend</th>
-                  <th style={thStyle}>Health</th>
+          <div className="workspace-dashboard__scroll-lg">
+            <table className="workspace-dashboard__table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Segment</th>
+                  <th>Geo</th>
+                  <th>YTD Spend</th>
+                  <th>MTD Spend</th>
+                  <th>Health</th>
                 </tr>
               </thead>
               <tbody>
-                {accounts.map(a => <AccountRow key={a.id} account={a} onNavigate={navigateToAccount} />)}
+                {sortedAccounts.map(a => <AccountRow key={a.id} account={a} onNavigate={navigateToAccount} onExpand={handleExpand} />)}
               </tbody>
             </table>
           </div>
@@ -117,20 +244,20 @@ export function Portfolio() {
       </div>
 
       {/* Recent SIFTs */}
-      <div className="workspace-dashboard__card" style={{ overflow: 'visible' }}>
+      <div className="workspace-dashboard__card">
         <div className="workspace-dashboard__card-header">
           <h3 className="workspace-dashboard__card-title">
             Recent SIFTs
-            {loadingSifts && <span style={{ ...spin, marginLeft: 8 }} />}
+            {loadingSifts && <span className="workspace-dashboard__spinner" style={{ marginLeft: 8 }} />}
           </h3>
         </div>
-        <div className="workspace-dashboard__card-content">
+        <div className="workspace-dashboard__scroll-md workspace-dashboard__card-content">
           {loadingSifts ? (
             <div className="workspace-dashboard__empty"><div>Loading insights...</div></div>
           ) : sifts.length > 0 ? sifts.map(s => (
             <div key={s.id} className="workspace-dashboard__card-item">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ padding: '0.125rem 0.5rem', backgroundColor: CATEGORY_COLORS[s.category] || '#6b7280', color: 'white', borderRadius: '0.25rem', fontSize: '0.75rem' }}>
+                <span className="workspace-dashboard__badge" style={{ backgroundColor: CATEGORY_COLORS[s.category] || '#6b7280' }}>
                   {s.category}
                 </span>
                 <div className="workspace-dashboard__card-item-title">{s.title}</div>
@@ -144,8 +271,6 @@ export function Portfolio() {
           )}
         </div>
       </div>
-
-      <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

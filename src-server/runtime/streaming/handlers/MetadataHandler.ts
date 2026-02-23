@@ -92,17 +92,19 @@ export class MetadataHandler implements StreamHandler {
           type: 'tool-result',
           toolName: chunk.toolName,
           toolCallId: chunk.toolCallId,
-          result: chunk.output || (chunk as any).result,
+          result: chunk.output,
         });
         break;
 
       case 'reasoning-end':
         // Only emit reasoning event at the end with complete content
-        if ((chunk as any).text) {
+        // Note: reasoning-end in AI SDK doesn't have text field, but custom handlers may add it
+        const reasoningChunk = chunk as StreamChunk & { text?: string };
+        if (reasoningChunk.text) {
           this.monitoringEvents.emit('event', {
             ...baseEvent,
             type: 'reasoning',
-            data: (chunk as any).text,
+            data: reasoningChunk.text,
           });
         }
         break;

@@ -1,14 +1,17 @@
-import { useSendToChat, useConversations, useNavigation } from '@stallion-ai/sdk';
+import { useSendToChat, useConversations, useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
 import { useCalendarEvents, useEmailInbox } from './data';
 import './workspace.css';
+
+type ConversationItem = { id: string; title?: string; lastMessage?: string; updatedAt?: number; messageCount?: number };
 
 export function Today() {
   const sendToChat = useSendToChat('work-agent');
   const today = new Date();
   const { data: events } = useCalendarEvents(today);
   const { data: inbox } = useEmailInbox({ count: 1 });
-  const conversations = useConversations('work-agent') as any[];
+  const conversations = useConversations('work-agent') as ConversationItem[];
   const nav = useNavigation();
+  const { setTabState } = useWorkspaceNavigation();
 
   const fmt = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
@@ -20,7 +23,7 @@ export function Today() {
   ];
 
   const recentConversations = (conversations || [])
-    .sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .slice(0, 10);
 
   const openConversation = (id: string) => {
@@ -38,27 +41,21 @@ export function Today() {
     return `${Math.floor(hrs / 24)}d ago`;
   };
 
-  const thStyle = { padding: '0.5rem 0.75rem', textAlign: 'left' as const, color: 'var(--color-text-secondary)', fontSize: '0.8rem', fontWeight: 500 };
-  const tdStyle = { padding: '0.5rem 0.75rem', fontSize: '0.875rem' };
-
   return (
-    <div style={{ padding: '1rem', display: 'grid', gap: '1.5rem' }}>
+    <div className="workspace-dashboard__page">
       {/* Date header */}
       <div>
-        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text, var(--text-primary))' }}>
+        <h2 className="workspace-dashboard__page-title">
           {today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </h2>
       </div>
 
       {/* Quick Actions */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
+      <div className="workspace-dashboard__prompt-grid">
         {prompts.map(p => (
-          <button key={p.title} onClick={() => sendToChat(p.msg)}
-            className="workspace-dashboard__card" style={{ overflow: 'visible', cursor: 'pointer', textAlign: 'left', border: '1px solid var(--color-border)', background: 'var(--color-bg, var(--bg-secondary))' }}>
-            <div style={{ padding: '0.75rem' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text, var(--text-primary))', marginBottom: '0.25rem' }}>{p.title}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary, var(--text-secondary))' }}>{p.desc}</div>
-            </div>
+          <button key={p.title} onClick={() => sendToChat(p.msg)} className="workspace-dashboard__prompt-btn">
+            <div className="workspace-dashboard__prompt-title">{p.title}</div>
+            <div className="workspace-dashboard__prompt-desc">{p.desc}</div>
           </button>
         ))}
       </div>
@@ -68,12 +65,21 @@ export function Today() {
         <div className="workspace-dashboard__card-header">
           <h3 className="workspace-dashboard__card-title">Today's Meetings ({events?.length || 0})</h3>
         </div>
-        <div className="workspace-dashboard__card-content">
+        <div className="workspace-dashboard__scroll-sm workspace-dashboard__card-content">
           {events && events.length > 0 ? events.map(e => (
-            <div key={e.id} className="workspace-dashboard__card-item" style={{ display: 'flex', gap: '1rem', alignItems: 'baseline' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', minWidth: '5rem' }}>{fmt(new Date(e.start))}</span>
-              <span style={{ color: 'var(--color-text, var(--text-primary))', fontSize: '0.875rem' }}>{e.subject}</span>
-            </div>
+            <a key={e.id} href={`/workspaces/stallion/calendar`}
+              className="workspace-dashboard__card-item workspace-dashboard__meeting-link"
+              onClick={ev => {
+                ev.preventDefault();
+                const params = new URLSearchParams();
+                params.set('event', e.id);
+                params.set('date', new Date(e.start).toISOString().split('T')[0]);
+                setTabState('calendar', params.toString());
+                nav.setWorkspaceTab('stallion', 'calendar');
+              }}>
+              <span className="workspace-dashboard__meeting-time">{fmt(new Date(e.start))}</span>
+              <span className="workspace-dashboard__meeting-subject">{e.subject}</span>
+            </a>
           )) : (
             <div className="workspace-dashboard__empty"><div>No meetings today</div></div>
           )}
@@ -86,27 +92,26 @@ export function Today() {
           <h3 className="workspace-dashboard__card-title">Recent Conversations</h3>
         </div>
         {recentConversations.length > 0 ? (
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ position: 'sticky', top: 0, background: 'var(--color-bg, var(--bg-secondary))' }}>
-                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <th style={thStyle}>Conversation</th>
-                  <th style={thStyle}>Messages</th>
-                  <th style={thStyle}>Last Active</th>
-                  <th style={thStyle}></th>
+          <div className="workspace-dashboard__scroll-md">
+            <table className="workspace-dashboard__table">
+              <thead>
+                <tr>
+                  <th>Conversation</th>
+                  <th>Messages</th>
+                  <th>Last Active</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {recentConversations.map((c: any) => (
-                  <tr key={c.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ ...tdStyle, color: 'var(--color-text, var(--text-primary))' }}>
+                {recentConversations.map(c => (
+                  <tr key={c.id}>
+                    <td style={{ color: 'var(--color-text, var(--text-primary))' }}>
                       {c.title || c.lastMessage?.slice(0, 50) || c.id.slice(0, 8)}
                     </td>
-                    <td style={{ ...tdStyle, color: 'var(--color-text-secondary)' }}>{c.messageCount || '-'}</td>
-                    <td style={{ ...tdStyle, color: 'var(--color-text-secondary)' }}>{c.updatedAt ? relTime(c.updatedAt) : '-'}</td>
-                    <td style={tdStyle}>
-                      <button onClick={() => openConversation(c.id)}
-                        style={{ background: 'none', border: '1px solid var(--color-border)', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--color-primary)' }}>
+                    <td style={{ color: 'var(--color-text-secondary)' }}>{c.messageCount || '-'}</td>
+                    <td style={{ color: 'var(--color-text-secondary)' }}>{c.updatedAt ? relTime(c.updatedAt) : '-'}</td>
+                    <td>
+                      <button onClick={() => openConversation(c.id)} className="workspace-dashboard__resume-btn">
                         Resume
                       </button>
                     </td>

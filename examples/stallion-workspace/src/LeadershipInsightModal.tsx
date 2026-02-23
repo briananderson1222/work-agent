@@ -22,6 +22,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
   const [loading, setLoading] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
+  const [tasksCursor, setTasksCursor] = useState<string | undefined>();
   const [showAllInsights, setShowAllInsights] = useState(false);
   const [tasksCollapsed, setTasksCollapsed] = useState(false);
   const [insightsCollapsed, setInsightsCollapsed] = useState(false);
@@ -79,9 +80,9 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
   const loadTasks = async () => {
     if (!userDetails) return;
     try {
-      const tasks = await salesforceProvider.getUserTasks(userDetails.sfdcId);
+      const result = await salesforceProvider.getUserTasks(userDetails.sfdcId, { limit: 25 });
       // Map to expected format
-      const mappedTasks = tasks.map(t => ({
+      const mappedTasks = result.tasks.map(t => ({
         id: t.id,
         subject: t.subject,
         status: t.status,
@@ -93,6 +94,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
         whatId: t.relatedTo?.id
       }));
       setState({ myTasks: mappedTasks });
+      setTasksCursor(result.hasNextPage ? result.cursor : undefined);
     } catch (err) {
       console.error('Failed to load tasks:', err);
     }
@@ -119,14 +121,14 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      'Highlight': '#10b981',
-      'Lowlight': '#f59e0b',
-      'Risk': '#ef4444',
-      'Observation': '#3b82f6',
-      'Blocker': '#dc2626',
-      'Challenge': '#f97316',
+      'Highlight': 'var(--health-success)',
+      'Lowlight': 'var(--warning-text)',
+      'Risk': 'var(--health-error)',
+      'Observation': 'var(--accent-primary)',
+      'Blocker': 'var(--health-error)',
+      'Challenge': 'var(--warning-text)',
     };
-    return colors[category] || '#6b7280';
+    return colors[category] || 'var(--text-tertiary)';
   };
 
   const handleTaskClick = (task: any) => {
@@ -364,6 +366,37 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
                       }}
                     >
                       {showAllTasks ? 'Show Less' : `Show More (${state.myTasks.length - 5} more)`}
+                    </button>
+                  )}
+                  {showAllTasks && tasksCursor && (
+                    <button
+                      onClick={async () => {
+                        if (!userDetails) return;
+                        const result = await salesforceProvider.getUserTasks(userDetails.sfdcId, { limit: 25, after: tasksCursor });
+                        const mapped = result.tasks.map(t => ({
+                          id: t.id, subject: t.subject, status: t.status,
+                          activityDate: t.dueDate?.toISOString().split('T')[0],
+                          description: t.description, priority: t.priority,
+                          sa_Activity__c: t.activityType,
+                          what: t.relatedTo ? { __typename: t.relatedTo.type, name: t.relatedTo.name } : undefined,
+                          whatId: t.relatedTo?.id
+                        }));
+                        setState({ myTasks: [...state.myTasks, ...mapped] });
+                        setTasksCursor(result.hasNextPage ? result.cursor : undefined);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        fontSize: '0.75rem',
+                        marginTop: '0.25rem',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-primary)',
+                        borderRadius: '0.25rem',
+                        cursor: 'pointer',
+                        color: 'var(--accent-primary)',
+                      }}
+                    >
+                      Load More…
                     </button>
                   )}
                 </>

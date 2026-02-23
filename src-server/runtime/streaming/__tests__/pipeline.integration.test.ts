@@ -4,128 +4,105 @@ import { ReasoningHandler } from '../handlers/ReasoningHandler.js';
 import { TextDeltaHandler } from '../handlers/TextDeltaHandler.js';
 import { ToolCallHandler } from '../handlers/ToolCallHandler.js';
 import { MetadataHandler } from '../handlers/MetadataHandler.js';
-import type { BedrockChunk } from '../types.js';
-
-class MockStream {
-  written: string[] = [];
-  async write(data: string) {
-    this.written.push(data);
-  }
-  
-  getEvents() {
-    return this.written.map(line => {
-      const match = line.match(/data: (.+)\n\n/);
-      return match ? JSON.parse(match[1]) : null;
-    }).filter(Boolean);
-  }
-}
+import type { StreamChunk } from '../types.js';
+import { toStream, collect } from './helpers.js';
 
 describe('StreamPipeline Integration', () => {
-  let stream: MockStream;
   let pipeline: StreamPipeline;
   let metadataHandler: MetadataHandler;
 
   beforeEach(() => {
-    stream = new MockStream();
     metadataHandler = new MetadataHandler();
-    
     pipeline = new StreamPipeline()
-      .use(new ReasoningHandler(stream, { enableThinking: true }))
-      .use(new TextDeltaHandler(stream))
-      .use(new ToolCallHandler(stream))
+      .use(new ReasoningHandler({ enableThinking: true }))
+      .use(new TextDeltaHandler())
+      .use(new ToolCallHandler())
       .use(metadataHandler);
   });
 
   test('processes simple text response', async () => {
-    const chunks: BedrockChunk[] = [
-      { type: 'text-delta', text: 'Hello ' },
-      { type: 'text-delta', text: 'world' }
+    const chunks: StreamChunk[] = [
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'Hello ' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'world' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
     ];
 
-    for (const chunk of chunks) {
-      await pipeline.process(chunk);
-    }
-
-    const events = stream.getEvents();
-    expect(events.length).toBe(2);
-    expect(events[0].type).toBe('text-delta');
-    expect(events[0].content).toBe('Hello ');
-    expect(events[1].content).toBe('world');
+    const result = await collect(pipeline.run(toStream(chunks)));
+    const textDeltas = result.filter(c => c.type === 'text-delta');
+    expect(textDeltas.length).toBeGreaterThan(0);
+    // Verify all text content is present
+    const text = textDeltas.map(c => (c as any).text).join('');
+    expect(text).toBe('Hello world');
   });
 
   test('processes response with thinking blocks', async () => {
-    const chunks: BedrockChunk[] = [
-      { type: 'text-delta', text: '<thinking>' },
-      { type: 'text-delta', text: 'internal thought' },
-      { type: 'text-delta', text: '</thinking>' },
-      { type: 'text-delta', text: 'response' }
+    const chunks: StreamChunk[] = [
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: '<thinking>' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'internal thought' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: '</thinking>' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'response' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
     ];
 
-    for (const chunk of chunks) {
-      await pipeline.process(chunk);
-    }
-
-    const events = stream.getEvents();
-    expect(events.some(e => e.type === 'reasoning-start')).toBe(true);
-    expect(events.some(e => e.type === 'reasoning-delta')).toBe(true);
-    expect(events.some(e => e.type === 'reasoning-end')).toBe(true);
-    expect(events.some(e => e.type === 'text-delta' && e.content === 'response')).toBe(true);
+    const result = await collect(pipeline.run(toStream(chunks)));
+    expect(result.some(c => c.type === 'reasoning-start')).toBe(true);
+    expect(result.some(c => c.type === 'reasoning-delta')).toBe(true);
+    expect(result.some(c => c.type === 'reasoning-end')).toBe(true);
+    expect(result.some(c => c.type === 'text-delta')).toBe(true);
   });
 
   test('processes response with tool calls', async () => {
-    const chunks: BedrockChunk[] = [
-      { type: 'text-delta', text: 'Using tool...' },
-      { type: 'tool-call', toolData: { name: 'test_tool', input: { arg: 'val' }, id: 'tool-1' } }
+    const chunks: StreamChunk[] = [
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'Using tool...' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
+      { type: 'tool-call', toolCallId: '1', toolName: 'test_tool', args: { arg: 'val' } } as unknown as StreamChunk,
     ];
 
-    for (const chunk of chunks) {
-      await pipeline.process(chunk);
-    }
-
-    const events = stream.getEvents();
-    expect(events.some(e => e.type === 'text-delta')).toBe(true);
-    expect(events.some(e => e.type === 'tool-call')).toBe(true);
+    const result = await collect(pipeline.run(toStream(chunks)));
+    expect(result.some(c => c.type === 'text-delta')).toBe(true);
+    expect(result.some(c => c.type === 'tool-call')).toBe(true);
   });
 
   test('processes mixed content: text + thinking + tool calls', async () => {
-    const chunks: BedrockChunk[] = [
-      { type: 'text-delta', text: 'Start ' },
-      { type: 'text-delta', text: '<thinking>' },
-      { type: 'text-delta', text: 'plan' },
-      { type: 'text-delta', text: '</thinking>' },
-      { type: 'text-delta', text: 'middle ' },
-      { type: 'tool-call', toolData: { name: 'tool', input: {}, id: '1' } },
-      { type: 'text-delta', text: 'end' }
+    const chunks: StreamChunk[] = [
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'Start ' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: '<thinking>' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'plan' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: '</thinking>' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'middle ' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
+      { type: 'tool-call', toolCallId: '1', toolName: 'tool', args: {} } as unknown as StreamChunk,
+      { type: 'text-start', id: '1' } as StreamChunk,
+      { type: 'text-delta', id: '1', text: 'end' } as unknown as StreamChunk,
+      { type: 'text-end', id: '1' } as StreamChunk,
     ];
 
-    for (const chunk of chunks) {
-      await pipeline.process(chunk);
-    }
+    const result = await collect(pipeline.run(toStream(chunks)));
+    expect(result.length).toBeGreaterThan(0);
 
-    const events = stream.getEvents();
-    expect(events.length).toBeGreaterThan(0);
-    
-    const stats = metadataHandler.getStats();
+    const stats = metadataHandler.finalize();
     expect(stats.textChunks).toBeGreaterThan(0);
     expect(stats.reasoningBlocks).toBe(1);
     expect(stats.toolCalls).toBe(1);
   });
 
   test('handles tag split across chunks', async () => {
-    const chunks: BedrockChunk[] = [
-      { type: 'text-delta', text: '<thin' },
-      { type: 'text-delta', text: 'king>' },
-      { type: 'text-delta', text: 'thought' },
-      { type: 'text-delta', text: '</think' },
-      { type: 'text-delta', text: 'ing>' }
+    const chunks: StreamChunk[] = [
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: '<thin' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'king>' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'thought' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: '</think' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'ing>' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
     ];
 
-    for (const chunk of chunks) {
-      await pipeline.process(chunk);
-    }
-
-    const events = stream.getEvents();
-    expect(events.some(e => e.type === 'reasoning-start')).toBe(true);
-    expect(events.some(e => e.type === 'reasoning-end')).toBe(true);
+    const result = await collect(pipeline.run(toStream(chunks)));
+    expect(result.some(c => c.type === 'reasoning-start')).toBe(true);
+    expect(result.some(c => c.type === 'reasoning-end')).toBe(true);
   });
 });

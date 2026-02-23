@@ -50,7 +50,7 @@ export interface ICRMProvider {
   createOpportunity(data: Omit<OpportunityVM, 'id'>): Promise<OpportunityVM>;
   
   // Tasks
-  getUserTasks(userId: string, filters?: { accountId?: string; opportunityId?: string }): Promise<TaskVM[]>;
+  getUserTasks(userId: string, filters?: { accountId?: string; opportunityId?: string; limit?: number; after?: string }): Promise<{ tasks: TaskVM[]; hasNextPage: boolean; cursor?: string }>;
   getTaskDetails(taskId: string): Promise<TaskVM>;
   createTask(data: Omit<TaskVM, 'id'>): Promise<TaskVM>;
   updateTask(taskId: string, data: Partial<TaskVM>): Promise<TaskVM>;

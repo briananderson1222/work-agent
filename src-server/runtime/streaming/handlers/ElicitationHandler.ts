@@ -1,6 +1,18 @@
 import type { StreamChunk, StreamHandler, HandlerConfig } from '../types.js';
 
 /**
+ * Custom chunk type for tool approval requests
+ * Note: This extends the StreamChunk union with a custom type
+ */
+interface ToolApprovalRequestChunk {
+  type: 'tool-approval-request';
+  approvalId: string;
+  toolName: string;
+  toolDescription?: string;
+  toolArgs: any;
+}
+
+/**
  * Configuration for elicitation (tool approval)
  */
 export interface ElicitationConfig extends Pick<HandlerConfig, 'debug'> {
@@ -50,7 +62,9 @@ export class ElicitationHandler implements StreamHandler {
    * Handle tool-call event
    * Check auto-approve, request approval if needed, then pass through or block
    */
-  private async *handleToolCall(chunk: any): AsyncGenerator<StreamChunk> {
+  private async *handleToolCall(chunk: StreamChunk): AsyncGenerator<StreamChunk> {
+    if (chunk.type !== 'tool-call') return;
+    
     const toolName = chunk.toolName;
     
     // Check if auto-approved
@@ -63,13 +77,15 @@ export class ElicitationHandler implements StreamHandler {
     const approvalId = this.generateApprovalId();
     
     // Emit approval request
-    yield {
+    // Note: This is a custom chunk type that extends the StreamChunk union
+    const approvalChunk: ToolApprovalRequestChunk = {
       type: 'tool-approval-request',
       approvalId,
       toolName,
       toolDescription: this.getToolDescription(chunk),
       toolArgs: chunk.input
-    } as any;
+    };
+    yield approvalChunk as unknown as StreamChunk;
     
     // Wait for user approval (suspends generator)
     const approved = await this.config.onApprovalRequest({
@@ -112,7 +128,7 @@ export class ElicitationHandler implements StreamHandler {
   /**
    * Extract tool description from chunk if available
    */
-  private getToolDescription(chunk: any): string | undefined {
+  private getToolDescription(chunk: StreamChunk): string | undefined {
     // Tool description might be in chunk metadata
     // For now, return undefined - can be enhanced later
     return undefined;

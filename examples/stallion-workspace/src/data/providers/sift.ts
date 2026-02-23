@@ -8,24 +8,27 @@ function mapInsight(raw: any): InsightVM {
   return {
     id: raw.id,
     title: raw.title || raw.name || '',
-    summary: raw.summary || '',
+    summary: typeof raw.summary === 'object' ? raw.summary?.summary || '' : raw.summary || '',
     description: raw.description || '',
     category: raw.category || raw.type || '',
-    accountId: raw.accountId,
-    accountName: raw.accountName || raw.account?.name,
-    status: raw.status,
-    createdDate: new Date(raw.createdDate || raw.createdAt || Date.now()),
+    source: raw.source,
+    segment: raw.segments?.[0],
+    industry: raw.industries?.[0],
+    geo: raw.geos?.[0],
+    opportunityName: raw.opportunities?.[0]?.name || raw.opportunityName,
+    salesforceUrl: raw.salesforceUrl,
+    createdDate: new Date(raw.createdAt || raw.createdDate || Date.now()),
     enrichmentId: raw.enrichmentId,
   };
 }
 
 export const siftProvider: ISiftProvider = {
   async listMyInsights(filters?) {
-    const r = await transformTool(AGENT, 'sat-sfdc_sift_insights_listMyInsights', filters || {}, 'data => data.insights || data || []');
+    const r = await transformTool(AGENT, 'sat-sfdc_sift_insights_listMyInsights', filters || {}, 'data => data?.data?.insights || data?.insights || []');
     return (r || []).map(mapInsight);
   },
   async searchInsights(query, filters?) {
-    const r = await transformTool(AGENT, 'sat-sfdc_sift_insights_search', { queryTerm: query, ...filters }, 'data => data.insights || data || []');
+    const r = await transformTool(AGENT, 'sat-sfdc_sift_insights_search', { queryTerm: query, ...filters }, 'data => data?.data?.insights || data?.insights || []');
     return (r || []).map(mapInsight);
   },
   async getInsight(id) {

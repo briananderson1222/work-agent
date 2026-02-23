@@ -1,5 +1,6 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore } from 'react';
 import { log } from '@/utils/logger';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useConversationActions, conversationsStore } from './ConversationsContext';
 import { useStreamingMessage } from '../hooks/useStreamingMessage';
 import { useApiBase } from './ApiBaseContext';
@@ -479,6 +480,7 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
   const { updateChat, clearInput, assignConversationId, addEphemeralMessage } = useActiveChatActions();
   const { sendMessage: sendToServer, fetchMessages } = useConversationActions();
   const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage(apiBase, onActiveSessionChange);
+  const invalidate = useInvalidateQuery();
 
   const sendMessage = useCallback(async (sessionId: string, agentSlug: string, conversationId: string | undefined, content: string, attachments?: FileAttachment[]) => {
     const allChats = activeChatsStore.getSnapshot();
@@ -560,6 +562,8 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
           if (title) {
             updateChat(sessionId, { title });
           }
+          // Invalidate conversations cache so session management menu shows the new conversation
+          invalidate(['conversations', agentSlug]);
           onActiveSessionChange?.(sessionId);
         },
         onError,
@@ -633,7 +637,7 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
       updateChat(sessionId, { status: 'error', error: err.message, abortController: undefined });
       clearStreamingMessage(sessionId);
     }
-  }, [apiBase, updateChat, clearInput, assignConversationId, sendToServer, fetchMessages, handleStreamEvent, clearStreamingMessage, onActiveSessionChange, onError, addEphemeralMessage, handleSlashCommand]);
+  }, [apiBase, updateChat, clearInput, assignConversationId, sendToServer, fetchMessages, handleStreamEvent, clearStreamingMessage, onActiveSessionChange, onError, addEphemeralMessage, handleSlashCommand, invalidate]);
   
   return sendMessage;
 }

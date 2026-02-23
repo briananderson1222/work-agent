@@ -146,13 +146,23 @@ export const salesforceProvider: ICRMProvider & IUserProvider = {
   },
 
   // Tasks
-  async getUserTasks(userId: string, filters?: { accountId?: string; opportunityId?: string }) {
+  async getUserTasks(userId: string, filters?: { accountId?: string; opportunityId?: string; limit?: number; after?: string }) {
     const conditions: any[] = [{ field: 'ownerId', operator: 'EXACT_MATCH', value: userId }];
     const whatId = filters?.opportunityId || filters?.accountId;
     if (whatId) conditions.push({ field: 'whatId', operator: 'EXACT_MATCH', value: whatId });
     const condition = conditions.length === 1 ? conditions[0] : { operator: 'AND', conditions };
-    const r = await transformTool(AGENT, 'sat-sfdc_search_tasks', { condition }, 'data => data.data?.resultRecords || data.resultRecords || []');
-    return (r || []).map(mapTask);
+    const params: any = { condition };
+    if (filters?.limit) params.limit = filters.limit;
+    if (filters?.after) params.after = filters.after;
+    const r = await transformTool(AGENT, 'sat-sfdc_search_tasks', params, 'data => data.data || data');
+    const records = (r?.resultRecords || r || []).map(mapTask);
+    // Sort newest first (API doesn't support sort)
+    records.sort((a: TaskVM, b: TaskVM) => {
+      const da = a.dueDate?.getTime() ?? 0;
+      const db = b.dueDate?.getTime() ?? 0;
+      return db - da;
+    });
+    return { tasks: records, hasNextPage: !!r?.hasNextPage, cursor: r?.cursor };
   },
 
   async getTaskDetails(taskId: string) {

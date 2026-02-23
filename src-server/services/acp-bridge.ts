@@ -64,6 +64,8 @@ export class ACPConnection {
   private currentModeId: string | null = null;
   private slashCommands: ACPSlashCommand[] = [];
   private mcpServers: string[] = [];
+  private configOptions: any[] = [];
+  private detectedModel: string | null = null;
   private terminals = new Map<string, ManagedTerminal>();
   private terminalCounter = 0;
   private status: ACPConnectionStatus = 'disconnected';
@@ -76,6 +78,7 @@ export class ACPConnection {
   private activeWriter: ((chunk: any) => Promise<void>) | null = null;
   // Accumulated response text during a prompt turn
   private responseAccumulator = '';
+  private responseParts: Array<{ type: string; [key: string]: any }> = [];
 
   // conversationId → acpSessionId mapping for resumption
   private sessionMap = new Map<string, string>();
@@ -189,8 +192,18 @@ export class ACPConnection {
         this.currentModeId = (sessionResult as any).modes.currentModeId || this.modes[0]?.id || null;
       }
 
+      // Extract config options (includes model selector)
+      if ((sessionResult as any).configOptions) {
+        this.configOptions = (sessionResult as any).configOptions;
+      }
+
       this.status = 'connected';
       this.reconnectAttempts = 0;
+
+      // Detect model from CLI settings if not provided via configOptions
+      if (this.configOptions.length === 0) {
+        await this.detectModelFromCli();
+      }
 
       // Ensure adapters exist for all discovered modes
       for (const mode of this.modes) {
@@ -223,12 +236,14 @@ export class ACPConnection {
     return this.status === 'connected' && this.connection !== null && this.sessionId !== null;
   }
 
-  getStatus(): { status: ACPConnectionStatus; modes: string[]; sessionId: string | null; mcpServers: string[] } {
+  getStatus(): { status: ACPConnectionStatus; modes: string[]; sessionId: string | null; mcpServers: string[]; configOptions: any[]; currentModel: string | null } {
     return {
       status: this.status,
       modes: this.modes.map(m => m.id),
       sessionId: this.sessionId,
       mcpServers: this.mcpServers,
+      configOptions: this.configOptions,
+      currentModel: this.getCurrentModelName(),
     };
   }
 
@@ -253,7 +268,7 @@ export class ACPConnection {
       slug: `${this.prefix}-${mode.id}`,
       name: `${mode.name}`,
       description: mode.description || `${this.config.name} ${mode.id} mode`,
-      model: this.config.name,
+      model: this.getCurrentModelName() || this.config.name,
       icon: this.config.icon || '🔌',
       source: 'acp' as const,
       updatedAt: new Date().toISOString(),
@@ -326,13 +341,14 @@ export class ACPConnection {
       // Set active writer so Client callbacks can emit SSE events
       this.activeWriter = write;
       this.responseAccumulator = '';
+      this.responseParts = [];
 
       // Wire up cancel
       let cancelled = false;
       const abortHandler = () => {
         cancelled = true;
         if (this.connection && this.sessionId) {
-          this.connection.cancel({ sessionId: this.sessionId }).catch(() => {});
+          this.connection.cancel({ sessionId: this.sessionId }).catch((e) => console.error('[acp] cancel failed:', e));
         }
       };
       c.req.raw.signal?.addEventListener('abort', abortHandler);
@@ -357,12 +373,13 @@ export class ACPConnection {
         });
 
         // Save assistant message
-        if (adapter && this.responseAccumulator) {
-          const assistantMsg = { id: crypto.randomUUID(), role: 'assistant', parts: [{ type: 'text', text: this.responseAccumulator }], metadata: { timestamp: Date.now() } } as any;
+        if (adapter && (this.responseAccumulator || this.responseParts.length > 0)) {
+          const parts = this.buildAssistantParts();
+          const assistantMsg = { id: crypto.randomUUID(), role: 'assistant', parts, metadata: { timestamp: Date.now(), model: this.getCurrentModelName() } } as any;
           await adapter.addMessage(assistantMsg, userId, conversationId);
           // Update analytics (no token data from ACP, but counts messages)
           if (this.usageAggregatorRef?.get()) {
-            await this.usageAggregatorRef.get().incrementalUpdate(assistantMsg, slug, conversationId).catch(() => {});
+            await this.usageAggregatorRef.get().incrementalUpdate(assistantMsg, slug, conversationId).catch((e: unknown) => console.error('[acp] usage update failed:', e));
           }
         }
 
@@ -371,15 +388,16 @@ export class ACPConnection {
         await streamWriter.write('data: [DONE]\n\n');
       } catch (error: any) {
         // Save partial response if we have one
-        if (adapter && this.responseAccumulator) {
-          const text = cancelled
-            ? this.responseAccumulator + '\n\n---\n\n_⚠️ Response cancelled by user_'
-            : this.responseAccumulator;
+        if (adapter && (this.responseAccumulator || this.responseParts.length > 0)) {
+          if (cancelled) {
+            this.responseAccumulator += '\n\n---\n\n_⚠️ Response cancelled by user_';
+          }
+          const parts = this.buildAssistantParts();
           await adapter.addMessage(
-            { id: crypto.randomUUID(), role: 'assistant', parts: [{ type: 'text', text }] } as any,
+            { id: crypto.randomUUID(), role: 'assistant', parts } as any,
             userId,
             conversationId,
-          ).catch(() => {});
+          ).catch((e) => console.error('[acp] operation failed:', e));
         }
 
         if (cancelled) {
@@ -393,6 +411,7 @@ export class ACPConnection {
         c.req.raw.signal?.removeEventListener('abort', abortHandler);
         this.activeWriter = null;
         this.responseAccumulator = '';
+        this.responseParts = [];
       }
     });
   }
@@ -488,6 +507,39 @@ export class ACPConnection {
 
   // ── Event Translation ──────────────────────────────────────────
 
+  /** Flush accumulated text into a text part */
+  private flushTextPart(): void {
+    if (this.responseAccumulator) {
+      this.responseParts.push({ type: 'text', text: this.responseAccumulator });
+      this.responseAccumulator = '';
+    }
+  }
+
+  /** Update a tool-invocation part with its result */
+  private updateToolResult(toolCallId: string, result: string | undefined, isError = false): void {
+    const part = this.responseParts.find(
+      (p) => p.type === 'tool-invocation' && p.toolCallId === toolCallId
+    );
+    if (part) {
+      part.state = isError ? 'error' : 'result';
+      part.result = result;
+    } else {
+      // Tool result without a matching call — store as standalone
+      this.responseParts.push({
+        type: 'tool-result',
+        toolCallId,
+        result,
+        isError,
+      });
+    }
+  }
+
+  /** Build the parts array for the assistant message */
+  private buildAssistantParts(): Array<{ type: string; [key: string]: any }> {
+    this.flushTextPart();
+    return this.responseParts.length > 0 ? this.responseParts : [{ type: 'text', text: '' }];
+  }
+
   private async handleSessionUpdate(params: SessionNotification): Promise<void> {
     const update = params.update as any;
 
@@ -516,6 +568,14 @@ export class ACPConnection {
 
       case 'tool_call':
         if (!this.activeWriter) break;
+        this.flushTextPart();
+        this.responseParts.push({
+          type: 'tool-invocation',
+          toolCallId: update.toolCallId,
+          toolName: update.title || 'unknown',
+          args: update.rawInput,
+          state: 'call',
+        });
         await this.activeWriter({
           type: 'tool-call',
           toolCallId: update.toolCallId,
@@ -531,11 +591,13 @@ export class ACPConnection {
         // Handle diff content from tool calls
         const diffContent = update.content?.find((c: any) => c.type === 'diff');
         if (diffContent) {
+          const output = formatDiff(diffContent.path, diffContent.oldText, diffContent.newText);
+          this.updateToolResult(update.toolCallId, output);
           await this.activeWriter({
             type: 'tool-result',
             toolCallId: update.toolCallId,
-            output: formatDiff(diffContent.path, diffContent.oldText, diffContent.newText),
-            result: formatDiff(diffContent.path, diffContent.oldText, diffContent.newText),
+            output,
+            result: output,
           });
           break;
         }
@@ -545,6 +607,7 @@ export class ACPConnection {
             ?.filter((c: any) => c.type === 'content' && c.content?.type === 'text')
             .map((c: any) => c.content.text)
             .join('\n');
+          this.updateToolResult(update.toolCallId, textContent, update.status === 'failed');
           await this.activeWriter({
             type: 'tool-result',
             toolCallId: update.toolCallId,
@@ -573,6 +636,10 @@ export class ACPConnection {
 
       case 'current_mode_update':
         this.currentModeId = update.modeId;
+        break;
+
+      case 'config_options_update':
+        this.configOptions = update.configOptions || [];
         break;
 
       default:
@@ -657,7 +724,7 @@ export class ACPConnection {
           this.activeWriter({
             type: 'text-delta',
             text: `\n\n🔐 **Authentication required** — An MCP server needs you to sign in:\n[Open authentication page](${url})\n\n`,
-          }).catch(() => {});
+          }).catch((e) => console.error('[acp] cleanup failed:', e));
         }
         break;
       }
@@ -710,6 +777,30 @@ export class ACPConnection {
       this.memoryAdapters.set(slug, adapter);
     }
     return adapter;
+  }
+
+  /** Get current model display name from configOptions or CLI settings */
+  private getCurrentModelName(): string | null {
+    // Prefer configOptions (standard ACP)
+    const modelOption = this.configOptions.find((o: any) => o.category === 'model');
+    if (modelOption) {
+      const current = modelOption.options?.find((o: any) => o.value === modelOption.currentValue);
+      return current?.name || modelOption.currentValue || null;
+    }
+    return this.detectedModel;
+  }
+
+  /** Detect model from CLI settings (fallback when configOptions not available) */
+  private async detectModelFromCli(): Promise<void> {
+    try {
+      const { execSync } = await import('child_process');
+      const output = execSync(`${this.config.command} settings list`, { encoding: 'utf-8', timeout: 5000 });
+      const match = output.match(/chat\.defaultModel\s*=\s*"([^"]+)"/);
+      if (match) {
+        this.detectedModel = match[1];
+        this.logger.debug(`[ACP:${this.prefix}] Detected model: ${this.detectedModel}`);
+      }
+    } catch { /* ignore */ }
   }
 
   /** Pre-create adapters for any existing agent dirs for this connection on disk */
@@ -770,6 +861,7 @@ export class ACPConnection {
     this.modes = [];
     this.slashCommands = [];
     this.mcpServers = [];
+    this.configOptions = [];
     this.currentModeId = null;
   }
 }

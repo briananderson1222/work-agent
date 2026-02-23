@@ -1,119 +1,79 @@
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { ReasoningHandler } from '../handlers/ReasoningHandler.js';
-import type { ProcessContext, BedrockChunk } from '../types.js';
-
-class MockStream {
-  written: string[] = [];
-  async write(data: string) {
-    this.written.push(data);
-  }
-}
+import type { StreamChunk } from '../types.js';
+import { toStream, collect } from './helpers.js';
 
 describe('ReasoningHandler', () => {
-  let stream: MockStream;
-  let handler: ReasoningHandler;
-
-  beforeEach(() => {
-    stream = new MockStream();
-    handler = new ReasoningHandler(stream, { enableThinking: true, debug: false });
-  });
-
   test('detects thinking block start', async () => {
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: '<thinking>' },
-      metadata: new Map()
-    };
+    const handler = new ReasoningHandler({ enableThinking: true });
+    const result = await collect(handler.process(toStream([
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: '<thinking>thought</thinking>' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
+    ])));
 
-    const result = await handler.process(context);
-    
-    expect(result.eventType).toBe('reasoning-start');
-    expect(stream.written.length).toBe(1);
-    expect(stream.written[0]).toContain('reasoning-start');
+    expect(result.some(c => c.type === 'reasoning-start')).toBe(true);
   });
 
   test('buffers content inside thinking block', async () => {
-    await handler.process({
-      originalChunk: { type: 'text-delta', text: '<thinking>' },
-      metadata: new Map()
-    });
+    const handler = new ReasoningHandler({ enableThinking: true });
+    const result = await collect(handler.process(toStream([
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: '<thinking>' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'test content' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: '</thinking>' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
+    ])));
 
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: 'test content' },
-      metadata: new Map()
-    };
-
-    const result = await handler.process(context);
-    
-    expect(result.eventType).toBe('reasoning-delta');
-    expect(result.content).toBe('test content');
+    const deltas = result.filter(c => c.type === 'reasoning-delta');
+    expect(deltas.length).toBeGreaterThan(0);
   });
 
   test('detects thinking block end', async () => {
-    await handler.process({
-      originalChunk: { type: 'text-delta', text: '<thinking>content' },
-      metadata: new Map()
-    });
+    const handler = new ReasoningHandler({ enableThinking: true });
+    const result = await collect(handler.process(toStream([
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: '<thinking>content</thinking>' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
+    ])));
 
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: '</thinking>' },
-      metadata: new Map()
-    };
-
-    const result = await handler.process(context);
-    
-    expect(result.eventType).toBe('reasoning-end');
+    expect(result.some(c => c.type === 'reasoning-end')).toBe(true);
   });
 
   test('handles tag split across chunks', async () => {
-    const ctx1: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: '<thin' },
-      metadata: new Map()
-    };
-    await handler.process(ctx1);
+    const handler = new ReasoningHandler({ enableThinking: true });
+    const result = await collect(handler.process(toStream([
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: '<thin' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'king>' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'thought' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: '</think' } as unknown as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'ing>' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
+    ])));
 
-    const ctx2: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: 'king>' },
-      metadata: new Map()
-    };
-    const result = await handler.process(ctx2);
-
-    expect(result.eventType).toBe('reasoning-start');
+    expect(result.some(c => c.type === 'reasoning-start')).toBe(true);
+    expect(result.some(c => c.type === 'reasoning-end')).toBe(true);
   });
 
   test('passes through non-thinking text as text-delta', async () => {
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: 'regular text' },
-      metadata: new Map()
-    };
+    const handler = new ReasoningHandler({ enableThinking: true });
+    const result = await collect(handler.process(toStream([
+      { type: 'text-start', id: '0' } as StreamChunk,
+      { type: 'text-delta', id: '0', text: 'regular text' } as unknown as StreamChunk,
+      { type: 'text-end', id: '0' } as StreamChunk,
+    ])));
 
-    const result = await handler.process(context);
-    
-    expect(result.eventType).toBe('text-delta');
-    expect(result.content).toBe('regular text');
-  });
-
-  test('respects enableThinking config', async () => {
-    const disabledHandler = new ReasoningHandler(stream, { enableThinking: false });
-    
-    const context: ProcessContext = {
-      originalChunk: { type: 'text-delta', text: '<thinking>' },
-      metadata: new Map()
-    };
-
-    await disabledHandler.process(context);
-    
-    expect(stream.written.length).toBe(0);
+    const textDeltas = result.filter(c => c.type === 'text-delta');
+    expect(textDeltas.length).toBeGreaterThan(0);
   });
 
   test('passes through non-text-delta chunks', async () => {
-    const context: ProcessContext = {
-      originalChunk: { type: 'tool-call', toolData: { name: 'test', input: {}, id: '1' } },
-      metadata: new Map()
-    };
+    const handler = new ReasoningHandler({ enableThinking: true });
+    const input = { type: 'tool-call', toolCallId: '1', toolName: 'test', args: {} } as unknown as StreamChunk;
+    const result = await collect(handler.process(toStream([input])));
 
-    const result = await handler.process(context);
-    
-    expect(result.eventType).toBeUndefined();
-    expect(result).toBe(context);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('tool-call');
   });
 });

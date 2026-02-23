@@ -5,7 +5,25 @@ import { useToast } from '../contexts/ToastContext';
 import { useSearchAutocomplete, parseSearchQuery } from '../hooks/useSearchAutocomplete';
 import { useModels } from '../contexts/ModelsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
-import type { AgentStats, MonitoringEvent } from '../contexts/MonitoringContext';
+import type { AgentStats, MonitoringEvent as BaseMonitoringEvent } from '../contexts/MonitoringContext';
+
+// Extended monitoring event interface with additional backend fields
+interface MonitoringEvent extends BaseMonitoringEvent {
+  traceId?: string;
+  timestampMs?: number;
+  toolCallNumber?: number;
+  requiresApproval?: boolean;
+  maxSteps?: number;
+  steps?: number;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  inputChars?: number;
+  outputChars?: number;
+  toolCallCount?: number;
+}
 
 export function MonitoringView() {
   const { stats, events, clearEvents, setTimeRange } = useMonitoring();
@@ -36,7 +54,7 @@ export function MonitoringView() {
     {
       key: 'trace',
       type: 'trace' as const,
-      getOptions: () => [...new Set(events.map(e => (e as any).traceId).filter(Boolean))] as string[]
+      getOptions: () => [...new Set(events.map(e => e.traceId).filter(Boolean))] as string[]
     }
   ], [stats, events]);
   
@@ -337,7 +355,7 @@ export function MonitoringView() {
     if (toolCallIdToFilter && event.toolCallId !== toolCallIdToFilter) return false;
     // Check trace ID filter
     const traceIdToFilter = parsed.filters.trace?.[0] || selectedTraceId;
-    if (traceIdToFilter && (event as any).traceId !== traceIdToFilter) return false;
+    if (traceIdToFilter && event.traceId !== traceIdToFilter) return false;
     if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.type)) return false;
     // Only apply text filter if it's not just a filter key with colon
     const isIncompleteFilter = /^(agent|conversation|tool|trace):$/.test(parsed.text.trim());
@@ -482,7 +500,7 @@ export function MonitoringView() {
                           key={option.value}
                           className={relativeTime === option.value ? 'active' : ''}
                           onClick={() => {
-                            setRelativeTime(option.value as any);
+                            setRelativeTime(option.value as '5m' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d');
                             setTimeMode('relative');
                             const now = new Date();
                             const start = new Date(now.getTime() - option.ms);
@@ -884,23 +902,23 @@ export function MonitoringView() {
                         }) : 'No timestamp'}
                       >
                         {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : '-'}
-                        {(event as any).timestampMs && (
+                        {event.timestampMs && (
                           <span style={{ fontSize: '0.7em', opacity: 0.6, marginLeft: '0.25rem' }}>
-                            .{String((event as any).timestampMs % 1000).padStart(3, '0')}
+                            .{String(event.timestampMs % 1000).padStart(3, '0')}
                           </span>
                         )}
                       </div>
-                      {(event as any).traceId && (
+                      {event.traceId && (
                         <button
-                          className={`trace-pill ${selectedTraceId === (event as any).traceId ? 'selected' : ''}`}
-                          onClick={() => handleTraceClick((event as any).traceId)}
-                          title={`Trace ID: ${(event as any).traceId}\nClick to filter`}
-                          style={selectedTraceId === (event as any).traceId && agentColor ? {
+                          className={`trace-pill ${selectedTraceId === event.traceId ? 'selected' : ''}`}
+                          onClick={() => handleTraceClick(event.traceId!)}
+                          title={`Trace ID: ${event.traceId}\nClick to filter`}
+                          style={selectedTraceId === event.traceId && agentColor ? {
                             borderColor: agentColor,
                             color: agentColor
                           } : undefined}
                         >
-                          {(event as any).traceId.slice(-8)}
+                          {event.traceId.slice(-8)}
                         </button>
                       )}
                     </div>
@@ -947,14 +965,14 @@ export function MonitoringView() {
                       <span className="log-inline">
                         <span className="meta-label">Tool:</span>
                         <span className="pill-badge tool-badge">{event.toolName}</span>
-                        {(event as any).requiresApproval && (
+                        {event.requiresApproval && (
                           <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--warning-primary)' }}>
                             🔒 Requires Approval
                           </span>
                         )}
-                        {(event as any).toolCallNumber !== undefined && (
+                        {event.toolCallNumber !== undefined && (
                           <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            Call #{(event as any).toolCallNumber}
+                            Call #{event.toolCallNumber}
                           </span>
                         )}
                       </span>
@@ -985,13 +1003,13 @@ export function MonitoringView() {
                       </span>
                     )}
                     
-                    {(event as any).reason && (
+                    {event.reason && (
                       <span className="log-inline">
                         <span className="meta-label">Reason:</span>
-                        <span className="pill-badge">{(event as any).reason}</span>
-                        {(event as any).reason === 'tool-calls' && (event as any).maxSteps && (
+                        <span className="pill-badge">{event.reason}</span>
+                        {event.reason === 'tool-calls' && event.maxSteps && (
                           <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            (Hit max steps limit: {(event as any).steps}/{(event as any).maxSteps})
+                            (Hit max steps limit: {event.steps}/{event.maxSteps})
                           </span>
                         )}
                       </span>
@@ -1000,16 +1018,16 @@ export function MonitoringView() {
                   </div>
                   
                   {/* Collapsible sections */}
-                  {(event as any).data && (
+                  {event.data && (
                       <details className="log-details" style={{ marginTop: '0.75rem' }}>
                         <summary>
                           Output
                           <span style={{ fontSize: '0.75rem', marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>
-                            ({(event as any).data.length} chars)
+                            ({event.data.length} chars)
                           </span>
                         </summary>
                         <pre style={{ whiteSpace: 'pre-wrap', maxHeight: '400px', overflow: 'auto' }}>
-                          {(event as any).data}
+                          {event.data}
                         </pre>
                       </details>
                     )}
@@ -1113,73 +1131,73 @@ export function MonitoringView() {
                               </div>
                             </details>
                           )}
-                          {(event as any).usage && (
+                          {event.usage && (
                             <details className="log-details">
                               <summary>Usage & Stats</summary>
                               <div style={{ padding: '0.5rem 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem', fontSize: '0.9em' }}>
                                 {/* Character Counts */}
-                                {(event as any).inputChars !== undefined && (
+                                {event.inputChars !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)' }}>Input:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).inputChars.toLocaleString()} chars</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{event.inputChars.toLocaleString()} chars</div>
                                   </>
                                 )}
                                 
-                                {(event as any).outputChars !== undefined && (
+                                {event.outputChars !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)' }}>Output:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).outputChars.toLocaleString()} chars</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{event.outputChars.toLocaleString()} chars</div>
                                   </>
                                 )}
                                 
-                                {(event as any).inputChars !== undefined && (event as any).outputChars !== undefined && (
+                                {event.inputChars !== undefined && event.outputChars !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Total:</div>
-                                    <div style={{ fontFamily: 'monospace', fontWeight: 500 }}>{((event as any).inputChars + (event as any).outputChars).toLocaleString()} chars</div>
+                                    <div style={{ fontFamily: 'monospace', fontWeight: 500 }}>{(event.inputChars + event.outputChars).toLocaleString()} chars</div>
                                   </>
                                 )}
                                 
                                 {/* Token Usage */}
-                                {(event as any).usage?.promptTokens !== undefined && (
+                                {event.usage?.promptTokens !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Prompt Tokens:</div>
-                                    <div style={{ fontFamily: 'monospace', marginTop: '0.5rem' }}>{(event as any).usage.promptTokens.toLocaleString()}</div>
+                                    <div style={{ fontFamily: 'monospace', marginTop: '0.5rem' }}>{event.usage.promptTokens.toLocaleString()}</div>
                                   </>
                                 )}
                                 
-                                {(event as any).usage?.completionTokens !== undefined && (
+                                {event.usage?.completionTokens !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)' }}>Completion Tokens:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).usage.completionTokens.toLocaleString()}</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{event.usage.completionTokens.toLocaleString()}</div>
                                   </>
                                 )}
                                 
-                                {(event as any).usage?.totalTokens !== undefined && (
+                                {event.usage?.totalTokens !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Total Tokens:</div>
-                                    <div style={{ fontFamily: 'monospace', fontWeight: 500 }}>{(event as any).usage.totalTokens.toLocaleString()}</div>
+                                    <div style={{ fontFamily: 'monospace', fontWeight: 500 }}>{event.usage.totalTokens.toLocaleString()}</div>
                                   </>
                                 )}
                                 
                                 {/* Execution Stats */}
-                                {(event as any).steps !== undefined && (
+                                {event.steps !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Steps Taken:</div>
-                                    <div style={{ fontFamily: 'monospace', marginTop: '0.5rem' }}>{(event as any).steps}</div>
+                                    <div style={{ fontFamily: 'monospace', marginTop: '0.5rem' }}>{event.steps}</div>
                                   </>
                                 )}
                                 
-                                {(event as any).maxSteps !== undefined && (
+                                {event.maxSteps !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)' }}>Max Steps:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).maxSteps}</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{event.maxSteps}</div>
                                   </>
                                 )}
                                 
-                                {(event as any).toolCallCount !== undefined && (
+                                {event.toolCallCount !== undefined && (
                                   <>
                                     <div style={{ color: 'var(--text-secondary)' }}>Tool Calls:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{(event as any).toolCallCount}</div>
+                                    <div style={{ fontFamily: 'monospace' }}>{event.toolCallCount}</div>
                                   </>
                                 )}
                               </div>

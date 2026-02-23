@@ -28,3 +28,8 @@ src-ui/src/plugins/
 !src-ui/src/plugins/.gitkeep
 !src-ui/src/plugins/shared/
 .bedrock-debug-*.json
+
+# Audit cleanup
+archive/
+*.png
+!src-desktop/icons/*.png
