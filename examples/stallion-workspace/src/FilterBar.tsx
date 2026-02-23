@@ -77,7 +77,7 @@ export function FilterBar({
       <h3>Accounts</h3>
       
       {/* Mode Toggle */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+      <div className="filter-bar-mode-toggle">
         <button
           onClick={() => {
             if (mode !== 'my-accounts') {
@@ -85,17 +85,7 @@ export function FilterBar({
               loadMyAccounts();
             }
           }}
-          style={{
-            flex: 1,
-            padding: '0.5rem',
-            fontSize: '0.875rem',
-            border: mode === 'my-accounts' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-            borderRadius: '6px',
-            background: mode === 'my-accounts' ? 'var(--color-bg)' : 'var(--color-bg)',
-            color: 'var(--color-text-primary)',
-            cursor: 'pointer',
-            fontWeight: mode === 'my-accounts' ? 600 : 400
-          }}
+          className={`filter-bar-mode-btn ${mode === 'my-accounts' ? 'filter-bar-mode-btn--active' : 'filter-bar-mode-btn--inactive'}`}
         >
           My Accounts
         </button>
@@ -106,17 +96,7 @@ export function FilterBar({
               restoreSearchResults();
             }
           }}
-          style={{
-            flex: 1,
-            padding: '0.5rem',
-            fontSize: '0.875rem',
-            border: mode === 'search' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-            borderRadius: '6px',
-            background: 'var(--color-bg)',
-            color: 'var(--color-text-primary)',
-            cursor: 'pointer',
-            fontWeight: mode === 'search' ? 600 : 400
-          }}
+          className={`filter-bar-mode-btn ${mode === 'search' ? 'filter-bar-mode-btn--active' : 'filter-bar-mode-btn--inactive'}`}
         >
           Search
         </button>
@@ -126,43 +106,23 @@ export function FilterBar({
       {mode === 'search' && (
         <div>
           {/* Search Type Selector */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <div className="filter-bar-search-type-toggle">
             <button
               onClick={() => onSearchTypeChange('owner')}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                fontSize: '0.75rem',
-                border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                background: searchType === 'owner' ? 'var(--color-primary)' : 'var(--color-bg)',
-                color: searchType === 'owner' ? 'white' : 'var(--color-text-primary)',
-                cursor: 'pointer',
-                fontWeight: searchType === 'owner' ? 600 : 400
-              }}
+              className={`filter-bar-search-type-btn ${searchType === 'owner' ? 'filter-bar-search-type-btn--owner-active' : 'filter-bar-search-type-btn--inactive'}`}
             >
               By Owner
             </button>
             <button
               onClick={() => onSearchTypeChange('territory')}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                fontSize: '0.75rem',
-                border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                background: searchType === 'territory' ? 'var(--success-text)' : 'var(--color-bg)',
-                color: searchType === 'territory' ? 'white' : 'var(--color-text-primary)',
-                cursor: 'pointer',
-                fontWeight: searchType === 'territory' ? 600 : 400
-              }}
+              className={`filter-bar-search-type-btn ${searchType === 'territory' ? 'filter-bar-search-type-btn--territory-active' : 'filter-bar-search-type-btn--inactive'}`}
             >
               By Territory
             </button>
           </div>
 
           {/* Search Input with Autocomplete */}
-          <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
+          <div className="filter-bar-search-container">
             <input
               type="text"
               placeholder={searchType === 'owner' ? 'First Last...' : 'Territory name...'}
@@ -175,68 +135,30 @@ export function FilterBar({
                   }
                 }
               }}
-              style={{
-                width: '100%',
-                padding: '0.5rem 0.75rem',
-                fontSize: '0.875rem',
-                border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                background: 'var(--color-bg)',
-                color: 'var(--color-text-primary)',
-                outline: 'none',
-                transition: 'border-color 0.2s'
-              }}
-              onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'var(--color-border)';
+              className="filter-bar-search-input"
+              onBlur={() => {
                 setTimeout(() => setShowAutocomplete(false), 200);
               }}
             />
             
             {showAutocomplete && autocompleteItems.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: 'var(--color-bg-secondary)',
-                border: '1px solid var(--color-border)',
-                borderRadius: '4px',
-                marginTop: '4px',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                zIndex: 1000,
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-              }}>
+              <div className="filter-bar-autocomplete">
                 {autocompleteItems.map((item, idx) => (
                   <div
                     key={item.id}
                     onClick={() => onAutocompleteSelect(item)}
-                    style={{
-                      padding: '8px 10px',
-                      cursor: 'pointer',
-                      borderBottom: idx < autocompleteItems.length - 1 ? '1px solid var(--color-border)' : 'none',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    className="filter-bar-autocomplete-item"
                   >
-                    <div style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: item.description ? '2px' : '0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className={`filter-bar-autocomplete-title ${item.description ? 'filter-bar-autocomplete-title--with-desc' : ''}`}>
                       <span>{item.title}</span>
                       {item.badge && (
-                        <span style={{
-                          fontSize: '0.65rem',
-                          padding: '1px 6px',
-                          borderRadius: '10px',
-                          background: 'var(--color-primary)',
-                          color: 'white',
-                          fontWeight: 500,
-                        }}>
+                        <span className="filter-bar-autocomplete-badge">
                           {item.badge}
                         </span>
                       )}
                     </div>
                     {item.description && (
-                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                      <div className="filter-bar-autocomplete-desc">
                         {item.description}
                       </div>
                     )}
@@ -250,42 +172,24 @@ export function FilterBar({
 
       {/* Active Filters */}
       {mode === 'search' && activeFilters.length > 0 && (
-        <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+        <div className="filter-bar-active-filters">
           {activeFilters.map((filter, idx) => {
-            const getFilterColor = () => {
-              if (filter.type === 'error') return 'var(--error-text)';
-              if (filter.type === 'owner') return 'var(--accent-primary)';
-              if (filter.type === 'territory') return 'var(--success-text)';
-              return 'var(--color-primary)';
+            const getFilterClass = () => {
+              if (filter.type === 'error') return 'filter-bar-active-filter--error';
+              if (filter.type === 'owner') return 'filter-bar-active-filter--owner';
+              if (filter.type === 'territory') return 'filter-bar-active-filter--territory';
+              return 'filter-bar-active-filter--default';
             };
             
             return (
               <span
                 key={idx}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.25rem 0.5rem',
-                  background: getFilterColor(),
-                  color: 'white',
-                  borderRadius: '12px',
-                  fontSize: '0.7rem',
-                  fontWeight: 500
-                }}
+                className={`filter-bar-active-filter ${getFilterClass()}`}
               >
                 {filter.label}
                 <button
                   onClick={() => onFilterRemove(idx)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'white',
-                    cursor: 'pointer',
-                    padding: 0,
-                    fontSize: '0.9rem',
-                    lineHeight: 1
-                  }}
+                  className="filter-bar-filter-remove-btn"
                   title="Remove"
                 >
                   ×
@@ -298,21 +202,12 @@ export function FilterBar({
       
       {/* Filter Bar */}
       {accounts.length > 0 && (
-        <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
+        <div className="filter-bar-filter-section">
           <div 
             onClick={onFilterExpandToggle}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between',
-              fontSize: '0.85rem', 
-              fontWeight: 600, 
-              color: 'var(--color-text-secondary)',
-              cursor: 'pointer',
-              padding: '0.75rem 0'
-            }}
+            className="filter-bar-filter-header"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <div className="filter-bar-filter-header-left">
               <span>Filter</span>
               {(selectedGeos.size > 0 || selectedSizes.size > 0 || nameFilter) && (
                 <button
@@ -320,16 +215,7 @@ export function FilterBar({
                     e.stopPropagation();
                     onClearFilters();
                   }}
-                  style={{
-                    padding: 0,
-                    fontSize: '0.75rem',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--color-primary)',
-                    fontWeight: 500,
-                    marginLeft: '0.25rem'
-                  }}
+                  className="filter-bar-clear-btn"
                 >
                   Clear
                 </button>
@@ -339,31 +225,13 @@ export function FilterBar({
           </div>
           
           {!filterExpanded && (selectedGeos.size > 0 || selectedSizes.size > 0 || nameFilter) && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
+            <div className="filter-bar-collapsed-filters">
               {nameFilter && (
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  fontSize: '0.75rem',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  background: 'var(--color-primary)',
-                  color: 'var(--text-inverted)'
-                }}>
+                <span className="filter-bar-collapsed-filter filter-bar-collapsed-filter--name">
                   Name: "{nameFilter}"
                   <button
                     onClick={() => onNameFilterChange('')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'white',
-                      cursor: 'pointer',
-                      padding: 0,
-                      marginLeft: '0.25rem',
-                      fontSize: '0.9rem',
-                      lineHeight: 1
-                    }}
+                    className="filter-bar-collapsed-filter-remove"
                     title="Clear filter"
                   >
                     ×
@@ -371,24 +239,12 @@ export function FilterBar({
                 </span>
               )}
               {Array.from(selectedGeos).map(geo => (
-                <span key={geo} style={{
-                  fontSize: '0.75rem',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  background: 'var(--color-primary)',
-                  color: 'var(--text-inverted)'
-                }}>
+                <span key={geo} className="filter-bar-collapsed-filter filter-bar-collapsed-filter--geo">
                   {geo}
                 </span>
               ))}
               {Array.from(selectedSizes).map(size => (
-                <span key={size} style={{
-                  fontSize: '0.75rem',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  background: 'var(--color-success)',
-                  color: 'var(--text-inverted)'
-                }}>
+                <span key={size} className="filter-bar-collapsed-filter filter-bar-collapsed-filter--size">
                   {size}
                 </span>
               ))}
@@ -397,44 +253,26 @@ export function FilterBar({
           
           {filterExpanded && (
             <>
-              <div style={{ marginTop: '0.5rem' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Account Name</div>
+              <div className="filter-bar-expanded-section">
+                <div className="filter-bar-field-label">Account Name</div>
                 <input
                   type="text"
                   placeholder="Filter by name..."
                   value={nameFilter}
                   onChange={(e) => onNameFilterChange(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.25rem 0.5rem',
-                    fontSize: '0.75rem',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '4px',
-                    background: 'var(--color-bg)',
-                    color: 'var(--color-text-primary)'
-                  }}
+                  className="filter-bar-name-input"
                 />
               </div>
               
               {allGeos.length > 0 && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Geo</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                <div className="filter-bar-expanded-section">
+                  <div className="filter-bar-field-label">Geo</div>
+                  <div className="filter-bar-option-grid">
                     {allGeos.map(geo => (
                       <button 
                         key={geo}
                         onClick={() => onGeoToggle(geo)}
-                        style={{ 
-                          padding: '0.25rem 0.5rem',
-                          background: selectedGeos.has(geo) ? 'var(--color-primary)' : 'var(--color-bg)',
-                          color: selectedGeos.has(geo) ? 'white' : 'var(--color-text)',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem',
-                          border: '1px solid',
-                          borderColor: selectedGeos.has(geo) ? 'var(--color-primary)' : 'var(--color-border)',
-                          transition: 'all 0.15s'
-                        }}
+                        className={`filter-bar-option-btn ${selectedGeos.has(geo) ? 'filter-bar-option-btn--geo-active' : 'filter-bar-option-btn--geo-inactive'}`}
                       >
                         {geo}
                       </button>
@@ -444,24 +282,14 @@ export function FilterBar({
               )}
               
               {allSizes.length > 0 && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Size</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                <div className="filter-bar-expanded-section">
+                  <div className="filter-bar-field-label">Size</div>
+                  <div className="filter-bar-option-grid">
                     {allSizes.map(size => (
                       <button 
                         key={size}
                         onClick={() => onSizeToggle(size)}
-                        style={{ 
-                          padding: '0.25rem 0.5rem',
-                          background: selectedSizes.has(size) ? 'var(--color-success)' : 'var(--color-bg)',
-                          color: selectedSizes.has(size) ? 'white' : 'var(--color-text)',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem',
-                          border: '1px solid',
-                          borderColor: selectedSizes.has(size) ? 'var(--color-success)' : 'var(--color-border)',
-                          transition: 'all 0.15s'
-                        }}
+                        className={`filter-bar-option-btn ${selectedSizes.has(size) ? 'filter-bar-option-btn--size-active' : 'filter-bar-option-btn--size-inactive'}`}
                       >
                         {size}
                       </button>
@@ -471,7 +299,7 @@ export function FilterBar({
               )}
               
               {(selectedGeos.size > 0 || selectedSizes.size > 0 || nameFilter) && (
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
+                <div className="filter-bar-summary">
                   Showing {Math.min(filteredAccounts.length, displayLimit)} of {filteredAccounts.length} accounts
                   {filteredAccounts.length > accounts.length && ` (${accounts.length} total)`}
                 </div>

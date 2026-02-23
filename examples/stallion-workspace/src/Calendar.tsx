@@ -18,6 +18,7 @@ import {
 import { SearchModal } from './components/SearchModal';
 import { CRM_BASE_URL } from './constants';
 import { PhoneLookupModal } from './PhoneLookupModal';
+import { log } from './log';
 import {
   CalendarEventSchema,
   getCacheKey,
@@ -329,7 +330,7 @@ export function Calendar({ activeTab }: CalendarProps) {
         setTodayEvents(mapped);
         setCache(cacheKey, mapped);
       } catch (err) {
-        console.error('Failed to fetch today events:', err);
+        log('Failed to fetch today events:', err);
       }
     };
     
@@ -466,7 +467,7 @@ export function Calendar({ activeTab }: CalendarProps) {
       setMeetingDetails(details);
       setCache(cacheKey, details);
     } catch (err) {
-      console.error('Failed to fetch meeting details:', err);
+      log('Failed to fetch meeting details:', err);
     } finally {
       setLoadingDetails(false);
     }
@@ -558,7 +559,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
         fetchOpportunitiesForAccount(firstAccount.id, '');
       }
     } catch (err) {
-      console.error('Failed to fetch SFDC context:', err);
+      log('Failed to fetch SFDC context:', err);
       setSfdcContext({ accounts: [], opportunities: [], tasks: [] });
     } finally {
       setLoadingSFDC(false);
@@ -590,7 +591,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
         selectedAccountId: accountId
       }));
     } catch (err) {
-      console.error('Failed to fetch opportunities:', err);
+      log('Failed to fetch opportunities:', err);
     }
   };
 
@@ -646,7 +647,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
       
       const userId = salesContext.myDetails?.userId;
       if (!userId) {
-        console.warn('No SFDC user ID available for task fetch');
+        log('No SFDC user ID available for task fetch');
         return;
       }
       
@@ -672,7 +673,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
       }));
       setTasksCursor(result.hasNextPage ? result.cursor : undefined);
     } catch (err) {
-      console.error('Failed to fetch tasks:', err);
+      log('Failed to fetch tasks:', err);
     } finally {
       setLoadingTasks(false);
     }
@@ -764,7 +765,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
         description: response.description || ''
       });
     } catch (err) {
-      console.error('Failed to prefill activity data:', err);
+      log('Failed to prefill activity data:', err);
     } finally {
       setLoadingActivityPrefill(false);
     }
@@ -2180,7 +2181,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                         fetchTasksForItem(selectedSfdcItem);
                       }
                     } catch (err) {
-                      console.error('Failed to assign activity:', err);
+                      log('Failed to assign activity:', err);
                       showToast('Failed to assign activity', 'error');
                     } finally {
                       setAssigningActivity(false);
@@ -2909,7 +2910,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                               fetchTasksForItem(selectedSfdcItem);
                             }
                           } catch (err) {
-                            console.error('Failed to log activity:', err);
+                            log('Failed to log activity:', err);
                             showToast('Failed to log activity', 'error');
                           } finally {
                             setSubmittingActivity(false);
@@ -3010,7 +3011,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                                     };
                                     setSelectedActivity(details);
                                   } catch (err) {
-                                    console.error('Failed to fetch task details:', err);
+                                    log('Failed to fetch task details:', err);
                                     setSelectedActivity(task);
                                   } finally {
                                     setLoadingActivityDetails(false);

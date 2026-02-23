@@ -62,7 +62,7 @@ export class PluginRegistry {
           // Load the component module via the pre-globbed entrypoints
           const componentPath = path.replace('/plugin.json', `/${pluginManifest.entrypoint}`);
           const entrypointLoader = entrypoints[componentPath];
-          const module = entrypointLoader ? await entrypointLoader().catch((e: any) => { console.error(`[PluginRegistry] Import error for ${pluginManifest.name}:`, e); return null; }) : await this.loadComponentModule(componentPath);
+          const module = entrypointLoader ? await entrypointLoader().catch((e: any) => { log.plugin(`[PluginRegistry] Import error for ${pluginManifest.name}:`, e); return null; }) : await this.loadComponentModule(componentPath);
 
           if (!module) {
             log.plugin(`[PluginRegistry] Failed to load component for ${pluginManifest.name}`);
@@ -72,7 +72,7 @@ export class PluginRegistry {
           // Register named exports if available (e.g., { components: { 'id': Component } })
           if (module.components && typeof module.components === 'object') {
             for (const [componentId, component] of Object.entries(module.components)) {
-              console.log(`[PluginRegistry] Registering component: ${componentId}`);
+              log.plugin(`[PluginRegistry] Registering component: ${componentId}`);
               const registered: RegisteredPlugin = {
                 manifest: pluginManifest,
                 component: component as WorkspaceComponent,

@@ -30,37 +30,24 @@ export function CalendarHeader({
   onToggleCollapse
 }: CalendarHeaderProps) {
   return (
-    <div style={{ position: 'sticky', top: 0, background: 'var(--color-bg)', paddingBottom: '1rem' }}>
-      <div className="calendar-widget" style={{ 
-        padding: '0.75rem', 
-        background: 'var(--color-bg-secondary)', 
-        borderRadius: '4px', 
-        maxWidth: '260px', 
-        marginLeft: 'auto', 
-        marginRight: 'auto',
-        maxHeight: calendarCollapsed ? '0' : '500px',
-        opacity: calendarCollapsed ? '0' : '1',
-        overflow: 'hidden',
-        transition: 'max-height 0.3s ease, opacity 0.2s ease',
-        paddingTop: calendarCollapsed ? '0' : '0.75rem',
-        paddingBottom: calendarCollapsed ? '0' : '0.75rem'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+    <div className="cal-header-container">
+      <div className={`cal-header-widget ${calendarCollapsed ? 'cal-header-widget--collapsed' : 'cal-header-widget--expanded'}`}>
+        <div className="cal-header-nav">
           <button 
             onClick={() => onViewMonthChange(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: 'var(--color-text)', padding: '2px 6px' }}
+            className="cal-header-nav-btn"
           >←</button>
-          <strong style={{ fontSize: '0.8rem' }}>
+          <strong className="cal-header-month-title">
             {viewMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
           </strong>
           <button 
             onClick={() => onViewMonthChange(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: 'var(--color-text)', padding: '2px 6px' }}
+            className="cal-header-nav-btn"
           >→</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', fontSize: '0.7rem' }}>
+        <div className="cal-header-grid">
           {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-            <div key={i} style={{ textAlign: 'center', fontWeight: 'bold', padding: '4px 0', color: 'var(--color-text-secondary)' }}>{day}</div>
+            <div key={i} className="cal-header-day-label">{day}</div>
           ))}
           {(() => {
             const year = viewMonth.getFullYear();
@@ -79,23 +66,24 @@ export function CalendarHeader({
               const isSelected = date.toDateString() === selectedDate.toDateString();
               const isTodayDate = date.toDateString() === today.toDateString();
               
+              let buttonClass = 'cal-header-day-btn';
+              if (isSelected) {
+                buttonClass += ' cal-header-day-btn--selected';
+              } else if (isTodayDate) {
+                buttonClass += ' cal-header-day-btn--today';
+              } else {
+                buttonClass += ' cal-header-day-btn--normal';
+              }
+              if (loading && !isSelected) {
+                buttonClass += ' cal-header-day-btn--loading';
+              }
+              
               days.push(
                 <button
                   key={day}
                   onClick={() => onDateSelect(date)}
                   disabled={loading}
-                  style={{
-                    padding: '6px 4px',
-                    background: isSelected ? 'var(--color-primary)' : 'transparent',
-                    color: isSelected ? 'var(--color-bg)' : 'var(--color-text)',
-                    border: isTodayDate && !isSelected ? '2px solid var(--color-primary)' : '1px solid transparent',
-                    borderRadius: '4px',
-                    cursor: loading ? 'wait' : 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: isSelected || isTodayDate ? 'bold' : 'normal',
-                    opacity: loading && !isSelected ? 0.5 : 1,
-                    transition: 'all 0.2s'
-                  }}
+                  className={buttonClass}
                 >
                   {day}
                 </button>
@@ -106,33 +94,20 @@ export function CalendarHeader({
           })()}
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: calendarCollapsed ? '0' : '0.5rem' }}>
+      <div className={`cal-header-collapse-container ${calendarCollapsed ? 'cal-header-collapse-container--no-margin' : 'cal-header-collapse-container--with-margin'}`}>
         <button
           onClick={onToggleCollapse}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '4px 8px',
-            color: 'var(--color-text-secondary)',
-            display: 'flex',
-            alignItems: 'center'
-          }}
+          className="cal-header-collapse-btn"
           title={calendarCollapsed ? 'Expand calendar' : 'Collapse calendar'}
         >
-          <svg style={{ 
-            width: '16px', 
-            height: '16px',
-            transform: calendarCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-            transition: 'transform 0.2s',
-          }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`cal-header-collapse-icon ${calendarCollapsed ? 'cal-header-collapse-icon--collapsed' : 'cal-header-collapse-icon--expanded'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
       </div>
-      <h3 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.5rem' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {loading && <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>}
+      <h3 className="cal-header-title">
+        <span className="cal-header-title-content">
+          {loading && <span className="cal-header-spinner">⟳</span>}
           {loading ? 'Loading...' : isToday 
             ? "Today's Meetings" 
             : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -140,32 +115,14 @@ export function CalendarHeader({
         {!isToday ? (
           <button
             onClick={onTodayClick}
-            style={{
-              background: 'var(--color-primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '4px 8px',
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-              fontWeight: 'normal'
-            }}
+            className="cal-header-action-btn"
           >
             Today
           </button>
         ) : isToday && events.length > 0 && !isNowLineVisible ? (
           <button
             onClick={onNowClick}
-            style={{
-              background: 'var(--color-primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '4px 8px',
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-              fontWeight: 'normal'
-            }}
+            className="cal-header-action-btn"
           >
             Now
           </button>

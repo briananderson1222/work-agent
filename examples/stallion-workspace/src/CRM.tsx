@@ -10,6 +10,7 @@ import { AccountList } from './AccountList';
 import { AccountDetail } from './AccountDetail';
 import { OpportunityModal } from './OpportunityModal';
 import './workspace.css';
+import { log } from './log';
 
 // Feature flags
 const ENABLE_MY_ACCOUNTS = true;
@@ -274,7 +275,7 @@ export function CRM({ activeTab }: CRMProps) {
         setAutocompleteItems(items);
         setShowAutocomplete(true);
       } catch (error) {
-        console.error('Failed to search territories:', error);
+        log('Failed to search territories:', error);
       }
     }, 300);
 
@@ -380,7 +381,7 @@ export function CRM({ activeTab }: CRMProps) {
         return [...prev, { type: 'territory', label: territoryName, id: territoryId }];
       });
     } catch (error) {
-      console.error('Failed to load territory accounts:', error);
+      log('Failed to load territory accounts:', error);
       showToast('Failed to load territory accounts', 'error');
     } finally {
       setLoading(false);
@@ -441,7 +442,7 @@ export function CRM({ activeTab }: CRMProps) {
         });
       }
     } catch (error) {
-      console.error('Failed to search accounts:', error);
+      log('Failed to search accounts:', error);
       setActiveFilters(prev => [...prev, { 
         type: 'error', 
         label: `Failed to search: ${ownerSearch}`,
@@ -476,7 +477,7 @@ export function CRM({ activeTab }: CRMProps) {
         // Cache the enriched account
         accountDetailsCache.current.set(account.id, enrichedAccount);
       } catch (error) {
-        console.error('Failed to fetch account details:', error);
+        log('Failed to fetch account details:', error);
         enrichedAccount = account; // Use basic account if fetch fails
       }
     }
@@ -549,7 +550,7 @@ export function CRM({ activeTab }: CRMProps) {
       sessionStorage.setItem(oppsCacheKey, JSON.stringify(oppsResult || []));
       sessionStorage.setItem(tasksCacheKey, JSON.stringify(tasksResult || []));
     } catch (error) {
-      console.error('Failed to load account details:', error);
+      log('Failed to load account details:', error);
       showToast('Failed to load account details', 'error');
       setLoadingOpportunities(false);
       setLoadingTasks(false);
@@ -629,7 +630,7 @@ export function CRM({ activeTab }: CRMProps) {
       );
       setAccounts(uniqueAccounts);
     } catch (error) {
-      console.error('Failed to refresh accounts:', error);
+      log('Failed to refresh accounts:', error);
       showToast('Failed to refresh accounts', 'error');
     } finally {
       setLoading(false);
@@ -667,7 +668,7 @@ export function CRM({ activeTab }: CRMProps) {
       setShowCreateOppModal(false);
       await loadAccountDetails(selectedAccount, true);
     } catch (error) {
-      console.error('Failed to create opportunity:', error);
+      log('Failed to create opportunity:', error);
       showToast('Failed to create opportunity', 'error');
     } finally {
       setLoading(false);
@@ -913,7 +914,7 @@ Provide a concise, professional description (2-3 sentences) suitable for Salesfo
                     setShowLogActivityModal(false);
                     if (selectedAccount) await loadAccountDetails(selectedAccount, true);
                   } catch (error) {
-                    console.error('Failed to log activity:', error);
+                    log('Failed to log activity:', error);
                     showToast('Failed to log activity', 'error');
                   } finally {
                     setLoading(false);

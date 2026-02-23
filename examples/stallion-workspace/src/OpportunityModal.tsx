@@ -81,7 +81,7 @@ export function OpportunityModal({
             <div className="crm-modal-header">
               <h3 className="crm-modal-title">Create Opportunity</h3>
             </div>
-            <div style={{ padding: '1.5rem' }}>
+            <div className="opp-modal-form-section">
               <div className="crm-form-group">
                 <div className="crm-form-field">
                   <label className="crm-form-label crm-form-label--required">Name</label>
@@ -162,15 +162,7 @@ export function OpportunityModal({
                   <span className="crm-context-label">Account:</span>
                   <button
                     onClick={onAccountClick}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-primary)',
-                      cursor: 'pointer',
-                      padding: 0,
-                      textDecoration: 'underline',
-                      fontSize: '0.875rem'
-                    }}
+                    className="opp-modal-account-btn"
                   >
                     {selectedAccount?.name}
                   </button>
@@ -187,7 +179,7 @@ export function OpportunityModal({
             </div>
 
             {/* Form */}
-            <div style={{ padding: '1.5rem' }}>
+            <div className="opp-modal-form-section">
               <div className="crm-form-group">
                 <div className="crm-form-field">
                   <label className="crm-form-label crm-form-label--required">
@@ -236,7 +228,7 @@ export function OpportunityModal({
                 </div>
 
                 <div className="crm-form-field">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <div className="opp-modal-description-header">
                     <label className="crm-form-label">
                       Description
                     </label>
@@ -286,7 +278,7 @@ export function OpportunityModal({
                 AI Generated Description
               </h3>
             </div>
-            <div style={{ padding: '1.5rem' }}>
+            <div className="opp-modal-form-section">
               <textarea
                 value={aiGeneratedText}
                 onChange={(e) => onSetAiText(e.target.value)}

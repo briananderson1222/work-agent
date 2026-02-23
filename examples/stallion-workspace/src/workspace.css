@@ -693,6 +693,540 @@
   border-color: var(--color-primary);
 }
 
+/* ============ FilterBar Styles ============ */
+
+.filter-bar-mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.filter-bar-mode-btn {
+  flex: 1;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.filter-bar-mode-btn--active {
+  border: 2px solid var(--color-primary);
+  font-weight: 600;
+}
+
+.filter-bar-mode-btn--inactive {
+  border: 1px solid var(--color-border);
+  font-weight: 400;
+}
+
+.filter-bar-search-type-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.filter-bar-search-type-btn {
+  flex: 1;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 400;
+}
+
+.filter-bar-search-type-btn--owner-active {
+  background: var(--color-primary);
+  color: white;
+  font-weight: 600;
+}
+
+.filter-bar-search-type-btn--territory-active {
+  background: var(--success-text);
+  color: white;
+  font-weight: 600;
+}
+
+.filter-bar-search-type-btn--inactive {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+.filter-bar-search-container {
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+
+.filter-bar-search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.filter-bar-search-input:focus {
+  border-color: var(--color-primary);
+}
+
+.filter-bar-autocomplete {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.filter-bar-autocomplete-item {
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.filter-bar-autocomplete-item:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.filter-bar-autocomplete-item:hover {
+  background: var(--color-bg-hover);
+}
+
+.filter-bar-autocomplete-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-bar-autocomplete-title--with-desc {
+  margin-bottom: 2px;
+}
+
+.filter-bar-autocomplete-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: white;
+  font-weight: 500;
+}
+
+.filter-bar-autocomplete-desc {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+
+.filter-bar-active-filters {
+  margin-bottom: 0.75rem;
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.filter-bar-active-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  color: white;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.filter-bar-active-filter--owner {
+  background: var(--accent-primary);
+}
+
+.filter-bar-active-filter--territory {
+  background: var(--success-text);
+}
+
+.filter-bar-active-filter--error {
+  background: var(--error-text);
+}
+
+.filter-bar-active-filter--default {
+  background: var(--color-primary);
+}
+
+.filter-bar-filter-remove-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.filter-bar-filter-section {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.filter-bar-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.75rem 0;
+}
+
+.filter-bar-filter-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.filter-bar-clear-btn {
+  padding: 0;
+  font-size: 0.75rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 500;
+  margin-left: 0.25rem;
+}
+
+.filter-bar-collapsed-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.filter-bar-collapsed-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 8px;
+  color: var(--text-inverted);
+}
+
+.filter-bar-collapsed-filter--name {
+  background: var(--color-primary);
+}
+
+.filter-bar-collapsed-filter--geo {
+  background: var(--color-primary);
+}
+
+.filter-bar-collapsed-filter--size {
+  background: var(--color-success);
+}
+
+.filter-bar-collapsed-filter-remove {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.25rem;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.filter-bar-expanded-section {
+  margin-top: 0.5rem;
+}
+
+.filter-bar-field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.filter-bar-name-input {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+.filter-bar-option-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.filter-bar-option-btn {
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  border: 1px solid;
+  transition: all 0.15s;
+}
+
+.filter-bar-option-btn--geo-active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.filter-bar-option-btn--geo-inactive {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.filter-bar-option-btn--size-active {
+  background: var(--color-success);
+  color: white;
+  border-color: var(--color-success);
+}
+
+.filter-bar-option-btn--size-inactive {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.filter-bar-summary {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.5rem;
+}
+
+/* ============ SearchModal Styles ============ */
+
+.search-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+}
+
+.search-modal-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 0.5rem;
+  width: 90vw;
+  max-width: 500px;
+  max-height: 70vh;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.search-modal-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.search-modal-title {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.search-modal-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.5rem;
+}
+
+.search-modal-body {
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.search-modal-type-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.search-modal-type-btn {
+  flex: 1;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.search-modal-type-btn--active {
+  background: var(--color-primary);
+  color: white;
+  font-weight: 600;
+}
+
+.search-modal-type-btn--inactive {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.search-modal-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 0.25rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.search-modal-loading {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.search-modal-results {
+  flex: 1;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-primary);
+}
+
+.search-modal-result-item {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-primary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.search-modal-result-item:hover {
+  background: var(--bg-secondary);
+}
+
+.search-modal-result-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.search-modal-result-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+/* ============ Portfolio Styles ============ */
+
+.portfolio-account-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.portfolio-account-meta {
+  color: var(--color-text-secondary);
+}
+
+.portfolio-expand-hint {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.portfolio-spinner-margin {
+  margin-left: 8px;
+}
+
+.portfolio-conversation-cell {
+  color: var(--color-text, var(--text-primary));
+}
+
+.portfolio-conversation-meta {
+  color: var(--color-text-secondary);
+}
+
+.portfolio-sift-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+/* ============ OpportunityModal Styles ============ */
+
+.opp-modal-form-section {
+  padding: 1.5rem;
+}
+
+.opp-modal-account-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font-size: 0.875rem;
+}
+
+.opp-modal-description-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+/* ============ Today Styles ============ */
+
+.today-card-overflow {
+  overflow: visible;
+}
+
+.today-conversation-cell {
+  color: var(--color-text, var(--text-primary));
+}
+
+.today-conversation-meta {
+  color: var(--color-text-secondary);
+}
+
+/* ============ SiftQueue Styles ============ */
+
+.sift-queue-opportunity-meta {
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+/* ============ Newsletters Styles ============ */
+
+.newsletters-container {
+  padding: 2rem;
+  color: var(--color-text-secondary);
+}
+
+.newsletters-title {
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
+
 /* ============ CRM Modal & Form Styles ============ */
 
 .crm-modal-overlay {
@@ -874,4 +1408,439 @@
   color: var(--text-secondary);
   margin-top: 0.5rem;
   margin-bottom: 0;
+}
+
+/* ============ Calendar Grid Styles ============ */
+
+.cal-grid-loading {
+  padding: 1rem;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.cal-grid-error {
+  padding: 1rem;
+}
+
+.cal-grid-error-text {
+  color: var(--color-error);
+  font-size: 0.9rem;
+}
+
+.cal-grid-filter-container {
+  margin-top: 0.5rem;
+  padding: 0.125rem 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.cal-grid-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.cal-grid-filter-title {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cal-grid-clear-btn {
+  padding: 0;
+  font-size: 0.75rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 500;
+  margin-left: 0.25rem;
+}
+
+.cal-grid-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cal-grid-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+  font-weight: 400;
+  padding: 0.25rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid;
+  transition: all 0.15s;
+}
+
+.cal-grid-toggle-btn--active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.cal-grid-toggle-btn--inactive {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+
+.cal-grid-selected-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.cal-grid-category-tag {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--text-inverted);
+}
+
+.cal-grid-category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.cal-grid-category-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  border: 1px solid;
+  transition: all 0.15s;
+}
+
+.cal-grid-category-btn--selected {
+  background: var(--color-primary);
+  color: var(--text-inverted);
+  border-color: var(--color-primary);
+}
+
+.cal-grid-category-btn--unselected {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.cal-grid-filter-count {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.5rem;
+}
+
+.cal-grid-no-events {
+  padding: 1rem;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.cal-grid-events-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cal-grid-now-line {
+  margin: 0.5rem 0;
+  padding: 0.25rem 0.5rem;
+  border-top: 2px dotted var(--color-primary);
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.cal-grid-now-line--top {
+  margin: 0.5rem 0 0;
+  padding: 0.125rem 0.5rem 0;
+}
+
+.cal-grid-no-more-events {
+  padding: 0 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.cal-grid-all-day-section {
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.cal-grid-all-day-summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cal-grid-all-day-list {
+  margin-top: 0.5rem;
+}
+
+.cal-grid-timed-events-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.cal-grid-active-group {
+  border: 2px solid var(--color-primary);
+  border-radius: 4px;
+  padding: 0.5rem 0.25rem 0;
+}
+
+.cal-grid-meeting-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+/* ============ Calendar Header Styles ============ */
+
+.cal-header-container {
+  position: sticky;
+  top: 0;
+  background: var(--color-bg);
+  padding-bottom: 1rem;
+}
+
+.cal-header-widget {
+  padding: 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+  max-width: 260px;
+  margin-left: auto;
+  margin-right: auto;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+}
+
+.cal-header-widget--collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.cal-header-widget--expanded {
+  max-height: 500px;
+  opacity: 1;
+}
+
+.cal-header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.cal-header-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--color-text);
+  padding: 2px 6px;
+}
+
+.cal-header-month-title {
+  font-size: 0.8rem;
+}
+
+.cal-header-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  font-size: 0.7rem;
+}
+
+.cal-header-day-label {
+  text-align: center;
+  font-weight: bold;
+  padding: 4px 0;
+  color: var(--color-text-secondary);
+}
+
+.cal-header-day-btn {
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.cal-header-day-btn--selected {
+  background: var(--color-primary);
+  color: var(--color-bg);
+  font-weight: bold;
+}
+
+.cal-header-day-btn--today {
+  border: 2px solid var(--color-primary);
+  font-weight: bold;
+}
+
+.cal-header-day-btn--normal {
+  background: transparent;
+  color: var(--color-text);
+  font-weight: normal;
+}
+
+.cal-header-day-btn--loading {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.cal-header-collapse-container {
+  display: flex;
+  justify-content: center;
+}
+
+.cal-header-collapse-container--with-margin {
+  margin-top: 0.5rem;
+}
+
+.cal-header-collapse-container--no-margin {
+  margin-top: 0;
+}
+
+.cal-header-collapse-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.cal-header-collapse-icon {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s;
+}
+
+.cal-header-collapse-icon--expanded {
+  transform: rotate(180deg);
+}
+
+.cal-header-collapse-icon--collapsed {
+  transform: rotate(0deg);
+}
+
+.cal-header-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.cal-header-title-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cal-header-spinner {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+.cal-header-action-btn {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+/* ============ Phone Lookup Modal Styles ============ */
+
+.phone-lookup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.phone-lookup-modal {
+  background: var(--color-bg, var(--text-inverted));
+  border-radius: 8px;
+  padding: 1.5rem;
+  min-width: 320px;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.phone-lookup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.phone-lookup-title {
+  font-size: 1.1rem;
+}
+
+.phone-lookup-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--color-text-secondary);
+}
+
+.phone-lookup-error {
+  color: red;
+}
+
+.phone-lookup-details {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.phone-lookup-email-link {
+  color: var(--color-primary);
+}
+
+.phone-lookup-footer {
+  margin-top: 0.5rem;
+}
+
+.phone-lookup-phonetool-link {
+  color: var(--color-primary);
+  font-size: 0.85rem;
 }

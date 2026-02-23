@@ -4,6 +4,7 @@ import { useSales } from './StallionContext';
 import { SearchModal } from './components/SearchModal';
 import { salesforceProvider, siftProvider } from './data';
 import { CRM_BASE_URL } from './constants';
+import { log } from './log';
 
 interface LeadershipInsightModalProps {
   isOpen: boolean;
@@ -69,7 +70,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
             clearInterval(interval);
           }
         } catch (err) {
-          console.error('Failed to fetch enrichment:', err);
+          log('Failed to fetch enrichment:', err);
         }
       }, 3000);
 
@@ -96,7 +97,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
       setState({ myTasks: mappedTasks });
       setTasksCursor(result.hasNextPage ? result.cursor : undefined);
     } catch (err) {
-      console.error('Failed to load tasks:', err);
+      log('Failed to load tasks:', err);
     }
   };
 
@@ -109,7 +110,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
       });
       setState({ myInsights: insights });
     } catch (err) {
-      console.error('Failed to load insights:', err);
+      log('Failed to load insights:', err);
     }
   };
 
@@ -171,7 +172,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
       setEnrichmentId(result.id || '');
       setEnrichmentStatus('polling');
     } catch (err) {
-      console.error('Failed to create enrichment:', err);
+      log('Failed to create enrichment:', err);
       setEnrichmentStatus('idle');
     }
   };
@@ -205,7 +206,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
       setEnrichmentStatus('idle');
       onClose();
     } catch (err) {
-      console.error('Failed to create insight:', err);
+      log('Failed to create insight:', err);
       alert('Failed to create insight');
     } finally {
       setLoading(false);

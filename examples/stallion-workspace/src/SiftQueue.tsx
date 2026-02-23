@@ -3,6 +3,7 @@ import { useSiftQueue, useDeleteSift } from './data';
 import { LeadershipInsightModal } from './LeadershipInsightModal';
 import { CRM_BASE_URL } from './constants';
 import './workspace.css';
+import { log } from './log';
 
 const categoryColors: Record<string, string> = {
   Highlight: '#22c55e',
@@ -30,7 +31,7 @@ export function SiftQueue() {
     try {
       await deleteSift.mutateAsync(id);
     } catch (error) {
-      console.error('Failed to delete insight:', error);
+      log('Failed to delete insight:', error);
     }
   };
 
@@ -93,7 +94,7 @@ export function SiftQueue() {
                     <td>
                       {insight.title}
                       {insight.opportunityName && (
-                        <div className="workspace-dashboard__cell--secondary" style={{ fontSize: '0.75rem', marginTop: '2px' }}>
+                        <div className="workspace-dashboard__cell--secondary sift-queue-opportunity-meta">
                           {insight.opportunityName}
                         </div>
                       )}

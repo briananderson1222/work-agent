@@ -61,7 +61,7 @@ export function CalendarGrid({
 }: CalendarGridProps) {
   if (loading) {
     return (
-      <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+      <div className="cal-grid-loading">
         <p>Loading events...</p>
       </div>
     );
@@ -69,8 +69,8 @@ export function CalendarGrid({
 
   if (error) {
     return (
-      <div style={{ padding: '1rem' }}>
-        <p style={{ color: 'var(--color-error)', fontSize: '0.9rem' }}>{error}</p>
+      <div className="cal-grid-error">
+        <p className="cal-grid-error-text">{error}</p>
       </div>
     );
   }
@@ -79,26 +79,12 @@ export function CalendarGrid({
     <>
       {/* Filter Section */}
       {!loading && allCategories.length > 0 && !(allCategories.length === 1 && allCategories[0] === 'Uncategorized') && (
-        <div style={{ 
-          marginTop: '0.5rem',
-          padding: '0.125rem 0.75rem', 
-          background: 'var(--color-bg-secondary)', 
-          borderRadius: '4px',
-          border: '1px solid var(--color-border)'
-        }}>
+        <div className="cal-grid-filter-container">
           <div 
             onClick={onFilterToggle}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between',
-              fontSize: '0.85rem', 
-              fontWeight: 600, 
-              color: 'var(--color-text-secondary)',
-              cursor: 'pointer'
-            }}
+            className="cal-grid-filter-header"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <div className="cal-grid-filter-title">
               <span>Filter</span>
               {selectedCategories.size > 0 && (
                 <button
@@ -106,43 +92,20 @@ export function CalendarGrid({
                     e.stopPropagation();
                     onClearFilters();
                   }}
-                  style={{
-                    padding: 0,
-                    fontSize: '0.75rem',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--color-primary)',
-                    fontWeight: 500,
-                    marginLeft: '0.25rem'
-                  }}
+                  className="cal-grid-clear-btn"
                 >
                   Clear
                 </button>
               )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="cal-grid-filter-actions">
               {isToday && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggleHidePast();
                   }}
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '0.35rem', 
-                    fontSize: '0.7rem', 
-                    cursor: 'pointer', 
-                    fontWeight: 400,
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '10px',
-                    background: hidePastEvents ? 'var(--color-primary)' : 'transparent',
-                    color: hidePastEvents ? 'white' : 'var(--color-text-secondary)',
-                    border: '1px solid',
-                    borderColor: hidePastEvents ? 'var(--color-primary)' : 'var(--color-border)',
-                    transition: 'all 0.15s'
-                  }}
+                  className={`cal-grid-toggle-btn ${hidePastEvents ? 'cal-grid-toggle-btn--active' : 'cal-grid-toggle-btn--inactive'}`}
                 >
                   Hide past
                 </button>
@@ -153,21 +116,7 @@ export function CalendarGrid({
                     e.stopPropagation();
                     onToggleHideCanceled();
                   }}
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '0.35rem', 
-                    fontSize: '0.7rem', 
-                    cursor: 'pointer', 
-                    fontWeight: 400,
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '10px',
-                    background: hideCanceledEvents ? 'var(--color-primary)' : 'transparent',
-                    color: hideCanceledEvents ? 'white' : 'var(--color-text-secondary)',
-                    border: '1px solid',
-                    borderColor: hideCanceledEvents ? 'var(--color-primary)' : 'var(--color-border)',
-                    transition: 'all 0.15s'
-                  }}
+                  className={`cal-grid-toggle-btn ${hideCanceledEvents ? 'cal-grid-toggle-btn--active' : 'cal-grid-toggle-btn--inactive'}`}
                 >
                   Hide Canceled
                 </button>
@@ -177,15 +126,9 @@ export function CalendarGrid({
           </div>
           
           {!filterExpanded && selectedCategories.size > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
+            <div className="cal-grid-selected-categories">
               {Array.from(selectedCategories).map(cat => (
-                <span key={cat} style={{
-                  fontSize: '0.75rem',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  background: 'var(--color-primary)',
-                  color: 'var(--text-inverted)'
-                }}>
+                <span key={cat} className="cal-grid-category-tag">
                   {cat}
                 </span>
               ))}
@@ -194,32 +137,19 @@ export function CalendarGrid({
           
           {filterExpanded && (
             <>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <div className="cal-grid-category-list">
                 {allCategories.map(cat => (
                   <button 
                     key={cat}
                     onClick={() => onCategoryToggle(cat)}
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '0.35rem',
-                      padding: '0.35rem 0.6rem',
-                      background: selectedCategories.has(cat) ? 'var(--color-primary)' : 'var(--color-bg)',
-                      color: selectedCategories.has(cat) ? 'var(--text-inverted)' : 'var(--color-text)',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      border: '1px solid',
-                      borderColor: selectedCategories.has(cat) ? 'var(--color-primary)' : 'var(--color-border)',
-                      transition: 'all 0.15s'
-                    }}
+                    className={`cal-grid-category-btn ${selectedCategories.has(cat) ? 'cal-grid-category-btn--selected' : 'cal-grid-category-btn--unselected'}`}
                   >
                     {cat}
                   </button>
                 ))}
               </div>
               {selectedCategories.size > 0 && (
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
+                <div className="cal-grid-filter-count">
                   Showing {visibleEvents.length} of {events.length} events
                 </div>
               )}
@@ -230,34 +160,21 @@ export function CalendarGrid({
 
       {/* Events List */}
       {events.length === 0 ? (
-        <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+        <div className="cal-grid-no-events">
           <p>{selectedCategories.size === 0 ? 'No events for this date' : 'No events match selected categories'}</p>
         </div>
       ) : visibleEvents.length === 0 ? (
         isToday ? (
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            <div className="calendar-now-line" style={{ 
-              margin: '0.5rem 0',
-              padding: '0.25rem 0.5rem',
-              borderTop: '2px dotted var(--color-primary)',
-              fontSize: '0.75rem',
-              color: 'var(--color-primary)',
-              fontWeight: 600
-            }}>
+          <ul className="cal-grid-events-list">
+            <div className="cal-grid-now-line">
               Now - {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </div>
-            <div style={{
-              padding: '0 0.5rem 1rem',
-              fontSize: '0.85rem',
-              fontStyle: 'italic',
-              color: 'var(--color-text-secondary)',
-              textAlign: 'center'
-            }}>
+            <div className="cal-grid-no-more-events">
               No more events for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}...
             </div>
           </ul>
         ) : (
-          <div style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+          <div className="cal-grid-no-events">
             <p>No upcoming events</p>
           </div>
         )
@@ -268,12 +185,12 @@ export function CalendarGrid({
             <details 
               open={allDayExpanded} 
               onToggle={(e) => onAllDayToggle((e.target as HTMLDetailsElement).open)}
-              style={{ marginBottom: '1rem', border: '1px solid var(--color-border)', borderRadius: '4px', padding: '0.5rem' }}
+              className="cal-grid-all-day-section"
             >
-              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+              <summary className="cal-grid-all-day-summary">
                 All-Day Events ({visibleEvents.filter(e => e.isAllDay).length})
               </summary>
-              <ul style={{ marginTop: '0.5rem' }}>
+              <ul className="cal-grid-all-day-list">
                 {visibleEvents.filter(e => e.isAllDay).map((event) => (
                   <EventCard
                     key={event.meetingId}
@@ -288,7 +205,7 @@ export function CalendarGrid({
           
           {/* Timed Events */}
           {visibleEvents.filter(e => !e.isAllDay).length > 0 && (
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+            <div className="cal-grid-timed-events-title">
               Events ({visibleEvents.filter(e => !e.isAllDay).length})
             </div>
           )}
@@ -327,15 +244,7 @@ export function CalendarGrid({
                     nextMeetingLink = (
                       <button
                         onClick={() => onEventSelect(event.meetingId)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--color-primary)',
-                          textDecoration: 'underline',
-                          cursor: 'pointer',
-                          padding: 0,
-                          font: 'inherit'
-                        }}
+                        className="cal-grid-meeting-link"
                       >
                         {event.subject}
                       </button>
@@ -369,15 +278,7 @@ export function CalendarGrid({
                             }
                             onEventSelect(nextMeeting.meetingId);
                           }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--color-primary)',
-                            textDecoration: 'underline',
-                            cursor: 'pointer',
-                            padding: 0,
-                            font: 'inherit'
-                          }}
+                          className="cal-grid-meeting-link"
                         >
                           {nextMeeting.subject}
                         </button>
@@ -390,14 +291,7 @@ export function CalendarGrid({
                   }
                   
                   result.push(
-                    <div key={`indicator-${event.meetingId}`} className="calendar-now-line" style={{ 
-                      margin: '0.5rem 0 0',
-                      padding: '0.125rem 0.5rem 0',
-                      borderTop: '2px dotted var(--color-primary)',
-                      fontSize: '0.75rem',
-                      color: 'var(--color-primary)',
-                      fontWeight: 600
-                    }}>
+                    <div key={`indicator-${event.meetingId}`} className="cal-grid-now-line cal-grid-now-line--top">
                       {indicatorText}{nextMeetingLink}{joinButton}
                     </div>
                   );
@@ -418,7 +312,7 @@ export function CalendarGrid({
                 } else {
                   if (activeGroup.length > 0) {
                     result.push(
-                      <div key={`active-group-${activeGroup[0].key}`} className="active-events-group" style={{ border: '2px solid var(--color-primary)', borderRadius: '4px', padding: '0.5rem 0.25rem 0' }}>
+                      <div key={`active-group-${activeGroup[0].key}`} className="cal-grid-active-group">
                         {activeGroup}
                       </div>
                     );
@@ -430,7 +324,7 @@ export function CalendarGrid({
               
               if (activeGroup.length > 0) {
                 result.push(
-                  <div key={`active-group-final`} className="active-events-group" style={{ border: '2px solid var(--color-primary)', borderRadius: '4px', padding: '0.5rem 0.25rem 0' }}>
+                  <div key={`active-group-final`} className="cal-grid-active-group">
                     {activeGroup}
                   </div>
                 );
@@ -441,23 +335,10 @@ export function CalendarGrid({
             {isToday && visibleEvents.filter(e => !e.isAllDay).length > 0 && 
              currentTime > new Date(visibleEvents.filter(e => !e.isAllDay)[visibleEvents.filter(e => !e.isAllDay).length - 1].end) && (
               <>
-                <div className="calendar-now-line" style={{ 
-                  margin: '0.5rem 0',
-                  padding: '0.25rem 0.5rem',
-                  borderTop: '2px dotted var(--color-primary)',
-                  fontSize: '0.75rem',
-                  color: 'var(--color-primary)',
-                  fontWeight: 600
-                }}>
+                <div className="cal-grid-now-line">
                   Now - {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                 </div>
-                <div style={{
-                  padding: '0 0.5rem 1rem',
-                  fontSize: '0.85rem',
-                  fontStyle: 'italic',
-                  color: 'var(--color-text-secondary)',
-                  textAlign: 'center'
-                }}>
+                <div className="cal-grid-no-more-events">
                   No more events for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}...
                 </div>
               </>

@@ -61,7 +61,7 @@ export function Today() {
       </div>
 
       {/* Today's Meetings */}
-      <div className="workspace-dashboard__card" style={{ overflow: 'visible' }}>
+      <div className="workspace-dashboard__card today-card-overflow">
         <div className="workspace-dashboard__card-header">
           <h3 className="workspace-dashboard__card-title">Today's Meetings ({events?.length || 0})</h3>
         </div>
@@ -87,7 +87,7 @@ export function Today() {
       </div>
 
       {/* Recent Conversations */}
-      <div className="workspace-dashboard__card" style={{ overflow: 'visible' }}>
+      <div className="workspace-dashboard__card today-card-overflow">
         <div className="workspace-dashboard__card-header">
           <h3 className="workspace-dashboard__card-title">Recent Conversations</h3>
         </div>
@@ -105,11 +105,11 @@ export function Today() {
               <tbody>
                 {recentConversations.map(c => (
                   <tr key={c.id}>
-                    <td style={{ color: 'var(--color-text, var(--text-primary))' }}>
+                    <td className="today-conversation-cell">
                       {c.title || c.lastMessage?.slice(0, 50) || c.id.slice(0, 8)}
                     </td>
-                    <td style={{ color: 'var(--color-text-secondary)' }}>{c.messageCount || '-'}</td>
-                    <td style={{ color: 'var(--color-text-secondary)' }}>{c.updatedAt ? relTime(c.updatedAt) : '-'}</td>
+                    <td className="today-conversation-meta">{c.messageCount || '-'}</td>
+                    <td className="today-conversation-meta">{c.updatedAt ? relTime(c.updatedAt) : '-'}</td>
                     <td>
                       <button onClick={() => openConversation(c.id)} className="workspace-dashboard__resume-btn">
                         Resume

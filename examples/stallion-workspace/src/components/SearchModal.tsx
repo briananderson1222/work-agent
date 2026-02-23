@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { salesforceProvider } from '../data';
+import { log } from '../log';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export function SearchModal({ isOpen, onClose, onSelect, type: initialType, agen
         }
         setSearchResults(results);
       } catch (err) {
-        console.error('Search failed:', err);
+        log('Search failed:', err);
       } finally {
         setSearchLoading(false);
       }
@@ -67,103 +68,41 @@ export function SearchModal({ isOpen, onClose, onSelect, type: initialType, agen
   return (
     <>
       <div 
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          zIndex: 10000,
-        }}
+        className="search-modal-overlay"
         onClick={onClose}
       />
       <div
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'var(--bg-primary)',
-          border: '1px solid var(--border-primary)',
-          borderRadius: '0.5rem',
-          width: '90vw',
-          maxWidth: '500px',
-          maxHeight: '70vh',
-          zIndex: 10001,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
+        className="search-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{
-          padding: '1rem 1.5rem',
-          borderBottom: '1px solid var(--border-primary)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
-          <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>
+        <div className="search-modal-header">
+          <h3 className="search-modal-title">
             Search
           </h3>
           <button
             onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              fontSize: '1.5rem',
-            }}
+            className="search-modal-close-btn"
           >
             ✕
           </button>
         </div>
-        <div style={{ padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div className="search-modal-body">
+          <div className="search-modal-type-toggle">
             <button
               onClick={() => { setType('account'); setSearchResults([]); setSearchInput(''); }}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                fontSize: '0.875rem',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '6px',
-                background: type === 'account' ? 'var(--color-primary)' : 'var(--bg-secondary)',
-                color: type === 'account' ? 'white' : 'var(--text-primary)',
-                cursor: 'pointer',
-                fontWeight: type === 'account' ? 600 : 400
-              }}
+              className={`search-modal-type-btn ${type === 'account' ? 'search-modal-type-btn--active' : 'search-modal-type-btn--inactive'}`}
             >
               Accounts
             </button>
             <button
               onClick={() => { setType('campaign'); setSearchResults([]); setSearchInput(''); }}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                fontSize: '0.875rem',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '6px',
-                background: type === 'campaign' ? 'var(--color-primary)' : 'var(--bg-secondary)',
-                color: type === 'campaign' ? 'white' : 'var(--text-primary)',
-                cursor: 'pointer',
-                fontWeight: type === 'campaign' ? 600 : 400
-              }}
+              className={`search-modal-type-btn ${type === 'campaign' ? 'search-modal-type-btn--active' : 'search-modal-type-btn--inactive'}`}
             >
               Campaigns
             </button>
             <button
               onClick={() => { setType('opportunity'); setSearchResults([]); setSearchInput(''); }}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                fontSize: '0.875rem',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '6px',
-                background: type === 'opportunity' ? 'var(--color-primary)' : 'var(--bg-secondary)',
-                color: type === 'opportunity' ? 'white' : 'var(--text-primary)',
-                cursor: 'pointer',
-                fontWeight: type === 'opportunity' ? 600 : 400
-              }}
+              className={`search-modal-type-btn ${type === 'opportunity' ? 'search-modal-type-btn--active' : 'search-modal-type-btn--inactive'}`}
             >
               Opportunities
             </button>
@@ -173,48 +112,33 @@ export function SearchModal({ isOpen, onClose, onSelect, type: initialType, agen
             placeholder={`Search ${getTypeLabel(type).toLowerCase()}...`}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '0.25rem',
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              fontSize: '0.875rem'
-            }}
+            className="search-modal-input"
             autoFocus
           />
           {searchLoading && (
-            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+            <div className="search-modal-loading">
               Searching...
             </div>
           )}
         </div>
         {searchResults.length > 0 && (
-          <div style={{ flex: 1, overflowY: 'auto', borderTop: '1px solid var(--border-primary)' }}>
+          <div className="search-modal-results">
             {searchResults.map((item) => (
               <div
                 key={item.id}
                 onClick={() => handleSelect(item)}
-                style={{
-                  padding: '1rem 1.5rem',
-                  borderBottom: '1px solid var(--border-primary)',
-                  cursor: 'pointer',
-                  transition: 'background 0.15s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                className="search-modal-result-item"
               >
-                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                <div className="search-modal-result-name">
                   {item.name}
                 </div>
                 {item.website && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                  <div className="search-modal-result-meta">
                     {item.website}
                   </div>
                 )}
                 {item.type && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                  <div className="search-modal-result-meta">
                     Type: {item.type}
                   </div>
                 )}

@@ -51,7 +51,7 @@ function AccountRow({ account, onNavigate, onExpand }: { account: AccountVM; onN
 
   return (
     <tr style={{ cursor: 'pointer' }} onClick={handleExpand}>
-      <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <td className="portfolio-account-cell">
         <a href={`/workspaces/stallion/crm?selectedAccount=${account.id}`}
           className="workspace-dashboard__account-name"
           onClick={e => { e.preventDefault(); e.stopPropagation(); onNavigate(account.id); }}>
@@ -62,14 +62,14 @@ function AccountRow({ account, onNavigate, onExpand }: { account: AccountVM; onN
           ↗
         </a>
       </td>
-      <td style={{ color: 'var(--color-text-secondary)' }}>
+      <td className="portfolio-account-meta">
         {loadingDetails ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : (merged.segment || '-')}
       </td>
-      <td style={{ color: 'var(--color-text-secondary)' }}>
+      <td className="portfolio-account-meta">
         {loadingDetails ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : (merged.geo || '-')}
       </td>
       <td>
-        {!expanded ? <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>click row</span> : loadingSpend ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : fmt(spend?.ytdSpend)}
+        {!expanded ? <span className="portfolio-expand-hint">click row</span> : loadingSpend ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : fmt(spend?.ytdSpend)}
       </td>
       <td>
         {!expanded ? '-' : loadingSpend ? <span className="workspace-dashboard__spinner workspace-dashboard__spinner--sm" /> : fmt(spend?.mtdSpend)}
@@ -190,10 +190,10 @@ export function Portfolio() {
                 <tbody>
                   {recentConversations.map(c => (
                     <tr key={c.id}>
-                      <td style={{ color: 'var(--color-text, var(--text-primary))' }}>
+                      <td className="portfolio-conversation-cell">
                         {c.title || c.lastMessage?.slice(0, 50) || c.id.slice(0, 8)}
                       </td>
-                      <td style={{ color: 'var(--color-text-secondary)' }}>{c.updatedAt ? relTime(c.updatedAt) : '-'}</td>
+                      <td className="portfolio-conversation-meta">{c.updatedAt ? relTime(c.updatedAt) : '-'}</td>
                       <td>
                         <button onClick={() => { nav.setDockState(true); nav.setActiveChat(c.id); }} className="workspace-dashboard__resume-btn">
                           Resume
@@ -215,7 +215,7 @@ export function Portfolio() {
         <div className="workspace-dashboard__card-header">
           <h3 className="workspace-dashboard__card-title">
             My Accounts {!isLoading && `(${accounts.length})`}
-            {isLoading && <span className="workspace-dashboard__spinner" style={{ marginLeft: 8 }} />}
+            {isLoading && <span className="workspace-dashboard__spinner portfolio-spinner-margin" />}
           </h3>
         </div>
         {isLoading ? (
@@ -248,7 +248,7 @@ export function Portfolio() {
         <div className="workspace-dashboard__card-header">
           <h3 className="workspace-dashboard__card-title">
             Recent SIFTs
-            {loadingSifts && <span className="workspace-dashboard__spinner" style={{ marginLeft: 8 }} />}
+            {loadingSifts && <span className="workspace-dashboard__spinner portfolio-spinner-margin" />}
           </h3>
         </div>
         <div className="workspace-dashboard__scroll-md workspace-dashboard__card-content">
@@ -256,7 +256,7 @@ export function Portfolio() {
             <div className="workspace-dashboard__empty"><div>Loading insights...</div></div>
           ) : sifts.length > 0 ? sifts.map(s => (
             <div key={s.id} className="workspace-dashboard__card-item">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <div className="portfolio-sift-item">
                 <span className="workspace-dashboard__badge" style={{ backgroundColor: CATEGORY_COLORS[s.category] || '#6b7280' }}>
                   {s.category}
                 </span>

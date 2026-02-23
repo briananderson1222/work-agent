@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useCalendarEvents, useMeetingDetails, outlookProvider } from './data';
 import type { CalendarEvent, MeetingDetails } from './calendar-utils';
+import { log } from './log';
 
 function getCacheKey(type: 'calendar' | 'sfdc', identifier?: string): string {
   const today = new Date().toISOString().split('T')[0];
@@ -90,7 +91,7 @@ export function useCalendarData(selectedDate: Date) {
         setTodayEvents(mapped);
         setCache(cacheKey, mapped);
       } catch (err) {
-        console.error('Failed to fetch today events:', err);
+        log('Failed to fetch today events:', err);
       }
     };
     
@@ -139,7 +140,7 @@ export function useCalendarData(selectedDate: Date) {
       setMeetingDetails(details);
       setCache(cacheKey, details);
     } catch (err) {
-      console.error('Failed to fetch meeting details:', err);
+      log('Failed to fetch meeting details:', err);
     } finally {
       setLoadingDetails(false);
     }

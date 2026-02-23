@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useToast } from '@stallion-ai/sdk';
 import { salesforceProvider } from './data';
+import { log } from './log';
 
 interface Account {
   id: string;
@@ -87,7 +88,7 @@ export function useCRMData(userDetails: { alias: string; sfdcId: string } | null
         };
         accountDetailsCache.current.set(account.id, enrichedAccount);
       } catch (error) {
-        console.error('Failed to fetch account details:', error);
+        log('Failed to fetch account details:', error);
         enrichedAccount = account;
       }
     }
@@ -154,7 +155,7 @@ export function useCRMData(userDetails: { alias: string; sfdcId: string } | null
       sessionStorage.setItem(oppsCacheKey, JSON.stringify(oppsResult || []));
       sessionStorage.setItem(tasksCacheKey, JSON.stringify(tasksResult || []));
     } catch (error) {
-      console.error('Failed to load account details:', error);
+      log('Failed to load account details:', error);
       showToast('Failed to load account details', 'error');
       setLoadingOpportunities(false);
       setLoadingTasks(false);
@@ -185,7 +186,7 @@ export function useCRMData(userDetails: { alias: string; sfdcId: string } | null
       showToast('Opportunity created successfully', 'success');
       await loadAccountDetails(selectedAccount, true);
     } catch (error) {
-      console.error('Failed to create opportunity:', error);
+      log('Failed to create opportunity:', error);
       showToast('Failed to create opportunity', 'error');
     } finally {
       setLoading(false);
