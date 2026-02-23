@@ -6,13 +6,12 @@ type Props = {
 };
 
 /**
- * Renders streaming text with direct DOM updates (bypasses React batching).
- * Returns hasContent to parent for conditional rendering.
+ * Renders streaming text with throttled markdown rendering.
  */
 export function StreamingText({ sessionId, className }: Props) {
-  const { textRef, hasContent } = useStreamingContent(sessionId);
+  const { streamingText, hasContent } = useStreamingContent(sessionId);
   
-  return <span ref={textRef} className={`streaming-text ${className || ''}`} data-has-content={hasContent} />;
+  return <span className={`streaming-text ${className || ''}`} data-has-content={hasContent}>{streamingText}</span>;
 }
 
 // Re-export hook for components that need more control

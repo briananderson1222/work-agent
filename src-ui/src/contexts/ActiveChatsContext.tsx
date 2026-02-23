@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore } from 'react';
+import { createContext, useContext, useCallback, useEffect, ReactNode, useSyncExternalStore } from 'react';
 import { log } from '@/utils/logger';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useConversationActions, conversationsStore } from './ConversationsContext';
@@ -367,6 +367,37 @@ type ActiveChatsContextType = {
 const ActiveChatsContext = createContext<ActiveChatsContextType | undefined>(undefined);
 
 export function ActiveChatsProvider({ children }: { children: ReactNode }) {
+  // Prune sessions whose conversations no longer exist on the backend
+  useEffect(() => {
+    const chats = activeChatsStore.getSnapshot();
+    const entries = Object.entries(chats).filter(([, c]) => c.conversationId && c.agentSlug);
+    if (entries.length === 0) return;
+
+    // Group by agent to minimize API calls
+    const byAgent = new Map<string, Array<[string, typeof chats[string]]>>();
+    for (const entry of entries) {
+      const slug = entry[1].agentSlug!;
+      if (!byAgent.has(slug)) byAgent.set(slug, []);
+      byAgent.get(slug)!.push(entry);
+    }
+
+    const apiBase = (window as any).__API_BASE__ || (import.meta as any).env?.VITE_API_BASE || 'http://localhost:3141';
+    (async () => {
+      for (const [slug, sessions] of byAgent) {
+        try {
+          const r = await fetch(`${apiBase}/agents/${encodeURIComponent(slug)}/conversations`);
+          if (!r.ok) continue;
+          const { data = [] } = await r.json();
+          const ids = new Set(data.map((c: any) => c.id));
+          for (const [sessionId, chat] of sessions) {
+            if (!ids.has(chat.conversationId)) {
+              activeChatsStore.removeChat(sessionId);
+            }
+          }
+        } catch { /* keep sessions if backend unreachable */ }
+      }
+    })();
+  }, []);
   const initChat = useCallback((conversationId: string, metadata?: { agentSlug: string; agentName: string; title: string }) => {
     activeChatsStore.initChat(conversationId, metadata);
   }, []);
@@ -589,9 +620,9 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
         
         clearStreamingMessage(sessionId);
         
-        // Check if maxTurns was reached (from streaming finishReason or last message)
-        const shouldShowContinue = finishReason === 'tool-calls' || 
-          (backendMessages[backendMessages.length - 1]?.finishReason === 'tool-calls');
+        // Determine effective finish reason from stream or last backend message
+        const effectiveFinishReason = finishReason || 
+          backendMessages[backendMessages.length - 1]?.finishReason;
         
         const updates: Partial<ChatUIState> = { 
           status: 'idle',
@@ -599,8 +630,8 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
           messages: backendMessages.map(m => ({ role: m.role, content: m.content, contentParts: m.contentParts })),
         };
         
-        // Only set ephemeralMessages if we need to show continue button
-        if (shouldShowContinue) {
+        // Show contextual ephemeral messages based on finish reason
+        if (effectiveFinishReason === 'tool-calls') {
           updates.ephemeralMessages = [{
             role: 'system',
             content: '🔄 **Conversation paused** - I reached the maximum number of tool calls in this turn. Click Continue to let me keep working.',
@@ -608,6 +639,20 @@ export function useSendMessage(apiBase: string, onActiveSessionChange?: (newSess
               label: 'Continue',
               handler: () => sendMessage(sessionId, agentSlug, newConversationId, 'continue')
             }
+          }];
+        } else if (effectiveFinishReason === 'length') {
+          updates.ephemeralMessages = [{
+            role: 'system',
+            content: '✂️ **Response truncated** - The output token limit was reached. Click Continue to pick up where I left off.',
+            action: {
+              label: 'Continue',
+              handler: () => sendMessage(sessionId, agentSlug, newConversationId, 'continue')
+            }
+          }];
+        } else if (effectiveFinishReason && effectiveFinishReason !== 'stop' && effectiveFinishReason !== 'end_turn') {
+          updates.ephemeralMessages = [{
+            role: 'system',
+            content: `⚠️ **Response ended unexpectedly** — reason: ${effectiveFinishReason}`,
           }];
         }
         

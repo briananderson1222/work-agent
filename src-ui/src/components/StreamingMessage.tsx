@@ -27,7 +27,7 @@ export function StreamingMessage({
   renderToolCall,
   renderReasoning 
 }: Props) {
-  const { textRef, hasContent, contentParts } = useStreamingContent(sessionId);
+  const { streamingText, hasContent, contentParts } = useStreamingContent(sessionId);
   
   return (
     <div className="streaming-message">
@@ -49,8 +49,10 @@ export function StreamingMessage({
           return null;
         })}
         
-        {/* Current streaming text (smooth updates via DOM ref) */}
-        <span ref={textRef} className="streaming-text" />
+        {/* Current streaming text — rendered as markdown with throttled updates */}
+        {streamingText && (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+        )}
         
         {/* Loading indicator */}
         {hasContent ? (

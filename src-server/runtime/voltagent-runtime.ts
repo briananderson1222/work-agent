@@ -261,6 +261,10 @@ export class WorkAgentRuntime {
     this.usageAggregator = new UsageAggregator(this.configLoader.getWorkAgentDir());
     this.logger.debug('Usage aggregator initialized');
 
+    // Background rescan on startup + every 30 min
+    this.usageAggregator.fullRescan().catch(() => {});
+    setInterval(() => { this.usageAggregator?.fullRescan().catch(() => {}); }, 30 * 60 * 1000);
+
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
     this.logger.info('Found agents', { count: agentMetadataList.length });
@@ -454,6 +458,14 @@ export class WorkAgentRuntime {
           app.get('/acp/commands/:slug', async (c) => {
             const slug = c.req.param('slug');
             return c.json({ success: true, data: this.acpBridge.getSlashCommands(slug) });
+          });
+
+          // ACP command autocomplete options
+          app.get('/acp/commands/:slug/options', async (c) => {
+            const slug = c.req.param('slug');
+            const partial = c.req.query('q') || '';
+            const options = await this.acpBridge.getCommandOptions(slug, partial);
+            return c.json({ success: true, data: options });
           });
 
           // ACP connection CRUD
@@ -1373,6 +1385,16 @@ export class WorkAgentRuntime {
                     elicitation,
                   };
                   
+                  // Resolve userId from auth (override frontend default)
+                  if (!operationContext.userId || operationContext.userId === 'default-user') {
+                    try {
+                      const { getCachedUser } = await import('../routes/auth.js');
+                      operationContext.userId = getCachedUser().alias || 'default-user';
+                    } catch {
+                      operationContext.userId = operationContext.userId || 'default-user';
+                    }
+                  }
+                  
                   // Generate conversationId if not provided (new conversation)
                   isNewConversation = !operationContext.conversationId;
                   if (isNewConversation && operationContext.userId) {
@@ -1951,10 +1973,13 @@ export class WorkAgentRuntime {
       } : {}),
       ...(spec.guardrails && {
         temperature: spec.guardrails.temperature,
-        maxOutputTokens: spec.guardrails.maxTokens,
+        maxOutputTokens: spec.guardrails.maxTokens ?? this.appConfig.defaultMaxOutputTokens,
         topP: spec.guardrails.topP,
         maxSteps: spec.guardrails.maxSteps,
       }),
+      ...(!spec.guardrails && this.appConfig.defaultMaxOutputTokens ? {
+        maxOutputTokens: this.appConfig.defaultMaxOutputTokens,
+      } : {}),
     });
 
     return agent;

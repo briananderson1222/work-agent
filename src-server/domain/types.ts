@@ -116,6 +116,8 @@ export interface AppConfig {
   /** Model for /invoke endpoint structured output */
   structureModel: string;
   defaultMaxTurns?: number;
+  /** Global default max output tokens (applied when agent doesn't specify guardrails.maxTokens) */
+  defaultMaxOutputTokens?: number;
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
   defaultChatFontSize?: number;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 
 type ContentPart = { type: 'text' | 'tool' | 'reasoning'; content?: string; tool?: any };
@@ -6,17 +6,32 @@ type ContentPart = { type: 'text' | 'tool' | 'reasoning'; content?: string; tool
 type StreamingState = {
   hasContent: boolean;
   contentParts: ContentPart[];
+  streamingText: string;
 };
+
+const THROTTLE_MS = 80;
 
 /**
  * Hook that subscribes to streaming content.
- * Returns a ref for direct DOM text updates (current streaming text)
+ * Returns throttled streamingText for markdown rendering
  * and state for completed contentParts.
  */
 export function useStreamingContent(sessionId: string) {
-  const textRef = useRef<HTMLElement>(null);
-  const lastTextInPartsLengthRef = useRef(0);
-  const [state, setState] = useState<StreamingState>({ hasContent: false, contentParts: [] });
+  const [state, setState] = useState<StreamingState>({ hasContent: false, contentParts: [], streamingText: '' });
+  
+  // Throttle: track latest value and flush on interval
+  const latestStreamingTextRef = useRef('');
+  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFlushedRef = useRef('');
+
+  const flushStreamingText = useCallback(() => {
+    throttleTimerRef.current = null;
+    const text = latestStreamingTextRef.current;
+    if (text !== lastFlushedRef.current) {
+      lastFlushedRef.current = text;
+      setState(prev => prev.streamingText === text ? prev : { ...prev, streamingText: text });
+    }
+  }, []);
   
   useEffect(() => {
     const unsubscribe = activeChatsStore.subscribe(() => {
@@ -31,25 +46,29 @@ export function useStreamingContent(sessionId: string) {
         .map(p => p.content || '')
         .join('');
       
-      // Update textRef when content changes OR when text moves into contentParts
-      if (textRef.current && (textInParts.length !== lastTextInPartsLengthRef.current || content.length !== textInParts.length)) {
-        const currentStreamingText = content.slice(textInParts.length);
-        textRef.current.textContent = currentStreamingText;
-        lastTextInPartsLengthRef.current = textInParts.length;
+      const currentStreamingText = content.slice(textInParts.length);
+      latestStreamingTextRef.current = currentStreamingText;
+
+      // Schedule throttled flush for streaming text
+      if (!throttleTimerRef.current) {
+        throttleTimerRef.current = setTimeout(flushStreamingText, THROTTLE_MS);
       }
       
-      // Update state for contentParts (React batched, but that's OK for completed parts)
+      // Update contentParts and hasContent immediately (these change infrequently)
       const hasContent = content.length > 0 || contentParts.length > 0;
       setState(prev => {
         if (prev.hasContent !== hasContent || prev.contentParts !== contentParts) {
-          return { hasContent, contentParts };
+          return { ...prev, hasContent, contentParts };
         }
         return prev;
       });
     });
     
-    return unsubscribe;
-  }, [sessionId]);
+    return () => {
+      unsubscribe();
+      if (throttleTimerRef.current) clearTimeout(throttleTimerRef.current);
+    };
+  }, [sessionId, flushStreamingText]);
   
-  return { textRef, ...state };
+  return state;
 }
