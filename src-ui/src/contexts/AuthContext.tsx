@@ -7,7 +7,7 @@ interface AuthState {
   status: AuthStatus;
   expiresAt: Date | null;
   provider: string;
-  user: { alias: string; profileUrl?: string } | null;
+  user: { alias: string; profileUrl?: string; name?: string; title?: string; email?: string } | null;
   renew: () => Promise<void>;
   isRenewing: boolean;
 }

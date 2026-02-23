@@ -31,7 +31,7 @@ export function Header({
 }: HeaderProps) {
   const settingsShortcut = useShortcutDisplay('app.settings');
   const { user: authUser } = useAuth();
-  const userName = authUser?.alias || 'User';
+  const userName = authUser?.name || authUser?.alias || 'User';
   const userInitials = getInitials(userName);
   const [showWorkspaceAutocomplete, setShowWorkspaceAutocomplete] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);

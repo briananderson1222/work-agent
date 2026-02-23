@@ -9,12 +9,10 @@ import './ProfilePage.css';
 export function ProfilePage() {
   const { usageStats, refresh } = useAnalytics();
   const { status: authStatus, expiresAt, renew, isRenewing, provider, user } = useAuth();
-  const userName = user?.alias || 'User';
+  const userName = user?.name || user?.alias || 'User';
   const profileUrl = user?.profileUrl;
   const totalMessages = usageStats?.lifetime.totalMessages || 0;
   const totalCost = usageStats?.lifetime.totalCost || 0;
-  
-  const userName = user?.alias || 'User';
   const userInitials = getInitials(userName);
 
   // Refresh analytics when profile page loads
@@ -65,18 +63,25 @@ export function ProfilePage() {
             </div>
             <div className="profile-hero-info">
               <div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-                  <h1 className="profile-hero-title" style={{ margin: 0 }}>
-                    {userName}{profileUrl ? (
-                      <a href={profileUrl} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: '14px', color: 'var(--text-secondary)', textDecoration: 'none', marginLeft: '4px', fontWeight: 400 }}>@</a>
-                    ) : null}
-                  </h1>
-                  {usageStats?.lifetime.firstMessageDate && (
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                      Joined {new Date(usageStats.lifetime.firstMessageDate).toLocaleDateString()}
-                    </span>
-                  )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: user?.title ? '12px' : '0' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+                    <h1 className="profile-hero-title" style={{ margin: 0 }}>
+                      {user?.name ? (
+                        <>{user.name} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--text-secondary)' }}>({profileUrl ? (
+                          <a href={profileUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>{user.alias}@</a>
+                        ) : <>{user.alias}@</>})</span></>
+                      ) : profileUrl ? (
+                        <a href={profileUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{userName}@</a>
+                      ) : <>{userName}</>}
+                    </h1>
+                    {usageStats?.lifetime.firstMessageDate && (
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        Joined {new Date(usageStats.lifetime.firstMessageDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  {user?.title && <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{user.title}</span>}
+                  {user?.email && <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{user.email}</span>}
                 </div>
               </div>
               <p className="profile-hero-subtitle">

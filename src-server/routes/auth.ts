@@ -1,19 +1,90 @@
 import { Hono } from 'hono';
-import { stat, writeFile, unlink } from 'fs/promises';
-import { homedir, tmpdir } from 'os';
+import { stat, writeFile } from 'fs/promises';
+import { homedir, tmpdir, userInfo as osUserInfo } from 'os';
 import { join } from 'path';
 import { execFile } from 'child_process';
-import { userInfo as osUserInfo } from 'os';
 
 const COOKIE_PATH = join(homedir(), '.midway', 'cookie');
 const COOKIE_LIFETIME_MS = 12 * 60 * 60 * 1000;
 const EXPIRING_THRESHOLD_MS = 2 * 60 * 60 * 1000;
 
-function userInfo() { return osUserInfo().username; }
+// ── User Identity ──────────────────────────────────────
+// Starts with OS username, enriched by available tools on first request.
 
-/** Detect user's terminal and open command in it (like boo) */
+interface UserIdentity {
+  alias: string;
+  profileUrl: string;
+  name?: string;
+  title?: string;
+  email?: string;
+}
+
+let cachedUser: UserIdentity | null = null;
+
+function baseUser(): UserIdentity {
+  const alias = osUserInfo().username;
+  return {
+    alias,
+    profileUrl: `https://phonetool.amazon.com/users/${alias}`,
+    email: `${alias}@amazon.com`,
+  };
+}
+
+/** Get cached user identity (available to other modules) */
+export function getCachedUser(): UserIdentity {
+  if (!cachedUser) cachedUser = baseUser();
+  return cachedUser;
+}
+
+async function getUser(): Promise<UserIdentity> {
+  if (cachedUser) return cachedUser;
+  cachedUser = baseUser();
+  // Async enrichment — don't block the response
+  enrichUser(cachedUser).catch(() => {});
+  return cachedUser;
+}
+
+async function enrichUser(user: UserIdentity): Promise<void> {
+  // Try to enrich from workspace agent tools (non-blocking, best-effort)
+  const port = process.env.PORT || 3141;
+  const base = `http://localhost:${port}`;
+  
+  try {
+    // Find a workspace agent that has sat-sfdc tools
+    const agentsRes = await fetch(`${base}/api/agents`);
+    const { data: agents } = await agentsRes.json() as any;
+    const agent = agents?.find((a: any) => a.toolsConfig?.mcpServers?.includes('sat-sfdc'));
+    if (!agent) return;
+
+    const slug = encodeURIComponent(agent.slug);
+    const call = async (tool: string, args: any, transform: string) => {
+      const r = await fetch(`${base}/agents/${slug}/tool/${tool}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolArgs: args, transform }),
+      });
+      const d = await r.json() as any;
+      return d.success ? d.response : null;
+    };
+
+    // search_users returns full name, title, email
+    const me = await call('sat-sfdc_search_users', { alias: user.alias }, 'data => (data.data?.users || data.users || [])[0]');
+    if (me) {
+      cachedUser = {
+        ...user,
+        name: me.name || user.alias,
+        title: me.businessTitle,
+        email: me.email || user.email,
+      };
+    }
+  } catch {
+    // Enrichment failed — keep base identity
+  }
+}
+
+// ── Terminal Launch ────────────────────────────────────
+
 async function openTerminal(command: string): Promise<void> {
-  // Check installed apps (server process won't have TERM_PROGRAM)
   if (await appExists('iTerm')) {
     return osascript(`tell application "iTerm"
       activate
@@ -26,8 +97,6 @@ async function openTerminal(command: string): Promise<void> {
       do script "${esc(command)}"
     end tell`);
   }
-  
-  // Fallback: .command file opens in system default terminal
   const file = join(tmpdir(), `stallion-${Date.now()}.command`);
   await writeFile(file, `#!/bin/sh\n${command}\nrm -f "${file}"\n`, { mode: 0o755 });
   return new Promise((resolve, reject) => {
@@ -51,10 +120,13 @@ async function appExists(name: string): Promise<boolean> {
   });
 }
 
+// ── Routes ─────────────────────────────────────────────
+
 export function createAuthRoutes() {
   const app = new Hono();
 
   app.get('/status', async (c) => {
+    const user = await getUser();
     try {
       const stats = await stat(COOKIE_PATH);
       const age = Date.now() - stats.mtime.getTime();
@@ -74,9 +146,9 @@ export function createAuthRoutes() {
         message = 'Authentication valid';
       }
 
-      return c.json({ provider: 'mwinit', status, expiresAt: expiresAt.toISOString(), message, user: { alias: userInfo(), profileUrl: `https://phonetool.amazon.com/users/${userInfo()}` } });
+      return c.json({ provider: 'mwinit', status, expiresAt: expiresAt.toISOString(), message, user });
     } catch {
-      return c.json({ provider: 'mwinit', status: 'missing', expiresAt: null, message: 'No authentication found', user: { alias: userInfo(), profileUrl: `https://phonetool.amazon.com/users/${userInfo()}` } });
+      return c.json({ provider: 'mwinit', status: 'missing', expiresAt: null, message: 'No authentication found', user });
     }
   });
 
