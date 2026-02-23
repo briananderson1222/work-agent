@@ -1,68 +1,3 @@
-/* Workspace Tabs */
-.workspace-tabs {
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg);
-}
-
-.workspace-tabs__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 1rem 0 0;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg);
-  min-height: 3rem;
-}
-
-.workspace-tabs__container {
-  display: flex;
-  padding: 0;
-  gap: 0.25rem;
-}
-
-.workspace-tabs__tab {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: transparent;
-  border: none;
-  border-radius: 0.5rem 0.5rem 0 0;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  transition: all 0.2s ease;
-  position: relative;
-  margin-bottom: -1px;
-}
-
-.workspace-tabs__tab:hover {
-  color: var(--color-text-primary);
-  background: var(--color-bg-hover);
-}
-
-.workspace-tabs__tab--active {
-  color: var(--color-primary);
-  background: var(--color-bg);
-  border-bottom: 2px solid var(--color-primary);
-}
-
-.workspace-tabs__tab--active:hover {
-  color: var(--color-primary);
-  background: var(--color-bg);
-}
-
-.workspace-tabs__icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.workspace-tabs__label {
-  font-weight: inherit;
-  white-space: nowrap;
-}
-
 /* Shared workspace styles */
 
 /* Main workspace container - handles dock padding automatically */
@@ -213,7 +148,7 @@
 }
 
 .workspace-dashboard__list-item {
-  padding: 1rem 1.5rem 1rem 0.5rem;
+  padding: 0.625rem 0.75rem;
   position: relative;
   cursor: pointer;
   border-bottom: 1px solid var(--color-border);
@@ -352,10 +287,41 @@
 .workspace-dashboard__empty {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   color: var(--color-text-secondary);
   text-align: center;
+  padding: 1rem;
+  gap: 0.25rem;
+}
+
+.workspace-dashboard__empty--error {
+  color: var(--error-text, #ef4444);
+}
+
+.workspace-dashboard__error-detail {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-dashboard__retry-btn {
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.workspace-dashboard__retry-btn:hover {
+  background: var(--color-bg-hover, rgba(255,255,255,0.05));
 }
 
 .workspace-dashboard__empty-title {
@@ -431,7 +397,21 @@
 .workspace-dashboard__page {
   padding: 1rem;
   display: grid;
-  gap: 1.5rem;
+  gap: 1rem;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.workspace-dashboard__grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 1rem;
+}
+
+.workspace-dashboard__grid--even {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 }
 
 .workspace-dashboard__row {
@@ -463,6 +443,47 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.75rem;
+}
+
+.workspace-dashboard__welcome {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.workspace-dashboard__welcome-greeting {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--color-text, var(--text-primary));
+}
+
+.workspace-dashboard__welcome-date {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, var(--text-secondary));
+}
+
+.workspace-dashboard__welcome-alias {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, var(--text-secondary));
+}
+
+/* ============ Prompt chips ============ */
+
+.workspace-dashboard__prompt-chip {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg, var(--bg-secondary));
+  border-radius: 2rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-text, var(--text-primary));
+  white-space: nowrap;
+}
+
+.workspace-dashboard__prompt-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .workspace-dashboard__prompt-btn {
@@ -1805,54 +1826,198 @@
 }
 
 .phone-lookup-modal {
-  background: var(--color-bg, var(--text-inverted));
-  border-radius: 8px;
-  padding: 1.5rem;
-  min-width: 320px;
-  max-width: 420px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  background: var(--color-bg, var(--bg-primary, #1a1a2e));
+  border-radius: 12px;
+  min-width: 340px;
+  max-width: 400px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  overflow: hidden;
 }
 
-.phone-lookup-header {
+.phone-lookup-loading,
+.phone-lookup-error-state {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.phone-lookup-error-detail {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.phone-lookup-close-action {
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.phone-lookup-hero {
   display: flex;
-  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
   align-items: center;
-  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border, var(--border-primary));
+}
+
+.phone-lookup-badge-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.phone-lookup-badge-placeholder {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.phone-lookup-hero-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.phone-lookup-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text, var(--text-primary));
+}
+
+.phone-lookup-alias {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, var(--text-secondary));
 }
 
 .phone-lookup-title {
-  font-size: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, var(--text-secondary));
+  margin-top: 0.25rem;
 }
 
 .phone-lookup-close-btn {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   color: var(--color-text-secondary);
+  align-self: flex-start;
+  padding: 0;
 }
 
-.phone-lookup-error {
-  color: red;
+.phone-lookup-body {
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.85rem;
 }
 
-.phone-lookup-details {
-  display: grid;
+.phone-lookup-row {
+  display: flex;
   gap: 0.5rem;
-  font-size: 0.9rem;
 }
 
-.phone-lookup-email-link {
-  color: var(--color-primary);
+.phone-lookup-label {
+  color: var(--color-text-secondary, var(--text-secondary));
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.phone-lookup-link {
+  color: var(--color-primary, var(--accent-primary));
+  text-decoration: none;
+}
+
+.phone-lookup-link:hover {
+  text-decoration: underline;
+}
+
+.phone-lookup-tags {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.phone-lookup-tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 2rem;
+  background: var(--bg-tertiary, var(--color-bg-hover, rgba(255,255,255,0.08)));
+  color: var(--color-text-secondary, var(--text-secondary));
 }
 
 .phone-lookup-footer {
-  margin-top: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--color-border, var(--border-primary));
+  font-size: 0.85rem;
 }
 
-.phone-lookup-phonetool-link {
-  color: var(--color-primary);
-  font-size: 0.85rem;
+.phone-lookup-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--bg-tertiary, var(--color-bg-hover));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.phone-lookup-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.phone-lookup-avatar-initial {
+  color: var(--text-primary, var(--color-text));
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.phone-lookup-subtitle {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, var(--text-secondary));
+  margin-top: 0.15rem;
+}
+
+.phone-lookup-section {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border, var(--border-primary));
+}
+
+.phone-lookup-section-title {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-secondary, var(--text-secondary));
+  margin-bottom: 0.4rem;
+}
+
+.phone-lookup-territory {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0;
+  color: var(--color-text, var(--text-primary));
 }
 
 /* ============ CRM Header Styles ============ */
@@ -2217,12 +2382,11 @@
   display: flex;
   gap: 0.25rem;
   flex-wrap: wrap;
-  margin-top: 0.25rem;
 }
 
 .crm-account-source-pill {
   font-size: 0.65rem;
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: 12px;
   color: white;
   font-weight: 500;
@@ -2263,12 +2427,59 @@
 }
 
 .crm-account-sfdc-link {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
   color: var(--color-primary);
   font-size: 1rem;
   text-decoration: none;
+  flex-shrink: 0;
+  padding: 0.25rem;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.workspace-dashboard__list-item:hover .crm-account-sfdc-link {
+  opacity: 1;
+}
+
+.crm-account-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.crm-account-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.crm-account-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.crm-account-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.crm-account-row-website {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.crm-account-row-website:hover {
+  color: var(--color-primary);
+  opacity: 1;
 }
 
 .crm-account-sfdc-link:hover {

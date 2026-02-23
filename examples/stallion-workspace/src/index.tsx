@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Calendar } from './Calendar';
 import { CRM } from './CRM';
 import { Portfolio } from './Portfolio';
-import { Today } from './Today';
 import { SiftQueue } from './SiftQueue';
 import { Newsletters } from './Newsletters';
 import { SalesProvider } from './StallionContext';
@@ -31,7 +30,6 @@ function withContext(Component: React.ComponentType<any>) {
 
 export const components = {
   'stallion-workspace-portfolio': withContext(Portfolio),
-  'stallion-workspace-today': withContext(Today),
   'stallion-workspace-calendar': withContext(Calendar),
   'stallion-workspace-crm': withContext(CRM),
   'stallion-workspace-sift-queue': withContext(SiftQueue),

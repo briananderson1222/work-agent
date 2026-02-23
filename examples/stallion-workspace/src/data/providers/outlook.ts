@@ -50,6 +50,7 @@ export const outlookProvider: ICalendarProvider = {
     return {
       ...mapEvent(data),
       body: data.body,
+      responseStatus: data.responseStatus || data.myResponseStatus,
       attendees: (data.attendees || []).map((a: any): AttendeeVM => ({
         email: a.emailAddress?.address || a.email,
         name: a.emailAddress?.name || a.name,

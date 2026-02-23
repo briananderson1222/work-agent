@@ -3,11 +3,13 @@ import { useToast, useWorkspaceNavigation, useSendToChat, invokeAgent } from '@s
 import { useSalesContext } from './useSalesContext';
 import { LeadershipInsightModal } from './LeadershipInsightModal';
 import { salesforceProvider } from './data';
+import { useSortableTable } from './components/SortableTable';
 import { useCRMData } from './useCRMData';
 import { useCRMFilters } from './useCRMFilters';
 import { FilterBar } from './FilterBar';
 import { AccountList } from './AccountList';
 import { AccountDetail } from './AccountDetail';
+import { CRM_BASE_URL } from './constants';
 import { OpportunityModal } from './OpportunityModal';
 import './workspace.css';
 import { log } from './log';
@@ -135,6 +137,11 @@ export function CRM({ activeTab }: CRMProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showAllOpportunities, setShowAllOpportunities] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
+
+  const { sorted: sortedOpps, sortKey: oppSortKey, sortDir: oppSortDir, toggle: oppToggle } =
+    useSortableTable(opportunities, 'closeDate', 'desc');
+  const { sorted: sortedTasks, sortKey: taskSortKey, sortDir: taskSortDir, toggle: taskToggle } =
+    useSortableTable(tasks, 'activityDate', 'desc');
   const [loading, setLoading] = useState(false);
   const [loadingOpportunities, setLoadingOpportunities] = useState(false);
   const [loadingTasks, setLoadingTasks] = useState(false);
@@ -562,13 +569,17 @@ export function CRM({ activeTab }: CRMProps) {
 
   // Auto-load on mount - restore selected account only
 
-  // Deep link: restore selectedAccount from tab state
+  // Deep link: restore selectedAccount from tab state (on mount + tab switch)
+  const deepLinkHandled = useRef(false);
   useEffect(() => {
     const storedState = getTabState('crm');
     if (!storedState) return;
     const params = new URLSearchParams(storedState);
     const accountId = params.get('selectedAccount');
     if (!accountId || selectedAccount?.id === accountId) return;
+    // Prevent re-firing after we've already handled this deep link
+    if (deepLinkHandled.current && !activeTab) return;
+    deepLinkHandled.current = true;
     
     salesforceProvider.getAccountDetails(accountId).then(details => {
       const account = {
@@ -581,7 +592,7 @@ export function CRM({ activeTab }: CRMProps) {
       } as Account;
       loadAccountDetails(account);
     }).catch(() => {});
-  }, [activeTab]);
+  }, [activeTab, getTabState]);
 
   const handleRefresh = async () => {
     // Clear opportunity and task caches
@@ -1413,7 +1424,6 @@ Existing insights: [count] insights already created
                   key={account.id}
                   data-account-id={account.id}
                   onClick={(e) => {
-                    // Don't load details if clicking on a link
                     if ((e.target as HTMLElement).tagName === 'A' || (e.target as HTMLElement).closest('a')) {
                       return;
                     }
@@ -1423,66 +1433,40 @@ Existing insights: [count] insights already created
                     selectedAccount?.id === account.id ? 'is-active' : ''
                   }`}
                 >
-                  <div className="workspace-dashboard__list-item-title">
-                    {account.name}
-                  </div>
-                  
-                  {/* Owner and Territory Pills */}
-                  <div className="crm-account-sources">
-                    {account._sources?.map((source, idx) => {
-                      const getSourceClass = () => {
-                        if (source.type === 'owner') return 'crm-account-source-pill--owner';
-                        if (source.type === 'territory') return 'crm-account-source-pill--territory';
-                        return 'crm-account-source-pill--owner';
-                      };
-                      
-                      return (
-                        <span key={idx} className={`crm-account-source-pill ${getSourceClass()}`}>
-                          {source.label}
-                        </span>
-                      );
-                    })}
-                  </div>
-                  
-                  <div className="workspace-dashboard__list-item-meta">
-                    {account.website && (
-                      <a
-                        href={account.website.startsWith('http') ? account.website : `https://${account.website}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--color-primary)',
-                          textDecoration: 'none'
-                        }}
-                      >
-                        {account.website.replace(/^https?:\/\//, '')}
-                      </a>
-                    )}
-                  </div>
-                  {/* Metadata Pills */}
-                  <div className="crm-account-metadata">
-                    {account.geo_Text__c && (
-                      <span className="crm-account-metadata-pill crm-account-metadata-pill--geo">
-                        {account.geo_Text__c}
-                      </span>
-                    )}
-                    {account.awsci_customer?.customerRevenue?.tShirtSize && (
-                      <span className="crm-account-metadata-pill crm-account-metadata-pill--size">
-                        {account.awsci_customer.customerRevenue.tShirtSize}
-                      </span>
-                    )}
-                  </div>
-                  <div className="crm-account-sfdc-link">
+                  <div className="crm-account-row">
+                    <div className="crm-account-row-main">
+                      <div className="crm-account-row-top">
+                        <span className="workspace-dashboard__list-item-title" style={{ marginBottom: 0 }}>{account.name}</span>
+                        {account.geo_Text__c && (
+                          <span className="crm-account-metadata-pill crm-account-metadata-pill--geo">{account.geo_Text__c}</span>
+                        )}
+                        {account.awsci_customer?.customerRevenue?.tShirtSize && (
+                          <span className="crm-account-metadata-pill crm-account-metadata-pill--size">{account.awsci_customer.customerRevenue.tShirtSize}</span>
+                        )}
+                      </div>
+                      <div className="crm-account-row-bottom">
+                        {account._sources?.map((source, idx) => (
+                          <span key={idx} className={`crm-account-source-pill ${source.type === 'territory' ? 'crm-account-source-pill--territory' : 'crm-account-source-pill--owner'}`}>
+                            {source.label}
+                          </span>
+                        ))}
+                        {account.website && (
+                          <a
+                            href={account.website.startsWith('http') ? account.website : `https://${account.website}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="crm-account-row-website"
+                          >
+                            {account.website.replace(/^https?:\/\/(www\.)?/, '')}
+                          </a>
+                        )}
+                      </div>
+                    </div>
                     <a
                       href={`${CRM_BASE_URL}/lightning/r/Account/${account.id}/view`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{
-                        color: 'var(--color-primary)',
-                        fontSize: '1rem',
-                        textDecoration: 'none'
-                      }}
+                      className="crm-account-sfdc-link"
                       title="Open in Salesforce"
                     >
                       ↗
@@ -1592,7 +1576,15 @@ Existing insights: [count] insights already created
                         </div>
                       ) : opportunities.length > 0 ? (
                         <div>
-                          {(showAllOpportunities ? opportunities : opportunities.slice(0, 5)).map((opp) => (
+                          <div style={{ display: 'flex', gap: '0.5rem', padding: '0.25rem 0.75rem', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                            {(['name', 'amount', 'stageName', 'closeDate'] as const).map(k => (
+                              <span key={k} onClick={() => oppToggle(k)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                                {{name:'Name',amount:'Amount',stageName:'Stage',closeDate:'Close'}[k]}
+                                {oppSortKey === k ? (oppSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                              </span>
+                            ))}
+                          </div>
+                          {(showAllOpportunities ? sortedOpps : sortedOpps.slice(0, 5)).map((opp) => (
                             <div key={opp.id} className="workspace-dashboard__card-content">
                               <div className="workspace-dashboard__card-item">
                                 <div className="account-detail-item-header">
@@ -1691,7 +1683,15 @@ Existing insights: [count] insights already created
                         </div>
                       ) : tasks.length > 0 ? (
                         <div>
-                          {(showAllTasks ? tasks : tasks.slice(0, 5)).map((task) => (
+                          <div style={{ display: 'flex', gap: '0.5rem', padding: '0.25rem 0.75rem', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                            {(['subject', 'activityDate', 'status'] as const).map(k => (
+                              <span key={k} onClick={() => taskToggle(k)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                                {{subject:'Subject',activityDate:'Date',status:'Status'}[k]}
+                                {taskSortKey === k ? (taskSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                              </span>
+                            ))}
+                          </div>
+                          {(showAllTasks ? sortedTasks : sortedTasks.slice(0, 5)).map((task) => (
                             <div key={task.id} className="workspace-dashboard__card-content">
                               <div className="workspace-dashboard__card-item">
                                 <div className="account-detail-item-header">

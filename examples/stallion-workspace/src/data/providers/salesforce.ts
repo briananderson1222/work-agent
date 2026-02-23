@@ -137,6 +137,18 @@ export const salesforceProvider: ICRMProvider & IUserProvider = {
     return (r || []).map(mapOpportunity);
   },
 
+  async getMyOpportunities(alias: string, options?: { limit?: number }) {
+    const params: any = {
+      ownershipFilter: { alias, type: 'associated' },
+      condition: { field: 'isClosed', operator: 'EQ', value: 'false' },
+    };
+    if (options?.limit) params.limit = options.limit;
+    const r = await transformTool(AGENT, 'sat-sfdc_search_opportunities', params, 'data => data.data?.resultRecords || data.resultRecords || []');
+    const opps = (r || []).map(mapOpportunity);
+    opps.sort((a: OpportunityVM, b: OpportunityVM) => b.closeDate.getTime() - a.closeDate.getTime());
+    return opps;
+  },
+
   async createOpportunity(data: Omit<OpportunityVM, 'id'>) {
     const r = await transformTool(AGENT, 'sat-sfdc_create_opportunity', {
       accountId: data.accountId, name: data.name, stageName: data.stage,

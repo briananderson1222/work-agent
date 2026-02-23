@@ -1,5 +1,6 @@
 import { useSendToChat, useConversations, useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
 import { useCalendarEvents, useEmailInbox } from './data';
+import { useSortableTable, SortHeader } from './components/SortableTable';
 import './workspace.css';
 
 type ConversationItem = { id: string; title?: string; lastMessage?: string; updatedAt?: number; messageCount?: number };
@@ -25,6 +26,9 @@ export function Today() {
   const recentConversations = (conversations || [])
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .slice(0, 10);
+
+  const { sorted: sortedConversations, sortKey: convSortKey, sortDir: convSortDir, toggle: convToggle } =
+    useSortableTable(recentConversations, 'updatedAt', 'desc');
 
   const openConversation = (id: string) => {
     nav.setDockState(true);
@@ -97,13 +101,13 @@ export function Today() {
               <thead>
                 <tr>
                   <th>Conversation</th>
-                  <th>Messages</th>
-                  <th>Last Active</th>
+                  <SortHeader label="Messages" sortKey="messageCount" active={convSortKey === 'messageCount'} dir={convSortDir} onClick={convToggle} />
+                  <SortHeader label="Last Active" sortKey="updatedAt" active={convSortKey === 'updatedAt'} dir={convSortDir} onClick={convToggle} />
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {recentConversations.map(c => (
+                {sortedConversations.map(c => (
                   <tr key={c.id}>
                     <td className="today-conversation-cell">
                       {c.title || c.lastMessage?.slice(0, 50) || c.id.slice(0, 8)}

@@ -47,6 +47,7 @@ export interface ICRMProvider {
   // Opportunities
   getAccountOpportunities(accountId: string): Promise<OpportunityVM[]>;
   searchOpportunities(condition: SearchCondition): Promise<OpportunityVM[]>;
+  getMyOpportunities(alias: string, options?: { limit?: number }): Promise<OpportunityVM[]>;
   createOpportunity(data: Omit<OpportunityVM, 'id'>): Promise<OpportunityVM>;
   
   // Tasks

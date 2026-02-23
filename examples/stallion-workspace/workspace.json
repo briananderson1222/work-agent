@@ -10,14 +10,9 @@
   "defaultAgent": "stallion-workspace:work-agent",
   "tabs": [
     {
-      "id": "portfolio",
-      "label": "Portfolio",
+      "id": "dashboard",
+      "label": "Dashboard",
       "component": "stallion-workspace-portfolio"
-    },
-    {
-      "id": "today",
-      "label": "Today",
-      "component": "stallion-workspace-today"
     },
     {
       "id": "calendar",

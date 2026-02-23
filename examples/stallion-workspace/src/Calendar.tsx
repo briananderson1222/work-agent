@@ -17,7 +17,7 @@ import {
 } from './data';
 import { SearchModal } from './components/SearchModal';
 import { CRM_BASE_URL } from './constants';
-import { PhoneLookupModal } from './PhoneLookupModal';
+import { UserDetailModal } from './UserDetailModal';
 import { log } from './log';
 import {
   CalendarEventSchema,
@@ -163,6 +163,8 @@ export function Calendar({ activeTab }: CalendarProps) {
   const [assigningActivity, setAssigningActivity] = useState(false);
   const [phoneLookupAlias, setPhoneLookupAlias] = useState<string | null>(null);
   const [meetingNotes, setMeetingNotes] = useState<string | null>(null);
+  const [aiDraft, setAiDraft] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [oppFilterText, setOppFilterText] = useState('');
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
@@ -255,8 +257,16 @@ export function Calendar({ activeTab }: CalendarProps) {
 
   const selectedEvent = events.find((e) => e.meetingId === selectedEventId) ?? null;
 
-  // Reset notes when switching events
-  useEffect(() => { setMeetingNotes(null); }, [selectedEventId]);
+  // Load notes from localStorage when switching events
+  useEffect(() => {
+    if (selectedEventId) {
+      const saved = localStorage.getItem(`meeting-notes:${selectedEventId}`);
+      setMeetingNotes(saved);
+    } else {
+      setMeetingNotes(null);
+    }
+    setAiDraft(null);
+  }, [selectedEventId]);
   
   // Get unique categories from events
   const allCategories = Array.from(new Set(events.flatMap(e => e.categories || [])));
@@ -446,7 +456,7 @@ export function Calendar({ activeTab }: CalendarProps) {
         end: vm.end.toISOString(),
         location: vm.location || '',
         organizer: vm.organizer || '',
-        responseStatus: 'No Response'
+        responseStatus: vm.responseStatus || 'No Response'
       };
       
       // Populate emailToName map from attendees
@@ -1557,6 +1567,24 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                           {loadingSFDC ? 'Loading...' : 'Log Activity'}
                         </button>
                         <button
+                          onClick={() => setMeetingNotes(prev => prev !== null ? null : (localStorage.getItem(`meeting-notes:${selectedEventId}`) || ''))}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: meetingNotes !== null ? 'var(--bg-tertiary)' : 'transparent',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '0.375rem',
+                            fontSize: '0.875rem',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = meetingNotes !== null ? 'var(--bg-tertiary)' : 'transparent')}
+                        >
+                          Take Notes
+                        </button>
+                        <button
                           onClick={() => {
                             const meetingInfo = `Meeting: ${meetingDetails.subject}\nTime: ${new Date(meetingDetails.start).toLocaleString()} - ${new Date(meetingDetails.end).toLocaleTimeString()}\nLocation: ${meetingDetails.location || 'Not specified'}${meetingDetails.attendees ? `\nAttendees: ${meetingDetails.attendees.map(a => a.email).join(', ')}` : ''}`;
                             sendToChat(`I need to log an SA activity for this meeting:\n\n${meetingInfo}\n\nWorkflow:\n- Search my email for meeting notes or follow-ups related to "${meetingDetails.subject}"\n- Use the attendee list and meeting subject to identify the relevant Salesforce account\n- Find any related opportunities for this account\n- Present matching accounts/opportunities as a numbered list for me to choose from\n- Help me create the SA activity log with the meeting notes and context`);
@@ -1651,6 +1679,45 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                     <>
                       <div>
                         <p><strong>Time:</strong> {new Date(meetingDetails.start).toLocaleString()} - {new Date(meetingDetails.end).toLocaleTimeString()}</p>
+                        
+                        {/* RSVP */}
+                        <div style={{ display: 'flex', gap: '0.4rem', margin: '0.5rem 0' }}>
+                          {(['accept', 'tentative', 'decline'] as const).map(resp => {
+                            const current = (meetingDetails.responseStatus || '').toLowerCase();
+                            const isActive = (resp === 'accept' && current === 'accepted') ||
+                              (resp === 'tentative' && (current === 'tentativelyaccepted' || current === 'tentative')) ||
+                              (resp === 'decline' && current === 'declined');
+                            return (
+                              <button key={resp}
+                                onClick={async () => {
+                                  try {
+                                    await transformTool('work-agent', 'sat-outlook_calendar_meeting', {
+                                      operation: 'update',
+                                      meetingId: meetingDetails.meetingId || selectedEventId,
+                                      meetingChangeKey: meetingDetails.meetingChangeKey,
+                                      rsvpResponse: resp,
+                                    }, 'data => data');
+                                    showToast(`Meeting ${resp}ed`, 'success');
+                                    meetingDetails.responseStatus = resp === 'accept' ? 'Accepted' : resp === 'decline' ? 'Declined' : 'TentativelyAccepted';
+                                  } catch (e: unknown) {
+                                    showToast(`Failed: ${(e as Error).message}`, 'error');
+                                  }
+                                }}
+                                style={{
+                                  padding: '0.3rem 0.6rem', 
+                                  border: `1px solid ${isActive ? 'var(--color-primary)' : 'var(--border-primary)'}`,
+                                  borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.8rem',
+                                  background: isActive ? 'var(--color-primary)' : 'transparent',
+                                  color: isActive ? '#fff' : 'var(--text-primary)',
+                                  fontWeight: isActive ? 600 : 400,
+                                }}
+                              >
+                                {resp === 'accept' ? '✓ Accept' : resp === 'decline' ? '✗ Decline' : '~ Tentative'}
+                              </button>
+                            );
+                          })}
+                        </div>
+
                         {meetingDetails.attendees && meetingDetails.attendees.length > 0 && (
                           <div>
                             <strong>Attendees ({meetingDetails.attendees.length}):</strong>
@@ -1787,51 +1854,20 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                       )}
                       </div>
 
-                      {/* RSVP + Take Notes */}
-                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                        {(['accept', 'tentative', 'decline'] as const).map(resp => (
-                          <button key={resp}
-                            onClick={async () => {
-                              try {
-                                await transformTool('work-agent', 'sat-outlook_calendar_meeting', {
-                                  operation: 'update',
-                                  meetingId: meetingDetails.meetingId || selectedEventId,
-                                  meetingChangeKey: meetingDetails.meetingChangeKey,
-                                  rsvpResponse: resp,
-                                }, 'data => data');
-                                showToast?.({ title: `Meeting ${resp}ed`, type: 'success' });
-                              } catch (e: unknown) {
-                                const error = e as Error;
-                                showToast?.({ title: `Failed: ${error.message}`, type: 'error' });
-                              }
-                            }}
-                            style={{
-                              padding: '0.35rem 0.75rem', border: 'none', borderRadius: '4px',
-                              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
-                              background: resp === 'accept' ? 'var(--health-success)' : resp === 'decline' ? 'var(--health-error)' : 'var(--warning-text)',
-                              color: 'var(--text-inverted)',
-                            }}
-                          >
-                            {resp === 'accept' ? '✓ Accept' : resp === 'decline' ? '✗ Decline' : '? Tentative'}
-                          </button>
-                        ))}
-                        <button
-                          onClick={() => setMeetingNotes(prev => prev !== null ? null : '')}
-                          style={{
-                            padding: '0.35rem 0.75rem', border: '1px solid var(--color-border)',
-                            borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
-                            background: meetingNotes !== null ? 'var(--color-primary)' : 'var(--color-bg)',
-                            color: meetingNotes !== null ? 'var(--text-inverted)' : 'var(--color-text)',
-                          }}
-                        >📝 Take Notes</button>
-                      </div>
-
+                      {/* Take Notes */}
                       {meetingNotes !== null && (
                         <div style={{ marginTop: '0.75rem' }}>
                           <textarea
                             value={meetingNotes}
-                            onChange={e => setMeetingNotes(e.target.value)}
-                            placeholder="Meeting notes..."
+                            onChange={e => {
+                              const val = e.target.value;
+                              setMeetingNotes(val);
+                              if (selectedEventId) {
+                                if (val) localStorage.setItem(`meeting-notes:${selectedEventId}`, val);
+                                else localStorage.removeItem(`meeting-notes:${selectedEventId}`);
+                              }
+                            }}
+                            placeholder="Meeting notes... (auto-saved)"
                             style={{
                               width: '100%', minHeight: '120px', padding: '0.75rem',
                               border: '1px solid var(--color-border)', borderRadius: '4px',
@@ -1839,34 +1875,83 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
                               fontSize: '0.85rem', resize: 'vertical', fontFamily: 'inherit',
                             }}
                           />
-                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                            <button
+                              disabled={!meetingNotes.trim() || aiLoading}
+                              onClick={async () => {
+                                setAiLoading(true);
+                                try {
+                                  const context = `Meeting: ${meetingDetails.subject}\nDate: ${new Date(meetingDetails.start).toLocaleString()}\nAttendees: ${meetingDetails.attendees?.map((a: any) => a.name || a.email).join(', ') || 'None'}\n\nRaw notes:\n${meetingNotes}`;
+                                  const r = await invoke('work-agent', `Clean up and enhance these meeting notes. Keep the original meaning but improve structure, fix typos, and add any useful formatting. Return ONLY the improved notes, no preamble:\n\n${context}`);
+                                  const text = typeof r === 'string' ? r : (r as any)?.text || (r as any)?.content || JSON.stringify(r);
+                                  setAiDraft(text);
+                                } catch (e: any) {
+                                  showToast(`AI enhance failed: ${e.message}`, 'error');
+                                } finally {
+                                  setAiLoading(false);
+                                }
+                              }}
+                              style={{
+                                padding: '0.35rem 0.75rem', border: '1px solid var(--border-primary)',
+                                borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem',
+                                background: 'transparent', color: 'var(--text-primary)',
+                                opacity: meetingNotes.trim() && !aiLoading ? 1 : 0.5,
+                              }}
+                            >{aiLoading ? 'Enhancing...' : '✨ Enhance with AI'}</button>
                             <button
                               disabled={!meetingNotes.trim()}
                               onClick={async () => {
                                 const context = `# ${meetingDetails.subject}\n**Date:** ${new Date(meetingDetails.start).toLocaleString()}\n**Attendees:** ${meetingDetails.attendees?.map((a: any) => a.name || a.email).join(', ') || 'None'}\n\n## Notes\n${meetingNotes}`;
                                 try {
                                   await navigator.clipboard.writeText(context);
-                                  showToast?.({ title: 'Notes copied to clipboard (Obsidian integration pending)', type: 'info' });
+                                  showToast('Notes copied to clipboard', 'success');
                                 } catch {
-                                  showToast?.({ title: 'Failed to copy notes', type: 'error' });
+                                  showToast('Failed to copy notes', 'error');
                                 }
                               }}
                               style={{
-                                padding: '0.35rem 0.75rem', border: 'none',
+                                padding: '0.35rem 0.75rem', border: '1px solid var(--border-primary)',
                                 borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem',
-                                background: 'var(--color-primary)', color: 'var(--text-inverted)', fontWeight: 500,
+                                background: 'transparent', color: 'var(--text-primary)',
                                 opacity: meetingNotes.trim() ? 1 : 0.5,
                               }}
-                            >Save to Obsidian</button>
+                            >📋 Copy</button>
                             <button
                               onClick={() => setMeetingNotes(null)}
                               style={{
                                 padding: '0.35rem 0.75rem', border: '1px solid var(--color-border)',
                                 borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem',
-                                background: 'var(--color-bg)', color: 'var(--color-text)',
+                                background: 'transparent', color: 'var(--color-text)',
                               }}
-                            >Cancel</button>
+                            >Close</button>
                           </div>
+
+                          {/* AI Enhancement Modal */}
+                          {aiDraft && (
+                            <div style={{ marginTop: '0.75rem', border: '1px solid var(--color-primary)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ padding: '0.5rem 0.75rem', background: 'var(--bg-tertiary)', fontSize: '0.8rem', fontWeight: 500, borderBottom: '1px solid var(--color-border)' }}>
+                                ✨ AI Enhanced Notes
+                              </div>
+                              <pre style={{ padding: '0.75rem', margin: 0, fontSize: '0.85rem', whiteSpace: 'pre-wrap', fontFamily: 'inherit', maxHeight: '200px', overflowY: 'auto', color: 'var(--color-text)' }}>
+                                {aiDraft}
+                              </pre>
+                              <div style={{ display: 'flex', gap: '0.5rem', padding: '0.5rem 0.75rem', borderTop: '1px solid var(--color-border)' }}>
+                                <button
+                                  onClick={() => {
+                                    setMeetingNotes(aiDraft);
+                                    if (selectedEventId) localStorage.setItem(`meeting-notes:${selectedEventId}`, aiDraft);
+                                    setAiDraft(null);
+                                    showToast('Notes replaced with AI version', 'success');
+                                  }}
+                                  style={{ padding: '0.3rem 0.6rem', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', background: 'var(--color-primary)', color: '#fff', fontWeight: 500 }}
+                                >Accept</button>
+                                <button
+                                  onClick={() => setAiDraft(null)}
+                                  style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--color-border)', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', background: 'transparent', color: 'var(--color-text)' }}
+                                >Dismiss</button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
@@ -3121,7 +3206,7 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
           </div>
         </div>
       )}
-      {phoneLookupAlias && <PhoneLookupModal alias={phoneLookupAlias} onClose={() => setPhoneLookupAlias(null)} />}
+      {phoneLookupAlias && <UserDetailModal alias={phoneLookupAlias} onClose={() => setPhoneLookupAlias(null)} />}
     </div>
   );
 }

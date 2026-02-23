@@ -144,6 +144,17 @@ export function useMyTasks(userId: string | undefined, limit = 10) {
   return useUserTasks(userId, { limit });
 }
 
+/** My open opportunities (sorted by close date desc) */
+export function useMyOpportunities(alias: string | undefined, limit = 10) {
+  const providerId = activeId('crm');
+  return useQuery({
+    queryKey: ['crm', 'myOpportunities', alias, limit, providerId],
+    queryFn: () => get('crm').getMyOpportunities(alias!, { limit }),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!alias && has('crm'),
+  });
+}
+
 export function useSearchTerritories(query: string | null) {
   const providerId = activeId('crm');
   return useQuery({

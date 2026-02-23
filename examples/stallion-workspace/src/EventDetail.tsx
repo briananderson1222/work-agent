@@ -289,12 +289,17 @@ export function EventDetail({
                 <button
                   disabled={!meetingNotes.trim()}
                   onClick={async () => {
-                    const context = `# ${meetingDetails.subject}\n**Date:** ${new Date(meetingDetails.start).toLocaleString()}\n**Attendees:** ${meetingDetails.attendees?.map((a: any) => a.name || a.email).join(', ') || 'None'}\n\n## Notes\n${meetingNotes}`;
+                    const date = new Date(meetingDetails.start).toISOString().split('T')[0];
+                    const slug = meetingDetails.subject.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase().slice(0, 50);
+                    const content = `# ${meetingDetails.subject}\n**Date:** ${new Date(meetingDetails.start).toLocaleString()}\n**Attendees:** ${meetingDetails.attendees?.map((a: any) => a.name || a.email).join(', ') || 'None'}\n\n## Notes\n${meetingNotes}`;
                     try {
-                      await navigator.clipboard.writeText(context);
-                      showToast?.({ title: 'Notes copied to clipboard (Obsidian integration pending)', type: 'info' });
+                      await transformTool('work-agent', 'obsidian_write_note', {
+                        path: `meetings/${date}-${slug}.md`,
+                        content,
+                      }, 'data => data');
+                      showToast?.({ title: 'Notes saved to Obsidian', type: 'info' });
                     } catch {
-                      showToast?.({ title: 'Failed to copy notes', type: 'error' });
+                      showToast?.({ title: 'Failed to save — is Obsidian MCP running?', type: 'error' });
                     }
                   }}
                   className="event-detail-save-notes-btn"
