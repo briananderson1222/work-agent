@@ -7,7 +7,7 @@
 
 export const WORKSPACE_CONSTANTS = {
   // CRM instance URL - customize for your org
-  CRM_BASE_URL: 'https://your-org.lightning.force.com',
+  CRM_BASE_URL: 'https://aws-crm.lightning.force.com',
 } as const;
 
 // Export individual constants for convenience

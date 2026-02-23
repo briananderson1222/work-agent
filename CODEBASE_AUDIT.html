@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Stallion — Codebase Audit</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--surface2:#1c2333;--border:#30363d;--text:#e6edf3;--text2:#8b949e;--accent:#58a6ff;--accent2:#3fb950;--accent3:#d2a8ff;--accent4:#f0883e;--accent5:#f778ba;--red:#f85149;--tag-bg:#1f2937}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding:0}
+.container{max-width:1100px;margin:0 auto;padding:2rem}
+h1{font-size:2.2rem;margin-bottom:.5rem;background:linear-gradient(135deg,var(--accent),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+h2{font-size:1.5rem;color:var(--accent);margin:2rem 0 1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
+h3{font-size:1.15rem;color:var(--accent3);margin:1.2rem 0 .6rem}
+h4{font-size:1rem;color:var(--accent4);margin:1rem 0 .4rem}
+p,li{color:var(--text);font-size:.92rem}
+.subtitle{color:var(--text2);font-size:1rem;margin-bottom:2rem}
+.stats-row{display:flex;gap:1rem;flex-wrap:wrap;margin:1.5rem 0}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.4rem;flex:1;min-width:140px;text-align:center}
+.stat .num{font-size:1.8rem;font-weight:700;color:var(--accent)}
+.stat .label{font-size:.78rem;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.4rem;margin:.8rem 0}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:.8rem;margin:.8rem 0}
+.tag{display:inline-block;font-size:.7rem;padding:2px 8px;border-radius:12px;background:var(--tag-bg);color:var(--accent);border:1px solid var(--border);margin:2px}
+.tag.green{color:var(--accent2);border-color:#1a3a2a}.tag.purple{color:var(--accent3);border-color:#2a1a3a}.tag.orange{color:var(--accent4);border-color:#3a2a1a}.tag.pink{color:var(--accent5);border-color:#3a1a2a}.tag.red{color:var(--red);border-color:#3a1a1a}
+table{width:100%;border-collapse:collapse;margin:.8rem 0;font-size:.88rem}
+th{background:var(--surface2);color:var(--accent);text-align:left;padding:.6rem .8rem;border:1px solid var(--border);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.3px}
+td{padding:.5rem .8rem;border:1px solid var(--border);vertical-align:top}
+tr:hover td{background:var(--surface)}
+code{background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:.84rem;color:var(--accent3)}
+details{margin:.6rem 0}
+summary{cursor:pointer;font-weight:600;color:var(--text);padding:.5rem;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:.92rem}
+summary:hover{border-color:var(--accent)}
+details[open] summary{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:none}
+details .inner{padding:1rem;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px}
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.6rem;margin:1.5rem 0}
+.toc a{color:var(--accent);text-decoration:none;font-size:.9rem;display:block;padding:3px 0}
+.toc a:hover{text-decoration:underline}
+.toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 2rem}
+.arch-diagram{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1.5rem;font-family:'SF Mono',Consolas,monospace;font-size:.82rem;line-height:1.7;color:var(--text2);overflow-x:auto;white-space:pre;margin:1rem 0}
+.arch-diagram .hl{color:var(--accent)}.arch-diagram .g{color:var(--accent2)}.arch-diagram .p{color:var(--accent3)}.arch-diagram .o{color:var(--accent4)}
+.flow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+.flow .step{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.4rem .8rem;font-size:.82rem}
+.flow .arrow{color:var(--text2);font-size:1.2rem}
+.badge{display:inline-block;font-size:.7rem;padding:2px 8px;border-radius:4px;font-weight:600;margin-left:.5rem}
+.badge.lines{background:#1a2a3a;color:var(--accent)}
+.meta{color:var(--text2);font-size:.8rem;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border)}
+ul{padding-left:1.4rem;margin:.4rem 0}
+li{margin:2px 0}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>🐴 Project Stallion — Codebase Audit</h1>
+<p class="subtitle">A VoltAgent-native, local-first AI work agent system with dynamic agent switching, file-based memory, MCP tool integration, and a plugin-driven desktop UI.</p>
+
+<div class="stats-row">
+<div class="stat"><div class="num">~47K</div><div class="label">Lines of TypeScript</div></div>
+<div class="stat"><div class="num">4.7K</div><div class="label">Lines of CSS</div></div>
+<div class="stat"><div class="num">228</div><div class="label">Source Files</div></div>
+<div class="stat"><div class="num">5</div><div class="label">Delivery Surfaces</div></div>
+<div class="stat"><div class="num">6</div><div class="label">MCP Tool Servers</div></div>
+<div class="stat"><div class="num">19</div><div class="label">React Contexts</div></div>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc">
+<strong style="color:var(--accent)">Table of Contents</strong>
+<div class="toc-grid" style="margin-top:.6rem">
+<div>
+<a href="#vision">1. Vision &amp; What It Delivers</a>
+<a href="#architecture">2. High-Level Architecture</a>
+<a href="#backend">3. Backend (src-server/)</a>
+<a href="#frontend">4. Frontend (src-ui/)</a>
+<a href="#sdk">5. Plugin SDK (packages/sdk/)</a>
+<a href="#plugins">6. Plugin Examples</a>
+<a href="#desktop">7. Desktop App (src-desktop/)</a>
+</div>
+<div>
+<a href="#config">8. Configuration &amp; Runtime Data</a>
+<a href="#streaming">9. Streaming Pipeline</a>
+<a href="#cli">10. CLI &amp; Scripts</a>
+<a href="#techstack">11. Tech Stack &amp; Dependencies</a>
+<a href="#testing">12. Testing</a>
+<a href="#docs">13. Documentation &amp; OpenSpec</a>
+<a href="#devtooling">14. AI Dev Tooling &amp; Build</a>
+</div>
+</div>
+</div>
+
+
+<!-- SECTION 1: VISION -->
+<h2 id="vision">1. Vision &amp; What It Delivers</h2>
+<div class="card">
+<p>Project Stallion is a <strong>complete AI agent platform</strong> — not just a chatbot, but a full system for defining, running, and interacting with multiple AI agents powered by Amazon Bedrock. It ships as five delivery surfaces from a single codebase:</p>
+<div class="stats-row">
+<div class="stat"><div class="num">🌐</div><div class="label">HTTP REST API</div></div>
+<div class="stat"><div class="num">💻</div><div class="label">React Web UI</div></div>
+<div class="stat"><div class="num">🖥️</div><div class="label">Tauri Desktop App</div></div>
+<div class="stat"><div class="num">⌨️</div><div class="label">Interactive CLI</div></div>
+<div class="stat"><div class="num">📊</div><div class="label">VoltOps Console</div></div>
+</div>
+</div>
+
+<h3>Core Capabilities</h3>
+<div class="card-grid">
+<div class="card">
+<h4>🤖 Multi-Agent Runtime</h4>
+<p>Define agents as JSON files with system prompts, models, tools, and guardrails. Load and switch between agents at runtime — no server restart needed. Each agent gets isolated memory, tools, and configuration.</p>
+</div>
+<div class="card">
+<h4>🔧 MCP Tool Orchestration</h4>
+<p>Automatic MCP server lifecycle management. Agents declare which MCP servers they need; the runtime handles spawning, health checks, tool name normalization (for Bedrock Nova compatibility), and approval workflows.</p>
+</div>
+<div class="card">
+<h4>🧩 Plugin Architecture</h4>
+<p>Workspace plugins are npm packages that import only from <code>@stallion-ai/sdk</code>. They provide custom UI components (Calendar, CRM, dashboards) that render in the main canvas while chat lives in a collapsible dock.</p>
+</div>
+<div class="card">
+<h4>💾 Local-First Storage</h4>
+<p>File-based NDJSON storage via a custom VoltAgent StorageAdapter. Conversations, messages, working memory, and workflow states all persist to disk. Designed for clean adapter swaps to cloud backends later.</p>
+</div>
+<div class="card">
+<h4>🌊 Streaming Pipeline</h4>
+<p>Handler-chain architecture for real-time AI responses. Reasoning blocks, tool calls, tool approvals, text deltas, and metadata all flow through composable pipeline handlers on both server and client.</p>
+</div>
+<div class="card">
+<h4>📐 Configuration-Driven</h4>
+<p>Everything is defined in files under <code>.work-agent/</code>: agents, tools, workspaces, app config. JSON schemas validate all configuration. No database required to get started.</p>
+</div>
+</div>
+
+<!-- SECTION 2: ARCHITECTURE -->
+<h2 id="architecture">2. High-Level Architecture</h2>
+
+<div class="arch-diagram"><span class="hl">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="hl">│                        DELIVERY LAYER                          │</span>
+<span class="hl">├──────────┬──────────┬──────────┬──────────┬────────────────────┤</span>
+│ <span class="g">React UI</span> │ <span class="g">Tauri</span>    │ <span class="g">CLI</span>      │ <span class="g">REST API</span> │ <span class="g">VoltOps Console</span>   │
+│ port 5173│ Desktop  │ readline │ port 3141│ console.voltagent  │
+<span class="hl">├──────────┴──────────┴──────────┴──────────┴────────────────────┤</span>
+<span class="hl">│                      PLUGIN SDK LAYER                          │</span>
+│ <span class="p">@stallion-ai/sdk</span> — hooks, queries, API wrappers, types, components│
+<span class="hl">├────────────────────────────────────────────────────────────────┤</span>
+<span class="hl">│                    BACKEND (Hono HTTP Server)                  │</span>
+│ <span class="o">Routes</span>: agents, tools, config, models, workspaces, monitoring  │
+│ <span class="o">Services</span>: AgentService, MCPService, WorkspaceService           │
+<span class="hl">├────────────────────────────────────────────────────────────────┤</span>
+<span class="hl">│                  VOLTAGENT RUNTIME CORE                        │</span>
+│ <span class="g">WorkAgentRuntime</span> — agent lifecycle, tool loading, streaming     │
+│ <span class="g">StreamPipeline</span> — Reasoning → ToolCall → Elicitation → Metadata  │
+│ <span class="g">FileVoltAgentMemoryAdapter</span> — NDJSON persistence                │
+<span class="hl">├────────────────────────────────────────────────────────────────┤</span>
+<span class="hl">│                    INFRASTRUCTURE                              │</span>
+│ <span class="p">Amazon Bedrock</span> (Claude, Nova) │ <span class="p">MCP Servers</span> │ <span class="p">File System</span>     │
+<span class="hl">└────────────────────────────────────────────────────────────────┘</span></div>
+
+<h3>Request Flow</h3>
+<div class="flow">
+<span class="step">Client (UI/CLI/API)</span><span class="arrow">→</span>
+<span class="step">Hono Route</span><span class="arrow">→</span>
+<span class="step">WorkAgentRuntime</span><span class="arrow">→</span>
+<span class="step">VoltAgent Core</span><span class="arrow">→</span>
+<span class="step">Bedrock Model</span><span class="arrow">→</span>
+<span class="step">StreamPipeline</span><span class="arrow">→</span>
+<span class="step">SSE to Client</span>
+</div>
+
+
+<!-- SECTION 3: BACKEND -->
+<h2 id="backend">3. Backend — <code>src-server/</code></h2>
+<p>36 TypeScript source files (plus 6 test files). The backend is a Hono HTTP server wrapping VoltAgent with custom runtime logic, file-based storage, and a streaming pipeline.</p>
+
+<h3>Directory Map</h3>
+<table>
+<tr><th>Directory</th><th>Purpose</th><th>Key Files</th></tr>
+<tr><td><code>runtime/</code></td><td>VoltAgent integration, agent lifecycle, streaming</td><td><code>voltagent-runtime.ts</code> (2,859 lines) — the heart of the system</td></tr>
+<tr><td><code>runtime/streaming/</code></td><td>Handler-chain streaming pipeline</td><td>StreamPipeline, 6 handlers, InjectableStream, types</td></tr>
+<tr><td><code>routes/</code></td><td>HTTP API endpoints (Hono)</td><td>9 route files: agents, tools, config, models, workspaces, monitoring, conversations, bedrock, analytics</td></tr>
+<tr><td><code>services/</code></td><td>Business logic layer</td><td>AgentService, MCPService, WorkspaceService</td></tr>
+<tr><td><code>adapters/file/</code></td><td>VoltAgent StorageAdapter implementation</td><td><code>voltagent-memory-adapter.ts</code> (825 lines) — NDJSON file persistence</td></tr>
+<tr><td><code>domain/</code></td><td>Configuration loading &amp; validation</td><td><code>config-loader.ts</code> (668 lines), <code>types.ts</code> (237 lines), <code>validator.ts</code> (Ajv schema validation)</td></tr>
+<tr><td><code>providers/</code></td><td>Bedrock model integration</td><td><code>bedrock.ts</code> (provider factory), <code>bedrock-models.ts</code> (model catalog, pricing API, inference profiles)</td></tr>
+<tr><td><code>analytics/</code></td><td>Usage tracking &amp; aggregation</td><td><code>usage-aggregator.ts</code></td></tr>
+<tr><td><code>utils/</code></td><td>Shared utilities</td><td><code>tool-name-normalizer.ts</code>, <code>auth-errors.ts</code>, <code>reasoning-parser.ts</code> (thinking tag extraction)</td></tr>
+</table>
+
+<details><summary>WorkAgentRuntime — Key Responsibilities (2,859 lines)</summary>
+<div class="inner">
+<h4>Agent Lifecycle</h4>
+<ul>
+<li><code>initialize()</code> — Loads app config, creates BedrockModelCatalog, UsageAggregator, creates default agent (always available, no tools), loads all agents from disk, sets up VoltAgent with Hono server</li>
+<li><code>reloadAgents()</code> — Hot-reload: detects added/removed agents, cleans up MCP connections for deleted agents, creates new VoltAgent instances for added agents</li>
+<li><code>createVoltAgentInstance()</code> — 10-step pipeline: load spec → create Bedrock model → create memory adapter → load MCP tools → cache tools → add to global registry → calculate fixed token counts → create approval hooks → process template variables → create Agent</li>
+<li><code>switchAgent()</code> — Runtime agent switching without server restart</li>
+<li>Default agent always created with <code>defaultModel</code> and no tools</li>
+</ul>
+<h4>18 Inline HTTP Routes</h4>
+<table>
+<tr><th>Route</th><th>Purpose</th></tr>
+<tr><td><code>POST /api/agents/:slug/chat</code></td><td>Main chat endpoint (~500 lines) — SSE streaming with InjectableStream, elicitation callbacks, tool approval with 60s timeout, abort handling, conversation auto-creation, model override with validation &amp; caching, StreamPipeline setup, monitoring events</td></tr>
+<tr><td><code>POST /invoke</code></td><td>Global 2-phase invoke — Phase 1: tool execution with <code>invokeModel</code> (Nova 2 Lite), Phase 2: structured output with <code>structureModel</code> (Nova Micro) via <code>ai.jsonSchema()</code>. Creates temporary agents per invocation.</td></tr>
+<tr><td><code>POST /agents/:slug/invoke</code></td><td>Silent agent invocation for dashboard data — supports model override, tool filtering, JSON schema extraction from markdown</td></tr>
+<tr><td><code>POST /agents/:slug/invoke/stream</code></td><td>Streaming invoke with schema support and maxSteps</td></tr>
+<tr><td><code>POST /agents/:slug/tools/:toolName</code></td><td>Raw MCP tool call — direct tool execution, no LLM involved</td></tr>
+<tr><td><code>POST /agents/:slug/tool/:toolName</code></td><td>Tool call with transform — executes tool, unwraps MCP result, applies user-provided JS transform via <code>new Function()</code>, returns timing metadata</td></tr>
+<tr><td><code>POST /tool-approval/:approvalId</code></td><td>Tool approval response endpoint — resolves pending approval promises</td></tr>
+<tr><td><code>GET /agents/:slug/health</code></td><td>Agent health check — model, memory, MCP connection status</td></tr>
+<tr><td><code>GET /agents/:slug/conversations/:id/stats</code></td><td>Conversation stats — token counts, context window %, cost, per-model breakdown</td></tr>
+<tr><td><code>GET /api/agents</code></td><td>Enriched agent list with metadata</td></tr>
+<tr><td colspan="2" style="color:var(--text2);font-size:.85rem">Plus 8 more: tool CRUD (add/remove/allow-list/aliases), conversation context, q-agents listing</td></tr>
+</table>
+<h4>Bedrock Integration</h4>
+<ul>
+<li><code>BedrockModelCatalog</code> — Lists foundation models, inference profiles, fetches pricing from AWS Pricing API (paginated). Caches all three. Resolves inference profile IDs (auto-prefixes <code>us.</code> for profile-only models).</li>
+<li><code>calculateCost()</code> — Uses AWS Pricing API with fallback defaults ($0.003/1K input, $0.015/1K output)</li>
+<li><code>calculateContextWindowPercentage()</code> — 200K default context window</li>
+<li>Model override caching — creates cached agent variants keyed as <code>slug:modelId</code></li>
+</ul>
+<h4>Infrastructure</h4>
+<ul>
+<li><strong>CORS</strong> — Allows <code>localhost:*</code> origins, configurable via <code>ALLOWED_ORIGINS</code> env var</li>
+<li><strong>Health Checks</strong> — 60-second interval, checks agent loaded/model/memory/MCP status</li>
+<li><strong>Monitoring Events</strong> — <code>agent-start</code> and <code>agent-complete</code> events with timestamp, traceId, usage, artifacts, steps, toolCallCount</li>
+<li><strong>Template Variables</strong> — <code>replaceTemplateVariables()</code> processes system prompts with 10 built-in variables (<code>{{date}}</code>, <code>{{time}}</code>, <code>{{datetime}}</code>, <code>{{iso_date}}</code>, <code>{{iso_datetime}}</code>, <code>{{timestamp}}</code>, <code>{{year}}</code>, <code>{{month}}</code>, <code>{{day}}</code>, <code>{{weekday}}</code>) plus custom variables from AppConfig</li>
+<li><strong>Swagger UI</strong> — Available at <code>/ui</code> via VoltAgent's honoServer</li>
+</ul>
+<h4>Conversation Stats Engine (onEnd hook)</h4>
+<p>The <code>createToolApprovalHooks</code> method contains the entire per-conversation stats tracking system in its <code>onEnd</code> hook:</p>
+<ul>
+<li><strong>Incremental calculation</strong> — Only computes new user message tokens each turn, not all messages. Uses cached fixed token counts (system prompt + MCP tools) calculated once at agent init.</li>
+<li><strong>Token breakdown</strong> — <code>systemPromptTokens</code>, <code>mcpServerTokens</code>, <code>userMessageTokens</code>, <code>assistantMessageTokens</code> → stored in conversation metadata</li>
+<li><strong>Per-model stats</strong> — Tracks input/output tokens, turns, tool calls, and cost per model within each conversation (supports mid-conversation model switching)</li>
+<li><strong>Message enrichment</strong> — After each turn, enriches the last assistant message with model capabilities (modalities, streaming support) and pricing data from AWS Pricing API</li>
+<li><strong>Cost tracking</strong> — Accumulates estimated cost per turn using live pricing</li>
+</ul>
+<h4>Tool Elicitation Wrapper</h4>
+<p><code>wrapToolWithElicitation()</code> wraps non-auto-approved tools. On denial, returns <code>{success: false, error: 'USER_DENIED'}</code> to the LLM (doesn't throw) so the model can ask the user what to do differently. Auto-approved tools skip the wrapper entirely. Supports wildcard patterns (<code>*</code>, <code>prefix*</code>).</p>
+</div>
+</details>
+
+<details><summary>Routes — 9 Endpoint Files</summary>
+<div class="inner">
+<table>
+<tr><th>File</th><th>Endpoints</th></tr>
+<tr><td><code>agents.ts</code></td><td>CRUD for agent definitions</td></tr>
+<tr><td><code>tools.ts</code></td><td>Tool listing, agent tool config, allow-lists, aliases</td></tr>
+<tr><td><code>config.ts</code></td><td>GET/PUT app configuration</td></tr>
+<tr><td><code>models.ts</code></td><td>List Bedrock models, capabilities, pricing</td></tr>
+<tr><td><code>workspaces.ts</code></td><td>Workspace CRUD, tab management</td></tr>
+<tr><td><code>monitoring.ts</code></td><td>Event stream (SSE with 30s heartbeat, user-scoped filtering), historical event queries (time range → JSON from disk), agent stats aggregation (messages, conversations, cost by agent), metrics by time range (now/today/week/month)</td></tr>
+<tr><td><code>conversations.ts</code></td><td>Conversation listing, messages, deletion</td></tr>
+<tr><td><code>bedrock.ts</code></td><td>Direct Bedrock model listing, inference profiles</td></tr>
+<tr><td><code>analytics.ts</code></td><td>Usage stats, achievements</td></tr>
+</table>
+<p style="margin-top:.5rem;color:var(--text2)"><em>Note: invoke, chat, and streaming routes are still inline in voltagent-runtime.ts (extraction in progress — TODO 1766005309283).</em></p>
+</div>
+</details>
+
+<details><summary>FileVoltAgentMemoryAdapter (825 lines)</summary>
+<div class="inner">
+<p>Implements VoltAgent's <code>StorageAdapter</code> interface with file-based persistence:</p>
+<ul>
+<li><strong>Conversations</strong> — JSON files in <code>conversations/&lt;id&gt;.json</code> per agent</li>
+<li><strong>Messages</strong> — NDJSON append-only logs in <code>sessions/&lt;conv-id&gt;.ndjson</code></li>
+<li><strong>Working Memory</strong> — Per-conversation or per-user scoped JSON</li>
+<li><strong>Workflow States</strong> — Serialized suspension states for VoltAgent workflows</li>
+<li><strong>Agent Isolation</strong> — userId format <code>agent:&lt;slug&gt;:user:&lt;id&gt;</code> scopes all data</li>
+</ul>
+</div>
+</details>
+
+<details><summary>ConfigLoader (668 lines) — 30+ methods</summary>
+<div class="inner">
+<ul>
+<li><strong>Agent CRUD</strong> — <code>loadAgent</code>, <code>createAgent</code>, <code>updateAgent</code>, <code>deleteAgent</code>, <code>saveAgent</code>, <code>listAgents</code>, <code>agentExists</code></li>
+<li><strong>Tool CRUD</strong> — <code>loadTool</code>, <code>saveTool</code>, <code>listTools</code>, <code>toolExists</code></li>
+<li><strong>Workspace CRUD</strong> — <code>loadWorkspace</code>, <code>createWorkspace</code>, <code>updateWorkspace</code>, <code>deleteWorkspace</code>, <code>saveWorkspace</code>, <code>listWorkspaces</code>, <code>workspaceExists</code>, <code>getWorkspacesUsingAgent</code></li>
+<li><strong>Workflow Management</strong> — <code>listAgentWorkflows</code>, <code>createWorkflow</code>, <code>readWorkflow</code>, <code>updateWorkflow</code>, <code>deleteWorkflow</code>, <code>validateWorkflowShortcuts</code></li>
+<li><strong>App Config</strong> — <code>loadAppConfig</code>, <code>saveAppConfig</code>, <code>updateAppConfig</code></li>
+<li><strong>File Watching</strong> — chokidar watches <code>config/*.json</code>, <code>agents/*/agent.json</code>, <code>tools/*/tool.json</code>. Emits change/add/remove events via listener system.</li>
+</ul>
+</div>
+</details>
+
+<details><summary>SchemaValidator (validator.ts) — Ajv-based validation</summary>
+<div class="inner">
+<ul>
+<li>Validates app, agent, tool, and workspace configs against JSON schemas</li>
+<li>Formatted error messages with path, type, and enum details</li>
+<li><code>tryValidate*</code> methods return result objects instead of throwing</li>
+<li><code>validateBedrockModelId()</code> — validates model IDs against live Bedrock API</li>
+</ul>
+</div>
+</details>
+
+<details><summary>Reasoning Parser (reasoning-parser.ts)</summary>
+<div class="inner">
+<p>Extracts <code>&lt;thinking&gt;...&lt;/thinking&gt;</code> tags from message text and converts them into AI SDK <code>ReasoningUIPart</code> format. Handles unclosed tags, multiple blocks, and interleaved text/reasoning content.</p>
+</div>
+</details>
+
+
+<!-- SECTION 4: FRONTEND -->
+<h2 id="frontend">4. Frontend — <code>src-ui/</code></h2>
+<p>148 TypeScript/TSX files. React 19 SPA with Context API + custom hooks pattern, TanStack React Query for server state, and a plugin-aware workspace system.</p>
+
+<h3>Entry &amp; App Shell</h3>
+<div class="card">
+<p><code>main.tsx</code> (78 lines) — Sets up QueryClient (5min stale, 10min GC, no refetch-on-focus, 1 retry), initializes PluginRegistry, sets SDK API base from <code>VITE_API_BASE</code> env var, then renders 12 nested providers:<br>
+<span style="font-size:.82rem;color:var(--text2)">QueryClient → ApiBase → Navigation → KeyboardShortcuts → Toast → Workspaces → Workflows → Conversations → ActiveChats → Streaming → Analytics → Preview → App + NotificationContainer</span></p>
+<code>App.tsx</code> (913 lines) — Main layout with 15 NavigationView routes. Renders workspace panel + collapsible chat dock. Key features:</p>
+<ul>
+<li><strong>View Routing</strong> — <code>workspace</code> → WorkspaceView, <code>agents</code>/<code>workspaces</code> → inline card grids with create buttons, <code>agent-edit</code> → AgentEditorView, <code>settings</code> → SettingsView, <code>monitoring</code> → MonitoringView, <code>profile</code> → ProfilePage, <code>notifications</code> → NotificationsPage, plus tool/workflow/workspace editors</li>
+<li><strong>Keyboard Shortcuts</strong> — <code>Cmd+,</code> (toggle settings), <code>Cmd+N</code> (new workspace), <code>Cmd+/</code> (shortcuts cheatsheet)</li>
+<li><strong>Inline Views</strong> — Workspaces grid and Agents grid are rendered inline in App.tsx (not separate view files) with card layouts, hover effects, and workspace/standalone agent separation</li>
+<li><strong>Tauri Integration</strong> — Imports <code>invoke</code> from <code>@tauri-apps/api/core</code> for native features</li>
+<li><strong>AWS Auth</strong> — <code>useAwsAuth</code> hook with <code>setAuthCallback</code> for 401 retry flow, PinDialog for auth challenges</li>
+</ul>
+</div>
+
+<h3>Contexts (19 providers)</h3>
+<p>The frontend state is managed through React Context + external stores (not Redux). Each context owns a specific domain:</p>
+<table>
+<tr><th>Context</th><th>Purpose</th><th>Key Hooks</th></tr>
+<tr><td><code>ActiveChatsContext</code></td><td>Chat session state, message queuing, input history</td><td><code>useCreateChatSession</code>, <code>useSendMessage</code>, <code>useActiveChatState</code></td></tr>
+<tr><td><code>ConversationsContext</code></td><td>Conversation metadata &amp; message fetching</td><td><code>useConversations</code>, <code>useMessages</code>, <code>useConversationStatus</code></td></tr>
+<tr><td><code>NavigationContext</code></td><td>URL-based routing, workspace/agent/tab selection</td><td><code>useNavigation</code> — navigate, setAgent, setWorkspace, setDockState</td></tr>
+<tr><td><code>MonitoringContext</code></td><td>Real-time event stream, stats, time ranges</td><td><code>useMonitoring</code></td></tr>
+<tr><td><code>ToastContext</code></td><td>Notifications, tool approval toasts</td><td><code>useToast</code>, <code>useToasts</code>, <code>useNotificationHistory</code></td></tr>
+<tr><td><code>WorkspacesContext</code></td><td>Workspace CRUD &amp; listing</td><td><code>useWorkspaces</code>, <code>useWorkspace</code></td></tr>
+<tr><td><code>WorkflowsContext</code></td><td>Workflow catalog &amp; per-agent workflows</td><td><code>useWorkflows</code>, <code>useAgentWorkflows</code></td></tr>
+<tr><td><code>AgentsContext</code></td><td>Agent listing &amp; selection</td><td><code>useAgents</code>, <code>useAgent</code></td></tr>
+<tr><td><code>AppDataContext</code></td><td>Global app data aggregation</td><td><code>useAppData</code></td></tr>
+<tr><td><code>ApiBaseContext</code></td><td>Configurable backend URL</td><td><code>useApiBase</code></td></tr>
+<tr><td><code>ConfigContext</code></td><td>App configuration state</td><td><code>useConfig</code>, <code>useConfigActions</code></td></tr>
+<tr><td><code>ModelsContext</code></td><td>Available Bedrock models</td><td><code>useModels</code></td></tr>
+<tr><td><code>ModelCapabilitiesContext</code></td><td>Model feature detection (attachments, etc.)</td><td><code>useModelCapabilities</code>, <code>useModelSupportsAttachments</code></td></tr>
+<tr><td><code>AgentToolsContext</code></td><td>Per-agent tool mappings</td><td><code>useAgentTools</code></td></tr>
+<tr><td><code>StreamingContext</code></td><td>Streaming state management</td><td><code>useStreaming</code></td></tr>
+<tr><td><code>AnalyticsContext</code></td><td>Usage analytics</td><td><code>useAnalytics</code></td></tr>
+<tr><td><code>StatsContext</code></td><td>Per-conversation token stats</td><td><code>useStats</code></td></tr>
+<tr><td><code>KeyboardShortcutsContext</code></td><td>Global keyboard shortcut registry</td><td><code>useKeyboardShortcuts</code></td></tr>
+<tr><td><code>PreviewContext</code></td><td>Image/file preview modal</td><td><code>usePreview</code></td></tr>
+</table>
+
+<h3>Components (52 files)</h3>
+<details><summary>Expand full component list</summary>
+<div class="inner">
+<div class="card-grid">
+<div class="card">
+<h4>Chat System</h4>
+<ul>
+<li><code>ChatDock</code> — Collapsible bottom dock container</li>
+<li><code>ChatDockHeader</code> — Dock title bar &amp; controls</li>
+<li><code>ChatDockTabBar</code> — Multi-session tab strip</li>
+<li><code>ChatDockBody</code> — Message list &amp; scroll</li>
+<li><code>ChatInputArea</code> — Input with slash commands, attachments</li>
+<li><code>ChatEmptyState</code> — Empty conversation placeholder</li>
+<li><code>ChatSettingsPanel</code> — Per-chat model/settings</li>
+<li><code>MessageBubble</code> — Individual message rendering</li>
+<li><code>StreamingMessage</code> — Live streaming display</li>
+<li><code>StreamingText</code> — Animated text rendering</li>
+<li><code>ReasoningSection</code> — Thinking/reasoning blocks</li>
+<li><code>ToolCallDisplay</code> — Tool invocation UI with approval</li>
+<li><code>EphemeralMessage</code> — Transient system messages</li>
+<li><code>QueuedMessages</code> — Message queue display</li>
+<li><code>ScrollToBottomButton</code> — Auto-scroll control</li>
+</ul>
+</div>
+<div class="card">
+<h4>Navigation &amp; Selection</h4>
+<ul>
+<li><code>Header</code> — Top toolbar</li>
+<li><code>AgentSelector</code> / <code>AgentSelectorModal</code> — Agent switching</li>
+<li><code>WorkspaceSelector</code> / <code>WorkspaceAutocomplete</code> — Workspace picker</li>
+<li><code>WorkspaceHeader</code> — Workspace title, tabs, quick prompts</li>
+<li><code>TabNavigation</code> — Generic tab component</li>
+<li><code>SessionManagementMenu</code> / <code>Panel</code> — Conversation management</li>
+<li><code>SessionPickerModal</code> — Conversation browser</li>
+<li><code>SessionTab</code> / <code>SessionConversationItem</code> — Session list items</li>
+<li><code>NewChatModal</code> — New conversation dialog</li>
+</ul>
+</div>
+<div class="card">
+<h4>Utilities &amp; Shared</h4>
+<ul>
+<li><code>ModelSelector</code> / <code>ModelSelectorAutocomplete</code> — Model picker</li>
+<li><code>AutocompleteSelector</code> — Generic autocomplete</li>
+<li><code>SlashCommandSelector</code> — Slash command menu</li>
+<li><code>FileAttachmentInput</code> — File upload handling</li>
+<li><code>FilePartPreview</code> / <code>AttachmentPreviewMenu</code> — File previews</li>
+<li><code>ImagePreviewModal</code> — Full-size image viewer</li>
+<li><code>ImportPromptsModal</code> — Prompt import dialog</li>
+<li><code>ConfirmModal</code> / <code>PinDialog</code> — Confirmation dialogs</li>
+<li><code>NotificationContainer</code> / <code>NotificationHistory</code> — Toast system</li>
+<li><code>QuickActionsBar</code> — Quick prompt buttons</li>
+<li><code>ThemeToggle</code> — Dark/light mode</li>
+<li><code>AgentBadge</code> / <code>AgentIcon</code> / <code>WorkspaceIcon</code> — Visual badges</li>
+<li><code>AchievementsBadge</code> — Gamification badges</li>
+<li><code>ShortcutsCheatsheet</code> — Keyboard shortcut reference</li>
+<li><code>LoadingDots</code> — Loading indicator</li>
+<li><code>SystemEventMessage</code> — System event display</li>
+</ul>
+</div>
+</div>
+</div>
+</details>
+
+<h3>Views (7 files)</h3>
+<table>
+<tr><th>View</th><th>Purpose</th></tr>
+<tr><td><code>WorkspaceView</code></td><td>Main canvas — loads plugin workspace components dynamically</td></tr>
+<tr><td><code>MonitoringView</code></td><td>Real-time event stream, agent stats, time-range filtering</td></tr>
+<tr><td><code>SettingsView</code></td><td>App configuration, backend URL, model defaults</td></tr>
+<tr><td><code>AgentEditorView</code></td><td>Create/edit agent definitions (prompt, model, tools, guardrails)</td></tr>
+<tr><td><code>WorkspaceEditorView</code></td><td>Create/edit workspace configurations</td></tr>
+<tr><td><code>ToolManagementView</code></td><td>MCP tool configuration per agent</td></tr>
+<tr><td><code>WorkflowManagementView</code></td><td>Workflow file management per agent</td></tr>
+</table>
+
+<h3>Hooks (30 files)</h3>
+<details><summary>Expand hooks breakdown</summary>
+<div class="inner">
+<h4>Chat &amp; Input</h4>
+<ul>
+<li><code>useChatInput</code> — Input state, submission, slash command detection</li>
+<li><code>useChatDockState</code> — Dock open/close/maximize state</li>
+<li><code>useChatDockActions</code> — Chat dock operations (new chat, close, switch)</li>
+<li><code>useChatDockKeyboardShortcuts</code> — Dock-specific keyboard bindings</li>
+<li><code>useQueuedMessages</code> — Message queue management</li>
+<li><code>useDerivedSessions</code> — Computed session list from active chats</li>
+</ul>
+<h4>Streaming (Pipeline Handlers)</h4>
+<ul>
+<li><code>streaming/BaseHandler</code> — Abstract base for all handlers</li>
+<li><code>streaming/ReasoningHandler</code> — Thinking block detection &amp; rendering</li>
+<li><code>streaming/ToolLifecycleHandler</code> — Tool call start/result tracking</li>
+<li><code>streaming/ToolApprovalHandler</code> — User approval flow for tool calls</li>
+<li><code>streaming/TextDeltaHandler</code> — Text chunk accumulation</li>
+<li><code>streaming/StepHandler</code> — Multi-step tracking</li>
+<li><code>streaming/types</code> — StreamEvent, StreamState, HandlerResult</li>
+<li><code>streaming/stateHelpers</code> — Content part manipulation utilities</li>
+<li><code>useStreamingMessage</code> — Streaming message orchestration</li>
+<li><code>useStreamingContent</code> — Per-session streaming state</li>
+</ul>
+<h4>Session &amp; Navigation</h4>
+<ul>
+<li><code>useSessionManagementMenu</code> — Session list filtering &amp; actions</li>
+<li><code>useSessionManagementViewModel</code> — MVVM for session management</li>
+<li><code>useSearchAutocomplete</code> — Search with filter parsing</li>
+<li><code>useAutocompleteState</code> — Generic autocomplete state</li>
+</ul>
+<h4>Utilities</h4>
+<ul>
+<li><code>useSlashCommands</code> / <code>useSlashCommandHandler</code> — Slash command system</li>
+<li><code>useToolApproval</code> — Tool approval API integration</li>
+<li><code>useFileAttachment</code> — File upload handling</li>
+<li><code>useAgentTools</code> — Agent tool fetching</li>
+<li><code>useAwsAuth</code> — AWS authentication</li>
+<li><code>useKeyboardShortcut</code> / <code>useCloseShortcut</code> / <code>useTabKeyboardShortcuts</code> — Keyboard bindings</li>
+<li><code>useDragResize</code> — Drag-to-resize for dock</li>
+</ul>
+</div>
+</details>
+
+<h3>Core Infrastructure (6 files)</h3>
+<div class="card">
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>PluginRegistry.ts</code></td><td>Discovers plugins at build time via Vite <code>import.meta.glob</code>. Scans <code>/src/workspaces/*/plugin.json</code> and <code>/src/plugins/*/plugin.json</code>. Validates manifests, loads entrypoints, registers workspace and component maps. Singleton instance. SDK version compatibility checking.</td></tr>
+<tr><td><code>SDKAdapter.tsx</code></td><td>Bridges core app contexts → SDK. Injects agents, workspaces, conversations, navigation, toast, chat actions, and provider functions into <code>SDKProvider</code> so plugins can use SDK hooks transparently.</td></tr>
+<tr><td><code>workspaceProviders.ts</code></td><td>Provider registry with workspace-first, global (<code>*</code>) fallback resolution. Manages registration, configuration, lazy instantiation, and caching of data providers (calendar, CRM, etc.) per workspace.</td></tr>
+<tr><td><code>EventRouter.tsx</code></td><td>Routes <code>core:event</code> CustomEvents from the window to the SDK event bus via <code>useEvents().emit()</code>.</td></tr>
+<tr><td><code>PermissionManager.tsx</code></td><td>Permission request/grant system with context provider. Tracks granted permissions, shows approval dialog for new requests.</td></tr>
+<tr><td><code>PluginLoader.tsx</code></td><td>React.lazy wrapper for dynamic plugin imports from <code>../plugins/</code> directory with Suspense fallback.</td></tr>
+</table>
+</div>
+
+<h3>Workspace Renderer</h3>
+<div class="card">
+<p><code>src-ui/src/workspaces/index.tsx</code> — Resolves workspace components by ID (core registry → plugin registry → default fallback). <code>WorkspaceRenderer</code> renders all tabs simultaneously (hiding inactive ones for instant switching), delegates to <code>WorkspaceHeader</code> for tab navigation and prompts.</p>
+</div>
+
+<h3>Slash Commands (3 files)</h3>
+<div class="card">
+<p><code>src-ui/src/slashCommands/</code> — Plugin-style command system with registry pattern.</p>
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>registry.ts</code></td><td>Command registration map — <code>registerCommand(name, handler)</code>, <code>getCommand()</code>, <code>getAllCommands()</code>. Handlers receive full context (session, agent, queryClient, autocomplete controls).</td></tr>
+<tr><td><code>builtins.ts</code></td><td>6 built-in commands: <code>/mcp</code> (list MCP servers), <code>/prompts</code> (show agent custom commands), <code>/model</code> (open model selector), <code>/stats</code> (rich HTML conversation stats — context window %, token breakdown, cost), <code>/clear</code> and <code>/new</code> (reset conversation)</td></tr>
+<tr><td><code>tools.ts</code></td><td><code>/tools</code> command — renders rich HTML table of all agent tools grouped by MCP server, showing parameters, descriptions, auto-approve badges (✓ agent-level, ⏱ session-level)</td></tr>
+</table>
+<p style="margin-top:.5rem;color:var(--text2)">Agents can also define custom slash commands in <code>agent.json</code> via the <code>commands</code> field — these are prompt templates with optional parameters.</p>
+</div>
+
+<h3>Pages</h3>
+<div class="card">
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>pages/NotificationsPage.tsx</code></td><td>Notification history view — lists all past toasts with timestamps, clear-all action</td></tr>
+<tr><td><code>pages/ProfilePage.tsx</code></td><td>User profile with usage stats panel, achievements badges, analytics refresh. Styled via <code>ProfilePage.css</code></td></tr>
+</table>
+</div>
+
+<h3>Lib (API &amp; Platform)</h3>
+<div class="card">
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>lib/apiClient.ts</code></td><td>Auth-aware fetch wrapper — intercepts 401/403, triggers auth callback, retries request on success</td></tr>
+<tr><td><code>lib/tauri.ts</code></td><td>Tauri detection (<code>isTauriApp()</code>) and <code>openResearchUrl()</code> — opens URLs in native Tauri WebView (bypasses X-Frame-Options) with browser fallback</td></tr>
+</table>
+</div>
+
+<h3>Frontend Utils (6 files)</h3>
+<div class="card">
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>logger.ts</code></td><td>Structured logging via <code>debug</code> package — namespaces: <code>app:context</code>, <code>app:api</code>, <code>app:chat</code>, <code>app:workflow</code>, <code>app:plugin</code>, <code>app:auth</code>. Auto-enables in dev.</td></tr>
+<tr><td><code>messagePartTypes.ts</code></td><td>Type guards for AI SDK message parts — <code>isTextPart</code>, <code>isReasoningPart</code>, <code>isSourceUrlPart</code>, <code>isSourceDocumentPart</code>, <code>isFilePart</code>, <code>isToolPart</code>, streaming state helpers</td></tr>
+<tr><td><code>modelCapabilities.ts</code></td><td>Vision/file model detection — checks model IDs against known vision-capable models (GPT-4o, Claude 3.x, Gemini). Returns supported image/file formats.</td></tr>
+<tr><td><code>workspace.ts</code></td><td>Workspace display utilities — agent icon generation, initials extraction, icon styling</td></tr>
+<tr><td><code>sessionStorage.ts</code></td><td>Session storage helpers for workspace-scoped data persistence</td></tr>
+<tr><td><code>agentResolver.ts</code></td><td>Agent slug resolution utilities for workspace-scoped agents</td></tr>
+</table>
+</div>
+
+<h3>Frontend Types</h3>
+<div class="card">
+<p><code>src-ui/src/types.ts</code> — Central type definitions including <code>AgentSummary</code>, <code>ChatSession</code>, <code>ChatMessage</code>, <code>FileAttachment</code>, <code>AppConfig</code>, <code>WorkspaceConfig</code>, and 15 <code>NavigationView</code> types:</p>
+<p style="font-size:.85rem;color:var(--text2)"><code>workspace</code> · <code>workspaces</code> · <code>agents</code> · <code>prompts</code> · <code>integrations</code> · <code>monitoring</code> · <code>profile</code> · <code>notifications</code> · <code>agent-new</code> · <code>agent-edit</code> · <code>tools</code> · <code>workflows</code> · <code>settings</code> · <code>workspace-new</code> · <code>workspace-edit</code></p>
+</div>
+
+<h3>Shared Plugin Styles</h3>
+<div class="card">
+<p><code>src-ui/src/plugins/shared/workspace.css</code> — Shared CSS for workspace plugin components (374 lines). Provides consistent styling across all workspace plugins.</p>
+</div>
+
+<h3>CSS Architecture (4,681 lines across 7 files)</h3>
+<div class="card">
+<table>
+<tr><th>File</th><th>Lines</th><th>Purpose</th></tr>
+<tr><td><code>index.css</code></td><td>3,648</td><td>Global styles — dark/light theme via <code>[data-theme]</code> attribute, ~168 CSS custom properties (colors, spacing, event types), 113+ component class blocks covering app shell, chat dock, message bubbles, workspace views, monitoring, settings, modals, buttons, toasts</td></tr>
+<tr><td><code>plugins/shared/workspace.css</code></td><td>374</td><td>Shared workspace plugin styles</td></tr>
+<tr><td><code>UsageStatsPanel.css</code></td><td>336</td><td>Usage stats dashboard styling</td></tr>
+<tr><td><code>ProfilePage.css</code></td><td>144</td><td>Profile page layout</td></tr>
+<tr><td><code>AchievementsBadge.css</code></td><td>140</td><td>Achievement badge animations and layout</td></tr>
+<tr><td><code>AgentBadge.css</code></td><td>39</td><td>Agent badge styling</td></tr>
+<tr><td><code>workspaces/stallion-workspace/workspace.css</code></td><td>—</td><td>Installed workspace-specific styles (copy from plugin)</td></tr>
+</table>
+<p style="margin-top:.5rem;color:var(--text2)">Theming: CSS custom properties with <code>:root</code> (dark default) and <code>[data-theme="light"]</code> override. Variables cover: backgrounds, text, borders, accents, error/success/warning states, health indicators, and event type colors (agent-start, agent-complete, tool-call, tool-result, reasoning, planning).</p>
+</div>
+
+
+<!-- SECTION 5: SDK -->
+<h2 id="sdk">5. Plugin SDK — <code>packages/sdk/</code></h2>
+<p>20 source files. The SDK is the contract between the core app and workspace plugins. Plugins import <strong>only</strong> from <code>@stallion-ai/sdk</code> — never from core app internals.</p>
+
+<h3>SDK Modules</h3>
+<table>
+<tr><th>Module</th><th>Purpose</th><th>Key Exports</th></tr>
+<tr><td><code>hooks.ts</code></td><td>React hooks for all app state</td><td>32 hooks: <code>useAgents</code>, <code>useWorkspaces</code>, <code>useConversations</code>, <code>useNavigation</code>, <code>useToast</code>, <code>useSendMessage</code>, <code>useCreateChatSession</code>, <code>useModels</code>, <code>useConfig</code>, <code>useSlashCommands</code>, <code>useKeyboardShortcuts</code>, etc.</td></tr>
+<tr><td><code>queries.ts</code></td><td>TanStack React Query wrappers</td><td><code>useApiQuery</code>, <code>useApiMutation</code>, <code>useInvokeAgent</code>, <code>useAgentsQuery</code>, <code>useWorkspacesQuery</code>, <code>useModelsQuery</code>, <code>useConfigQuery</code>, <code>useStatsQuery</code>, etc.</td></tr>
+<tr><td><code>api.ts</code></td><td>HTTP API client functions</td><td><code>sendMessage</code>, <code>streamMessage</code>, <code>createChatSession</code>, <code>invoke</code>, <code>fetchAgents</code>, <code>fetchWorkspaces</code>, <code>fetchConversations</code>, <code>transformTool</code></td></tr>
+<tr><td><code>types/index.ts</code></td><td>All shared TypeScript types</td><td><code>AgentSummary</code>, <code>Agent</code>, <code>WorkspaceConfig</code>, <code>Message</code>, <code>Conversation</code>, <code>Tool</code>, <code>PluginManifest</code>, <code>WorkspaceComponentProps</code>, <code>NavigationState</code>, etc.</td></tr>
+<tr><td><code>providers.tsx</code></td><td>React providers for SDK context</td><td><code>SDKProvider</code>, <code>WorkspaceProvider</code>, <code>WorkspaceNavigationProvider</code></td></tr>
+<tr><td><code>agents/</code></td><td>Agent API class</td><td><code>AgentsAPI</code> — list, get, invoke, stream, streamInvoke, transform, sendToChat, cancel</td></tr>
+<tr><td><code>tools/</code></td><td>Tool API class</td><td><code>ToolsAPI</code> — list, get, invoke, getSchema</td></tr>
+<tr><td><code>events/</code></td><td>Event bus</td><td><code>EventsAPI</code> — on, once, off, emit</td></tr>
+<tr><td><code>keyboard/</code></td><td>Keyboard command registration</td><td><code>KeyboardAPI</code> — registerCommand</td></tr>
+<tr><td><code>window/</code></td><td>Window management</td><td><code>WindowAPI</code> — open</td></tr>
+<tr><td><code>workspace/</code></td><td>Workspace utilities</td><td><code>WorkspaceAPI</code> — manifest, capabilities, permissions; <code>createWorkspaceContext</code></td></tr>
+<tr><td><code>workspaceProviders.ts</code></td><td>Data provider registry</td><td><code>registerProvider</code>, <code>getProvider</code>, <code>configureProvider</code> — pluggable data backends</td></tr>
+<tr><td><code>agentResolver.ts</code></td><td>Agent slug resolution</td><td><code>resolveAgentName</code>, <code>parseAgentSlug</code>, <code>isWorkspaceAgent</code></td></tr>
+<tr><td><code>components/</code></td><td>Shared UI components</td><td><code>AutoSelectModal</code>, <code>Button</code>, <code>Pill</code></td></tr>
+</table>
+
+<!-- SECTION 6: PLUGINS -->
+<h2 id="plugins">6. Plugin Examples</h2>
+
+<h3>Stallion Workspace <span class="tag orange">Full-Featured</span></h3>
+<div class="card">
+<p>A sales-tech workspace plugin with Calendar and CRM integration. 17 source files demonstrating the full plugin pattern.</p>
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>index.tsx</code></td><td>Plugin entry — registers data providers (Outlook, Salesforce), renders workspace with tab routing</td></tr>
+<tr><td><code>Calendar.tsx</code></td><td>Full calendar view — event listing, meeting details, attendees, Salesforce context enrichment, meeting provider detection</td></tr>
+<tr><td><code>CRM.tsx</code></td><td>CRM dashboard — territory/account/opportunity browsing, task management, search with autocomplete</td></tr>
+<tr><td><code>LeadershipInsightModal.tsx</code></td><td>Modal for creating leadership insights with AI enrichment</td></tr>
+<tr><td><code>data/index.ts</code></td><td>Data hooks layer — 20+ hooks wrapping provider calls (<code>useCalendarEvents</code>, <code>useMyAccounts</code>, <code>useSearchOpportunities</code>, etc.)</td></tr>
+<tr><td><code>data/providers.ts</code></td><td>Provider interfaces — <code>ICalendarProvider</code>, <code>ICRMProvider</code>, <code>IUserProvider</code></td></tr>
+<tr><td><code>data/providers/outlook.ts</code></td><td>Outlook calendar provider — fetches events via MCP tool invocation</td></tr>
+<tr><td><code>data/providers/salesforce.ts</code></td><td>Salesforce CRM provider — accounts, opportunities, tasks, territories, insights via MCP</td></tr>
+<tr><td><code>data/viewmodels.ts</code></td><td>ViewModels — <code>CalendarEventVM</code>, <code>AccountVM</code>, <code>OpportunityVM</code>, <code>TaskVM</code>, <code>UserProfileVM</code></td></tr>
+<tr><td><code>data/registry.ts</code></td><td>Provider registry — register, get, set active provider per type</td></tr>
+<tr><td><code>workspace.json</code></td><td>Workspace config — "Sales-Tech" with Calendar &amp; CRM tabs, global prompts</td></tr>
+</table>
+</div>
+
+<h3>Minimal Workspace <span class="tag green">Template</span></h3>
+<div class="card">
+<p>A bare-bones workspace plugin demonstrating the minimum viable plugin: single <code>index.tsx</code> component using SDK hooks (<code>useAgents</code>, <code>useNavigation</code>, <code>useToast</code>). Good starting point for new plugins.</p>
+</div>
+
+<!-- SECTION 7: DESKTOP -->
+<h2 id="desktop">7. Desktop App — <code>src-desktop/</code></h2>
+<div class="card">
+<p>Tauri v2 desktop application. The Rust layer does more than just window management — it <strong>spawns the Node.js backend server</strong> as a child process on startup, making the desktop app fully self-contained.</p>
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>src/main.rs</code></td><td>Tauri entry — spawns <code>dist-server/index.js</code> via Node.js on startup (2s init wait), registers two Tauri commands: <code>open_research_url</code> (new WebView window, bypasses X-Frame-Options) and <code>authenticate_aws</code> (runs <code>mwinit -f</code> with PIN via stdin for AWS auth). Atomic window counter for unique labels.</td></tr>
+<tr><td><code>src/lib.rs</code></td><td>Rust library stub (empty)</td></tr>
+<tr><td><code>tauri.conf.json</code></td><td>App config — "Project Stallion", 1200×800 window, bundles <code>.work-agent/</code>, <code>schemas/</code>, <code>dist-server/</code> as resources</td></tr>
+<tr><td><code>Cargo.toml</code></td><td>Rust deps — tauri, serde, tauri-plugin-shell</td></tr>
+<tr><td><code>capabilities/</code></td><td>Tauri security capability definitions</td></tr>
+<tr><td><code>icons/</code></td><td>Platform icons (macOS, Windows, Linux) in all required sizes</td></tr>
+</table>
+<p style="margin-top:.5rem">Build: <code>npm run build:desktop</code> bundles the Node.js server via esbuild into a single file, then Tauri packages everything into a native installer. CI via <code>buildspec-windows.yml</code> for CodeBuild.</p>
+<p style="margin-top:.3rem;color:var(--text2)">Auth flow: Frontend PinDialog → <code>useAwsAuth</code> hook → Tauri <code>invoke('authenticate_aws', {pin})</code> → Rust spawns <code>mwinit -f</code> with PIN → success/failure returned to UI → <code>apiClient.ts</code> retries failed requests.</p>
+</div>
+
+
+<!-- SECTION 8: CONFIGURATION -->
+<h2 id="config">8. Configuration &amp; Runtime Data</h2>
+<p>Everything lives under <code>.work-agent/</code> — a self-contained directory that defines the entire agent system.</p>
+
+<h3>Directory Structure</h3>
+<table>
+<tr><th>Path</th><th>Purpose</th><th>Contents</th></tr>
+<tr><td><code>config/app.json</code></td><td>Global app settings</td><td>AWS region, default models (Claude 3.7 Sonnet for chat, Nova 2 Lite for invoke, Nova Micro for structured), max turns, system prompt template, meeting notifications</td></tr>
+<tr><td><code>agents/</code></td><td>Agent definitions</td><td>Each agent gets a directory with <code>agent.json</code> + memory subdirectories. Currently: <code>stallion-workspace:work-agent</code>, <code>test-nova-limited-tools</code></td></tr>
+<tr><td><code>tools/</code></td><td>MCP tool catalog</td><td>6 tools: <code>files</code> (filesystem), <code>fetch</code> (web), <code>sat-sfdc</code> (Salesforce), <code>sat-outlook</code> (Outlook), <code>builder-mcp</code> (builder tools), <code>aws-knowledge-mcp-server</code> (knowledge base)</td></tr>
+<tr><td><code>workspaces/</code></td><td>Workspace definitions</td><td>Workspace JSON configs defining tabs, prompts, and component mappings</td></tr>
+<tr><td><code>plugins/</code></td><td>Installed plugins</td><td>Plugin files copied during <code>cli-plugin.ts install</code></td></tr>
+<tr><td><code>monitoring/</code></td><td>Event logs</td><td>Daily NDJSON event files (<code>events-YYYY-MM-DD.ndjson</code>) — token usage, tool calls, errors</td></tr>
+<tr><td><code>analytics/</code></td><td>Usage stats</td><td><code>stats.json</code>, <code>achievements.json</code></td></tr>
+<tr><td><code>agents-archive/</code></td><td>Archived agent configs</td><td>Old agent definitions</td></tr>
+</table>
+
+<h3>MCP Tool Definitions</h3>
+<div class="card-grid">
+<div class="card"><span class="tag">files</span> File System — <code>npx @modelcontextprotocol/server-filesystem</code> via stdio</div>
+<div class="card"><span class="tag">fetch</span> Web Fetch — <code>uvx mcp-server-fetch</code> via stdio</div>
+<div class="card"><span class="tag purple">sat-sfdc</span> Salesforce CRM — <code>aws-sentral-mcp</code> via stdio</div>
+<div class="card"><span class="tag purple">sat-outlook</span> Outlook Calendar — <code>aws-sentral-mcp</code> via stdio</div>
+<div class="card"><span class="tag orange">builder-mcp</span> Builder Tools — <code>builder-mcp-server</code> via stdio</div>
+<div class="card"><span class="tag green">aws-knowledge</span> Knowledge Base — <code>uvx mcp-proxy</code> to streamablehttp endpoint</div>
+</div>
+
+<h3>JSON Schemas</h3>
+<div class="card">
+<p>Three validation schemas in <code>schemas/</code>:</p>
+<ul>
+<li><code>app.schema.json</code> — App config: region, models, system prompts, template variables, meeting notifications</li>
+<li><code>agent.schema.json</code> — Agent spec: name, prompt, model, tools, streaming, UI, commands, guardrails</li>
+<li><code>tool.schema.json</code> — Tool definition: MCP/builtin types, transport, permissions, health checks</li>
+</ul>
+</div>
+
+<!-- SECTION 9: STREAMING -->
+<h2 id="streaming">9. Streaming Pipeline</h2>
+<p>The streaming architecture is a dual-layer pipeline — server-side handlers process the raw Bedrock stream, and client-side handlers render it in the UI.</p>
+
+<h3>Server-Side Pipeline</h3>
+<div class="card">
+<p><code>StreamPipeline</code> chains handlers via <code>.use(handler)</code>. Each handler implements <code>async *process(input): AsyncGenerator&lt;StreamChunk&gt;</code>.</p>
+<div class="flow">
+<span class="step" style="border-color:var(--accent)">Bedrock Stream</span><span class="arrow">→</span>
+<span class="step" style="border-color:var(--accent3)">ReasoningHandler</span><span class="arrow">→</span>
+<span class="step" style="border-color:var(--accent4)">TextDeltaHandler</span><span class="arrow">→</span>
+<span class="step" style="border-color:var(--accent2)">ToolCallHandler</span><span class="arrow">→</span>
+<span class="step" style="border-color:var(--accent5)">ElicitationHandler</span><span class="arrow">→</span>
+<span class="step" style="border-color:var(--accent)">MetadataHandler</span><span class="arrow">→</span>
+<span class="step" style="border-color:var(--accent2)">CompletionHandler</span><span class="arrow">→</span>
+<span class="step">SSE</span>
+</div>
+</div>
+
+<table>
+<tr><th>Handler</th><th>Responsibility</th></tr>
+<tr><td><code>ReasoningHandler</code></td><td>Detects <code>&lt;thinking&gt;</code> tags in text stream, splits into reasoning vs. text content parts. Character-by-character parsing with tag buffering.</td></tr>
+<tr><td><code>TextDeltaHandler</code></td><td>Passes through text delta chunks</td></tr>
+<tr><td><code>ToolCallHandler</code></td><td>Tracks tool call lifecycle (start → args → result)</td></tr>
+<tr><td><code>ElicitationHandler</code></td><td>Intercepts tool calls for user approval. Auto-approves based on agent config patterns. Injects approval request events into the stream.</td></tr>
+<tr><td><code>MetadataHandler</code></td><td>Collects token usage stats, emits monitoring events</td></tr>
+<tr><td><code>CompletionHandler</code></td><td>Tracks completion state, finalizes stream</td></tr>
+</table>
+
+<h3>Client-Side Pipeline</h3>
+<div class="card">
+<p>Mirror architecture in <code>src-ui/src/hooks/streaming/</code>. Each handler extends <code>StreamEventHandler</code> with <code>canHandle(event)</code> and <code>handle(event, state)</code>.</p>
+<table>
+<tr><th>Handler</th><th>Responsibility</th></tr>
+<tr><td><code>ReasoningHandler</code></td><td>Renders thinking blocks with expand/collapse</td></tr>
+<tr><td><code>TextDeltaHandler</code></td><td>Accumulates text into content parts</td></tr>
+<tr><td><code>ToolLifecycleHandler</code></td><td>Shows tool call UI with status indicators</td></tr>
+<tr><td><code>ToolApprovalHandler</code></td><td>Shows approval toast, handles auto-approve</td></tr>
+<tr><td><code>StepHandler</code></td><td>Tracks multi-step agent execution</td></tr>
+</table>
+</div>
+
+<h3>Supporting Infrastructure</h3>
+<ul>
+<li><code>InjectableStream</code> — Wraps an async iterable to allow injecting events mid-stream (used for tool approval requests during chat streaming)</li>
+<li><code>StreamingHelper</code> — Server-side utility for reasoning block detection and text processing</li>
+<li><code>VoltAgentAdapter</code> — Converts VoltAgent chunk format to the internal <code>BedrockChunk</code> type</li>
+</ul>
+
+<h3>Chat Endpoint SSE Wire-Up</h3>
+<div class="card">
+<p>The <code>POST /api/agents/:slug/chat</code> endpoint (~500 lines) orchestrates the full streaming flow:</p>
+<div class="flow">
+<span class="step">SSE Headers</span><span class="arrow">→</span>
+<span class="step">InjectableStream</span><span class="arrow">→</span>
+<span class="step">Elicitation Callback</span><span class="arrow">→</span>
+<span class="step">AbortController</span><span class="arrow">→</span>
+<span class="step">Conversation Create</span><span class="arrow">→</span>
+<span class="step">agent.streamText()</span><span class="arrow">→</span>
+<span class="step">Pipeline.run()</span><span class="arrow">→</span>
+<span class="step">SSE Write</span><span class="arrow">→</span>
+<span class="step">[DONE]</span>
+</div>
+<ul>
+<li><strong>Elicitation</strong> — Checks auto-approve patterns (both normalized and original tool names). Non-approved tools inject <code>tool-approval-request</code> events into the stream and block on a Promise with 60-second timeout.</li>
+<li><strong>Model Override</strong> — Validates model ID via BedrockModelCatalog, creates cached agent variant keyed as <code>slug:modelId</code></li>
+<li><strong>Abort Handling</strong> — AbortController tied to client disconnect signal. Saves cancellation message if no output was produced.</li>
+<li><strong>Monitoring</strong> — Emits <code>agent-start</code> and <code>agent-complete</code> events with traceId, usage, artifacts, steps, toolCallCount</li>
+<li><strong>SSE Format</strong> — <code>data: {JSON}\n\n</code> with <code>setTimeout(0)</code> flush after each chunk</li>
+</ul>
+</div>
+
+
+<!-- SECTION 10: CLI & SCRIPTS -->
+<h2 id="cli">10. CLI &amp; Scripts</h2>
+
+<h3>Interactive CLI</h3>
+<div class="card">
+<p><code>src-server/cli.ts</code> (142 lines) — Readline-based interactive CLI that creates a <code>WorkAgentRuntime</code> instance directly (no HTTP server). Features:</p>
+<ul>
+<li><code>/switch &lt;agent&gt;</code> — Dynamic agent switching at runtime</li>
+<li><code>/list</code> — List all available agents</li>
+<li><code>/quit</code> / <code>/exit</code> — Graceful shutdown</li>
+<li>Input history (100 entries, deduplication)</li>
+<li>Uses <code>agent.generateText()</code> for non-streaming responses</li>
+<li>User ID format: <code>agent:&lt;slug&gt;:user:cli</code></li>
+</ul>
+</div>
+
+<h3>Scripts</h3>
+<div class="card">
+<table>
+<tr><th>Script</th><th>Purpose</th></tr>
+<tr><td><code>scripts/cli-plugin.ts</code></td><td>Plugin management CLI — <code>install</code> (from git or local path), <code>list</code>, <code>remove</code>, <code>update</code>, <code>info</code>. Install pipeline copies to 4 targets: <code>.work-agent/plugins/</code> (source), <code>.work-agent/agents/</code> (agent.json with namespaced slug <code>plugin:agent</code>), <code>.work-agent/workspaces/</code> (workspace.json), <code>src-ui/src/workspaces/</code> (UI components for Vite glob discovery). Remove cleans all 4 locations.</td></tr>
+<tr><td><code>scripts/import-q-agents.ts</code></td><td>Import utility for Amazon Q agent definitions</td></tr>
+<tr><td><code>launch-stallion.sh</code></td><td>Launch script with port conflict handling — detects if ports 3141/5173 are in use, falls back to 3142/5174, starts backend + Tauri desktop app with cleanup on exit</td></tr>
+</table>
+</div>
+
+<h3>Analytics &amp; Gamification</h3>
+<div class="card">
+<p><code>src-server/analytics/usage-aggregator.ts</code> — Tracks lifetime usage stats and unlockable achievements:</p>
+<table>
+<tr><th>Achievement</th><th>Threshold</th></tr>
+<tr><td>🏃 First Steps</td><td>Send 1 message</td></tr>
+<tr><td>💬 Conversationalist</td><td>Send 100 messages</td></tr>
+<tr><td>⚡ Power User</td><td>Send 1,000 messages</td></tr>
+<tr><td>🔍 Model Explorer</td><td>Use 5 different models</td></tr>
+<tr><td>💰 Cost Conscious</td><td>Keep avg cost under $0.01/message</td></tr>
+</table>
+<p style="margin-top:.5rem;color:var(--text2)">Stats tracked: lifetime totals (messages, conversations, tokens, cost), per-model breakdown, per-agent breakdown. Full rescan capability from monitoring event logs. Exposed via <code>/analytics/usage</code> and <code>/analytics/achievements</code> endpoints.</p>
+</div>
+
+<!-- SECTION 11: TECH STACK -->
+<h2 id="techstack">11. Tech Stack &amp; Dependencies</h2>
+
+<h3>Languages &amp; Runtimes</h3>
+<div class="card-grid">
+<div class="card"><span class="tag">TypeScript</span> Primary language — strict mode, ES2022 target, ESNext modules</div>
+<div class="card"><span class="tag orange">Rust</span> Desktop shell only — Tauri v2 native wrapper</div>
+<div class="card"><span class="tag green">Node.js 20+</span> Server runtime</div>
+</div>
+
+<h3>Core Frameworks</h3>
+<table>
+<tr><th>Layer</th><th>Framework</th><th>Role</th></tr>
+<tr><td>AI Runtime</td><td><code>@voltagent/core</code> + <code>@voltagent/server-hono</code></td><td>Agent framework — lifecycle, memory, tool orchestration, workflows</td></tr>
+<tr><td>AI Provider</td><td><code>@ai-sdk/amazon-bedrock</code> + <code>ai</code> (Vercel AI SDK)</td><td>Bedrock model integration, streaming, tool calling</td></tr>
+<tr><td>HTTP Server</td><td><code>hono</code> + <code>@hono/node-server</code></td><td>Lightweight HTTP framework with middleware</td></tr>
+<tr><td>Frontend</td><td><code>react</code> 19 + <code>react-dom</code></td><td>UI framework</td></tr>
+<tr><td>Server State</td><td><code>@tanstack/react-query</code></td><td>Data fetching, caching, mutations</td></tr>
+<tr><td>Desktop</td><td><code>@tauri-apps/api</code> + <code>@tauri-apps/cli</code></td><td>Native desktop wrapper</td></tr>
+<tr><td>Validation</td><td><code>zod</code> + <code>ajv</code></td><td>Runtime schema validation</td></tr>
+</table>
+
+<h3>AWS SDKs</h3>
+<div class="card">
+<ul>
+<li><code>@aws-sdk/client-bedrock</code> — Model listing, inference profiles</li>
+<li><code>@aws-sdk/client-bedrock-runtime</code> — Model invocation, streaming</li>
+<li><code>@aws-sdk/client-pricing</code> — Model pricing data</li>
+<li><code>@aws-sdk/credential-providers</code> — Credential chain resolution</li>
+<li><code>@smithy/node-http-handler</code> — Custom HTTP handling</li>
+</ul>
+</div>
+
+<h3>Build Toolchain</h3>
+<table>
+<tr><th>Tool</th><th>Purpose</th></tr>
+<tr><td><code>vite</code> 7</td><td>Frontend dev server &amp; bundler</td></tr>
+<tr><td><code>esbuild</code></td><td>Server bundling to single <code>dist-server/index.js</code></td></tr>
+<tr><td><code>tsx</code></td><td>TypeScript execution for dev mode</td></tr>
+<tr><td><code>typescript</code> 5.9</td><td>Type checking</td></tr>
+<tr><td><code>vitest</code></td><td>Test runner</td></tr>
+<tr><td><code>tauri-build</code></td><td>Desktop app compilation</td></tr>
+<tr><td><code>@yao-pkg/pkg</code></td><td>Node.js binary packaging</td></tr>
+</table>
+
+<h3>Notable Libraries</h3>
+<div class="card-grid">
+<div class="card"><code>chokidar</code> — File watching for hot-reload of agent/tool configs</div>
+<div class="card"><code>react-markdown</code> + <code>remark-gfm</code> — Markdown rendering in chat</div>
+<div class="card"><code>dompurify</code> — HTML sanitization for rendered content</div>
+<div class="card"><code>debug</code> — Structured logging with namespaces (<code>app:api</code>, <code>app:chat</code>, etc.)</div>
+<div class="card"><code>zod-to-json-schema</code> — Schema generation for tool definitions</div>
+<div class="card"><code>dotenv</code> — Environment variable loading</div>
+</div>
+
+<!-- SECTION 11: TESTING -->
+<h2 id="testing">12. Testing</h2>
+<div class="card">
+<p><span class="tag red">Minimal Coverage</span> Testing is focused on the streaming pipeline — the most complex and error-prone subsystem.</p>
+<table>
+<tr><th>Test File</th><th>Type</th><th>What It Tests</th></tr>
+<tr><td><code>streaming/__tests__/ReasoningHandler.test.ts</code></td><td>Unit</td><td>Thinking tag detection, buffer flushing, edge cases</td></tr>
+<tr><td><code>streaming/__tests__/TextDeltaHandler.test.ts</code></td><td>Unit</td><td>Text chunk passthrough</td></tr>
+<tr><td><code>streaming/__tests__/ToolCallHandler.test.ts</code></td><td>Unit</td><td>Tool call lifecycle events</td></tr>
+<tr><td><code>streaming/__tests__/pipeline.integration.test.ts</code></td><td>Integration</td><td>Full pipeline with chained handlers</td></tr>
+<tr><td><code>domain/__tests__/validator.spec.ts</code></td><td>Unit</td><td>Config validation with temp directories</td></tr>
+<tr><td><code>domain/__tests__/management-api.spec.ts</code></td><td>Unit</td><td>Management API operations</td></tr>
+</table>
+<p style="margin-top:.5rem;color:var(--text2)">Framework: Vitest with Node environment. No E2E tests. No coverage configuration. 30+ archived test files in <code>archive/</code>.</p>
+</div>
+
+<!-- SECTION 12: DOCS & OPENSPEC -->
+<h2 id="docs">13. Documentation &amp; OpenSpec</h2>
+
+<h3>Documentation Files</h3>
+<table>
+<tr><th>File</th><th>Content</th></tr>
+<tr><td><code>README.md</code></td><td>Comprehensive project overview, quick start, architecture, API examples, plugin guide</td></tr>
+<tr><td><code>AGENTS.md</code></td><td>AI coding assistant guide — pattern docs, core boundaries, debugging</td></tr>
+<tr><td><code>API.md</code></td><td>Complete REST API reference with usage indicators</td></tr>
+<tr><td><code>API_SUMMARY.md</code></td><td>Quick reference endpoint counts</td></tr>
+<tr><td><code>ENDPOINTS_IN_USE.md</code></td><td>Active endpoint usage report</td></tr>
+<tr><td><code>docs/FRONTEND_PATTERNS.md</code></td><td>React patterns, hooks, styling, SDK, plugin conventions</td></tr>
+<tr><td><code>docs/BACKEND_PATTERNS.md</code></td><td>Route/service/adapter patterns, VoltAgent types</td></tr>
+<tr><td><code>docs/WORKSPACE_AGENTS.md</code></td><td>Workspace-scoped agent documentation</td></tr>
+<tr><td><code>docs/CUSTOM_COMMANDS.md</code></td><td>Slash command system documentation</td></tr>
+<tr><td><code>docs/PROMPTS.md</code></td><td>Prompt management documentation</td></tr>
+<tr><td><code>docs/aws-auth-implementation.md</code></td><td>AWS authentication flow details</td></tr>
+<tr><td><code>docs/model-switching-error-handling.md</code></td><td>Model switching edge cases</td></tr>
+<tr><td><code>docs/logging-migration.md</code></td><td>Logging standardization guide</td></tr>
+<tr><td><code>packages/sdk/AGENTS.md</code></td><td>SDK development guidelines for AI assistants</td></tr>
+</table>
+
+<h3>OpenSpec (Change Management)</h3>
+<div class="card">
+<p>The <code>openspec/</code> directory contains formal specifications and change proposals:</p>
+<h4>Specifications</h4>
+<ul>
+<li><code>specs/agent-config/spec.md</code> — Agent configuration specification</li>
+<li><code>specs/tool-orchestration/spec.md</code> — MCP tool orchestration specification</li>
+<li><code>specs/memory-management/spec.md</code> — Memory and storage specification</li>
+<li><code>specs/desktop-ui/spec.md</code> — Desktop UI specification</li>
+</ul>
+<h4>Change Proposals</h4>
+<ul>
+<li><code>changes/separate-workspaces-from-agents/</code> — Major refactor: workspace/agent separation (completed — includes design, tasks, implementation summary, integration guide)</li>
+<li><code>changes/implement-management-ui/</code> — Management UI implementation (proposal, design, tasks)</li>
+<li><code>changes/archive/</code> — Completed changes: desktop UI workspaces, work agent system addition</li>
+</ul>
+</div>
+
+<h3>Archive</h3>
+<div class="card">
+<p><code>archive/</code> contains 120+ historical files: implementation reports, debugging scripts, test files, migration utilities, and status documents. Notable items:</p>
+<ul>
+<li><code>CODEBASE_ANALYSIS.md</code> — Previous codebase analysis</li>
+<li><code>COMPREHENSIVE_STATUS_REPORT.md</code> — Full status report</li>
+<li><code>STREAMING_REFACTOR_PLAN.md</code> — Streaming architecture redesign plan</li>
+<li><code>PLUGIN_SEPARATION_PLAN.md</code> — Plugin system design</li>
+<li>Various Nova model debugging scripts and test files</li>
+</ul>
+</div>
+
+<!-- SECTION 14: AI DEV TOOLING & BUILD -->
+<h2 id="devtooling">14. AI Dev Tooling &amp; Build Config</h2>
+
+<h3>AI Assistant Integration</h3>
+<div class="card">
+<p>The repo includes configuration for multiple AI coding assistants:</p>
+<table>
+<tr><th>Directory</th><th>Purpose</th></tr>
+<tr><td><code>.amazonq/</code></td><td>Amazon Q CLI config — <code>cli-agents/</code> (work-agent, orchestrator), <code>.subagents/</code> (work-agent, q_cli_default), <code>prompts/</code> (openspec-proposal, openspec-apply, openspec-archive), <code>cli-todo-lists/</code> (18 historical TODO lists)</td></tr>
+<tr><td><code>.claude/commands/</code></td><td>Claude Code commands — <code>openspec/proposal.md</code>, <code>openspec/apply.md</code>, <code>openspec/archive.md</code> — mirrors the Amazon Q prompts for OpenSpec workflow</td></tr>
+</table>
+</div>
+
+<h3>Build Configuration</h3>
+<div class="card">
+<table>
+<tr><th>File</th><th>Purpose</th><th>Key Details</th></tr>
+<tr><td><code>tsconfig.json</code></td><td>TypeScript config</td><td>ES2022 target, ESNext modules, bundler resolution, strict mode. Compiles <code>src-server/</code> → <code>dist-server/</code>. Includes vitest/globals types.</td></tr>
+<tr><td><code>vite.config.ts</code></td><td>Frontend build</td><td>React plugin, root <code>./src-ui</code>, <code>@</code> alias → <code>src-ui/src</code>, builds to <code>../dist-ui</code>, port 5173, VITE_ and TAURI_ env prefixes</td></tr>
+<tr><td><code>esbuild.config.mjs</code></td><td>Server bundling</td><td>Bundles <code>src-server/index.ts</code> → <code>dist-server/index.js</code>. Node 20, ESM, sourcemaps. CJS <code>require</code> shim via banner. <code>fsevents</code> external.</td></tr>
+<tr><td><code>vitest.config.ts</code></td><td>Test config</td><td>Node environment, globals enabled, <code>vitest.setup.ts</code> (placeholder)</td></tr>
+<tr><td><code>buildspec-windows.yml</code></td><td>CI/CD</td><td>AWS CodeBuild for Windows — Node.js 20, Visual Studio 2019 build tools, Rust toolchain, Tauri desktop build</td></tr>
+<tr><td><code>.env.example</code></td><td>Environment template</td><td><code>VITE_API_BASE</code>, <code>PORT</code>, <code>AWS_REGION</code>, <code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code></td></tr>
+</table>
+</div>
+
+<h3>Domain Types Detail</h3>
+<div class="card">
+<p><code>src-server/domain/types.ts</code> (237 lines) — Complete type catalog for the backend:</p>
+<ul>
+<li><code>AgentSpec</code> — Full agent definition including <code>commands</code> (custom slash commands with params), <code>streaming</code> flags, <code>maxTurns</code>, <code>guardrails.maxSteps</code></li>
+<li><code>ToolDef</code> — Tool definitions with <code>healthCheck</code> config (jsonrpc/http/command), <code>builtinPolicy</code> (fs_read/fs_write/shell_exec), <code>timeouts</code>, <code>exposedTools</code> hints</li>
+<li><code>AppConfig</code> — Includes <code>invokeModel</code> (for tool calling) and <code>structureModel</code> (for structured output) — separate from <code>defaultModel</code></li>
+<li><code>AgentSwitchState</code> — Enum: IDLE → WAITING → TEARDOWN → BUILD → READY</li>
+<li><code>ConversationStats</code> — Per-conversation token/cost tracking</li>
+</ul>
+</div>
+
+<h3>Services Detail</h3>
+<div class="card">
+<table>
+<tr><th>Service</th><th>Key Capabilities</th></tr>
+<tr><td><code>AgentService</code></td><td>Agent CRUD, enriched agent listing (merges VoltAgent instances with file-based metadata and specs), metadata management</td></tr>
+<tr><td><code>MCPService</code></td><td>Tool listing with name mapping (original → normalized → server/tool parts), MCP connection status tracking, integration metadata, agent tool resolution with JSON schema extraction via <code>zod-to-json-schema</code></td></tr>
+<tr><td><code>WorkspaceService</code></td><td>Workspace CRUD delegating to ConfigLoader, plus workflow management (list/get/create/update/delete per agent)</td></tr>
+</table>
+</div>
+
+<h3>Notable Gaps &amp; Empty Directories</h3>
+<div class="card">
+<ul>
+<li><code>src-server/api/</code> — Empty directory (placeholder for future API layer)</li>
+<li><code>src-ui/src/stores/</code> — Empty directory (store pattern abandoned in favor of Context + external stores)</li>
+<li><code>PLUGIN_ARCHITECTURE.md</code> — Referenced in README but does not exist</li>
+<li>Route extraction from <code>voltagent-runtime.ts</code> — In progress (TODO 1766005309283, 2/6 tasks). Invoke, chat, and streaming routes still inline in the 2,859-line runtime file.</li>
+</ul>
+</div>
+
+<!-- FOOTER -->
+<div class="meta">
+<p>Generated: Saturday, February 21, 2026 · Branch: <code>main</code> · 228 source files · ~47K lines of TypeScript + ~4.7K lines of CSS + Rust</p>
+<p style="margin-top:.3rem">Audit: 8-pass deep exploration. Passes 1-4: structure, architecture, 20 gaps found and filled. Pass 5: 17 deep gaps (inline routes, SSE wire-up, 2-phase invoke, BedrockModelCatalog, ConfigLoader, health checks, cost calculation). Pass 6: file-by-file cross-reference (validator.ts, reasoning-parser.ts). Pass 7-8: conversation stats engine, tool elicitation wrapper, CSS architecture (7 files, 4,681 lines), monitoring SSE details, template variables (10 built-in).</p>
+<p style="margin-top:.3rem">Active refactoring: Route extraction from voltagent-runtime.ts (TODO 1766005309283 — 2/6 tasks complete).</p>
+</div>
+
+</div>
+</body>
+</html>

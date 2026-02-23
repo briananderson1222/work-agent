@@ -6,10 +6,15 @@ import type {
   CalendarEventVM,
   MeetingDetailsVM,
   AccountVM,
+  AccountSpendVM,
   OpportunityVM,
   TaskVM,
   TerritoryVM,
   UserProfileVM,
+  EmailVM,
+  EmailDetailVM,
+  PersonVM,
+  InsightVM,
 } from './viewmodels';
 
 export interface ICalendarProvider {
@@ -29,6 +34,11 @@ export interface ICRMProvider {
   searchAccounts(condition: SearchCondition): Promise<AccountVM[]>;
   getAccountDetails(accountId: string): Promise<AccountVM>;
   
+  // Spend
+  getAccountSpend(accountId: string): Promise<AccountSpendVM>;
+  getAccountSpendByService(accountId: string, options?: { period?: string; limit?: number }): Promise<any[]>;
+  getRegistryAssignments(userId: string): Promise<any[]>;
+  
   // Territories
   getMyTerritories(userId: string): Promise<TerritoryVM[]>;
   searchTerritories(query: string): Promise<TerritoryVM[]>;
@@ -40,19 +50,35 @@ export interface ICRMProvider {
   createOpportunity(data: Omit<OpportunityVM, 'id'>): Promise<OpportunityVM>;
   
   // Tasks
-  getUserTasks(userAlias: string, filters?: { accountId?: string; opportunityId?: string }): Promise<TaskVM[]>;
+  getUserTasks(userId: string, filters?: { accountId?: string; opportunityId?: string }): Promise<TaskVM[]>;
   getTaskDetails(taskId: string): Promise<TaskVM>;
   createTask(data: Omit<TaskVM, 'id'>): Promise<TaskVM>;
   updateTask(taskId: string, data: Partial<TaskVM>): Promise<TaskVM>;
   
-  // Insights
-  fetchInsightEnrichment(insightId: string): Promise<any>;
-  listMyInsights(filters?: any): Promise<any[]>;
-  createInsightEnrichment(data: any): Promise<any>;
-  createLeadershipInsight(data: any): Promise<any>;
-  
   // Campaigns
   searchCampaigns(query: string): Promise<any[]>;
+}
+
+export interface IEmailProvider {
+  getInbox(options?: { count?: number; filter?: string }): Promise<EmailVM[]>;
+  searchEmails(query: string): Promise<EmailVM[]>;
+  readEmail(id: string): Promise<EmailDetailVM>;
+}
+
+export interface IInternalProvider {
+  lookupPerson(alias: string): Promise<PersonVM>;
+  searchPeople(query: string): Promise<PersonVM[]>;
+}
+
+export interface ISiftProvider {
+  listMyInsights(filters?: any): Promise<InsightVM[]>;
+  searchInsights(query: string, filters?: any): Promise<InsightVM[]>;
+  getInsight(id: string): Promise<InsightVM>;
+  getEnrichment(enrichmentId: string): Promise<any>;
+  createInsight(data: any): Promise<InsightVM>;
+  updateInsight(id: string, data: any): Promise<InsightVM>;
+  deleteInsight(id: string): Promise<void>;
+  enrichInsight(data: any): Promise<any>;
 }
 
 export interface IUserProvider {

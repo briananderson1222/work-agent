@@ -217,7 +217,21 @@ export function Calendar({ activeTab }: CalendarProps) {
   const [viewMonth, setViewMonth] = useState<Date>(initialState.date);
   
   // Use React Query for calendar events
-  const { data: events = [], isLoading: loading, error: eventsError } = useCalendarEvents(selectedDate);
+  const { data: rawEvents = [], isLoading: loading, error: eventsError } = useCalendarEvents(selectedDate);
+  // Map CalendarEventVM (id) to Calendar's expected shape (meetingId)
+  const events: CalendarEvent[] = rawEvents.map((e: any) => ({
+    meetingId: e.id || e.meetingId,
+    meetingChangeKey: e.changeKey || e.meetingChangeKey || '',
+    subject: e.subject,
+    start: typeof e.start === 'string' ? e.start : e.start.toISOString(),
+    end: typeof e.end === 'string' ? e.end : e.end.toISOString(),
+    location: e.location || '',
+    organizer: e.organizer || '',
+    status: e.status,
+    isCanceled: e.isCancelled || e.isCanceled || false,
+    categories: e.categories || [],
+    isAllDay: e.isAllDay || false,
+  }));
   
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialState.eventId);
@@ -510,7 +524,8 @@ export function Calendar({ activeTab }: CalendarProps) {
   const fetchMeetingDetails = async (meetingId: string) => {
     const event = events.find(e => e.meetingId === meetingId);
     if (!event?.meetingChangeKey) {
-      console.warn('Missing meetingChangeKey for event:', meetingId);
+      // meetingChangeKey may not be available for some events (e.g., shared calendars)
+      // Skip silently — details can't be fetched without it
       return;
     }
 
@@ -741,13 +756,13 @@ Categories: ${selectedEvent.categories?.join(', ') || 'None'}
       }
       // Note: campaign filter not supported in current provider interface
       
-      const userAlias = salesContext.myDetails?.name;
-      if (!userAlias) {
-        console.warn('No user alias available for task fetch');
+      const userId = salesContext.myDetails?.userId;
+      if (!userId) {
+        console.warn('No SFDC user ID available for task fetch');
         return;
       }
       
-      const tasks = await salesforceProvider.getUserTasks(userAlias, filters);
+      const tasks = await salesforceProvider.getUserTasks(userId, filters);
       
       // Map to expected format
       const mappedTasks = tasks.map(t => ({

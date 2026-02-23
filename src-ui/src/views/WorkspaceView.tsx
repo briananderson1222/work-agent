@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useWorkspaceQuery } from '@stallion-ai/sdk';
@@ -37,6 +38,7 @@ export function WorkspaceView() {
   const activeTabId = activeTab || workspace?.tabs?.[0]?.id || '';
   
   const [refreshKey, setRefreshKey] = useState(0);
+  const queryClient = useQueryClient();
   
   // Wrap slash command handler to match useSendMessage signature
   const handleSlashCommand = useCallback(async (sessionId: string, content: string) => {
@@ -70,10 +72,15 @@ export function WorkspaceView() {
       }
     }
     keysToRemove.forEach(key => sessionStorage.removeItem(key));
+
+    // Invalidate React Query cache for active tab data
+    queryClient.invalidateQueries({ queryKey: ['calendar'] });
+    queryClient.invalidateQueries({ queryKey: ['crm'] });
+    queryClient.invalidateQueries({ queryKey: ['user'] });
     
     // Increment refresh key to force remount
     setRefreshKey(prev => prev + 1);
-  }, [selectedWorkspace]);
+  }, [selectedWorkspace, queryClient]);
 
   if (!selectedWorkspace) {
     return (

@@ -38,6 +38,9 @@ export interface AccountVM {
   website?: string;
   geo?: string;
   segment?: string;
+  healthScore?: number;
+  adoptionPhase?: string;
+  territory?: string;
   sources?: Array<{ type: 'owner' | 'territory'; label: string }>;
 }
 
@@ -68,6 +71,64 @@ export interface TerritoryVM {
   name: string;
 }
 
+// ============ Email ============
+
+export interface EmailVM {
+  id: string;
+  subject: string;
+  from: { name: string; email: string };
+  date: Date;
+  preview: string;
+  isRead: boolean;
+  importance?: 'high' | 'normal' | 'low';
+  hasAttachments?: boolean;
+}
+
+export interface EmailDetailVM extends EmailVM {
+  body: string;
+  to: Array<{ name: string; email: string }>;
+  cc?: Array<{ name: string; email: string }>;
+  attachments?: Array<{ name: string; size: number; contentType: string }>;
+}
+
+// ============ Internal (People) ============
+
+export interface PersonVM {
+  alias: string;
+  name: string;
+  title?: string;
+  team?: string;
+  manager?: string;
+  location?: string;
+  email?: string;
+}
+
+// ============ SIFT / Insights ============
+
+export interface InsightVM {
+  id: string;
+  title: string;
+  summary: string;
+  description?: string;
+  category: string;
+  accountId?: string;
+  accountName?: string;
+  status?: string;
+  createdDate: Date;
+  enrichmentId?: string;
+}
+
+// ============ Spend ============
+
+export interface AccountSpendVM {
+  accountId: string;
+  mtdSpend?: number;
+  ytdSpend?: number;
+  mtdGrowth?: number;
+  ytdGrowth?: number;
+  lastUpdated?: string;
+}
+
 // ============ User ============
 
 export interface UserProfileVM {
@@ -76,4 +137,6 @@ export interface UserProfileVM {
   email: string;
   alias?: string;
   role?: string;
+  title?: string;
+  manager?: string;
 }

@@ -5,6 +5,7 @@ import { WorkspaceIcon } from './WorkspaceIcon';
 import { WorkspaceAutocomplete } from './WorkspaceAutocomplete';
 import { NotificationHistory } from './NotificationHistory';
 import { AuthStatusBadge } from './AuthStatusBadge';
+import { useAuth } from '../contexts/AuthContext';
 import type { NavigationView } from '../types';
 
 interface HeaderProps {
@@ -29,7 +30,8 @@ export function Header({
   onNavigate,
 }: HeaderProps) {
   const settingsShortcut = useShortcutDisplay('app.settings');
-  const userName = 'Default User';
+  const { user: authUser } = useAuth();
+  const userName = authUser?.alias || 'User';
   const userInitials = getInitials(userName);
   const [showWorkspaceAutocomplete, setShowWorkspaceAutocomplete] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);

@@ -12,6 +12,7 @@ import { ActiveChatsProvider } from './contexts/ActiveChatsContext';
 import { StreamingProvider } from './contexts/StreamingContext';
 import { AnalyticsProvider } from './contexts/AnalyticsContext';
 import { ApiBaseProvider } from './contexts/ApiBaseContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { PreviewProvider } from './contexts/PreviewContext';
 import { NotificationContainer } from './components/NotificationContainer';
@@ -49,9 +50,10 @@ pluginRegistry.initialize().then(() => {
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <ApiBaseProvider>
-          <NavigationProvider>
-            <KeyboardShortcutsProvider>
-              <ToastProvider>
+          <AuthProvider>
+            <NavigationProvider>
+              <KeyboardShortcutsProvider>
+                <ToastProvider>
                 <WorkspacesProvider>
                   <WorkflowsProvider>
                     <ConversationsProvider>
@@ -71,6 +73,7 @@ pluginRegistry.initialize().then(() => {
               </ToastProvider>
             </KeyboardShortcutsProvider>
           </NavigationProvider>
+          </AuthProvider>
         </ApiBaseProvider>
       </QueryClientProvider>
     </React.StrictMode>

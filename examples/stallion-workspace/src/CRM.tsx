@@ -509,8 +509,8 @@ export function CRM({ activeTab }: CRMProps) {
       // Load opportunities and tasks in parallel
       const [oppsVMs, tasksVMs] = await Promise.all([
         salesforceProvider.getAccountOpportunities(account.id).finally(() => setLoadingOpportunities(false)),
-        userDetails?.alias 
-          ? salesforceProvider.getUserTasks(userDetails.alias, { accountId: account.id }).finally(() => setLoadingTasks(false)) 
+        userDetails?.sfdcId 
+          ? salesforceProvider.getUserTasks(userDetails.sfdcId, { accountId: account.id }).finally(() => setLoadingTasks(false)) 
           : Promise.resolve([])
       ]);
 

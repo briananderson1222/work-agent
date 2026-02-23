@@ -43,6 +43,11 @@ export class PluginRegistry {
         ? import.meta.glob('/src/workspaces/*/plugin.json')
         : import.meta.glob('/src/plugins/*/plugin.json');
 
+      // Pre-load all entrypoint modules via glob so Vite can resolve them
+      const entrypoints = type === 'workspace'
+        ? import.meta.glob('/src/workspaces/*/index.{ts,tsx}')
+        : import.meta.glob('/src/plugins/*/index.{ts,tsx}');
+
       for (const [path, loader] of Object.entries(modules)) {
         try {
           const manifest = await loader() as { default: PluginManifest };
@@ -54,9 +59,10 @@ export class PluginRegistry {
             continue;
           }
 
-          // Load the component module
+          // Load the component module via the pre-globbed entrypoints
           const componentPath = path.replace('/plugin.json', `/${pluginManifest.entrypoint}`);
-          const module = await this.loadComponentModule(componentPath);
+          const entrypointLoader = entrypoints[componentPath];
+          const module = entrypointLoader ? await entrypointLoader().catch((e: any) => { console.error(`[PluginRegistry] Import error for ${pluginManifest.name}:`, e); return null; }) : await this.loadComponentModule(componentPath);
 
           if (!module) {
             log.plugin(`[PluginRegistry] Failed to load component for ${pluginManifest.name}`);
@@ -66,6 +72,7 @@ export class PluginRegistry {
           // Register named exports if available (e.g., { components: { 'id': Component } })
           if (module.components && typeof module.components === 'object') {
             for (const [componentId, component] of Object.entries(module.components)) {
+              console.log(`[PluginRegistry] Registering component: ${componentId}`);
               const registered: RegisteredPlugin = {
                 manifest: pluginManifest,
                 component: component as WorkspaceComponent,

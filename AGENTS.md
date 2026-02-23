@@ -50,6 +50,24 @@ Agents live in `.work-agent/agents/<slug>/agent.json`:
 | `POST /agents/:slug/stream` | Streaming chat |
 | `POST /agents/:slug/invoke` | Silent tool invocation |
 
+### ⛔ NEVER run long-lived processes from execute_bash
+
+This includes `npm run dev:server`, `npm run dev:ui`, `bash scripts/test-workspace.sh`, or ANY command that doesn't exit on its own. The tool will hang indefinitely and the user will have to interrupt you. **Tell the user to run it in their own terminal instead.**
+
+### Testing with Playwright
+
+Never start dev servers (or any long-running process) from `execute_bash` — it hangs the tool. Use the standalone script instead:
+
+```bash
+# Terminal 1: start test instance
+./scripts/test-workspace.sh
+
+# Terminal 2: run tests (once "ready" appears)
+npx playwright test tests/schedule.spec.ts --reporter=list
+```
+
+See `scripts/test-workspace.sh` for details. The script starts the backend on port 3142 and UI on port 5174, waits for readiness, then opens for Playwright validation.
+
 ### Debugging
 
 Frontend logging (never use `console.log`):

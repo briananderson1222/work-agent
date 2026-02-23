@@ -160,22 +160,152 @@ export function useTaskDetails(taskId: string | null) {
 }
 
 export function useInsightEnrichment(insightId: string | null) {
-  const providerId = activeId('crm');
+  const providerId = activeId('sift');
   return useQuery({
-    queryKey: ['crm', 'insightEnrichment', insightId, providerId],
-    queryFn: () => get('crm').fetchInsightEnrichment(insightId!),
+    queryKey: ['sift', 'enrichment', insightId, providerId],
+    queryFn: () => get('sift').getEnrichment(insightId!),
     staleTime: 5 * 60 * 1000,
-    enabled: !!insightId && has('crm'),
+    enabled: !!insightId && has('sift'),
   });
 }
 
 export function useMyInsights(filters?: any) {
+  const providerId = activeId('sift');
+  return useQuery({
+    queryKey: ['sift', 'myInsights', filters, providerId],
+    queryFn: () => get('sift').listMyInsights(filters),
+    staleTime: 5 * 60 * 1000,
+    enabled: has('sift'),
+  });
+}
+
+// ============ Spend Hooks ============
+
+export function useAccountSpend(accountId: string | null) {
   const providerId = activeId('crm');
   return useQuery({
-    queryKey: ['crm', 'myInsights', filters, providerId],
-    queryFn: () => get('crm').listMyInsights(filters),
+    queryKey: ['crm', 'accountSpend', accountId, providerId],
+    queryFn: () => get('crm').getAccountSpend(accountId!),
     staleTime: 5 * 60 * 1000,
-    enabled: has('crm'),
+    enabled: !!accountId && has('crm'),
+  });
+}
+
+export function useAccountSpendByService(accountId: string | null) {
+  const providerId = activeId('crm');
+  return useQuery({
+    queryKey: ['crm', 'accountSpendByService', accountId, providerId],
+    queryFn: () => get('crm').getAccountSpendByService(accountId!),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!accountId && has('crm'),
+  });
+}
+
+// ============ Email Hooks ============
+
+export function useEmailInbox(options?: { count?: number; filter?: string }) {
+  const providerId = activeId('email');
+  return useQuery({
+    queryKey: ['email', 'inbox', options, providerId],
+    queryFn: () => get('email').getInbox(options),
+    staleTime: 2 * 60 * 1000,
+    enabled: has('email'),
+  });
+}
+
+export function useEmailSearch(query: string | null) {
+  const providerId = activeId('email');
+  return useQuery({
+    queryKey: ['email', 'search', query, providerId],
+    queryFn: () => get('email').searchEmails(query!),
+    staleTime: 2 * 60 * 1000,
+    enabled: !!query && has('email'),
+  });
+}
+
+export function useReadEmail(id: string | null) {
+  const providerId = activeId('email');
+  return useQuery({
+    queryKey: ['email', 'read', id, providerId],
+    queryFn: () => get('email').readEmail(id!),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!id && has('email'),
+  });
+}
+
+// ============ Internal (People) Hooks ============
+
+export function usePersonLookup(alias: string | null) {
+  const providerId = activeId('internal');
+  return useQuery({
+    queryKey: ['internal', 'person', alias, providerId],
+    queryFn: () => get('internal').lookupPerson(alias!),
+    staleTime: 10 * 60 * 1000,
+    enabled: !!alias && has('internal'),
+  });
+}
+
+export function usePeopleSearch(query: string | null) {
+  const providerId = activeId('internal');
+  return useQuery({
+    queryKey: ['internal', 'search', query, providerId],
+    queryFn: () => get('internal').searchPeople(query!),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!query && has('internal'),
+  });
+}
+
+// ============ SIFT Hooks ============
+
+export function useSiftQueue(filters?: any) {
+  const providerId = activeId('sift');
+  return useQuery({
+    queryKey: ['sift', 'queue', filters, providerId],
+    queryFn: () => get('sift').listMyInsights(filters),
+    staleTime: 2 * 60 * 1000,
+    enabled: has('sift'),
+  });
+}
+
+export function useSiftInsight(id: string | null) {
+  const providerId = activeId('sift');
+  return useQuery({
+    queryKey: ['sift', 'insight', id, providerId],
+    queryFn: () => get('sift').getInsight(id!),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!id && has('sift'),
+  });
+}
+
+export function useCreateSift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => get('sift').createInsight(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sift'] }),
+  });
+}
+
+export function useUpdateSift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => get('sift').updateInsight(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sift'] }),
+  });
+}
+
+export function useDeleteSift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => get('sift').deleteInsight(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sift'] }),
+  });
+}
+
+export function useEnrichSift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => get('sift').enrichInsight(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sift'] }),
   });
 }
 
@@ -208,16 +338,16 @@ export function useUpdateTask() {
 export function useCreateInsightEnrichment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => get('crm').createInsightEnrichment(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['crm', 'insightEnrichment'] }),
+    mutationFn: (data: any) => get('sift').enrichInsight(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sift', 'enrichment'] }),
   });
 }
 
 export function useCreateLeadershipInsight() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => get('crm').createLeadershipInsight(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['crm', 'myInsights'] }),
+    mutationFn: (data: any) => get('sift').createInsight(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sift'] }),
   });
 }
 
@@ -228,4 +358,7 @@ export * from './providerTypes';
 
 // Export provider implementations for registration
 export { outlookProvider } from './providers/outlook';
+export { emailProvider } from './providers/outlook-email';
 export { salesforceProvider } from './providers/salesforce';
+export { builderProvider } from './providers/builder';
+export { siftProvider } from './providers/sift';

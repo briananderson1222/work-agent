@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
+import { ACPStatusBadge } from './ACPStatusBadge';
 
 interface Session {
   id: string;
@@ -88,6 +89,7 @@ export function ChatDockHeader({
             </div>
           </div>
         )}
+        <ACPStatusBadge />
         <span className="chat-dock__counter">{sessions.length} session{sessions.length === 1 ? '' : 's'}</span>
         {unreadCount > 0 && <span className="chat-dock__badge">{unreadCount}</span>}
         <button className="chat-dock__maximize-btn" onClick={handleMaximize} title={isDockMaximized ? `Restore (${maximizeShortcut})` : `Maximize (${maximizeShortcut})`}>

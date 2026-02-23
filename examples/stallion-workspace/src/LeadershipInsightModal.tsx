@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSalesContext } from './useSalesContext';
 import { useSales } from './StallionContext';
 import { SearchModal } from './components/SearchModal';
-import { salesforceProvider } from './data';
+import { salesforceProvider, siftProvider } from './data';
 import { CRM_BASE_URL } from './constants';
 
 interface LeadershipInsightModalProps {
@@ -58,7 +58,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
     if (enrichmentStatus === 'polling' && enrichmentId) {
       const interval = setInterval(async () => {
         try {
-          const result = await salesforceProvider.fetchInsightEnrichment(enrichmentId);
+          const result = await siftProvider.getEnrichment(enrichmentId);
           
           if (result.insightFeedback) {
             setEnrichmentResult(result);
@@ -79,7 +79,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
   const loadTasks = async () => {
     if (!userDetails) return;
     try {
-      const tasks = await salesforceProvider.getUserTasks(userDetails.alias);
+      const tasks = await salesforceProvider.getUserTasks(userDetails.sfdcId);
       // Map to expected format
       const mappedTasks = tasks.map(t => ({
         id: t.id,
@@ -101,7 +101,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
   const loadInsights = async () => {
     if (!userDetails) return;
     try {
-      const insights = await salesforceProvider.listMyInsights({ 
+      const insights = await siftProvider.listMyInsights({ 
         pageSize: 50, 
         userAlias: userDetails.alias 
       });
@@ -161,7 +161,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
     
     setEnrichmentStatus('creating');
     try {
-      const result = await salesforceProvider.createInsightEnrichment({
+      const result = await siftProvider.enrichInsight({
         userAlias: userDetails.alias,
         text: description,
         accountIds: selectedAccounts.map(a => a.id),
@@ -179,7 +179,7 @@ export function LeadershipInsightModal({ isOpen, onClose, agentSlug }: Leadershi
     
     setLoading(true);
     try {
-      await salesforceProvider.createLeadershipInsight({
+      await siftProvider.createInsight({
         title,
         description,
         category,

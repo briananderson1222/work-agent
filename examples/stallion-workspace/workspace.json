@@ -10,6 +10,16 @@
   "defaultAgent": "stallion-workspace:work-agent",
   "tabs": [
     {
+      "id": "portfolio",
+      "label": "Portfolio",
+      "component": "stallion-workspace-portfolio"
+    },
+    {
+      "id": "today",
+      "label": "Today",
+      "component": "stallion-workspace-today"
+    },
+    {
       "id": "calendar",
       "label": "Calendar",
       "component": "stallion-workspace-calendar"
@@ -18,6 +28,16 @@
       "id": "crm",
       "label": "CRM", 
       "component": "stallion-workspace-crm"
+    },
+    {
+      "id": "sift-queue",
+      "label": "SIFT Queue",
+      "component": "stallion-workspace-sift-queue"
+    },
+    {
+      "id": "newsletters",
+      "label": "Newsletters",
+      "component": "stallion-workspace-newsletters"
     }
   ],
   "globalPrompts": [

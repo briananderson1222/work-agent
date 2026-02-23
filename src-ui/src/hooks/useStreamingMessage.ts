@@ -48,6 +48,25 @@ export function useStreamingMessage(apiBase: string, onNavigateToChat?: (session
 
     // Find and execute handler
     const handler = handlers.find(h => h.canHandle(data));
+    
+    // Handle error events explicitly
+    if (data.type === 'error') {
+      const errorMsg = data.errorText || data.message || 'An error occurred';
+      const isModelError = /model|access.*denied|validation.*exception|not.*found.*model|throttl/i.test(errorMsg);
+      log.chat('[Stream] Error from server:', errorMsg, isModelError ? '(model-related)' : '');
+      updateChat(sessionId, { 
+        status: 'error',
+        streamingMessage: undefined,
+      });
+      const displayMsg = isModelError
+        ? `⚠️ Model error: ${errorMsg}\n\nThe configured model may be unavailable or deprecated. Use the model selector in the chat header to switch models.`
+        : `⚠️ ${errorMsg}`;
+      return {
+        ...createNoOpResult(state),
+        streamingMessage: { role: 'assistant' as const, content: displayMsg },
+      };
+    }
+    
     const result = handler ? handler.handle(data, state) : createNoOpResult(state);
     
     // If handler returned a streaming message, update context immediately

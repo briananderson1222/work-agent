@@ -1,7 +1,7 @@
 {
   "name": "Work Agent",
   "prompt": "You are a versatile work assistant that helps with both calendar management and CRM operations. You can view calendar events, manage meetings, query Salesforce accounts and opportunities, and provide integrated insights across both systems. Always provide clear, actionable information and suggest relevant follow-up actions.",
-  "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
   "guardrails": {
     "maxTokens": 4096,
     "temperature": 0.7
@@ -9,11 +9,13 @@
   "tools": {
     "mcpServers": [
       "sat-outlook",
-      "sat-sfdc"
+      "sat-sfdc",
+      "builder-mcp"
     ],
     "available": [
       "sat-outlook_*",
-      "sat-sfdc_*"
+      "sat-sfdc_*",
+      "builder-mcp_*"
     ],
     "autoApprove": [
       "sat-outlook_calendar_view",
@@ -34,9 +36,7 @@
       "sat-sfdc_search_account_spend_details",
       "sat-sfdc_list_territory_accounts",
       "sat-sfdc_search_opportunities",
-      "sat-sfdc_fetch_opportunity_details",
       "sat-sfdc_get_opportunity_details",
-      "sat-sfdc_get_opportunities_for_account",
       "sat-sfdc_get_opportunity_line_items",
       "sat-sfdc_search_contacts",
       "sat-sfdc_fetch_contact_details",
@@ -48,13 +48,10 @@
       "sat-sfdc_fetch_event_details",
       "sat-sfdc_search_tasks",
       "sat-sfdc_fetch_task_details",
-      "sat-sfdc_list_user_tasks",
-      "sat-sfdc_list_account_tasks",
-      "sat-sfdc_list_opportunity_tasks",
-      "sat-sfdc_search_leadership_insights",
-      "sat-sfdc_fetch_leadership_insight",
-      "sat-sfdc_list_my_insights",
-      "sat-sfdc_fetch_insight_enrichment",
+      "sat-sfdc_sift_insights_search",
+      "sat-sfdc_sift_insights_fetchById",
+      "sat-sfdc_sift_insights_listMyInsights",
+      "sat-sfdc_sift_assistant_fetchEnrichInsightResponse",
       "sat-sfdc_search_territories",
       "sat-sfdc_list_territories",
       "sat-sfdc_fetch_territory_details",
@@ -63,7 +60,8 @@
       "sat-sfdc_list_user_assigned_territories",
       "sat-sfdc_list_user_assigned_accounts",
       "sat-sfdc_fetch_customer_influence_details",
-      "sat-sfdc_fetch_pfr_details"
+      "sat-sfdc_fetch_pfr_details",
+      "builder-mcp_ReadInternalWebsites"
     ]
   },
   "commands": {
