@@ -2807,6 +2807,19 @@ export class WorkAgentRuntime {
   private replaceTemplateVariables(text: string): string {
     const now = new Date();
     
+    // User identity (from auth/OS)
+    let userVars: Record<string, string> = {};
+    try {
+      const { getCachedUser } = require('../routes/auth.js');
+      const user = getCachedUser();
+      userVars = {
+        '{{user_alias}}': user.alias || '',
+        '{{user_name}}': user.name || user.alias || '',
+        '{{user_email}}': user.email || '',
+        '{{user_title}}': user.title || '',
+      };
+    } catch { /* auth module not loaded yet */ }
+    
     // Built-in variables (always available)
     const builtInReplacements: Record<string, string> = {
       '{{date}}': now.toLocaleDateString('en-US', { 
@@ -2874,7 +2887,7 @@ export class WorkAgentRuntime {
 
     // Apply all replacements
     let result = text;
-    const allReplacements = { ...builtInReplacements, ...customReplacements };
+    const allReplacements = { ...builtInReplacements, ...userVars, ...customReplacements };
     
     for (const [key, value] of Object.entries(allReplacements)) {
       result = result.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
