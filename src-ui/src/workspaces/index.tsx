@@ -1,7 +1,7 @@
 import type { AgentSummary, AgentQuickPrompt, WorkspaceConfig, WorkspaceTab } from '../types';
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
 import { pluginRegistry } from '../core/PluginRegistry';
-import { WorkspaceNavigationProvider } from '@stallion-ai/sdk';
+import { WorkspaceNavigationProvider } from '@work-agent/sdk';
 import { log } from '@/utils/logger';
 
 export interface AgentWorkspaceProps {
@@ -97,19 +97,20 @@ export function WorkspaceRenderer({
         />
       )}
       {workspace?.tabs ? (
-        // Render all tabs, hide inactive ones
+        // Only mount the active tab to avoid duplicate data fetching
         workspace.tabs.map(tab => {
-          const Component = resolveWorkspaceComponent(tab.component);
           const isActive = tab.id === activeTabId;
+          if (!isActive) return null;
+          const Component = resolveWorkspaceComponent(tab.component);
           return (
             <div 
               key={tab.id} 
-              className={`workspace-tab-content ${!isActive ? 'hidden' : ''}`}
+              className="workspace-tab-content"
             >
               <Component 
                 key={`${tab.id}-${refreshKey}`}
                 workspace={workspace} 
-                activeTab={isActive ? tab : undefined} 
+                activeTab={tab} 
                 onLaunchPrompt={onLaunchPrompt} 
                 {...props} 
               />
