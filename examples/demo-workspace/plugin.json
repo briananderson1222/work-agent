@@ -1,0 +1,21 @@
+{
+  "name": "demo-workspace",
+  "version": "1.0.0",
+  "type": "workspace",
+  "sdkVersion": "^0.4.0",
+  "displayName": "Demo Workspace",
+  "description": "A demo workspace showing Work Agent capabilities — no external dependencies",
+  "entrypoint": "src/index.tsx",
+  "capabilities": ["chat", "navigation"],
+  "permissions": ["navigation.dock"],
+  "agents": [
+    {
+      "slug": "assistant",
+      "source": "./agents/assistant/agent.json"
+    }
+  ],
+  "workspace": {
+    "slug": "demo",
+    "source": "./workspace.json"
+  }
+}

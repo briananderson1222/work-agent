@@ -1,0 +1,17 @@
+{
+  "name": "demo-workspace",
+  "version": "1.0.0",
+  "description": "Demo workspace plugin for Work Agent",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "react": "^19.0.0"
+  },
+  "peerDependencies": {
+    "@work-agent/sdk": "^0.3.0",
+    "react": "^18.0.0 || ^19.0.0"
+  }
+}

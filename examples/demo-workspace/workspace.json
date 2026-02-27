@@ -1,0 +1,27 @@
+{
+  "name": "Demo",
+  "slug": "demo",
+  "icon": "🚀",
+  "description": "A demo workspace showing Work Agent capabilities",
+  "availableAgents": ["demo-workspace:assistant"],
+  "defaultAgent": "demo-workspace:assistant",
+  "tabs": [
+    {
+      "id": "welcome",
+      "label": "Welcome",
+      "component": "demo-workspace-welcome"
+    },
+    {
+      "id": "notes",
+      "label": "Notes",
+      "component": "demo-workspace-notes"
+    }
+  ],
+  "globalPrompts": [
+    {
+      "id": "hello",
+      "label": "Say Hello",
+      "prompt": "Hello! What can you help me with today?"
+    }
+  ]
+}
