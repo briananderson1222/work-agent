@@ -21,6 +21,7 @@
     "start:ui": "npx serve dist-ui",
     "cli": "tsx ./src-server/cli.ts",
     "test": "vitest",
+    "test:android": "playwright test --project=android",
     "lint": "biome lint src-server/ src-ui/ packages/",
     "lint:fix": "biome check --fix src-server/ src-ui/ packages/",
     "clean": "rm -rf dist-server dist-ui dist-desktop && cd src-desktop && cargo clean",
@@ -78,6 +79,7 @@
     "tsx": "^4.19.3",
     "typescript": "^5.9.3",
     "vite": "^7.1.11",
-    "vitest": "^1.2.0"
+    "vitest": "^1.2.0",
+    "wait-on": "^8.0.0"
   }
 }

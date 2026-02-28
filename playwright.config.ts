@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
@@ -7,5 +7,19 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     headless: true,
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+  projects: [
+    {
+      name: 'chromium',
+      testIgnore: '**/android/**',
+      use: { browserName: 'chromium' },
+    },
+    {
+      name: 'android',
+      testDir: './tests/android',
+      use: {
+        ...devices['Pixel 7'],
+        browserName: 'chromium',
+      },
+    },
+  ],
 });
