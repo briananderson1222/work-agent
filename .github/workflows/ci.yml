@@ -23,6 +23,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Build SDK
+        run: cd packages/sdk && npm run build
+
       - name: Typecheck
         run: npx tsc --noEmit --skipLibCheck
 
@@ -31,9 +34,6 @@ jobs:
 
       - name: Build UI
         run: npm run build:ui
-
-      - name: Build SDK
-        run: cd packages/sdk && npm run build
 
       - name: Unit tests
         run: npm test -- --run
