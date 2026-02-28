@@ -14,6 +14,7 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { pluginRegistry } from '../core/PluginRegistry';
 import { SDKAdapter } from '../core/SDKAdapter';
+import { useBranding } from '../hooks/useBranding';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { WorkspaceRenderer } from '../workspaces';
 
@@ -250,13 +251,14 @@ export function WorkspaceView() {
 
 function EmptyWorkspaceOnboarding() {
   const { navigate } = useNavigation();
+  const { appName, welcomeMessage } = useBranding();
 
   return (
     <div className="workspace-onboarding">
       <div className="workspace-onboarding__inner">
         <img src="/favicon.png" alt="" className="workspace-onboarding__icon" />
         <h2 className="workspace-onboarding__title">
-          Welcome to Project Stallion
+          {welcomeMessage || `Welcome to ${appName}`}
         </h2>
         <p className="workspace-onboarding__desc">
           Workspaces give you a custom dashboard with tabs, agents, and tools.

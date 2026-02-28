@@ -14,6 +14,12 @@ import { join } from 'node:path';
 
 // ── Plugin Manifest ────────────────────────────────────────────────
 
+export interface PluginProviderEntry {
+  type: string;
+  module: string;
+  workspace?: string;
+}
+
 export interface PluginManifest {
   name: string;
   version: string;
@@ -26,9 +32,16 @@ export interface PluginManifest {
   permissions?: string[];
   agents?: Array<{ slug: string; source: string }>;
   workspace?: { slug: string; source: string };
-  providers?: Array<{ type: string; module: string }>;
+  workspaces?: Array<{ slug: string; source: string }>;
+  providers?: PluginProviderEntry[];
   tools?: { required?: string[] };
 }
+
+export interface PluginOverrideConfig {
+  disabled?: string[];
+}
+
+export type PluginOverrides = Record<string, PluginOverrideConfig>;
 
 // ── Agent ──────────────────────────────────────────────────────────
 

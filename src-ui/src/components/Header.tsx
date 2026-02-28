@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
+import { useBranding } from '../hooks/useBranding';
 import type { NavigationView } from '../types';
 import { getInitials } from '../utils/workspace';
 import { NotificationHistory } from './NotificationHistory';
@@ -29,6 +30,7 @@ export function Header({
 }: HeaderProps) {
   const settingsShortcut = useShortcutDisplay('app.settings');
   const { user: authUser } = useAuth();
+  const { appName } = useBranding();
   const userName = authUser?.name || authUser?.alias || 'User';
   const userInitials = getInitials(userName);
   const [showWorkspaceAutocomplete, setShowWorkspaceAutocomplete] =
@@ -83,7 +85,7 @@ export function Header({
             color: 'var(--text-primary)',
           }}
         >
-          Project Stallion
+          {appName}
         </div>
       </div>
 

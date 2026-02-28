@@ -9,8 +9,10 @@ import type {
   AuthStatus,
   IAgentRegistryProvider,
   IAuthProvider,
+  IBrandingProvider,
   InstallResult,
   IOnboardingProvider,
+  ISettingsProvider,
   IToolRegistryProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
@@ -117,5 +119,30 @@ export class DefaultOnboardingProvider implements IOnboardingProvider {
         }),
       },
     ];
+  }
+}
+
+// ── Branding Default ───────────────────────────────────
+
+export class DefaultBrandingProvider implements IBrandingProvider {
+  async getAppName(): Promise<string> {
+    return 'Work Agent';
+  }
+  async getLogo() {
+    return null;
+  }
+  async getTheme() {
+    return null;
+  }
+  async getWelcomeMessage() {
+    return null;
+  }
+}
+
+// ── Settings Default ───────────────────────────────────
+
+export class DefaultSettingsProvider implements ISettingsProvider {
+  async getDefaults() {
+    return {};
   }
 }

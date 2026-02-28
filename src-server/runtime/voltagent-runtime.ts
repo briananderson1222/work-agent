@@ -78,6 +78,7 @@ import { createAgentRoutes } from '../routes/agents.js';
 import { createAnalyticsRoutes } from '../routes/analytics.js';
 import { createAuthRoutes, createUserRoutes } from '../routes/auth.js';
 import { createBedrockRoutes } from '../routes/bedrock.js';
+import { createBrandingRoutes } from '../routes/branding.js';
 import { createConfigRoutes } from '../routes/config.js';
 import { createConversationRoutes } from '../routes/conversations.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
@@ -920,6 +921,7 @@ export class WorkAgentRuntime {
               this.logger,
             ),
           );
+          app.route('/api/branding', createBrandingRoutes());
           app.route(
             '/monitoring',
             createMonitoringRoutes({
@@ -2631,14 +2633,15 @@ export class WorkAgentRuntime {
   /**
    * Replace template variables in prompts
    */
-  /**
-   * Load providers declared in installed plugin manifests
-   */
   private async loadPluginProviders(): Promise<void> {
     const pluginsDir = join(this.configLoader.getWorkAgentDir(), 'plugins');
     if (!existsSync(pluginsDir)) return;
 
+    const { resolvePluginProviders } = await import('../providers/resolver.js');
     const {
+      registerProvider,
+      registerBrandingProvider,
+      registerSettingsProvider,
       registerAuthProvider,
       registerUserIdentityProvider,
       registerUserDirectoryProvider,
@@ -2647,68 +2650,42 @@ export class WorkAgentRuntime {
       registerOnboardingProvider,
     } = await import('../providers/registry.js');
 
-    try {
-      const entries = await readdir(pluginsDir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        const manifestPath = join(pluginsDir, entry.name, 'plugin.json');
-        if (!existsSync(manifestPath)) continue;
+    const overrides = await this.configLoader.loadPluginOverrides();
+    const { resolved, conflicts } = resolvePluginProviders(pluginsDir, overrides);
 
-        try {
-          const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
-          if (!manifest.providers || !Array.isArray(manifest.providers))
-            continue;
-
-          for (const p of manifest.providers) {
-            const modulePath = join(pluginsDir, entry.name, p.module);
-            if (!existsSync(modulePath)) {
-              this.logger.warn('Plugin provider module not found', {
-                plugin: entry.name,
-                module: p.module,
-              });
-              continue;
-            }
-            try {
-              const mod = await import(modulePath);
-              const factory = mod.default || mod;
-              const instance =
-                typeof factory === 'function' ? factory() : factory;
-
-              if (p.type === 'auth') registerAuthProvider(instance);
-              else if (p.type === 'userIdentity')
-                registerUserIdentityProvider(instance);
-              else if (p.type === 'userDirectory')
-                registerUserDirectoryProvider(instance);
-              else if (p.type === 'agentRegistry')
-                registerAgentRegistryProvider(instance);
-              else if (p.type === 'toolRegistry')
-                registerToolRegistryProvider(instance);
-              else if (p.type === 'onboarding')
-                registerOnboardingProvider(instance, manifest.displayName || entry.name);
-
-              this.logger.info('Registered plugin provider', {
-                plugin: entry.name,
-                type: p.type,
-              });
-            } catch (e: any) {
-              this.logger.error('Failed to load plugin provider', {
-                plugin: entry.name,
-                type: p.type,
-                error: e.message,
-              });
-            }
-          }
-        } catch (e: any) {
-          this.logger.error('Failed to read plugin manifest', {
-            plugin: entry.name,
-            error: e.message,
-          });
-        }
-      }
-    } catch (e: any) {
-      this.logger.error('Failed to scan plugins directory', {
-        error: e.message,
+    for (const conflict of conflicts) {
+      this.logger.warn('Provider conflict — multiple plugins provide singleton type', {
+        type: conflict.type,
+        workspace: conflict.workspace,
+        candidates: conflict.candidates,
       });
+    }
+
+    for (const entry of resolved) {
+      const modulePath = join(pluginsDir, entry.pluginName, entry.module);
+      if (!existsSync(modulePath)) {
+        this.logger.warn('Plugin provider module not found', { plugin: entry.pluginName, module: entry.module });
+        continue;
+      }
+      try {
+        const mod = await import(modulePath);
+        const factory = mod.default || mod;
+        const instance = typeof factory === 'function' ? factory() : factory;
+
+        if (entry.type === 'auth') registerAuthProvider(instance);
+        else if (entry.type === 'userIdentity') registerUserIdentityProvider(instance);
+        else if (entry.type === 'userDirectory') registerUserDirectoryProvider(instance);
+        else if (entry.type === 'agentRegistry') registerAgentRegistryProvider(instance);
+        else if (entry.type === 'toolRegistry') registerToolRegistryProvider(instance);
+        else if (entry.type === 'onboarding') registerOnboardingProvider(instance, entry.pluginName);
+        else if (entry.type === 'branding') registerBrandingProvider(instance);
+        else if (entry.type === 'settings') registerSettingsProvider(instance);
+        else registerProvider(entry.type, instance, { workspace: entry.workspace, source: entry.pluginName });
+
+        this.logger.info('Registered plugin provider', { plugin: entry.pluginName, type: entry.type });
+      } catch (e: any) {
+        this.logger.error('Failed to load plugin provider', { plugin: entry.pluginName, type: entry.type, error: e.message });
+      }
     }
   }
 

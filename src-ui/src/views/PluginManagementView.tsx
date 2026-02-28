@@ -14,6 +14,7 @@ interface Plugin {
   workspace?: { slug: string };
   agents?: Array<{ slug: string }>;
   providers?: Array<{ type: string }>;
+  providerDetails?: Array<{ type: string; module: string; workspace: string | null; enabled: boolean }>;
   git?: { hash: string; branch: string; remote?: string };
   permissions?: { declared: string[]; granted: string[]; missing: Array<{ permission: string; tier: 'passive' | 'active' | 'trusted' }> };
 }
@@ -151,6 +152,7 @@ export function PluginManagementView() {
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
   const [showRegistry, setShowRegistry] = useState(false);
   const [toolFilter, setToolFilter] = useState('');
+  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
 
   const fetchPlugins = useCallback(async () => {
     try {
@@ -178,6 +180,31 @@ export function PluginManagementView() {
       setUpdates(data.updates || []);
     } catch { /* ignore */ }
   }, [apiBase]);
+
+  const fetchProviderDetails = useCallback(async (name: string) => {
+    try {
+      const res = await fetch(`${apiBase}/api/plugins/${encodeURIComponent(name)}/providers`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setPlugins(prev => prev.map(p => p.name === name ? { ...p, providerDetails: data.providers } : p));
+    } catch { /* ignore */ }
+  }, [apiBase]);
+
+  const toggleProvider = useCallback(async (pluginName: string, providerType: string, currentlyEnabled: boolean) => {
+    const plugin = plugins.find(p => p.name === pluginName);
+    if (!plugin?.providerDetails) return;
+    const disabled = plugin.providerDetails
+      .filter(p => p.type === providerType ? currentlyEnabled : !p.enabled)
+      .map(p => p.type);
+    try {
+      await fetch(`${apiBase}/api/plugins/${encodeURIComponent(pluginName)}/overrides`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disabled }),
+      });
+      fetchProviderDetails(pluginName);
+    } catch { /* ignore */ }
+  }, [apiBase, plugins, fetchProviderDetails]);
 
   useEffect(() => { fetchPlugins(); fetchTools(); fetchUpdates(); }, [fetchPlugins, fetchTools, fetchUpdates]);
 
@@ -324,6 +351,40 @@ export function PluginManagementView() {
                         <button className="plugins__btn plugins__btn--remove" onClick={() => setRemoveConfirm(p.name)}>Remove</button>
                       </div>
                     </div>
+                    {p.providers && p.providers.length > 0 && (
+                      <div className="plugins__providers">
+                        <button
+                          className="plugins__providers-toggle"
+                          onClick={() => {
+                            const next = new Set(expandedProviders);
+                            if (next.has(p.name)) next.delete(p.name);
+                            else { next.add(p.name); fetchProviderDetails(p.name); }
+                            setExpandedProviders(next);
+                          }}
+                        >
+                          <span style={{ transform: expandedProviders.has(p.name) ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}>▶</span>
+                          {' '}Providers ({p.providers.length})
+                        </button>
+                        {expandedProviders.has(p.name) && p.providerDetails && (
+                          <div className="plugins__providers-list">
+                            {p.providerDetails.map(pr => (
+                              <div key={pr.type} className="plugins__provider-row">
+                                <span className="plugins__cap plugins__cap--provider">{pr.type}</span>
+                                {pr.workspace && <span className="plugins__provider-scope">{pr.workspace}</span>}
+                                <label className="plugins__provider-toggle">
+                                  <input
+                                    type="checkbox"
+                                    checked={pr.enabled}
+                                    onChange={() => toggleProvider(p.name, pr.type, pr.enabled)}
+                                  />
+                                  {pr.enabled ? 'Enabled' : 'Disabled'}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

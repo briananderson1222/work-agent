@@ -554,6 +554,50 @@ export function createPluginRoutes(
     }
   });
 
+  // ── Plugin Provider Overrides ─────────────────────────
+
+  app.get('/:name/providers', async (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const pluginDir = join(pluginsDir, name);
+    const manifestPath = join(pluginDir, 'plugin.json');
+    if (!existsSync(manifestPath))
+      return c.json({ error: 'Plugin not found' }, 404);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    const { ConfigLoader } = await import('../domain/config-loader.js');
+    const configLoader = new ConfigLoader({ workAgentDir });
+    const overrides = await configLoader.loadPluginOverrides();
+    const disabled = overrides[manifest.name || name]?.disabled ?? [];
+
+    const providers = (manifest.providers || []).map((p: any) => ({
+      type: p.type,
+      module: p.module,
+      workspace: p.workspace ?? null,
+      enabled: !disabled.includes(p.type),
+    }));
+
+    return c.json({ providers });
+  });
+
+  app.get('/:name/overrides', async (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const { ConfigLoader } = await import('../domain/config-loader.js');
+    const configLoader = new ConfigLoader({ workAgentDir });
+    const overrides = await configLoader.loadPluginOverrides();
+    return c.json(overrides[name] ?? {});
+  });
+
+  app.put('/:name/overrides', async (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const body = await c.req.json();
+    const { ConfigLoader } = await import('../domain/config-loader.js');
+    const configLoader = new ConfigLoader({ workAgentDir });
+    const overrides = await configLoader.loadPluginOverrides();
+    overrides[name] = { disabled: body.disabled || [] };
+    await configLoader.savePluginOverrides(overrides);
+    return c.json({ success: true });
+  });
+
   return app;
 }
 
@@ -610,6 +654,9 @@ async function loadProviders(
   if (!manifest.providers) return 0;
 
   const {
+    registerProvider,
+    registerBrandingProvider,
+    registerSettingsProvider,
     registerAuthProvider,
     registerUserIdentityProvider,
     registerUserDirectoryProvider,
@@ -630,23 +677,18 @@ async function loadProviders(
       const instance = typeof factory === 'function' ? factory() : factory;
 
       if (p.type === 'auth') registerAuthProvider(instance);
-      else if (p.type === 'userIdentity')
-        registerUserIdentityProvider(instance);
-      else if (p.type === 'userDirectory')
-        registerUserDirectoryProvider(instance);
-      else if (p.type === 'agentRegistry')
-        registerAgentRegistryProvider(instance);
-      else if (p.type === 'toolRegistry')
-        registerToolRegistryProvider(instance);
+      else if (p.type === 'userIdentity') registerUserIdentityProvider(instance);
+      else if (p.type === 'userDirectory') registerUserDirectoryProvider(instance);
+      else if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
+      else if (p.type === 'toolRegistry') registerToolRegistryProvider(instance);
       else if (p.type === 'onboarding') registerOnboardingProvider(instance, manifest.displayName || pluginName);
+      else if (p.type === 'branding') registerBrandingProvider(instance);
+      else if (p.type === 'settings') registerSettingsProvider(instance);
+      else registerProvider(p.type, instance, { workspace: p.workspace, source: pluginName });
 
       loaded++;
     } catch (e: any) {
-      logger.error('Failed to load provider', {
-        plugin: pluginName,
-        type: p.type,
-        error: e.message,
-      });
+      logger.error('Failed to load provider', { plugin: pluginName, type: p.type, error: e.message });
     }
   }
 

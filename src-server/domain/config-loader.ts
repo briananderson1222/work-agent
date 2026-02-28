@@ -14,6 +14,7 @@ import {
 import { basename, extname, join, resolve } from 'node:path';
 import { createPinoLogger } from '@voltagent/logger';
 import { type FSWatcher, watch } from 'chokidar';
+import type { PluginOverrides } from '@work-agent/shared';
 import type {
   ACPConfig,
   AgentMetadata,
@@ -94,6 +95,29 @@ export class ConfigLoader {
     const path = join(this.workAgentDir, 'config', 'app.json');
     await mkdir(join(this.workAgentDir, 'config'), { recursive: true });
     await writeFile(path, JSON.stringify(config, null, 2), 'utf-8');
+  }
+
+  /**
+   * Load plugin provider overrides
+   */
+  async loadPluginOverrides(): Promise<PluginOverrides> {
+    const path = join(this.workAgentDir, 'config', 'plugin-overrides.json');
+    if (!existsSync(path)) return {};
+    const content = await readFile(path, 'utf-8');
+    return JSON.parse(content);
+  }
+
+  /**
+   * Save plugin provider overrides
+   */
+  async savePluginOverrides(overrides: PluginOverrides): Promise<void> {
+    const configDir = join(this.workAgentDir, 'config');
+    await mkdir(configDir, { recursive: true });
+    await writeFile(
+      join(configDir, 'plugin-overrides.json'),
+      JSON.stringify(overrides, null, 2),
+      'utf-8',
+    );
   }
 
   /**

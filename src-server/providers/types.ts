@@ -4,6 +4,7 @@
  */
 
 import type { ToolDef } from '../domain/types.js';
+import type { AppConfig } from '../domain/types.js';
 
 // ── Package Registry Providers ─────────────────────────
 
@@ -114,3 +115,33 @@ export interface Prerequisite {
 export interface IOnboardingProvider {
   getPrerequisites(): Promise<Prerequisite[]>;
 }
+
+// ── Branding Provider ──────────────────────────────────
+
+export interface IBrandingProvider {
+  getAppName(): Promise<string>;
+  getLogo?(): Promise<{ src: string; alt?: string } | null>;
+  getTheme?(): Promise<Record<string, string> | null>;
+  getWelcomeMessage?(): Promise<string | null>;
+}
+
+// ── Settings Provider ──────────────────────────────────
+
+export interface ISettingsProvider {
+  getDefaults(): Promise<Partial<AppConfig>>;
+}
+
+// ── Provider Cardinality Metadata ──────────────────────
+
+export type ProviderCardinality = 'singleton' | 'additive';
+
+export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
+  auth: 'singleton',
+  userIdentity: 'singleton',
+  userDirectory: 'singleton',
+  branding: 'singleton',
+  settings: 'singleton',
+  agentRegistry: 'additive',
+  toolRegistry: 'additive',
+  onboarding: 'additive',
+};

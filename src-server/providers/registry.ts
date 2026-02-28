@@ -1,10 +1,12 @@
 /**
- * Provider registry — register/get pattern with lazy default fallback
+ * Provider registry — generic workspace-scoped store with backward-compat wrappers
  */
 
 import {
   DefaultAgentRegistryProvider,
   DefaultAuthProvider,
+  DefaultBrandingProvider,
+  DefaultSettingsProvider,
   DefaultToolRegistryProvider,
   DefaultUserDirectoryProvider,
   DefaultUserIdentityProvider,
@@ -12,96 +14,147 @@ import {
 import type {
   IAgentRegistryProvider,
   IAuthProvider,
+  IBrandingProvider,
+  IOnboardingProvider,
+  ISettingsProvider,
   IToolRegistryProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
 } from './types.js';
 
-let authProvider: IAuthProvider | null = null;
-let userIdentityProvider: IUserIdentityProvider | null = null;
-let userDirectoryProvider: IUserDirectoryProvider | null = null;
-let agentRegistryProvider: IAgentRegistryProvider | null = null;
-let toolRegistryProvider: IToolRegistryProvider | null = null;
+// ── Generic Store ──────────────────────────────────────
+
+interface ProviderEntry {
+  provider: any;
+  source: string;
+}
+
+// type -> workspace -> entry  (workspace '*' = global)
+const store = new Map<string, Map<string, ProviderEntry>>();
+
+// additive types store arrays
+const additiveStore = new Map<string, ProviderEntry[]>();
+
+export function registerProvider(
+  type: string,
+  provider: any,
+  opts?: { workspace?: string; source?: string },
+): void {
+  const ws = opts?.workspace ?? '*';
+  const source = opts?.source ?? 'unknown';
+  // For additive types, push to array
+  if (type === 'onboarding' || type === 'agentRegistry' || type === 'toolRegistry') {
+    if (!additiveStore.has(type)) additiveStore.set(type, []);
+    additiveStore.get(type)!.push({ provider, source });
+    return;
+  }
+  // Singleton types
+  if (!store.has(type)) store.set(type, new Map());
+  store.get(type)!.set(ws, { provider, source });
+}
+
+export function getProvider<T>(type: string, workspace?: string): T | null {
+  const typeMap = store.get(type);
+  if (!typeMap) return null;
+  if (workspace) {
+    const wsEntry = typeMap.get(workspace);
+    if (wsEntry) return wsEntry.provider as T;
+  }
+  const globalEntry = typeMap.get('*');
+  return globalEntry ? (globalEntry.provider as T) : null;
+}
+
+export function listProviders(type: string): ProviderEntry[] {
+  // Check additive store first
+  const additive = additiveStore.get(type);
+  if (additive) return additive;
+  // Singleton: collect all workspace entries
+  const typeMap = store.get(type);
+  if (!typeMap) return [];
+  return Array.from(typeMap.values());
+}
 
 // ── Auth ───────────────────────────────────────────────
 
 export function registerAuthProvider(provider: IAuthProvider) {
-  authProvider = provider;
+  registerProvider('auth', provider);
 }
 
 export function getAuthProvider(): IAuthProvider {
-  return authProvider ?? (authProvider = new DefaultAuthProvider());
+  return getProvider<IAuthProvider>('auth') ?? new DefaultAuthProvider();
 }
 
 // ── User Identity ──────────────────────────────────────
 
 export function registerUserIdentityProvider(provider: IUserIdentityProvider) {
-  userIdentityProvider = provider;
+  registerProvider('userIdentity', provider);
 }
 
 export function getUserIdentityProvider(): IUserIdentityProvider {
-  return (
-    userIdentityProvider ??
-    (userIdentityProvider = new DefaultUserIdentityProvider())
-  );
+  return getProvider<IUserIdentityProvider>('userIdentity') ?? new DefaultUserIdentityProvider();
 }
 
 // ── User Directory ─────────────────────────────────────
 
-export function registerUserDirectoryProvider(
-  provider: IUserDirectoryProvider,
-) {
-  userDirectoryProvider = provider;
+export function registerUserDirectoryProvider(provider: IUserDirectoryProvider) {
+  registerProvider('userDirectory', provider);
 }
 
 export function getUserDirectoryProvider(): IUserDirectoryProvider {
-  return (
-    userDirectoryProvider ??
-    (userDirectoryProvider = new DefaultUserDirectoryProvider())
-  );
+  return getProvider<IUserDirectoryProvider>('userDirectory') ?? new DefaultUserDirectoryProvider();
 }
 
 // ── Agent Registry ─────────────────────────────────────
 
-export function registerAgentRegistryProvider(
-  provider: IAgentRegistryProvider,
-) {
-  agentRegistryProvider = provider;
+export function registerAgentRegistryProvider(provider: IAgentRegistryProvider) {
+  registerProvider('agentRegistry', provider);
 }
 
 export function getAgentRegistryProvider(): IAgentRegistryProvider {
-  return (
-    agentRegistryProvider ??
-    (agentRegistryProvider = new DefaultAgentRegistryProvider())
-  );
+  const entries = listProviders('agentRegistry');
+  return entries.length > 0 ? (entries[0].provider as IAgentRegistryProvider) : new DefaultAgentRegistryProvider();
 }
 
 // ── Tool Registry ──────────────────────────────────────
 
 export function registerToolRegistryProvider(provider: IToolRegistryProvider) {
-  toolRegistryProvider = provider;
+  registerProvider('toolRegistry', provider);
 }
 
 export function getToolRegistryProvider(): IToolRegistryProvider {
-  return (
-    toolRegistryProvider ??
-    (toolRegistryProvider = new DefaultToolRegistryProvider())
-  );
+  const entries = listProviders('toolRegistry');
+  return entries.length > 0 ? (entries[0].provider as IToolRegistryProvider) : new DefaultToolRegistryProvider();
 }
 
 // ── Onboarding ─────────────────────────────────────────
-
-import type { IOnboardingProvider } from './types.js';
-
-const onboardingProviders: { provider: IOnboardingProvider; source: string }[] = [];
 
 export function registerOnboardingProvider(
   provider: IOnboardingProvider,
   source = 'Core',
 ): void {
-  onboardingProviders.push({ provider, source });
+  registerProvider('onboarding', provider, { source });
 }
 
 export function getOnboardingProviders(): { provider: IOnboardingProvider; source: string }[] {
-  return onboardingProviders;
+  return listProviders('onboarding') as { provider: IOnboardingProvider; source: string }[];
+}
+
+// ── Branding ───────────────────────────────────────────
+
+export function registerBrandingProvider(provider: IBrandingProvider) {
+  registerProvider('branding', provider);
+}
+
+export function getBrandingProvider(): IBrandingProvider {
+  return getProvider<IBrandingProvider>('branding') ?? new DefaultBrandingProvider();
+}
+
+// ── Settings ───────────────────────────────────────────
+
+export function registerSettingsProvider(provider: ISettingsProvider) {
+  registerProvider('settings', provider);
+}
+
+export function getSettingsProvider(): ISettingsProvider {
+  return getProvider<ISettingsProvider>('settings') ?? new DefaultSettingsProvider();
 }

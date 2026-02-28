@@ -6,11 +6,13 @@
 import { type ReactNode, useState } from 'react';
 import { FullScreenLoader } from '@work-agent/sdk';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useBranding } from '../hooks/useBranding';
 import { useSystemStatus, verifyBedrock } from '../hooks/useSystemStatus';
 
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const { data: status, isLoading } = useSystemStatus();
   const { apiBase } = useApiBase();
+  const { appName, welcomeMessage } = useBranding();
   const [path, setPath] = useState<'bedrock' | 'acp' | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{
@@ -56,7 +58,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
             style={{ width: 56, height: 56, marginBottom: 16 }}
           />
           <h1 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 600 }}>
-            Welcome to Project Stallion
+            {welcomeMessage || `Welcome to ${appName}`}
           </h1>
           <p
             style={{
