@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit --skipLibCheck
+
+      - name: Build server
+        run: npm run build:server
+
+      - name: Build UI
+        run: npm run build:ui
+
+      - name: Build SDK
+        run: cd packages/sdk && npm run build
+
+      - name: Unit tests
+        run: npm test -- --run
+
+  integration:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Run integration tests
+        run: |
+          PORT=3142 node dist-server/index.js &
+          sleep 5
+          VITE_API_BASE=http://localhost:3142 npx playwright test tests/plugin-system.spec.ts --reporter=list
+        env:
+          CI: true

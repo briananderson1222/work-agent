@@ -1,0 +1,88 @@
+name: Update Manifest
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to generate manifest for'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  generate-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate update manifest
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.payload.release?.tag_name || '${{ github.event.inputs.tag }}';
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag,
+            });
+
+            const assets = release.data.assets;
+            const manifest = {
+              version: tag.replace('v', ''),
+              notes: release.data.body || '',
+              pub_date: release.data.published_at,
+              platforms: {},
+            };
+
+            for (const asset of assets) {
+              if (!asset.name.endsWith('.sig')) continue;
+
+              const sigResponse = await github.request('GET ' + asset.url, {
+                headers: { Accept: 'application/octet-stream' },
+              });
+              const signature = Buffer.from(sigResponse.data).toString('utf-8');
+              const bundleName = asset.name.replace('.sig', '');
+              const bundleAsset = assets.find(a => a.name === bundleName);
+              if (!bundleAsset) continue;
+
+              let platformKey = null;
+              if (bundleName.includes('aarch64') && bundleName.endsWith('.app.tar.gz')) {
+                platformKey = 'darwin-aarch64';
+              } else if (bundleName.includes('x86_64') && bundleName.endsWith('.app.tar.gz')) {
+                platformKey = 'darwin-x86_64';
+              } else if (bundleName.endsWith('.AppImage.tar.gz')) {
+                platformKey = 'linux-x86_64';
+              } else if (bundleName.endsWith('.msi.zip')) {
+                platformKey = 'windows-x86_64';
+              }
+
+              if (platformKey) {
+                manifest.platforms[platformKey] = {
+                  signature,
+                  url: bundleAsset.browser_download_url,
+                };
+              }
+            }
+
+            const fs = require('fs');
+            fs.mkdirSync('updates', { recursive: true });
+            fs.writeFileSync('updates/update-manifest.json', JSON.stringify(manifest, null, 2));
+            core.info('Generated manifest: ' + JSON.stringify(manifest, null, 2));
+
+      - name: Upload manifest to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+          files: updates/update-manifest.json
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./updates
+          publish_branch: gh-pages
+          keep_files: true
+          destination_dir: updates
