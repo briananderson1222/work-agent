@@ -24,6 +24,7 @@
     "lint": "biome lint src-server/ src-ui/ packages/",
     "lint:fix": "biome check --fix src-server/ src-ui/ packages/",
     "clean": "rm -rf dist-server dist-ui dist-desktop && cd src-desktop && cargo clean",
+    "tauri": "tauri",
     "volt": "volt",
     "changeset": "changeset",
     "version-packages": "changeset version",
