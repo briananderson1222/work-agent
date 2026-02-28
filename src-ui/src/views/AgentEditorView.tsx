@@ -103,7 +103,7 @@ export function AgentEditorView({
       loadAgent(slug);
     }
     loadTools();
-  }, [slug, loadAgent, loadTools]);
+  }, [slug]); // eslint-disable-line
 
   const loadAgent = async (agentSlug: string) => {
     try {

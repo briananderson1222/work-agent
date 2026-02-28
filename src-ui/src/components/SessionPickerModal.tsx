@@ -42,7 +42,7 @@ export function SessionPickerModal({
     if (isOpen) {
       loadConversations();
     }
-  }, [isOpen, loadConversations]);
+  }, [isOpen]); // eslint-disable-line
 
   const loadConversations = async () => {
     setLoading(true);

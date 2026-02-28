@@ -26,6 +26,7 @@ type NavigationState = {
 class NavigationStore {
   private state: NavigationState;
   private listeners = new Set<() => void>();
+  private isNavigating = false;
 
   constructor() {
     this.state = this.parseUrl();
@@ -139,6 +140,9 @@ class NavigationStore {
 
   // Navigation methods
   navigate(pathname: string, params?: Record<string, string | null>) {
+    if (this.isNavigating) return;
+    this.isNavigating = true;
+
     const url = new URL(window.location.href);
     const currentHash = url.hash; // Preserve the hash
     url.pathname = pathname;
@@ -159,6 +163,7 @@ class NavigationStore {
     this.notify();
     // Dispatch popstate so App-level route listener picks up the change
     window.dispatchEvent(new PopStateEvent('popstate'));
+    this.isNavigating = false;
   }
 
   updateParams(params: Record<string, string | null>) {

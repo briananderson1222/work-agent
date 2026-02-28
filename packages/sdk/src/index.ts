@@ -23,7 +23,7 @@ export {
 } from './api';
 export type { AutoSelectItem } from './components';
 // Re-export components
-export { AutoSelectModal, Button, Pill } from './components';
+export { AutoSelectModal, Button, FullScreenLoader, LoadingState, Pill, Spinner } from './components';
 
 // Re-export context hooks
 export {

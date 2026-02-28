@@ -43,7 +43,8 @@ export function WorkspaceEditorView({
   useEffect(() => {
     loadAgents();
     if (slug) loadWorkspace(slug);
-  }, [slug, loadAgents, loadWorkspace]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   // Keyboard shortcuts
   useEffect(() => {

@@ -62,7 +62,7 @@ export function WorkspaceSelector({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, focusedIndex, workspaces, close, handleSelect]);
+  }, [isOpen, focusedIndex, workspaces]); // eslint-disable-line
 
   const handleSelect = (slug: string) => {
     onSelect(slug);

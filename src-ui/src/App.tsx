@@ -121,10 +121,11 @@ function App() {
           ? preferredTabId
           : tabs[0]?.id || '';
 
+      setWorkspace(slug);
       setActiveTabId(validTabId);
       setWorkspaceTab(slug, validTabId);
     }
-  }, [workspaces, setWorkspaceTab]);
+  }, [workspaces, setWorkspace, setWorkspaceTab]);
 
   // Listen for path changes (back/forward navigation)
   useEffect(() => {
@@ -181,6 +182,10 @@ function App() {
       }
 
       // Parse workspace paths from URL (for workspace tab navigation)
+      if (path === '/workspaces') {
+        setCurrentView({ type: 'workspaces' });
+        return;
+      }
       if (path.startsWith('/workspaces/')) {
         const pathParts = path.split('/');
         const workspaceSlug = pathParts[2];
@@ -344,6 +349,56 @@ function App() {
 
   // Auto-scroll to bottom when new messages arrive - handled by ChatDock
 
+  const navigateToView = useCallback((view: NavigationView) => {
+    setCurrentView(view);
+    if (view.type === 'workspace') {
+      if (selectedWorkspace && selectedWorkspace !== 'new') {
+        navigate(`/workspaces/${selectedWorkspace}`);
+      } else {
+        navigate('/');
+      }
+    } else if (view.type === 'workspaces') {
+      navigate('/workspaces');
+    } else if (view.type === 'agents') {
+      navigate('/agents');
+    } else if (view.type === 'prompts') {
+      navigate('/prompts');
+    } else if (view.type === 'plugins') {
+      navigate('/plugins');
+    } else if (view.type === 'profile') {
+      navigate('/profile');
+    } else if (view.type === 'notifications') {
+      navigate('/notifications');
+    } else if (view.type === 'settings') {
+      navigate('/settings');
+    } else if (view.type === 'monitoring') {
+      navigate('/monitoring');
+    } else if (view.type === 'schedule') {
+      navigate('/schedule');
+    } else if (view.type === 'agent-new') {
+      navigate('/agents/new');
+    } else if (view.type === 'agent-edit' && 'slug' in view) {
+      navigate(`/agents/${view.slug}/edit`);
+    } else if (view.type === 'tools' && 'slug' in view) {
+      navigate(`/agents/${view.slug}/tools`);
+    } else if (view.type === 'workflows' && 'slug' in view) {
+      navigate(`/agents/${view.slug}/workflows`);
+    } else if (view.type === 'workspace-new') {
+      navigate('/workspaces/new');
+    } else if (view.type === 'workspace-edit' && 'slug' in view) {
+      navigate(`/workspaces/${view.slug}/edit`);
+    }
+  }, [selectedWorkspace, navigate]);
+
+  const navigateToWorkspace = useCallback(() => {
+    setCurrentView({ type: 'workspace' });
+    if (selectedWorkspace) {
+      navigate(`/workspaces/${selectedWorkspace}`);
+    } else {
+      navigate('/');
+    }
+  }, [selectedWorkspace, navigate]);
+
   // Keyboard shortcuts for navigation (chat shortcuts handled by ChatDock)
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
@@ -442,59 +497,6 @@ function App() {
   const _switchAgent = (slug: string) => {
     setAgent(slug);
     setManagementNotice(null);
-  };
-
-  const navigateToView = (view: NavigationView) => {
-    setCurrentView(view);
-
-    // Update URL based on view type
-    if (view.type === 'workspace') {
-      // Navigate to current workspace or home (ignore synthetic slugs like 'new')
-      if (selectedWorkspace && selectedWorkspace !== 'new') {
-        navigate(`/workspaces/${selectedWorkspace}`);
-      } else {
-        navigate('/');
-      }
-    } else if (view.type === 'workspaces') {
-      navigate('/workspaces');
-    } else if (view.type === 'agents') {
-      navigate('/agents');
-    } else if (view.type === 'prompts') {
-      navigate('/prompts');
-    } else if (view.type === 'plugins') {
-      navigate('/plugins');
-    } else if (view.type === 'profile') {
-      navigate('/profile');
-    } else if (view.type === 'notifications') {
-      navigate('/notifications');
-    } else if (view.type === 'settings') {
-      navigate('/settings');
-    } else if (view.type === 'monitoring') {
-      navigate('/monitoring');
-    } else if (view.type === 'schedule') {
-      navigate('/schedule');
-    } else if (view.type === 'agent-new') {
-      navigate('/agents/new');
-    } else if (view.type === 'agent-edit' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/edit`);
-    } else if (view.type === 'tools' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/tools`);
-    } else if (view.type === 'workflows' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/workflows`);
-    } else if (view.type === 'workspace-new') {
-      navigate('/workspaces/new');
-    } else if (view.type === 'workspace-edit' && 'slug' in view) {
-      navigate(`/workspaces/${view.slug}/edit`);
-    }
-  };
-
-  const navigateToWorkspace = () => {
-    setCurrentView({ type: 'workspace' });
-    if (selectedWorkspace) {
-      navigate(`/workspaces/${selectedWorkspace}`);
-    } else {
-      navigate('/');
-    }
   };
 
   // Stub handlers for legacy calls - ChatDock handles all chat operations

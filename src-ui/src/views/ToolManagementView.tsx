@@ -37,7 +37,7 @@ export function ToolManagementView({
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, []); // eslint-disable-line
 
   const loadData = async () => {
     try {

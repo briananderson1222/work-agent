@@ -4,6 +4,7 @@
  */
 
 import { type ReactNode, useState } from 'react';
+import { FullScreenLoader } from '@work-agent/sdk';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useSystemStatus, verifyBedrock } from '../hooks/useSystemStatus';
 
@@ -19,27 +20,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
 
   // Loading state
   if (isLoading || !status) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          background: 'var(--bg-primary, #0a0a0a)',
-          color: 'var(--text-secondary, #999)',
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <img
-            src="/favicon.png"
-            alt=""
-            style={{ width: 48, height: 48, marginBottom: 16, opacity: 0.7 }}
-          />
-          <div style={{ fontSize: 14 }}>Checking system status…</div>
-        </div>
-      </div>
-    );
+    return <FullScreenLoader message="Checking system status..." />;
   }
 
   // Ready — render the app

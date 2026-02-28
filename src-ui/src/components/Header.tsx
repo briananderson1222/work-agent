@@ -126,7 +126,13 @@ export function Header({
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'workspaces' ? 'is-active' : ''}`}
-            onClick={() => onNavigate({ type: 'workspaces' })}
+            onClick={() => {
+              if (currentView?.type === 'workspaces') {
+                onNavigate({ type: 'workspace' });
+              } else {
+                onNavigate({ type: 'workspaces' });
+              }
+            }}
             title="Workspaces"
           >
             Workspaces

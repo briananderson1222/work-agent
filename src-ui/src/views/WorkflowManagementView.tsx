@@ -47,7 +47,7 @@ export function WorkflowManagementView({
 
   useEffect(() => {
     loadWorkflows();
-  }, [loadWorkflows]);
+  }, []); // eslint-disable-line
 
   const loadWorkflows = async () => {
     try {
