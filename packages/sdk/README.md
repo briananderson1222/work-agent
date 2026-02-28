@@ -1,11 +1,11 @@
-# @stallion-ai/sdk
+# @work-agent/sdk
 
 SDK for building Work Agent workspace plugins with consistent UI components and API access.
 
 ## Installation
 
 ```bash
-npm install @stallion-ai/sdk
+npm install @work-agent/sdk
 ```
 
 ## UI Components
@@ -15,7 +15,7 @@ The SDK provides pre-built, theme-aware components for consistent styling across
 ### Button
 
 ```tsx
-import { Button } from '@stallion-ai/sdk';
+import { Button } from '@work-agent/sdk';
 
 function MyComponent() {
   return (
@@ -49,7 +49,7 @@ function MyComponent() {
 ### Pill
 
 ```tsx
-import { Pill } from '@stallion-ai/sdk';
+import { Pill } from '@work-agent/sdk';
 
 function MyComponent() {
   return (
@@ -86,7 +86,7 @@ function MyComponent() {
 ### Agent Management
 
 ```tsx
-import { useAgents, useAgent } from '@stallion-ai/sdk';
+import { useAgents, useAgent } from '@work-agent/sdk';
 
 const agents = useAgents();
 const agent = useAgent('my-agent');
@@ -95,7 +95,7 @@ const agent = useAgent('my-agent');
 ### Chat Operations
 
 ```tsx
-import { useSendMessage, useCreateChatSession } from '@stallion-ai/sdk';
+import { useSendMessage, useCreateChatSession } from '@work-agent/sdk';
 
 const sendMessage = useSendMessage();
 const createSession = useCreateChatSession();
@@ -110,7 +110,7 @@ createSession('my-agent');
 ### Navigation
 
 ```tsx
-import { useNavigation, useDockState } from '@stallion-ai/sdk';
+import { useNavigation, useDockState } from '@work-agent/sdk';
 
 const { setDockState } = useNavigation();
 const [isDockOpen] = useDockState();
@@ -122,7 +122,7 @@ setDockState(true);
 ### Notifications
 
 ```tsx
-import { useToast, useNotifications } from '@stallion-ai/sdk';
+import { useToast, useNotifications } from '@work-agent/sdk';
 
 const { showToast } = useToast();
 const { notify } = useNotifications();
@@ -134,7 +134,7 @@ notify({ title: 'New message', message: 'You have a new message' });
 ### Tool Invocation
 
 ```tsx
-import { transformTool, invokeAgent } from '@stallion-ai/sdk';
+import { transformTool, invokeAgent } from '@work-agent/sdk';
 
 // Transform tool output
 const result = await transformTool(
@@ -151,7 +151,7 @@ const response = await invokeAgent('my-agent', 'Do something');
 ## Workspace Navigation
 
 ```tsx
-import { useWorkspaceNavigation } from '@stallion-ai/sdk';
+import { useWorkspaceNavigation } from '@work-agent/sdk';
 
 const { getTabState, setTabState } = useWorkspaceNavigation();
 

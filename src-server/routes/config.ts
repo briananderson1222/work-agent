@@ -4,8 +4,9 @@
 
 import { Hono } from 'hono';
 import type { ConfigLoader } from '../domain/config-loader.js';
+import type { EventBus } from '../services/event-bus.js';
 
-export function createConfigRoutes(configLoader: ConfigLoader, logger: any) {
+export function createConfigRoutes(configLoader: ConfigLoader, logger: any, eventBus?: EventBus) {
   const app = new Hono();
 
   // Get app config
@@ -25,6 +26,7 @@ export function createConfigRoutes(configLoader: ConfigLoader, logger: any) {
       const updates = await c.req.json();
       const updated = await configLoader.updateAppConfig(updates);
       logger.info('App config updated', { config: updated });
+      eventBus?.emit('system:status-changed', { source: 'config' });
       return c.json({ success: true, data: updated });
     } catch (error: any) {
       logger.error('Failed to update app config', { error });

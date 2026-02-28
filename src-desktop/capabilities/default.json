@@ -6,16 +6,6 @@
   "permissions": [
     "core:default",
     "shell:allow-open",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "mwinit",
-          "cmd": "mwinit",
-          "args": ["-f"],
-          "sidecar": false
-        }
-      ]
-    }
+    "shell:allow-execute"
   ]
 }

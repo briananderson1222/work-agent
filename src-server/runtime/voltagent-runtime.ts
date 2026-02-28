@@ -33,6 +33,8 @@ import { ToolCallHandler } from './streaming/handlers/ToolCallHandler.js';
 import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';
 import { MetadataHandler } from './streaming/handlers/MetadataHandler.js';
 import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
+import { EventBus } from '../services/event-bus.js';
+import { createEventRoutes } from '../routes/events.js';
 
 // Type extensions for VoltAgent SDK
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
@@ -84,8 +86,13 @@ import { createMonitoringRoutes } from '../routes/monitoring.js';
 import { createConversationRoutes } from '../routes/conversations.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { SchedulerService } from '../services/scheduler-service.js';
-import { createAuthRoutes } from '../routes/auth.js';
+import { createAuthRoutes, createUserRoutes } from '../routes/auth.js';
+import { createPluginRoutes } from '../routes/plugins.js';
+import { createRegistryRoutes } from '../routes/registry.js';
+import { createSystemRoutes } from '../routes/system.js';
 import { isAuthError } from '../utils/auth-errors.js';
+import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
+import { registerAgentRegistryProvider, registerToolRegistryProvider } from '../providers/registry.js';
 
 export interface WorkAgentRuntimeOptions {
   workAgentDir?: string;
@@ -131,6 +138,7 @@ export class WorkAgentRuntime {
   private mcpService!: MCPService;
   private workspaceService!: WorkspaceService;
   private acpBridge: ACPManager;
+  public readonly eventBus = new EventBus();
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const workAgentDir = options.workAgentDir || '.work-agent';
@@ -179,6 +187,7 @@ export class WorkAgentRuntime {
         return adapter;
       },
       { get: () => this.usageAggregator },
+      this.eventBus,
     );
     
     // Log versions for debugging
@@ -238,6 +247,7 @@ export class WorkAgentRuntime {
     );
     
     this.logger.info('Agents reloaded', { count: agentMetadataList.length });
+    this.eventBus.emit('agents:changed', { count: agentMetadataList.length });
   }
 
   /**
@@ -253,9 +263,30 @@ export class WorkAgentRuntime {
       model: this.appConfig.defaultModel,
     });
 
+    // Registry providers are registered by plugins via loadProviders()
+
+    // Register default onboarding provider (checks Bedrock credentials)
+    const { registerOnboardingProvider } = await import('../providers/registry.js');
+    const { DefaultOnboardingProvider } = await import('../providers/defaults.js');
+    registerOnboardingProvider(new DefaultOnboardingProvider());
+
+    // JSON manifest fallback for environments without plugins
+    if (this.appConfig.registryUrl) {
+      const registryProvider = new JsonManifestRegistryProvider(
+        this.appConfig.registryUrl,
+        this.configLoader.getWorkAgentDir()
+      );
+      registerAgentRegistryProvider(registryProvider);
+      registerToolRegistryProvider(registryProvider);
+      this.logger.info('JSON manifest registry configured', { url: this.appConfig.registryUrl });
+    }
+
     // Initialize Bedrock model catalog
     this.modelCatalog = new BedrockModelCatalog(this.appConfig.region);
     this.logger.debug('Bedrock model catalog initialized');
+
+    // Load plugin providers
+    await this.loadPluginProviders();
 
     // Initialize usage aggregator
     this.usageAggregator = new UsageAggregator(this.configLoader.getWorkAgentDir());
@@ -331,12 +362,25 @@ export class WorkAgentRuntime {
             return c.json({ success: false, error: err.message }, 500);
           });
 
+          // Request logger for debugging Tauri connectivity
+          app.use('*', async (c, next) => {
+            const start = Date.now();
+            await next();
+            const origin = c.req.header('origin') || '-';
+            this.logger.info(`${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms origin=${origin}`);
+          });
+
           app.use(
             '*',
             cors({
               origin: (origin) => {
                 if (!origin) return origin;
-                if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
+                if (
+                  origin.startsWith('http://localhost:') ||
+                  origin.startsWith('https://localhost:') ||
+                  origin === 'tauri://localhost' ||
+                  origin === 'https://tauri.localhost'
+                ) {
                   return origin;
                 }
                 const allowed = process.env.ALLOWED_ORIGINS?.split(',') || [];
@@ -349,11 +393,37 @@ export class WorkAgentRuntime {
           // Models capabilities and pricing endpoints
           app.route('/api/models', modelsRoute.default);
 
+          // System status (onboarding readiness)
+          app.route('/api/system', createSystemRoutes({
+            getACPStatus: () => {
+              const s = this.acpBridge.getStatus();
+              return { connected: s.connections.some((c: any) => c.status === 'connected'), connections: s.connections };
+            },
+            getAppConfig: () => this.appConfig,
+            eventBus: this.eventBus,
+          }, this.logger));
+
           // Analytics endpoints
           app.route('/api/analytics', createAnalyticsRoutes(this.usageAggregator));
 
           // Auth endpoints
           app.route('/api/auth', createAuthRoutes());
+
+          // User directory endpoints
+          app.route('/api/users', createUserRoutes());
+
+          // Plugin endpoints (list, serve bundles, reload providers)
+          app.route('/api/plugins', createPluginRoutes(this.configLoader.getWorkAgentDir(), this.logger, this.eventBus));
+
+          // Package registry endpoints (browse/install agents and tools)
+          app.route('/api/registry', createRegistryRoutes(
+            this.configLoader,
+            async () => {
+              // Restart ACP connections to pick up newly installed agents as modes
+              const acpConfig = await this.configLoader.loadACPConfig();
+              await this.acpBridge.startAll(acpConfig.connections);
+            },
+          ));
 
           // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
           app.get('/api/agents', async (c) => {
@@ -448,6 +518,16 @@ export class WorkAgentRuntime {
 
           // List all tools
           app.route('/tools', createToolRoutes(this.mcpService, () => this.initialize()));
+
+          // SSE event stream
+          app.route('/events', createEventRoutes({
+            eventBus: this.eventBus,
+            getACPStatus: () => {
+              const s = this.acpBridge.getStatus();
+              return { connected: s.connections.some(c => c.status === 'connected'), connections: s.connections };
+            },
+            logger: this.logger,
+          }));
 
           // ACP connection status (all connections)
           app.get('/acp/status', async (c) => {
@@ -655,7 +735,7 @@ export class WorkAgentRuntime {
           app.route('/agents', createWorkflowRoutes(this.workspaceService));
 
           // === Route Modules ===
-          app.route('/config', createConfigRoutes(this.configLoader, this.logger));
+          app.route('/config', createConfigRoutes(this.configLoader, this.logger, this.eventBus));
           app.route('/bedrock', createBedrockRoutes(
             () => this.modelCatalog,
             this.appConfig,
@@ -1689,6 +1769,21 @@ export class WorkAgentRuntime {
     }).catch((err: any) => {
       this.logger.warn('[Runtime] ACP startup failed', { error: err.message });
     });
+
+    // Check for plugin updates after startup (delayed, non-blocking)
+    setTimeout(async () => {
+      try {
+        const res = await fetch(`http://localhost:${this.port}/api/plugins/check-updates`);
+        if (!res.ok) return;
+        const { updates } = await res.json();
+        if (updates.length > 0) {
+          this.eventBus.emit('plugins:updates-available', { count: updates.length, updates });
+          this.logger.info('Plugin updates available', { count: updates.length });
+        }
+      } catch (error: any) {
+        this.logger.debug('Failed to check for plugin updates', { error: error.message });
+      }
+    }, 5000);
   }
 
   /**
@@ -2062,6 +2157,58 @@ export class WorkAgentRuntime {
   /**
    * Replace template variables in prompts
    */
+  /**
+   * Load providers declared in installed plugin manifests
+   */
+  private async loadPluginProviders(): Promise<void> {
+    const pluginsDir = join(this.configLoader.getWorkAgentDir(), 'plugins');
+    if (!existsSync(pluginsDir)) return;
+
+    const { registerAuthProvider, registerUserIdentityProvider, registerUserDirectoryProvider, registerAgentRegistryProvider, registerToolRegistryProvider, registerOnboardingProvider } = await import('../providers/registry.js');
+
+    try {
+      const entries = await readdir(pluginsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const manifestPath = join(pluginsDir, entry.name, 'plugin.json');
+        if (!existsSync(manifestPath)) continue;
+
+        try {
+          const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
+          if (!manifest.providers || !Array.isArray(manifest.providers)) continue;
+
+          for (const p of manifest.providers) {
+            const modulePath = join(pluginsDir, entry.name, p.module);
+            if (!existsSync(modulePath)) {
+              this.logger.warn('Plugin provider module not found', { plugin: entry.name, module: p.module });
+              continue;
+            }
+            try {
+              const mod = await import(modulePath);
+              const factory = mod.default || mod;
+              const instance = typeof factory === 'function' ? factory() : factory;
+
+              if (p.type === 'auth') registerAuthProvider(instance);
+              else if (p.type === 'userIdentity') registerUserIdentityProvider(instance);
+              else if (p.type === 'userDirectory') registerUserDirectoryProvider(instance);
+              else if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
+              else if (p.type === 'toolRegistry') registerToolRegistryProvider(instance);
+              else if (p.type === 'onboarding') registerOnboardingProvider(instance);
+
+              this.logger.info('Registered plugin provider', { plugin: entry.name, type: p.type });
+            } catch (e: any) {
+              this.logger.error('Failed to load plugin provider', { plugin: entry.name, type: p.type, error: e.message });
+            }
+          }
+        } catch (e: any) {
+          this.logger.error('Failed to read plugin manifest', { plugin: entry.name, error: e.message });
+        }
+      }
+    } catch (e: any) {
+      this.logger.error('Failed to scan plugins directory', { error: e.message });
+    }
+  }
+
   private replaceTemplateVariables(text: string): string {
     const now = new Date();
     

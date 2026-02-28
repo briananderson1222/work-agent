@@ -1,5 +1,5 @@
 import { ComponentType, lazy, Suspense } from 'react';
-import type { WorkspaceProps } from '@stallion-ai/sdk';
+import type { WorkspaceProps } from '@work-agent/sdk';
 
 interface PluginLoaderProps {
   pluginPath: string;

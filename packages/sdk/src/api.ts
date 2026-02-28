@@ -38,6 +38,14 @@ function _resolveAgent(agentSlug: string): string {
 }
 
 /**
+ * Get current plugin name from workspace context
+ * @internal
+ */
+export function _getPluginName(): string {
+  return _currentWorkspace?.slug || '';
+}
+
+/**
  * Get current API base
  * @internal
  */
@@ -208,6 +216,36 @@ export async function invokeAgent(
 /**
  * Transform tool data using an agent
  */
+/**
+ * Call a tool directly — raw MCP call, no server-side transform.
+ * Hits POST /agents/:slug/tools/:toolName
+ */
+export async function callTool(
+  agentSlug: string,
+  toolName: string,
+  toolArgs: any = {}
+): Promise<any> {
+  const apiBase = await _getApiBase();
+  const resolvedAgent = _resolveAgent(agentSlug);
+  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tools/${encodeURIComponent(toolName)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(toolArgs)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Tool call failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error || 'Tool call failed');
+  }
+
+  return data.response;
+}
+
+/** @deprecated Use callTool instead — transformTool will be removed */
 export async function transformTool(
   agentSlug: string,
   toolName: string,

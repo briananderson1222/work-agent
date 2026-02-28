@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import type { AgentSummary } from '../types';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import { AgentIcon } from './AgentIcon';
+import { useNavigation } from '../contexts/NavigationContext';
+import { useWorkspaceQuery } from '@work-agent/sdk';
 
 interface NewChatModalProps {
   agents: AgentSummary[];
@@ -9,130 +11,119 @@ interface NewChatModalProps {
   onClose: () => void;
 }
 
+interface AgentGroup {
+  label: string;
+  icon?: string;
+  agents: AgentSummary[];
+}
+
 export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const { selectedWorkspace } = useNavigation();
+  const { data: workspace } = useWorkspaceQuery(selectedWorkspace || '', { enabled: !!selectedWorkspace });
 
-  const filteredAgents = (agents || []).filter(a => 
-    a.name.toLowerCase().includes(search.toLowerCase()) ||
-    a.slug.toLowerCase().includes(search.toLowerCase())
-  );
+  const wsAgentSlugs = useMemo(() => new Set(workspace?.availableAgents || []), [workspace]);
 
-  // Group agents: local first, then ACP
-  const { localAgents, acpAgents, flatList } = useMemo(() => {
-    const local = filteredAgents.filter(a => a.source !== 'acp');
-    const acp = filteredAgents.filter(a => a.source === 'acp');
+  const { groups, flatList } = useMemo(() => {
+    const filtered = (agents || []).filter(a =>
+      a.name.toLowerCase().includes(search.toLowerCase()) ||
+      a.slug.toLowerCase().includes(search.toLowerCase())
+    );
 
-    // Sort ACP agents: recently used (have active sessions) first, then alphabetical
-    const chats = activeChatsStore.getSnapshot();
-    const usedSlugs = new Set<string>();
-    for (const chat of Object.values(chats)) {
-      if (chat.agentSlug && chat.messages?.length && chat.messages.length > 0) {
-        usedSlugs.add(chat.agentSlug);
-      }
+    // Workspace agents: listed in workspace config OR slug prefix matches workspace plugin
+    const isWorkspaceAgent = (a: AgentSummary) => {
+      if (a.source === 'acp') return false;
+      if (wsAgentSlugs.has(a.slug)) return true;
+      // Fallback: if slug contains ':' it's a plugin agent, treat as workspace
+      if (a.slug.includes(':')) return true;
+      return false;
+    };
+
+    const wsAgents = filtered.filter(a => isWorkspaceAgent(a));
+    const globalAgents = filtered.filter(a => a.source !== 'acp' && !isWorkspaceAgent(a));
+    const acpAgents = filtered.filter(a => a.source === 'acp');
+
+    // Group ACP agents by connectionName
+    const acpGroups = new Map<string, AgentSummary[]>();
+    for (const a of acpAgents) {
+      const conn = (a as any).connectionName || 'ACP';
+      if (!acpGroups.has(conn)) acpGroups.set(conn, []);
+      acpGroups.get(conn)!.push(a);
     }
 
-    acp.sort((a, b) => {
-      const aUsed = usedSlugs.has(a.slug) ? 1 : 0;
-      const bUsed = usedSlugs.has(b.slug) ? 1 : 0;
-      if (aUsed !== bUsed) return bUsed - aUsed;
-      return a.name.localeCompare(b.name);
-    });
+    // Build groups
+    const groups: AgentGroup[] = [];
 
-    return { localAgents: local, acpAgents: acp, flatList: [...local, ...acp] };
-  }, [filteredAgents]);
+    // Recently used (top 3, across all sources)
+    const chats = activeChatsStore.getSnapshot();
+    const recentSlugs: string[] = [];
+    const chatEntries = Object.values(chats)
+      .filter((c: any) => c.agentSlug && c.messages?.length > 0)
+      .sort((a: any, b: any) => (b.lastActivity || 0) - (a.lastActivity || 0));
+    for (const chat of chatEntries) {
+      if (!recentSlugs.includes((chat as any).agentSlug)) recentSlugs.push((chat as any).agentSlug);
+      if (recentSlugs.length >= 3) break;
+    }
+    const recentAgents = recentSlugs.map(s => filtered.find(a => a.slug === s)).filter(Boolean) as AgentSummary[];
+    const recentSet = new Set(recentSlugs);
+
+    if (recentAgents.length > 0 && !search) groups.push({ label: 'Recent', icon: '🕐', agents: recentAgents });
+
+    const wsName = workspace?.name;
+    if (wsAgents.length > 0) groups.push({ label: wsName || 'Workspace', icon: workspace?.icon, agents: wsAgents.filter(a => !recentSet.has(a.slug) || !!search) });
+    if (globalAgents.length > 0) groups.push({ label: 'Global', icon: '🌐', agents: globalAgents.filter(a => !recentSet.has(a.slug) || !!search) });
+    for (const [conn, agents] of acpGroups) {
+      const filtered = agents.filter(a => !recentSet.has(a.slug) || !!search);
+      if (filtered.length > 0) groups.push({ label: `${conn} (ACP)`, agents: filtered });
+    }
+
+    const flatList = groups.filter(g => g.agents.length > 0).flatMap(g => g.agents);
+    return { groups: groups.filter(g => g.agents.length > 0), flatList };
+  }, [agents, search, wsAgentSlugs]);
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 2000,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: 'var(--bg-primary)',
-          border: '1px solid var(--border-primary)',
-          borderRadius: '12px',
-          width: '90%',
-          maxWidth: '500px',
-          maxHeight: '600px',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+      onClick={onClose}>
+      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)', borderRadius: '12px', width: '90%', maxWidth: '500px', maxHeight: '600px', display: 'flex', flexDirection: 'column' }}
+        onClick={(e) => e.stopPropagation()}>
         <div style={{ padding: '20px', borderBottom: '1px solid var(--border-primary)' }}>
           <h3 style={{ margin: '0 0 12px 0' }}>New Chat</h3>
-          <input
-            type="text"
-            placeholder="Search agents..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setSelectedIndex(0);
-            }}
+          <input type="text" placeholder="Search agents..." value={search}
+            onChange={(e) => { setSearch(e.target.value); setSelectedIndex(0); }}
             onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setSelectedIndex((prev) => Math.min(prev + 1, flatList.length - 1));
-              } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setSelectedIndex((prev) => Math.max(prev - 1, 0));
-              } else if (e.key === 'Enter' && flatList[selectedIndex]) {
-                onSelect(flatList[selectedIndex]);
-              } else if (e.key === 'Escape') {
-                onClose();
-              }
+              if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(p => Math.min(p + 1, flatList.length - 1)); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(p => Math.max(p - 1, 0)); }
+              else if (e.key === 'Enter' && flatList[selectedIndex]) onSelect(flatList[selectedIndex]);
+              else if (e.key === 'Escape') onClose();
             }}
             autoFocus
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '8px',
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              fontSize: '14px',
-            }}
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-primary)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '14px' }}
           />
         </div>
         <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
-          {localAgents.map((agent) => {
-            const idx = flatList.indexOf(agent);
-            return (
-              <AgentRow key={agent.slug} agent={agent} isSelected={idx === selectedIndex}
-                onSelect={() => onSelect(agent)} onHover={() => setSelectedIndex(idx)} />
-            );
-          })}
-          {acpAgents.length > 0 && (
-            <>
+          {groups.map((group, gi) => (
+            <React.Fragment key={group.label}>
               <div style={{
                 padding: '8px 20px 4px',
                 fontSize: '11px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
-                color: 'var(--accent-acp)',
-                borderTop: localAgents.length > 0 ? '1px solid var(--border-primary)' : undefined,
+                color: group.label.includes('ACP') ? 'var(--accent-acp)' : 'var(--text-muted)',
+                borderTop: gi > 0 ? '1px solid var(--border-primary)' : undefined,
               }}>
-                🔌 ACP Agents
+                {group.icon && <>{group.icon} </>}{group.label}
               </div>
-              {acpAgents.map((agent) => {
+              {group.agents.map((agent) => {
                 const idx = flatList.indexOf(agent);
                 return (
                   <AgentRow key={agent.slug} agent={agent} isSelected={idx === selectedIndex}
                     onSelect={() => onSelect(agent)} onHover={() => setSelectedIndex(idx)} />
                 );
               })}
-            </>
-          )}
+            </React.Fragment>
+          ))}
         </div>
       </div>
     </div>
@@ -143,21 +134,15 @@ function AgentRow({ agent, isSelected, onSelect, onHover }: {
   agent: AgentSummary; isSelected: boolean; onSelect: () => void; onHover: () => void;
 }) {
   return (
-    <button
-      onClick={onSelect}
-      onMouseEnter={onHover}
+    <button onClick={onSelect} onMouseEnter={onHover}
       style={{
-        width: '100%',
-        padding: '12px 20px',
-        border: 'none',
+        width: '100%', padding: '12px 20px', border: 'none',
         borderBottom: '1px solid var(--border-primary)',
         background: isSelected ? 'var(--accent-primary)' : 'transparent',
-        textAlign: 'left',
-        cursor: 'pointer',
+        textAlign: 'left', cursor: 'pointer',
         color: isSelected ? 'white' : 'var(--text-primary)',
         transition: 'all 0.15s',
-      }}
-    >
+      }}>
       <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
         <AgentIcon agent={agent} size="small" />
         {agent.name}

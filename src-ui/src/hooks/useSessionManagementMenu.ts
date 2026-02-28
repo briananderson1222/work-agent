@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useInvalidateQuery } from '@stallion-ai/sdk';
+import { useInvalidateQuery } from '@work-agent/sdk';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { log } from '../utils/logger';
 

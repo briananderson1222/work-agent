@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useAgentToolsQuery } from '@stallion-ai/sdk';
+import { useAgentToolsQuery } from '@work-agent/sdk';
 import { log } from '@/utils/logger';
 
 interface ToolMapping {

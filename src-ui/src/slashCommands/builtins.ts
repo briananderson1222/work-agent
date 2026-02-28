@@ -1,5 +1,5 @@
 import { registerCommand } from './registry';
-import { agentQueries } from '@stallion-ai/sdk';
+import { agentQueries } from '@work-agent/sdk';
 
 // MCP command
 registerCommand('mcp', async ({ chatState, queryClient, addEphemeralMessage, sessionId }) => {

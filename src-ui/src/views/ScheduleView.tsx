@@ -4,7 +4,9 @@ import {
   useJobLogs, useRunJob, useToggleJob, useDeleteJob, useFetchRunOutput,
   useSchedulerEvents, useOpenArtifact, useAddJob,
 } from '../hooks/useScheduler';
+import { useSystemStatus } from '../hooks/useSystemStatus';
 import { useSortableTable, SortHeader, TableFilter } from './SortableTable';
+import './ScheduleView.css';
 
 function relTime(iso: string | null) {
   if (!iso) return 'never';
@@ -43,35 +45,55 @@ function localizeSchedule(human: string | undefined, schedule: string): string {
   return human.replace(/ UTC$/, '');
 }
 
-const thStyle: React.CSSProperties = { padding: '0.5rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 };
-const tdStyle: React.CSSProperties = { padding: '0.5rem 0.75rem', fontSize: '0.875rem' };
-const thSm: React.CSSProperties = { ...thStyle, padding: '0.35rem 0.5rem' };
-const tdSm: React.CSSProperties = { ...tdStyle, padding: '0.35rem 0.5rem', fontSize: '0.8rem', color: 'var(--text-primary)' };
-const btnStyle: React.CSSProperties = {
-  background: 'none', border: '1px solid var(--border-primary)', padding: '0.2rem 0.45rem',
-  borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--accent-primary)',
-};
-
 function rateColor(rate: number) {
-  if (rate >= 90) return 'var(--success-text)';
-  if (rate >= 50) return 'var(--warning-text)';
-  return 'var(--error-text)';
+  if (rate >= 90) return 'high';
+  if (rate >= 50) return 'mid';
+  return 'low';
 }
 
-/** Pulsing dot for running jobs */
-function RunningIndicator() {
+const rateTextColor = (rate: number) =>
+  rate >= 90 ? 'var(--success-text)' : rate >= 50 ? 'var(--warning-text)' : 'var(--error-text)';
+
+/* ── SVG Icons ── */
+const IconPlay = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>
+);
+const IconFile = () => (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 1.5H4a1 1 0 00-1 1v11a1 1 0 001 1h8a1 1 0 001-1V5.5L9 1.5z"/><path d="M9 1.5V5.5h4"/>
+  </svg>
+);
+const IconPause = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="3.5" height="12" rx="0.75"/><rect x="9.5" y="2" width="3.5" height="12" rx="0.75"/></svg>
+);
+const IconResume = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>
+);
+const IconX = () => (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+);
+const IconChevron = () => (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4"/></svg>
+);
+const IconSpinner = () => (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 2a6 6 0 11-4.24 1.76" strokeLinecap="round"/></svg>
+);
+
+/* ── Success Rate Bar ── */
+function RateCell({ rate }: { rate: number | undefined }) {
+  if (rate == null || rate < 0) return <span className="schedule__td--muted">-</span>;
+  const tier = rateColor(rate);
   return (
-    <span
-      data-testid="running-indicator"
-      style={{
-        display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-        background: 'var(--success-text)', marginRight: 6, verticalAlign: 'middle',
-        animation: 'pulse-dot 1.5s ease-in-out infinite',
-      }}
-    />
+    <span className="schedule__rate">
+      <span style={{ color: rateTextColor(rate) }}>{rate}%</span>
+      <span className="schedule__rate-bar">
+        <span className={`schedule__rate-fill schedule__rate-fill--${tier}`} style={{ width: `${rate}%` }} />
+      </span>
+    </span>
   );
 }
 
+/* ── Job Detail (inline) ── */
 function JobDetail({ name }: { name: string }) {
   const { data: logs = [] } = useJobLogs(name);
   const fetchOutput = useFetchRunOutput();
@@ -92,23 +114,20 @@ function JobDetail({ name }: { name: string }) {
 
   return (
     <div style={{ padding: '0.5rem 0.75rem' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+      <table className="schedule__logs">
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
-            <th style={thSm}>Fired At</th><th style={thSm}>Status</th><th style={thSm}>Duration</th>
-            <th style={thSm}>Missed</th><th style={thSm}>Type</th><th style={thSm}></th>
-          </tr>
+          <tr><th>Fired At</th><th>Status</th><th>Duration</th><th>Missed</th><th>Type</th><th></th></tr>
         </thead>
         <tbody>
           {logs.map((r: any, i: number) => (
-            <tr key={r.fired_at} style={{ borderBottom: '1px solid var(--border-primary)' }}>
-              <td style={tdSm}>{new Date(r.fired_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-              <td style={{ ...tdSm, color: r.success ? 'var(--success-text)' : 'var(--error-text)' }}>{r.success ? '✓' : '✗'}</td>
-              <td style={tdSm}>{r.duration_secs.toFixed(1)}s</td>
-              <td style={tdSm}>{r.missed_count || '-'}</td>
-              <td style={tdSm}>{r.manual ? 'manual' : 'cron'}</td>
-              <td style={tdSm}>
-                <button onClick={() => handleViewOutput(i)} disabled={fetchOutput.isPending && viewIdx === i} style={btnStyle}>
+            <tr key={r.fired_at}>
+              <td>{new Date(r.fired_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+              <td style={{ color: r.success ? 'var(--success-text)' : 'var(--error-text)' }}>{r.success ? '✓' : '✗'}</td>
+              <td>{r.duration_secs.toFixed(1)}s</td>
+              <td>{r.missed_count || '-'}</td>
+              <td>{r.manual ? 'manual' : 'cron'}</td>
+              <td>
+                <button onClick={() => handleViewOutput(i)} disabled={fetchOutput.isPending && viewIdx === i} className="schedule__action-btn">
                   {viewIdx === i ? 'Hide' : 'Output'}
                 </button>
               </td>
@@ -117,7 +136,7 @@ function JobDetail({ name }: { name: string }) {
         </tbody>
       </table>
       {viewIdx !== null && (
-        <pre style={{ marginTop: '0.5rem', padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: '0.375rem', fontSize: '0.75rem', maxHeight: '300px', overflow: 'auto', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+        <pre className="schedule__output">
           {outputContent === null ? 'Loading...' : outputContent}
         </pre>
       )}
@@ -135,28 +154,44 @@ export function ScheduleView() {
   const deleteJob = useDeleteJob();
   const openArtifact = useOpenArtifact();
   const addJob = useAddJob();
+  const { data: systemStatus } = useSystemStatus();
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Boo not installed — show setup instructions
+  // Boo not installed — setup checklist
   if (jobsError && statusError) {
+    const steps = [
+      { label: 'kiro-cli installed', done: systemStatus?.acp.connected ?? false, help: 'Install kiro-cli to enable ACP agent connections and scheduled prompts.' },
+      { label: 'ACP connected', done: systemStatus?.acp.connected ?? false, help: 'kiro-cli connects automatically once installed and on your PATH.' },
+      { label: 'boo installed', done: systemStatus?.scheduler.booInstalled ?? false, help: (
+        <>
+          Download from{' '}
+          <a href="https://github.com/briananderson1222/boo/releases" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)' }}>GitHub releases</a>
+          {' '}then run <code style={{ padding: '2px 6px', background: 'var(--bg-tertiary)', borderRadius: '0.25rem', fontSize: '0.8rem' }}>boo install</code>
+        </>
+      )},
+    ];
+
     return (
-      <div style={{ padding: '3rem', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏰</div>
-        <h2 style={{ margin: '0 0 0.5rem', color: 'var(--text-primary)' }}>Scheduler Not Available</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-          The <strong>boo</strong> scheduler requires <strong>kiro-cli</strong> and runs scheduled prompts against your ACP agents (not workspace agents).
-        </p>
-        <div style={{ textAlign: 'left', background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '0.5rem', padding: '1rem', fontSize: '0.85rem' }}>
-          <p style={{ margin: '0 0 0.5rem', fontWeight: 500 }}>To get started:</p>
-          <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <li>Install <strong>kiro-cli</strong> if you haven't already</li>
-            <li>Download <strong>boo</strong> from{' '}
-              <a href="https://github.com/briananderson1222/boo/releases" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)' }}>
-                GitHub releases
-              </a>
-            </li>
-            <li>Run <code style={{ padding: '2px 6px', background: 'var(--bg-tertiary)', borderRadius: '0.25rem', fontSize: '0.8rem' }}>boo install</code></li>
-          </ol>
+      <div className="schedule__setup">
+        <div className="schedule__setup-header">
+          <div className="schedule__setup-icon">⏰</div>
+          <h2 className="schedule__setup-title">Scheduler Setup</h2>
+          <p className="schedule__setup-desc">
+            The scheduler runs prompts on a cron schedule via <strong>boo</strong> and <strong>kiro-cli</strong>.
+          </p>
+        </div>
+        <div className="schedule__setup-steps">
+          {steps.map((step, i) => (
+            <div key={i} className="schedule__setup-step">
+              <div className="schedule__setup-step-row">
+                <span className={`schedule__setup-check ${step.done ? 'schedule__setup-check--done' : ''}`}>
+                  {step.done ? '✓' : i + 1}
+                </span>
+                <span style={{ fontWeight: 500, color: step.done ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{step.label}</span>
+              </div>
+              {!step.done && <div className="schedule__setup-help">{step.help}</div>}
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -165,7 +200,6 @@ export function ScheduleView() {
   const statsMap = new Map<string, any>();
   if (stats?.jobs) for (const s of stats.jobs) statsMap.set(s.name, s);
 
-  // Enrich jobs with stats for sorting
   const enrichedJobs = jobs.map((job: any) => ({
     ...job,
     success_rate: statsMap.get(job.name)?.success_rate ?? -1,
@@ -174,49 +208,60 @@ export function ScheduleView() {
   const { sorted: sortedJobs, sortKey, sortDir, toggle, filterText, setFilterText } =
     useSortableTable(enrichedJobs, 'name', 'asc', ['name']);
 
-  const handleRun = useCallback((name: string) => {
-    runJob.mutate(name);
-  }, [runJob]);
+  const handleRun = useCallback((name: string) => { runJob.mutate(name); }, [runJob]);
+
+  const daemonOk = !statusError && status?.daemon_running;
+  const failures = stats?.total?.last_7d?.failures || 0;
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Pulse animation */}
-      <style>{`@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
-
-      <h2 style={{ margin: '0 0 1rem', fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>Schedule</h2>
+    <div className="schedule">
+      <h2 className="schedule__title">Schedule</h2>
 
       {isLoading && loadingStats && loadingStatus ? (
-        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading scheduler...</div>
+        <div className="schedule__loading">Loading scheduler...</div>
       ) : (<>
 
-      {/* Stats bar */}
-      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        {[
-          { label: 'Daemon', value: statusError ? '⚠ Unreachable' : status?.daemon_running ? '● Running' : '○ Stopped', color: statusError ? 'var(--warning-text)' : status?.daemon_running ? 'var(--success-text)' : 'var(--error-text)' },
-          { label: 'Jobs', value: `${jobs.length}` },
-          { label: 'Success Rate', value: stats?.total?.success_rate != null ? `${stats.total.success_rate}%` : '-' },
-          { label: 'Total Runs', value: stats?.total?.total_runs ?? '-' },
-          { label: 'Failures (7d)', value: stats?.total?.last_7d?.failures ?? '-', color: (stats?.total?.last_7d?.failures || 0) > 0 ? 'var(--error-text)' : undefined },
-        ].map(s => (
-          <div key={s.label} style={{ padding: '0.75rem 1rem', minWidth: '120px', flex: '1', background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '0.5rem' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{s.label}</div>
-            <div style={{ fontSize: '1.125rem', fontWeight: 600, color: s.color || 'var(--text-primary)' }}>{s.value}</div>
+      {/* Stats */}
+      <div className="schedule__stats">
+        <div className={`stat-card ${statusError ? 'stat-card--warning' : daemonOk ? 'stat-card--success' : 'stat-card--error'}`}>
+          <div className="stat-card__label">Daemon</div>
+          <div className="stat-card__value" style={{ color: statusError ? 'var(--warning-text)' : daemonOk ? 'var(--success-text)' : 'var(--error-text)' }}>
+            {statusError ? '⚠ Unreachable' : daemonOk ? '● Running' : '○ Stopped'}
           </div>
-        ))}
+        </div>
+        <div className="stat-card stat-card--accent">
+          <div className="stat-card__label">Jobs</div>
+          <div className="stat-card__value">{jobs.length}</div>
+        </div>
+        <div className="stat-card stat-card--accent">
+          <div className="stat-card__label">Success Rate</div>
+          <div className="stat-card__value">{stats?.total?.success_rate != null ? `${stats.total.success_rate}%` : '-'}</div>
+        </div>
+        <div className="stat-card stat-card--accent">
+          <div className="stat-card__label">Total Runs</div>
+          <div className="stat-card__value">{stats?.total?.total_runs ?? '-'}</div>
+        </div>
+        <div className={`stat-card ${failures > 0 ? 'stat-card--error' : ''}`}>
+          <div className="stat-card__label">Failures (7d)</div>
+          <div className="stat-card__value" style={{ color: failures > 0 ? 'var(--error-text)' : undefined }}>
+            {stats?.total?.last_7d?.failures ?? '-'}
+          </div>
+        </div>
       </div>
 
-      {/* Job table */}
-      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '0.5rem' }}>
-        <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-primary)' }}>
+      {/* Table */}
+      <div className="schedule__table-wrap">
+        <div className="schedule__filter">
           <TableFilter value={filterText} onChange={setFilterText} placeholder="Filter jobs…" />
         </div>
+
         {isLoading ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading jobs...</div>
+          <div className="schedule__loading">Loading jobs...</div>
         ) : sortedJobs.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filterText ? 'No matching jobs' : (
+          <div className="schedule__empty">{filterText ? 'No matching jobs' : (
             <div>
               <p style={{ marginBottom: '1rem' }}>No scheduled jobs yet. Get started with a recommended schedule:</p>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <div className="schedule__starters">
                 {[
                   { name: 'good-morning', label: '☀️ Morning Briefing', cron: '0 14 * * 1-5', prompt: 'Review my calendar and email for today. Summarize priorities, prep for meetings, and flag anything urgent.', artifact: 'daily-*.html' },
                   { name: 'catch-up-emails', label: '📧 Email Catch-up', cron: '0 18 * * 1-5', prompt: 'Check my recent emails and summarize anything I need to respond to or follow up on.', artifact: 'daily-*.html' },
@@ -225,32 +270,29 @@ export function ScheduleView() {
                 ].map(t => (
                   <button key={t.name} disabled={addJob.isPending}
                     onClick={() => addJob.mutate({ name: t.name, cron: t.cron, prompt: t.prompt, openArtifact: t.artifact, notifyStart: true })}
-                    style={{
-                      padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)',
-                      borderRadius: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '0.85rem', textAlign: 'left', minWidth: 180,
-                    }}>
-                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{t.label}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{t.cron.includes('* 1') ? 'Mondays' : 'Weekdays'} · kiro-cli</div>
+                    className="schedule__starter-btn">
+                    <div className="schedule__starter-label">{t.label}</div>
+                    <div className="schedule__starter-meta">{t.cron.includes('* 1') ? 'Mondays' : 'Weekdays'} · kiro-cli</div>
                   </button>
                 ))}
               </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.75rem' }}>
+              <p className="schedule__starter-hint">
                 Schedules run via <strong>kiro-cli</strong> against your ACP agents. Times are UTC.
               </p>
             </div>
           )}</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table className="schedule__table">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
-                  <SortHeader label="Name" sortKey="name" active={sortKey === 'name'} dir={sortDir} onClick={toggle} style={thStyle} />
-                  <th style={thStyle}>Schedule</th>
-                  <th style={thStyle}>Status</th>
-                  <SortHeader label="Last Run" sortKey="last_run" active={sortKey === 'last_run'} dir={sortDir} onClick={toggle} style={thStyle} />
-                  <SortHeader label="Next Fire" sortKey="next_fire" active={sortKey === 'next_fire'} dir={sortDir} onClick={toggle} style={thStyle} />
-                  <SortHeader label="Success%" sortKey="success_rate" active={sortKey === 'success_rate'} dir={sortDir} onClick={toggle} style={thStyle} />
-                  <th style={thStyle}>Actions</th>
+                  <SortHeader label="Name" sortKey="name" active={sortKey === 'name'} dir={sortDir} onClick={toggle} style={{ padding: '0.5rem 0.75rem', textAlign: 'left' as const, color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }} />
+                  <th className="schedule__th">Schedule</th>
+                  <th className="schedule__th">Status</th>
+                  <SortHeader label="Last Run" sortKey="last_run" active={sortKey === 'last_run'} dir={sortDir} onClick={toggle} style={{ padding: '0.5rem 0.75rem', textAlign: 'left' as const, color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }} />
+                  <SortHeader label="Next Fire" sortKey="next_fire" active={sortKey === 'next_fire'} dir={sortDir} onClick={toggle} style={{ padding: '0.5rem 0.75rem', textAlign: 'left' as const, color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }} />
+                  <SortHeader label="Success%" sortKey="success_rate" active={sortKey === 'success_rate'} dir={sortDir} onClick={toggle} style={{ padding: '0.5rem 0.75rem', textAlign: 'left' as const, color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }} />
+                  <th className="schedule__th">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -259,45 +301,74 @@ export function ScheduleView() {
                   const isExpanded = expanded === job.name;
                   const running = isRunning(job.name);
                   return (
-                    <tr key={job.id} data-testid={`job-row-${job.name}`}
-                      style={{ borderBottom: '1px solid var(--border-primary)', cursor: 'pointer', background: isExpanded ? 'var(--bg-tertiary)' : undefined }}
-                      onClick={() => setExpanded(isExpanded ? null : job.name)}>
-                      <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--text-primary)' }}>
-                        {running && <RunningIndicator />}
-                        {job.name}
-                      </td>
-                      <td style={{ ...tdStyle, color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{localizeSchedule(job.schedule_human, job.schedule)}</td>
-                      <td style={tdStyle}>
-                        {running ? (
-                          <span style={{ color: 'var(--success-text)', fontSize: '0.8rem' }}>● running</span>
-                        ) : job.enabled === 'yes' ? (
-                          <span style={{ color: status?.daemon_running ? 'var(--success-text)' : 'var(--warning-text)', fontSize: '0.8rem' }}>● on</span>
-                        ) : (
-                          <span style={{ color: 'var(--error-text)', fontSize: '0.8rem' }}>○ off</span>
-                        )}
-                      </td>
-                      <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{relTime(job.last_run)}</td>
-                      <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{localTime(job.next_fire)}</td>
-                      <td style={tdStyle}>
-                        {jobStats ? <span style={{ color: rateColor(jobStats.success_rate) }}>{jobStats.success_rate}%</span> : '-'}
-                      </td>
-                      <td style={{ ...tdStyle, width: 140 }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
-                          <button title="Run now" data-testid={`run-${job.name}`} disabled={running} onClick={() => handleRun(job.name)} style={btnStyle}>
-                            {running ? '⏳' : '▶'}
-                          </button>
-                          <button title={job.artifact_file ? 'Open artifact' : 'No artifact'} disabled={!job.artifact_file}
-                            onClick={() => job.artifact_file && openArtifact.mutate(job.artifact_file)}
-                            style={{ ...btnStyle, opacity: job.artifact_file ? 1 : 0.25 }}>📄</button>
-                          <button title={job.enabled === 'yes' ? 'Disable' : 'Enable'}
-                            onClick={() => toggleJob.mutate({ target: job.name, enabled: job.enabled !== 'yes' })}
-                            style={btnStyle}>{job.enabled === 'yes' ? '⏸' : '⏵'}</button>
-                          <button title="Delete"
-                            onClick={() => { if (confirm(`Delete job "${job.name}"?`)) deleteJob.mutate(job.name); }}
-                            style={{ ...btnStyle, borderColor: 'var(--error-text)', color: 'var(--error-text)' }}>✕</button>
-                        </div>
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={job.id} data-testid={`job-row-${job.name}`}
+                        className={`schedule__row ${isExpanded ? 'schedule__row--expanded' : ''}`}
+                        onClick={() => setExpanded(isExpanded ? null : job.name)}>
+                        <td className="schedule__td schedule__td--name">
+                          <span className={`schedule__chevron ${isExpanded ? 'schedule__chevron--open' : ''}`}>
+                            <IconChevron />
+                          </span>
+                          {job.name}
+                        </td>
+                        <td className="schedule__td schedule__td--schedule">{localizeSchedule(job.schedule_human, job.schedule)}</td>
+                        <td className="schedule__td">
+                          <span className="schedule__status">
+                            <span className={`schedule__status-dot ${
+                              running ? 'schedule__status-dot--running'
+                              : job.enabled === 'yes'
+                                ? (status?.daemon_running ? 'schedule__status-dot--on' : 'schedule__status-dot--warn')
+                                : 'schedule__status-dot--off'
+                            }`} />
+                            {running ? 'running' : job.enabled === 'yes' ? 'on' : 'off'}
+                          </span>
+                        </td>
+                        <td className="schedule__td schedule__td--muted">{relTime(job.last_run)}</td>
+                        <td className="schedule__td schedule__td--muted">{localTime(job.next_fire)}</td>
+                        <td className="schedule__td">
+                          <RateCell rate={jobStats?.success_rate} />
+                        </td>
+                        <td className="schedule__td schedule__td--actions" onClick={e => e.stopPropagation()}>
+                          <div className="schedule__actions">
+                            <button title="Run now" data-testid={`run-${job.name}`} disabled={running} onClick={() => handleRun(job.name)} className="schedule__action-btn">
+                              {running ? <IconSpinner /> : <IconPlay />}
+                            </button>
+                            <button title={job.artifact_file ? 'Open artifact' : 'No artifact'} disabled={!job.artifact_file}
+                              onClick={() => job.artifact_file && openArtifact.mutate(job.artifact_file)}
+                              className="schedule__action-btn">
+                              <IconFile />
+                            </button>
+                            <button title={job.enabled === 'yes' ? 'Disable' : 'Enable'}
+                              onClick={() => toggleJob.mutate({ target: job.name, enabled: job.enabled !== 'yes' })}
+                              className="schedule__action-btn">
+                              {job.enabled === 'yes' ? <IconPause /> : <IconResume />}
+                            </button>
+                            <button title="Delete"
+                              onClick={() => { if (confirm(`Delete job "${job.name}"?`)) deleteJob.mutate(job.name); }}
+                              className="schedule__action-btn schedule__action-btn--danger">
+                              <IconX />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr key={`${job.id}-detail`} className="schedule__detail-row">
+                          <td colSpan={7}>
+                            <div className="schedule__detail">
+                              <div className="schedule__detail-header">
+                                <span>{job.name} — Run History</span>
+                                {job.artifact_file && (
+                                  <button onClick={() => openArtifact.mutate(job.artifact_file)} className="schedule__action-btn" style={{ fontSize: '0.7rem' }}>
+                                    Open Latest Artifact
+                                  </button>
+                                )}
+                              </div>
+                              <JobDetail name={job.name} />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   );
                 })}
               </tbody>
@@ -305,21 +376,6 @@ export function ScheduleView() {
           </div>
         )}
       </div>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div style={{ marginTop: '0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: '0.5rem', padding: '0.5rem' }}>
-          <div style={{ padding: '0.5rem 0.75rem', fontWeight: 500, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{expanded} — Run History</span>
-            {jobs.find((j: any) => j.name === expanded)?.artifact_file && (
-              <button onClick={() => openArtifact.mutate(jobs.find((j: any) => j.name === expanded).artifact_file)} style={{ ...btnStyle, fontSize: '0.7rem' }}>
-                Open Latest Artifact
-              </button>
-            )}
-          </div>
-          <JobDetail name={expanded} />
-        </div>
-      )}
 
       </>)}
     </div>

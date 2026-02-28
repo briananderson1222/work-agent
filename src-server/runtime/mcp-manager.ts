@@ -9,6 +9,37 @@ import type { ToolDef, AgentSpec } from '../domain/types.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 
 /**
+ * Reference counting for MCP connections - tracks which agents use each toolId
+ */
+const mcpRefCounts = new Map<string, Set<string>>();
+
+/**
+ * Release MCP reference for an agent and clean up if no more references
+ */
+export function releaseMCPRef(
+  agentSlug: string,
+  toolId: string,
+  mcpConfigs: Map<string, MCPConfiguration>,
+  mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>,
+  integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }>
+): void {
+  const mcpKey = toolId;
+  const refSet = mcpRefCounts.get(mcpKey);
+  
+  if (refSet) {
+    refSet.delete(agentSlug);
+    
+    // Clean up if no more references
+    if (refSet.size === 0) {
+      mcpRefCounts.delete(mcpKey);
+      mcpConfigs.delete(mcpKey);
+      mcpConnectionStatus.delete(mcpKey);
+      integrationMetadata.delete(mcpKey);
+    }
+  }
+}
+
+/**
  * Create MCP server configuration from tool definition
  */
 export function createMCPServerConfig(toolDef: ToolDef): any {
@@ -56,10 +87,16 @@ export async function createMCPTools(
   toolNameReverseMapping: Map<string, string>,
   logger: any
 ): Promise<Tool<any>[]> {
-  const mcpKey = `${agentSlug}:${toolId}`;
+  const mcpKey = toolId;
 
   let mcpConfig: MCPConfiguration;
   let isNewConfig = false;
+
+  // Add agent to ref count
+  if (!mcpRefCounts.has(mcpKey)) {
+    mcpRefCounts.set(mcpKey, new Set());
+  }
+  mcpRefCounts.get(mcpKey)!.add(agentSlug);
 
   // Check if MCP config already exists
   if (mcpConfigs.has(mcpKey)) {

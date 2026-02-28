@@ -4,11 +4,12 @@
 
 import { Hono } from 'hono';
 import { readFile, readdir, mkdir, rm, cp, writeFile } from 'fs/promises';
-import { existsSync, mkdirSync, cpSync, rmSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, cpSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import type { EventBus } from '../services/event-bus.js';
-import { getAgentRegistryProvider } from '../providers/registry.js';
+import { getAgentRegistryProvider, getToolRegistryProvider } from '../providers/registry.js';
+import { processInstallPermissions, grantPermissions, revokeAllGrants, hasGrant, getPluginGrants, getPermissionTier } from '../services/plugin-permissions.js';
 
 export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?: EventBus) {
   const app = new Hono();
@@ -23,7 +24,7 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
     if (!hasBuildMjs && !hasBuildSh) return;
     try {
       if (existsSync(join(pluginDir, 'package.json'))) {
-        execSync('npm install --omit=dev', { cwd: pluginDir, timeout: 60000, stdio: 'pipe' });
+        execSync('npm install --omit=dev --no-package-lock --legacy-peer-deps', { cwd: pluginDir, timeout: 60000, stdio: 'pipe' });
       }
       const cmd = hasBuildMjs ? 'node build.mjs' : 'bash build.sh';
       execSync(cmd, { cwd: pluginDir, timeout: 30000, stdio: 'pipe' });
@@ -64,6 +65,12 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
           } catch {}
         }
 
+        const declared = manifest.permissions || [];
+        const granted = getPluginGrants(workAgentDir, manifest.name);
+        const missing = declared
+          .filter((p: string) => !granted.includes(p))
+          .map((p: string) => ({ permission: p, tier: getPermissionTier(p) }));
+
         plugins.push({
           name: manifest.name,
           displayName: manifest.displayName,
@@ -74,6 +81,7 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
           agents: manifest.agents,
           providers: manifest.providers,
           git,
+          permissions: { declared, granted, missing },
         });
       } catch (e: any) {
         logger.error('Failed to read plugin manifest', { plugin: entry.name, error: e.message });
@@ -158,6 +166,37 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
       // Load providers
       await loadProviders(pluginsDir, manifest.name, manifest, logger);
 
+      // Resolve required tools
+      const toolsDir = join(workAgentDir, 'tools');
+      const requiredTools = manifest.tools?.required || [];
+      const toolResults: Array<{ id: string; status: 'installed' | 'missing' | 'installed-now' }> = [];
+
+      for (const toolId of requiredTools) {
+        if (existsSync(join(toolsDir, toolId, 'tool.json'))) {
+          toolResults.push({ id: toolId, status: 'installed' });
+        } else {
+          // Try to install from registry
+          try {
+            const registry = getToolRegistryProvider();
+            const result = await registry.install(toolId);
+            const toolDef = result.success ? await registry.getToolDef(toolId) : null;
+            if (toolDef) {
+              const toolDir = join(toolsDir, toolId);
+              mkdirSync(toolDir, { recursive: true });
+              writeFileSync(join(toolDir, 'tool.json'), JSON.stringify(toolDef, null, 2));
+            }
+            toolResults.push({ id: toolId, status: result.success ? 'installed-now' : 'missing' });
+          } catch {
+            toolResults.push({ id: toolId, status: 'missing' });
+          }
+        }
+      }
+
+      // Process permissions
+      const { autoGranted, pendingConsent } = processInstallPermissions(
+        workAgentDir, pluginName, manifest.permissions || [],
+      );
+
       return c.json({
         success: true,
         plugin: {
@@ -166,6 +205,8 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
           version: manifest.version,
           hasBundle: existsSync(join(pluginDir, 'dist', 'bundle.js')),
         },
+        tools: toolResults,
+        permissions: { autoGranted, pendingConsent },
       });
     } catch (e: any) {
       logger.error('Plugin install failed', { error: e.message });
@@ -307,6 +348,9 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
         if (existsSync(wsDir)) rmSync(wsDir, { recursive: true });
       }
 
+      // Revoke permission grants
+      revokeAllGrants(workAgentDir, name);
+
       // Remove plugin
       rmSync(pluginDir, { recursive: true });
 
@@ -337,32 +381,39 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
     return c.text(await readFile(cssPath, 'utf-8'));
   });
 
+  // ── Plugin permissions ────────────────────────────────
+
+  app.get('/:name/permissions', async (c) => {
+    const name = c.req.param('name');
+    const manifestPath = join(pluginsDir, name, 'plugin.json');
+    if (!existsSync(manifestPath)) return c.json({ success: false, error: 'Plugin not found' }, 404);
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
+    const declared = manifest.permissions || [];
+    const granted = getPluginGrants(workAgentDir, name);
+    return c.json({ declared, granted });
+  });
+
+  app.post('/:name/grant', async (c) => {
+    const name = c.req.param('name');
+    const { permissions } = await c.req.json();
+    if (!Array.isArray(permissions)) return c.json({ success: false, error: 'permissions array required' }, 400);
+    grantPermissions(workAgentDir, name, permissions);
+    return c.json({ success: true, granted: permissions });
+  });
+
   // ── Server-side fetch proxy for plugins ───────────────
 
-  app.post('/fetch', async (c) => {
-    try {
-      const { url, method, headers, body } = await c.req.json();
-      if (!url || typeof url !== 'string') return c.json({ success: false, error: 'url is required' }, 400);
-
-      const resp = await fetch(url, {
-        method: method || 'GET',
-        headers: headers || {},
-        ...(body ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {}),
-      });
-
-      const contentType = resp.headers.get('content-type') || '';
-      const text = await resp.text();
-
-      return c.json({
-        success: true,
-        status: resp.status,
-        contentType,
-        body: text,
-      });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 502);
+  // Scoped route: checks permission grants
+  app.post('/:name/fetch', async (c) => {
+    const name = c.req.param('name');
+    if (!hasGrant(workAgentDir, name, 'network.fetch')) {
+      return c.json({ success: false, error: `Plugin '${name}' does not have network.fetch permission` }, 403);
     }
+    return proxyFetch(c);
   });
+
+  // Legacy unscoped route (no permission check — backward compat during migration)
+  app.post('/fetch', async (c) => proxyFetch(c));
 
   // ── Reload providers ─────────────────────────────────
 
@@ -389,6 +440,28 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
   });
 
   return app;
+}
+
+// ── Shared fetch proxy logic ───────────────────────────
+
+async function proxyFetch(c: any) {
+  try {
+    const { url, method, headers, body } = await c.req.json();
+    if (!url || typeof url !== 'string') return c.json({ success: false, error: 'url is required' }, 400);
+
+    const resp = await fetch(url, {
+      method: method || 'GET',
+      headers: headers || {},
+      ...(body ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {}),
+    });
+
+    const contentType = resp.headers.get('content-type') || '';
+    const text = await resp.text();
+
+    return c.json({ success: true, status: resp.status, contentType, body: text });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 502);
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────

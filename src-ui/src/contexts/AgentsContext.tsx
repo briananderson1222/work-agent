@@ -1,4 +1,4 @@
-import { useAgentsQuery, useApiMutation, useInvalidateQuery } from '@stallion-ai/sdk';
+import { useAgentsQuery, useApiMutation, useInvalidateQuery } from '@work-agent/sdk';
 import { useApiBase } from './ApiBaseContext';
 import { log } from '@/utils/logger';
 

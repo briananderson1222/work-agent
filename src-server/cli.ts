@@ -4,11 +4,13 @@
 
 import 'dotenv/config';
 import { createInterface } from 'readline';
+import { homedir } from 'os';
+import { join } from 'path';
 import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
 
 async function main() {
   const runtime = new WorkAgentRuntime({
-    workAgentDir: '.work-agent',
+    workAgentDir: process.env.WORK_AGENT_DIR || join(homedir(), '.work-agent'),
     logLevel: 'warn', // Less verbose for CLI
   });
 

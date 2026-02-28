@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, ReactNode } from 'react';
-import { useModelsQuery, useInvalidateQuery } from '@stallion-ai/sdk';
+import { useModelsQuery, useInvalidateQuery } from '@work-agent/sdk';
 import { log } from '@/utils/logger';
 
 interface Model {

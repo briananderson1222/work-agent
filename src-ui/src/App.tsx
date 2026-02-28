@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useServerEvents } from './hooks/useServerEvents';
 import { log } from '@/utils/logger';
 import type { KeyboardEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -15,7 +16,7 @@ import { useApiBase } from './contexts/ApiBaseContext';
 import { useConfig, CONFIG_DEFAULTS } from './contexts/ConfigContext';
 import { useNavigation } from './contexts/NavigationContext';
 import { useToast } from './contexts/ToastContext';
-import { useWorkspacesQuery, useWorkspaceQuery } from '@stallion-ai/sdk';
+import { useWorkspacesQuery, useWorkspaceQuery } from '@work-agent/sdk';
 import { useAgents } from './contexts/AgentsContext';
 import { useWorkflows } from './contexts/WorkflowsContext';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
@@ -27,10 +28,12 @@ import { ACPConnectionsSection } from './components/ACPConnectionsSection';
 import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { SettingsView } from './views/SettingsView';
+import { PluginManagementView } from './views/PluginManagementView';
 import { MonitoringView } from './views/MonitoringView';
 import { ScheduleView } from './views/ScheduleView';
 import { ProfilePage } from './pages/ProfilePage';
-import { useAwsAuth } from './hooks/useAwsAuth';
+import { useExternalAuth } from './hooks/useExternalAuth';
+import { useSystemStatus } from './hooks/useSystemStatus';
 import { setAuthCallback } from './lib/apiClient';
 import { getAgentIcon, getAgentIconStyle } from './utils/workspace';
 import { AgentIcon } from './components/AgentIcon';
@@ -43,6 +46,9 @@ function App() {
   const { apiBase: API_BASE } = useApiBase();
   const availableModels = useModels(API_BASE);
   const agents = useAgents();
+
+  // SSE event stream — replaces all polling for ACP status, agent changes, etc.
+  useServerEvents();
   const { selectedAgent, selectedWorkspace, setAgent, setWorkspace, setWorkspaceTab, navigate, isDockOpen } = useNavigation();
   const { showToast } = useToast();
   const { data: workspaces = [] } = useWorkspacesQuery();
@@ -61,13 +67,14 @@ function App() {
   const [showShortcutsCheatsheet, setShowShortcutsCheatsheet] = useState(false);
   const [pinDialogResolver, setPinDialogResolver] = useState<((success: boolean) => void) | null>(null);
   const [activeAbortController, setActiveAbortController] = useState<AbortController | null>(null);
-  const { authenticate, isAuthenticating, error: authError } = useAwsAuth();
+  const { authenticate, isAuthenticating, error: authError } = useExternalAuth();
+  const { data: systemStatus } = useSystemStatus();
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
     const path = window.location.pathname;
     
     if (path === '/agents') return { type: 'agents' };
     if (path === '/prompts') return { type: 'prompts' };
-    if (path === '/integrations') return { type: 'integrations' };
+    if (path === '/plugins') return { type: 'plugins' };
     if (path === '/monitoring') return { type: 'monitoring' };
     if (path === '/schedule') return { type: 'schedule' };
     if (path === '/profile') return { type: 'profile' };
@@ -108,8 +115,8 @@ function App() {
       } else if (path === '/prompts') {
         setCurrentView({ type: 'prompts' });
         return;
-      } else if (path === '/integrations') {
-        setCurrentView({ type: 'integrations' });
+      } else if (path === '/plugins') {
+        setCurrentView({ type: 'plugins' });
         return;
       } else if (path === '/profile') {
         setCurrentView({ type: 'profile' });
@@ -341,9 +348,10 @@ function App() {
     const workspace = workspaces.find(w => w.slug === slug);
     if (workspace) {
       // Use preferred tab ID if provided and valid, otherwise use first tab
-      const validTabId = preferredTabId && workspace.tabs.find((t: any) => t.id === preferredTabId)
+      const tabs = workspace.tabs || [];
+      const validTabId = preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
         ? preferredTabId 
-        : workspace.tabs[0]?.id || '';
+        : tabs[0]?.id || '';
       
       setActiveTabId(validTabId);
       
@@ -392,8 +400,8 @@ function App() {
     
     // Update URL based on view type
     if (view.type === 'workspace') {
-      // Navigate to current workspace or home
-      if (selectedWorkspace) {
+      // Navigate to current workspace or home (ignore synthetic slugs like 'new')
+      if (selectedWorkspace && selectedWorkspace !== 'new') {
         navigate(`/workspaces/${selectedWorkspace}`);
       } else {
         navigate('/');
@@ -404,8 +412,8 @@ function App() {
       navigate('/agents');
     } else if (view.type === 'prompts') {
       navigate('/prompts');
-    } else if (view.type === 'integrations') {
-      navigate('/integrations');
+    } else if (view.type === 'plugins') {
+      navigate('/plugins');
     } else if (view.type === 'profile') {
       navigate('/profile');
     } else if (view.type === 'notifications') {
@@ -561,10 +569,38 @@ function App() {
                     Manage AI agents with custom prompts, models, and tools
                   </p>
                 </div>
-                <button className="button button--primary" onClick={() => navigateToView({ type: 'agent-new' })}>
+                <button
+                  className="button button--primary"
+                  onClick={() => navigateToView({ type: 'agent-new' })}
+                  disabled={!systemStatus?.bedrock.credentialsFound}
+                  title={!systemStatus?.bedrock.credentialsFound ? 'AWS Bedrock credentials required to create agents' : undefined}
+                  style={!systemStatus?.bedrock.credentialsFound ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
                   + New Agent
                 </button>
               </div>
+
+              {/* Bedrock onboarding card when credentials not found */}
+              {systemStatus && !systemStatus.bedrock.credentialsFound && (
+                <div style={{ padding: '20px', marginBottom: '24px', background: 'var(--bg-secondary, #1a1a1a)', border: '1px solid var(--border-primary, #333)', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    <span style={{ fontSize: '24px' }}>🧠</span>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>Bedrock Setup Required</div>
+                      <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        Creating and managing custom agents requires AWS Bedrock credentials. Configure your AWS credentials to get started.
+                      </p>
+                      <button
+                        className="button button--secondary"
+                        onClick={() => navigateToView({ type: 'settings' })}
+                        style={{ fontSize: '13px', padding: '6px 14px' }}
+                      >
+                        Open Settings →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {(() => {
                 const workspaceAgents = agents.filter(a => (a.slug || a.id).includes(':'));
@@ -791,21 +827,8 @@ function App() {
               </div>
             </div>
           )}
-          {currentView.type === 'integrations' && (
-            <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>Integrations</h1>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Manage MCP tools and integrations
-                  </p>
-                </div>
-              </div>
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔌</div>
-                <p>Integrations management coming soon.</p>
-              </div>
-            </div>
+          {currentView.type === 'plugins' && (
+            <PluginManagementView />
           )}
           {currentView.type === 'agent-new' && (
             <AgentEditorView

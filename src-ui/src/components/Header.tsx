@@ -2,9 +2,7 @@ import { useState } from 'react';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import { getInitials } from '../utils/workspace';
 import { WorkspaceIcon } from './WorkspaceIcon';
-import { WorkspaceAutocomplete } from './WorkspaceAutocomplete';
 import { NotificationHistory } from './NotificationHistory';
-import { AuthStatusBadge } from './AuthStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import type { NavigationView } from '../types';
 
@@ -138,17 +136,17 @@ export function Header({
           </button>
           <button
             type="button"
-            className={`header-nav-btn ${currentView?.type === 'integrations' ? 'is-active' : ''}`}
+            className={`header-nav-btn ${currentView?.type === 'plugins' ? 'is-active' : ''}`}
             onClick={() => {
-              if (currentView?.type === 'integrations') {
+              if (currentView?.type === 'plugins') {
                 onNavigate({ type: 'workspace' });
               } else {
-                onNavigate({ type: 'integrations' });
+                onNavigate({ type: 'plugins' });
               }
             }}
-            title="Integrations"
+            title="Plugins"
           >
-            Integrations
+            Plugins
           </button>
           <button
             type="button"
@@ -216,8 +214,6 @@ export function Header({
           {userInitials}
         </button>
 
-        <AuthStatusBadge />
-
         <button
           type="button"
           className={`button button--secondary app-toolbar__settings ${currentView?.type === 'settings' ? 'is-active' : ''}`}
@@ -231,18 +227,26 @@ export function Header({
 
       {/* Workspace autocomplete modal */}
       {showWorkspaceAutocomplete && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000,
-        }}>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowWorkspaceAutocomplete(false);
+              setWorkspaceQuery('');
+            }
+          }}
+        >
           <div style={{
             background: 'var(--bg-secondary)',
             borderRadius: '8px',
@@ -255,6 +259,12 @@ export function Header({
               type="text"
               value={workspaceQuery}
               onChange={(e) => setWorkspaceQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setShowWorkspaceAutocomplete(false);
+                  setWorkspaceQuery('');
+                }
+              }}
               placeholder="Search workspaces..."
               autoFocus
               style={{
@@ -267,16 +277,50 @@ export function Header({
                 color: 'var(--text-primary)',
               }}
             />
-            <WorkspaceAutocomplete
-              query={workspaceQuery}
-              workspaces={workspaces}
-              currentWorkspace={selectedWorkspace?.slug}
-              onSelect={handleWorkspaceSelect}
-              onClose={() => {
-                setShowWorkspaceAutocomplete(false);
-                setWorkspaceQuery('');
-              }}
-            />
+            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+              {workspaces
+                .filter(w => {
+                  const q = (workspaceQuery || '').toLowerCase();
+                  return w.name.toLowerCase().includes(q) || w.slug.toLowerCase().includes(q);
+                })
+                .map((ws: any) => (
+                  <div
+                    key={ws.slug}
+                    onClick={() => handleWorkspaceSelect(ws)}
+                    style={{
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      marginBottom: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      background: selectedWorkspace?.slug === ws.slug ? 'var(--bg-hover)' : 'transparent',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = selectedWorkspace?.slug === ws.slug ? 'var(--bg-hover)' : 'transparent'}
+                  >
+                    <WorkspaceIcon workspace={ws} size={32} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>{ws.name}</span>
+                        {selectedWorkspace?.slug === ws.slug && (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', background: 'var(--accent-primary)', color: 'white', fontWeight: 500 }}>active</span>
+                        )}
+                      </div>
+                      {ws.description && (
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.description}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              {workspaces.filter(w => {
+                const q = (workspaceQuery || '').toLowerCase();
+                return w.name.toLowerCase().includes(q) || w.slug.toLowerCase().includes(q);
+              }).length === 0 && (
+                <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No workspaces found</div>
+              )}
+            </div>
           </div>
         </div>
       )}

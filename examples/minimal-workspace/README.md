@@ -98,7 +98,7 @@ This plugin demonstrates:
 ### Accessing Agents
 
 ```typescript
-import { useAgents } from '@stallion-ai/sdk';
+import { useAgents } from '@work-agent/sdk';
 
 const agents = useAgents();
 ```
@@ -106,7 +106,7 @@ const agents = useAgents();
 ### Controlling Navigation
 
 ```typescript
-import { useNavigation } from '@stallion-ai/sdk';
+import { useNavigation } from '@work-agent/sdk';
 
 const { setDockState } = useNavigation();
 setDockState(true); // Open chat dock
@@ -115,7 +115,7 @@ setDockState(true); // Open chat dock
 ### Showing Notifications
 
 ```typescript
-import { useToast } from '@stallion-ai/sdk';
+import { useToast } from '@work-agent/sdk';
 
 const { showToast } = useToast();
 showToast({
@@ -176,10 +176,10 @@ Available variables:
 
 ## TypeScript
 
-The plugin is fully typed using types from `@stallion-ai/sdk`:
+The plugin is fully typed using types from `@work-agent/sdk`:
 
 ```typescript
-import type { WorkspaceComponentProps } from '@stallion-ai/sdk';
+import type { WorkspaceComponentProps } from '@work-agent/sdk';
 
 export default function MyWorkspace(props: WorkspaceComponentProps) {
   // ...

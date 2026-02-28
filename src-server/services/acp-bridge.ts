@@ -217,6 +217,7 @@ export class ACPConnection {
     private memoryAdapters?: Map<string, FileVoltAgentMemoryAdapter>,
     private createMemoryAdapter?: (slug: string) => FileVoltAgentMemoryAdapter,
     private usageAggregatorRef?: { get: () => any },
+    private eventBus?: { emit: (event: string, data?: Record<string, unknown>) => void },
   ) {
     if (this.config.cwd) this.cwd = this.config.cwd;
   }
@@ -248,6 +249,7 @@ export class ACPConnection {
         this.modes = [];
         this.slashCommands = [];
         this.status = 'disconnected';
+        this.eventBus?.emit('acp:status', { id: this.config.id, status: 'disconnected' });
         this.scheduleReconnect();
       });
 
@@ -326,6 +328,8 @@ export class ACPConnection {
 
       this.status = 'connected';
       this.reconnectAttempts = 0;
+      this.eventBus?.emit('acp:status', { id: this.config.id, status: 'connected' });
+      this.eventBus?.emit('agents:changed');
 
       // Detect model from CLI settings if not provided via configOptions
       if (this.configOptions.length === 0) {
@@ -347,6 +351,7 @@ export class ACPConnection {
     } catch (error: any) {
       this.logger.error('[ACPBridge] Failed to start', { error: error.message });
       this.status = 'error';
+      this.eventBus?.emit('acp:status', { id: this.config.id, status: 'error' });
       this.cleanup();
       this.scheduleReconnect();
       return false;
@@ -1029,8 +1034,11 @@ export class ACPConnection {
   private handleExtMethod(method: string, params: Record<string, unknown>): Record<string, unknown> {
     switch (method) {
       case '_kiro.dev/metadata':
-        // kiro-cli sends metadata about the session — acknowledge it
-        this.logger.debug('[ACPBridge] Metadata received', { params });
+        // kiro-cli sends metadata about the session — extract config options if present
+        if (Array.isArray((params as any).configOptions) && (params as any).configOptions.length > 0) {
+          this.configOptions = (params as any).configOptions;
+          this.logger.info('[ACPBridge] Config options updated from metadata', { count: this.configOptions.length });
+        }
         return {};
       case '_kiro.dev/commands/execute':
         // kiro-cli asking us to execute a command — pass through
@@ -1198,6 +1206,7 @@ export class ACPManager {
     private memoryAdapters?: Map<string, FileVoltAgentMemoryAdapter>,
     private createMemoryAdapter?: (slug: string) => FileVoltAgentMemoryAdapter,
     private usageAggregatorRef?: { get: () => any },
+    private eventBus?: { emit: (event: string, data?: Record<string, unknown>) => void },
   ) {}
 
   /** Start connections for all enabled configs */
@@ -1213,6 +1222,7 @@ export class ACPManager {
     const conn = new ACPConnection(
       config, this.approvalRegistry, this.logger, this.cwd,
       this.memoryAdapters, this.createMemoryAdapter, this.usageAggregatorRef,
+      this.eventBus,
     );
     this.connections.set(config.id, conn);
     return conn.start();

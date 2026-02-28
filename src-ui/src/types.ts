@@ -173,7 +173,7 @@ export type NavigationView =
   | { type: 'workspaces' }
   | { type: 'agents' }
   | { type: 'prompts' }
-  | { type: 'integrations' }
+  | { type: 'plugins' }
   | { type: 'monitoring' }
   | { type: 'schedule' }
   | { type: 'profile' }

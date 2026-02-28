@@ -34,6 +34,11 @@
       "description": "Default maximum turns for agent conversations",
       "default": 10
     },
+    "defaultMaxOutputTokens": {
+      "type": "number",
+      "description": "Default maximum output tokens for model responses",
+      "default": 16384
+    },
     "apiEndpoint": {
       "type": "string",
       "description": "Optional API endpoint override (defaults to http://localhost:3141)"

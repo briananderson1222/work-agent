@@ -1,5 +1,5 @@
 import { useEffect, ReactNode } from 'react';
-import { useEvents } from '@stallion-ai/sdk';
+import { useEvents } from '@work-agent/sdk';
 
 export function EventRouter({ children }: { children: ReactNode }) {
   const events = useEvents();

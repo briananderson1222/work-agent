@@ -5,12 +5,15 @@
 
 // import 'dotenv/config';
 import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
+import { homedir } from 'os';
+import { join } from 'path';
 
 async function main() {
   const port = process.env.PORT ? parseInt(process.env.PORT) : 3141;
+  const workAgentDir = process.env.WORK_AGENT_DIR || join(homedir(), '.work-agent');
   
   const runtime = new WorkAgentRuntime({
-    workAgentDir: '.work-agent',
+    workAgentDir,
     port,
     logLevel: 'info',
   });

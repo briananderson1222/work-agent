@@ -1,5 +1,5 @@
 import { registerCommand } from './registry';
-import { agentQueries } from '@stallion-ai/sdk';
+import { agentQueries } from '@work-agent/sdk';
 
 registerCommand('tools', async ({ agent, chatState, queryClient, addEphemeralMessage, sessionId, autocomplete, updateChat }) => {
   try {

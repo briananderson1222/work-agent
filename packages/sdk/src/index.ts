@@ -96,6 +96,12 @@ export {
   
   // Chat utilities
   useSendToChat,
+  
+  // User directory
+  useUserLookup,
+
+  // Server-side fetch proxy
+  useServerFetch,
 } from './hooks';
 
 // Re-export utility functions
@@ -106,6 +112,7 @@ export {
   invokeAgent,
   invoke,
   transformTool,
+  callTool,
   fetchConfig,
   _setWorkspaceContext,
   _setApiBase,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AuthStatusBadge } from './AuthStatusBadge';
 
 interface WorkspaceTab {
   id: string;
@@ -95,6 +96,9 @@ export function WorkspaceHeader({
               ))}
             </div>
           )}
+          <div style={{ marginLeft: workspacePrompts?.length ? '0' : 'auto' }}>
+            <AuthStatusBadge />
+          </div>
         </div>
       ) : null}
 

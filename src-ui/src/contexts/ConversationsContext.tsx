@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
-import { useConversationsQuery, useQueryClient } from '@stallion-ai/sdk';
+import { useConversationsQuery, useQueryClient } from '@work-agent/sdk';
 import { log } from '@/utils/logger';
 import { CONFIG_DEFAULTS } from './ConfigContext';
 import type { FileAttachment } from '../types';

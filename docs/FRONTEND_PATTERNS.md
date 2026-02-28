@@ -149,7 +149,7 @@ ViewModel hooks combine queries and add business logic. **These live in the plug
 
 ```typescript
 // examples/my-plugin/useMyViewModel.ts
-import { useTransformTool, useAgents } from '@stallion-ai/sdk';
+import { useTransformTool, useAgents } from '@work-agent/sdk';
 
 export function useFilesViewModel() {
   // Use SDK query hooks
@@ -262,7 +262,7 @@ export function CRM() {
 
 ```typescript
 // ✅ Correct - plugin imports from SDK
-import { useTransformTool, useAgents, useSendToChat } from '@stallion-ai/sdk';
+import { useTransformTool, useAgents, useSendToChat } from '@work-agent/sdk';
 
 // ❌ Wrong - plugin imports from core
 import { useAgents } from '@/contexts/AgentsContext';

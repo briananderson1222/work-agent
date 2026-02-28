@@ -21,8 +21,8 @@ src-desktop/target/
 src-desktop/Cargo.lock
 src-desktop/binaries/
 
-# Plugins and workspaces (installed via npm, except core files)
-src-ui/src/workspaces/stallion-workspace/
+# Plugins and workspaces (installed via CLI, except core files)
+src-ui/src/workspaces/*/
 src-ui/src/plugins/
 !src-ui/src/workspaces/.gitkeep
 !src-ui/src/workspaces/index.tsx

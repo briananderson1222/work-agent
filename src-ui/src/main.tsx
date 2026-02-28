@@ -39,6 +39,7 @@ import { PreviewProvider } from './contexts/PreviewContext';
 import { NotificationContainer } from './components/NotificationContainer';
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext';
 import { OnboardingGate } from './components/OnboardingGate';
+import { PermissionManager } from './core/PermissionManager';
 import { pluginRegistry } from './core/PluginRegistry';
 
 const queryClient = new QueryClient({
@@ -76,6 +77,7 @@ pluginRegistry.initialize().then(() => {
         <ApiBaseProvider>
           <AuthProvider>
             <OnboardingGate>
+            <PermissionManager>
             <NavigationProvider>
               <KeyboardShortcutsProvider>
                 <ToastProvider>
@@ -98,6 +100,7 @@ pluginRegistry.initialize().then(() => {
               </ToastProvider>
             </KeyboardShortcutsProvider>
           </NavigationProvider>
+          </PermissionManager>
           </OnboardingGate>
           </AuthProvider>
         </ApiBaseProvider>

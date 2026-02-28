@@ -1,4 +1,4 @@
-import { useConfigQuery, useApiMutation, useInvalidateQuery } from '@stallion-ai/sdk';
+import { useConfigQuery, useApiMutation, useInvalidateQuery } from '@work-agent/sdk';
 import { log } from '@/utils/logger';
 
 type ConfigData = {

@@ -5,9 +5,10 @@
  * They delegate to the actual context implementations in the core app.
  */
 
-import { useContext, useCallback } from 'react';
+import { useContext, useCallback, useState, useEffect } from 'react';
 import { SDKContext } from './providers';
 import { resolveAgentName } from './agentResolver';
+import { _getApiBase, _getPluginName } from './api';
 import type { AgentSummary } from './types';
 
 // SDK Context Access
@@ -276,4 +277,57 @@ export function useSendToChat(agentSlug: string) {
     navigation.setActiveChat(sessionId);
     sendMessage(sessionId, resolvedSlug, undefined, message);
   }, [agents, agentSlug, createChatSession, navigation, sendMessage]);
+}
+
+/**
+ * Hook to look up a user by alias via the user directory provider.
+ * Returns { data, loading, error } for the given alias.
+ */
+export function useUserLookup(alias: string | null) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!alias) { setData(null); return; }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    _getApiBase().then(apiBase =>
+      fetch(`${apiBase}/api/users/${encodeURIComponent(alias)}`)
+    ).then(r => r.json()).then(d => {
+      if (!cancelled) setData(d);
+    }).catch(e => {
+      if (!cancelled) setError(e.message);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [alias]);
+
+  return { data, loading, error };
+}
+
+/**
+ * Server-side fetch proxy for plugins.
+ * Requires `network.fetch` permission in plugin.json.
+ * Returns a fetch-like function that routes through the backend to avoid CORS.
+ */
+export function useServerFetch() {
+  return useCallback(async (url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }) => {
+    const apiBase = await _getApiBase();
+    const pluginName = _getPluginName();
+    const fetchUrl = pluginName 
+      ? `${apiBase}/api/plugins/${encodeURIComponent(pluginName)}/fetch`
+      : `${apiBase}/api/plugins/fetch`;
+    
+    const resp = await fetch(fetchUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, method: options?.method, headers: options?.headers, body: options?.body }),
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || 'Server fetch failed');
+    return { status: data.status, contentType: data.contentType, body: data.body } as { status: number; contentType: string; body: string };
+  }, []);
 }

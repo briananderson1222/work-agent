@@ -5,7 +5,7 @@ import { parseToolName } from '../../../utils/tool-name-normalizer.js';
  * Augments tool events with parsed server/tool fields for UI compatibility
  * 
  * Adds `server` and `tool` fields to tool-call events by parsing the toolName.
- * Example: "satOutlook_calendarView" → server: "satOutlook", tool: "calendarView"
+ * Example: "myServer_doSomething" → server: "myServer", tool: "doSomething"
  */
 export class ToolCallHandler implements StreamHandler {
   name = 'tool-call';

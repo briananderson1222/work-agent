@@ -32,7 +32,7 @@ export function PinDialog({ onSubmit, onCancel, isLoading, error }: PinDialogPro
         minWidth: '320px',
         border: '1px solid var(--color-border)'
       }}>
-        <h2 style={{ margin: '0 0 16px', color: 'var(--color-text)' }}>AWS Authentication Required</h2>
+        <h2 style={{ margin: '0 0 16px', color: 'var(--color-text)' }}>Authentication Required</h2>
         <form onSubmit={handleSubmit}>
           <input
             type="password"

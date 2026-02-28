@@ -1,5 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmModal } from './ConfirmModal';
+import { useACPConnections, type ACPConnectionInfo } from '../hooks/useACPConnections';
+import { useSystemStatus } from '../hooks/useSystemStatus';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import type { AgentSummary } from '../types';
 
 interface ACPConnectionsSectionProps {
@@ -7,42 +11,38 @@ interface ACPConnectionsSectionProps {
   apiBase: string;
 }
 
-interface ConnectionInfo {
-  id: string;
-  name: string;
-  command: string;
-  args?: string[];
-  icon?: string;
-  cwd?: string;
-  enabled: boolean;
-  status: string;
-  modes: string[];
-  sessionId: string | null;
-  mcpServers: string[];
-  configOptions?: { category: string; currentValue?: string; options?: string[] }[];
-  currentModel?: string | null;
-}
-
 function ConnectionIcon({ icon, size = 24 }: { icon?: string; size?: number }) {
-  if (!icon) return <span style={{ fontSize: size * 0.75 }}>🔌</span>;
-  if (icon.startsWith('http') || icon.startsWith('/')) {
+  if (icon && (icon.startsWith('http') || icon.startsWith('/'))) {
     return <img src={icon} alt="" style={{ width: size, height: size, borderRadius: 4 }} />;
   }
-  return <span style={{ fontSize: size * 0.75 }}>{icon}</span>;
+  if (icon) return <span style={{ fontSize: size * 0.75 }}>{icon}</span>;
+  // Default: contact-card style SVG
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <circle cx="9" cy="11" r="2.5" />
+      <path d="M5 18c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5" />
+      <line x1="16" y1="9" x2="20" y2="9" />
+      <line x1="16" y1="13" x2="20" y2="13" />
+    </svg>
+  );
 }
 
+const ACP_PRESETS = [
+  { id: 'kiro', name: 'kiro-cli', command: 'kiro-cli', args: 'acp', icon: '/kiro-icon.png', cliKey: 'kiro-cli' },
+  { id: 'claude', name: 'Claude Code', command: 'claude', args: 'acp', icon: '🟠', cliKey: 'claude' },
+];
+
 export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSectionProps) {
-  const [connections, setConnections] = useState<ConnectionInfo[]>([]);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedConn, setSelectedConn] = useState<ConnectionInfo | null>(null);
+  const { data: connections = [] } = useACPConnections();
+  const { data: systemStatus } = useSystemStatus();
+  const queryClient = useQueryClient();
+  const [showPresets, setShowPresets] = useState(false);
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [selectedConn, setSelectedConn] = useState<ACPConnectionInfo | null>(null);
+  const detectedClis = systemStatus?.clis || {};
 
-  const refresh = useCallback(() => {
-    fetch(`${apiBase}/acp/connections`).then(r => r.json())
-      .then(({ data }) => setConnections(data || []))
-      .catch(() => {});
-  }, [apiBase]);
-
-  useEffect(() => { refresh(); }, [refresh]);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['acp-connections'] });
 
   const toggleEnabled = async (id: string, enabled: boolean) => {
     await fetch(`${apiBase}/acp/connections/${id}`, {
@@ -60,24 +60,51 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
   const addConnection = async (data: any) => {
     await fetch(`${apiBase}/acp/connections`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, args: data.args ? data.args.split(/\s+/) : [] }),
+      body: JSON.stringify({ ...data, args: typeof data.args === 'string' ? data.args.split(/\s+/) : data.args }),
     });
-    setShowAddForm(false);
+    setShowPresets(false);
+    setShowCustomModal(false);
     refresh();
   };
+
+  const existingIds = new Set(connections.map(c => c.id));
+  const availablePresets = ACP_PRESETS.filter(p => !existingIds.has(p.id));
 
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '32px', marginBottom: '12px' }}>
         <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent-acp)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          🔌 ACP Connections
+          Agent Client Protocol (ACP)
         </h2>
-        <button className="button button--secondary" onClick={() => setShowAddForm(!showAddForm)}>
-          + Add Connection
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button className="button button--secondary" onClick={() => setShowPresets(!showPresets)}>
+            + Add Connection
+          </button>
+          {showPresets && (
+            <div className="acp-preset-menu">
+              {availablePresets.map(preset => {
+                const installed = detectedClis[preset.cliKey];
+                return (
+                  <button key={preset.id}
+                    className={`acp-preset-item${installed ? '' : ' acp-preset-item--disabled'}`}
+                    onClick={() => installed && addConnection(preset)}>
+                    <ConnectionIcon icon={preset.icon} size={20} />
+                    <span className="acp-preset-item__name">{preset.name}</span>
+                    {!installed && <span className="acp-preset-item__hint">not installed</span>}
+                  </button>
+                );
+              })}
+              {availablePresets.length > 0 && <div className="acp-preset-divider" />}
+              <button className="acp-preset-item" onClick={() => { setShowPresets(false); setShowCustomModal(true); }}>
+                <span style={{ fontSize: 15 }}>⚙️</span>
+                <span className="acp-preset-item__name">Custom…</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {showAddForm && <AddConnectionForm onAdd={addConnection} onCancel={() => setShowAddForm(false)} />}
+      {showCustomModal && <AddConnectionModal onAdd={addConnection} onCancel={() => setShowCustomModal(false)} />}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
         {connections.map(conn => (
@@ -89,11 +116,11 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
         ))}
       </div>
 
-      {connections.length === 0 && !showAddForm && (
-        <div style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-bg-secondary)', border: '1px dashed var(--border-primary)', borderRadius: '12px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔌</div>
-          <p style={{ margin: '0 0 8px', fontSize: '14px', color: 'var(--text-secondary)' }}>No ACP connections configured</p>
-          <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-muted)' }}>
+      {connections.length === 0 && !showPresets && (
+        <div className="acp-empty">
+          <ConnectionIcon size={48} />
+          <p className="acp-empty__text">No ACP connections configured</p>
+          <p className="acp-empty__hint">
             Add a connection to use external AI agents like kiro-cli, Gemini CLI, or Goose
           </p>
         </div>
@@ -111,7 +138,7 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
 }
 
 function ConnectionCard({ conn, agents, onClick, onToggle, onRemove }: {
-  conn: ConnectionInfo; agents: AgentSummary[];
+  conn: ACPConnectionInfo; agents: AgentSummary[];
   onClick: () => void; onToggle: (enabled: boolean) => void; onRemove: () => void;
 }) {
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
@@ -201,7 +228,7 @@ function ConnectionCard({ conn, agents, onClick, onToggle, onRemove }: {
   );
 }
 
-function AddConnectionForm({ onAdd, onCancel }: {
+function AddConnectionModal({ onAdd, onCancel }: {
   onAdd: (data: { id: string; name: string; command: string; args: string; icon: string; cwd: string }) => void;
   onCancel: () => void;
 }) {
@@ -209,59 +236,57 @@ function AddConnectionForm({ onAdd, onCancel }: {
   const [name, setName] = useState('');
   const [command, setCommand] = useState('');
   const [args, setArgs] = useState('');
-  const [icon, setIcon] = useState('🔌');
+  const [icon, setIcon] = useState('');
   const [cwd, setCwd] = useState('');
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '8px 10px', fontSize: '13px', borderRadius: '6px',
-    border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--text-primary)',
-  };
-
   return (
-    <div style={{
-      background: 'var(--color-bg-secondary)', border: '1px solid color-mix(in srgb, var(--accent-acp) 30%, transparent)', borderRadius: '12px',
-      padding: '20px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px',
-    }}>
-      <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Add ACP Connection</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <div>
-          <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>ID (slug)</label>
-          <input style={inputStyle} value={id} onChange={e => setId(e.target.value)} placeholder="gemini" />
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-dialog acp-custom-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Custom ACP Connection</h3>
         </div>
-        <div>
-          <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Display Name</label>
-          <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Gemini CLI" />
+        <div className="modal-body">
+          <div className="acp-custom-modal__grid">
+            <div>
+              <label className="acp-custom-modal__label">ID (slug)</label>
+              <input className="acp-custom-modal__input" value={id} onChange={e => setId(e.target.value)} placeholder="gemini" />
+            </div>
+            <div>
+              <label className="acp-custom-modal__label">Display Name</label>
+              <input className="acp-custom-modal__input" value={name} onChange={e => setName(e.target.value)} placeholder="Gemini CLI" />
+            </div>
+            <div>
+              <label className="acp-custom-modal__label">Command</label>
+              <input className="acp-custom-modal__input" value={command} onChange={e => setCommand(e.target.value)} placeholder="gemini" />
+            </div>
+            <div>
+              <label className="acp-custom-modal__label">Arguments</label>
+              <input className="acp-custom-modal__input" value={args} onChange={e => setArgs(e.target.value)} placeholder="--acp" />
+            </div>
+            <div>
+              <label className="acp-custom-modal__label">Icon (emoji or URL)</label>
+              <input className="acp-custom-modal__input" value={icon} onChange={e => setIcon(e.target.value)} placeholder="Emoji or image URL" />
+            </div>
+            <div>
+              <label className="acp-custom-modal__label">Working Directory</label>
+              <input className="acp-custom-modal__input" value={cwd} onChange={e => setCwd(e.target.value)} placeholder="(defaults to server cwd)" />
+            </div>
+          </div>
         </div>
-        <div>
-          <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Command</label>
-          <input style={inputStyle} value={command} onChange={e => setCommand(e.target.value)} placeholder="gemini" />
+        <div className="modal-footer">
+          <button className="button button--secondary" onClick={onCancel}>Cancel</button>
+          <button className="button button--primary" onClick={() => id && command && onAdd({ id, name: name || id, command, args, icon, cwd })}
+            disabled={!id || !command}>
+            Add Connection
+          </button>
         </div>
-        <div>
-          <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Arguments</label>
-          <input style={inputStyle} value={args} onChange={e => setArgs(e.target.value)} placeholder="--acp" />
-        </div>
-        <div>
-          <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Icon (emoji or URL)</label>
-          <input style={inputStyle} value={icon} onChange={e => setIcon(e.target.value)} placeholder="🔌 or https://..." />
-        </div>
-        <div>
-          <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Working Directory</label>
-          <input style={inputStyle} value={cwd} onChange={e => setCwd(e.target.value)} placeholder="(defaults to server cwd)" />
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-        <button className="button button--secondary" onClick={onCancel}>Cancel</button>
-        <button className="button button--primary" onClick={() => id && command && onAdd({ id, name: name || id, command, args, icon, cwd })}
-          disabled={!id || !command}>
-          Add Connection
-        </button>
       </div>
     </div>
   );
 }
 
 function ConnectionDetailModal({ conn, agents, onClose }: {
-  conn: ConnectionInfo; agents: AgentSummary[]; onClose: () => void;
+  conn: ACPConnectionInfo; agents: AgentSummary[]; onClose: () => void;
 }) {
   const isConnected = conn.status === 'connected';
   const statusColor = isConnected ? 'var(--success-text)' : conn.status === 'error' ? 'var(--error-text)' : 'var(--text-muted)';

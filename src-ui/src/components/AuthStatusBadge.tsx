@@ -7,6 +7,9 @@ export function AuthStatusBadge({ inline, expanded }: { inline?: boolean; expand
 
   if (status === 'loading') return null;
 
+  // No auth provider configured — don't show the badge
+  if (!provider || provider === 'none') return null;
+
   const color = status === 'valid' ? '#22c55e' : status === 'expiring' ? '#f59e0b' : '#ef4444';
 
   const timeLeft = () => {
@@ -33,7 +36,7 @@ export function AuthStatusBadge({ inline, expanded }: { inline?: boolean; expand
         onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 600 }}>Renew Authentication</h3>
         <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-secondary, #999)' }}>
-          This will open a terminal window and run <code style={{ background: 'var(--bg-tertiary, #2a2a2a)', padding: '1px 5px', borderRadius: '3px', fontSize: '12px' }}>mwinit -o</code>. You'll need to authenticate with your PIN.
+          This will attempt to renew your authentication.{provider ? ` Provider: ${provider}` : ''}
         </p>
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <button onClick={() => setShowConfirm(false)}
@@ -92,7 +95,7 @@ export function AuthStatusBadge({ inline, expanded }: { inline?: boolean; expand
   return (
     <>
       <button onClick={() => setShowConfirm(true)} disabled={isRenewing}
-        title={status === 'valid' ? `Auth valid — ${timeLeft()} remaining` : 'Click to open mwinit in Terminal'}
+        title={status === 'valid' ? `Auth valid — ${timeLeft()} remaining` : 'Click to renew authentication'}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: '5px',
           padding: '3px 8px', border: `1px solid ${color}30`, borderRadius: '4px',

@@ -140,6 +140,8 @@ class NavigationStore {
     window.history.pushState({}, '', url.toString());
     this.state = this.parseUrl();
     this.notify();
+    // Dispatch popstate so App-level route listener picks up the change
+    window.dispatchEvent(new PopStateEvent('popstate'));
   }
 
   updateParams(params: Record<string, string | null>) {

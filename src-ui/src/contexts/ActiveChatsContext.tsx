@@ -1,6 +1,6 @@
 import { createContext, useContext, useCallback, useEffect, ReactNode, useSyncExternalStore } from 'react';
 import { log } from '@/utils/logger';
-import { useInvalidateQuery } from '@stallion-ai/sdk';
+import { useInvalidateQuery } from '@work-agent/sdk';
 import { useConversationActions, conversationsStore } from './ConversationsContext';
 import { useStreamingMessage } from '../hooks/useStreamingMessage';
 import { useApiBase } from './ApiBaseContext';

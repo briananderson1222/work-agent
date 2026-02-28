@@ -1,5 +1,5 @@
 import { ReactNode, useEffect } from 'react';
-import { SDKProvider, type SDKContextValue, _setWorkspaceContext, _setApiBase, _setProviderFunctions, useWorkspacesQuery } from '@stallion-ai/sdk';
+import { SDKProvider, type SDKContextValue, _setWorkspaceContext, _setApiBase, _setProviderFunctions, useWorkspacesQuery } from '@work-agent/sdk';
 import { useAgents } from '../contexts/AgentsContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';

@@ -7,7 +7,7 @@ import { ModelSelector } from '../components/ModelSelector';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
-import { useInvalidateQuery } from '@stallion-ai/sdk';
+import { useInvalidateQuery } from '@work-agent/sdk';
 
 export interface SettingsViewProps {
   onBack: () => void;
@@ -15,6 +15,143 @@ export interface SettingsViewProps {
   onNavigate?: (view: NavigationView) => void;
   chatFontSize?: number;
   onChatFontSizeChange?: (size: number) => void;
+}
+
+function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
+  const [status, setStatus] = useState<any>(null);
+  const [checking, setChecking] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const check = async () => {
+    setChecking(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${apiBase}/api/system/core-update`);
+      setStatus(await res.json());
+    } catch (e: any) { setMessage(e.message); }
+    finally { setChecking(false); }
+  };
+
+  const update = async () => {
+    setUpdating(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${apiBase}/api/system/core-update`, { method: 'POST' });
+      const data = await res.json();
+      setMessage(data.success ? data.message : (data.error || 'Update failed'));
+      if (data.success) check();
+    } catch (e: any) { setMessage(e.message); }
+    finally { setUpdating(false); }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+        <button type="button" className="button button--secondary button--small" onClick={check} disabled={checking}>
+          {checking ? 'Checking...' : 'Check for Updates'}
+        </button>
+        {status?.updateAvailable && (
+          <button type="button" className="button button--primary button--small" onClick={update} disabled={updating}>
+            {updating ? 'Updating...' : `Update (${status.behind} commit${status.behind !== 1 ? 's' : ''} behind)`}
+          </button>
+        )}
+      </div>
+      {status && (
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          <span>Branch: {status.branch || 'unknown'}</span>
+          <span style={{ margin: '0 8px' }}>•</span>
+          <span>Current: {status.currentHash || 'unknown'}</span>
+          {status.updateAvailable && <><span style={{ margin: '0 8px' }}>•</span><span style={{ color: '#22c55e' }}>Latest: {status.remoteHash}</span></>}
+          {!status.updateAvailable && status.ahead > 0 && <><span style={{ margin: '0 8px' }}>•</span><span style={{ color: '#eab308' }}>{status.ahead} commit{status.ahead !== 1 ? 's' : ''} ahead of remote</span></>}
+          {!status.updateAvailable && !status.ahead && status.currentHash && <><span style={{ margin: '0 8px' }}>•</span><span style={{ color: '#22c55e' }}>Up to date ✓</span></>}
+        </div>
+      )}
+      {message && <div style={{ fontSize: '12px', marginTop: '6px', color: message.includes('Restart') ? '#22c55e' : '#ef4444' }}>{message}</div>}
+      <span className="form-help" style={{ marginTop: '8px', display: 'block' }}>
+        Pull latest changes from the git remote. Requires a server restart to take effect.
+      </span>
+    </div>
+  );
+}
+
+function OnboardingChecklist({ apiBase }: { apiBase: string }) {
+  const [prerequisites, setPrerequisites] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/system/status`)
+      .then(r => r.json())
+      .then(data => setPrerequisites(data.prerequisites || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [apiBase]);
+
+  if (loading || prerequisites.length === 0) return null;
+
+  const required = prerequisites.filter((p: any) => p.category === 'required');
+  const optional = prerequisites.filter((p: any) => p.category === 'optional');
+  const allRequiredMet = required.every((p: any) => p.status === 'installed');
+
+  const toggleExpand = (id: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const statusIcon = (status: string) => {
+    if (status === 'installed') return <span style={{ color: '#22c55e' }}>✓</span>;
+    if (status === 'error') return <span style={{ color: '#eab308' }}>⚠</span>;
+    return <span style={{ color: '#ef4444' }}>✗</span>;
+  };
+
+  const renderItem = (p: any) => (
+    <div key={p.id} style={{ marginBottom: '8px' }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: p.status !== 'installed' && p.installGuide ? 'pointer' : 'default' }}
+        onClick={() => p.status !== 'installed' && p.installGuide && toggleExpand(p.id)}
+      >
+        {statusIcon(p.status)}
+        <span style={{ fontWeight: 500 }}>{p.name}</span>
+        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{p.description}</span>
+        {p.status !== 'installed' && p.installGuide && (
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>{expanded.has(p.id) ? '▾' : '▸'}</span>
+        )}
+      </div>
+      {expanded.has(p.id) && p.installGuide && (
+        <div style={{ marginLeft: '24px', marginTop: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+          <ol style={{ margin: '0 0 6px 0', paddingLeft: '18px' }}>
+            {p.installGuide.steps.map((s: string, i: number) => <li key={i}>{s}</li>)}
+          </ol>
+          {p.installGuide.commands?.length > 0 && (
+            <div style={{ background: 'var(--color-bg-secondary)', padding: '6px 10px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px' }}>
+              {p.installGuide.commands.map((cmd: string, i: number) => <div key={i}>$ {cmd}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="form-group">
+      <label>{allRequiredMet ? '✓ Environment Ready' : 'Environment Setup'}</label>
+      {required.length > 0 && (
+        <div style={{ marginBottom: optional.length > 0 ? '12px' : 0 }}>
+          {required.map(renderItem)}
+        </div>
+      )}
+      {optional.length > 0 && (
+        <div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 500 }}>Optional</div>
+          {optional.map(renderItem)}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SettingsView({ onBack, onSaved, onNavigate, chatFontSize = 14, onChatFontSizeChange }: SettingsViewProps) {
@@ -155,6 +292,7 @@ export function SettingsView({ onBack, onSaved, onNavigate, chatFontSize = 14, o
         <div className="settings-content">
           {activeTab === 'general' && (
             <div className="settings-panel">
+              <OnboardingChecklist apiBase={currentApiBase} />
               <div className="form-group">
                 <label htmlFor="defaultModel">Default Model</label>
                 <ModelSelector
@@ -458,6 +596,11 @@ export function SettingsView({ onBack, onSaved, onNavigate, chatFontSize = 14, o
               </div>
 
               <div className="form-group">
+                <label>Core App Updates</label>
+                <CoreUpdateCheck apiBase={currentApiBase} />
+              </div>
+
+              <div className="form-group">
                 <button
                   type="button"
                   className="button button--danger"
@@ -506,6 +649,10 @@ export function SettingsView({ onBack, onSaved, onNavigate, chatFontSize = 14, o
         onConfirm={resetToDefaults}
         onCancel={() => setShowResetModal(false)}
       />
+
+      <div style={{ padding: '12px 24px', textAlign: 'right', fontSize: '10px', color: 'var(--text-muted)', opacity: 0.4, fontFamily: 'monospace' }}>
+        {typeof __BUILD_HASH__ !== 'undefined' ? `build ${__BUILD_HASH__}` : ''}
+      </div>
     </>
   );
 }

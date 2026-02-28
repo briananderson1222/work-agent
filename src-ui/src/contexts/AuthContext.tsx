@@ -18,7 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { apiBase } = useApiBase();
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [provider, setProvider] = useState<string>('mwinit');
+  const [provider, setProvider] = useState<string>('');
   const [user, setUser] = useState<{ alias: string } | null>(null);
   const [isRenewing, setIsRenewing] = useState(false);
 

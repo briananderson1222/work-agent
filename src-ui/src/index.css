@@ -2023,184 +2023,7 @@ body {
   font-size: 14px;
 }
 
-.workspace-dashboard {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  gap: 24px;
-}
-
-.workspace-dashboard__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 1rem;
-  min-height: 3rem;
-}
-
-.workspace-dashboard__header h2 {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.workspace-dashboard__header p {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.workspace-dashboard__actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.workspace-dashboard__action {
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--border-primary);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.workspace-dashboard__action:hover {
-  background: var(--bg-elevated);
-  border-color: var(--accent-primary);
-}
-
-.workspace-dashboard__content {
-  display: grid;
-  grid-template-columns: minmax(220px, 320px) 1fr;
-  gap: 24px;
-  align-items: stretch;
-  flex: 1;
-  min-height: 0;
-}
-
-.workspace-dashboard__calendar {
-  overflow: auto;
-  scrollbar-width: thin;
-}
-
-.workspace-dashboard__calendar ul {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.workspace-dashboard__calendar-item button {
-  width: 100%;
-  text-align: left;
-  padding: 12px 16px;
-  border-radius: 10px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.workspace-dashboard__calendar-item button:hover {
-  background: var(--bg-modal);
-  border-color: var(--accent-primary);
-}
-
-.workspace-dashboard__calendar-item.is-active button {
-  background: var(--bg-highlight);
-  border-color: var(--accent-primary);
-}
-
-.workspace-dashboard__time {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.workspace-dashboard__title {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.workspace-dashboard__summary {
-  font-size: 13px;
-  color: var(--text-muted-light);
-}
-
-.workspace-dashboard__details {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: 12px;
-  padding-bottom: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: auto;
-  scrollbar-width: thin;
-}
-
-.workspace-dashboard__card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.workspace-dashboard__card h3 {
-  font-size: 18px;
-  margin-bottom: 6px;
-}
-
-.workspace-dashboard__details-time {
-  font-size: 13px;
-  color: var(--text-tertiary);
-}
-
-.workspace-dashboard__details-summary {
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.workspace-dashboard__details-meta {
-  font-size: 13px;
-  color: var(--text-muted-light);
-}
-
-.workspace-dashboard__details-notes {
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-primary);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.workspace-dashboard__details-followups h4 {
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-
-.workspace-dashboard__details-followups ul {
-  padding-left: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-}
-
-.workspace-dashboard__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  border: 1px dashed var(--border-dashed);
-  border-radius: 12px;
-  color: var(--text-muted);
-}
+/* Workspace dashboard styles are provided by plugins via their CSS bundles */
 
 /* Management Views */
 .management-view {
@@ -3792,3 +3615,46 @@ body {
 .user-detail-tags { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.25rem; }
 .user-detail-tag { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 2rem; background: var(--bg-tertiary); color: var(--text-secondary); }
 .user-detail-footer { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border-primary); font-size: 0.85rem; }
+
+/* ── ACP Status Badge ── */
+@keyframes acp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.acp-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
+.acp-badge__dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.acp-badge__dot--pulse { animation: acp-pulse 1.2s ease-in-out infinite; }
+
+/* ── ACP Preset Dropdown ── */
+.acp-preset-menu { position: absolute; right: 0; top: 100%; margin-top: 4px; z-index: 10; background: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); min-width: 220px; overflow: hidden; }
+.acp-preset-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; background: none; border: none; color: inherit; cursor: pointer; font-size: 13px; text-align: left; }
+.acp-preset-item:hover { background: var(--bg-hover); }
+.acp-preset-item--disabled { opacity: 0.5; cursor: default; color: var(--text-muted); }
+.acp-preset-item--disabled:hover { background: none; }
+.acp-preset-item__name { font-weight: 500; flex: 1; }
+.acp-preset-item__hint { font-size: 11px; color: var(--text-muted); }
+.acp-preset-divider { height: 1px; background: var(--border-primary); }
+
+/* ── ACP Custom Connection Modal ── */
+.acp-custom-modal { max-width: 480px; width: 90vw; }
+.acp-custom-modal__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.acp-custom-modal__label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+.acp-custom-modal__input { width: 100%; padding: 8px 10px; font-size: 13px; border-radius: 6px; border: 1px solid var(--border-primary); background: var(--bg-primary); color: var(--text-primary); }
+
+/* ── Workspace Onboarding ── */
+.workspace-onboarding { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 120px); padding: 2rem; }
+.workspace-onboarding__inner { max-width: 520px; text-align: center; }
+.workspace-onboarding__icon { width: 48px; height: 48px; margin-bottom: 16px; }
+.workspace-onboarding__title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
+.workspace-onboarding__desc { margin: 0 0 32px; font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+.workspace-onboarding__actions { display: flex; flex-direction: column; gap: 12px; max-width: 360px; margin: 0 auto; }
+.workspace-onboarding__card { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 10px; cursor: pointer; color: inherit; text-align: left; transition: border-color 0.2s; }
+.workspace-onboarding__card:hover { border-color: var(--accent-primary); }
+.workspace-onboarding__card-icon { font-size: 24px; }
+.workspace-onboarding__card-title { font-weight: 600; font-size: 14px; }
+.workspace-onboarding__card-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+/* ── ACP Empty State ── */
+.acp-empty { padding: 40px 20px; text-align: center; background: var(--bg-secondary); border: 1px dashed var(--border-primary); border-radius: 12px; }
+.acp-empty__text { margin: 0 0 8px; font-size: 14px; color: var(--text-secondary); }
+.acp-empty__hint { margin: 0 0 16px; font-size: 13px; color: var(--text-muted); }

@@ -174,7 +174,7 @@ Workspace config references bundled agents:
 
 ```typescript
 // src/Calendar.tsx
-import { useSendMessage, useAgent } from '@stallion-ai/sdk';
+import { useSendMessage, useAgent } from '@work-agent/sdk';
 
 export function Calendar() {
   const agent = useAgent('work-workspace:calendar-agent');

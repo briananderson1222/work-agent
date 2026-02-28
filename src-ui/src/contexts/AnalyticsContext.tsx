@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import { useUsageQuery, useAchievementsQuery, useInvalidateQuery } from '@stallion-ai/sdk';
+import { useUsageQuery, useAchievementsQuery, useInvalidateQuery } from '@work-agent/sdk';
 import { useApiBase } from './ApiBaseContext';
 
 const AnalyticsContext = createContext<{

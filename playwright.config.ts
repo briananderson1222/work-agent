@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './tests',
   timeout: 30_000,
   use: {
-    baseURL: 'http://localhost:5174',
+    baseURL: 'http://localhost:5173',
     headless: true,
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],

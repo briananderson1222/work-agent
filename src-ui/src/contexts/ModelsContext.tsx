@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useModelsQuery } from '@stallion-ai/sdk';
+import { useModelsQuery } from '@work-agent/sdk';
 import { log } from '@/utils/logger';
 
 interface Model {

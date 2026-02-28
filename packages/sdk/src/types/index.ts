@@ -1,37 +1,48 @@
 /**
- * SDK Types - Shared types for plugin development
+ * SDK Types — re-exported from @work-agent/shared + SDK-specific types.
+ * Shared types live in packages/shared. SDK-only types (React, UI) live here.
  */
 
 import type { ReactElement } from 'react';
 
-// Plugin Manifest
-export interface PluginManifest {
-  name: string;
-  version: string;
-  type: 'workspace' | 'component' | 'tool';
-  sdkVersion: string;
-  displayName: string;
-  description?: string;
-  entrypoint: string;
-  capabilities?: string[];
-  permissions?: string[];
-  dependencies?: Record<string, string>;
-  peerDependencies?: Record<string, string>;
-  
-  // Workspace-owned agents
-  agents?: Array<{
-    slug: string;
-    source: string;
-  }>;
-  
-  // Workspace configuration
-  workspace?: {
-    slug: string;
-    source: string;
-  };
+// Re-export all shared types
+export type {
+  PluginManifest,
+  AgentSpec,
+  AgentGuardrails,
+  AgentTools,
+  AgentUIConfig,
+  AgentQuickPrompt,
+  AgentMetadata,
+  SlashCommand,
+  SlashCommandParam,
+  ToolDef,
+  ToolPermissions,
+  ToolMetadata,
+  WorkspaceConfig,
+  WorkspaceTab,
+  WorkspacePrompt,
+  WorkspaceMetadata,
+  ToolCallResponse,
+  AgentInvokeResponse,
+  ConversationStats,
+} from '@work-agent/shared';
+
+// ── SDK-specific types (React/UI concerns) ─────────────────────────
+
+export interface WorkspaceComponentProps {
+  agent?: AgentSummary;
+  workspace?: import('@work-agent/shared').WorkspaceConfig;
+  activeTab?: import('@work-agent/shared').WorkspaceTab;
+  onLaunchPrompt?: (prompt: import('@work-agent/shared').AgentQuickPrompt) => void;
+  onLaunchWorkflow?: (workflowId: string) => void;
+  onShowChat?: () => void;
+  onRequestAuth?: () => Promise<boolean>;
+  onSendToChat?: (text: string, agent?: string) => void;
 }
 
-// Agent Types
+export type WorkspaceComponent = (props: WorkspaceComponentProps) => ReactElement;
+
 export interface AgentSummary {
   slug: string;
   name: string;
@@ -39,58 +50,29 @@ export interface AgentSummary {
   model?: string;
   region?: string;
   source?: 'local' | 'acp';
-  guardrails?: AgentGuardrails;
-  tools?: AgentTools;
-  ui?: AgentUI;
+  guardrails?: import('@work-agent/shared').AgentGuardrails;
+  tools?: import('@work-agent/shared').AgentTools;
+  ui?: import('@work-agent/shared').AgentUIConfig;
 }
 
-export interface AgentGuardrails {
-  maxTokens?: number;
-  temperature?: number;
-  topP?: number;
+export interface Agent extends AgentSummary {}
+
+export interface InvokeOptions {
+  conversationId?: string;
+  userId?: string;
+  model?: string;
+  tools?: string[];
+  maxSteps?: number;
+  signal?: AbortSignal;
 }
 
-export interface AgentTools {
-  mcpServers?: string[];
-  available?: string[];
-  autoApprove?: string[];
-  aliases?: Record<string, string>;
+export interface InvokeResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  toolCalls?: any[];
 }
 
-export interface AgentUI {
-  component?: string;
-  quickPrompts?: AgentQuickPrompt[];
-  workflowShortcuts?: string[];
-}
-
-export interface AgentQuickPrompt {
-  id: string;
-  label: string;
-  prompt: string;
-  agent?: string;
-}
-
-// Workspace Types
-export interface WorkspaceConfig {
-  name: string;
-  slug: string;
-  icon?: string;
-  description?: string;
-  defaultAgent?: string;
-  availableAgents?: string[];
-  tabs?: WorkspaceTab[];
-  globalPrompts?: AgentQuickPrompt[];
-}
-
-export interface WorkspaceTab {
-  id: string;
-  label: string;
-  icon?: string;
-  component?: string;
-  prompts?: AgentQuickPrompt[];
-}
-
-// Message Types
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -116,7 +98,6 @@ export interface ToolCall {
   status?: 'pending' | 'approved' | 'rejected' | 'completed' | 'error';
 }
 
-// Conversation Types
 export interface Conversation {
   id: string;
   agentSlug: string;
@@ -127,27 +108,6 @@ export interface Conversation {
   lastMessage?: string;
 }
 
-export interface ConversationStats {
-  totalMessages: number;
-  totalTokens: number;
-  totalCost: number;
-  averageResponseTime: number;
-}
-
-// Model Types
-export interface ModelInfo {
-  id: string;
-  name: string;
-  provider: string;
-  contextWindow: number;
-  maxOutputTokens: number;
-  supportsVision: boolean;
-  supportsStreaming: boolean;
-  inputCostPer1k: number;
-  outputCostPer1k: number;
-}
-
-// Navigation Types
 export interface NavigationState {
   currentView: string;
   selectedWorkspace?: string;
@@ -157,111 +117,33 @@ export interface NavigationState {
   dockMaximized: boolean;
 }
 
-// Toast Types
 export interface Toast {
   id: string;
   type: 'info' | 'success' | 'warning' | 'error';
   message: string;
   duration?: number;
-  action?: ToastAction;
+  action?: { label: string; onClick: () => void };
 }
 
-export interface ToastAction {
-  label: string;
-  onClick: () => void;
-}
-
-// Slash Command Types
-export interface SlashCommand {
-  command: string;
-  description: string;
-  handler: (args: string[]) => Promise<void> | void;
-}
-
-// Workflow Types
-export interface WorkflowFile {
-  filename: string;
-  path: string;
-  content?: string;
-}
-
-// Tool Types
-export interface ToolDefinition {
-  id: string;
-  kind: 'mcp' | 'builtin';
-  displayName?: string;
-  description?: string;
-  transport?: 'stdio' | 'ws' | 'tcp';
-  command?: string;
-  args?: string[];
-  endpoint?: string;
-  permissions?: ToolPermissions;
-}
-
-export interface ToolPermissions {
-  filesystem?: boolean;
-  network?: boolean;
-  allowedPaths?: string[];
-}
-
-// Workspace Component Props
-export interface WorkspaceComponentProps {
-  agent?: AgentSummary;
-  workspace?: WorkspaceConfig;
-  activeTab?: WorkspaceTab;
-  onLaunchPrompt?: (prompt: AgentQuickPrompt) => void;
-  onLaunchWorkflow?: (workflowId: string) => void;
-  onShowChat?: () => void;
-  onRequestAuth?: () => Promise<boolean>;
-  onSendToChat?: (text: string, agent?: string) => void;
-}
-
-// Plugin Component Type
-export type WorkspaceComponent = (props: WorkspaceComponentProps) => ReactElement;
-
-// Agent API Types
-export interface Agent extends AgentSummary {}
-
-export interface InvokeOptions {
-  conversationId?: string;
-  userId?: string;
-  model?: string;
-  tools?: string[];
-  maxSteps?: number;
-  signal?: AbortSignal;
-}
-
-export interface InvokeResult {
-  success: boolean;
-  output?: string;
-  error?: string;
-  toolCalls?: any[];
-}
-
-// Event Handler Types
 export type EventHandler<T = any> = (event: T) => void;
+export type Permission = string;
 
-// Tool Types
-export interface Tool {
-  id: string;
-  name: string;
-  description?: string;
-}
-
-// Keyboard Types
 export interface KeyboardCommand {
   key: string;
   modifiers?: string[];
   handler: () => void;
 }
 
-// Window Types
+export interface Tool {
+  id: string;
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
 export interface WindowOptions {
+  url: string;
   title?: string;
   width?: number;
   height?: number;
-  url?: string;
 }
-
-// Permission Types
-export type Permission = string;

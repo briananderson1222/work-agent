@@ -30,7 +30,7 @@ export function AchievementsBadge({ compact = false }: { compact?: boolean }) {
         </h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {hasAcp && (
-            <a href="https://console.harmony.a2z.com/amazonqactivitydashboard/main" target="_blank" rel="noopener noreferrer"
+            <a href="#" onClick={(e) => e.preventDefault()}
               style={{ fontSize: '12px', color: 'var(--accent-primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <img src="/kiro-icon.png" alt="" width={14} height={14} style={{ borderRadius: 2 }} /> Activity Dashboard ↗
             </a>

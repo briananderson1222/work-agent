@@ -1,4 +1,4 @@
-import { useStatsQuery } from '@stallion-ai/sdk';
+import { useStatsQuery } from '@work-agent/sdk';
 
 type StatsData = {
   contextWindowPercentage?: number;

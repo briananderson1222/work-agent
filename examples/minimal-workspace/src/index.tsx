@@ -1,4 +1,4 @@
-import { useAgents, useNavigation, useToast, type WorkspaceComponentProps } from '@stallion-ai/sdk';
+import { useAgents, useNavigation, useToast, type WorkspaceComponentProps } from '@work-agent/sdk';
 
 /**
  * Minimal Workspace - Example plugin component

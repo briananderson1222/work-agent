@@ -1,0 +1,224 @@
+/* ═══ Plugin Management View ═══ */
+
+.plugins { padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+
+.plugins__header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+.plugins__title { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--text-primary); }
+.plugins__count {
+  font-size: 0.8rem; color: var(--text-muted); font-weight: 400;
+  margin-left: 0.5rem;
+}
+
+/* ── Install Bar ── */
+.plugins__install {
+  display: flex; gap: 0.5rem; margin-bottom: 1.25rem;
+}
+.plugins__install-input {
+  flex: 1; padding: 0.6rem 0.75rem; font-size: 0.85rem;
+  background: var(--bg-secondary); color: var(--text-primary);
+  border: 1px solid var(--border-primary); border-radius: 0.375rem;
+  transition: border-color 0.15s;
+}
+.plugins__install-input:focus {
+  outline: none; border-color: var(--accent-primary);
+}
+.plugins__install-input::placeholder { color: var(--text-muted); }
+.plugins__install-btn {
+  padding: 0.6rem 1.25rem; font-size: 0.85rem; font-weight: 600;
+  background: var(--accent-primary); color: white; border: none;
+  border-radius: 0.375rem; cursor: pointer; white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.plugins__install-btn:disabled { opacity: 0.4; cursor: default; }
+.plugins__install-btn:hover:not(:disabled) { opacity: 0.9; }
+
+/* ── Status Messages ── */
+.plugins__message {
+  padding: 0.6rem 0.75rem; margin-bottom: 1rem; border-radius: 0.375rem;
+  font-size: 0.8rem; border: 1px solid;
+}
+.plugins__message--success {
+  background: var(--success-bg); border-color: var(--success-border); color: var(--success-text);
+}
+.plugins__message--error {
+  background: var(--error-bg); border-color: var(--error-border); color: var(--error-text);
+}
+
+/* ── Update Banner ── */
+.plugins__update-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 0.75rem; margin-bottom: 1rem; border-radius: 0.375rem;
+  background: var(--success-bg); border: 1px solid var(--success-border);
+}
+.plugins__update-banner-text { font-size: 0.8rem; color: var(--success-text); }
+.plugins__update-all-btn {
+  padding: 0.35rem 0.75rem; font-size: 0.75rem; border-radius: 0.25rem;
+  background: var(--success-text); border: none; color: var(--bg-primary);
+  cursor: pointer; font-weight: 600;
+}
+
+/* ── Section Headers ── */
+.plugins__section-title {
+  font-size: 0.7rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin: 1.5rem 0 0.75rem; padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-primary);
+}
+.plugins__section-title:first-of-type { margin-top: 0; }
+
+/* ── Plugin Cards ── */
+.plugins__list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.plugins__card {
+  padding: 0.875rem 1rem; background: var(--bg-secondary);
+  border: 1px solid var(--border-primary); border-radius: 0.5rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+.plugins__card:hover { border-color: var(--border-secondary); background: var(--bg-tertiary); }
+
+.plugins__card-top {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+}
+.plugins__card-info { flex: 1; min-width: 0; }
+.plugins__card-actions { display: flex; gap: 0.35rem; flex-shrink: 0; align-items: center; }
+
+.plugins__card-name {
+  font-weight: 600; font-size: 0.9rem; color: var(--text-primary);
+  display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;
+}
+.plugins__card-version {
+  font-size: 0.7rem; font-weight: 400; color: var(--text-muted);
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+}
+.plugins__card-update-hint {
+  font-size: 0.7rem; color: var(--success-text);
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+}
+.plugins__card-desc {
+  font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem;
+  line-height: 1.4;
+}
+
+/* ── Capabilities (inline badges) ── */
+.plugins__capabilities {
+  display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.5rem;
+}
+
+.plugins__cap {
+  font-size: 0.65rem; padding: 0.15rem 0.45rem; border-radius: 0.2rem;
+  font-weight: 500; letter-spacing: 0.02em;
+  border: 1px solid;
+}
+.plugins__cap--git {
+  color: #818cf8; background: rgba(129, 140, 248, 0.08); border-color: rgba(129, 140, 248, 0.2);
+}
+.plugins__cap--ref {
+  color: var(--text-muted); background: rgba(148, 163, 184, 0.08); border-color: rgba(148, 163, 184, 0.2);
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+}
+.plugins__cap--bundle {
+  color: #60a5fa; background: rgba(96, 165, 250, 0.08); border-color: rgba(96, 165, 250, 0.2);
+}
+.plugins__cap--workspace {
+  color: #34d399; background: rgba(52, 211, 153, 0.08); border-color: rgba(52, 211, 153, 0.2);
+}
+.plugins__cap--agent {
+  color: #fbbf24; background: rgba(251, 191, 36, 0.08); border-color: rgba(251, 191, 36, 0.2);
+}
+.plugins__cap--provider {
+  color: #c084fc; background: rgba(192, 132, 252, 0.08); border-color: rgba(192, 132, 252, 0.2);
+}
+
+/* ── Action Buttons ── */
+.plugins__btn {
+  padding: 0.3rem 0.65rem; font-size: 0.75rem; border-radius: 0.25rem;
+  cursor: pointer; transition: all 0.15s; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 0.25rem;
+}
+.plugins__btn:disabled { opacity: 0.4; cursor: default; }
+
+.plugins__btn--update {
+  background: var(--success-text); border: none; color: var(--bg-primary);
+}
+.plugins__btn--update:hover:not(:disabled) { opacity: 0.85; }
+
+.plugins__btn--permissions {
+  background: transparent; border: 1px solid var(--warning-text); color: var(--warning-text);
+}
+.plugins__btn--permissions:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.plugins__btn--remove {
+  background: transparent; border: 1px solid color-mix(in srgb, var(--error-text) 50%, transparent);
+  color: var(--error-text);
+}
+.plugins__btn--remove:hover:not(:disabled) {
+  border-color: var(--error-text); background: color-mix(in srgb, var(--error-text) 8%, transparent);
+}
+
+/* ── Empty / Loading States ── */
+.plugins__loading { padding: 3rem; text-align: center; color: var(--text-secondary); }
+.plugins__empty {
+  padding: 3rem; text-align: center; color: var(--text-muted);
+  border: 1px dashed var(--border-primary); border-radius: 0.5rem;
+}
+
+/* ── Registry Section ── */
+.plugins__registry-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.plugins__registry-item {
+  padding: 0.75rem 1rem; background: var(--bg-secondary);
+  border: 1px solid var(--border-primary); border-radius: 0.5rem;
+  display: flex; align-items: center; gap: 0.75rem;
+  transition: border-color 0.15s;
+}
+.plugins__registry-item:hover { border-color: var(--border-secondary); }
+
+.plugins__registry-info { flex: 1; min-width: 0; }
+.plugins__registry-name {
+  font-weight: 600; font-size: 0.85rem; color: var(--text-primary);
+  display: flex; align-items: baseline; gap: 0.5rem;
+}
+.plugins__registry-desc {
+  font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem;
+}
+
+.plugins__btn--install {
+  background: var(--success-text); border: none; color: var(--bg-primary);
+  font-weight: 600;
+}
+.plugins__btn--install:hover:not(:disabled) { opacity: 0.85; }
+
+.plugins__btn--uninstall {
+  background: transparent; border: 1px solid var(--error-text); color: var(--error-text);
+}
+.plugins__btn--uninstall:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error-text) 8%, transparent);
+}
+
+/* ── Confirm Modal ── */
+.plugins__modal-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+}
+.plugins__modal {
+  background: var(--bg-primary); border-radius: 0.5rem; padding: 1.5rem;
+  max-width: 400px; width: 90%; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-primary);
+}
+.plugins__modal h3 { margin: 0 0 0.75rem; font-size: 1rem; }
+.plugins__modal p { margin: 0 0 1rem; font-size: 0.9rem; color: var(--text-secondary); }
+.plugins__modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.plugins__modal-cancel {
+  padding: 0.4rem 1rem; border-radius: 0.375rem;
+  border: 1px solid var(--border-primary); background: transparent;
+  color: var(--text-primary); cursor: pointer;
+}
+.plugins__modal-confirm {
+  padding: 0.4rem 1rem; border-radius: 0.375rem;
+  border: none; background: var(--error-text); color: white; cursor: pointer;
+}
