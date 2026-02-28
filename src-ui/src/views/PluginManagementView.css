@@ -151,6 +151,15 @@
 .plugins__cap--provider  { color: #c084fc; background: rgba(192,132,252,0.06); border-color: rgba(192,132,252,0.18); }
 
 /* ── Tool List ── */
+.plugins__filter-input {
+  width: 100%; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem;
+  font-size: 0.85rem; font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--bg-primary); color: var(--text-primary);
+  border: 1px solid var(--border-primary); border-radius: 0.375rem; outline: none;
+  box-sizing: border-box;
+}
+.plugins__filter-input::placeholder { color: var(--text-muted); }
+.plugins__filter-input:focus { border-color: var(--accent-primary); }
 .plugins__tools-table {
   width: 100%; border-collapse: collapse;
   background: var(--bg-secondary); border: 1px solid var(--border-primary);

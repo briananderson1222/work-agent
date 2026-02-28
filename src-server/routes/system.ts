@@ -42,7 +42,11 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
     // Aggregate onboarding prerequisites from all providers
     const providers = getOnboardingProviders();
     const prerequisiteArrays = await Promise.all(
-      providers.map((p) => p.getPrerequisites().catch(() => [])),
+      providers.map(({ provider, source }) =>
+        provider.getPrerequisites()
+          .then((items) => items.map((p) => ({ ...p, source })))
+          .catch(() => []),
+      ),
     );
     const prerequisites = prerequisiteArrays.flat();
 
@@ -83,28 +87,51 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         encoding: 'utf-8',
       }).trim();
 
-      // Fetch from remote
-      execSync('git fetch --quiet', { cwd: gitRoot, timeout: 15000 });
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+      }).trim();
 
-      // Get current and remote hashes
       const currentHash = execSync('git rev-parse HEAD', {
         cwd: gitRoot,
         encoding: 'utf-8',
       })
         .trim()
         .substring(0, 7);
+
+      // Check if upstream is configured
+      let hasUpstream = false;
+      try {
+        execSync(`git rev-parse --abbrev-ref ${branch}@{u}`, {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        hasUpstream = true;
+      } catch {
+        // No upstream
+      }
+
+      if (!hasUpstream) {
+        return c.json({
+          currentHash,
+          branch,
+          behind: 0,
+          ahead: 0,
+          updateAvailable: false,
+          noUpstream: true,
+        });
+      }
+
+      execSync('git fetch --quiet', { cwd: gitRoot, timeout: 15000 });
+
       const remoteHash = execSync('git rev-parse @{u}', {
         cwd: gitRoot,
         encoding: 'utf-8',
       })
         .trim()
         .substring(0, 7);
-      const branch = execSync('git rev-parse --abbrev-ref HEAD', {
-        cwd: gitRoot,
-        encoding: 'utf-8',
-      }).trim();
 
-      let remote = '';
       const behind = parseInt(
         execSync('git rev-list HEAD..@{u} --count', {
           cwd: gitRoot,
@@ -119,16 +146,6 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         }).trim(),
         10,
       );
-      const updateAvailable = behind > 0;
-
-      try {
-        remote = execSync('git config --get remote.origin.url', {
-          cwd: gitRoot,
-          encoding: 'utf-8',
-        }).trim();
-      } catch {
-        // Remote URL not available
-      }
 
       return c.json({
         currentHash,
@@ -136,8 +153,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         branch,
         behind,
         ahead,
-        updateAvailable,
-        remote,
+        updateAvailable: behind > 0,
       });
     } catch (error: any) {
       return c.json({ updateAvailable: false, error: error.message });

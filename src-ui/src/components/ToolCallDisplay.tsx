@@ -137,7 +137,7 @@ export function ToolCallDisplay({
           )}
           {error && <span className="tool-call__error">⚠️</span>}
         </div>
-        <div className="tool-call__args-preview">{argsPreview}</div>
+        <div className="tool-call__args-preview">{smartSummary}</div>
       </div>
       {isExpanded && (
         <ToolCallDetails

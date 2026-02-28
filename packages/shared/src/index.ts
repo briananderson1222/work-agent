@@ -141,6 +141,8 @@ export interface ToolMetadata {
   kind: 'mcp' | 'builtin';
   displayName?: string;
   description?: string;
+  transport?: string;
+  source?: string;
 }
 
 // ── Workspace ──────────────────────────────────────────────────────
@@ -150,6 +152,7 @@ export interface WorkspaceConfig {
   slug: string;
   icon?: string;
   description?: string;
+  plugin?: string;
   requiredProviders?: string[];
   availableAgents?: string[];
   defaultAgent?: string;
@@ -177,6 +180,7 @@ export interface WorkspaceMetadata {
   name: string;
   icon?: string;
   description?: string;
+  plugin?: string;
   tabCount: number;
 }
 

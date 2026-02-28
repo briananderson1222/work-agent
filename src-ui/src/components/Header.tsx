@@ -58,7 +58,6 @@ export function Header({
     onWorkspaceSelect(workspace.slug);
     setShowWorkspaceAutocomplete(false);
     setWorkspaceQuery('');
-    onNavigate({ type: 'workspace' });
   };
 
   return (
@@ -88,33 +87,39 @@ export function Header({
         </div>
       </div>
 
-      {/* Workspace indicator — always visible when a workspace is selected */}
-      {selectedWorkspace && (
-        <>
-          <div className="header-divider" />
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={handleWorkspaceIndicatorClick}
-            title={
-              workspaces.length > 1
-                ? 'Switch workspace'
-                : selectedWorkspace.name
-            }
-            style={{
-              fontSize: '14px',
-              padding: '6px 12px',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <WorkspaceIcon workspace={selectedWorkspace} size={24} />
+      {/* Workspace indicator — always visible to prevent layout shift */}
+      <div className="header-divider" />
+      <button
+        type="button"
+        className="button button--secondary"
+        onClick={handleWorkspaceIndicatorClick}
+        disabled={!selectedWorkspace || workspaces.length <= 1}
+        title={
+          !selectedWorkspace
+            ? 'No workspace selected'
+            : workspaces.length > 1
+              ? 'Switch workspace'
+              : selectedWorkspace.name
+        }
+        style={{
+          fontSize: '14px',
+          padding: '4px 10px',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          opacity: selectedWorkspace ? 1 : 0.4,
+        }}
+      >
+        {selectedWorkspace ? (
+          <>
+            <WorkspaceIcon workspace={selectedWorkspace} size={20} />
             <span>{selectedWorkspace.name}</span>
-          </button>
-        </>
-      )}
+          </>
+        ) : (
+          <span>No Workspace</span>
+        )}
+      </button>
 
       <div style={{ flex: 1 }} />
 
@@ -373,6 +378,21 @@ export function Header({
                         }}
                       >
                         <span>{ws.name}</span>
+                        {ws.plugin && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              background: 'var(--bg-tertiary)',
+                              color: 'var(--text-secondary)',
+                              fontWeight: 500,
+                              border: '1px solid var(--border-primary)',
+                            }}
+                          >
+                            {ws.plugin}
+                          </span>
+                        )}
                         {selectedWorkspace?.slug === ws.slug && (
                           <span
                             style={{

@@ -2684,7 +2684,7 @@ export class WorkAgentRuntime {
               else if (p.type === 'toolRegistry')
                 registerToolRegistryProvider(instance);
               else if (p.type === 'onboarding')
-                registerOnboardingProvider(instance);
+                registerOnboardingProvider(instance, manifest.displayName || entry.name);
 
               this.logger.info('Registered plugin provider', {
                 plugin: entry.name,

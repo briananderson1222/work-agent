@@ -14,8 +14,12 @@ export function createToolRoutes(
   // List all available tools (GET /tools)
   app.get('/', async (c) => {
     try {
-      const tools = await mcpService.listTools();
-      return c.json({ success: true, data: tools });
+      const [tools, agentMap] = await Promise.all([
+        mcpService.listTools(),
+        mcpService.getToolAgentMap(),
+      ]);
+      const data = tools.map(t => ({ ...t, usedBy: agentMap[t.id] || [] }));
+      return c.json({ success: true, data });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
     }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { WorkspaceMetadata } from '../types';
-import { getWorkspaceIcon } from '../utils/workspace';
+import { WorkspaceIcon } from './WorkspaceIcon';
 
 export interface WorkspaceSelectorProps {
   workspaces: WorkspaceMetadata[];
@@ -114,24 +114,7 @@ export function WorkspaceSelector({
         }
       >
         {selectedWorkspace && (
-          <div
-            style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--bg-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: getWorkspaceIcon(selectedWorkspace).isCustomIcon
-                ? '14px'
-                : '11px',
-              fontWeight: 600,
-            }}
-          >
-            {getWorkspaceIcon(selectedWorkspace).display}
-          </div>
+          <WorkspaceIcon workspace={selectedWorkspace} size={24} />
         )}
         <span style={{ fontWeight: 500 }}>
           {selectedWorkspace?.name || 'Select Workspace'}
@@ -235,25 +218,7 @@ export function WorkspaceSelector({
                   onClick={() => handleSelect(ws.slug)}
                   onMouseEnter={() => setFocusedIndex(idx)}
                 >
-                  <div
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--color-primary)',
-                      color: 'var(--bg-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: getWorkspaceIcon(ws).isCustomIcon
-                        ? '18px'
-                        : '13px',
-                      fontWeight: 600,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {getWorkspaceIcon(ws).display}
-                  </div>
+                  <WorkspaceIcon workspace={ws} size={32} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{

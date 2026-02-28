@@ -5,7 +5,7 @@
 import type { MCPConfiguration, Tool } from '@voltagent/core';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { AgentSpec, ToolDef } from '../domain/types.js';
+import type { AgentSpec, ToolDef, ToolMetadata } from '../domain/types.js';
 
 // Type extensions for MCP service
 interface MCPConfigurationWithClose extends MCPConfiguration {
@@ -52,8 +52,12 @@ export class MCPService {
     private logger: any,
   ) {}
 
-  async listTools(): Promise<ToolDef[]> {
+  async listTools(): Promise<ToolMetadata[]> {
     return this.configLoader.listTools();
+  }
+
+  async getToolAgentMap(): Promise<Record<string, string[]>> {
+    return this.configLoader.getToolAgentMap();
   }
 
   getAgentTools(slug: string): ToolInfo[] {

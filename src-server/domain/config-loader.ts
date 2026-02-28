@@ -489,6 +489,8 @@ export class ConfigLoader {
           kind: def.kind,
           displayName: def.displayName,
           description: def.description,
+          transport: def.transport,
+          source: def.command || def.endpoint,
         });
       } catch (error) {
         logger.error('Failed to load tool', { tool: entry.name, error });
@@ -496,6 +498,27 @@ export class ConfigLoader {
     }
 
     return tools;
+  }
+
+  /**
+   * Build a map of tool ID → agent slugs that use it
+   */
+  async getToolAgentMap(): Promise<Record<string, string[]>> {
+    const agentsDir = join(this.workAgentDir, 'agents');
+    const map: Record<string, string[]> = {};
+    if (!existsSync(agentsDir)) return map;
+
+    const entries = await readdir(agentsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      try {
+        const spec = await this.loadAgent(entry.name);
+        for (const toolId of spec.tools?.mcpServers || []) {
+          (map[toolId] ??= []).push(spec.name || entry.name);
+        }
+      } catch { /* skip broken agents */ }
+    }
+    return map;
   }
 
   /**
@@ -559,6 +582,7 @@ export class ConfigLoader {
           name: config.name,
           icon: config.icon,
           description: config.description,
+          plugin: config.plugin,
           tabCount: config.tabs?.length || 0,
         });
       } catch (error) {

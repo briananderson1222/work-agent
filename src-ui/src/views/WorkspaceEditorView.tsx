@@ -6,7 +6,7 @@ import type {
   WorkspacePrompt,
   WorkspaceTab,
 } from '../types';
-import { getWorkspaceIcon } from '../utils/workspace';
+import { WorkspaceIcon } from '../components/WorkspaceIcon';
 
 export interface WorkspaceEditorViewProps {
   apiBase: string;
@@ -430,24 +430,10 @@ export function WorkspaceEditorView({
                 <div
                   style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
                 >
-                  <div
-                    style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '12px',
-                      background: 'var(--accent-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: formData.icon ? '24px' : '16px',
-                      fontWeight: formData.icon ? 'normal' : 600,
-                      color: formData.icon ? 'inherit' : 'var(--color-bg)',
-                    }}
-                  >
-                    {formData.icon ||
-                      getWorkspaceIcon({ name: formData.name || 'Workspace' })
-                        .display}
-                  </div>
+                  <WorkspaceIcon
+                    workspace={{ name: formData.name || 'Workspace', icon: formData.icon }}
+                    size={48}
+                  />
                   <div style={{ flex: 1 }}>
                     <input
                       type="text"

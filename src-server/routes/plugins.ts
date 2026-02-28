@@ -214,7 +214,9 @@ export function createPluginRoutes(
         if (existsSync(src)) {
           const wsDir = join(workspacesDir, manifest.workspace.slug);
           mkdirSync(wsDir, { recursive: true });
-          cpSync(src, join(wsDir, 'workspace.json'));
+          const wsConfig = JSON.parse(readFileSync(src, 'utf-8'));
+          wsConfig.plugin = pluginName;
+          writeFileSync(join(wsDir, 'workspace.json'), JSON.stringify(wsConfig, null, 2));
         }
       }
 
@@ -636,7 +638,7 @@ async function loadProviders(
         registerAgentRegistryProvider(instance);
       else if (p.type === 'toolRegistry')
         registerToolRegistryProvider(instance);
-      else if (p.type === 'onboarding') registerOnboardingProvider(instance);
+      else if (p.type === 'onboarding') registerOnboardingProvider(instance, manifest.displayName || pluginName);
 
       loaded++;
     } catch (e: any) {

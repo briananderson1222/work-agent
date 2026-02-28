@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 function getInitials(name: string): string {
@@ -25,7 +25,7 @@ export function UserDetailModal({
   const [error, setError] = useState<string | null>(null);
   const { apiBase } = useApiBase();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -40,7 +40,7 @@ export function UserDetailModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiBase, alias]);
 
   useEffect(() => {
     fetchData();

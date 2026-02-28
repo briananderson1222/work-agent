@@ -6,16 +6,143 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
-import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import type { AppConfig, NavigationView } from '../types';
+import './SettingsView.css';
 
 export interface SettingsViewProps {
   onBack: () => void;
   onSaved?: () => void;
   onNavigate?: (view: NavigationView) => void;
-  chatFontSize?: number;
-  onChatFontSizeChange?: (size: number) => void;
 }
+
+/* ── Environment Status ── */
+
+function EnvironmentStatus({ apiBase }: { apiBase: string }) {
+  const [prerequisites, setPrerequisites] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [guideOpen, setGuideOpen] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/system/status`)
+      .then((r) => r.json())
+      .then((data) => {
+        const prereqs = data.prerequisites || [];
+        setPrerequisites(prereqs);
+        // Auto-expand if something is broken
+        if (prereqs.some((p: any) => p.category === 'required' && p.status !== 'installed')) {
+          setExpanded(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [apiBase]);
+
+  if (loading || prerequisites.length === 0) return null;
+
+  const allRequiredMet = prerequisites
+    .filter((p: any) => p.category === 'required')
+    .every((p: any) => p.status === 'installed');
+  const missingCount = prerequisites.filter((p: any) => p.status !== 'installed').length;
+
+  const toggleGuide = (id: string) =>
+    setGuideOpen((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const icon = (status: string) =>
+    status === 'installed' ? '✓' : status === 'error' ? '⚠' : '✗';
+  const iconColor = (status: string) =>
+    status === 'installed'
+      ? 'var(--success-text)'
+      : status === 'error'
+        ? 'var(--warning-text)'
+        : 'var(--error-text)';
+
+  const stripClass = allRequiredMet
+    ? 'settings__env'
+    : 'settings__env settings__env--error';
+
+  // Group by source
+  const grouped = new Map<string, any[]>();
+  for (const p of prerequisites) {
+    const src = p.source || 'Core';
+    if (!grouped.has(src)) grouped.set(src, []);
+    grouped.get(src)!.push(p);
+  }
+
+  const renderItem = (p: any) => (
+    <div key={p.id}>
+      <div
+        className="settings__env-item"
+        style={{ cursor: p.status !== 'installed' && p.installGuide ? 'pointer' : 'default' }}
+        onClick={() => p.status !== 'installed' && p.installGuide && toggleGuide(p.id)}
+      >
+        <span className="settings__env-status" style={{ color: iconColor(p.status) }}>
+          {icon(p.status)}
+        </span>
+        <span>
+          <span className="settings__env-name">{p.name}</span>
+          <span className="settings__env-desc"> — {p.description}</span>
+          {p.category === 'optional' && (
+            <span className="settings__env-optional"> (optional)</span>
+          )}
+        </span>
+      </div>
+      {guideOpen.has(p.id) && p.installGuide && (
+        <div className="settings__env-guide">
+          <ol>
+            {p.installGuide.steps.map((s: string, i: number) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ol>
+          {p.installGuide.commands?.length > 0 && (
+            <div className="settings__env-guide-cmds">
+              {p.installGuide.commands.map((cmd: string, i: number) => (
+                <div key={i}>$ {cmd}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <div className={stripClass}>
+        <span className="settings__env-icon">
+          {allRequiredMet ? '●' : '○'}
+        </span>
+        <span className="settings__env-label">
+          {allRequiredMet ? 'Environment Ready' : `${missingCount} issue${missingCount !== 1 ? 's' : ''} to resolve`}
+        </span>
+        <button
+          type="button"
+          className="settings__env-toggle"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Hide' : 'Details'}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="settings__env-panel">
+          {[...grouped.entries()].map(([source, items]) => (
+            <div key={source}>
+              <div className="settings__env-source">{source}</div>
+              {items.map(renderItem)}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Core Update Check ── */
 
 function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
   const [status, setStatus] = useState<any>(null);
@@ -26,12 +153,21 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
   const check = async () => {
     setChecking(true);
     setMessage(null);
+    setStatus(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-      const res = await fetch(`${apiBase}/api/system/core-update`);
-      setStatus(await res.json());
+      const res = await fetch(`${apiBase}/api/system/core-update`, { signal: controller.signal });
+      const data = await res.json();
+      if (data.error) {
+        setMessage(data.error);
+      } else {
+        setStatus(data);
+      }
     } catch (e: any) {
-      setMessage(e.message);
+      setMessage(e.name === 'AbortError' ? 'Timed out — could not reach git remote' : e.message);
     } finally {
+      clearTimeout(timeout);
       setChecking(false);
     }
   };
@@ -40,9 +176,7 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
     setUpdating(true);
     setMessage(null);
     try {
-      const res = await fetch(`${apiBase}/api/system/core-update`, {
-        method: 'POST',
-      });
+      const res = await fetch(`${apiBase}/api/system/core-update`, { method: 'POST' });
       const data = await res.json();
       setMessage(data.success ? data.message : data.error || 'Update failed');
       if (data.success) check();
@@ -55,277 +189,118 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          alignItems: 'center',
-          marginBottom: '8px',
-        }}
-      >
+      <div className="settings__update-row">
         <button
           type="button"
-          className="button button--secondary button--small"
+          className="settings__update-btn settings__update-btn--check"
           onClick={check}
           disabled={checking}
         >
-          {checking ? 'Checking...' : 'Check for Updates'}
+          {checking ? 'Checking…' : 'Check for Updates'}
         </button>
         {status?.updateAvailable && (
           <button
             type="button"
-            className="button button--primary button--small"
+            className="settings__update-btn settings__update-btn--apply"
             onClick={update}
             disabled={updating}
           >
-            {updating
-              ? 'Updating...'
-              : `Update (${status.behind} commit${status.behind !== 1 ? 's' : ''} behind)`}
+            {updating ? 'Updating…' : `Update (${status.behind} commit${status.behind !== 1 ? 's' : ''} behind)`}
           </button>
         )}
       </div>
+      {checking && (
+        <div className="settings__update-meta">
+          <span>Fetching from remote…</span>
+        </div>
+      )}
       {status && (
-        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          <span>Branch: {status.branch || 'unknown'}</span>
-          <span style={{ margin: '0 8px' }}>•</span>
-          <span>Current: {status.currentHash || 'unknown'}</span>
+        <div className="settings__update-meta">
+          <span>Branch: {status.branch}</span>
+          <span>·</span>
+          <span>Current: {status.currentHash}</span>
           {status.updateAvailable && (
             <>
-              <span style={{ margin: '0 8px' }}>•</span>
-              <span style={{ color: '#22c55e' }}>
-                Latest: {status.remoteHash}
-              </span>
+              <span>·</span>
+              <span style={{ color: 'var(--success-text)' }}>Latest: {status.remoteHash}</span>
             </>
           )}
           {!status.updateAvailable && status.ahead > 0 && (
             <>
-              <span style={{ margin: '0 8px' }}>•</span>
-              <span style={{ color: '#eab308' }}>
-                {status.ahead} commit{status.ahead !== 1 ? 's' : ''} ahead of
-                remote
+              <span>·</span>
+              <span style={{ color: 'var(--warning-text)' }}>
+                {status.ahead} commit{status.ahead !== 1 ? 's' : ''} ahead
               </span>
             </>
           )}
           {!status.updateAvailable && !status.ahead && status.currentHash && (
             <>
-              <span style={{ margin: '0 8px' }}>•</span>
-              <span style={{ color: '#22c55e' }}>Up to date ✓</span>
+              <span>·</span>
+              <span style={{ color: status.noUpstream ? 'var(--text-muted)' : 'var(--success-text)' }}>
+                {status.noUpstream ? 'No upstream configured' : 'Up to date ✓'}
+              </span>
             </>
           )}
         </div>
       )}
       {message && (
         <div
-          style={{
-            fontSize: '12px',
-            marginTop: '6px',
-            color: message.includes('Restart') ? '#22c55e' : '#ef4444',
-          }}
+          className="settings__update-msg"
+          style={{ color: message.includes('Restart') ? 'var(--success-text)' : 'var(--error-text)' }}
         >
           {message}
         </div>
       )}
-      <span
-        className="form-help"
-        style={{ marginTop: '8px', display: 'block' }}
-      >
-        Pull latest changes from the git remote. Requires a server restart to
-        take effect.
+      <span className="settings__field-hint">
+        Pull latest changes from the git remote. Requires a server restart.
       </span>
     </div>
   );
 }
 
-function OnboardingChecklist({ apiBase }: { apiBase: string }) {
-  const [prerequisites, setPrerequisites] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+/* ── Section wrapper ── */
 
-  useEffect(() => {
-    fetch(`${apiBase}/api/system/status`)
-      .then((r) => r.json())
-      .then((data) => setPrerequisites(data.prerequisites || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [apiBase]);
-
-  if (loading || prerequisites.length === 0) return null;
-
-  const required = prerequisites.filter((p: any) => p.category === 'required');
-  const optional = prerequisites.filter((p: any) => p.category === 'optional');
-  const allRequiredMet = required.every((p: any) => p.status === 'installed');
-
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const statusIcon = (status: string) => {
-    if (status === 'installed')
-      return <span style={{ color: '#22c55e' }}>✓</span>;
-    if (status === 'error') return <span style={{ color: '#eab308' }}>⚠</span>;
-    return <span style={{ color: '#ef4444' }}>✗</span>;
-  };
-
-  const renderItem = (p: any) => (
-    <div key={p.id} style={{ marginBottom: '8px' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          cursor:
-            p.status !== 'installed' && p.installGuide ? 'pointer' : 'default',
-        }}
-        onClick={() =>
-          p.status !== 'installed' && p.installGuide && toggleExpand(p.id)
-        }
-      >
-        {statusIcon(p.status)}
-        <span style={{ fontWeight: 500 }}>{p.name}</span>
-        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          {p.description}
-        </span>
-        {p.status !== 'installed' && p.installGuide && (
-          <span
-            style={{
-              fontSize: '11px',
-              color: 'var(--text-secondary)',
-              marginLeft: 'auto',
-            }}
-          >
-            {expanded.has(p.id) ? '▾' : '▸'}
-          </span>
-        )}
-      </div>
-      {expanded.has(p.id) && p.installGuide && (
-        <div
-          style={{
-            marginLeft: '24px',
-            marginTop: '6px',
-            fontSize: '13px',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          <ol style={{ margin: '0 0 6px 0', paddingLeft: '18px' }}>
-            {p.installGuide.steps.map((s: string, i: number) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ol>
-          {p.installGuide.commands?.length > 0 && (
-            <div
-              style={{
-                background: 'var(--color-bg-secondary)',
-                padding: '6px 10px',
-                borderRadius: '4px',
-                fontFamily: 'monospace',
-                fontSize: '12px',
-              }}
-            >
-              {p.installGuide.commands.map((cmd: string, i: number) => (
-                <div key={i}>$ {cmd}</div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-
+function Section({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
   return (
-    <div className="form-group">
-      <label>
-        {allRequiredMet ? '✓ Environment Ready' : 'Environment Setup'}
-      </label>
-      {required.length > 0 && (
-        <div style={{ marginBottom: optional.length > 0 ? '12px' : 0 }}>
-          {required.map(renderItem)}
-        </div>
-      )}
-      {optional.length > 0 && (
-        <div>
-          <div
-            style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              marginBottom: '6px',
-              fontWeight: 500,
-            }}
-          >
-            Optional
-          </div>
-          {optional.map(renderItem)}
-        </div>
-      )}
+    <div className="settings__section">
+      <div className="settings__section-head">
+        <span className="settings__section-icon">{icon}</span>
+        <span className="settings__section-title">{title}</span>
+      </div>
+      <div className="settings__section-body">{children}</div>
     </div>
   );
 }
+
+/* ── Main View ── */
 
 export function SettingsView({
   onBack,
   onSaved,
   onNavigate,
-  chatFontSize = 14,
-  onChatFontSizeChange,
 }: SettingsViewProps) {
-  const {
-    apiBase: currentApiBase,
-    setApiBase,
-    resetToDefault,
-    isCustom,
-  } = useApiBase();
-
+  const { apiBase: currentApiBase, setApiBase, resetToDefault, isCustom } = useApiBase();
   const configData = useConfig();
   const { updateConfig } = useConfigActions();
   const invalidate = useInvalidateQuery();
 
-  const [activeTab, setActiveTab] = useState<
-    'general' | 'notifications' | 'advanced' | 'debug'
-  >(() => {
-    const hash = window.location.hash.slice(1);
-    const validTabs = [
-      'general',
-      'notifications',
-      'advanced',
-      'debug',
-    ] as const;
-    return hash && validTabs.includes(hash as (typeof validTabs)[number])
-      ? (hash as (typeof validTabs)[number])
-      : 'general';
-  });
-  const [config, setConfig] = useState<AppConfig>(configData || {});
-  const [originalConfig, setOriginalConfig] = useState<AppConfig>(
-    configData || {},
-  );
+  const [config, setConfig] = useState<AppConfig>((configData as AppConfig) || {});
+  const [originalConfig, setOriginalConfig] = useState<AppConfig>((configData as AppConfig) || {});
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [testStatus, setTestStatus] = useState<
-    'idle' | 'testing' | 'success' | 'failed'
-  >('idle');
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [showResetModal, setShowResetModal] = useState(false);
 
   useEffect(() => {
     if (configData) {
-      setConfig(configData);
-      setOriginalConfig(configData);
+      setConfig(configData as AppConfig);
+      setOriginalConfig(configData as AppConfig);
     }
   }, [configData]);
 
-  const tabs = ['general', 'notifications', 'advanced', 'debug'] as const;
-
-  useTabKeyboardShortcuts(tabs, activeTab, setActiveTab);
   useCloseShortcut(onBack);
 
   const hasChanges = JSON.stringify(config) !== JSON.stringify(originalConfig);
-
-  useEffect(() => {
-    if (window.location.pathname.includes('/settings')) {
-      window.location.hash = activeTab;
-    }
-  }, [activeTab]);
 
   const saveConfig = async () => {
     try {
@@ -358,591 +333,338 @@ export function SettingsView({
 
   return (
     <>
-      <div className="management-view">
-        <div className="management-view__header">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              flex: 1,
-            }}
-          >
-            <h2>Settings</h2>
-            <ThemeToggle />
-          </div>
-          <div className="management-view__header-actions">
+      <div className="settings">
+        {/* ── Header ── */}
+        <div className="settings__header">
+          <h1 className="settings__title">Settings</h1>
+          <div className="settings__header-actions">
             <button
               type="button"
-              className="button button--secondary"
+              className="settings__secondary-btn"
               onClick={() => onNavigate?.({ type: 'monitoring' })}
-              title="Monitoring"
             >
               Monitoring
             </button>
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={saveConfig}
-              disabled={isSaving || !hasChanges}
-            >
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
+            <ThemeToggle />
           </div>
         </div>
 
-        {error && <div className="management-view__error">{error}</div>}
+        {error && <div className="settings__error">{error}</div>}
 
-        <div className="settings-tabs">
-          <button
-            type="button"
-            className={`settings-tab ${activeTab === 'general' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('general')}
-            title="General (⌘1)"
-          >
-            General{' '}
-            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
-              ⌘1
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`settings-tab ${activeTab === 'notifications' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('notifications')}
-            title="Notifications (⌘2)"
-          >
-            Notifications{' '}
-            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
-              ⌘2
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`settings-tab ${activeTab === 'advanced' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('advanced')}
-            title="Advanced (⌘3)"
-          >
-            Advanced{' '}
-            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
-              ⌘3
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`settings-tab ${activeTab === 'debug' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('debug')}
-            title="Debug (⌘4)"
-          >
-            Debug{' '}
-            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
-              ⌘4
-            </span>
-          </button>
-        </div>
+        {/* ── Environment Status ── */}
+        <EnvironmentStatus apiBase={currentApiBase} />
 
-        <div className="settings-content">
-          {activeTab === 'general' && (
-            <div className="settings-panel">
-              <OnboardingChecklist apiBase={currentApiBase} />
-              <div className="form-group">
-                <label htmlFor="defaultModel">Default Model</label>
-                <ModelSelector
-                  value={config.defaultModel || ''}
-                  onChange={(modelId) =>
-                    setConfig({ ...config, defaultModel: modelId })
-                  }
-                  placeholder="Select a model..."
-                />
-                <span className="form-help">
-                  Default model for agents that don't specify one.
-                </span>
-              </div>
+        {/* ── AI & Models ── */}
+        <Section icon="◆" title="AI & Models">
+          <div className="settings__field">
+            <label className="settings__field-label" htmlFor="defaultModel">Default Model</label>
+            <ModelSelector
+              value={config.defaultModel || ''}
+              onChange={(modelId) => setConfig({ ...config, defaultModel: modelId })}
+              placeholder="Select a model…"
+            />
+            <span className="settings__field-hint">
+              Default model for agents that don't specify one.
+            </span>
+          </div>
 
-              <div className="form-group">
-                <label htmlFor="chatFontSize">Chat Font Size</label>
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}
-                >
+          <div className="settings__field">
+            <label className="settings__field-label" htmlFor="systemPrompt">Global System Prompt</label>
+            <textarea
+              id="systemPrompt"
+              value={config.systemPrompt || ''}
+              onChange={(e) => setConfig({ ...config, systemPrompt: e.target.value })}
+              placeholder="Global instructions prepended to all agent prompts…"
+              rows={6}
+            />
+            <span className="settings__field-hint">
+              Agents can override this with their own instructions. Supports template variables like {'{{date}}'}, {'{{time}}'}, or custom variables below.
+            </span>
+          </div>
+
+          <div className="settings__field">
+            <label className="settings__field-label">Template Variables</label>
+            <div className="settings__vars">
+              {(config.templateVariables || []).map((variable, index) => (
+                <div key={index} className="settings__var-row">
                   <input
-                    id="chatFontSize"
-                    type="range"
-                    min="10"
-                    max="24"
-                    value={chatFontSize}
+                    type="text"
+                    value={variable.key}
                     onChange={(e) => {
-                      const newSize = parseInt(e.target.value, 10);
-                      onChatFontSizeChange?.(newSize);
-                      setConfig({ ...config, defaultChatFontSize: newSize });
+                      const updated = [...(config.templateVariables || [])];
+                      updated[index] = { ...variable, key: e.target.value };
+                      setConfig({ ...config, templateVariables: updated });
                     }}
-                    style={{ flex: 1 }}
+                    placeholder="variable_name"
                   />
-                  <span style={{ minWidth: '3rem', textAlign: 'right' }}>
-                    {chatFontSize}px
-                  </span>
-                </div>
-                <span className="form-help">
-                  Default font size for chat messages (10-24px).
-                </span>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="systemPrompt">Global System Prompt</label>
-                <textarea
-                  id="systemPrompt"
-                  value={config.systemPrompt || ''}
-                  onChange={(e) =>
-                    setConfig({ ...config, systemPrompt: e.target.value })
-                  }
-                  placeholder="You are Project Stallion, an AI assistant designed to help users..."
-                  rows={8}
-                />
-                <span className="form-help">
-                  Global instructions prepended to all agent prompts. Agents can
-                  override this with their own instructions. Use template
-                  variables like {'{{date}}'}, {'{{time}}'}, or custom variables
-                  defined below.
-                </span>
-              </div>
-
-              <div className="form-group">
-                <label>Template Variables</label>
-                <div className="template-variables-list">
-                  {(config.templateVariables || []).map((variable, index) => (
-                    <div key={index} className="template-variable-item">
-                      <input
-                        type="text"
-                        value={variable.key}
-                        onChange={(e) => {
-                          const updated = [...(config.templateVariables || [])];
-                          updated[index] = { ...variable, key: e.target.value };
-                          setConfig({ ...config, templateVariables: updated });
-                        }}
-                        placeholder="variable_name"
-                      />
-                      <select
-                        value={variable.type}
-                        onChange={(e) => {
-                          const updated = [...(config.templateVariables || [])];
-                          updated[index] = {
-                            ...variable,
-                            type: e.target.value as
-                              | 'static'
-                              | 'date'
-                              | 'time'
-                              | 'datetime'
-                              | 'custom',
-                          };
-                          setConfig({ ...config, templateVariables: updated });
-                        }}
-                      >
-                        <option value="static">Static</option>
-                        <option value="date">Date</option>
-                        <option value="time">Time</option>
-                        <option value="datetime">DateTime</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                      {variable.type === 'static' ||
-                      variable.type === 'custom' ? (
-                        <input
-                          type="text"
-                          value={variable.value || ''}
-                          onChange={(e) => {
-                            const updated = [
-                              ...(config.templateVariables || []),
-                            ];
-                            updated[index] = {
-                              ...variable,
-                              value: e.target.value,
-                            };
-                            setConfig({
-                              ...config,
-                              templateVariables: updated,
-                            });
-                          }}
-                          placeholder="Value"
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={variable.format || ''}
-                          onChange={(e) => {
-                            const updated = [
-                              ...(config.templateVariables || []),
-                            ];
-                            updated[index] = {
-                              ...variable,
-                              format: e.target.value,
-                            };
-                            setConfig({
-                              ...config,
-                              templateVariables: updated,
-                            });
-                          }}
-                          placeholder="Format (optional)"
-                        />
-                      )}
-                      <button
-                        type="button"
-                        className="button button--danger button--small"
-                        onClick={() => {
-                          const updated = (
-                            config.templateVariables || []
-                          ).filter((_, i) => i !== index);
-                          setConfig({ ...config, templateVariables: updated });
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="button button--secondary button--small"
-                    onClick={() => {
-                      const updated = [
-                        ...(config.templateVariables || []),
-                        { key: '', type: 'static' as const, value: '' },
-                      ];
+                  <select
+                    value={variable.type}
+                    onChange={(e) => {
+                      const updated = [...(config.templateVariables || [])];
+                      updated[index] = {
+                        ...variable,
+                        type: e.target.value as 'static' | 'date' | 'time' | 'datetime' | 'custom',
+                      };
                       setConfig({ ...config, templateVariables: updated });
                     }}
                   >
-                    Add Variable
+                    <option value="static">Static</option>
+                    <option value="date">Date</option>
+                    <option value="time">Time</option>
+                    <option value="datetime">DateTime</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  {variable.type === 'static' || variable.type === 'custom' ? (
+                    <input
+                      type="text"
+                      value={variable.value || ''}
+                      onChange={(e) => {
+                        const updated = [...(config.templateVariables || [])];
+                        updated[index] = { ...variable, value: e.target.value };
+                        setConfig({ ...config, templateVariables: updated });
+                      }}
+                      placeholder="Value"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={variable.format || ''}
+                      onChange={(e) => {
+                        const updated = [...(config.templateVariables || [])];
+                        updated[index] = { ...variable, format: e.target.value };
+                        setConfig({ ...config, templateVariables: updated });
+                      }}
+                      placeholder="Format (optional)"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className="settings__var-remove"
+                    onClick={() => {
+                      const updated = (config.templateVariables || []).filter((_, i) => i !== index);
+                      setConfig({ ...config, templateVariables: updated });
+                    }}
+                  >
+                    ✕
                   </button>
                 </div>
-                <div className="form-help">
-                  <strong>Built-in variables (always available):</strong>
-                  <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-                    <li>
-                      <code>{'{{date}}'}</code> - Full date (e.g., "Monday,
-                      January 27, 2025")
-                    </li>
-                    <li>
-                      <code>{'{{time}}'}</code> - Current time (e.g., "11:52:00
-                      PM")
-                    </li>
-                    <li>
-                      <code>{'{{datetime}}'}</code> - Date and time combined
-                    </li>
-                    <li>
-                      <code>{'{{iso_date}}'}</code> - ISO date (e.g.,
-                      "2025-01-27")
-                    </li>
-                    <li>
-                      <code>{'{{year}}'}</code>, <code>{'{{month}}'}</code>,{' '}
-                      <code>{'{{day}}'}</code>, <code>{'{{weekday}}'}</code>
-                    </li>
-                  </ul>
-                  <strong style={{ display: 'block', marginTop: '12px' }}>
-                    Custom variable types:
-                  </strong>
-                  <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-                    <li>
-                      <strong>Static:</strong> Fixed text value (e.g., company
-                      name, version)
-                    </li>
-                    <li>
-                      <strong>Date/Time/DateTime:</strong> Dynamic date/time
-                      with optional format JSON
-                    </li>
-                    <li>
-                      <strong>Custom:</strong> For future extensibility
-                      (environment variables, API calls)
-                    </li>
-                  </ul>
-                </div>
+              ))}
+              <button
+                type="button"
+                className="settings__var-add"
+                onClick={() => {
+                  const updated = [
+                    ...(config.templateVariables || []),
+                    { key: '', type: 'static' as const, value: '' },
+                  ];
+                  setConfig({ ...config, templateVariables: updated });
+                }}
+              >
+                + Add Variable
+              </button>
+            </div>
+            <div className="settings__var-ref">
+              <strong>Built-in (always available):</strong>
+              <ul>
+                <li><code>{'{{date}}'}</code> Full date · <code>{'{{time}}'}</code> Current time · <code>{'{{datetime}}'}</code> Combined</li>
+                <li><code>{'{{iso_date}}'}</code> ISO · <code>{'{{year}}'}</code> <code>{'{{month}}'}</code> <code>{'{{day}}'}</code> <code>{'{{weekday}}'}</code></li>
+              </ul>
+            </div>
+          </div>
+        </Section>
+
+        {/* ── Appearance ── */}
+        <Section icon="◐" title="Appearance">
+          <div className="settings__field">
+            <label className="settings__field-label" htmlFor="chatFontSize">Chat Font Size</label>
+            <div className="settings__range-row">
+              <input
+                id="chatFontSize"
+                type="range"
+                min="10"
+                max="24"
+                value={config.defaultChatFontSize || 14}
+                onChange={(e) =>
+                  setConfig({ ...config, defaultChatFontSize: parseInt(e.target.value, 10) })
+                }
+              />
+              <span className="settings__range-value">{config.defaultChatFontSize || 14}px</span>
+            </div>
+            <span className="settings__field-hint">Font size for chat messages (10–24px).</span>
+          </div>
+        </Section>
+
+        {/* ── Notifications ── */}
+        <Section icon="◉" title="Notifications">
+          <label className="settings__toggle-row">
+            <input
+              type="checkbox"
+              checked={config.meetingNotifications?.enabled !== false}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  meetingNotifications: { ...config.meetingNotifications, enabled: e.target.checked },
+                })
+              }
+            />
+            <div>
+              <div className="settings__toggle-label">Meeting notifications</div>
+              <div className="settings__toggle-desc">
+                Toast alerts when you have upcoming meetings while viewing a different date
+              </div>
+            </div>
+          </label>
+
+          {config.meetingNotifications?.enabled !== false && (
+            <div className="settings__field" style={{ marginTop: '0.75rem' }}>
+              <label className="settings__field-label">Timing</label>
+              <div className="settings__thresholds">
+                {[30, 15, 10, 5, 1].map((t) => {
+                  const active = (config.meetingNotifications?.thresholds || [30, 10, 1]).includes(t);
+                  return (
+                    <label
+                      key={t}
+                      className={`settings__threshold${active ? ' settings__threshold--active' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={(e) => {
+                          const current = config.meetingNotifications?.thresholds || [30, 10, 1];
+                          const updated = e.target.checked
+                            ? [...current, t].sort((a, b) => b - a)
+                            : current.filter((v) => v !== t);
+                          setConfig({
+                            ...config,
+                            meetingNotifications: { ...config.meetingNotifications, thresholds: updated },
+                          });
+                        }}
+                      />
+                      {t} min
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}
+        </Section>
 
-          {activeTab === 'notifications' && (
-            <div className="settings-panel">
-              <div style={{ marginBottom: '32px' }}>
-                <h3
-                  style={{
-                    margin: '0 0 8px 0',
-                    fontSize: '18px',
-                    fontWeight: 600,
-                  }}
-                >
-                  Meeting Notifications
-                </h3>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: '14px',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
-                  Configure when and how you receive notifications for upcoming
-                  meetings
-                </p>
-              </div>
-
-              <div className="form-group">
-                <label
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '16px',
-                    background: 'var(--color-bg-secondary)',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    border: '1px solid var(--color-border)',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={config.meetingNotifications?.enabled !== false}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        meetingNotifications: {
-                          ...config.meetingNotifications,
-                          enabled: e.target.checked,
-                        },
-                      })
-                    }
-                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                  />
-                  <div>
-                    <div style={{ fontWeight: 500, marginBottom: '4px' }}>
-                      Enable meeting notifications
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '13px',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      Show toast notifications when viewing a different date and
-                      you have upcoming meetings today
-                    </div>
-                  </div>
-                </label>
-              </div>
-
-              {config.meetingNotifications?.enabled !== false && (
-                <div className="form-group" style={{ marginTop: '24px' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: '12px',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Notification Timing
-                  </label>
-                  <p
-                    style={{
-                      margin: '0 0 16px 0',
-                      fontSize: '14px',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    Select when to show notifications before meetings start
-                  </p>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns:
-                        'repeat(auto-fit, minmax(120px, 1fr))',
-                      gap: '12px',
-                    }}
-                  >
-                    {[30, 15, 10, 5, 1].map((threshold) => (
-                      <label
-                        key={threshold}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '12px 16px',
-                          background: (
-                            config.meetingNotifications?.thresholds || [
-                              30, 10, 1,
-                            ]
-                          ).includes(threshold)
-                            ? 'var(--color-primary-alpha)'
-                            : 'var(--color-bg-secondary)',
-                          border: `1px solid ${
-                            (
-                              config.meetingNotifications?.thresholds || [
-                                30, 10, 1,
-                              ]
-                            ).includes(threshold)
-                              ? 'var(--color-primary)'
-                              : 'var(--color-border)'
-                          }`,
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={(
-                            config.meetingNotifications?.thresholds || [
-                              30, 10, 1,
-                            ]
-                          ).includes(threshold)}
-                          onChange={(e) => {
-                            const current = config.meetingNotifications
-                              ?.thresholds || [30, 10, 1];
-                            const updated = e.target.checked
-                              ? [...current, threshold].sort((a, b) => b - a)
-                              : current.filter((t) => t !== threshold);
-                            setConfig({
-                              ...config,
-                              meetingNotifications: {
-                                ...config.meetingNotifications,
-                                thresholds: updated,
-                              },
-                            });
-                          }}
-                          style={{
-                            width: '16px',
-                            height: '16px',
-                            cursor: 'pointer',
-                          }}
-                        />
-                        <span style={{ fontWeight: 500 }}>{threshold} min</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+        {/* ── Connection ── */}
+        <Section icon="◇" title="Connection">
+          <div className="settings__field">
+            <label className="settings__field-label" htmlFor="apiBase">Backend API Base URL</label>
+            <div className="settings__conn-row">
+              <input
+                id="apiBase"
+                type="text"
+                value={currentApiBase}
+                onChange={(e) => setApiBase(e.target.value)}
+                placeholder="http://localhost:3141"
+              />
+              {isCustom && (
+                <button type="button" className="settings__conn-reset" onClick={resetToDefault}>
+                  Reset
+                </button>
               )}
             </div>
-          )}
+            <span className="settings__field-hint">
+              Changes take effect immediately.
+              {isCustom && <span style={{ color: 'var(--warning-text)' }}> Using custom URL.</span>}
+            </span>
+            <button
+              type="button"
+              className={`settings__conn-test${testStatus === 'success' ? ' settings__conn-test--ok' : testStatus === 'failed' ? ' settings__conn-test--fail' : ''}`}
+              disabled={testStatus === 'testing'}
+              onClick={async () => {
+                setTestStatus('testing');
+                try {
+                  const res = await fetch(`${currentApiBase}/agents`);
+                  setTestStatus(res.ok ? 'success' : 'failed');
+                } catch {
+                  setTestStatus('failed');
+                }
+                setTimeout(() => setTestStatus('idle'), 3000);
+              }}
+            >
+              {testStatus === 'testing'
+                ? 'Testing…'
+                : testStatus === 'success'
+                  ? '✓ Connected'
+                  : testStatus === 'failed'
+                    ? '✗ Failed'
+                    : 'Test Connection'}
+            </button>
+          </div>
 
-          {activeTab === 'advanced' && (
-            <div className="settings-panel">
-              <div className="form-group">
-                <label htmlFor="apiBase">Backend API Base URL</label>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: '8px',
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <input
-                    id="apiBase"
-                    type="text"
-                    value={currentApiBase}
-                    onChange={(e) => setApiBase(e.target.value)}
-                    placeholder="http://localhost:3141"
-                    style={{ flex: 1 }}
-                  />
-                  {isCustom && (
-                    <button
-                      type="button"
-                      className="button button--secondary"
-                      onClick={resetToDefault}
-                      style={{ whiteSpace: 'nowrap' }}
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-                <span className="form-help">
-                  Base URL for the backend API. Changes take effect immediately.
-                  {isCustom && (
-                    <span style={{ color: 'var(--color-warning)' }}>
-                      {' '}
-                      Using custom URL.
-                    </span>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  className="button button--secondary button--small"
-                  style={{ marginTop: '8px' }}
-                  disabled={testStatus === 'testing'}
-                  onClick={async () => {
-                    setTestStatus('testing');
-                    try {
-                      const res = await fetch(`${currentApiBase}/agents`);
-                      setTestStatus(res.ok ? 'success' : 'failed');
-                    } catch {
-                      setTestStatus('failed');
-                    }
-                    setTimeout(() => setTestStatus('idle'), 3000);
-                  }}
-                >
-                  {testStatus === 'testing'
-                    ? 'Testing...'
-                    : testStatus === 'success'
-                      ? '✓ Connected'
-                      : testStatus === 'failed'
-                        ? '✗ Failed'
-                        : 'Test Connection'}
-                </button>
-              </div>
+          <div className="settings__field">
+            <label className="settings__field-label" htmlFor="region">AWS Region</label>
+            <input
+              id="region"
+              type="text"
+              value={config.region || ''}
+              onChange={(e) => setConfig({ ...config, region: e.target.value })}
+              placeholder="us-east-1"
+            />
+            <span className="settings__field-hint">Region for Bedrock API calls.</span>
+          </div>
+        </Section>
 
-              <div className="form-group">
-                <label htmlFor="region">AWS Region</label>
-                <input
-                  id="region"
-                  type="text"
-                  value={config.region || ''}
-                  onChange={(e) =>
-                    setConfig({ ...config, region: e.target.value })
-                  }
-                  placeholder="us-east-1"
-                />
-                <span className="form-help">
-                  AWS region for Bedrock API calls.
-                </span>
-              </div>
+        {/* ── System ── */}
+        <Section icon="⚙" title="System">
+          <div className="settings__field">
+            <label className="settings__field-label">Core App Updates</label>
+            <CoreUpdateCheck apiBase={currentApiBase} />
+          </div>
 
-              <div className="form-group">
-                <label>Core App Updates</label>
-                <CoreUpdateCheck apiBase={currentApiBase} />
-              </div>
+          <div className="settings__field">
+            <label className="settings__field-label" htmlFor="logLevel">Log Level</label>
+            <select
+              id="logLevel"
+              value={config.logLevel || 'info'}
+              onChange={(e) => setConfig({ ...config, logLevel: e.target.value })}
+            >
+              <option value="error">Error</option>
+              <option value="warn">Warning</option>
+              <option value="info">Info</option>
+              <option value="debug">Debug</option>
+              <option value="trace">Trace</option>
+            </select>
+            <span className="settings__field-hint">Logging verbosity. Higher levels include more detail.</span>
+          </div>
 
-              <div className="form-group">
-                <button
-                  type="button"
-                  className="button button--danger"
-                  onClick={() => setShowResetModal(true)}
-                >
-                  Reset to Defaults
-                </button>
-                <span className="form-help">
-                  Restore all settings to factory defaults. This action cannot
-                  be undone.
-                </span>
-              </div>
-            </div>
-          )}
+          <div className="settings__danger">
+            <button type="button" className="settings__danger-btn" onClick={() => setShowResetModal(true)}>
+              Reset to Defaults
+            </button>
+            <span className="settings__field-hint">Restore all settings to factory defaults. Cannot be undone.</span>
+          </div>
+        </Section>
 
-          {activeTab === 'debug' && (
-            <div className="settings-panel">
-              <div className="form-group">
-                <label htmlFor="logLevel">Log Level</label>
-                <select
-                  id="logLevel"
-                  value={config.logLevel || 'info'}
-                  onChange={(e) =>
-                    setConfig({ ...config, logLevel: e.target.value })
-                  }
-                >
-                  <option value="error">Error</option>
-                  <option value="warn">Warning</option>
-                  <option value="info">Info</option>
-                  <option value="debug">Debug</option>
-                  <option value="trace">Trace</option>
-                </select>
-                <span className="form-help">
-                  Logging verbosity level. Higher levels include more details.
-                </span>
-              </div>
-            </div>
-          )}
+        <div className="settings__build">
+          {typeof __BUILD_HASH__ !== 'undefined' ? `build ${__BUILD_HASH__}` : ''}
         </div>
       </div>
+
+      {hasChanges && (
+        <div className="settings__save-pill">
+          <span className="settings__save-pill-text">Unsaved changes</span>
+          <button
+            type="button"
+            className="settings__save-pill-discard"
+            onClick={() => setConfig(originalConfig)}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            className="settings__save-pill-btn"
+            onClick={saveConfig}
+            disabled={isSaving}
+          >
+            {isSaving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={showResetModal}
@@ -954,19 +676,6 @@ export function SettingsView({
         onConfirm={resetToDefaults}
         onCancel={() => setShowResetModal(false)}
       />
-
-      <div
-        style={{
-          padding: '12px 24px',
-          textAlign: 'right',
-          fontSize: '10px',
-          color: 'var(--text-muted)',
-          opacity: 0.4,
-          fontFamily: 'monospace',
-        }}
-      >
-        {typeof __BUILD_HASH__ !== 'undefined' ? `build ${__BUILD_HASH__}` : ''}
-      </div>
     </>
   );
 }

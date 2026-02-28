@@ -103,6 +103,7 @@ export interface Prerequisite {
   description: string;
   status: 'installed' | 'missing' | 'error';
   category: 'required' | 'optional';
+  source?: string;
   installGuide?: {
     steps: string[];
     commands?: string[];

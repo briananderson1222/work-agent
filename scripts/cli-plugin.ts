@@ -275,7 +275,9 @@ class PluginManager {
 
     // Copy workspace config
     mkdirSync(targetDir, { recursive: true });
-    cpSync(sourcePath, join(targetDir, 'workspace.json'));
+    const wsConfig = JSON.parse(readFileSync(sourcePath, 'utf-8'));
+    wsConfig.plugin = manifest.name;
+    writeFileSync(join(targetDir, 'workspace.json'), JSON.stringify(wsConfig, null, 2));
     console.log(`  Installed workspace: ${manifest.workspace.slug}`);
   }
 

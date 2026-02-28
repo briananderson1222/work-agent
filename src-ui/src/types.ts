@@ -210,6 +210,7 @@ export interface WorkspaceConfig {
   slug: string;
   icon?: string;
   description?: string;
+  plugin?: string;
   tabs: WorkspaceTab[];
   globalPrompts?: WorkspacePrompt[];
 }
@@ -219,5 +220,6 @@ export interface WorkspaceMetadata {
   name: string;
   icon?: string;
   description?: string;
+  plugin?: string;
   tabCount: number;
 }

@@ -93,14 +93,15 @@ export function getToolRegistryProvider(): IToolRegistryProvider {
 
 import type { IOnboardingProvider } from './types.js';
 
-const onboardingProviders: IOnboardingProvider[] = [];
+const onboardingProviders: { provider: IOnboardingProvider; source: string }[] = [];
 
 export function registerOnboardingProvider(
   provider: IOnboardingProvider,
+  source = 'Core',
 ): void {
-  onboardingProviders.push(provider);
+  onboardingProviders.push({ provider, source });
 }
 
-export function getOnboardingProviders(): IOnboardingProvider[] {
+export function getOnboardingProviders(): { provider: IOnboardingProvider; source: string }[] {
   return onboardingProviders;
 }

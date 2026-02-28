@@ -20,11 +20,12 @@ interface Plugin {
 
 interface ToolDef {
   id: string;
-  name: string;
+  displayName?: string;
   description?: string;
   kind?: string;
   transport?: string;
-  enabled?: boolean;
+  source?: string;
+  usedBy?: string[];
 }
 
 interface RegistryItem {
@@ -42,6 +43,7 @@ function ToolRegistryModal({ apiBase, onClose }: { apiBase: string; onClose: () 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
 
   const fetchItems = useCallback(async () => {
     try {
@@ -73,6 +75,12 @@ function ToolRegistryModal({ apiBase, onClose }: { apiBase: string; onClose: () 
     finally { setActionLoading(null); }
   };
 
+  const filtered = items.filter(item => {
+    if (!filter) return true;
+    const q = filter.toLowerCase();
+    return (item.displayName || item.id).toLowerCase().includes(q) || item.description?.toLowerCase().includes(q);
+  });
+
   return (
     <div className="plugins__modal-overlay" onClick={onClose}>
       <div className="plugins__modal" onClick={e => e.stopPropagation()}>
@@ -87,26 +95,38 @@ function ToolRegistryModal({ apiBase, onClose }: { apiBase: string; onClose: () 
           ) : items.length === 0 ? (
             <div className="plugins__empty">No tool registry provider configured.</div>
           ) : (
-            <div className="plugins__registry-list">
-              {items.map(item => (
-                <div key={item.id} className="plugins__registry-item">
-                  <div className="plugins__registry-info">
-                    <div className="plugins__registry-name">
-                      {item.displayName || item.id}
-                      {item.version && <span className="plugins__card-version">v{item.version}</span>}
+            <>
+              <input
+                className="plugins__filter-input"
+                type="text"
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                placeholder="Filter tools..."
+                autoFocus
+              />
+              <div className="plugins__registry-list">
+                {filtered.length === 0 ? (
+                  <div className="plugins__empty">No tools match "{filter}"</div>
+                ) : filtered.map(item => (
+                  <div key={item.id} className="plugins__registry-item">
+                    <div className="plugins__registry-info">
+                      <div className="plugins__registry-name">
+                        {item.displayName || item.id}
+                        {item.version && <span className="plugins__card-version">v{item.version}</span>}
+                      </div>
+                      {item.description && <div className="plugins__registry-desc">{item.description}</div>}
                     </div>
-                    {item.description && <div className="plugins__registry-desc">{item.description}</div>}
+                    <button
+                      className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
+                      onClick={() => handleAction(item, item.installed ? 'uninstall' : 'install')}
+                      disabled={actionLoading === item.id}
+                    >
+                      {actionLoading === item.id ? '...' : (item.installed ? 'Remove' : 'Install')}
+                    </button>
                   </div>
-                  <button
-                    className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
-                    onClick={() => handleAction(item, item.installed ? 'uninstall' : 'install')}
-                    disabled={actionLoading === item.id}
-                  >
-                    {actionLoading === item.id ? '...' : (item.installed ? 'Remove' : 'Install')}
-                  </button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -122,6 +142,7 @@ export function PluginManagementView() {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [tools, setTools] = useState<ToolDef[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toolsLoading, setToolsLoading] = useState(true);
   const [installSource, setInstallSource] = useState('');
   const [installing, setInstalling] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -129,6 +150,7 @@ export function PluginManagementView() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
   const [showRegistry, setShowRegistry] = useState(false);
+  const [toolFilter, setToolFilter] = useState('');
 
   const fetchPlugins = useCallback(async () => {
     try {
@@ -145,6 +167,7 @@ export function PluginManagementView() {
       const data = await res.json();
       setTools(data.success ? data.data || [] : []);
     } catch { /* ignore */ }
+    finally { setToolsLoading(false); }
   }, [apiBase]);
 
   const fetchUpdates = useCallback(async () => {
@@ -311,33 +334,59 @@ export function PluginManagementView() {
         {/* ── Installed Tools ── */}
         <div className="plugins__section">
           <div className="plugins__section-header">
-            <h3 className="plugins__section-title">Tools</h3>
+            <h3 className="plugins__section-title">Installed Tools</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <span className="plugins__section-count">{tools.length} active</span>
               <button className="plugins__section-action" onClick={() => setShowRegistry(true)}>Browse Registry</button>
             </div>
           </div>
-          {tools.length === 0 ? (
+          {toolsLoading ? (
+            <LoadingState message="Loading tools..." />
+          ) : tools.length === 0 ? (
             <div className="plugins__empty">No tools configured.</div>
           ) : (
-            <table className="plugins__tools-table">
-              <thead>
-                <tr>
-                  <th className="plugins__tools-th">Name</th>
-                  <th className="plugins__tools-th">Type</th>
-                  <th className="plugins__tools-th">Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tools.map(t => (
-                  <tr key={t.id} className="plugins__tools-tr">
-                    <td className="plugins__tools-td"><span className="plugins__tools-name">{t.name}</span></td>
-                    <td className="plugins__tools-td"><span className="plugins__tools-kind">{t.kind || 'mcp'}</span></td>
-                    <td className="plugins__tools-td"><span className="plugins__tools-desc">{t.description || '-'}</span></td>
+            <>
+              <input
+                className="plugins__filter-input"
+                type="text"
+                value={toolFilter}
+                onChange={e => setToolFilter(e.target.value)}
+                placeholder="Filter tools..."
+              />
+              <table className="plugins__tools-table">
+                <thead>
+                  <tr>
+                    <th className="plugins__tools-th">Name</th>
+                    <th className="plugins__tools-th">Type</th>
+                    <th className="plugins__tools-th">Source</th>
+                    <th className="plugins__tools-th">Agents</th>
+                    <th className="plugins__tools-th">Description</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tools
+                    .filter(t => {
+                      if (!toolFilter) return true;
+                      const q = toolFilter.toLowerCase();
+                      const name = (t.displayName || t.id).toLowerCase();
+                      return name.includes(q) || t.description?.toLowerCase().includes(q) || t.kind?.toLowerCase().includes(q) || t.source?.toLowerCase().includes(q) || t.usedBy?.some(a => a.toLowerCase().includes(q));
+                    })
+                    .map(t => (
+                      <tr key={t.id} className="plugins__tools-tr">
+                        <td className="plugins__tools-td"><span className="plugins__tools-name">{t.displayName || t.id}</span></td>
+                        <td className="plugins__tools-td"><span className="plugins__tools-kind">{t.transport || t.kind || 'mcp'}</span></td>
+                        <td className="plugins__tools-td"><span className="plugins__tools-desc">{t.source || t.id}</span></td>
+                        <td className="plugins__tools-td">
+                          {t.usedBy?.length ? t.usedBy.map(a => (
+                            <span key={a} className="plugins__cap plugins__cap--agent">{a}</span>
+                          )) : <span className="plugins__tools-desc">-</span>}
+                        </td>
+                        <td className="plugins__tools-td"><span className="plugins__tools-desc">{t.description || '-'}</span></td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>

@@ -124,8 +124,10 @@ function App() {
       setWorkspace(slug);
       setActiveTabId(validTabId);
       setWorkspaceTab(slug, validTabId);
+      setCurrentView({ type: 'workspace' });
+      navigate(`/workspaces/${slug}`);
     }
-  }, [workspaces, setWorkspace, setWorkspaceTab]);
+  }, [workspaces, setWorkspace, setWorkspaceTab, navigate]);
 
   // Listen for path changes (back/forward navigation)
   useEffect(() => {
@@ -214,7 +216,8 @@ function App() {
     return () => {
       window.removeEventListener('popstate', handlePathChange);
     };
-  }, [activeTabId, handleWorkspaceSelect, selectedWorkspace]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const _generateId = () =>
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -654,11 +657,28 @@ function App() {
                       {workspace.icon || '📋'}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <h3
-                        style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}
-                      >
-                        {workspace.name}
-                      </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h3
+                          style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}
+                        >
+                          {workspace.name}
+                        </h3>
+                        {workspace.plugin && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              background: 'var(--bg-tertiary)',
+                              color: 'var(--text-secondary)',
+                              fontWeight: 500,
+                              border: '1px solid var(--color-border)',
+                            }}
+                          >
+                            {workspace.plugin}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {workspace.description && (
@@ -1281,8 +1301,6 @@ function App() {
             onBack={navigateToWorkspace}
             onSaved={handleSettingsSaved}
             onNavigate={navigateToView}
-            chatFontSize={14}
-            onChatFontSizeChange={() => {}}
           />
         )}
         {currentView.type === 'profile' && <ProfilePage />}

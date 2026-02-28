@@ -115,7 +115,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     if (activeChat && sessions.some((s) => s.id === activeChat)) {
       setActiveSessionId(activeChat);
     }
-  }, [activeChat, sessions, setActiveSessionId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChat]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
   const activeChatState = useActiveChatState(activeSessionId);

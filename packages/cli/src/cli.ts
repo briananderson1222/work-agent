@@ -141,7 +141,9 @@ function install(source: string): void {
     const targetDir = join(WORKSPACES_DIR, manifest.workspace.slug);
     if (existsSync(sourcePath)) {
       mkdirSync(targetDir, { recursive: true });
-      cpSync(sourcePath, join(targetDir, 'workspace.json'));
+      const wsConfig = JSON.parse(readFileSync(sourcePath, 'utf-8'));
+      wsConfig.plugin = manifest.name;
+      writeFileSync(join(targetDir, 'workspace.json'), JSON.stringify(wsConfig, null, 2));
       console.log(`  ✓ Workspace: ${manifest.workspace.slug}`);
     }
   }
