@@ -63,8 +63,8 @@ jobs:
 
       - name: Run integration tests
         run: |
-          PORT=3142 node dist-server/index.js &
+          PORT=3141 node dist-server/index.js &
           sleep 5
-          VITE_API_BASE=http://localhost:3142 npx playwright test tests/plugin-system.spec.ts --reporter=list
+          npx playwright test tests/plugin-system.spec.ts --reporter=list
         env:
           CI: true
