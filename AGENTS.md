@@ -31,12 +31,12 @@ When working on this codebase:
 All workspace data flows through typed abstractions:
 
 ```
-Provider Interface (contract)  →  Provider Impl (tool calls)  →  ViewModel (UI shape)
-  ICalendarProvider                 outlook.ts                    CalendarEventVM
-  ICRMProvider                      salesforce.ts                 AccountVM, OpportunityVM
-  ISiftProvider                     sift.ts                       InsightVM
-  IEmailProvider                    outlook-email.ts              EmailVM
-  IInternalProvider                 builder.ts                    PersonVM
+Provider Interface (contract)  →  Provider Impl (plugin)        →  ViewModel (UI shape)
+  ICalendarProvider                 (plugin-provided)              CalendarEventVM
+  ICRMProvider                      (plugin-provided)              AccountVM, OpportunityVM
+  IInsightsProvider                  (plugin-provided)              InsightVM
+  IEmailProvider                    (plugin-provided)              EmailVM
+  IUserDirectoryProvider            (plugin-provided)              UserDetailVM
 ```
 
 **Rules:**
@@ -55,14 +55,14 @@ Provider Interface (contract)  →  Provider Impl (tool calls)  →  ViewModel (
 | `packages/sdk/` | SDK: Query hooks, API utilities, Types |
 | `examples/*/` | Plugins: Components, ViewModels, styles |
 
-**Key rule**: Plugins import from `@stallion-ai/sdk` only.
+**Key rule**: Plugins import from `@work-agent/sdk` only.
 
 ### Cross-Tab Navigation
 
 Plugins must use SDK hooks for navigating between workspace tabs — never use raw `sessionStorage`, `window.history.pushState`, or `window.dispatchEvent` directly.
 
 ```typescript
-import { useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
+import { useNavigation, useWorkspaceNavigation } from '@work-agent/sdk';
 
 const nav = useNavigation();
 const { setTabState, getTabState } = useWorkspaceNavigation();
@@ -136,6 +136,10 @@ log.api('message');  // Enable: localStorage.debug = 'app:*'
 ### Theming & Colors
 
 Never use hardcoded hex colors. Use CSS variables from `src-ui/src/index.css` (`--text-primary`, `--bg-secondary`, `--border-primary`, `--accent-primary`, `--accent-acp`, etc). For status colors use the Tailwind palette: green `#22c55e`, amber `#f59e0b`, red `#ef4444`. Buttons use `className="button button--secondary"`. See [FRONTEND_PATTERNS.md](./docs/FRONTEND_PATTERNS.md) for details.
+
+### Styling
+
+**Prefer CSS classes over inline styles.** Define styles in the component's CSS file (or `index.css` for shared styles) and reference them via `className`. Inline `style={}` should only be used for truly dynamic values (e.g., computed widths, conditional colors from data). All colors, spacing, and theming must use CSS variables — never hardcoded hex values.
 
 ### Confirmation Dialogs
 
