@@ -1,4 +1,4 @@
-import type React from 'react';
+import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';

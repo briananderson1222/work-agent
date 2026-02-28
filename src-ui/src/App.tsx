@@ -109,6 +109,23 @@ function App() {
   });
   const [_historyIndex, _setHistoryIndex] = useState<number>(-1);
 
+  const handleWorkspaceSelect = useCallback(async (
+    slug: string,
+    preferredTabId?: string,
+  ) => {
+    const workspace = workspaces.find((w) => w.slug === slug);
+    if (workspace) {
+      const tabs = workspace.tabs || [];
+      const validTabId =
+        preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
+          ? preferredTabId
+          : tabs[0]?.id || '';
+
+      setActiveTabId(validTabId);
+      setWorkspaceTab(slug, validTabId);
+    }
+  }, [workspaces, setWorkspaceTab]);
+
   // Listen for path changes (back/forward navigation)
   useEffect(() => {
     const handlePathChange = () => {
@@ -388,28 +405,6 @@ function App() {
     currentView.type,
     setWorkspace,
   ]);
-
-  const handleWorkspaceSelect = async (
-    slug: string,
-    preferredTabId?: string,
-  ) => {
-    // React Query will fetch workspace data automatically
-    // Just get it from cache or wait for it to load
-    const workspace = workspaces.find((w) => w.slug === slug);
-    if (workspace) {
-      // Use preferred tab ID if provided and valid, otherwise use first tab
-      const tabs = workspace.tabs || [];
-      const validTabId =
-        preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
-          ? preferredTabId
-          : tabs[0]?.id || '';
-
-      setActiveTabId(validTabId);
-
-      // Use setWorkspaceTab to include tab in URL
-      setWorkspaceTab(slug, validTabId);
-    }
-  };
 
   const _handleTabChange = (tabId: string) => {
     setActiveTabId(tabId);

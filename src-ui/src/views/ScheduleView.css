@@ -270,6 +270,41 @@
   align-items: center;
   font-size: 0.85rem;
 }
+.schedule__detail-meta {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+}
+.schedule__detail-desc {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.schedule__detail-field {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.schedule__detail-label {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  min-width: 4.5rem;
+}
+.schedule__detail-value {
+  color: var(--text-primary);
+}
+.schedule__detail-code {
+  padding: 0.1rem 0.4rem;
+  background: var(--bg-tertiary);
+  border-radius: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+}
 
 /* ── Detail Sub-table ── */
 .schedule__logs {

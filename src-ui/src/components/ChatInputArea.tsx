@@ -1,4 +1,4 @@
-import type React from 'react';
+import React from 'react';
 import type { SlashCommand } from '../hooks/useSlashCommands';
 import type { FileAttachment } from '../types';
 import { ContextPercentage } from './ConversationStats';

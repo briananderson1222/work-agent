@@ -33,7 +33,8 @@
 				"noBannedTypes": "warn"
 			},
 			"style": {
-				"noNonNullAssertion": "off"
+				"noNonNullAssertion": "off",
+				"useImportType": "off"
 			},
 			"correctness": {
 				"useExhaustiveDependencies": "warn",

@@ -1,3 +1,4 @@
+import React from 'react';
 import { createContext, type ReactNode, useContext, useState } from 'react';
 
 interface WorkspaceContextConfig<T> {

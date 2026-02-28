@@ -3,7 +3,7 @@ import {
   useInvalidateQuery,
   useUsageQuery,
 } from '@work-agent/sdk';
-import type React from 'react';
+import React from 'react';
 import { createContext, useContext } from 'react';
 import { useApiBase } from './ApiBaseContext';
 

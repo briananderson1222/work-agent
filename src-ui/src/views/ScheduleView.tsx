@@ -736,6 +736,14 @@ export function ScheduleView() {
                                       </button>
                                     )}
                                   </div>
+                                  {(job.description || job.prompt || job.command || job.agent) && (
+                                    <div className="schedule__detail-meta">
+                                      {job.description && <div className="schedule__detail-desc">{job.description}</div>}
+                                      {job.prompt && <div className="schedule__detail-field"><span className="schedule__detail-label">Prompt</span><span className="schedule__detail-value">{job.prompt}</span></div>}
+                                      {job.command && <div className="schedule__detail-field"><span className="schedule__detail-label">Command</span><code className="schedule__detail-code">{job.command}</code></div>}
+                                      {job.agent && <div className="schedule__detail-field"><span className="schedule__detail-label">Agent</span><span className="schedule__detail-value">{job.agent}</span></div>}
+                                    </div>
+                                  )}
                                   <JobDetail name={job.name} />
                                 </div>
                               </td>

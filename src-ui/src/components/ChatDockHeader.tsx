@@ -1,4 +1,4 @@
-import type React from 'react';
+import React from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import { ACPStatusBadge } from './ACPStatusBadge';
