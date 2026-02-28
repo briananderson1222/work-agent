@@ -55,6 +55,9 @@ jobs:
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
 
+      - name: Build SDK
+        run: cd packages/sdk && npm run build
+
       - name: Build
         run: npm run build
 
