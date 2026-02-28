@@ -1,0 +1,16 @@
+{
+  "name": "@work-agent/cli",
+  "version": "0.3.0",
+  "description": "CLI for managing and developing Work Agent plugins",
+  "type": "module",
+  "bin": {
+    "wa": "./src/cli.ts"
+  },
+  "files": ["src/"],
+  "dependencies": {
+    "@work-agent/shared": "^0.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}
