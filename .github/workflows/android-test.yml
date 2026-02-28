@@ -107,10 +107,10 @@ jobs:
           APK=$(find apk/ -name "*.apk" | head -1)
           echo "APK: $APK"
           adb install "$APK"
-          adb shell am start -n dev.voltagent.work_agent/.MainActivity
+          adb shell am start -n xyz.briananderson.stallion/.MainActivity
           sleep 5
-          adb shell pidof dev.voltagent.work_agent | grep -q "[0-9]" && echo "App process running" || (echo "App not running" && exit 1)
-          adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime" > crash.log || true
+          adb shell pidof xyz.briananderson.stallion | grep -q "[0-9]" && echo "App process running" || (echo "App not running" && exit 1)
+          adb logcat -d | grep -E "FATAL EXCEPTION|E AndroidRuntime" > crash.log || true
           if [ -s crash.log ]; then cat crash.log && exit 1; fi
           adb shell screencap -p /sdcard/smoke.png && adb pull /sdcard/smoke.png smoke-test.png
           echo "Smoke test passed"
