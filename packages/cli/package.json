@@ -1,6 +1,6 @@
 {
   "name": "@stallion-ai/cli",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "CLI for managing and developing Work Agent plugins",
   "type": "module",
   "bin": {
@@ -13,7 +13,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@stallion-ai/shared": "^0.1.0"
+    "@stallion-ai/shared": "^0.4.0"
   },
   "devDependencies": {
     "tsx": "^4.19.3"
