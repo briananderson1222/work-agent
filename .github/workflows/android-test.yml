@@ -108,31 +108,21 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
           script: |
+            set -e
             APK=$(find apk/ -name "*.apk" | head -1)
             echo "Installing $APK"
             adb install "$APK"
-
             echo "Launching app"
             adb shell am start -n dev.voltagent.work_agent/.MainActivity
-
             sleep 5
-
             echo "Checking app is running"
-            adb shell pidof dev.voltagent.work_agent | grep -q "[0-9]" && echo "✓ App process running" || (echo "✗ App not running" && exit 1)
-
-            echo "Checking for crashes in logcat"
-            adb logcat -d -s AndroidRuntime:E | grep -i "FATAL\|AndroidRuntime" | grep -v "^$" > crash.log || true
-            if [ -s crash.log ]; then
-              echo "✗ Crash detected:"
-              cat crash.log
-              exit 1
-            fi
-
+            adb shell pidof dev.voltagent.work_agent | grep -q "[0-9]" && echo "App process running" || (echo "App not running" && exit 1)
+            echo "Checking for crashes"
+            adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime" > crash.log || true
+            if [ -s crash.log ]; then cat crash.log && exit 1; fi
             echo "Taking screenshot"
-            adb shell screencap -p /sdcard/smoke.png
-            adb pull /sdcard/smoke.png smoke-test.png
-
-            echo "✓ Smoke test passed"
+            adb shell screencap -p /sdcard/smoke.png && adb pull /sdcard/smoke.png smoke-test.png
+            echo "Smoke test passed"
 
       - name: Upload emulator screenshot
         if: always()
