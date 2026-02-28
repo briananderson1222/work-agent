@@ -110,7 +110,7 @@ export interface ToolDef {
   kind: 'mcp' | 'builtin';
   displayName?: string;
   description?: string;
-  transport?: 'stdio' | 'sse' | 'streamable-http';
+  transport?: 'stdio' | 'sse' | 'streamable-http' | 'process' | 'ws' | 'tcp';
   command?: string;
   args?: string[];
   endpoint?: string;

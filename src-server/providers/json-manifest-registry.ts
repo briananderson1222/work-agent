@@ -54,9 +54,9 @@ export class JsonManifestRegistryProvider implements IAgentRegistryProvider, ITo
       throw new Error(`Failed to fetch manifest: ${response.status} ${response.statusText}`);
     }
 
-    this.manifestCache = await response.json();
+    this.manifestCache = await response.json() as Manifest;
     this.cacheExpiry = now + this.cacheTimeout;
-    return this.manifestCache;
+    return this.manifestCache!;
   }
 
   private getPluginsDir(): string {

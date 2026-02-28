@@ -1775,7 +1775,7 @@ export class WorkAgentRuntime {
       try {
         const res = await fetch(`http://localhost:${this.port}/api/plugins/check-updates`);
         if (!res.ok) return;
-        const { updates } = await res.json();
+        const { updates } = await res.json() as { updates: any[] };
         if (updates.length > 0) {
           this.eventBus.emit('plugins:updates-available', { count: updates.length, updates });
           this.logger.info('Plugin updates available', { count: updates.length });
