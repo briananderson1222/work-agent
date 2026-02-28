@@ -2,7 +2,7 @@ import {
   useAgentsQuery,
   useApiMutation,
   useInvalidateQuery,
-} from '@work-agent/sdk';
+} from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
 

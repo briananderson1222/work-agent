@@ -1,4 +1,4 @@
-import { useInvalidateQuery } from '@work-agent/sdk';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';

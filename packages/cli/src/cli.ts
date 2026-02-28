@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 /**
- * @work-agent/cli — Unified CLI for Work Agent
+ * @stallion-ai/cli — Unified CLI for Work Agent
  *
  * Plugin Management:
  *   wa install <source>     Install from git URL or local path
@@ -42,8 +42,8 @@ import {
   resolvePluginTools,
   type ToolCallResponse,
   type WorkspaceConfig,
-} from '@work-agent/shared';
-import { MCPManager } from '@work-agent/shared/mcp';
+} from '@stallion-ai/shared';
+import { MCPManager } from '@stallion-ai/shared/mcp';
 
 const HOME_WA = join(homedir(), '.work-agent');
 const PLUGINS_DIR = join(HOME_WA, 'plugins');
@@ -255,8 +255,8 @@ const SHARED_EXTERNALS = [
   'react',
   'react/jsx-runtime',
   'react/jsx-dev-runtime',
-  '@work-agent/sdk',
-  '@work-agent/components',
+  '@stallion-ai/sdk',
+  '@stallion-ai/components',
   '@tanstack/react-query',
   'dompurify',
   'debug',
@@ -289,8 +289,8 @@ function build(mode: 'production' | 'dev' = 'production'): void {
   // Dev: bundle everything, only externalize SDK (we mock it)
   const externals = isDev
     ? [
-        '@work-agent/sdk',
-        '@work-agent/components',
+        '@stallion-ai/sdk',
+        '@stallion-ai/components',
         'react',
         'react-dom',
         'react/jsx-runtime',
@@ -316,8 +316,8 @@ function build(mode: 'production' | 'dev' = 'production'): void {
         `  if (m === 'react-dom' || m === 'react-dom/client') return window.ReactDOM;`,
         `  if (m === '@tanstack/react-query') return window.__work_agent_rq;`,
         `  var s = window.__work_agent_sdk_mock;`,
-        `  if (m === '@work-agent/sdk') return Object.assign({}, s, {default:s, __esModule:true});`,
-        `  if (m === '@work-agent/components') return new Proxy({}, {get: function() { return function() { return null; }; }});`,
+        `  if (m === '@stallion-ai/sdk') return Object.assign({}, s, {default:s, __esModule:true});`,
+        `  if (m === '@stallion-ai/components') return new Proxy({}, {get: function() { return function() { return null; }; }});`,
         `  throw new Error('Unknown external: ' + m);`,
         `};`,
       ].join('\n')}\n`,
@@ -463,7 +463,7 @@ function init(name = 'my-workspace'): void {
   );
   writeFileSync(
     join(dir, 'src/index.tsx'),
-    `import { useAuth, type WorkspaceComponentProps } from '@work-agent/sdk';\n\nfunction Main({ onShowChat }: WorkspaceComponentProps) {\n  const { user } = useAuth();\n  return (\n    <div style={{ padding: '2rem' }}>\n      <h1>Hello{user?.name ? \`, \${user.name}\` : ''}!</h1>\n      <button onClick={() => onShowChat?.()}>Open Chat</button>\n    </div>\n  );\n}\n\nexport const components = { '${name}-main': Main };\nexport default Main;\n`,
+    `import { useAuth, type WorkspaceComponentProps } from '@stallion-ai/sdk';\n\nfunction Main({ onShowChat }: WorkspaceComponentProps) {\n  const { user } = useAuth();\n  return (\n    <div style={{ padding: '2rem' }}>\n      <h1>Hello{user?.name ? \`, \${user.name}\` : ''}!</h1>\n      <button onClick={() => onShowChat?.()}>Open Chat</button>\n    </div>\n  );\n}\n\nexport const components = { '${name}-main': Main };\nexport default Main;\n`,
   );
   writeFileSync(
     join(dir, 'package.json'),
@@ -474,7 +474,7 @@ function init(name = 'my-workspace'): void {
         type: 'module',
         scripts: { build: 'wa build', dev: 'wa dev' },
         peerDependencies: {
-          '@work-agent/sdk': '^0.3.0',
+          '@stallion-ai/sdk': '^0.3.0',
           react: '^18.0.0 || ^19.0.0',
         },
       },
@@ -799,7 +799,7 @@ function devHTML(
   agentInfo: string,
 ): string {
   // Self-contained: plugin bundle includes React, react-query, etc.
-  // Only @work-agent/sdk is external (mocked below).
+  // Only @stallion-ai/sdk is external (mocked below).
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${name} — Dev Preview</title>
 <link rel="stylesheet" href="/bundle.css">
@@ -928,7 +928,7 @@ try {
     }
     default:
       console.log(`
-Work Agent CLI (@work-agent/cli)
+Work Agent CLI (@stallion-ai/cli)
 
 Plugin Management:
   wa install <source>     Install from git URL or local path

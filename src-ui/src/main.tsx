@@ -1,5 +1,5 @@
 import * as ReactQuery from '@tanstack/react-query';
-import * as SDK from '@work-agent/sdk';
+import * as SDK from '@stallion-ai/sdk';
 import debug from 'debug';
 import DOMPurify from 'dompurify';
 import React, * as ReactAll from 'react';
@@ -13,7 +13,7 @@ import { UserDetailModal } from './components/UserDetailModal';
   react: ReactAll,
   'react/jsx-runtime': jsxRuntime,
   'react/jsx-dev-runtime': jsxRuntime,
-  '@work-agent/sdk': SDK,
+  '@stallion-ai/sdk': SDK,
   '@tanstack/react-query': ReactQuery,
   dompurify: Object.assign((...a: any[]) => DOMPurify.sanitize(...a), {
     ...DOMPurify,
@@ -22,13 +22,13 @@ import { UserDetailModal } from './components/UserDetailModal';
   }),
   debug: Object.assign(debug, { default: debug, __esModule: true }),
   zod: zod,
-  '@work-agent/components': { UserDetailModal },
+  '@stallion-ai/components': { UserDetailModal },
 };
 
 import App from './App';
 import './index.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { _setApiBase } from '@work-agent/sdk';
+import { _setApiBase } from '@stallion-ai/sdk';
 import { NotificationContainer } from './components/NotificationContainer';
 import { OnboardingGate } from './components/OnboardingGate';
 import { ActiveChatsProvider } from './contexts/ActiveChatsContext';

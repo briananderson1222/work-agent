@@ -1,4 +1,4 @@
-import { useWorkspaceQuery, useWorkspacesQuery } from '@work-agent/sdk';
+import { useWorkspaceQuery, useWorkspacesQuery } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ACPConnectionsSection } from './components/ACPConnectionsSection';
 import { AgentIcon } from './components/AgentIcon';

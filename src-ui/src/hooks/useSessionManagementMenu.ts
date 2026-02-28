@@ -1,4 +1,4 @@
-import { useInvalidateQuery } from '@work-agent/sdk';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { log } from '../utils/logger';

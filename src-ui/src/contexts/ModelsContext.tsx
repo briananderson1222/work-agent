@@ -1,4 +1,4 @@
-import { useModelsQuery } from '@work-agent/sdk';
+import { useModelsQuery } from '@stallion-ai/sdk';
 import { useMemo } from 'react';
 import { log } from '@/utils/logger';
 

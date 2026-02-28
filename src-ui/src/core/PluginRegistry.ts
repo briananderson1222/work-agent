@@ -5,7 +5,7 @@
  * via script injection, and registers workspace components.
  */
 
-import type { WorkspaceComponent } from '@work-agent/sdk';
+import type { WorkspaceComponent } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 
 export class PluginRegistry {

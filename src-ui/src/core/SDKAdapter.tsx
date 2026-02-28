@@ -5,7 +5,7 @@ import {
   type SDKContextValue,
   SDKProvider,
   useWorkspacesQuery,
-} from '@work-agent/sdk';
+} from '@stallion-ai/sdk';
 import { type ReactNode, useEffect } from 'react';
 import {
   useActiveChatActions,

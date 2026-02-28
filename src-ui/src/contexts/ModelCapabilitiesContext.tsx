@@ -1,4 +1,4 @@
-import { useModelCapabilitiesQuery } from '@work-agent/sdk';
+import { useModelCapabilitiesQuery } from '@stallion-ai/sdk';
 
 export type ModelCapability = {
   modelId: string;

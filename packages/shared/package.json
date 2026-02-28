@@ -1,5 +1,5 @@
 {
-  "name": "@work-agent/shared",
+  "name": "@stallion-ai/shared",
   "version": "0.1.0",
   "description": "Canonical types, config parsing, and MCP client factory for Work Agent",
   "type": "module",
@@ -8,6 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./mcp": "./src/mcp.ts"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1"

@@ -1,4 +1,4 @@
-import { agentQueries } from '@work-agent/sdk';
+import { agentQueries } from '@stallion-ai/sdk';
 import { registerCommand } from './registry';
 
 // MCP command

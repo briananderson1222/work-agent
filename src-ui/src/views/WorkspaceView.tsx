@@ -3,7 +3,7 @@ import {
   useWorkspaceQuery,
   useWorkspacesQuery,
   WorkspaceNavigationProvider,
-} from '@work-agent/sdk';
+} from '@stallion-ai/sdk';
 import { useCallback, useEffect, useState } from 'react';
 import {
   useCreateChatSession,

@@ -1,4 +1,4 @@
-import { useConversationsQuery, useQueryClient } from '@work-agent/sdk';
+import { useConversationsQuery, useQueryClient } from '@stallion-ai/sdk';
 import {
   createContext,
   type ReactNode,

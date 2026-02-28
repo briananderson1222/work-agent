@@ -2,7 +2,7 @@ import {
   useApiMutation,
   useConfigQuery,
   useInvalidateQuery,
-} from '@work-agent/sdk';
+} from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 
 type ConfigData = {

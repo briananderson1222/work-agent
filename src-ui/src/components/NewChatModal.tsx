@@ -1,4 +1,4 @@
-import { useWorkspaceQuery } from '@work-agent/sdk';
+import { useWorkspaceQuery } from '@stallion-ai/sdk';
 import React, { useMemo, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import { useNavigation } from '../contexts/NavigationContext';

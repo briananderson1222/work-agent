@@ -1,4 +1,4 @@
-import { useInvalidateQuery } from '@work-agent/sdk';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
 import {
   createContext,
   type ReactNode,

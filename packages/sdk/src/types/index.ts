@@ -1,5 +1,5 @@
 /**
- * SDK Types — re-exported from @work-agent/shared + SDK-specific types.
+ * SDK Types — re-exported from @stallion-ai/shared + SDK-specific types.
  * Shared types live in packages/shared. SDK-only types (React, UI) live here.
  */
 
@@ -26,16 +26,16 @@ export type {
   WorkspaceMetadata,
   WorkspacePrompt,
   WorkspaceTab,
-} from '@work-agent/shared';
+} from '@stallion-ai/shared';
 
 // ── SDK-specific types (React/UI concerns) ─────────────────────────
 
 export interface WorkspaceComponentProps {
   agent?: AgentSummary;
-  workspace?: import('@work-agent/shared').WorkspaceConfig;
-  activeTab?: import('@work-agent/shared').WorkspaceTab;
+  workspace?: import('@stallion-ai/shared').WorkspaceConfig;
+  activeTab?: import('@stallion-ai/shared').WorkspaceTab;
   onLaunchPrompt?: (
-    prompt: import('@work-agent/shared').AgentQuickPrompt,
+    prompt: import('@stallion-ai/shared').AgentQuickPrompt,
   ) => void;
   onLaunchWorkflow?: (workflowId: string) => void;
   onShowChat?: () => void;
@@ -54,9 +54,9 @@ export interface AgentSummary {
   model?: string;
   region?: string;
   source?: 'local' | 'acp';
-  guardrails?: import('@work-agent/shared').AgentGuardrails;
-  tools?: import('@work-agent/shared').AgentTools;
-  ui?: import('@work-agent/shared').AgentUIConfig;
+  guardrails?: import('@stallion-ai/shared').AgentGuardrails;
+  tools?: import('@stallion-ai/shared').AgentTools;
+  ui?: import('@stallion-ai/shared').AgentUIConfig;
 }
 
 export interface Agent extends AgentSummary {}
