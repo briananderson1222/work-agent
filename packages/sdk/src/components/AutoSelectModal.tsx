@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import type React from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import './AutoSelectModal.css';
 
 export interface AutoSelectItem<T = any> {
@@ -51,7 +52,7 @@ export function AutoSelectModal<T = any>({
     }
   }, [isOpen]);
 
-  const filteredItems = items.filter(item => {
+  const filteredItems = items.filter((item) => {
     const searchLower = search.toLowerCase();
     return (
       item.title.toLowerCase().includes(searchLower) ||
@@ -62,15 +63,15 @@ export function AutoSelectModal<T = any>({
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [search]);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(prev => Math.min(prev + 1, filteredItems.length - 1));
+      setSelectedIndex((prev) => Math.min(prev + 1, filteredItems.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => Math.max(prev - 1, 0));
+      setSelectedIndex((prev) => Math.max(prev - 1, 0));
     } else if (e.key === 'Enter' && filteredItems[selectedIndex]) {
       e.preventDefault();
       onSelect(filteredItems[selectedIndex]);
@@ -111,21 +112,45 @@ export function AutoSelectModal<T = any>({
                 onMouseEnter={() => setSelectedIndex(idx)}
                 className={`auto-select-modal__item ${idx === selectedIndex ? 'auto-select-modal__item--selected' : ''}`}
               >
-                {renderIcon && <div className="auto-select-modal__icon">{renderIcon(item)}</div>}
-                
+                {renderIcon && (
+                  <div className="auto-select-modal__icon">
+                    {renderIcon(item)}
+                  </div>
+                )}
+
                 <div className="auto-select-modal__item-content">
                   <div className="auto-select-modal__item-header">
                     <div className="auto-select-modal__item-title">
-                      {item.isActive && <span className="auto-select-modal__active-indicator">●</span>}
+                      {item.isActive && (
+                        <span className="auto-select-modal__active-indicator">
+                          ●
+                        </span>
+                      )}
                       {item.title}
-                      {item.badge && <span className="auto-select-modal__badge">{item.badge}</span>}
+                      {item.badge && (
+                        <span className="auto-select-modal__badge">
+                          {item.badge}
+                        </span>
+                      )}
                     </div>
-                    {item.timestamp && <div className="auto-select-modal__timestamp">{item.timestamp}</div>}
+                    {item.timestamp && (
+                      <div className="auto-select-modal__timestamp">
+                        {item.timestamp}
+                      </div>
+                    )}
                   </div>
-                  
-                  {item.subtitle && <div className="auto-select-modal__subtitle">{item.subtitle}</div>}
-                  {item.description && <div className="auto-select-modal__description">{item.description}</div>}
-                  {renderMetadata && renderMetadata(item)}
+
+                  {item.subtitle && (
+                    <div className="auto-select-modal__subtitle">
+                      {item.subtitle}
+                    </div>
+                  )}
+                  {item.description && (
+                    <div className="auto-select-modal__description">
+                      {item.description}
+                    </div>
+                  )}
+                  {renderMetadata?.(item)}
                 </div>
               </button>
             ))

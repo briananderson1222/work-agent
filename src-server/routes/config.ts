@@ -6,7 +6,11 @@ import { Hono } from 'hono';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { EventBus } from '../services/event-bus.js';
 
-export function createConfigRoutes(configLoader: ConfigLoader, logger: any, eventBus?: EventBus) {
+export function createConfigRoutes(
+  configLoader: ConfigLoader,
+  logger: any,
+  eventBus?: EventBus,
+) {
   const app = new Hono();
 
   // Get app config

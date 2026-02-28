@@ -1,5 +1,5 @@
-import { useNotificationHistory, useToast } from '../contexts/ToastContext';
 import { useAllActiveChats } from '../contexts/ActiveChatsContext';
+import { useNotificationHistory, useToast } from '../contexts/ToastContext';
 
 function formatTimestamp(timestamp: number): string {
   const now = Date.now();
@@ -7,11 +7,11 @@ function formatTimestamp(timestamp: number): string {
   const seconds = Math.floor(diff / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
-  
+
   if (seconds < 60) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
-  
+
   const date = new Date(timestamp);
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
@@ -20,9 +20,9 @@ export function NotificationContainer() {
   const history = useNotificationHistory();
   const { dismissToast } = useToast();
   const activeChats = useAllActiveChats();
-  
+
   // Only show notifications that haven't been dismissed
-  const activeNotifications = history.filter(n => !n.dismissed);
+  const activeNotifications = history.filter((n) => !n.dismissed);
 
   // Get keyboard shortcut for a session
   const getSessionShortcut = (sessionId: string | undefined): string | null => {
@@ -38,18 +38,20 @@ export function NotificationContainer() {
   if (activeNotifications.length === 0) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: '60px', // Below header
-      right: '20px',
-      zIndex: 9999,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-      maxWidth: '400px',
-      pointerEvents: 'none',
-    }}>
-      {activeNotifications.map(notification => (
+    <div
+      style={{
+        position: 'fixed',
+        top: '60px', // Below header
+        right: '20px',
+        zIndex: 9999,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        maxWidth: '400px',
+        pointerEvents: 'none',
+      }}
+    >
+      {activeNotifications.map((notification) => (
         <div
           key={notification.id}
           style={{
@@ -63,32 +65,62 @@ export function NotificationContainer() {
             minWidth: '320px',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'start',
+              marginBottom: '8px',
+            }}
+          >
             <div style={{ flex: 1, paddingRight: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '6px',
+                }}
+              >
                 {notification.type === 'tool-approval' && (
-                  <div style={{ 
-                    fontSize: '11px', 
-                    color: 'var(--text-muted)', 
-                    textTransform: 'uppercase',
-                    fontWeight: 600,
-                    letterSpacing: '0.5px',
-                  }}>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      fontWeight: 600,
+                      letterSpacing: '0.5px',
+                    }}
+                  >
                     Tool Approval Request
                   </div>
                 )}
-                <div style={{ 
-                  fontSize: '11px', 
-                  color: 'var(--text-tertiary)',
-                  marginLeft: notification.type === 'tool-approval' ? '0' : 'auto',
-                }}>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--text-tertiary)',
+                    marginLeft:
+                      notification.type === 'tool-approval' ? '0' : 'auto',
+                  }}
+                >
                   {formatTimestamp(notification.timestamp)}
                 </div>
               </div>
               <div style={{ fontSize: '14px' }}>{notification.message}</div>
               {notification.conversationTitle && notification.onNavigate && (
-                <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>in </span>
+                <div
+                  style={{
+                    marginTop: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span
+                    style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
+                  >
+                    in{' '}
+                  </span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -109,14 +141,16 @@ export function NotificationContainer() {
                     "{notification.conversationTitle}"
                   </button>
                   {getSessionShortcut(notification.sessionId) && (
-                    <span style={{
-                      fontSize: '11px',
-                      color: 'var(--text-muted)',
-                      background: 'var(--bg-tertiary)',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontFamily: 'monospace',
-                    }}>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--text-muted)',
+                        background: 'var(--bg-tertiary)',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontFamily: 'monospace',
+                      }}
+                    >
                       {getSessionShortcut(notification.sessionId)}
                     </span>
                   )}
@@ -139,7 +173,7 @@ export function NotificationContainer() {
               ×
             </button>
           </div>
-          
+
           {notification.actions && notification.actions.length > 0 && (
             <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
               {notification.actions.map((action, idx) => (
@@ -151,11 +185,21 @@ export function NotificationContainer() {
                   }}
                   style={{
                     padding: '8px 16px',
-                    background: action.variant === 'danger' ? '#ef4444' : 
-                               action.variant === 'primary' ? 'var(--accent-primary)' : 
-                               'var(--bg-tertiary)',
-                    color: action.variant === 'danger' || action.variant === 'primary' ? 'white' : 'var(--text-primary)',
-                    border: action.variant === 'secondary' ? '1px solid var(--border-primary)' : 'none',
+                    background:
+                      action.variant === 'danger'
+                        ? '#ef4444'
+                        : action.variant === 'primary'
+                          ? 'var(--accent-primary)'
+                          : 'var(--bg-tertiary)',
+                    color:
+                      action.variant === 'danger' ||
+                      action.variant === 'primary'
+                        ? 'white'
+                        : 'var(--text-primary)',
+                    border:
+                      action.variant === 'secondary'
+                        ? '1px solid var(--border-primary)'
+                        : 'none',
                     borderRadius: '6px',
                     cursor: 'pointer',
                     fontSize: '13px',

@@ -1,151 +1,125 @@
 // Re-export all types
-export * from './types';
 
 // Re-export useQueryClient for contexts that need access to cache
 export { useQueryClient } from '@tanstack/react-query';
-
-// Re-export query hooks (plugins use these instead of raw React Query)
 export {
-  useTransformTool,
-  useInvokeAgent,
-  useApiQuery,
-  useApiMutation,
-  useInvalidateQuery,
-  useWorkspaceQuery,
-  useWorkspacesQuery,
-  useUsageQuery,
-  useAchievementsQuery,
-  useAgentsQuery,
-  useModelsQuery,
-  useConversationsQuery,
-  useConfigQuery,
-  useModelCapabilitiesQuery,
-  useAgentToolsQuery,
-  useStatsQuery,
-} from './queries';
-
-// Re-export query factories (for imperative fetching in commands)
-export { agentQueries } from './queryFactories';
-
-// Re-export components
-export { Button, Pill, AutoSelectModal } from './components';
+  isWorkspaceAgent,
+  parseAgentSlug,
+  resolveAgentName,
+} from './agentResolver';
+export type { InvokeOptions } from './api';
+// Re-export utility functions
+export {
+  _setApiBase,
+  _setWorkspaceContext,
+  callTool,
+  createChatSession,
+  fetchConfig,
+  invoke,
+  invokeAgent,
+  sendMessage,
+  streamMessage,
+  transformTool,
+} from './api';
 export type { AutoSelectItem } from './components';
+// Re-export components
+export { AutoSelectModal, Button, Pill } from './components';
 
 // Re-export context hooks
 export {
-  // SDK access
-  useSDK,
-  
-  // Agent management
-  useAgents,
-  useAgent,
-  
-  // Workspace management
-  useWorkspaces,
-  useWorkspace,
-  
-  // Conversation management
-  useConversations,
-  useConversation,
-  useConversationMessages,
-  
-  // Chat operations
-  useCreateChatSession,
-  useOpenConversation,
-  useSendMessage,
   useActiveChatActions,
   useActiveChatState,
-  
-  // Models
-  useModels,
-  useAvailableModels,
-  
+  useAgent,
+  // Agent management
+  useAgents,
   // Configuration
   useApiBase,
-  useConfig,
   useAuth,
-  
-  // Navigation
-  useNavigation,
-  useDockState,
-  
-  // Toast notifications
-  useToast,
-  
-  // Notifications
-  useNotifications,
-  
-  // Slash commands
-  useSlashCommandHandler,
-  useSlashCommands,
-  
-  // Tool approval
-  useToolApproval,
-  
-  // Statistics
-  useStats,
+  useAvailableModels,
+  useConfig,
+  useConversation,
+  useConversationMessages,
   useConversationStats,
-  
+  // Conversation management
+  useConversations,
+  // Chat operations
+  useCreateChatSession,
+  useDockState,
   // Keyboard shortcuts
   useKeyboardShortcut,
   useKeyboardShortcuts,
-  
-  // Workflows
-  useWorkflows,
-  useWorkflowFiles,
-  
+  // Models
+  useModels,
+  // Navigation
+  useNavigation,
+  // Notifications
+  useNotifications,
+  useOpenConversation,
+  // SDK access
+  useSDK,
+  useSendMessage,
   // Chat utilities
   useSendToChat,
-  
-  // User directory
-  useUserLookup,
-
   // Server-side fetch proxy
   useServerFetch,
+  // Slash commands
+  useSlashCommandHandler,
+  useSlashCommands,
+  // Statistics
+  useStats,
+  // Toast notifications
+  useToast,
+  // Tool approval
+  useToolApproval,
+  // User directory
+  useUserLookup,
+  useWorkflowFiles,
+  // Workflows
+  useWorkflows,
+  useWorkspace,
+  // Workspace management
+  useWorkspaces,
 } from './hooks';
-
-// Re-export utility functions
-export {
-  createChatSession,
-  sendMessage,
-  streamMessage,
-  invokeAgent,
-  invoke,
-  transformTool,
-  callTool,
-  fetchConfig,
-  _setWorkspaceContext,
-  _setApiBase,
-} from './api';
-
-export type { InvokeOptions } from './api';
-
-export {
-  resolveAgentName,
-  parseAgentSlug,
-  isWorkspaceAgent,
-} from './agentResolver';
-
 // Re-export components
 export {
-  SDKProvider,
-  WorkspaceProvider,
-  WorkspaceNavigationProvider,
-  useWorkspaceNavigation,
   SDKContext,
+  SDKProvider,
+  useWorkspaceNavigation,
+  WorkspaceNavigationProvider,
+  WorkspaceProvider,
 } from './providers';
+// Re-export query hooks (plugins use these instead of raw React Query)
+export {
+  useAchievementsQuery,
+  useAgentsQuery,
+  useAgentToolsQuery,
+  useApiMutation,
+  useApiQuery,
+  useConfigQuery,
+  useConversationsQuery,
+  useInvalidateQuery,
+  useInvokeAgent,
+  useModelCapabilitiesQuery,
+  useModelsQuery,
+  useStatsQuery,
+  useTransformTool,
+  useUsageQuery,
+  useWorkspaceQuery,
+  useWorkspacesQuery,
+} from './queries';
+// Re-export query factories (for imperative fetching in commands)
+export { agentQueries } from './queryFactories';
+export * from './types';
 
 // Re-export workspace utilities
 export { createWorkspaceContext } from './workspace/context';
-
+export type { ProviderMetadata } from './workspaceProviders';
 // Re-export workspace provider hooks (delegates to core app)
 export {
-  registerProvider,
+  _setProviderFunctions,
   configureProvider,
+  getActiveProviderId,
   getProvider,
   hasProvider,
-  getActiveProviderId,
-  _setProviderFunctions,
+  registerProvider,
 } from './workspaceProviders';
-
-export type { ProviderMetadata } from './workspaceProviders';

@@ -17,12 +17,21 @@ type StatsData = {
   modelStats?: Record<string, any>;
 };
 
-export function useStats(agentSlug: string, conversationId: string, _apiBase?: string, shouldFetch: boolean = true) {
-  const { data: stats, refetch, isLoading } = useStatsQuery(agentSlug, conversationId, {
+export function useStats(
+  agentSlug: string,
+  conversationId: string,
+  _apiBase?: string,
+  shouldFetch: boolean = true,
+) {
+  const {
+    data: stats,
+    refetch,
+    isLoading,
+  } = useStatsQuery(agentSlug, conversationId, {
     enabled: shouldFetch && !!agentSlug,
   });
 
-  return { 
+  return {
     stats: stats || null,
     refetch,
     loading: isLoading,

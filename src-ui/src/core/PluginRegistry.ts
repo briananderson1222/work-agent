@@ -1,6 +1,6 @@
 /**
  * Plugin Registry — Runtime plugin discovery and loading
- * 
+ *
  * Fetches installed plugins from /api/plugins, loads pre-built IIFE bundles
  * via script injection, and registers workspace components.
  */
@@ -11,7 +11,6 @@ import { log } from '@/utils/logger';
 export class PluginRegistry {
   private workspaces = new Map<string, WorkspaceComponent>();
   private pluginMeta = new Map<string, any>();
-  private initialized = false;
   private apiBase = '';
 
   setApiBase(apiBase: string) {
@@ -32,7 +31,9 @@ export class PluginRegistry {
       }
 
       this.initialized = true;
-      log.plugin(`[PluginRegistry] Loaded ${this.pluginMeta.size} plugins, ${this.workspaces.size} components`);
+      log.plugin(
+        `[PluginRegistry] Loaded ${this.pluginMeta.size} plugins, ${this.workspaces.size} components`,
+      );
     } catch (e) {
       log.api('[PluginRegistry] Failed to initialize:', e);
     }
@@ -42,7 +43,9 @@ export class PluginRegistry {
     const name = pluginMeta.name;
     try {
       // Load CSS first, then JS bundle
-      await this.loadCSS(`${this.apiBase}/api/plugins/${encodeURIComponent(name)}/bundle.css`);
+      await this.loadCSS(
+        `${this.apiBase}/api/plugins/${encodeURIComponent(name)}/bundle.css`,
+      );
 
       // Load JS bundle
       const bundleUrl = `${this.apiBase}/api/plugins/${encodeURIComponent(name)}/bundle.js`;
@@ -57,8 +60,13 @@ export class PluginRegistry {
       }
 
       // Register named component exports
-      if (pluginExports.components && typeof pluginExports.components === 'object') {
-        for (const [id, component] of Object.entries(pluginExports.components)) {
+      if (
+        pluginExports.components &&
+        typeof pluginExports.components === 'object'
+      ) {
+        for (const [id, component] of Object.entries(
+          pluginExports.components,
+        )) {
           this.workspaces.set(id, component as WorkspaceComponent);
           log.plugin(`[PluginRegistry] Registered: ${id}`);
         }
@@ -81,8 +89,9 @@ export class PluginRegistry {
         const shared = (window as any).__work_agent_shared || {};
         (window as any).require = (m: string) => {
           if (shared[m]) return shared[m];
-          if (m === 'react') return shared['react'];
-          if (m === 'react/jsx-runtime' || m === 'react/jsx-dev-runtime') return shared['react/jsx-runtime'] || shared['react'];
+          if (m === 'react') return shared.react;
+          if (m === 'react/jsx-runtime' || m === 'react/jsx-dev-runtime')
+            return shared['react/jsx-runtime'] || shared.react;
           console.warn('[Plugin] Unknown shared module:', m);
           return {};
         };
@@ -135,13 +144,24 @@ export class PluginRegistry {
   }
 
   listWorkspaces(): Array<{ name: string; manifest: any }> {
-    return Array.from(this.pluginMeta.entries()).map(([name, manifest]) => ({ name, manifest }));
+    return Array.from(this.pluginMeta.entries()).map(([name, manifest]) => ({
+      name,
+      manifest,
+    }));
   }
 
-  listComponents() { return this.listWorkspaces(); }
-  getWorkspaceManifest(name: string) { return this.pluginMeta.get(name) || null; }
-  getComponentManifest(name: string) { return this.getWorkspaceManifest(name); }
-  validateSDKVersion() { return true; }
+  listComponents() {
+    return this.listWorkspaces();
+  }
+  getWorkspaceManifest(name: string) {
+    return this.pluginMeta.get(name) || null;
+  }
+  getComponentManifest(name: string) {
+    return this.getWorkspaceManifest(name);
+  }
+  validateSDKVersion() {
+    return true;
+  }
 }
 
 export const pluginRegistry = new PluginRegistry();

@@ -8,7 +8,7 @@ import type { WorkspaceConfig } from '../types';
  */
 export function resolveAgentName(
   agentName: string,
-  workspace?: WorkspaceConfig
+  workspace?: WorkspaceConfig,
 ): string {
   // Already fully qualified
   if (agentName.includes(':')) {
@@ -17,8 +17,8 @@ export function resolveAgentName(
 
   // Try to find in workspace's available agents
   if (workspace?.availableAgents) {
-    const match = workspace.availableAgents.find(a => 
-      a.endsWith(`:${agentName}`)
+    const match = workspace.availableAgents.find((a) =>
+      a.endsWith(`:${agentName}`),
     );
     if (match) return match;
   }
@@ -30,7 +30,10 @@ export function resolveAgentName(
 /**
  * Extract namespace and short name from agent slug
  */
-export function parseAgentSlug(slug: string): { namespace?: string; name: string } {
+export function parseAgentSlug(slug: string): {
+  namespace?: string;
+  name: string;
+} {
   const parts = slug.split(':');
   if (parts.length === 2) {
     return { namespace: parts[0], name: parts[1] };
@@ -50,9 +53,12 @@ export function isWorkspaceAgent(slug: string): boolean {
  * Uses the agents list (which has `source` field) when available,
  * falls back to checking if slug contains a known ACP prefix pattern.
  */
-export function isAcpAgent(slug: string, agents?: Array<{ slug: string; source?: string }>): boolean {
+export function isAcpAgent(
+  slug: string,
+  agents?: Array<{ slug: string; source?: string }>,
+): boolean {
   if (agents) {
-    const agent = agents.find(a => a.slug === slug);
+    const agent = agents.find((a) => a.slug === slug);
     if (agent) return agent.source === 'acp';
   }
   // No agents list — can't determine
@@ -63,8 +69,11 @@ export function isAcpAgent(slug: string, agents?: Array<{ slug: string; source?:
  * Get the short display name for an ACP agent by stripping the connection prefix.
  * e.g., "kiro-dev" with prefix "kiro" → "dev"
  */
-export function getAcpDisplayName(slug: string, agents?: Array<{ slug: string; source?: string; name?: string }>): string {
-  const agent = agents?.find(a => a.slug === slug);
+export function getAcpDisplayName(
+  slug: string,
+  agents?: Array<{ slug: string; source?: string; name?: string }>,
+): string {
+  const agent = agents?.find((a) => a.slug === slug);
   if (agent?.name) return agent.name;
   // Strip first segment (connection prefix) from slug
   const dash = slug.indexOf('-');
@@ -74,8 +83,11 @@ export function getAcpDisplayName(slug: string, agents?: Array<{ slug: string; s
 /**
  * Get a short agent display name regardless of type.
  */
-export function getAgentDisplayName(slug: string, agents?: Array<{ slug: string; source?: string; name?: string }>): string {
-  const agent = agents?.find(a => a.slug === slug);
+export function getAgentDisplayName(
+  slug: string,
+  agents?: Array<{ slug: string; source?: string; name?: string }>,
+): string {
+  const agent = agents?.find((a) => a.slug === slug);
   if (agent?.source === 'acp') return getAcpDisplayName(slug, agents);
   if (agent?.name) return agent.name;
   return slug.split(':').pop() || slug;

@@ -1,4 +1,4 @@
-import type { PluginManifest, Permission } from '../types';
+import type { PluginManifest } from '../types';
 
 export class WorkspaceAPI {
   constructor(private manifest: PluginManifest) {}

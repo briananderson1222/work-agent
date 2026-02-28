@@ -2,36 +2,63 @@
  * Default provider implementations — no external dependencies
  */
 
-import { userInfo as osUserInfo } from 'os';
+import { userInfo as osUserInfo } from 'node:os';
+import type { ToolDef } from '../domain/types.js';
 import { checkBedrockCredentials } from './bedrock.js';
 import type {
-  IAuthProvider, AuthStatus, RenewResult,
-  IUserIdentityProvider, UserIdentity,
-  IUserDirectoryProvider, UserDetailVM,
+  AuthStatus,
   IAgentRegistryProvider,
+  IAuthProvider,
+  InstallResult,
+  IOnboardingProvider,
   IToolRegistryProvider,
-  RegistryItem, InstallResult,
-  IOnboardingProvider, Prerequisite,
+  IUserDirectoryProvider,
+  IUserIdentityProvider,
+  Prerequisite,
+  RegistryItem,
+  RenewResult,
+  UserDetailVM,
+  UserIdentity,
 } from './types.js';
-import type { ToolDef } from '../domain/types.js';
 
 // ── Package Registry Defaults ──────────────────────────
 
-const NO_REGISTRY: InstallResult = { success: false, message: 'No registry provider configured' };
+const NO_REGISTRY: InstallResult = {
+  success: false,
+  message: 'No registry provider configured',
+};
 
 export class DefaultAgentRegistryProvider implements IAgentRegistryProvider {
-  async listAvailable(): Promise<RegistryItem[]> { return []; }
-  async listInstalled(): Promise<RegistryItem[]> { return []; }
-  async install(): Promise<InstallResult> { return NO_REGISTRY; }
-  async uninstall(): Promise<InstallResult> { return NO_REGISTRY; }
+  async listAvailable(): Promise<RegistryItem[]> {
+    return [];
+  }
+  async listInstalled(): Promise<RegistryItem[]> {
+    return [];
+  }
+  async install(): Promise<InstallResult> {
+    return NO_REGISTRY;
+  }
+  async uninstall(): Promise<InstallResult> {
+    return NO_REGISTRY;
+  }
 }
 
 export class DefaultToolRegistryProvider implements IToolRegistryProvider {
-  async listAvailable(): Promise<RegistryItem[]> { return []; }
-  async listInstalled(): Promise<RegistryItem[]> { return []; }
-  async install(): Promise<InstallResult> { return NO_REGISTRY; }
-  async uninstall(): Promise<InstallResult> { return NO_REGISTRY; }
-  async getToolDef(): Promise<ToolDef | null> { return null; }
+  async listAvailable(): Promise<RegistryItem[]> {
+    return [];
+  }
+  async listInstalled(): Promise<RegistryItem[]> {
+    return [];
+  }
+  async install(): Promise<InstallResult> {
+    return NO_REGISTRY;
+  }
+  async uninstall(): Promise<InstallResult> {
+    return NO_REGISTRY;
+  }
+  async getToolDef(): Promise<ToolDef | null> {
+    return null;
+  }
   async sync(): Promise<void> {}
 }
 
@@ -39,7 +66,12 @@ export class DefaultToolRegistryProvider implements IToolRegistryProvider {
 
 export class DefaultAuthProvider implements IAuthProvider {
   async getStatus(): Promise<AuthStatus> {
-    return { provider: 'none', status: 'valid', expiresAt: null, message: 'No auth provider configured' };
+    return {
+      provider: 'none',
+      status: 'valid',
+      expiresAt: null,
+      message: 'No auth provider configured',
+    };
   }
   async renew(): Promise<RenewResult> {
     return { success: false, message: 'No auth provider configured' };
@@ -67,19 +99,23 @@ export class DefaultUserDirectoryProvider implements IUserDirectoryProvider {
 export class DefaultOnboardingProvider implements IOnboardingProvider {
   async getPrerequisites(): Promise<Prerequisite[]> {
     const hasCreds = await checkBedrockCredentials();
-    return [{
-      id: 'bedrock',
-      name: 'Bedrock Credentials',
-      description: 'AWS credentials for model access',
-      status: hasCreds ? 'installed' : 'missing',
-      category: 'required' as const,
-      ...(!hasCreds && {
-        installGuide: {
-          steps: ['Configure AWS credentials with Bedrock access'],
-          commands: ['aws configure', 'aws sts get-caller-identity'],
-          links: ['https://docs.aws.amazon.com/bedrock/latest/userguide/setting-up.html'],
-        },
-      }),
-    }];
+    return [
+      {
+        id: 'bedrock',
+        name: 'Bedrock Credentials',
+        description: 'AWS credentials for model access',
+        status: hasCreds ? 'installed' : 'missing',
+        category: 'required' as const,
+        ...(!hasCreds && {
+          installGuide: {
+            steps: ['Configure AWS credentials with Bedrock access'],
+            commands: ['aws configure', 'aws sts get-caller-identity'],
+            links: [
+              'https://docs.aws.amazon.com/bedrock/latest/userguide/setting-up.html',
+            ],
+          },
+        }),
+      },
+    ];
   }
 }

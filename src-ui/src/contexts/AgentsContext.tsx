@@ -1,6 +1,10 @@
-import { useAgentsQuery, useApiMutation, useInvalidateQuery } from '@work-agent/sdk';
-import { useApiBase } from './ApiBaseContext';
+import {
+  useAgentsQuery,
+  useApiMutation,
+  useInvalidateQuery,
+} from '@work-agent/sdk';
 import { log } from '@/utils/logger';
+import { useApiBase } from './ApiBaseContext';
 
 type AgentData = {
   slug: string;
@@ -20,15 +24,15 @@ type AgentData = {
 
 export function useAgents(): AgentData[] {
   const { data, isLoading, error } = useAgentsQuery();
-  
+
   if (error) log.api('Failed to fetch agents:', error);
-  
+
   return data || [];
 }
 
 export function useAgent(slug: string): AgentData | null {
   const agents = useAgents();
-  return agents.find(a => a.slug === slug) || null;
+  return agents.find((a) => a.slug === slug) || null;
 }
 
 export function useAgentActions() {
@@ -49,7 +53,7 @@ export function useAgentActions() {
     {
       onSuccess: () => invalidate(['agents']),
       onError: (error) => log.api('Failed to create agent:', error),
-    }
+    },
   );
 
   const updateMutation = useApiMutation(
@@ -66,7 +70,7 @@ export function useAgentActions() {
     {
       onSuccess: () => invalidate(['agents']),
       onError: (error) => log.api('Failed to update agent:', error),
-    }
+    },
   );
 
   const deleteMutation = useApiMutation(
@@ -81,12 +85,13 @@ export function useAgentActions() {
     {
       onSuccess: () => invalidate(['agents']),
       onError: (error) => log.api('Failed to delete agent:', error),
-    }
+    },
   );
 
   return {
     createAgent: (agent: AgentData) => createMutation.mutateAsync(agent),
-    updateAgent: (slug: string, agent: Partial<AgentData>) => updateMutation.mutateAsync({ slug, agent }),
+    updateAgent: (slug: string, agent: Partial<AgentData>) =>
+      updateMutation.mutateAsync({ slug, agent }),
     deleteAgent: (slug: string) => deleteMutation.mutateAsync(slug),
   };
 }

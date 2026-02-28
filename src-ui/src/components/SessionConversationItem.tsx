@@ -94,18 +94,23 @@ export function SessionConversationItem({
         <div className="session-item__title-row">
           {hasActiveChat && <span className="session-item__active-dot">●</span>}
           <span>
-            {conv.title || 'Untitled'}
-            {' '}
+            {conv.title || 'Untitled'}{' '}
             <span className="session-item__id">{getShortId(conv.id)}</span>
           </span>
         </div>
         <div className="session-item__meta">
           {conv.agentType === 'acp' ? (
-            <span className="session-item__badge session-item__badge--acp">ACP</span>
+            <span className="session-item__badge session-item__badge--acp">
+              ACP
+            </span>
           ) : conv.agentType === 'workspace' ? (
-            <span className="session-item__badge session-item__badge--workspace">Workspace</span>
+            <span className="session-item__badge session-item__badge--workspace">
+              Workspace
+            </span>
           ) : (
-            <span className="session-item__badge session-item__badge--global">Global</span>
+            <span className="session-item__badge session-item__badge--global">
+              Global
+            </span>
           )}
           {conv.agentContext && <span>{conv.agentContext}</span>}
           <span>{conv.agentLabel || conv.agentName || conv.agentSlug}</span>
@@ -124,7 +129,12 @@ export function SessionConversationItem({
                 className="session-item__context-fill"
                 style={{
                   width: `${Math.min(contextPct, 100)}%`,
-                  background: contextPct > 80 ? '#ef4444' : contextPct > 50 ? '#f59e0b' : '#10b981',
+                  background:
+                    contextPct > 80
+                      ? '#ef4444'
+                      : contextPct > 50
+                        ? '#f59e0b'
+                        : '#10b981',
                 }}
               />
             </div>
@@ -136,14 +146,20 @@ export function SessionConversationItem({
       <div className="session-item__actions">
         <button
           className="session-item__action-btn"
-          onClick={(e) => { e.stopPropagation(); onStartRename(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartRename();
+          }}
           title="Rename"
         >
           ✎
         </button>
         <button
           className="session-item__action-btn session-item__action-btn--delete"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
           title="Delete"
         >
           ×

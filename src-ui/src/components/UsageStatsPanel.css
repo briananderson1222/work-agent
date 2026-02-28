@@ -44,9 +44,9 @@
 }
 
 .usage-stats-button-rescan {
-  background-color: var(--accent-primary)20;
+  background-color: var(--accent-primary) 20;
   color: var(--accent-primary);
-  border-color: var(--accent-primary)40;
+  border-color: var(--accent-primary) 40;
 }
 
 .usage-stats-cards {
@@ -181,8 +181,13 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .usage-stats-error-icon {
@@ -205,7 +210,6 @@
   border: none;
   cursor: pointer;
 }
-
 
 /* Drill-down modal */
 .drill-down-overlay {

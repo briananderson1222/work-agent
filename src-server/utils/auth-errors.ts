@@ -11,12 +11,15 @@ const AUTH_ERROR_PATTERNS = [
 ];
 
 export function isAuthError(error: string | Error | unknown): boolean {
-  const errorMsg = typeof error === 'string' 
-    ? error 
-    : error instanceof Error 
-      ? error.message 
-      : String(error);
-  
+  const errorMsg =
+    typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : String(error);
+
   const lowerMsg = errorMsg.toLowerCase();
-  return AUTH_ERROR_PATTERNS.some(pattern => lowerMsg.includes(pattern.toLowerCase()));
+  return AUTH_ERROR_PATTERNS.some((pattern) =>
+    lowerMsg.includes(pattern.toLowerCase()),
+  );
 }

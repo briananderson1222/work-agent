@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { FileAttachment } from '../types';
 
 interface ImagePreviewModalProps {
@@ -15,10 +15,11 @@ export function ImagePreviewModal({
   onNavigate,
 }: ImagePreviewModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
-  
-  const currentIdx = attachments.findIndex(a => a.preview === previewImage);
+
+  const currentIdx = attachments.findIndex((a) => a.preview === previewImage);
   const hasPrev = currentIdx > 0;
-  const hasNext = currentIdx < attachments.length - 1 && attachments[currentIdx + 1]?.preview;
+  const hasNext =
+    currentIdx < attachments.length - 1 && attachments[currentIdx + 1]?.preview;
 
   useEffect(() => {
     modalRef.current?.focus();

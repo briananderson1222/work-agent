@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useState } from 'react';
 
 interface ApiBaseContextType {
   apiBase: string;
@@ -7,7 +7,8 @@ interface ApiBaseContextType {
   isCustom: boolean;
 }
 
-const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3141';
+const DEFAULT_API_BASE =
+  import.meta.env.VITE_API_BASE || 'http://localhost:3141';
 const STORAGE_KEY = 'project-stallion-api-base';
 
 const ApiBaseContext = createContext<ApiBaseContextType | undefined>(undefined);
@@ -22,7 +23,7 @@ export function ApiBaseProvider({ children }: { children: ReactNode }) {
   const setApiBase = (url: string) => {
     const normalizedUrl = url.trim() || DEFAULT_API_BASE;
     setApiBaseState(normalizedUrl);
-    
+
     if (normalizedUrl === DEFAULT_API_BASE) {
       localStorage.removeItem(STORAGE_KEY);
     } else {
@@ -37,7 +38,9 @@ export function ApiBaseProvider({ children }: { children: ReactNode }) {
   const isCustom = apiBase !== DEFAULT_API_BASE;
 
   return (
-    <ApiBaseContext.Provider value={{ apiBase, setApiBase, resetToDefault, isCustom }}>
+    <ApiBaseContext.Provider
+      value={{ apiBase, setApiBase, resetToDefault, isCustom }}
+    >
       {children}
     </ApiBaseContext.Provider>
   );

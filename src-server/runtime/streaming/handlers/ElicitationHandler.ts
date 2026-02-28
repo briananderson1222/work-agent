@@ -1,4 +1,4 @@
-import type { StreamChunk, StreamHandler, HandlerConfig } from '../types.js';
+import type { HandlerConfig, StreamChunk, StreamHandler } from '../types.js';
 
 /**
  * Custom chunk type for tool approval requests
@@ -34,21 +34,23 @@ export interface ApprovalRequest {
 
 /**
  * Handles tool call approval (elicitation)
- * 
+ *
  * For each tool-call event:
  * - Checks if tool is in auto-approve list
  * - If yes: passes through immediately
  * - If no: emits tool-approval-request, waits for user response, then passes through or blocks
- * 
+ *
  * This ensures approval requests happen in the correct order (after reasoning-end)
  * and prevents race conditions with other handlers.
  */
 export class ElicitationHandler implements StreamHandler {
   name = 'elicitation';
-  
+
   constructor(private config: ElicitationConfig) {}
 
-  async *process(input: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk> {
+  async *process(
+    input: AsyncIterable<StreamChunk>,
+  ): AsyncGenerator<StreamChunk> {
     for await (const chunk of input) {
       if (chunk.type === 'tool-call') {
         yield* this.handleToolCall(chunk);
@@ -62,20 +64,22 @@ export class ElicitationHandler implements StreamHandler {
    * Handle tool-call event
    * Check auto-approve, request approval if needed, then pass through or block
    */
-  private async *handleToolCall(chunk: StreamChunk): AsyncGenerator<StreamChunk> {
+  private async *handleToolCall(
+    chunk: StreamChunk,
+  ): AsyncGenerator<StreamChunk> {
     if (chunk.type !== 'tool-call') return;
-    
+
     const toolName = chunk.toolName;
-    
+
     // Check if auto-approved
     if (this.isAutoApproved(toolName)) {
       yield chunk; // Pass through immediately
       return;
     }
-    
+
     // Need user approval
     const approvalId = this.generateApprovalId();
-    
+
     // Emit approval request
     // Note: This is a custom chunk type that extends the StreamChunk union
     const approvalChunk: ToolApprovalRequestChunk = {
@@ -83,18 +87,18 @@ export class ElicitationHandler implements StreamHandler {
       approvalId,
       toolName,
       toolDescription: this.getToolDescription(chunk),
-      toolArgs: chunk.input
+      toolArgs: chunk.input,
     };
     yield approvalChunk as unknown as StreamChunk;
-    
+
     // Wait for user approval (suspends generator)
     const approved = await this.config.onApprovalRequest({
       approvalId,
       toolName,
       toolDescription: this.getToolDescription(chunk),
-      toolArgs: chunk.input
+      toolArgs: chunk.input,
     });
-    
+
     if (approved) {
       yield chunk; // Pass through original tool-call
     }
@@ -106,14 +110,14 @@ export class ElicitationHandler implements StreamHandler {
    * Supports wildcards: "tool_*" matches "tool_read", "tool_write", etc.
    */
   private isAutoApproved(toolName: string): boolean {
-    return this.config.autoApprove.some(pattern => {
+    return this.config.autoApprove.some((pattern) => {
       if (pattern === '*') return true;
-      
+
       // Convert wildcard pattern to regex
       const regexPattern = pattern
         .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special chars
         .replace(/\*/g, '.*'); // Convert * to .*
-      
+
       return new RegExp(`^${regexPattern}$`).test(toolName);
     });
   }
@@ -128,7 +132,7 @@ export class ElicitationHandler implements StreamHandler {
   /**
    * Extract tool description from chunk if available
    */
-  private getToolDescription(chunk: StreamChunk): string | undefined {
+  private getToolDescription(_chunk: StreamChunk): string | undefined {
     // Tool description might be in chunk metadata
     // For now, return undefined - can be enhanced later
     return undefined;

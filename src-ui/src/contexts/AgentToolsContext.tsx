@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
 import { useAgentToolsQuery } from '@work-agent/sdk';
+import { useMemo } from 'react';
 import { log } from '@/utils/logger';
 
 interface ToolMapping {
@@ -17,7 +17,7 @@ export function useAgentTools(agentSlug: string | undefined): {
 
   const tools = useMemo(() => {
     if (!data) return {};
-    
+
     return data.reduce((acc: Record<string, ToolMapping>, tool: any) => {
       acc[tool.name] = {
         server: tool.server,

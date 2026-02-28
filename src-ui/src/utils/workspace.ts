@@ -2,7 +2,7 @@ export function getInitials(name: string): string {
   if (!name) return '?';
   return name
     .split(' ')
-    .map(word => word[0])
+    .map((word) => word[0])
     .filter(Boolean)
     .slice(0, 2)
     .join('')
@@ -11,16 +11,27 @@ export function getInitials(name: string): string {
 
 /** Returns true if the icon string is a URL/path that should be rendered as <img> */
 export function isIconUrl(icon?: string): boolean {
-  return !!icon && (icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('/'));
+  return (
+    !!icon &&
+    (icon.startsWith('http://') ||
+      icon.startsWith('https://') ||
+      icon.startsWith('/'))
+  );
 }
 
 type IconEntity = { name: string; icon?: string };
 
 function isUrl(s: string): boolean {
-  return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/');
+  return (
+    s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/')
+  );
 }
 
-function getIcon(entity: IconEntity): { display: string; isCustomIcon: boolean; isUrl: boolean } {
+function getIcon(entity: IconEntity): {
+  display: string;
+  isCustomIcon: boolean;
+  isUrl: boolean;
+} {
   if (entity.icon) {
     return {
       display: entity.icon,
@@ -28,7 +39,7 @@ function getIcon(entity: IconEntity): { display: string; isCustomIcon: boolean; 
       isUrl: isUrl(entity.icon),
     };
   }
-  
+
   return {
     display: getInitials(entity.name),
     isCustomIcon: false,
@@ -36,7 +47,11 @@ function getIcon(entity: IconEntity): { display: string; isCustomIcon: boolean; 
   };
 }
 
-function getIconStyle(entity: IconEntity, size: number = 48, variant: 'default' | 'user' = 'default') {
+function getIconStyle(
+  entity: IconEntity,
+  size: number = 48,
+  variant: 'default' | 'user' = 'default',
+) {
   const iconInfo = getIcon(entity);
   const baseStyle = {
     width: `${size}px`,
@@ -51,7 +66,7 @@ function getIconStyle(entity: IconEntity, size: number = 48, variant: 'default' 
     fontWeight: 600,
     flexShrink: 0,
   };
-  
+
   if (variant === 'user') {
     return {
       ...baseStyle,
@@ -59,7 +74,7 @@ function getIconStyle(entity: IconEntity, size: number = 48, variant: 'default' 
       border: '1px solid var(--border-primary)',
     };
   }
-  
+
   return baseStyle;
 }
 
@@ -67,7 +82,10 @@ export function getWorkspaceIcon(workspace: IconEntity) {
   return getIcon(workspace);
 }
 
-export function getWorkspaceIconStyle(workspace: IconEntity, size: number = 48) {
+export function getWorkspaceIconStyle(
+  workspace: IconEntity,
+  size: number = 48,
+) {
   return getIconStyle(workspace, size);
 }
 

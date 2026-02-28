@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 export function useAutocompleteState() {
   const [commandQuery, setCommandQuery] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export function useAutocompleteState() {
     setCommandQuery(null);
     setModelQuery(null);
   }, []);
-  
+
   // Called when input is programmatically cleared (not via onChange)
   const onInputCleared = useCallback(() => {
     closeAll();

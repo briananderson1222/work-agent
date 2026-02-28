@@ -3,38 +3,36 @@
  * Handles dynamic agent loading, switching, and MCP tool management
  */
 
-import { Agent, Memory, VoltAgent, MCPConfiguration, createHooks, type Tool } from '@voltagent/core';
-import { honoServer } from '@voltagent/server-hono';
+import { EventEmitter } from 'node:events';
+import { createReadStream, existsSync } from 'node:fs';
+import { appendFile, mkdir, readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createInterface } from 'node:readline';
+import {
+  Agent,
+  type MCPConfiguration,
+  Memory,
+  type Tool,
+  VoltAgent,
+} from '@voltagent/core';
 import { createPinoLogger } from '@voltagent/logger';
+import { honoServer } from '@voltagent/server-hono';
 import { jsonSchema } from 'ai';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
-import { EventEmitter } from 'events';
-import { mkdir, appendFile, readdir, readFile } from 'fs/promises';
-import { existsSync, createReadStream } from 'fs';
-import { join } from 'path';
-import { createInterface } from 'readline';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import { UsageAggregator } from '../analytics/usage-aggregator.js';
 import { ConfigLoader } from '../domain/config-loader.js';
+import type { AgentSpec, AppConfig } from '../domain/types.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
-import { UsageAggregator } from '../analytics/usage-aggregator.js';
-import { normalizeToolName, parseToolName } from '../utils/tool-name-normalizer.js';
-import * as MCPManager from './mcp-manager.js';
-import * as ToolExecutor from './tool-executor.js';
-import * as ConversationManager from './conversation-manager.js';
-import * as StreamOrchestrator from './stream-orchestrator.js';
-import { StreamPipeline } from './streaming/StreamPipeline.js';
-import { ReasoningHandler } from './streaming/handlers/ReasoningHandler.js';
-import { ElicitationHandler } from './streaming/handlers/ElicitationHandler.js';
-import { TextDeltaHandler } from './streaming/handlers/TextDeltaHandler.js';
-import { ToolCallHandler } from './streaming/handlers/ToolCallHandler.js';
-import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';
-import { MetadataHandler } from './streaming/handlers/MetadataHandler.js';
-import type { AgentSpec, ToolDef, AppConfig } from '../domain/types.js';
-import { EventBus } from '../services/event-bus.js';
 import { createEventRoutes } from '../routes/events.js';
+import { EventBus } from '../services/event-bus.js';
+import * as ConversationManager from './conversation-manager.js';
+import * as MCPManager from './mcp-manager.js';
+import * as StreamOrchestrator from './stream-orchestrator.js';
+import * as ToolExecutor from './tool-executor.js';
 
 // Type extensions for VoltAgent SDK
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
@@ -70,29 +68,36 @@ interface BedrockProviderSpec {
   region?: string;
   [key: string]: any; // Allow additional properties
 }
-import { InjectableStream } from './streaming/InjectableStream.js';
-import { AgentService } from '../services/agent-service.js';
-import { MCPService } from '../services/mcp-service.js';
-import { WorkspaceService } from '../services/workspace-service.js';
-import { ApprovalRegistry } from '../services/approval-registry.js';
-import { ACPManager } from '../services/acp-bridge.js';
+
+import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
+import {
+  registerAgentRegistryProvider,
+  registerToolRegistryProvider,
+} from '../providers/registry.js';
 import { createAgentRoutes } from '../routes/agents.js';
-import { createToolRoutes } from '../routes/tools.js';
-import { createWorkspaceRoutes, createWorkflowRoutes } from '../routes/workspaces.js';
 import { createAnalyticsRoutes } from '../routes/analytics.js';
-import { createConfigRoutes } from '../routes/config.js';
-import { createBedrockRoutes } from '../routes/bedrock.js';
-import { createMonitoringRoutes } from '../routes/monitoring.js';
-import { createConversationRoutes } from '../routes/conversations.js';
-import { createSchedulerRoutes } from '../routes/scheduler.js';
-import { SchedulerService } from '../services/scheduler-service.js';
 import { createAuthRoutes, createUserRoutes } from '../routes/auth.js';
+import { createBedrockRoutes } from '../routes/bedrock.js';
+import { createConfigRoutes } from '../routes/config.js';
+import { createConversationRoutes } from '../routes/conversations.js';
+import { createMonitoringRoutes } from '../routes/monitoring.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createRegistryRoutes } from '../routes/registry.js';
+import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createSystemRoutes } from '../routes/system.js';
+import { createToolRoutes } from '../routes/tools.js';
+import {
+  createWorkflowRoutes,
+  createWorkspaceRoutes,
+} from '../routes/workspaces.js';
+import { ACPManager } from '../services/acp-bridge.js';
+import { AgentService } from '../services/agent-service.js';
+import { ApprovalRegistry } from '../services/approval-registry.js';
+import { MCPService } from '../services/mcp-service.js';
+import { SchedulerService } from '../services/scheduler-service.js';
+import { WorkspaceService } from '../services/workspace-service.js';
 import { isAuthError } from '../utils/auth-errors.js';
-import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
-import { registerAgentRegistryProvider, registerToolRegistryProvider } from '../providers/registry.js';
+import { InjectableStream } from './streaming/InjectableStream.js';
 
 export interface WorkAgentRuntimeOptions {
   workAgentDir?: string;
@@ -110,28 +115,55 @@ export class WorkAgentRuntime {
   private logger: ReturnType<typeof createPinoLogger>;
   private voltAgent?: VoltAgent;
   private mcpConfigs: Map<string, MCPConfiguration> = new Map();
-  private mcpConnectionStatus: Map<string, { connected: boolean; error?: string }> = new Map();
-  private integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }> = new Map();
+  private mcpConnectionStatus: Map<
+    string,
+    { connected: boolean; error?: string }
+  > = new Map();
+  private integrationMetadata: Map<
+    string,
+    { type: string; transport?: string; toolCount?: number }
+  > = new Map();
   private activeAgents: Map<string, Agent> = new Map();
   private agentMetadataMap: Map<string, any> = new Map();
   private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
+  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
-  private agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }> = new Map(); // Cache fixed token counts per agent
-  private toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }> = new Map(); // Tool name mapping with parsed data
+  private agentFixedTokens: Map<
+    string,
+    { systemPromptTokens: number; mcpServerTokens: number }
+  > = new Map(); // Cache fixed token counts per agent
+  private toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  > = new Map(); // Tool name mapping with parsed data
   private toolNameReverseMapping: Map<string, string> = new Map(); // Original -> Normalized for O(1) lookup
   private monitoringEvents = new EventEmitter();
-  private agentStats = new Map<string, { conversationCount: number; messageCount: number; lastUpdated: number }>();
+  private agentStats = new Map<
+    string,
+    { conversationCount: number; messageCount: number; lastUpdated: number }
+  >();
   private agentStatus = new Map<string, 'idle' | 'running'>();
-  private metricsLog: Array<{ timestamp: number; agentSlug: string; event: string; conversationId?: string; messageCount?: number; cost?: number }> = [];
+  private metricsLog: Array<{
+    timestamp: number;
+    agentSlug: string;
+    event: string;
+    conversationId?: string;
+    messageCount?: number;
+    cost?: number;
+  }> = [];
   private eventLogPath: string;
   private persistedEvents: Array<any> = [];
   private modelCatalog?: BedrockModelCatalog;
   private usageAggregator?: UsageAggregator;
   private port: number;
   private approvalRegistry: ApprovalRegistry;
-  private healthCheckInterval: NodeJS.Timeout | null = null;
 
   // Services
   private agentService!: AgentService;
@@ -162,7 +194,7 @@ export class WorkAgentRuntime {
       this.activeAgents,
       this.agentMetadataMap,
       this.agentSpecs,
-      this.logger
+      this.logger,
     );
     this.mcpService = new MCPService(
       this.configLoader,
@@ -171,15 +203,18 @@ export class WorkAgentRuntime {
       this.integrationMetadata,
       this.agentTools,
       this.toolNameMapping,
-      this.logger
+      this.logger,
     );
-    this.workspaceService = new WorkspaceService(this.configLoader, this.logger);
+    this.workspaceService = new WorkspaceService(
+      this.configLoader,
+      this.logger,
+    );
     this.acpBridge = new ACPManager(
       this.approvalRegistry,
       this.logger,
       process.cwd(),
       this.memoryAdapters,
-      (slug: string) => {
+      (_slug: string) => {
         const adapter = new FileVoltAgentMemoryAdapter({
           workAgentDir: this.configLoader.getWorkAgentDir(),
           usageAggregator: this.usageAggregator,
@@ -189,12 +224,12 @@ export class WorkAgentRuntime {
       { get: () => this.usageAggregator },
       this.eventBus,
     );
-    
+
     // Log versions for debugging
     this.logger.info('Work Agent Runtime initializing', {
       voltagentCore: '1.1.37',
       aiSdkBedrock: '3.0.56',
-      nodeVersion: process.version
+      nodeVersion: process.version,
     });
   }
 
@@ -203,8 +238,8 @@ export class WorkAgentRuntime {
    */
   async reloadAgents(): Promise<void> {
     const agentMetadataList = await this.configLoader.listAgents();
-    const currentSlugs = new Set(agentMetadataList.map(m => m.slug));
-    
+    const currentSlugs = new Set(agentMetadataList.map((m) => m.slug));
+
     // Remove deleted agents and cleanup MCP servers
     for (const slug of this.activeAgents.keys()) {
       if (!currentSlugs.has(slug)) {
@@ -217,7 +252,7 @@ export class WorkAgentRuntime {
             this.integrationMetadata.delete(key);
           }
         }
-        
+
         this.activeAgents.delete(slug);
         this.agentMetadataMap.delete(slug);
         this.agentSpecs.delete(slug);
@@ -226,7 +261,7 @@ export class WorkAgentRuntime {
         this.logger.info('Agent removed', { agent: slug });
       }
     }
-    
+
     // Add new agents
     for (const meta of agentMetadataList) {
       if (!this.activeAgents.has(meta.slug)) {
@@ -240,12 +275,12 @@ export class WorkAgentRuntime {
         }
       }
     }
-    
+
     // Update metadata map
     this.agentMetadataMap = new Map(
-      agentMetadataList.map(meta => [meta.slug, meta])
+      agentMetadataList.map((meta) => [meta.slug, meta]),
     );
-    
+
     this.logger.info('Agents reloaded', { count: agentMetadataList.length });
     this.eventBus.emit('agents:changed', { count: agentMetadataList.length });
   }
@@ -266,19 +301,25 @@ export class WorkAgentRuntime {
     // Registry providers are registered by plugins via loadProviders()
 
     // Register default onboarding provider (checks Bedrock credentials)
-    const { registerOnboardingProvider } = await import('../providers/registry.js');
-    const { DefaultOnboardingProvider } = await import('../providers/defaults.js');
+    const { registerOnboardingProvider } = await import(
+      '../providers/registry.js'
+    );
+    const { DefaultOnboardingProvider } = await import(
+      '../providers/defaults.js'
+    );
     registerOnboardingProvider(new DefaultOnboardingProvider());
 
     // JSON manifest fallback for environments without plugins
     if (this.appConfig.registryUrl) {
       const registryProvider = new JsonManifestRegistryProvider(
         this.appConfig.registryUrl,
-        this.configLoader.getWorkAgentDir()
+        this.configLoader.getWorkAgentDir(),
       );
       registerAgentRegistryProvider(registryProvider);
       registerToolRegistryProvider(registryProvider);
-      this.logger.info('JSON manifest registry configured', { url: this.appConfig.registryUrl });
+      this.logger.info('JSON manifest registry configured', {
+        url: this.appConfig.registryUrl,
+      });
     }
 
     // Initialize Bedrock model catalog
@@ -289,12 +330,19 @@ export class WorkAgentRuntime {
     await this.loadPluginProviders();
 
     // Initialize usage aggregator
-    this.usageAggregator = new UsageAggregator(this.configLoader.getWorkAgentDir());
+    this.usageAggregator = new UsageAggregator(
+      this.configLoader.getWorkAgentDir(),
+    );
     this.logger.debug('Usage aggregator initialized');
 
     // Background rescan on startup + every 30 min
     this.usageAggregator.fullRescan().catch(() => {});
-    setInterval(() => { this.usageAggregator?.fullRescan().catch(() => {}); }, 30 * 60 * 1000);
+    setInterval(
+      () => {
+        this.usageAggregator?.fullRescan().catch(() => {});
+      },
+      30 * 60 * 1000,
+    );
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
@@ -306,22 +354,27 @@ export class WorkAgentRuntime {
     // Create default agent (always available, uses defaultModel, no tools)
     const defaultAgent = new Agent({
       name: 'default',
-      instructions: 'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
-      model: createBedrockProvider({ 
-        appConfig: this.appConfig, 
-        agentSpec: { model: this.appConfig.defaultModel } as unknown as AgentSpec 
+      instructions:
+        'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
+      model: createBedrockProvider({
+        appConfig: this.appConfig,
+        agentSpec: {
+          model: this.appConfig.defaultModel,
+        } as unknown as AgentSpec,
       }),
       tools: [], // No tools
     });
-    agents['default'] = defaultAgent;
+    agents.default = defaultAgent;
     this.activeAgents.set('default', defaultAgent);
     this.agentMetadataMap.set('default', {
       slug: 'default',
       name: 'Default Agent',
       description: 'System default agent with no tools',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
-    this.logger.info('Default agent created', { model: this.appConfig.defaultModel });
+    this.logger.info('Default agent created', {
+      model: this.appConfig.defaultModel,
+    });
 
     for (const meta of agentMetadataList) {
       try {
@@ -336,12 +389,12 @@ export class WorkAgentRuntime {
 
     // Store agent metadata for enriching API responses
     this.agentMetadataMap = new Map(
-      agentMetadataList.map(meta => [meta.slug, meta])
+      agentMetadataList.map((meta) => [meta.slug, meta]),
     );
-    this.logger.info('Agent metadata map created', { 
+    this.logger.info('Agent metadata map created', {
       count: this.agentMetadataMap.size,
       keys: Array.from(this.agentMetadataMap.keys()),
-      sample: this.agentMetadataMap.get(agentMetadataList[0]?.slug)
+      sample: this.agentMetadataMap.get(agentMetadataList[0]?.slug),
     });
 
     // Import routes before configuring app
@@ -367,7 +420,9 @@ export class WorkAgentRuntime {
             const start = Date.now();
             await next();
             const origin = c.req.header('origin') || '-';
-            this.logger.info(`${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms origin=${origin}`);
+            this.logger.info(
+              `${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms origin=${origin}`,
+            );
           });
 
           app.use(
@@ -387,24 +442,38 @@ export class WorkAgentRuntime {
                 return allowed.includes(origin) ? origin : null;
               },
               credentials: true,
-            })
+            }),
           );
 
           // Models capabilities and pricing endpoints
           app.route('/api/models', modelsRoute.default);
 
           // System status (onboarding readiness)
-          app.route('/api/system', createSystemRoutes({
-            getACPStatus: () => {
-              const s = this.acpBridge.getStatus();
-              return { connected: s.connections.some((c: any) => c.status === 'connected'), connections: s.connections };
-            },
-            getAppConfig: () => this.appConfig,
-            eventBus: this.eventBus,
-          }, this.logger));
+          app.route(
+            '/api/system',
+            createSystemRoutes(
+              {
+                getACPStatus: () => {
+                  const s = this.acpBridge.getStatus();
+                  return {
+                    connected: s.connections.some(
+                      (c: any) => c.status === 'connected',
+                    ),
+                    connections: s.connections,
+                  };
+                },
+                getAppConfig: () => this.appConfig,
+                eventBus: this.eventBus,
+              },
+              this.logger,
+            ),
+          );
 
           // Analytics endpoints
-          app.route('/api/analytics', createAnalyticsRoutes(this.usageAggregator));
+          app.route(
+            '/api/analytics',
+            createAnalyticsRoutes(this.usageAggregator),
+          );
 
           // Auth endpoints
           app.route('/api/auth', createAuthRoutes());
@@ -413,65 +482,86 @@ export class WorkAgentRuntime {
           app.route('/api/users', createUserRoutes());
 
           // Plugin endpoints (list, serve bundles, reload providers)
-          app.route('/api/plugins', createPluginRoutes(this.configLoader.getWorkAgentDir(), this.logger, this.eventBus));
+          app.route(
+            '/api/plugins',
+            createPluginRoutes(
+              this.configLoader.getWorkAgentDir(),
+              this.logger,
+              this.eventBus,
+            ),
+          );
 
           // Package registry endpoints (browse/install agents and tools)
-          app.route('/api/registry', createRegistryRoutes(
-            this.configLoader,
-            async () => {
+          app.route(
+            '/api/registry',
+            createRegistryRoutes(this.configLoader, async () => {
               // Restart ACP connections to pick up newly installed agents as modes
               const acpConfig = await this.configLoader.loadACPConfig();
               await this.acpBridge.startAll(acpConfig.connections);
-            },
-          ));
+            }),
+          );
 
           // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
           app.get('/api/agents', async (c) => {
             try {
               if (!this.voltAgent) {
-                return c.json({ success: false, error: 'VoltAgent not initialized' }, 500);
+                return c.json(
+                  { success: false, error: 'VoltAgent not initialized' },
+                  500,
+                );
               }
               await this.reloadAgents();
               const coreAgents = await this.voltAgent.getAgents();
-              const enrichedAgents = (await Promise.all(coreAgents.map(async (agent: any) => {
-                const metadata = this.agentMetadataMap.get(agent.id);
-                if (!metadata) return null;
-                
-                try {
-                  const spec = await this.configLoader.loadAgent(metadata.slug);
-                  
-                  this.logger.debug('[Agent Enrichment] Loading spec', { 
-                    agent: metadata.slug,
-                    hasSpec: !!spec,
-                    hasTools: !!spec.tools
-                  });
-                  
-                  return {
-                    ...agent,
-                    slug: metadata.slug,
-                    name: metadata.name,
-                    prompt: spec.prompt,
-                    description: spec.description,
-                    model: spec.model,
-                    region: spec.region,
-                    guardrails: spec.guardrails,
-                    maxTurns: spec.maxTurns,
-                    icon: spec.icon,
-                    commands: spec.commands,
-                    toolsConfig: spec.tools,
-                    updatedAt: metadata.updatedAt,
-                  };
-                } catch (error) {
-                  this.logger.warn('Agent spec not found, skipping', { agent: metadata.slug });
-                  return null;
-                }
-              }))).filter(a => a !== null);
-              
-              this.logger.debug('[Agent Enrichment] Enriched agents', { 
+              const enrichedAgents = (
+                await Promise.all(
+                  coreAgents.map(async (agent: any) => {
+                    const metadata = this.agentMetadataMap.get(agent.id);
+                    if (!metadata) return null;
+
+                    try {
+                      const spec = await this.configLoader.loadAgent(
+                        metadata.slug,
+                      );
+
+                      this.logger.debug('[Agent Enrichment] Loading spec', {
+                        agent: metadata.slug,
+                        hasSpec: !!spec,
+                        hasTools: !!spec.tools,
+                      });
+
+                      return {
+                        ...agent,
+                        slug: metadata.slug,
+                        name: metadata.name,
+                        prompt: spec.prompt,
+                        description: spec.description,
+                        model: spec.model,
+                        region: spec.region,
+                        guardrails: spec.guardrails,
+                        maxTurns: spec.maxTurns,
+                        icon: spec.icon,
+                        commands: spec.commands,
+                        toolsConfig: spec.tools,
+                        updatedAt: metadata.updatedAt,
+                      };
+                    } catch (_error) {
+                      this.logger.warn('Agent spec not found, skipping', {
+                        agent: metadata.slug,
+                      });
+                      return null;
+                    }
+                  }),
+                )
+              ).filter((a) => a !== null);
+
+              this.logger.debug('[Agent Enrichment] Enriched agents', {
                 count: enrichedAgents.length,
-                agents: enrichedAgents.map(a => ({ slug: a.slug, hasToolsConfig: !!a.toolsConfig }))
+                agents: enrichedAgents.map((a) => ({
+                  slug: a.slug,
+                  hasToolsConfig: !!a.toolsConfig,
+                })),
               });
-              
+
               // Append ACP virtual agents (kiro-cli modes)
               if (this.acpBridge.isConnected()) {
                 enrichedAgents.push(...this.acpBridge.getVirtualAgents());
@@ -479,7 +569,10 @@ export class WorkAgentRuntime {
 
               return c.json({ success: true, data: enrichedAgents });
             } catch (error: any) {
-              this.logger.error('Failed to fetch agents', { error: error.message, stack: error.stack });
+              this.logger.error('Failed to fetch agents', {
+                error: error.message,
+                stack: error.stack,
+              });
               return c.json({ success: false, error: error.message }, 500);
             }
           });
@@ -489,7 +582,7 @@ export class WorkAgentRuntime {
           const agentRoutes = createAgentRoutes(
             this.agentService,
             () => this.initialize(),
-            () => this.voltAgent
+            () => this.voltAgent,
           );
           app.route('/agents', agentRoutes);
 
@@ -498,36 +591,60 @@ export class WorkAgentRuntime {
           // Get Q Developer agents
           app.get('/q-agents', async (c) => {
             try {
-              const { readFileSync, existsSync } = await import('fs');
-              const { join } = await import('path');
-              const { homedir } = await import('os');
-              
-              const qAgentsPath = join(homedir(), '.aws', 'amazonq', 'cli-agents.json');
-              
+              const { readFileSync, existsSync } = await import('node:fs');
+              const { join } = await import('node:path');
+              const { homedir } = await import('node:os');
+
+              const qAgentsPath = join(
+                homedir(),
+                '.aws',
+                'amazonq',
+                'cli-agents.json',
+              );
+
               if (!existsSync(qAgentsPath)) {
-                return c.json({ success: false, error: 'Q Developer agents file not found', agents: [] });
+                return c.json({
+                  success: false,
+                  error: 'Q Developer agents file not found',
+                  agents: [],
+                });
               }
-              
+
               const agents = JSON.parse(readFileSync(qAgentsPath, 'utf-8'));
               return c.json({ success: true, agents });
             } catch (error: any) {
               this.logger.error('Failed to load Q agents', { error });
-              return c.json({ success: false, error: error.message, agents: [] });
+              return c.json({
+                success: false,
+                error: error.message,
+                agents: [],
+              });
             }
           });
 
           // List all tools
-          app.route('/tools', createToolRoutes(this.mcpService, () => this.initialize()));
+          app.route(
+            '/tools',
+            createToolRoutes(this.mcpService, () => this.initialize()),
+          );
 
           // SSE event stream
-          app.route('/events', createEventRoutes({
-            eventBus: this.eventBus,
-            getACPStatus: () => {
-              const s = this.acpBridge.getStatus();
-              return { connected: s.connections.some(c => c.status === 'connected'), connections: s.connections };
-            },
-            logger: this.logger,
-          }));
+          app.route(
+            '/events',
+            createEventRoutes({
+              eventBus: this.eventBus,
+              getACPStatus: () => {
+                const s = this.acpBridge.getStatus();
+                return {
+                  connected: s.connections.some(
+                    (c) => c.status === 'connected',
+                  ),
+                  connections: s.connections,
+                };
+              },
+              logger: this.logger,
+            }),
+          );
 
           // ACP connection status (all connections)
           app.get('/acp/status', async (c) => {
@@ -537,14 +654,20 @@ export class WorkAgentRuntime {
           // ACP slash commands for a given agent
           app.get('/acp/commands/:slug', async (c) => {
             const slug = c.req.param('slug');
-            return c.json({ success: true, data: this.acpBridge.getSlashCommands(slug) });
+            return c.json({
+              success: true,
+              data: this.acpBridge.getSlashCommands(slug),
+            });
           });
 
           // ACP command autocomplete options
           app.get('/acp/commands/:slug/options', async (c) => {
             const slug = c.req.param('slug');
             const partial = c.req.query('q') || '';
-            const options = await this.acpBridge.getCommandOptions(slug, partial);
+            const options = await this.acpBridge.getCommandOptions(
+              slug,
+              partial,
+            );
             return c.json({ success: true, data: options });
           });
 
@@ -552,9 +675,14 @@ export class WorkAgentRuntime {
           app.get('/acp/connections', async (c) => {
             const config = await this.configLoader.loadACPConfig();
             const status = this.acpBridge.getStatus();
-            const connections = config.connections.map(cfg => ({
+            const connections = config.connections.map((cfg) => ({
               ...cfg,
-              ...(status.connections.find(s => s.id === cfg.id) || { status: 'disconnected', modes: [], sessionId: null, mcpServers: [] }),
+              ...(status.connections.find((s) => s.id === cfg.id) || {
+                status: 'disconnected',
+                modes: [],
+                sessionId: null,
+                mcpServers: [],
+              }),
             }));
             return c.json({ success: true, data: connections });
           });
@@ -562,13 +690,29 @@ export class WorkAgentRuntime {
           app.post('/acp/connections', async (c) => {
             const body = await c.req.json();
             if (!body.id || !body.command) {
-              return c.json({ success: false, error: 'id and command are required' }, 400);
+              return c.json(
+                { success: false, error: 'id and command are required' },
+                400,
+              );
             }
             const config = await this.configLoader.loadACPConfig();
-            if (config.connections.some(conn => conn.id === body.id)) {
-              return c.json({ success: false, error: `Connection '${body.id}' already exists` }, 409);
+            if (config.connections.some((conn) => conn.id === body.id)) {
+              return c.json(
+                {
+                  success: false,
+                  error: `Connection '${body.id}' already exists`,
+                },
+                409,
+              );
             }
-            const newConn = { id: body.id, name: body.name || body.id, command: body.command, args: body.args || [], icon: body.icon || '🔌', enabled: body.enabled !== false };
+            const newConn = {
+              id: body.id,
+              name: body.name || body.id,
+              command: body.command,
+              args: body.args || [],
+              icon: body.icon || '🔌',
+              enabled: body.enabled !== false,
+            };
             config.connections.push(newConn);
             await this.configLoader.saveACPConfig(config);
             if (newConn.enabled) await this.acpBridge.addConnection(newConn);
@@ -579,20 +723,31 @@ export class WorkAgentRuntime {
             const id = c.req.param('id');
             const body = await c.req.json();
             const config = await this.configLoader.loadACPConfig();
-            const idx = config.connections.findIndex(conn => conn.id === id);
-            if (idx === -1) return c.json({ success: false, error: 'Connection not found' }, 404);
-            config.connections[idx] = { ...config.connections[idx], ...body, id };
+            const idx = config.connections.findIndex((conn) => conn.id === id);
+            if (idx === -1)
+              return c.json(
+                { success: false, error: 'Connection not found' },
+                404,
+              );
+            config.connections[idx] = {
+              ...config.connections[idx],
+              ...body,
+              id,
+            };
             await this.configLoader.saveACPConfig(config);
             // Restart connection with new config
             await this.acpBridge.removeConnection(id);
-            if (config.connections[idx].enabled) await this.acpBridge.addConnection(config.connections[idx]);
+            if (config.connections[idx].enabled)
+              await this.acpBridge.addConnection(config.connections[idx]);
             return c.json({ success: true, data: config.connections[idx] });
           });
 
           app.delete('/acp/connections/:id', async (c) => {
             const id = c.req.param('id');
             const config = await this.configLoader.loadACPConfig();
-            config.connections = config.connections.filter(conn => conn.id !== id);
+            config.connections = config.connections.filter(
+              (conn) => conn.id !== id,
+            );
             await this.configLoader.saveACPConfig(config);
             await this.acpBridge.removeConnection(id);
             return c.json({ success: true });
@@ -604,25 +759,35 @@ export class WorkAgentRuntime {
             try {
               const slug = c.req.param('slug');
               const agent = this.activeAgents.get(slug);
-              
+
               if (!agent) {
-                return c.json({ success: false, error: 'Agent not found or not active' }, 404);
+                return c.json(
+                  { success: false, error: 'Agent not found or not active' },
+                  404,
+                );
               }
 
               const tools = this.agentTools.get(slug) || [];
               const toolsData = tools.map((tool: any) => {
                 const mapping = this.toolNameMapping.get(tool.name);
-                
+
                 // Convert Zod schema to JSON schema if parameters is a Zod object
                 let parameters = tool.parameters;
-                if (parameters && typeof parameters === 'object' && '_def' in parameters) {
+                if (
+                  parameters &&
+                  typeof parameters === 'object' &&
+                  '_def' in parameters
+                ) {
                   try {
                     parameters = zodToJsonSchema(parameters);
                   } catch (error) {
-                    this.logger.warn('Failed to convert Zod schema to JSON schema', { tool: tool.name, error });
+                    this.logger.warn(
+                      'Failed to convert Zod schema to JSON schema',
+                      { tool: tool.name, error },
+                    );
                   }
                 }
-                
+
                 return {
                   id: tool.id || tool.name,
                   name: tool.name,
@@ -630,7 +795,7 @@ export class WorkAgentRuntime {
                   server: mapping?.server || null,
                   toolName: mapping?.tool || tool.name,
                   description: tool.description,
-                  parameters
+                  parameters,
                 };
               });
 
@@ -673,7 +838,9 @@ export class WorkAgentRuntime {
               const agent = await this.configLoader.loadAgent(slug);
               const tools = agent.tools || { mcpServers: [] };
 
-              tools.mcpServers = tools.mcpServers.filter((id: string) => id !== toolId);
+              tools.mcpServers = tools.mcpServers.filter(
+                (id: string) => id !== toolId,
+              );
 
               await this.configLoader.updateAgent(slug, { tools });
               await this.initialize();
@@ -728,43 +895,71 @@ export class WorkAgentRuntime {
           });
 
           // === Workspace Management Endpoints ===
-          app.route('/workspaces', createWorkspaceRoutes(this.workspaceService));
+          app.route(
+            '/workspaces',
+            createWorkspaceRoutes(this.workspaceService),
+          );
 
           // === Workspace & Workflow Management ===
-          app.route('/workspaces', createWorkspaceRoutes(this.workspaceService));
+          app.route(
+            '/workspaces',
+            createWorkspaceRoutes(this.workspaceService),
+          );
           app.route('/agents', createWorkflowRoutes(this.workspaceService));
 
           // === Route Modules ===
-          app.route('/config', createConfigRoutes(this.configLoader, this.logger, this.eventBus));
-          app.route('/bedrock', createBedrockRoutes(
-            () => this.modelCatalog,
-            this.appConfig,
-            this.logger
-          ));
-          app.route('/monitoring', createMonitoringRoutes({
-            activeAgents: this.activeAgents,
-            agentStats: this.agentStats,
-            agentStatus: this.agentStatus,
-            memoryAdapters: this.memoryAdapters,
-            metricsLog: this.metricsLog,
-            monitoringEvents: this.monitoringEvents,
-            queryEventsFromDisk: (start, end, userId) => this.queryEventsFromDisk(start, end, userId)
-          }));
-          app.route('/agents', createConversationRoutes(this.memoryAdapters, this.logger));
-          app.route('/scheduler', createSchedulerRoutes(new SchedulerService(this.logger), this.logger));
+          app.route(
+            '/config',
+            createConfigRoutes(this.configLoader, this.logger, this.eventBus),
+          );
+          app.route(
+            '/bedrock',
+            createBedrockRoutes(
+              () => this.modelCatalog,
+              this.appConfig,
+              this.logger,
+            ),
+          );
+          app.route(
+            '/monitoring',
+            createMonitoringRoutes({
+              activeAgents: this.activeAgents,
+              agentStats: this.agentStats,
+              agentStatus: this.agentStatus,
+              memoryAdapters: this.memoryAdapters,
+              metricsLog: this.metricsLog,
+              monitoringEvents: this.monitoringEvents,
+              queryEventsFromDisk: (start, end, userId) =>
+                this.queryEventsFromDisk(start, end, userId),
+            }),
+          );
+          app.route(
+            '/agents',
+            createConversationRoutes(this.memoryAdapters, this.logger),
+          );
+          app.route(
+            '/scheduler',
+            createSchedulerRoutes(
+              new SchedulerService(this.logger),
+              this.logger,
+            ),
+          );
 
           // Agent health check (agent-specific, not in monitoring routes)
           app.get('/agents/:slug/health', async (c) => {
             const slug = c.req.param('slug');
             const agent = this.activeAgents.get(slug);
-            
+
             if (!agent) {
-              return c.json({ 
-                success: false, 
-                healthy: false, 
-                error: 'Agent not found',
-                checks: { loaded: false }
-              }, 404);
+              return c.json(
+                {
+                  success: false,
+                  healthy: false,
+                  error: 'Agent not found',
+                  checks: { loaded: false },
+                },
+                404,
+              );
             }
 
             const checks: Record<string, boolean> = {
@@ -775,117 +970,147 @@ export class WorkAgentRuntime {
 
             // Check integrations (MCP tools)
             const spec = this.agentSpecs.get(slug);
-            const integrations: Array<{ id: string; type: string; connected: boolean; error?: string; metadata?: any }> = [];
-            
+            const integrations: Array<{
+              id: string;
+              type: string;
+              connected: boolean;
+              error?: string;
+              metadata?: any;
+            }> = [];
+
             if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
               checks.integrationsConfigured = true;
-              
+
               for (const id of spec.tools.mcpServers) {
                 const key = `${slug}:${id}`;
                 const status = this.mcpConnectionStatus.get(key);
                 const metadata = this.integrationMetadata.get(key);
-                
+
                 // Get tools for this MCP server with original names
                 const agentTools = this.agentTools.get(slug) || [];
                 const serverTools = agentTools
-                  .filter(t => t.name.startsWith(id.replace(/-/g, ''))) // Match by server prefix
-                  .map(t => {
+                  .filter((t) => t.name.startsWith(id.replace(/-/g, ''))) // Match by server prefix
+                  .map((t) => {
                     const mapping = this.toolNameMapping.get(t.name);
-                    
+
                     return {
                       name: t.name,
                       originalName: mapping?.original || t.name,
                       server: mapping?.server || null,
                       toolName: mapping?.tool || t.name,
-                      description: (t as ToolWithDescription).description
+                      description: (t as ToolWithDescription).description,
                     };
                   });
-                
+
                 integrations.push({
                   id,
                   type: metadata?.type || 'mcp',
                   connected: status?.connected === true,
                   error: status?.error,
-                  metadata: metadata ? {
-                    transport: metadata.transport,
-                    toolCount: metadata.toolCount,
-                    tools: serverTools
-                  } : undefined,
+                  metadata: metadata
+                    ? {
+                        transport: metadata.transport,
+                        toolCount: metadata.toolCount,
+                        tools: serverTools,
+                      }
+                    : undefined,
                 });
               }
-              
-              checks.integrationsConnected = integrations.every(i => i.connected);
+
+              checks.integrationsConnected = integrations.every(
+                (i) => i.connected,
+              );
             }
 
-            const healthy = Object.values(checks).every(v => v);
-            
-            return c.json({ 
-              success: true, 
+            const healthy = Object.values(checks).every((v) => v);
+
+            return c.json({
+              success: true,
               healthy,
               checks,
               integrations,
-              status: this.agentStatus.get(slug) || 'idle'
+              status: this.agentStatus.get(slug) || 'idle',
             });
           });
 
           // === Conversation Context & Stats (not in route module) ===
 
           // Conversation context management
-          app.post('/api/agents/:slug/conversations/:conversationId/context', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const conversationId = c.req.param('conversationId');
-              const { action, content } = await c.req.json();
-              
-              const result = await ConversationManager.manageConversationContext(
-                slug,
-                conversationId,
-                action,
-                content,
-                this.memoryAdapters
-              );
-              
-              return c.json(result);
-            } catch (error: any) {
-              this.logger.error('Failed to manage conversation context', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
+          app.post(
+            '/api/agents/:slug/conversations/:conversationId/context',
+            async (c) => {
+              try {
+                const slug = c.req.param('slug');
+                const conversationId = c.req.param('conversationId');
+                const { action, content } = await c.req.json();
+
+                const result =
+                  await ConversationManager.manageConversationContext(
+                    slug,
+                    conversationId,
+                    action,
+                    content,
+                    this.memoryAdapters,
+                  );
+
+                return c.json(result);
+              } catch (error: any) {
+                this.logger.error('Failed to manage conversation context', {
+                  error,
+                });
+                return c.json({ success: false, error: error.message }, 500);
+              }
+            },
+          );
 
           // Get conversation statistics
-          app.get('/agents/:slug/conversations/:conversationId/stats', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const conversationId = c.req.param('conversationId');
-              
-              const data = await ConversationManager.getConversationStats(
-                slug,
-                conversationId,
-                this.memoryAdapters,
-                this.agentFixedTokens,
-                this.agentTools,
-                this.configLoader,
-                this.appConfig,
-                this.modelCatalog,
-                this.logger
-              );
+          app.get(
+            '/agents/:slug/conversations/:conversationId/stats',
+            async (c) => {
+              try {
+                const slug = c.req.param('slug');
+                const conversationId = c.req.param('conversationId');
 
-              return c.json({ success: true, data });
-            } catch (error: any) {
-              this.logger.error('Failed to load conversation stats', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
+                const data = await ConversationManager.getConversationStats(
+                  slug,
+                  conversationId,
+                  this.memoryAdapters,
+                  this.agentFixedTokens,
+                  this.agentTools,
+                  this.configLoader,
+                  this.appConfig,
+                  this.modelCatalog,
+                  this.logger,
+                );
+
+                return c.json({ success: true, data });
+              } catch (error: any) {
+                this.logger.error('Failed to load conversation stats', {
+                  error,
+                });
+                return c.json({ success: false, error: error.message }, 500);
+              }
+            },
+          );
 
           // Silent agent invocation for dashboard data fetching
           app.post('/agents/:slug/invoke', async (c) => {
             try {
               const slug = c.req.param('slug');
-              const { input, silent = true, model, tools: toolNames, schema } = await c.req.json();
+              const {
+                input,
+                silent = true,
+                model,
+                tools: toolNames,
+                schema,
+              } = await c.req.json();
 
               const agent = this.activeAgents.get(slug);
               if (!agent) {
-                return c.json({ success: false, error: 'Agent not found' }, 404);
+                return c.json(
+                  { success: false, error: 'Agent not found' },
+                  404,
+                );
               }
 
               // Build prompt with schema instruction if provided
@@ -896,22 +1121,23 @@ export class WorkAgentRuntime {
 
               const options: any = {};
               if (model && this.modelCatalog) {
-                const resolvedModel = await this.modelCatalog.resolveModelId(model);
-                options.model = createBedrockProvider({ 
-                  appConfig: this.appConfig, 
-                  agentSpec: { model: resolvedModel } as unknown as AgentSpec 
+                const resolvedModel =
+                  await this.modelCatalog.resolveModelId(model);
+                options.model = createBedrockProvider({
+                  appConfig: this.appConfig,
+                  agentSpec: { model: resolvedModel } as unknown as AgentSpec,
                 });
               }
-              
+
               // Override tools if specified - get from our cached tools
               if (toolNames && Array.isArray(toolNames)) {
                 const slug = c.req.param('slug');
                 const agentTools = this.agentTools.get(slug) || [];
-                options.tools = agentTools.filter((t: any) => 
-                  toolNames.includes(t.name)
+                options.tools = agentTools.filter((t: any) =>
+                  toolNames.includes(t.name),
                 );
               }
-              
+
               // Use generateText to support multi-turn tool calling
               const result = await agent.generateText(prompt, options);
 
@@ -921,29 +1147,37 @@ export class WorkAgentRuntime {
                 try {
                   // Extract JSON from markdown code blocks if present
                   let jsonText = result.text.trim();
-                  const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                  const jsonMatch = jsonText.match(
+                    /```(?:json)?\s*([\s\S]*?)\s*```/,
+                  );
                   if (jsonMatch) {
                     jsonText = jsonMatch[1].trim();
                   }
                   response = JSON.parse(jsonText);
                 } catch (e) {
-                  this.logger.warn('Failed to parse JSON response', { error: e, text: result.text });
+                  this.logger.warn('Failed to parse JSON response', {
+                    error: e,
+                    text: result.text,
+                  });
                   // Return raw text if parsing fails
                 }
               }
 
-              return c.json({ 
-                success: true, 
+              return c.json({
+                success: true,
                 response,
                 usage: result.usage,
                 steps: result.steps,
                 toolCalls: result.toolCalls,
                 toolResults: result.toolResults,
-                reasoning: result.reasoning
+                reasoning: result.reasoning,
               });
             } catch (error: any) {
               this.logger.error('Failed to invoke agent', { error });
-              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
+              return c.json(
+                { success: false, error: error.message },
+                isAuthError(error) ? 401 : 500,
+              );
             }
           });
 
@@ -954,34 +1188,46 @@ export class WorkAgentRuntime {
               const slug = c.req.param('slug');
               const toolName = c.req.param('toolName');
               const toolArgs = await c.req.json();
-              
+
               const agent = this.activeAgents.get(slug);
               if (!agent) {
-                return c.json({ success: false, error: 'Agent not found' }, 404);
+                return c.json(
+                  { success: false, error: 'Agent not found' },
+                  404,
+                );
               }
-              
+
               const allTools = this.agentTools.get(slug) || [];
-              
+
               // Try to find tool by normalized name first, then by original name
-              let tool = allTools.find(t => t.name === toolName);
+              let tool = allTools.find((t) => t.name === toolName);
               if (!tool) {
                 const normalized = this.getNormalizedToolName(toolName);
-                tool = allTools.find(t => t.name === normalized);
+                tool = allTools.find((t) => t.name === normalized);
               }
-              
+
               if (!tool) {
-                return c.json({ success: false, error: `Tool ${toolName} not found` }, 404);
+                return c.json(
+                  { success: false, error: `Tool ${toolName} not found` },
+                  404,
+                );
               }
-              
+
               const toolStart = performance.now();
-              const toolResult = await (tool as ToolWithDescription & { execute: (args: any) => Promise<any> }).execute(toolArgs);
+              const toolResult = await (
+                tool as ToolWithDescription & {
+                  execute: (args: any) => Promise<any>;
+                }
+              ).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
-              
+
               // Unwrap MCP result
               let unwrappedResult: any = toolResult;
               if ((toolResult as ToolResult)?.content?.[0]?.text) {
                 try {
-                  const parsed = JSON.parse((toolResult as ToolResult).content![0].text);
+                  const parsed = JSON.parse(
+                    (toolResult as ToolResult).content![0].text,
+                  );
                   if (parsed?.content?.[0]?.text) {
                     unwrappedResult = JSON.parse(parsed.content[0].text);
                   } else {
@@ -991,18 +1237,21 @@ export class WorkAgentRuntime {
                   unwrappedResult = (toolResult as ToolResult).content![0].text;
                 }
               }
-              
+
               return c.json({
                 success: true,
                 response: unwrappedResult,
                 metadata: {
                   toolDuration: Math.round(toolDuration),
-                  totalDuration: Math.round(performance.now() - startTime)
-                }
+                  totalDuration: Math.round(performance.now() - startTime),
+                },
               });
             } catch (error: any) {
               this.logger.error('Failed to call tool', { error });
-              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
+              return c.json(
+                { success: false, error: error.message },
+                isAuthError(error) ? 401 : 500,
+              );
             }
           });
 
@@ -1013,37 +1262,49 @@ export class WorkAgentRuntime {
               const slug = c.req.param('slug');
               const toolName = c.req.param('toolName');
               const { toolArgs, transform } = await c.req.json();
-              
+
               const agent = this.activeAgents.get(slug);
               if (!agent) {
-                return c.json({ success: false, error: 'Agent not found' }, 404);
+                return c.json(
+                  { success: false, error: 'Agent not found' },
+                  404,
+                );
               }
-              
+
               const allTools = this.agentTools.get(slug) || [];
-              
+
               // Try to find tool by normalized name first, then by original name
-              let tool = allTools.find(t => t.name === toolName);
+              let tool = allTools.find((t) => t.name === toolName);
               if (!tool) {
                 const normalized = this.getNormalizedToolName(toolName);
-                tool = allTools.find(t => t.name === normalized);
+                tool = allTools.find((t) => t.name === normalized);
               }
-              
+
               if (!tool) {
-                return c.json({ success: false, error: `Tool ${toolName} not found` }, 404);
+                return c.json(
+                  { success: false, error: `Tool ${toolName} not found` },
+                  404,
+                );
               }
-              
+
               // Execute tool
               const toolStart = performance.now();
-              const toolResult = await (tool as ToolWithDescription & { execute: (args: any) => Promise<any> }).execute(toolArgs);
+              const toolResult = await (
+                tool as ToolWithDescription & {
+                  execute: (args: any) => Promise<any>;
+                }
+              ).execute(toolArgs);
               const toolDuration = performance.now() - toolStart;
-              
+
               // Unwrap MCP result
               let unwrappedResult: any = toolResult;
               let parseError: string | undefined;
-              
+
               if ((toolResult as ToolResult)?.content?.[0]?.text) {
                 try {
-                  const parsed = JSON.parse((toolResult as ToolResult).content![0].text);
+                  const parsed = JSON.parse(
+                    (toolResult as ToolResult).content![0].text,
+                  );
                   if (parsed?.content?.[0]?.text) {
                     unwrappedResult = JSON.parse(parsed.content[0].text);
                   } else {
@@ -1053,7 +1314,7 @@ export class WorkAgentRuntime {
                   unwrappedResult = (toolResult as ToolResult).content![0].text;
                 }
               }
-              
+
               // Generic handling: if result is a string with error text followed by JSON, extract the JSON
               if (typeof unwrappedResult === 'string') {
                 const lastBrace = unwrappedResult.lastIndexOf(', {');
@@ -1067,39 +1328,56 @@ export class WorkAgentRuntime {
                   }
                 }
               }
-              
+
               // Same for response field if it's a string with embedded JSON
-              if (unwrappedResult?.response && typeof unwrappedResult.response === 'string') {
+              if (
+                unwrappedResult?.response &&
+                typeof unwrappedResult.response === 'string'
+              ) {
                 const lastBrace = unwrappedResult.response.lastIndexOf(', {');
                 if (lastBrace > 0) {
                   try {
-                    parseError = unwrappedResult.response.substring(0, lastBrace);
-                    const jsonStr = unwrappedResult.response.substring(lastBrace + 2);
+                    parseError = unwrappedResult.response.substring(
+                      0,
+                      lastBrace,
+                    );
+                    const jsonStr = unwrappedResult.response.substring(
+                      lastBrace + 2,
+                    );
                     unwrappedResult = JSON.parse(jsonStr);
                   } catch {
                     parseError = undefined;
                   }
                 }
               }
-              
+
               // Check if the MCP tool returned an error
-              if (unwrappedResult?.success === false && unwrappedResult?.error) {
+              if (
+                unwrappedResult?.success === false &&
+                unwrappedResult?.error
+              ) {
                 const errorObj = unwrappedResult.error;
-                const errorMessage = typeof errorObj === 'string' 
-                  ? errorObj 
-                  : errorObj?.message?.message || errorObj?.message || errorObj;
+                const errorMessage =
+                  typeof errorObj === 'string'
+                    ? errorObj
+                    : errorObj?.message?.message ||
+                      errorObj?.message ||
+                      errorObj;
                 if (isAuthError(errorMessage)) {
                   return c.json({ success: false, error: errorMessage }, 401);
                 }
                 return c.json({ success: false, error: errorMessage }, 500);
               }
-              
+
               // Apply transformation
               const transformStart = performance.now();
-              const transformFn = new Function('data', `return (${transform})(data);`);
+              const transformFn = new Function(
+                'data',
+                `return (${transform})(data);`,
+              );
               const transformed = transformFn(unwrappedResult);
               const transformDuration = performance.now() - transformStart;
-              
+
               return c.json({
                 success: true,
                 response: transformed,
@@ -1107,39 +1385,55 @@ export class WorkAgentRuntime {
                   toolDuration: Math.round(toolDuration),
                   transformDuration: Math.round(transformDuration),
                   totalDuration: Math.round(performance.now() - startTime),
-                  ...(parseError && { parseError })
-                }
+                  ...(parseError && { parseError }),
+                },
               });
             } catch (error: any) {
               this.logger.error('Failed to transform invoke', { error });
-              return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
+              return c.json(
+                { success: false, error: error.message },
+                isAuthError(error) ? 401 : 500,
+              );
             }
           });
 
           app.post('/agents/:slug/invoke/stream', async (c) => {
             try {
               const slug = c.req.param('slug');
-              const { prompt, silent = true, model, tools: toolNames, maxSteps = 10, schema: schemaJson } = await c.req.json();
+              const {
+                prompt,
+                silent = true,
+                model,
+                tools: toolNames,
+                maxSteps = 10,
+                schema: schemaJson,
+              } = await c.req.json();
 
               const agent = this.activeAgents.get(slug);
               if (!agent) {
-                return c.json({ success: false, error: 'Agent not found' }, 404);
+                return c.json(
+                  { success: false, error: 'Agent not found' },
+                  404,
+                );
               }
 
               const options: any = { maxSteps, maxOutputTokens: 2000 };
               if (model && this.modelCatalog) {
-                const resolvedModel = await this.modelCatalog.resolveModelId(model);
-                options.model = createBedrockProvider({ 
-                  appConfig: this.appConfig, 
-                  agentSpec: { model: resolvedModel } as unknown as AgentSpec 
+                const resolvedModel =
+                  await this.modelCatalog.resolveModelId(model);
+                options.model = createBedrockProvider({
+                  appConfig: this.appConfig,
+                  agentSpec: { model: resolvedModel } as unknown as AgentSpec,
                 });
               }
-              
+
               // Override tools if specified - create temp agent with only filtered tools
               if (toolNames && Array.isArray(toolNames)) {
                 const allTools = this.agentTools.get(slug) || [];
-                const filteredTools = allTools.filter(t => toolNames.includes(t.name));
-                
+                const filteredTools = allTools.filter((t) =>
+                  toolNames.includes(t.name),
+                );
+
                 // Create temporary agent with ONLY the filtered tools
                 const tempAgent = new Agent({
                   name: `${slug}-temp`,
@@ -1149,48 +1443,59 @@ export class WorkAgentRuntime {
                   maxSteps,
                   hooks: agent.hooks,
                 });
-                
+
                 // generateObject cannot use tools, so use generateText with JSON mode
                 if (schemaJson) {
                   const textResult = await tempAgent.generateText(
-                    `${prompt}\n\nReturn ONLY valid JSON matching this schema (no markdown, no explanation):\n${JSON.stringify(schemaJson, null, 2)}`
+                    `${prompt}\n\nReturn ONLY valid JSON matching this schema (no markdown, no explanation):\n${JSON.stringify(schemaJson, null, 2)}`,
                   );
-                  
+
                   // Extract JSON from response (handles markdown code blocks)
                   let parsed;
                   try {
-                    const cleaned = textResult.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                    const cleaned = textResult.text
+                      .replace(/```json\n?/g, '')
+                      .replace(/```\n?/g, '')
+                      .trim();
                     parsed = JSON.parse(cleaned);
                   } catch {
                     const jsonMatch = textResult.text.match(/\{[\s\S]*\}/);
-                    parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to parse JSON' };
+                    parsed = jsonMatch
+                      ? JSON.parse(jsonMatch[0])
+                      : { error: 'Failed to parse JSON' };
                   }
-                  
-                  return c.json({ 
-                    success: true, 
+
+                  return c.json({
+                    success: true,
                     response: parsed,
-                    usage: textResult.usage
+                    usage: textResult.usage,
                   });
                 }
-                
+
                 const result = await tempAgent.generateText(prompt);
-                
-                return c.json({ 
-                  success: true, 
+
+                return c.json({
+                  success: true,
                   response: result.text,
-                  usage: result.usage
+                  usage: result.usage,
                 });
               }
 
               // For multi-turn, use generateText/generateObject and return result
               const result = schemaJson
-                ? await agent.generateObject(prompt, jsonSchema(schemaJson) as unknown as any, options)
+                ? await agent.generateObject(
+                    prompt,
+                    jsonSchema(schemaJson) as unknown as any,
+                    options,
+                  )
                 : await agent.generateText(prompt, options);
-              
-              return c.json({ 
-                success: true, 
-                response: schemaJson ? (result as GenerateResult).object : (result as GenerateResult).text,
-                usage: result.usage
+
+              return c.json({
+                success: true,
+                response: schemaJson
+                  ? (result as GenerateResult).object
+                  : (result as GenerateResult).text,
+                usage: result.usage,
               });
             } catch (error: any) {
               this.logger.error('Failed to stream invoke', { error });
@@ -1203,15 +1508,24 @@ export class WorkAgentRuntime {
             try {
               const approvalId = c.req.param('approvalId');
               const { approved } = await c.req.json();
-              
-              this.logger.info('[Approval Endpoint] Received approval response', { approvalId, approved });
-              
+
+              this.logger.info(
+                '[Approval Endpoint] Received approval response',
+                { approvalId, approved },
+              );
+
               if (this.approvalRegistry.resolve(approvalId, approved)) {
                 return c.json({ success: true });
               }
-              
-              this.logger.warn('[Approval Endpoint] Approval request not found', { approvalId });
-              return c.json({ success: false, error: 'Approval request not found' }, 404);
+
+              this.logger.warn(
+                '[Approval Endpoint] Approval request not found',
+                { approvalId },
+              );
+              return c.json(
+                { success: false, error: 'Approval request not found' },
+                404,
+              );
             } catch (error: any) {
               this.logger.error('Approval response error', { error });
               return c.json({ success: false, error: error.message }, 500);
@@ -1221,97 +1535,113 @@ export class WorkAgentRuntime {
           // New lightweight invoke endpoint - uses global tool registry
           app.post('/invoke', async (c) => {
             try {
-              const { 
-                prompt, 
-                schema, 
+              const {
+                prompt,
+                schema,
                 tools: toolIds = [],
                 maxSteps = 10,
                 model,
                 structureModel,
-                system
+                system,
               } = await c.req.json();
 
               // Get tools from global registry
-              const filteredTools = toolIds.length > 0
-                ? toolIds.map((id: string) => this.globalToolRegistry.get(id)).filter(Boolean)
-                : [];
+              const filteredTools =
+                toolIds.length > 0
+                  ? toolIds
+                      .map((id: string) => this.globalToolRegistry.get(id))
+                      .filter(Boolean)
+                  : [];
 
               // Resolve models from config - invokeModel for tool calling, structureModel for output formatting
               const invokeModelId = model || this.appConfig.invokeModel;
-              const structureModelId = structureModel || this.appConfig.structureModel;
-              
-              const mainModel = createBedrockProvider({ 
+              const structureModelId =
+                structureModel || this.appConfig.structureModel;
+
+              const mainModel = createBedrockProvider({
                 appConfig: this.appConfig,
-                agentSpec: { 
-                  model: this.modelCatalog ? await this.modelCatalog.resolveModelId(invokeModelId) : invokeModelId
-                } as unknown as AgentSpec
-              });
-              
-              const fastModel = createBedrockProvider({ 
-                appConfig: this.appConfig,
-                agentSpec: { 
-                  model: this.modelCatalog ? await this.modelCatalog.resolveModelId(structureModelId) : structureModelId
-                } as unknown as AgentSpec
+                agentSpec: {
+                  model: this.modelCatalog
+                    ? await this.modelCatalog.resolveModelId(invokeModelId)
+                    : invokeModelId,
+                } as unknown as AgentSpec,
               });
 
-              const defaultSystem = 'You are a helpful assistant. Use the available tools to answer the user\'s request accurately and concisely.';
-              
+              const fastModel = createBedrockProvider({
+                appConfig: this.appConfig,
+                agentSpec: {
+                  model: this.modelCatalog
+                    ? await this.modelCatalog.resolveModelId(structureModelId)
+                    : structureModelId,
+                } as unknown as AgentSpec,
+              });
+
+              const defaultSystem =
+                "You are a helpful assistant. Use the available tools to answer the user's request accurately and concisely.";
+
               // Create temp agent for tool execution
               const tempAgent = new Agent({
                 name: `invoke-${Date.now()}`,
                 instructions: system || defaultSystem,
                 model: mainModel,
                 tools: filteredTools,
-                maxSteps
+                maxSteps,
               });
 
               const tempConvId = `invoke-${Date.now()}`;
-              
+
               // Phase 1: Tool execution
               const textResult = await tempAgent.generateText(prompt, {
                 conversationId: tempConvId,
-                userId: 'invoke-user'
+                userId: 'invoke-user',
               });
-              
+
               if (!schema) {
                 return c.json({
                   success: true,
                   response: textResult.text,
                   usage: textResult.usage,
-                  steps: textResult.steps?.length || 0
+                  steps: textResult.steps?.length || 0,
                 });
               }
-              
+
               // Phase 2: Structure output (no tools needed)
               const { jsonSchema } = await import('ai');
-              
+
               // Create new agent without tools for structuring
               const structureAgent = new Agent({
                 name: `invoke-structure-${Date.now()}`,
-                instructions: 'Format the provided information as structured JSON.',
+                instructions:
+                  'Format the provided information as structured JSON.',
                 model: fastModel || mainModel,
-                tools: [],  // No tools for structuring
-                maxSteps: 1
+                tools: [], // No tools for structuring
+                maxSteps: 1,
               });
-              
+
               const objectResult = await structureAgent.generateObject(
                 `${textResult.text}\n\nFormat the above information as structured JSON.`,
                 jsonSchema(schema) as unknown as any,
                 {
                   conversationId: tempConvId,
-                  userId: 'invoke-user'
-                }
+                  userId: 'invoke-user',
+                },
               );
-              
+
               return c.json({
                 success: true,
                 response: objectResult.object,
                 usage: {
-                  promptTokens: (textResult.usage.inputTokens || 0) + (objectResult.usage.inputTokens || 0),
-                  completionTokens: (textResult.usage.outputTokens || 0) + (objectResult.usage.outputTokens || 0),
-                  totalTokens: (textResult.usage.totalTokens || 0) + (objectResult.usage.totalTokens || 0)
+                  promptTokens:
+                    (textResult.usage.inputTokens || 0) +
+                    (objectResult.usage.inputTokens || 0),
+                  completionTokens:
+                    (textResult.usage.outputTokens || 0) +
+                    (objectResult.usage.outputTokens || 0),
+                  totalTokens:
+                    (textResult.usage.totalTokens || 0) +
+                    (objectResult.usage.totalTokens || 0),
                 },
-                steps: textResult.steps?.length || 0
+                steps: textResult.steps?.length || 0,
               });
             } catch (error: any) {
               this.logger.error('Failed to invoke', { error });
@@ -1322,7 +1652,7 @@ export class WorkAgentRuntime {
           // Custom chat endpoint with elicitation - use different path to avoid VoltAgent conflicts
           app.post('/api/agents/:slug/chat', async (c) => {
             const slug = c.req.param('slug');
-            
+
             try {
               const { input, options = {} } = await c.req.json();
 
@@ -1330,7 +1660,7 @@ export class WorkAgentRuntime {
               if (this.acpBridge.hasAgent(slug)) {
                 return this.acpBridge.handleChat(c, slug, input, options);
               }
-              
+
               // DEBUG: Log image data to trace truncation
               if (Array.isArray(input)) {
                 for (const msg of input) {
@@ -1349,12 +1679,15 @@ export class WorkAgentRuntime {
                   }
                 }
               }
-              
+
               const { model: modelOverride, ...restOptions } = options;
 
               let agent = this.activeAgents.get(slug);
               if (!agent) {
-                return c.json({ success: false, error: 'Agent not found' }, 404);
+                return c.json(
+                  { success: false, error: 'Agent not found' },
+                  404,
+                );
               }
 
               // If model override, get or create cached agent with that model
@@ -1362,22 +1695,29 @@ export class WorkAgentRuntime {
                 // Validate model ID before creating agent
                 if (this.modelCatalog) {
                   try {
-                    const isValid = await this.modelCatalog.validateModelId(modelOverride);
+                    const isValid =
+                      await this.modelCatalog.validateModelId(modelOverride);
                     if (!isValid) {
-                      return c.json({ 
-                        success: false, 
-                        error: `Invalid model ID: ${modelOverride}. Please select a valid model from the list.` 
-                      }, 400);
+                      return c.json(
+                        {
+                          success: false,
+                          error: `Invalid model ID: ${modelOverride}. Please select a valid model from the list.`,
+                        },
+                        400,
+                      );
                     }
                   } catch (validationError: any) {
-                    this.logger.warn('Model validation failed', { modelOverride, error: validationError });
+                    this.logger.warn('Model validation failed', {
+                      modelOverride,
+                      error: validationError,
+                    });
                     // Continue anyway - validation might fail due to API issues
                   }
                 }
 
                 const cacheKey = `${slug}:${modelOverride}`;
                 let cachedAgent = this.activeAgents.get(cacheKey);
-                
+
                 if (!cachedAgent) {
                   try {
                     // Get the original agent spec and tools
@@ -1385,18 +1725,18 @@ export class WorkAgentRuntime {
                     const originalTools = this.agentTools.get(slug);
                     const originalMemory = agent.getMemory();
                     const originalHooks = agent.hooks;
-                    
-                    const resolvedModel = this.modelCatalog 
+
+                    const resolvedModel = this.modelCatalog
                       ? await this.modelCatalog.resolveModelId(modelOverride)
                       : modelOverride;
                     const newModel = createBedrockProvider({
                       appConfig: this.appConfig,
-                      agentSpec: { 
+                      agentSpec: {
                         model: resolvedModel,
-                        region: originalSpec?.region || this.appConfig.region
-                      } as unknown as AgentSpec
+                        region: originalSpec?.region || this.appConfig.region,
+                      } as unknown as AgentSpec,
                     });
-                    
+
                     cachedAgent = new Agent({
                       ...agent,
                       name: cacheKey,
@@ -1405,22 +1745,31 @@ export class WorkAgentRuntime {
                       memory: originalMemory,
                       hooks: originalHooks,
                     });
-                    
+
                     this.activeAgents.set(cacheKey, cachedAgent);
-                    this.logger.info('Created agent with model override', { slug, modelOverride });
-                  } catch (modelError: any) {
-                    this.logger.error('Failed to create agent with model override', { 
-                      slug, 
-                      modelOverride, 
-                      error: modelError 
+                    this.logger.info('Created agent with model override', {
+                      slug,
+                      modelOverride,
                     });
-                    return c.json({ 
-                      success: false, 
-                      error: `Failed to switch to model ${modelOverride}: ${modelError.message}` 
-                    }, 500);
+                  } catch (modelError: any) {
+                    this.logger.error(
+                      'Failed to create agent with model override',
+                      {
+                        slug,
+                        modelOverride,
+                        error: modelError,
+                      },
+                    );
+                    return c.json(
+                      {
+                        success: false,
+                        error: `Failed to switch to model ${modelOverride}: ${modelError.message}`,
+                      },
+                      500,
+                    );
                   }
                 }
-                
+
                 agent = cachedAgent;
               }
 
@@ -1442,66 +1791,93 @@ export class WorkAgentRuntime {
                 let requestTraceId = '';
                 let isNewConversation = false;
                 let result: any;
-                const artifacts: Array<{ type: string; name?: string; content?: any }> = [];
-                
+                const artifacts: Array<{
+                  type: string;
+                  name?: string;
+                  content?: any;
+                }> = [];
+
                 try {
                   // Create injectable stream for elicitation
                   const injectableStream = new InjectableStream();
-                  
+
                   // Get auto-approve list from agent spec
                   const agentSpec = this.agentSpecs.get(slug);
-                  
+
                   // Elicitation callback that injects events instead of writing directly
-                  const elicitation = StreamOrchestrator.createElicitationCallback(
-                    agentSpec!,
-                    this.toolNameMapping,
-                    this.approvalRegistry,
-                    injectableStream,
-                    this.logger
-                  );
-                  
+                  const elicitation =
+                    StreamOrchestrator.createElicitationCallback(
+                      agentSpec!,
+                      this.toolNameMapping,
+                      this.approvalRegistry,
+                      injectableStream,
+                      this.logger,
+                    );
+
                   operationContext = {
                     ...restOptions,
                     elicitation,
                   };
-                  
+
                   // Resolve userId from auth (override frontend default)
-                  if (!operationContext.userId || operationContext.userId === 'default-user') {
+                  if (
+                    !operationContext.userId ||
+                    operationContext.userId === 'default-user'
+                  ) {
                     try {
-                      const { getCachedUser } = await import('../routes/auth.js');
-                      operationContext.userId = getCachedUser().alias || 'default-user';
+                      const { getCachedUser } = await import(
+                        '../routes/auth.js'
+                      );
+                      operationContext.userId =
+                        getCachedUser().alias || 'default-user';
                     } catch {
-                      operationContext.userId = operationContext.userId || 'default-user';
+                      operationContext.userId =
+                        operationContext.userId || 'default-user';
                     }
                   }
-                  
+
                   // Generate conversationId if not provided (new conversation)
                   isNewConversation = !operationContext.conversationId;
                   if (isNewConversation && operationContext.userId) {
                     operationContext.conversationId = `${operationContext.userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
                   }
-                  
+
                   // Create AbortController tied to client connection
                   const abortController = new AbortController();
                   conversationId = operationContext.conversationId;
-                  
+
                   // Listen for client disconnect and abort operation
                   c.req.raw.signal?.addEventListener('abort', () => {
-                    this.logger.debug('Client disconnected, aborting operation', { conversationId });
+                    this.logger.debug(
+                      'Client disconnected, aborting operation',
+                      { conversationId },
+                    );
                     abortController.abort('Client disconnected');
                   });
-                  
+
                   // Pass abort signal to VoltAgent (it will create its own controller that listens to this)
                   operationContext.abortSignal = abortController.signal;
-                  this.logger.debug('Abort signal configured', { conversationId });
-                  
+                  this.logger.debug('Abort signal configured', {
+                    conversationId,
+                  });
+
                   // Ensure conversation exists before streaming
                   const memory = agent.getMemory();
-                  if (memory && operationContext.conversationId && operationContext.userId) {
-                    const existing = await memory.getConversation(operationContext.conversationId);
+                  if (
+                    memory &&
+                    operationContext.conversationId &&
+                    operationContext.userId
+                  ) {
+                    const existing = await memory.getConversation(
+                      operationContext.conversationId,
+                    );
                     if (!existing) {
                       // Use provided title or generate from first 50 chars of user message
-                      const title = operationContext.title || (input.length > 50 ? input.substring(0, 50) + '...' : input);
+                      const title =
+                        operationContext.title ||
+                        (input.length > 50
+                          ? `${input.substring(0, 50)}...`
+                          : input);
                       await memory.createConversation({
                         id: operationContext.conversationId,
                         resourceId: slug,
@@ -1511,16 +1887,16 @@ export class WorkAgentRuntime {
                       });
                     }
                   }
-                  
+
                   // Generate trace ID for this request (before streamText so it's available in message metadata)
                   const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
                   operationContext.traceId = traceId;
-                  
+
                   result = await agent.streamText(input, operationContext);
-                  
+
                   // Set agent status to running
                   this.agentStatus.set(slug, 'running');
-                  
+
                   // Emit monitoring event
                   const agentStartEvent = {
                     type: 'agent-start',
@@ -1530,19 +1906,26 @@ export class WorkAgentRuntime {
                     conversationId: operationContext.conversationId,
                     userId: operationContext.userId,
                     traceId,
-                    input: typeof input === 'string' ? input : input?.text || '[complex input]',
+                    input:
+                      typeof input === 'string'
+                        ? input
+                        : input?.text || '[complex input]',
                   };
                   this.monitoringEvents.emit('event', agentStartEvent);
                   await this.persistEvent(agentStartEvent);
-                  
+
                   // Initialize stats if needed
                   if (!this.agentStats.has(slug)) {
                     const adapter = this.memoryAdapters.get(slug);
                     if (adapter) {
-                      const conversations = await adapter.getConversations(slug);
+                      const conversations =
+                        await adapter.getConversations(slug);
                       let totalMessages = 0;
                       for (const conv of conversations) {
-                        const messages = await adapter.getMessages(conv.userId, conv.id);
+                        const messages = await adapter.getMessages(
+                          conv.userId,
+                          conv.id,
+                        );
                         totalMessages += messages.length;
                       }
                       this.agentStats.set(slug, {
@@ -1552,56 +1935,67 @@ export class WorkAgentRuntime {
                       });
                     }
                   }
-                  
+
                   // Prevent unhandled rejections when stream is aborted mid-flight
-                  const suppressAbortError = (err: any) => 
-                    abortController.signal.aborted ? undefined : Promise.reject(err);
-                  
+                  const suppressAbortError = (err: any) =>
+                    abortController.signal.aborted
+                      ? undefined
+                      : Promise.reject(err);
+
                   result.text?.catch(suppressAbortError);
                   result.usage?.catch(suppressAbortError);
                   result.finishReason?.catch(suppressAbortError);
-                  
+
                   // Helper to save standalone cancellation message
                   const saveCancellationMessage = async () => {
-                    await StreamOrchestrator.saveCancellationMessage(agent, operationContext);
+                    await StreamOrchestrator.saveCancellationMessage(
+                      agent,
+                      operationContext,
+                    );
                   };
-                  
-                  this.logger.info('Agent stream started', { 
+
+                  this.logger.info('Agent stream started', {
                     conversationId: operationContext.conversationId,
-                    isNewConversation 
+                    isNewConversation,
                   });
 
                   // Send conversationId as first event for new conversations
                   if (isNewConversation && operationContext.conversationId) {
                     const mem = agent.getMemory();
-                    const conversation = mem ? await mem.getConversation(operationContext.conversationId) : null;
-                    await streamWriter.write(`data: ${JSON.stringify({
-                      type: 'conversation-started',
-                      conversationId: operationContext.conversationId,
-                      title: conversation?.title || 'New Conversation'
-                    })}\n\n`);
+                    const conversation = mem
+                      ? await mem.getConversation(
+                          operationContext.conversationId,
+                        )
+                      : null;
+                    await streamWriter.write(
+                      `data: ${JSON.stringify({
+                        type: 'conversation-started',
+                        conversationId: operationContext.conversationId,
+                        title: conversation?.title || 'New Conversation',
+                      })}\n\n`,
+                    );
                   }
 
                   // Initialize streaming state variables
                   completionReason = 'completed';
                   hasOutput = false;
                   accumulatedText = '';
-                  let currentTextSegment = '';
+                  const _currentTextSegment = '';
                   reasoningText = '';
-                  let lastChunkWasToolResult = false;
-                  let hasEmittedReasoningForCurrentSegment = false;
+                  const _lastChunkWasToolResult = false;
+                  const _hasEmittedReasoningForCurrentSegment = false;
                   toolCallCount = 0;
                   currentStep = 0;
                   requestTraceId = traceId; // Capture traceId for use in events
-                  let thinkingBuffer = ''; // Buffer for incomplete thinking tags
-                  let inThinkingBlock = false; // Track if we're currently in a <thinking> block
-                  let currentReasoningContent = ''; // Accumulate reasoning for monitoring event
-                  const recentChunks: any[] = []; // Track last 10 chunks for debugging
-                  let suppressTextStart = false; // Suppress text-start if response begins with <thinking>
-                  
+                  const _thinkingBuffer = ''; // Buffer for incomplete thinking tags
+                  const _inThinkingBlock = false; // Track if we're currently in a <thinking> block
+                  const _currentReasoningContent = ''; // Accumulate reasoning for monitoring event
+                  const _recentChunks: any[] = []; // Track last 10 chunks for debugging
+                  const _suppressTextStart = false; // Suppress text-start if response begins with <thinking>
+
                   // Use DEBUG_STREAMING env var for debug logging
                   const debugStreaming = process.env.DEBUG_STREAMING === 'true';
-                  
+
                   // Initialize StreamPipeline
                   const pipeline = StreamOrchestrator.createStreamingPipeline(
                     abortController.signal,
@@ -1611,52 +2005,61 @@ export class WorkAgentRuntime {
                       conversationId: operationContext.conversationId,
                       userId: operationContext.userId,
                       traceId,
-                    }
+                    },
                   );
-                  
+
                   // Log model and tool configuration for debugging
                   const agentTools = this.agentTools.get(slug) || [];
-                  const agentModel = agent.model as { modelId?: string; settings?: { maxTokens?: number; temperature?: number } } | undefined;
+                  const agentModel = agent.model as
+                    | {
+                        modelId?: string;
+                        settings?: { maxTokens?: number; temperature?: number };
+                      }
+                    | undefined;
                   this.logger.debug('Stream starting', {
                     conversationId,
                     model: agentModel?.modelId,
                     toolCount: agentTools.length,
-                    toolNames: agentTools.map(t => t.name).slice(0, 5),
+                    toolNames: agentTools.map((t) => t.name).slice(0, 5),
                     maxTokens: agentModel?.settings?.maxTokens,
                     temperature: agentModel?.settings?.temperature,
-                    debugStreaming
+                    debugStreaming,
                   });
-                  
+
                   // Wrap fullStream with injectable stream
                   // ReasoningHandler buffers all chunks during thinking, so approval-request
                   // will be held until reasoning-end is emitted
-                  const wrappedStream = injectableStream.wrap(result.fullStream);
-                  
+                  const wrappedStream = injectableStream.wrap(
+                    result.fullStream,
+                  );
+
                   // Run pipeline and write chunks to stream
                   for await (const chunk of pipeline.run(wrappedStream)) {
                     await StreamOrchestrator.writeSSEChunk(streamWriter, chunk);
                   }
-                  
+
                   // Write [DONE] marker
                   await StreamOrchestrator.writeSSEDone(streamWriter);
-                  
+
                   // Get completion state from handlers
                   const results = await pipeline.finalize();
-                  
+
                   // Extract completion state for finally block
                   if (results.completion) {
                     hasOutput = results.completion.hasOutput;
                     completionReason = results.completion.completionReason;
                     accumulatedText = results.completion.accumulatedText;
                   }
-                  
+
                   // Check if aborted
                   if (abortController.signal.aborted) {
                     completionReason = 'aborted';
                     if (!hasOutput) await saveCancellationMessage();
                   }
                 } catch (error: any) {
-                  const agentModelForError = agent.model as { modelId?: string } | undefined;
+                  const agentModelForError = agent.model as
+                    | { modelId?: string }
+                    | undefined;
                   this.logger.error('Stream error occurred', {
                     agentId: slug,
                     modelName: agentModelForError?.modelId,
@@ -1668,31 +2071,33 @@ export class WorkAgentRuntime {
                   await StreamOrchestrator.writeSSEDone(streamWriter);
                 } finally {
                   // Agent stream completed
-                  this.logger.info('Agent stream completed', { 
+                  this.logger.info('Agent stream completed', {
                     conversationId: operationContext.conversationId,
-                    reason: completionReason
+                    reason: completionReason,
                   });
-                  
+
                   // Set agent status to idle
                   this.agentStatus.set(slug, 'idle');
-                  
+
                   // Add final text output to artifacts (excluding reasoning text)
-                  const finalOutput = accumulatedText.replace(reasoningText, '').trim();
+                  const finalOutput = accumulatedText
+                    .replace(reasoningText, '')
+                    .trim();
                   if (finalOutput) {
                     artifacts.push({
                       type: 'text',
                       content: finalOutput,
                     });
                   }
-                  
+
                   // Collect usage stats
                   let usage;
                   try {
                     usage = await result.usage;
-                  } catch (e) {
+                  } catch (_e) {
                     // Usage might not be available
                   }
-                  
+
                   // Emit monitoring event
                   const agentCompleteEvent = {
                     type: 'agent-complete',
@@ -1707,17 +2112,22 @@ export class WorkAgentRuntime {
                     steps: currentStep,
                     toolCallCount,
                     maxSteps: this.agentSpecs.get(slug)?.guardrails?.maxSteps,
-                    inputChars: typeof input === 'string' ? input.length : (input?.text?.length || 0),
+                    inputChars:
+                      typeof input === 'string'
+                        ? input.length
+                        : input?.text?.length || 0,
                     outputChars: finalOutput.length,
-                    usage: usage ? {
-                      promptTokens: usage.promptTokens,
-                      completionTokens: usage.completionTokens,
-                      totalTokens: usage.totalTokens,
-                    } : undefined,
+                    usage: usage
+                      ? {
+                          promptTokens: usage.promptTokens,
+                          completionTokens: usage.completionTokens,
+                          totalTokens: usage.totalTokens,
+                        }
+                      : undefined,
                   };
                   this.monitoringEvents.emit('event', agentCompleteEvent);
                   await this.persistEvent(agentCompleteEvent);
-                  
+
                   // Update cached stats (increment by 2: user message + assistant response)
                   const stats = this.agentStats.get(slug);
                   if (stats) {
@@ -1727,7 +2137,7 @@ export class WorkAgentRuntime {
                       stats.conversationCount += 1;
                     }
                   }
-                  
+
                   // Log metrics for historical tracking
                   this.metricsLog.push({
                     timestamp: Date.now(),
@@ -1741,10 +2151,14 @@ export class WorkAgentRuntime {
               });
             } catch (error: any) {
               this.logger.error('Chat error', { error });
-              const isCredentialError = error.message?.includes('credential') || 
-                                       error.message?.includes('accessKeyId') ||
-                                       error.message?.includes('secretAccessKey');
-              return c.json({ success: false, error: error.message }, isCredentialError ? 401 : 500);
+              const isCredentialError =
+                error.message?.includes('credential') ||
+                error.message?.includes('accessKeyId') ||
+                error.message?.includes('secretAccessKey');
+              return c.json(
+                { success: false, error: error.message },
+                isCredentialError ? 401 : 500,
+              );
             }
           });
         },
@@ -1752,36 +2166,51 @@ export class WorkAgentRuntime {
     });
 
     this.logger.debug('Work Agent Runtime initialized', { port: this.port });
-    
+
     // Load persisted events from disk
     await this.loadEventsFromDisk();
-    
+
     // Start periodic health checks (every 60 seconds)
     this.startHealthChecks();
 
     // Start ACP bridge (non-blocking — no-op if kiro-cli not found)
-    this.configLoader.loadACPConfig().then((acpConfig: any) => {
-      return this.acpBridge.startAll(acpConfig.connections);
-    }).then(() => {
-      if (this.acpBridge.isConnected()) {
-        this.logger.info('[Runtime] ACP connections established');
-      }
-    }).catch((err: any) => {
-      this.logger.warn('[Runtime] ACP startup failed', { error: err.message });
-    });
+    this.configLoader
+      .loadACPConfig()
+      .then((acpConfig: any) => {
+        return this.acpBridge.startAll(acpConfig.connections);
+      })
+      .then(() => {
+        if (this.acpBridge.isConnected()) {
+          this.logger.info('[Runtime] ACP connections established');
+        }
+      })
+      .catch((err: any) => {
+        this.logger.warn('[Runtime] ACP startup failed', {
+          error: err.message,
+        });
+      });
 
     // Check for plugin updates after startup (delayed, non-blocking)
     setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:${this.port}/api/plugins/check-updates`);
+        const res = await fetch(
+          `http://localhost:${this.port}/api/plugins/check-updates`,
+        );
         if (!res.ok) return;
-        const { updates } = await res.json() as { updates: any[] };
+        const { updates } = (await res.json()) as { updates: any[] };
         if (updates.length > 0) {
-          this.eventBus.emit('plugins:updates-available', { count: updates.length, updates });
-          this.logger.info('Plugin updates available', { count: updates.length });
+          this.eventBus.emit('plugins:updates-available', {
+            count: updates.length,
+            updates,
+          });
+          this.logger.info('Plugin updates available', {
+            count: updates.length,
+          });
         }
       } catch (error: any) {
-        this.logger.debug('Failed to check for plugin updates', { error: error.message });
+        this.logger.debug('Failed to check for plugin updates', {
+          error: error.message,
+        });
       }
     }, 5000);
   }
@@ -1791,7 +2220,7 @@ export class WorkAgentRuntime {
    */
   private startHealthChecks() {
     const interval = 60000; // 60 seconds
-    
+
     const runHealthChecks = async () => {
       for (const [slug, agent] of this.activeAgents.entries()) {
         const checks: Record<string, boolean> = {
@@ -1801,36 +2230,43 @@ export class WorkAgentRuntime {
         };
 
         const spec = this.agentSpecs.get(slug);
-        const integrations: Array<{ id: string; type: string; connected: boolean; metadata?: any }> = [];
-        
+        const integrations: Array<{
+          id: string;
+          type: string;
+          connected: boolean;
+          metadata?: any;
+        }> = [];
+
         // Only check integrations if agent has MCP servers configured
         if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
           checks.integrationsConfigured = true;
-          
+
           for (const id of spec.tools.mcpServers) {
             const key = `${slug}:${id}`;
             const status = this.mcpConnectionStatus.get(key);
             const metadata = this.integrationMetadata.get(key);
-            
+
             integrations.push({
               id,
               type: metadata?.type || 'mcp',
               connected: status?.connected === true,
-              metadata: metadata ? {
-                transport: metadata.transport,
-                toolCount: metadata.toolCount,
-              } : undefined,
+              metadata: metadata
+                ? {
+                    transport: metadata.transport,
+                    toolCount: metadata.toolCount,
+                  }
+                : undefined,
             });
           }
-          
-          checks.integrationsConnected = integrations.every(i => i.connected);
+
+          checks.integrationsConnected = integrations.every((i) => i.connected);
         }
 
-        const healthy = Object.values(checks).every(v => v);
-        
+        const healthy = Object.values(checks).every((v) => v);
+
         // Generate trace ID for health check
         const traceId = `health:${slug}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
-        
+
         const healthEvent = {
           type: 'agent-health',
           timestamp: new Date().toISOString(),
@@ -1842,18 +2278,18 @@ export class WorkAgentRuntime {
           checks,
           integrations,
         };
-        
+
         this.monitoringEvents.emit('event', healthEvent);
         await this.persistEvent(healthEvent);
       }
     };
-    
+
     // Run initial health check immediately
     runHealthChecks();
-    
+
     // Then run periodically
     this.healthCheckInterval = setInterval(runHealthChecks, interval);
-    
+
     this.logger.debug('Health checks started', { interval });
   }
 
@@ -1871,13 +2307,19 @@ export class WorkAgentRuntime {
   /**
    * Query events from disk for a specific time range
    */
-  private async queryEventsFromDisk(start: number, end: number, userId: string): Promise<any[]> {
+  private async queryEventsFromDisk(
+    start: number,
+    end: number,
+    userId: string,
+  ): Promise<any[]> {
     const events: any[] = [];
-    
+
     try {
       const eventFiles = await readdir(this.eventLogPath);
-      const logFiles = eventFiles.filter(f => f.startsWith('events-') && f.endsWith('.ndjson'));
-      
+      const logFiles = eventFiles.filter(
+        (f) => f.startsWith('events-') && f.endsWith('.ndjson'),
+      );
+
       for (const file of logFiles) {
         const filePath = join(this.eventLogPath, file);
         const fileStream = createReadStream(filePath);
@@ -1888,20 +2330,31 @@ export class WorkAgentRuntime {
             try {
               const event = JSON.parse(line);
               const eventTime = new Date(event.timestamp).getTime();
-              
-              if (eventTime >= start && eventTime <= end && event.userId === userId) {
+
+              if (
+                eventTime >= start &&
+                eventTime <= end &&
+                event.userId === userId
+              ) {
                 events.push(event);
               }
             } catch (err) {
-              this.logger.warn('Failed to parse event line', { line, error: err });
+              this.logger.warn('Failed to parse event line', {
+                line,
+                error: err,
+              });
             }
           }
         }
       }
     } catch (error) {
-      this.logger.error('Failed to query events from disk', { error, start, end });
+      this.logger.error('Failed to query events from disk', {
+        error,
+        start,
+        end,
+      });
     }
-    
+
     return events;
   }
 
@@ -1913,13 +2366,15 @@ export class WorkAgentRuntime {
       // Ensure monitoring directory exists
       if (!existsSync(this.eventLogPath)) {
         await mkdir(this.eventLogPath, { recursive: true });
-        this.logger.debug('Created monitoring directory', { path: this.eventLogPath });
+        this.logger.debug('Created monitoring directory', {
+          path: this.eventLogPath,
+        });
         return;
       }
 
       const files = await readdir(this.eventLogPath);
       const eventFiles = files
-        .filter(f => f.startsWith('events-') && f.endsWith('.ndjson'))
+        .filter((f) => f.startsWith('events-') && f.endsWith('.ndjson'))
         .sort()
         .reverse()
         .slice(0, 2); // Last 2 days
@@ -1937,12 +2392,15 @@ export class WorkAgentRuntime {
             try {
               const event = JSON.parse(line);
               const eventTime = new Date(event.timestamp).getTime();
-              
+
               if (eventTime >= oneDayAgo) {
                 events.push(event);
               }
             } catch (err) {
-              this.logger.warn('Failed to parse event line', { line, error: err });
+              this.logger.warn('Failed to parse event line', {
+                line,
+                error: err,
+              });
             }
           }
         }
@@ -1950,7 +2408,9 @@ export class WorkAgentRuntime {
 
       // Keep only last 1000 events
       this.persistedEvents = events.slice(-1000);
-      this.logger.info('Loaded persisted events', { count: this.persistedEvents.length });
+      this.logger.info('Loaded persisted events', {
+        count: this.persistedEvents.length,
+      });
     } catch (error) {
       this.logger.error('Failed to load events from disk', { error });
     }
@@ -1967,11 +2427,11 @@ export class WorkAgentRuntime {
       }
 
       const logPath = this.getTodayEventLogPath();
-      await appendFile(logPath, JSON.stringify(event) + '\n', 'utf-8');
-      
+      await appendFile(logPath, `${JSON.stringify(event)}\n`, 'utf-8');
+
       // Add to in-memory cache
       this.persistedEvents.push(event);
-      
+
       // Keep only last 1000 in memory
       if (this.persistedEvents.length > 1000) {
         this.persistedEvents = this.persistedEvents.slice(-1000);
@@ -1987,7 +2447,7 @@ export class WorkAgentRuntime {
   private async createVoltAgentInstance(agentSlug: string): Promise<Agent> {
     // Load agent spec
     const spec = await this.configLoader.loadAgent(agentSlug);
-    
+
     // Cache spec for later use
     this.agentSpecs.set(agentSlug, spec);
 
@@ -2008,10 +2468,10 @@ export class WorkAgentRuntime {
 
     // Load and configure tools (including MCP)
     const tools = await this.loadAgentTools(agentSlug, spec);
-    
+
     // Cache tools for runtime filtering
     this.agentTools.set(agentSlug, tools);
-    
+
     // Add to global tool registry (deduplicated by name)
     for (const tool of tools) {
       if (!this.globalToolRegistry.has(tool.name)) {
@@ -2022,23 +2482,25 @@ export class WorkAgentRuntime {
     // Calculate and cache fixed token counts (system prompt + tools)
     // These don't change unless the agent is reloaded
     const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
-    const toolsJson = JSON.stringify(tools.map((t: any) => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters
-    })));
+    const toolsJson = JSON.stringify(
+      tools.map((t: any) => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      })),
+    );
     const mcpServerTokens = Math.ceil(toolsJson.length / 4);
-    
+
     this.agentFixedTokens.set(agentSlug, {
       systemPromptTokens,
-      mcpServerTokens
+      mcpServerTokens,
     });
-    
+
     this.logger.info('[Agent Initialized]', {
       agent: agentSlug,
       systemPromptTokens,
       mcpServerTokens,
-      totalFixedTokens: systemPromptTokens + mcpServerTokens
+      totalFixedTokens: systemPromptTokens + mcpServerTokens,
     });
 
     // Create hooks for tool approval (if autoApprove is configured)
@@ -2046,7 +2508,7 @@ export class WorkAgentRuntime {
 
     // Replace template variables in prompts
     const processedPrompt = this.replaceTemplateVariables(spec.prompt);
-    const processedSystemPrompt = this.appConfig.systemPrompt 
+    const processedSystemPrompt = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : '';
 
@@ -2057,24 +2519,30 @@ export class WorkAgentRuntime {
 
     // Create Agent instance
     const agent = new Agent({
-      name: agentSlug,  // Use slug for routing
+      name: agentSlug, // Use slug for routing
       instructions,
       model,
       memory,
       tools,
       hooks,
-      ...(spec.maxTurns !== undefined || this.appConfig.defaultMaxTurns !== undefined ? {
-        maxTurns: spec.maxTurns ?? this.appConfig.defaultMaxTurns
-      } : {}),
+      ...(spec.maxTurns !== undefined ||
+      this.appConfig.defaultMaxTurns !== undefined
+        ? {
+            maxTurns: spec.maxTurns ?? this.appConfig.defaultMaxTurns,
+          }
+        : {}),
       ...(spec.guardrails && {
         temperature: spec.guardrails.temperature,
-        maxOutputTokens: spec.guardrails.maxTokens ?? this.appConfig.defaultMaxOutputTokens,
+        maxOutputTokens:
+          spec.guardrails.maxTokens ?? this.appConfig.defaultMaxOutputTokens,
         topP: spec.guardrails.topP,
         maxSteps: spec.guardrails.maxSteps,
       }),
-      ...(!spec.guardrails && this.appConfig.defaultMaxOutputTokens ? {
-        maxOutputTokens: this.appConfig.defaultMaxOutputTokens,
-      } : {}),
+      ...(!spec.guardrails && this.appConfig.defaultMaxOutputTokens
+        ? {
+            maxOutputTokens: this.appConfig.defaultMaxOutputTokens,
+          }
+        : {}),
     });
 
     return agent;
@@ -2085,7 +2553,7 @@ export class WorkAgentRuntime {
    */
   private async createBedrockModel(spec: AgentSpec) {
     const modelId = spec.model || this.appConfig.defaultModel;
-    const resolvedModel = this.modelCatalog 
+    const resolvedModel = this.modelCatalog
       ? await this.modelCatalog.resolveModelId(modelId)
       : modelId;
     return createBedrockProvider({
@@ -2097,7 +2565,10 @@ export class WorkAgentRuntime {
   /**
    * Load tools for an agent (regular tools + MCP tools)
    */
-  private async loadAgentTools(agentSlug: string, spec: AgentSpec): Promise<Tool<any>[]> {
+  private async loadAgentTools(
+    agentSlug: string,
+    spec: AgentSpec,
+  ): Promise<Tool<any>[]> {
     return MCPManager.loadAgentTools(
       agentSlug,
       spec,
@@ -2107,7 +2578,7 @@ export class WorkAgentRuntime {
       this.integrationMetadata,
       this.toolNameMapping,
       this.toolNameReverseMapping,
-      this.logger
+      this.logger,
     );
   }
 
@@ -2123,7 +2594,7 @@ export class WorkAgentRuntime {
       this.modelCatalog,
       this.agentFixedTokens,
       this.memoryAdapters,
-      this.logger
+      this.logger,
     );
   }
 
@@ -2138,7 +2609,10 @@ export class WorkAgentRuntime {
    * Get normalized tool name from original name
    */
   private getNormalizedToolName(originalName: string): string {
-    return MCPManager.getNormalizedToolName(originalName, this.toolNameReverseMapping);
+    return MCPManager.getNormalizedToolName(
+      originalName,
+      this.toolNameReverseMapping,
+    );
   }
 
   /**
@@ -2150,7 +2624,7 @@ export class WorkAgentRuntime {
       spec,
       this.toolNameMapping,
       this.approvalRegistry,
-      this.logger
+      this.logger,
     );
   }
 
@@ -2164,7 +2638,14 @@ export class WorkAgentRuntime {
     const pluginsDir = join(this.configLoader.getWorkAgentDir(), 'plugins');
     if (!existsSync(pluginsDir)) return;
 
-    const { registerAuthProvider, registerUserIdentityProvider, registerUserDirectoryProvider, registerAgentRegistryProvider, registerToolRegistryProvider, registerOnboardingProvider } = await import('../providers/registry.js');
+    const {
+      registerAuthProvider,
+      registerUserIdentityProvider,
+      registerUserDirectoryProvider,
+      registerAgentRegistryProvider,
+      registerToolRegistryProvider,
+      registerOnboardingProvider,
+    } = await import('../providers/registry.js');
 
     try {
       const entries = await readdir(pluginsDir, { withFileTypes: true });
@@ -2175,43 +2656,65 @@ export class WorkAgentRuntime {
 
         try {
           const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
-          if (!manifest.providers || !Array.isArray(manifest.providers)) continue;
+          if (!manifest.providers || !Array.isArray(manifest.providers))
+            continue;
 
           for (const p of manifest.providers) {
             const modulePath = join(pluginsDir, entry.name, p.module);
             if (!existsSync(modulePath)) {
-              this.logger.warn('Plugin provider module not found', { plugin: entry.name, module: p.module });
+              this.logger.warn('Plugin provider module not found', {
+                plugin: entry.name,
+                module: p.module,
+              });
               continue;
             }
             try {
               const mod = await import(modulePath);
               const factory = mod.default || mod;
-              const instance = typeof factory === 'function' ? factory() : factory;
+              const instance =
+                typeof factory === 'function' ? factory() : factory;
 
               if (p.type === 'auth') registerAuthProvider(instance);
-              else if (p.type === 'userIdentity') registerUserIdentityProvider(instance);
-              else if (p.type === 'userDirectory') registerUserDirectoryProvider(instance);
-              else if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-              else if (p.type === 'toolRegistry') registerToolRegistryProvider(instance);
-              else if (p.type === 'onboarding') registerOnboardingProvider(instance);
+              else if (p.type === 'userIdentity')
+                registerUserIdentityProvider(instance);
+              else if (p.type === 'userDirectory')
+                registerUserDirectoryProvider(instance);
+              else if (p.type === 'agentRegistry')
+                registerAgentRegistryProvider(instance);
+              else if (p.type === 'toolRegistry')
+                registerToolRegistryProvider(instance);
+              else if (p.type === 'onboarding')
+                registerOnboardingProvider(instance);
 
-              this.logger.info('Registered plugin provider', { plugin: entry.name, type: p.type });
+              this.logger.info('Registered plugin provider', {
+                plugin: entry.name,
+                type: p.type,
+              });
             } catch (e: any) {
-              this.logger.error('Failed to load plugin provider', { plugin: entry.name, type: p.type, error: e.message });
+              this.logger.error('Failed to load plugin provider', {
+                plugin: entry.name,
+                type: p.type,
+                error: e.message,
+              });
             }
           }
         } catch (e: any) {
-          this.logger.error('Failed to read plugin manifest', { plugin: entry.name, error: e.message });
+          this.logger.error('Failed to read plugin manifest', {
+            plugin: entry.name,
+            error: e.message,
+          });
         }
       }
     } catch (e: any) {
-      this.logger.error('Failed to scan plugins directory', { error: e.message });
+      this.logger.error('Failed to scan plugins directory', {
+        error: e.message,
+      });
     }
   }
 
   private replaceTemplateVariables(text: string): string {
     const now = new Date();
-    
+
     // User identity (from auth/OS)
     let userVars: Record<string, string> = {};
     try {
@@ -2223,21 +2726,23 @@ export class WorkAgentRuntime {
         '{{user_email}}': user.email || '',
         '{{user_title}}': user.title || '',
       };
-    } catch { /* auth module not loaded yet */ }
-    
+    } catch {
+      /* auth module not loaded yet */
+    }
+
     // Built-in variables (always available)
     const builtInReplacements: Record<string, string> = {
-      '{{date}}': now.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      '{{date}}': now.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
       }),
-      '{{time}}': now.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      '{{time}}': now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: true
+        hour12: true,
       }),
       '{{datetime}}': now.toLocaleString('en-US', {
         weekday: 'long',
@@ -2246,7 +2751,7 @@ export class WorkAgentRuntime {
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: true
+        hour12: true,
       }),
       '{{iso_date}}': now.toISOString().split('T')[0],
       '{{iso_datetime}}': now.toISOString(),
@@ -2262,13 +2767,13 @@ export class WorkAgentRuntime {
     if (this.appConfig.templateVariables) {
       for (const variable of this.appConfig.templateVariables) {
         const key = `{{${variable.key}}}`;
-        
+
         switch (variable.type) {
           case 'static':
             customReplacements[key] = variable.value || '';
             break;
           case 'date':
-            customReplacements[key] = variable.format 
+            customReplacements[key] = variable.format
               ? now.toLocaleDateString('en-US', JSON.parse(variable.format))
               : now.toLocaleDateString();
             break;
@@ -2292,12 +2797,19 @@ export class WorkAgentRuntime {
 
     // Apply all replacements
     let result = text;
-    const allReplacements = { ...builtInReplacements, ...userVars, ...customReplacements };
-    
+    const allReplacements = {
+      ...builtInReplacements,
+      ...userVars,
+      ...customReplacements,
+    };
+
     for (const [key, value] of Object.entries(allReplacements)) {
-      result = result.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+      result = result.replace(
+        new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+        value,
+      );
     }
-    
+
     return result;
   }
 

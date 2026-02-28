@@ -7,8 +7,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 export interface SystemStatus {
-  bedrock: { credentialsFound: boolean; verified: boolean | null; region: string };
-  acp: { connected: boolean; connections: Array<{ id: string; status: string }> };
+  bedrock: {
+    credentialsFound: boolean;
+    verified: boolean | null;
+    region: string;
+  };
+  acp: {
+    connected: boolean;
+    connections: Array<{ id: string; status: string }>;
+  };
   scheduler: { booInstalled: boolean };
   clis: Record<string, boolean>;
   ready: boolean;
@@ -29,7 +36,10 @@ export function useSystemStatus(pollInterval?: number) {
   });
 }
 
-export async function verifyBedrock(apiBase: string, region?: string): Promise<{ verified: boolean; error?: string }> {
+export async function verifyBedrock(
+  apiBase: string,
+  region?: string,
+): Promise<{ verified: boolean; error?: string }> {
   const res = await fetch(`${apiBase}/api/system/verify-bedrock`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

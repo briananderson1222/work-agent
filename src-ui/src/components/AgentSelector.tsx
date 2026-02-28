@@ -56,7 +56,7 @@ export function AgentSelector({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, close]);
 
   const agentOptions = useMemo(() => agents, [agents]);
 
@@ -90,11 +90,23 @@ export function AgentSelector({
 
   return (
     <div className={`agent-selector ${isOpen ? 'is-open' : ''}`} ref={menuRef}>
-      <button type="button" className="agent-selector__trigger" onClick={handleToggle}>
+      <button
+        type="button"
+        className="agent-selector__trigger"
+        onClick={handleToggle}
+      >
         <div className="agent-selector__current">
           <span className="agent-selector__current-label">Agent</span>
-          <span className="agent-selector__current-name">{selectedAgent?.name || 'Select an agent'}</span>
-          {selectedAgent?.model && <span className="agent-selector__current-model">{typeof selectedAgent.model === 'string' ? selectedAgent.model : selectedAgent.model.modelId}</span>}
+          <span className="agent-selector__current-name">
+            {selectedAgent?.name || 'Select an agent'}
+          </span>
+          {selectedAgent?.model && (
+            <span className="agent-selector__current-model">
+              {typeof selectedAgent.model === 'string'
+                ? selectedAgent.model
+                : selectedAgent.model.modelId}
+            </span>
+          )}
         </div>
         <span className="agent-selector__chevron" aria-hidden="true">
           {isOpen ? '▲' : '▼'}
@@ -106,7 +118,9 @@ export function AgentSelector({
           <div className="agent-selector__section">
             <span className="agent-selector__section-title">Agents</span>
             {agentOptions.length === 0 ? (
-              <p className="agent-selector__empty">No agents found. Create one to get started.</p>
+              <p className="agent-selector__empty">
+                No agents found. Create one to get started.
+              </p>
             ) : (
               <ul>
                 {agentOptions.map((agent) => (
@@ -116,9 +130,16 @@ export function AgentSelector({
                       className="agent-selector__option"
                       onClick={() => handleSelect(agent.slug)}
                     >
-                      <span className="agent-selector__option-name">{agent.name}</span>
+                      <span className="agent-selector__option-name">
+                        {agent.name}
+                      </span>
                       <span className="agent-selector__option-meta">
-                        {agent.model ? (typeof agent.model === 'string' ? agent.model : agent.model.modelId) : 'Default model'} · {formatRelativeTime(agent.updatedAt)}
+                        {agent.model
+                          ? typeof agent.model === 'string'
+                            ? agent.model
+                            : agent.model.modelId
+                          : 'Default model'}{' '}
+                        · {formatRelativeTime(agent.updatedAt)}
                       </span>
                     </button>
                   </li>
@@ -130,7 +151,11 @@ export function AgentSelector({
           <div className="agent-selector__section agent-selector__section--manage">
             <span className="agent-selector__section-title">Manage</span>
             <div className="agent-selector__actions">
-              <button type="button" onClick={handleCreate} className="agent-selector__manage-button">
+              <button
+                type="button"
+                onClick={handleCreate}
+                className="agent-selector__manage-button"
+              >
                 New Agent
               </button>
               <button

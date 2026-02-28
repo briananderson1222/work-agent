@@ -1,4 +1,3 @@
-import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -33,10 +32,16 @@ export function EphemeralMessage({
   onAction,
 }: EphemeralMessageProps) {
   const messageId = msg.id || `ephemeral-${idx}`;
-  const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
+  const textContent =
+    msg.contentParts
+      ?.filter((p) => p.type === 'text')
+      .map((p) => p.content)
+      .join('\n') ||
+    msg.content ||
+    '';
 
   return (
-    <div 
+    <div
       key={messageId}
       className={`message system ephemeral-message ${isRemoving ? 'removing' : ''}`}
       style={{
@@ -53,7 +58,7 @@ export function EphemeralMessage({
         width: '100%',
         opacity: isRemoving ? 0 : 1,
         transform: isRemoving ? 'translateY(-10px)' : 'translateY(0px)',
-        transition: 'opacity 0.3s ease, transform 0.3s ease'
+        transition: 'opacity 0.3s ease, transform 0.3s ease',
       }}
     >
       <button
@@ -75,7 +80,7 @@ export function EphemeralMessage({
         ×
       </button>
       {msg.contentType === 'html' ? (
-        <div 
+        <div
           ref={(el) => {
             if (el && !el.dataset.initialized) {
               el.innerHTML = msg.content;
@@ -98,7 +103,7 @@ export function EphemeralMessage({
             color: 'white',
             cursor: 'pointer',
             fontSize: '13px',
-            fontWeight: 500
+            fontWeight: 500,
           }}
         >
           {msg.action.label}

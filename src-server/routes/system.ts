@@ -2,13 +2,16 @@
  * System status routes — unified readiness check for onboarding
  */
 
+import { execFile, execSync } from 'node:child_process';
 import { Hono } from 'hono';
-import { execFile, execSync } from 'child_process';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
 import { getOnboardingProviders } from '../providers/registry.js';
 
 interface SystemStatusDeps {
-  getACPStatus: () => { connected: boolean; connections: Array<{ id: string; status: string }> };
+  getACPStatus: () => {
+    connected: boolean;
+    connections: Array<{ id: string; status: string }>;
+  };
   getAppConfig: () => { region: string; defaultModel: string };
   eventBus?: { emit: (event: string, data?: Record<string, unknown>) => void };
 }
@@ -17,30 +20,39 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   const app = new Hono();
 
   // Fast readiness check — credential resolution + ACP + boo
-  const whichCmd = (cmd: string) => new Promise<boolean>((resolve) => {
-    execFile('which', [cmd], (err, stdout) => resolve(!err && stdout.trim().length > 0));
-  });
+  const whichCmd = (cmd: string) =>
+    new Promise<boolean>((resolve) => {
+      execFile('which', [cmd], (err, stdout) =>
+        resolve(!err && stdout.trim().length > 0),
+      );
+    });
 
   app.get('/status', async (c) => {
-    const [credentialsFound, booInstalled, kiroCliInstalled, claudeInstalled] = await Promise.all([
-      checkBedrockCredentials(),
-      whichCmd('boo'),
-      whichCmd('kiro-cli'),
-      whichCmd('claude'),
-    ]);
+    const [credentialsFound, booInstalled, kiroCliInstalled, claudeInstalled] =
+      await Promise.all([
+        checkBedrockCredentials(),
+        whichCmd('boo'),
+        whichCmd('kiro-cli'),
+        whichCmd('claude'),
+      ]);
 
     const acpStatus = deps.getACPStatus();
     const config = deps.getAppConfig();
 
     // Aggregate onboarding prerequisites from all providers
     const providers = getOnboardingProviders();
-    const prerequisiteArrays = await Promise.all(providers.map(p => p.getPrerequisites().catch(() => [])));
+    const prerequisiteArrays = await Promise.all(
+      providers.map((p) => p.getPrerequisites().catch(() => [])),
+    );
     const prerequisites = prerequisiteArrays.flat();
 
     return c.json({
       prerequisites,
       bedrock: { credentialsFound, verified: null, region: config.region },
-      acp: { connected: acpStatus.connected, connections: acpStatus.connections },
+      acp: {
+        connected: acpStatus.connected,
+        connections: acpStatus.connections,
+      },
       scheduler: { booInstalled },
       clis: { 'kiro-cli': kiroCliInstalled, claude: claudeInstalled },
       ready: credentialsFound || acpStatus.connected,
@@ -50,7 +62,9 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // Heavier verification — actually calls ListFoundationModels
   app.post('/verify-bedrock', async (c) => {
     try {
-      const { BedrockClient, ListFoundationModelsCommand } = await import('@aws-sdk/client-bedrock');
+      const { BedrockClient, ListFoundationModelsCommand } = await import(
+        '@aws-sdk/client-bedrock'
+      );
       const body = await c.req.json().catch(() => ({}));
       const region = body.region || deps.getAppConfig().region;
       const client = new BedrockClient({ region });
@@ -65,27 +79,57 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // Check for core app updates
   app.get('/core-update', async (c) => {
     try {
-      const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
-      
+      const gitRoot = execSync('git rev-parse --show-toplevel', {
+        encoding: 'utf-8',
+      }).trim();
+
       // Fetch from remote
       execSync('git fetch --quiet', { cwd: gitRoot, timeout: 15000 });
-      
+
       // Get current and remote hashes
-      const currentHash = execSync('git rev-parse HEAD', { cwd: gitRoot, encoding: 'utf-8' }).trim().substring(0, 7);
-      const remoteHash = execSync('git rev-parse @{u}', { cwd: gitRoot, encoding: 'utf-8' }).trim().substring(0, 7);
-      const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: gitRoot, encoding: 'utf-8' }).trim();
-      
+      const currentHash = execSync('git rev-parse HEAD', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+      })
+        .trim()
+        .substring(0, 7);
+      const remoteHash = execSync('git rev-parse @{u}', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+      })
+        .trim()
+        .substring(0, 7);
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+      }).trim();
+
       let remote = '';
-      const behind = parseInt(execSync('git rev-list HEAD..@{u} --count', { cwd: gitRoot, encoding: 'utf-8' }).trim(), 10);
-      const ahead = parseInt(execSync('git rev-list @{u}..HEAD --count', { cwd: gitRoot, encoding: 'utf-8' }).trim(), 10);
+      const behind = parseInt(
+        execSync('git rev-list HEAD..@{u} --count', {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+        }).trim(),
+        10,
+      );
+      const ahead = parseInt(
+        execSync('git rev-list @{u}..HEAD --count', {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+        }).trim(),
+        10,
+      );
       const updateAvailable = behind > 0;
-      
+
       try {
-        remote = execSync('git config --get remote.origin.url', { cwd: gitRoot, encoding: 'utf-8' }).trim();
+        remote = execSync('git config --get remote.origin.url', {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+        }).trim();
       } catch {
         // Remote URL not available
       }
-      
+
       return c.json({
         currentHash,
         remoteHash,
@@ -93,7 +137,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         behind,
         ahead,
         updateAvailable,
-        remote
+        remote,
       });
     } catch (error: any) {
       return c.json({ updateAvailable: false, error: error.message });
@@ -103,21 +147,28 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // Apply core app update
   app.post('/core-update', async (c) => {
     try {
-      const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
-      
+      const gitRoot = execSync('git rev-parse --show-toplevel', {
+        encoding: 'utf-8',
+      }).trim();
+
       // Pull updates
       execSync('git pull --ff-only', { cwd: gitRoot, timeout: 30000 });
-      
+
       // Get new hash
-      const newHash = execSync('git rev-parse HEAD', { cwd: gitRoot, encoding: 'utf-8' }).trim().substring(0, 7);
-      
+      const newHash = execSync('git rev-parse HEAD', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+      })
+        .trim()
+        .substring(0, 7);
+
       // Emit SSE event if eventBus is available
       deps.eventBus?.emit('core:updated', { hash: newHash });
-      
-      return c.json({ 
-        success: true, 
-        hash: newHash, 
-        message: `Updated to ${newHash}. Restart to apply.` 
+
+      return c.json({
+        success: true,
+        hash: newHash,
+        message: `Updated to ${newHash}. Restart to apply.`,
       });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);

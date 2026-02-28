@@ -13,7 +13,7 @@ type MessagePart = {
 /**
  * Parse reasoning blocks from message text and convert to proper parts array.
  * Extracts <thinking>...</thinking> blocks and creates separate reasoning parts.
- * 
+ *
  * @param message - UIMessage with potential reasoning in text parts
  * @returns UIMessage with reasoning extracted into separate parts
  */
@@ -44,17 +44,17 @@ export function parseReasoningFromMessage(message: UIMessage): UIMessage {
 /**
  * Extract reasoning blocks from text containing <thinking> tags.
  * Returns array of text and reasoning parts in order.
- * 
+ *
  * @param text - Text potentially containing <thinking>...</thinking> blocks
  * @returns Array of text and reasoning parts
  */
 function extractReasoningFromText(text: string): MessagePart[] {
   const parts: MessagePart[] = [];
   let remaining = text;
-  
+
   while (remaining.length > 0) {
     const thinkingStart = remaining.indexOf('<thinking>');
-    
+
     if (thinkingStart === -1) {
       // No more reasoning blocks, add remaining text if non-empty
       const trimmed = remaining.trim();
@@ -63,7 +63,7 @@ function extractReasoningFromText(text: string): MessagePart[] {
       }
       break;
     }
-    
+
     // Add text before <thinking> tag
     if (thinkingStart > 0) {
       const beforeText = remaining.slice(0, thinkingStart).trim();
@@ -71,31 +71,33 @@ function extractReasoningFromText(text: string): MessagePart[] {
         parts.push({ type: 'text', text: beforeText });
       }
     }
-    
+
     // Find closing tag
     const thinkingEnd = remaining.indexOf('</thinking>', thinkingStart);
-    
+
     if (thinkingEnd === -1) {
       // Unclosed tag - treat rest as text
-      const afterTag = remaining.slice(thinkingStart + '<thinking>'.length).trim();
+      const afterTag = remaining
+        .slice(thinkingStart + '<thinking>'.length)
+        .trim();
       if (afterTag) {
         parts.push({ type: 'text', text: afterTag });
       }
       break;
     }
-    
+
     // Extract reasoning content
     const reasoningText = remaining
       .slice(thinkingStart + '<thinking>'.length, thinkingEnd)
       .trim();
-    
+
     if (reasoningText) {
       parts.push({ type: 'reasoning', text: reasoningText });
     }
-    
+
     // Continue with text after </thinking>
     remaining = remaining.slice(thinkingEnd + '</thinking>'.length);
   }
-  
+
   return parts;
 }

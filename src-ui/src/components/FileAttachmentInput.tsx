@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { useFileAttachment } from '../hooks/useFileAttachment';
-import { AttachmentPreviewMenu } from './AttachmentPreviewMenu';
 import { usePreview } from '../contexts/PreviewContext';
+import { useFileAttachment } from '../hooks/useFileAttachment';
 import type { FileAttachment } from '../types';
+import { AttachmentPreviewMenu } from './AttachmentPreviewMenu';
 
 interface FileAttachmentInputProps {
   attachments: FileAttachment[];
@@ -53,17 +53,20 @@ export function FileAttachmentInput({
   const canAttach = supportsImages || supportsFiles;
 
   const handleClearAll = () => {
-    attachments.forEach(att => onRemove(att.id));
+    attachments.forEach((att) => onRemove(att.id));
     setShowPreview(false);
     setTimeout(() => attachButtonRef.current?.focus(), 0);
   };
 
   const handlePreviewImage = (preview: string) => {
-    const att = attachments.find(a => a.preview === preview);
+    const att = attachments.find((a) => a.preview === preview);
     const allPreviewable = attachments
-      .filter(a => a.preview && a.type.startsWith('image/'))
-      .map(a => ({ url: a.preview!, mediaType: a.type, name: a.name }));
-    openPreview({ url: preview, mediaType: att?.type || 'image/png', name: att?.name }, allPreviewable);
+      .filter((a) => a.preview && a.type.startsWith('image/'))
+      .map((a) => ({ url: a.preview!, mediaType: a.type, name: a.name }));
+    openPreview(
+      { url: preview, mediaType: att?.type || 'image/png', name: att?.name },
+      allPreviewable,
+    );
   };
 
   return (
@@ -77,7 +80,7 @@ export function FileAttachmentInput({
         style={{ display: 'none' }}
         disabled={disabled || !canAttach}
       />
-      
+
       <button
         ref={attachButtonRef}
         className={`attachment-btn ${attachments.length > 0 ? 'has-attachments' : ''}`}
@@ -99,9 +102,22 @@ export function FileAttachmentInput({
         onMouseLeave={() => {
           if (!disabled) hideMenu();
         }}
-        title={disabled && !canAttach ? "Current model doesn't support attachments" : "Attach files"}
+        title={
+          disabled && !canAttach
+            ? "Current model doesn't support attachments"
+            : 'Attach files'
+        }
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
         </svg>
         {attachments.length > 0 && (

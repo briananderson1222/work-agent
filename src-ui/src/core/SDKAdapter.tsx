@@ -1,20 +1,32 @@
-import { ReactNode, useEffect } from 'react';
-import { SDKProvider, type SDKContextValue, _setWorkspaceContext, _setApiBase, _setProviderFunctions, useWorkspacesQuery } from '@work-agent/sdk';
+import {
+  _setApiBase,
+  _setProviderFunctions,
+  _setWorkspaceContext,
+  type SDKContextValue,
+  SDKProvider,
+  useWorkspacesQuery,
+} from '@work-agent/sdk';
+import { type ReactNode, useEffect } from 'react';
+import {
+  useActiveChatActions,
+  useCreateChatSession,
+  useOpenConversation,
+  useSendMessage,
+} from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
-import { useAuth } from '../contexts/AuthContext';
-import { useSendMessage, useCreateChatSession, useActiveChatActions, useOpenConversation } from '../contexts/ActiveChatsContext';
-import { useApiBase } from '../contexts/ApiBaseContext';
+import type { WorkspaceConfig } from '../types';
 import {
-  registerProvider,
   configureProvider,
+  getActiveProviderId,
   getProvider,
   hasProvider,
-  getActiveProviderId,
+  registerProvider,
 } from './workspaceProviders';
-import type { WorkspaceConfig } from '../types';
 
 interface SDKAdapterProps {
   children: ReactNode;
@@ -26,15 +38,19 @@ interface SDKAdapterProps {
  * SDKAdapter - Provides SDK context to plugin components
  * Injects core app contexts into the SDK for plugin consumption
  */
-export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) {
+export function SDKAdapter({
+  children,
+  authToken,
+  workspace,
+}: SDKAdapterProps) {
   // Get API base from the single source of truth
   const { apiBase } = useApiBase();
-  
+
   // Set API base and workspace context for SDK API functions
   useEffect(() => {
     _setApiBase(apiBase);
     _setWorkspaceContext(workspace);
-    
+
     // Inject provider functions into SDK
     _setProviderFunctions({
       getProvider,
@@ -43,12 +59,12 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
       registerProvider,
       configureProvider,
     });
-    
+
     return () => {
       _setWorkspaceContext(undefined);
     };
   }, [apiBase, workspace]);
-  
+
   // Get all the core contexts
   const agents = useAgents();
   const { data: workspaces = [] } = useWorkspacesQuery();
@@ -72,7 +88,7 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
       toast: { useToast: () => toast },
       config: { useApiBase: () => ({ apiBase }) },
       auth: { useAuth: () => auth },
-      activeChats: { 
+      activeChats: {
         useSendMessage: () => sendMessage,
         useCreateChatSession: () => createChatSession,
         useActiveChatActions: () => activeChatActions,
@@ -81,12 +97,8 @@ export function SDKAdapter({ children, authToken, workspace }: SDKAdapterProps) 
     },
     hooks: {
       // Add other hooks as needed
-    }
+    },
   };
 
-  return (
-    <SDKProvider value={sdkValue}>
-      {children}
-    </SDKProvider>
-  );
+  return <SDKProvider value={sdkValue}>{children}</SDKProvider>;
 }

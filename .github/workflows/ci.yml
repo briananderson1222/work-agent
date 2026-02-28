@@ -29,6 +29,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit --skipLibCheck
 
+      - name: Lint
+        run: npm run lint
+
       - name: Build server
         run: npm run build:server
 

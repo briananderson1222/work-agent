@@ -11,7 +11,7 @@ export class SchedulerService {
   private booPath: string | null = null;
   private sseClients = new Set<(data: string) => void>();
 
-  constructor(private logger: any) {}
+  constructor(_logger: any) {}
 
   /** Subscribe to SSE events. Returns unsubscribe function. */
   subscribe(send: (data: string) => void): () => void {
@@ -23,7 +23,11 @@ export class SchedulerService {
   broadcast(event: Record<string, unknown>) {
     const data = JSON.stringify(event);
     for (const send of this.sseClients) {
-      try { send(data); } catch { this.sseClients.delete(send); }
+      try {
+        send(data);
+      } catch {
+        this.sseClients.delete(send);
+      }
     }
   }
 
@@ -36,8 +40,13 @@ export class SchedulerService {
     try {
       const { stdout } = await exec('which', ['boo']);
       const path = stdout.trim();
-      if (path) { this.booPath = path; return path; }
-    } catch { /* not on PATH */ }
+      if (path) {
+        this.booPath = path;
+        return path;
+      }
+    } catch {
+      /* not on PATH */
+    }
     throw new Error('boo binary not found. Set BOO_PATH or install boo.');
   }
 
@@ -66,7 +75,14 @@ export class SchedulerService {
     return this.execJson(['status', '--format', 'json']);
   }
 
-  async addJob(opts: { name: string; cron?: string; prompt: string; agent?: string; openArtifact?: string; notifyStart?: boolean }): Promise<string> {
+  async addJob(opts: {
+    name: string;
+    cron?: string;
+    prompt: string;
+    agent?: string;
+    openArtifact?: string;
+    notifyStart?: boolean;
+  }): Promise<string> {
     const args = ['add', '--name', opts.name];
     if (opts.cron) args.push('--cron', opts.cron);
     args.push('--prompt', opts.prompt);
@@ -77,7 +93,14 @@ export class SchedulerService {
   }
 
   async getJobLogs(target: string, count = 20): Promise<any[]> {
-    return this.execJson(['logs', target, '-c', String(count), '--format', 'json']);
+    return this.execJson([
+      'logs',
+      target,
+      '-c',
+      String(count),
+      '--format',
+      'json',
+    ]);
   }
 
   async getRunOutput(target: string): Promise<string> {
@@ -89,21 +112,21 @@ export class SchedulerService {
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
     const os = await import('node:os');
-    
+
     // Validate path is within ~/.boo/
     const resolvedPath = path.resolve(outputPath);
     const allowedPrefix = path.join(os.homedir(), '.boo');
     if (!resolvedPath.startsWith(allowedPrefix)) {
       throw new Error('Invalid output path: must be within ~/.boo/');
     }
-    
+
     // Try .response first (clean, ANSI-stripped), fall back to .log
     const responsePath = outputPath.replace(/\.log$/, '.response');
     const resolvedResponsePath = path.resolve(responsePath);
     if (!resolvedResponsePath.startsWith(allowedPrefix)) {
       throw new Error('Invalid output path: must be within ~/.boo/');
     }
-    
+
     try {
       return await fs.readFile(responsePath, 'utf-8');
     } catch {

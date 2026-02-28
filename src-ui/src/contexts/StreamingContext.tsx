@@ -1,43 +1,69 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from 'react';
 
 type StreamingMessage = {
   role: 'assistant';
   content: string;
-  contentParts?: Array<{ type: string; content?: string; url?: string; mediaType?: string; name?: string; tool?: any }>;
+  contentParts?: Array<{
+    type: string;
+    content?: string;
+    url?: string;
+    mediaType?: string;
+    name?: string;
+    tool?: any;
+  }>;
 };
 
 type StreamingContextType = {
   getStreamingMessage: (sessionId: string) => StreamingMessage | undefined;
-  setStreamingMessage: (sessionId: string, message: StreamingMessage | undefined) => void;
+  setStreamingMessage: (
+    sessionId: string,
+    message: StreamingMessage | undefined,
+  ) => void;
   clearStreamingMessage: (sessionId: string) => void;
 };
 
-const StreamingContext = createContext<StreamingContextType | undefined>(undefined);
+const StreamingContext = createContext<StreamingContextType | undefined>(
+  undefined,
+);
 
 export function StreamingProvider({ children }: { children: ReactNode }) {
-  const [streamingMessages, setStreamingMessages] = useState<Record<string, StreamingMessage>>({});
+  const [streamingMessages, setStreamingMessages] = useState<
+    Record<string, StreamingMessage>
+  >({});
 
-  const getStreamingMessage = useCallback((sessionId: string) => {
-    return streamingMessages[sessionId];
-  }, [streamingMessages]);
+  const getStreamingMessage = useCallback(
+    (sessionId: string) => {
+      return streamingMessages[sessionId];
+    },
+    [streamingMessages],
+  );
 
-  const setStreamingMessage = useCallback((sessionId: string, message: StreamingMessage | undefined) => {
-    // DEBUG: Log when streaming message is set
-    if (message) {
-    }
-    setStreamingMessages(prev => {
-      if (message === undefined) {
-        const next = { ...prev };
-        delete next[sessionId];
-        return next;
+  const setStreamingMessage = useCallback(
+    (sessionId: string, message: StreamingMessage | undefined) => {
+      // DEBUG: Log when streaming message is set
+      if (message) {
       }
-      // DEBUG: Log state update
-      return { ...prev, [sessionId]: message };
-    });
-  }, []);
+      setStreamingMessages((prev) => {
+        if (message === undefined) {
+          const next = { ...prev };
+          delete next[sessionId];
+          return next;
+        }
+        // DEBUG: Log state update
+        return { ...prev, [sessionId]: message };
+      });
+    },
+    [],
+  );
 
   const clearStreamingMessage = useCallback((sessionId: string) => {
-    setStreamingMessages(prev => {
+    setStreamingMessages((prev) => {
       const next = { ...prev };
       delete next[sessionId];
       return next;
@@ -45,7 +71,13 @@ export function StreamingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <StreamingContext.Provider value={{ getStreamingMessage, setStreamingMessage, clearStreamingMessage }}>
+    <StreamingContext.Provider
+      value={{
+        getStreamingMessage,
+        setStreamingMessage,
+        clearStreamingMessage,
+      }}
+    >
       {children}
     </StreamingContext.Provider>
   );

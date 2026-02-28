@@ -2,8 +2,13 @@
  * Base class for stream event handlers
  */
 
-import type { StreamEvent, StreamState, HandlerResult, HandlerContext } from './types';
 import { createNoOpResult } from './stateHelpers';
+import type {
+  HandlerContext,
+  HandlerResult,
+  StreamEvent,
+  StreamState,
+} from './types';
 
 export abstract class StreamEventHandler {
   protected context: HandlerContext;
@@ -36,7 +41,8 @@ export abstract class StreamEventHandler {
     return {
       role: 'assistant',
       content,
-      contentParts: contentParts && contentParts.length > 0 ? contentParts : undefined,
+      contentParts:
+        contentParts && contentParts.length > 0 ? contentParts : undefined,
     };
   }
 

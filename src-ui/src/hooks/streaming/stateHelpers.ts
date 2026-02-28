@@ -2,7 +2,7 @@
  * Helper utilities for stream state management
  */
 
-import type { StreamState, HandlerResult, ContentPart } from './types';
+import type { ContentPart, HandlerResult, StreamState } from './types';
 
 /**
  * Create a result object with no changes
@@ -23,7 +23,7 @@ export function createNoOpResult(state: StreamState): HandlerResult {
  */
 export function createResult(
   state: StreamState,
-  updates: Partial<StreamState> & { updated?: boolean; streamingMessage?: any }
+  updates: Partial<StreamState> & { updated?: boolean; streamingMessage?: any },
 ): HandlerResult {
   return {
     updated: updates.updated ?? true,
@@ -31,7 +31,8 @@ export function createResult(
     contentParts: updates.contentParts ?? state.contentParts,
     pendingApprovals: updates.pendingApprovals ?? state.pendingApprovals,
     reasoningChunks: updates.reasoningChunks ?? state.reasoningChunks,
-    currentReasoningChunk: updates.currentReasoningChunk ?? state.currentReasoningChunk,
+    currentReasoningChunk:
+      updates.currentReasoningChunk ?? state.currentReasoningChunk,
     streamingMessage: updates.streamingMessage,
   };
 }
@@ -42,30 +43,39 @@ export function createResult(
 export function updateContentPart(
   parts: ContentPart[],
   type: ContentPart['type'],
-  updater: (part: ContentPart) => ContentPart
+  updater: (part: ContentPart) => ContentPart,
 ): ContentPart[] {
-  return parts.map(part => part.type === type ? updater(part) : part);
+  return parts.map((part) => (part.type === type ? updater(part) : part));
 }
 
 /**
  * Add a content part to the beginning of the array
  */
-export function prependContentPart(parts: ContentPart[], newPart: ContentPart): ContentPart[] {
+export function prependContentPart(
+  parts: ContentPart[],
+  newPart: ContentPart,
+): ContentPart[] {
   return [newPart, ...parts];
 }
 
 /**
  * Add a content part to the end of the array
  */
-export function appendContentPart(parts: ContentPart[], newPart: ContentPart): ContentPart[] {
+export function appendContentPart(
+  parts: ContentPart[],
+  newPart: ContentPart,
+): ContentPart[] {
   return [...parts, newPart];
 }
 
 /**
  * Check if a content part of a specific type exists
  */
-export function hasContentPartOfType(parts: ContentPart[], type: ContentPart['type']): boolean {
-  return parts.some(p => p.type === type);
+export function hasContentPartOfType(
+  parts: ContentPart[],
+  type: ContentPart['type'],
+): boolean {
+  return parts.some((p) => p.type === type);
 }
 
 /**
@@ -73,7 +83,7 @@ export function hasContentPartOfType(parts: ContentPart[], type: ContentPart['ty
  */
 export function getTextFromParts(parts: ContentPart[]): string {
   return parts
-    .filter(p => p.type === 'text')
-    .map(p => p.content || '')
+    .filter((p) => p.type === 'text')
+    .map((p) => p.content || '')
     .join('');
 }

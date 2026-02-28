@@ -3,13 +3,13 @@
  */
 
 import { Hono } from 'hono';
-import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { AppConfig } from '../domain/types.js';
+import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 
 export function createBedrockRoutes(
   getModelCatalog: () => BedrockModelCatalog | undefined,
   appConfig: AppConfig,
-  logger: any
+  logger: any,
 ) {
   const app = new Hono();
 
@@ -18,30 +18,37 @@ export function createBedrockRoutes(
     try {
       const modelCatalog = getModelCatalog();
       if (!modelCatalog) {
-        return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
+        return c.json(
+          { success: false, error: 'Model catalog not initialized' },
+          500,
+        );
       }
-      
+
       const [models, profiles] = await Promise.all([
         modelCatalog.listModels(),
-        modelCatalog.listInferenceProfiles()
+        modelCatalog.listInferenceProfiles(),
       ]);
-      
+
       // Filter models to only include those with ON_DEMAND support
-      const onDemandModels = models.filter(m => 
-        m.inferenceTypesSupported?.includes('ON_DEMAND')
+      const onDemandModels = models.filter((m) =>
+        m.inferenceTypesSupported?.includes('ON_DEMAND'),
       );
-      
+
       // Create set of base model IDs that have inference profiles
       const profileBaseIds = new Set(
-        profiles.map(p => p.inferenceProfileId.replace(/^(us|eu|ap|sa|ca|af|me)\./, ''))
+        profiles.map((p) =>
+          p.inferenceProfileId.replace(/^(us|eu|ap|sa|ca|af|me)\./, ''),
+        ),
       );
-      
+
       // Filter out base models that have inference profile equivalents
-      const filteredModels = onDemandModels.filter(m => !profileBaseIds.has(m.modelId));
-      
+      const filteredModels = onDemandModels.filter(
+        (m) => !profileBaseIds.has(m.modelId),
+      );
+
       const combinedModels = [
         ...filteredModels,
-        ...profiles.map(p => ({
+        ...profiles.map((p) => ({
           modelId: p.inferenceProfileId,
           modelArn: p.inferenceProfileArn,
           modelName: p.inferenceProfileName,
@@ -53,10 +60,10 @@ export function createBedrockRoutes(
           inferenceTypesSupported: ['INFERENCE_PROFILE'],
           isInferenceProfile: true,
           profileType: p.type,
-          status: p.status
-        }))
+          status: p.status,
+        })),
       ];
-      
+
       return c.json({ success: true, data: combinedModels });
     } catch (error: any) {
       logger.error('Failed to list Bedrock models', { error });
@@ -69,7 +76,10 @@ export function createBedrockRoutes(
     try {
       const modelCatalog = getModelCatalog();
       if (!modelCatalog) {
-        return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
+        return c.json(
+          { success: false, error: 'Model catalog not initialized' },
+          500,
+        );
       }
       const region = c.req.query('region') || appConfig.region;
       const pricing = await modelCatalog.getModelPricing(region);
@@ -85,7 +95,10 @@ export function createBedrockRoutes(
     try {
       const modelCatalog = getModelCatalog();
       if (!modelCatalog) {
-        return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
+        return c.json(
+          { success: false, error: 'Model catalog not initialized' },
+          500,
+        );
       }
       const modelId = c.req.param('modelId');
       const isValid = await modelCatalog.validateModelId(modelId);
@@ -101,16 +114,19 @@ export function createBedrockRoutes(
     try {
       const modelCatalog = getModelCatalog();
       if (!modelCatalog) {
-        return c.json({ success: false, error: 'Model catalog not initialized' }, 500);
+        return c.json(
+          { success: false, error: 'Model catalog not initialized' },
+          500,
+        );
       }
       const modelId = c.req.param('modelId');
       const models = await modelCatalog.listModels();
-      const model = models.find(m => m.modelId === modelId);
-      
+      const model = models.find((m) => m.modelId === modelId);
+
       if (!model) {
         return c.json({ success: false, error: 'Model not found' }, 404);
       }
-      
+
       return c.json({ success: true, data: model });
     } catch (error: any) {
       logger.error('Failed to get model details', { error });

@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 export function useTabKeyboardShortcuts<T extends string>(
   tabs: readonly T[],
   currentTab: T,
-  setTab: (tab: T) => void
+  setTab: (tab: T) => void,
 ) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -17,7 +17,7 @@ export function useTabKeyboardShortcuts<T extends string>(
 
       // Direct tab access (⌘1-9)
       if (e.key >= '1' && e.key <= '9') {
-        const index = parseInt(e.key) - 1;
+        const index = parseInt(e.key, 10) - 1;
         if (tabs[index]) {
           e.preventDefault();
           setTab(tabs[index]);

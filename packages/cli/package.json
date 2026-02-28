@@ -6,7 +6,9 @@
   "bin": {
     "wa": "./src/cli.ts"
   },
-  "files": ["src/"],
+  "files": [
+    "src/"
+  ],
   "dependencies": {
     "@work-agent/shared": "^0.1.0"
   },

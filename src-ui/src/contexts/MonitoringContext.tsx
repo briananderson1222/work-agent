@@ -38,8 +38,8 @@ export interface MonitoringEvent {
   data?: any;
   healthy?: boolean;
   checks?: Record<string, boolean>;
-  integrations?: Array<{ 
-    id: string; 
+  integrations?: Array<{
+    id: string;
     type: string;
     connected: boolean;
     metadata?: {
@@ -58,9 +58,10 @@ class MonitoringStore {
   private pollInterval: NodeJS.Timeout | null = null;
   private lastHeartbeat: number = Date.now();
   private heartbeatCheckInterval: NodeJS.Timeout | null = null;
-  private cachedSnapshot: { stats: MonitoringStats | null; events: MonitoringEvent[] } | null = null;
-  private dateRange: { start?: Date; end?: Date } | null = null;
-  private isLiveMode: boolean = true;
+  private cachedSnapshot: {
+    stats: MonitoringStats | null;
+    events: MonitoringEvent[];
+  } | null = null;
 
   constructor(apiBase: string) {
     this.apiBase = apiBase;
@@ -83,13 +84,13 @@ class MonitoringStore {
 
   private notify() {
     this.cachedSnapshot = null;
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   }
 
   async fetchStats() {
     try {
       const response = await fetch(`${this.apiBase}/monitoring/stats`, {
-        headers: { 'x-user-id': 'default-user' }
+        headers: { 'x-user-id': 'default-user' },
       });
       const result = await response.json();
       if (result.success) {
@@ -106,12 +107,15 @@ class MonitoringStore {
       const params = new URLSearchParams();
       if (start) params.set('start', start.toISOString());
       if (end) params.set('end', end.toISOString());
-      
-      const response = await fetch(`${this.apiBase}/monitoring/events?${params}`, {
-        headers: { 'x-user-id': 'default-user' }
-      });
+
+      const response = await fetch(
+        `${this.apiBase}/monitoring/events?${params}`,
+        {
+          headers: { 'x-user-id': 'default-user' },
+        },
+      );
       const result = await response.json();
-      
+
       if (result.success) {
         this.events = result.data;
         this.notify();
@@ -134,19 +138,19 @@ class MonitoringStore {
         this.disconnect();
         this.connectEventStream();
         return;
-      
+
       case 'today':
         start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         break;
-      
+
       case 'week':
         start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
-      
+
       case 'month':
         start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
-      
+
       case 'all':
         start = undefined;
         end = undefined;
@@ -181,12 +185,14 @@ class MonitoringStore {
     const start = startFrom || new Date(now.getTime() - 5 * 60 * 1000);
     this.fetchHistoricalEvents(start, now);
 
-    this.eventSource = new EventSource(`${this.apiBase}/monitoring/events?userId=default-user`);
-    
+    this.eventSource = new EventSource(
+      `${this.apiBase}/monitoring/events?userId=default-user`,
+    );
+
     this.eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
+
         // Filter out SSE protocol events
         if (data.type === 'heartbeat') {
           this.lastHeartbeat = Date.now();
@@ -195,24 +201,30 @@ class MonitoringStore {
         if (data.type === 'connected') {
           return; // SSE handshake, not a monitoring event
         }
-        
+
         this.events = [data, ...this.events].slice(0, 1000);
-        
+
         // Update stats in real-time based on events
         if (data.type === 'agent-start' && this.stats) {
-          const agent = this.stats.agents.find(a => a.slug === data.agentSlug);
+          const agent = this.stats.agents.find(
+            (a) => a.slug === data.agentSlug,
+          );
           if (agent) agent.status = 'running';
         } else if (data.type === 'agent-complete' && this.stats) {
-          const agent = this.stats.agents.find(a => a.slug === data.agentSlug);
+          const agent = this.stats.agents.find(
+            (a) => a.slug === data.agentSlug,
+          );
           if (agent) {
             agent.status = 'idle';
             agent.messageCount += 2; // User + assistant message
           }
         } else if (data.type === 'agent-health' && this.stats) {
-          const agent = this.stats.agents.find(a => a.slug === data.agentSlug);
+          const agent = this.stats.agents.find(
+            (a) => a.slug === data.agentSlug,
+          );
           if (agent) agent.healthy = data.healthy;
         }
-        
+
         this.notify();
       } catch (error) {
         log.api('Failed to parse event:', error);
@@ -228,13 +240,14 @@ class MonitoringStore {
     // Poll stats every 5 seconds
     this.pollInterval = setInterval(() => this.fetchStats(), 5000);
     this.fetchStats(); // Initial fetch
-    
+
     // Check heartbeat every 10 seconds - reset running agents if no heartbeat
     this.heartbeatCheckInterval = setInterval(() => {
       const timeSinceHeartbeat = Date.now() - this.lastHeartbeat;
-      if (timeSinceHeartbeat > 60000 && this.stats) { // 60 seconds without heartbeat
+      if (timeSinceHeartbeat > 60000 && this.stats) {
+        // 60 seconds without heartbeat
         log.debug('No heartbeat for 60s, resetting running agents to idle');
-        this.stats.agents.forEach(agent => {
+        this.stats.agents.forEach((agent) => {
           if (agent.status === 'running') {
             agent.status = 'idle';
           }
@@ -280,13 +293,15 @@ export function useMonitoring() {
   const { apiBase } = useApiBase();
   const store = useMemo(() => getStore(apiBase), [apiBase]);
   const data = useSyncExternalStore(store.subscribe, store.getSnapshot);
-  
+
   return {
     stats: data.stats,
     events: data.events,
     clearEvents: () => store.clearEvents(),
     refresh: () => store.fetchStats(),
-    setDateRange: (range: 'now' | 'today' | 'week' | 'month' | 'all') => store.setDateRange(range),
-    setTimeRange: (start?: Date, end?: Date, isLive?: boolean) => store.setTimeRange(start, end, isLive),
+    setDateRange: (range: 'now' | 'today' | 'week' | 'month' | 'all') =>
+      store.setDateRange(range),
+    setTimeRange: (start?: Date, end?: Date, isLive?: boolean) =>
+      store.setTimeRange(start, end, isLive),
   };
 }

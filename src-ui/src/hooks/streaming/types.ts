@@ -56,7 +56,13 @@ export interface HandlerContext {
   updateChat: (sessionId: string, updates: any) => void;
   apiBase?: string;
   showToolApproval?: (options: any) => void;
-  handleToolApproval?: (sessionId: string, agentSlug: string, approvalId: string, toolName: string, action: string) => void;
+  handleToolApproval?: (
+    sessionId: string,
+    agentSlug: string,
+    approvalId: string,
+    toolName: string,
+    action: string,
+  ) => void;
   onNavigateToChat?: (sessionId: string) => void;
   activeChatsStore?: any;
 }

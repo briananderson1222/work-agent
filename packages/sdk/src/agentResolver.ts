@@ -19,7 +19,7 @@ export function _setWorkspaceContext(workspace: WorkspaceConfig | undefined) {
  */
 export function resolveAgentName(
   agentName: string,
-  workspace?: WorkspaceConfig
+  workspace?: WorkspaceConfig,
 ): string {
   if (agentName.includes(':')) {
     return agentName;
@@ -29,8 +29,8 @@ export function resolveAgentName(
   const activeWorkspace = workspace || _currentWorkspace;
 
   if (activeWorkspace?.availableAgents) {
-    const match = activeWorkspace.availableAgents.find(a => 
-      a.endsWith(`:${agentName}`)
+    const match = activeWorkspace.availableAgents.find((a) =>
+      a.endsWith(`:${agentName}`),
     );
     if (match) return match;
   }
@@ -41,7 +41,10 @@ export function resolveAgentName(
 /**
  * Extract namespace and short name from agent slug
  */
-export function parseAgentSlug(slug: string): { namespace?: string; name: string } {
+export function parseAgentSlug(slug: string): {
+  namespace?: string;
+  name: string;
+} {
   const parts = slug.split(':');
   if (parts.length === 2) {
     return { namespace: parts[0], name: parts[1] };

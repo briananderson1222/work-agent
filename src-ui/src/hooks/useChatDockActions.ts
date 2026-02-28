@@ -1,7 +1,11 @@
 import { useCallback } from 'react';
-import { useActiveChatActions, useCreateChatSession, useOpenConversation } from '../contexts/ActiveChatsContext';
-import { useNavigation } from '../contexts/NavigationContext';
+import {
+  useActiveChatActions,
+  useCreateChatSession,
+  useOpenConversation,
+} from '../contexts/ActiveChatsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useNavigation } from '../contexts/NavigationContext';
 import type { AgentSummary } from '../types';
 
 interface DerivedSession {
@@ -29,45 +33,77 @@ export function useChatDockActions({
   const createChatSession = useCreateChatSession();
   const openConversationAction = useOpenConversation(apiBase);
 
-  const focusSession = useCallback((sessionId: string) => {
-    setActiveSessionId(sessionId);
-    setActiveChat(sessionId);
-    setDockState(true, isDockMaximized);
-    updateChat(sessionId, { hasUnread: false });
-  }, [setActiveSessionId, setActiveChat, setDockState, isDockMaximized, updateChat]);
+  const focusSession = useCallback(
+    (sessionId: string) => {
+      setActiveSessionId(sessionId);
+      setActiveChat(sessionId);
+      setDockState(true, isDockMaximized);
+      updateChat(sessionId, { hasUnread: false });
+    },
+    [
+      setActiveSessionId,
+      setActiveChat,
+      setDockState,
+      isDockMaximized,
+      updateChat,
+    ],
+  );
 
-  const removeSession = useCallback((sessionId: string) => {
-    removeChat(sessionId);
-    if (activeSessionId === sessionId) {
-      const remaining = sessions.filter(s => s.id !== sessionId);
-      const next = remaining[remaining.length - 1]?.id ?? null;
-      setActiveSessionId(next);
-      setActiveChat(next);
-    }
-  }, [removeChat, activeSessionId, sessions, setActiveSessionId, setActiveChat]);
+  const removeSession = useCallback(
+    (sessionId: string) => {
+      removeChat(sessionId);
+      if (activeSessionId === sessionId) {
+        const remaining = sessions.filter((s) => s.id !== sessionId);
+        const next = remaining[remaining.length - 1]?.id ?? null;
+        setActiveSessionId(next);
+        setActiveChat(next);
+      }
+    },
+    [removeChat, activeSessionId, sessions, setActiveSessionId, setActiveChat],
+  );
 
-  const openChatForAgent = useCallback((agent: AgentSummary) => {
-    const sessionId = createChatSession(agent.slug, agent.name);
-    setActiveSessionId(sessionId);
-    setActiveChat(sessionId);
-    setDockState(true, false);
-  }, [createChatSession, setActiveSessionId, setActiveChat, setDockState]);
+  const openChatForAgent = useCallback(
+    (agent: AgentSummary) => {
+      const sessionId = createChatSession(agent.slug, agent.name);
+      setActiveSessionId(sessionId);
+      setActiveChat(sessionId);
+      setDockState(true, false);
+    },
+    [createChatSession, setActiveSessionId, setActiveChat, setDockState],
+  );
 
-  const openConversation = useCallback(async (conversationId: string, agentSlug: string) => {
-    const agent = agents.find(a => a.slug === agentSlug);
-    if (!agent) return;
-    
-    const existing = sessions.find(s => s.conversationId === conversationId);
-    if (existing) {
-      focusSession(existing.id);
-      return;
-    }
-    
-    const sessionId = await openConversationAction(conversationId, agentSlug, agent.name);
-    setActiveSessionId(sessionId);
-    setActiveChat(sessionId);
-    setDockState(true, false);
-  }, [agents, sessions, focusSession, openConversationAction, setActiveSessionId, setActiveChat, setDockState]);
+  const openConversation = useCallback(
+    async (conversationId: string, agentSlug: string) => {
+      const agent = agents.find((a) => a.slug === agentSlug);
+      if (!agent) return;
+
+      const existing = sessions.find(
+        (s) => s.conversationId === conversationId,
+      );
+      if (existing) {
+        focusSession(existing.id);
+        return;
+      }
+
+      const sessionId = await openConversationAction(
+        conversationId,
+        agentSlug,
+        agent.name,
+      );
+      setActiveSessionId(sessionId);
+      setActiveChat(sessionId);
+      setDockState(true, false);
+    },
+    [
+      agents,
+      sessions,
+      focusSession,
+      openConversationAction,
+      setActiveSessionId,
+      setActiveChat,
+      setDockState,
+    ],
+  );
 
   return {
     focusSession,

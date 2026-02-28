@@ -2,12 +2,16 @@
  * JSON schema validator for configuration files
  */
 
-import Ajv, { type ValidateFunction, type ErrorObject } from 'ajv';
-import type { AgentSpec, ToolDef, AppConfig, WorkspaceConfig } from './types.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import type {
+  AgentSpec,
+  AppConfig,
+  ToolDef,
+  WorkspaceConfig,
+} from './types.js';
 
 // Type extensions for validator
 interface WorkspaceConfigCandidate {
@@ -19,7 +23,7 @@ interface WorkspaceConfigCandidate {
 export class ValidationError extends Error {
   constructor(
     message: string,
-    public readonly errors: ErrorObject[]
+    public readonly errors: ErrorObject[],
   ) {
     super(message);
     this.name = 'ValidationError';
@@ -35,9 +39,15 @@ export class SchemaValidator {
     this.validators = new Map();
 
     // Load schemas from files (relative to working directory)
-    const appSchema = JSON.parse(readFileSync(join(process.cwd(), 'schemas/app.schema.json'), 'utf-8'));
-    const agentSchema = JSON.parse(readFileSync(join(process.cwd(), 'schemas/agent.schema.json'), 'utf-8'));
-    const toolSchema = JSON.parse(readFileSync(join(process.cwd(), 'schemas/tool.schema.json'), 'utf-8'));
+    const appSchema = JSON.parse(
+      readFileSync(join(process.cwd(), 'schemas/app.schema.json'), 'utf-8'),
+    );
+    const agentSchema = JSON.parse(
+      readFileSync(join(process.cwd(), 'schemas/agent.schema.json'), 'utf-8'),
+    );
+    const toolSchema = JSON.parse(
+      readFileSync(join(process.cwd(), 'schemas/tool.schema.json'), 'utf-8'),
+    );
 
     // Register schemas
     this.ajv.addSchema(appSchema, 'app');
@@ -97,7 +107,10 @@ export class SchemaValidator {
     // Validate tabs
     for (const tab of config.tabs) {
       if (!tab.id || !tab.label || !tab.component) {
-        throw new ValidationError('Each tab must have id, label, and component', []);
+        throw new ValidationError(
+          'Each tab must have id, label, and component',
+          [],
+        );
       }
     }
   }
@@ -130,13 +143,15 @@ export class SchemaValidator {
       const message = error.message || 'validation failed';
 
       if (error.keyword === 'required') {
-        const missing = (error.params as { missingProperty: string }).missingProperty;
+        const missing = (error.params as { missingProperty: string })
+          .missingProperty;
         lines.push(`  ${path}: missing required property '${missing}'`);
       } else if (error.keyword === 'type') {
         const expected = (error.params as { type: string }).type;
         lines.push(`  ${path}: ${message} (expected ${expected})`);
       } else if (error.keyword === 'enum') {
-        const allowed = (error.params as { allowedValues: string[] }).allowedValues;
+        const allowed = (error.params as { allowedValues: string[] })
+          .allowedValues;
         lines.push(`  ${path}: must be one of: ${allowed.join(', ')}`);
       } else {
         lines.push(`  ${path}: ${message}`);
@@ -149,38 +164,44 @@ export class SchemaValidator {
   /**
    * Try to validate and return result instead of throwing
    */
-  tryValidateAppConfig(data: unknown): { valid: true; data: AppConfig } | { valid: false; error: string } {
+  tryValidateAppConfig(
+    data: unknown,
+  ): { valid: true; data: AppConfig } | { valid: false; error: string } {
     try {
       this.validateAppConfig(data);
       return { valid: true, data: data as AppConfig };
     } catch (error) {
       return {
         valid: false,
-        error: error instanceof ValidationError ? error.message : String(error)
+        error: error instanceof ValidationError ? error.message : String(error),
       };
     }
   }
 
-  tryValidateAgentSpec(data: unknown): { valid: true; data: AgentSpec } | { valid: false; error: string } {
+  tryValidateAgentSpec(
+    data: unknown,
+  ): { valid: true; data: AgentSpec } | { valid: false; error: string } {
     try {
       this.validateAgentSpec(data);
       return { valid: true, data: data as AgentSpec };
     } catch (error) {
       return {
         valid: false,
-        error: error instanceof ValidationError ? error.message : String(error)
+        error: error instanceof ValidationError ? error.message : String(error),
       };
     }
   }
 
-  tryValidateToolDef(data: unknown): { valid: true; data: ToolDef } | { valid: false; error: string } {
+  tryValidateToolDef(
+    data: unknown,
+  ): { valid: true; data: ToolDef } | { valid: false; error: string } {
     try {
       this.validateToolDef(data);
       return { valid: true, data: data as ToolDef };
     } catch (error) {
       return {
         valid: false,
-        error: error instanceof ValidationError ? error.message : String(error)
+        error: error instanceof ValidationError ? error.message : String(error),
       };
     }
   }
@@ -194,19 +215,19 @@ export const validator: SchemaValidator = new SchemaValidator();
  */
 export async function validateBedrockModelId(
   modelId: string,
-  region: string = 'us-east-1'
+  region: string = 'us-east-1',
 ): Promise<{ valid: boolean; error?: string }> {
   try {
     const catalog = new BedrockModelCatalog(region);
     const isValid = await catalog.validateModelId(modelId);
-    
+
     if (!isValid) {
       return {
         valid: false,
         error: `Model ID "${modelId}" is not available in region ${region}`,
       };
     }
-    
+
     return { valid: true };
   } catch (error: any) {
     return {

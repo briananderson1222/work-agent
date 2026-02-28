@@ -3,10 +3,13 @@ interface SystemEventMessageProps {
   messageKey: string;
 }
 
-export function SystemEventMessage({ content, messageKey }: SystemEventMessageProps) {
+export function SystemEventMessage({
+  content,
+  messageKey,
+}: SystemEventMessageProps) {
   return (
-    <div 
-      key={messageKey} 
+    <div
+      key={messageKey}
       className="message system-event"
       style={{
         padding: '8px 12px',
@@ -17,7 +20,7 @@ export function SystemEventMessage({ content, messageKey }: SystemEventMessagePr
         fontSize: '0.85em',
         fontStyle: 'italic',
         color: 'var(--text-muted)',
-        textAlign: 'center'
+        textAlign: 'center',
       }}
     >
       {content}

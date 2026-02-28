@@ -1,5 +1,5 @@
-import { AutoSelectModal, AutoSelectItem } from './AutoSelectModal';
 import type { AgentSummary } from '../types';
+import { type AutoSelectItem, AutoSelectModal } from './AutoSelectModal';
 
 export interface AgentSelectorModalProps {
   agents: AgentSummary[];
@@ -7,8 +7,12 @@ export interface AgentSelectorModalProps {
   onCancel: () => void;
 }
 
-export function AgentSelectorModal({ agents, onSelect, onCancel }: AgentSelectorModalProps) {
-  const items: AutoSelectItem<AgentSummary>[] = agents.map(agent => ({
+export function AgentSelectorModal({
+  agents,
+  onSelect,
+  onCancel,
+}: AgentSelectorModalProps) {
+  const items: AutoSelectItem<AgentSummary>[] = agents.map((agent) => ({
     id: agent.slug,
     title: agent.name,
     subtitle: agent.model,

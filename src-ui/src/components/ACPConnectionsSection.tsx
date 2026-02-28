@@ -1,10 +1,12 @@
-import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ConfirmModal } from './ConfirmModal';
-import { useACPConnections, type ACPConnectionInfo } from '../hooks/useACPConnections';
+import { useState } from 'react';
+import {
+  type ACPConnectionInfo,
+  useACPConnections,
+} from '../hooks/useACPConnections';
 import { useSystemStatus } from '../hooks/useSystemStatus';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import type { AgentSummary } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface ACPConnectionsSectionProps {
   acpAgents: AgentSummary[];
@@ -13,12 +15,28 @@ interface ACPConnectionsSectionProps {
 
 function ConnectionIcon({ icon, size = 24 }: { icon?: string; size?: number }) {
   if (icon && (icon.startsWith('http') || icon.startsWith('/'))) {
-    return <img src={icon} alt="" style={{ width: size, height: size, borderRadius: 4 }} />;
+    return (
+      <img
+        src={icon}
+        alt=""
+        style={{ width: size, height: size, borderRadius: 4 }}
+      />
+    );
   }
   if (icon) return <span style={{ fontSize: size * 0.75 }}>{icon}</span>;
   // Default: contact-card style SVG
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ color: 'var(--text-muted)' }}
+    >
       <rect x="2" y="4" width="20" height="16" rx="2" />
       <circle cx="9" cy="11" r="2.5" />
       <path d="M5 18c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5" />
@@ -29,24 +47,45 @@ function ConnectionIcon({ icon, size = 24 }: { icon?: string; size?: number }) {
 }
 
 const ACP_PRESETS = [
-  { id: 'kiro', name: 'kiro-cli', command: 'kiro-cli', args: 'acp', icon: '/kiro-icon.png', cliKey: 'kiro-cli' },
-  { id: 'claude', name: 'Claude Code', command: 'claude', args: 'acp', icon: '🟠', cliKey: 'claude' },
+  {
+    id: 'kiro',
+    name: 'kiro-cli',
+    command: 'kiro-cli',
+    args: 'acp',
+    icon: '/kiro-icon.png',
+    cliKey: 'kiro-cli',
+  },
+  {
+    id: 'claude',
+    name: 'Claude Code',
+    command: 'claude',
+    args: 'acp',
+    icon: '🟠',
+    cliKey: 'claude',
+  },
 ];
 
-export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSectionProps) {
+export function ACPConnectionsSection({
+  acpAgents,
+  apiBase,
+}: ACPConnectionsSectionProps) {
   const { data: connections = [] } = useACPConnections();
   const { data: systemStatus } = useSystemStatus();
   const queryClient = useQueryClient();
   const [showPresets, setShowPresets] = useState(false);
   const [showCustomModal, setShowCustomModal] = useState(false);
-  const [selectedConn, setSelectedConn] = useState<ACPConnectionInfo | null>(null);
+  const [selectedConn, setSelectedConn] = useState<ACPConnectionInfo | null>(
+    null,
+  );
   const detectedClis = systemStatus?.clis || {};
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['acp-connections'] });
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ['acp-connections'] });
 
   const toggleEnabled = async (id: string, enabled: boolean) => {
     await fetch(`${apiBase}/acp/connections/${id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
     });
     refresh();
@@ -59,43 +98,85 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
 
   const addConnection = async (data: any) => {
     await fetch(`${apiBase}/acp/connections`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, args: typeof data.args === 'string' ? data.args.split(/\s+/) : data.args }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...data,
+        args:
+          typeof data.args === 'string' ? data.args.split(/\s+/) : data.args,
+      }),
     });
     setShowPresets(false);
     setShowCustomModal(false);
     refresh();
   };
 
-  const existingIds = new Set(connections.map(c => c.id));
-  const availablePresets = ACP_PRESETS.filter(p => !existingIds.has(p.id));
+  const existingIds = new Set(connections.map((c) => c.id));
+  const availablePresets = ACP_PRESETS.filter((p) => !existingIds.has(p.id));
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '32px', marginBottom: '12px' }}>
-        <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent-acp)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: '32px',
+          marginBottom: '12px',
+        }}
+      >
+        <h2
+          style={{
+            fontSize: '14px',
+            fontWeight: 600,
+            color: 'var(--accent-acp)',
+            margin: 0,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
           Agent Client Protocol (ACP)
         </h2>
         <div style={{ position: 'relative' }}>
-          <button className="button button--secondary" onClick={() => setShowPresets(!showPresets)}>
+          <button
+            className="button button--secondary"
+            onClick={() => setShowPresets(!showPresets)}
+          >
             + Add Connection
           </button>
           {showPresets && (
             <div className="acp-preset-menu">
-              {availablePresets.map(preset => {
+              {availablePresets.map((preset) => {
                 const installed = detectedClis[preset.cliKey];
                 return (
-                  <button key={preset.id}
+                  <button
+                    key={preset.id}
                     className={`acp-preset-item${installed ? '' : ' acp-preset-item--disabled'}`}
-                    onClick={() => installed && addConnection(preset)}>
+                    onClick={() => installed && addConnection(preset)}
+                  >
                     <ConnectionIcon icon={preset.icon} size={20} />
                     <span className="acp-preset-item__name">{preset.name}</span>
-                    {!installed && <span className="acp-preset-item__hint">not installed</span>}
+                    {!installed && (
+                      <span className="acp-preset-item__hint">
+                        not installed
+                      </span>
+                    )}
                   </button>
                 );
               })}
-              {availablePresets.length > 0 && <div className="acp-preset-divider" />}
-              <button className="acp-preset-item" onClick={() => { setShowPresets(false); setShowCustomModal(true); }}>
+              {availablePresets.length > 0 && (
+                <div className="acp-preset-divider" />
+              )}
+              <button
+                className="acp-preset-item"
+                onClick={() => {
+                  setShowPresets(false);
+                  setShowCustomModal(true);
+                }}
+              >
                 <span style={{ fontSize: 15 }}>⚙️</span>
                 <span className="acp-preset-item__name">Custom…</span>
               </button>
@@ -104,15 +185,29 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
         </div>
       </div>
 
-      {showCustomModal && <AddConnectionModal onAdd={addConnection} onCancel={() => setShowCustomModal(false)} />}
+      {showCustomModal && (
+        <AddConnectionModal
+          onAdd={addConnection}
+          onCancel={() => setShowCustomModal(false)}
+        />
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-        {connections.map(conn => (
-          <ConnectionCard key={conn.id} conn={conn}
-            agents={acpAgents.filter(a => a.slug.startsWith(conn.id + '-'))}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gap: '16px',
+        }}
+      >
+        {connections.map((conn) => (
+          <ConnectionCard
+            key={conn.id}
+            conn={conn}
+            agents={acpAgents.filter((a) => a.slug.startsWith(`${conn.id}-`))}
             onClick={() => setSelectedConn(conn)}
             onToggle={(enabled) => toggleEnabled(conn.id, enabled)}
-            onRemove={() => removeConnection(conn.id)} />
+            onRemove={() => removeConnection(conn.id)}
+          />
         ))}
       </div>
 
@@ -121,7 +216,8 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
           <ConnectionIcon size={48} />
           <p className="acp-empty__text">No ACP connections configured</p>
           <p className="acp-empty__hint">
-            Add a connection to use external AI agents like kiro-cli, Gemini CLI, or Goose
+            Add a connection to use external AI agents like kiro-cli, Gemini
+            CLI, or Goose
           </p>
         </div>
       )}
@@ -129,7 +225,9 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
       {selectedConn && (
         <ConnectionDetailModal
           conn={selectedConn}
-          agents={acpAgents.filter(a => a.slug.startsWith(selectedConn.id + '-'))}
+          agents={acpAgents.filter((a) =>
+            a.slug.startsWith(`${selectedConn.id}-`),
+          )}
           onClose={() => setSelectedConn(null)}
         />
       )}
@@ -137,70 +235,175 @@ export function ACPConnectionsSection({ acpAgents, apiBase }: ACPConnectionsSect
   );
 }
 
-function ConnectionCard({ conn, agents, onClick, onToggle, onRemove }: {
-  conn: ACPConnectionInfo; agents: AgentSummary[];
-  onClick: () => void; onToggle: (enabled: boolean) => void; onRemove: () => void;
+function ConnectionCard({
+  conn,
+  agents,
+  onClick,
+  onToggle,
+  onRemove,
+}: {
+  conn: ACPConnectionInfo;
+  agents: AgentSummary[];
+  onClick: () => void;
+  onToggle: (enabled: boolean) => void;
+  onRemove: () => void;
 }) {
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const isConnected = conn.status === 'connected';
-  const statusColor = isConnected ? 'var(--success-text)' : conn.status === 'connecting' ? 'var(--accent-acp)' : conn.status === 'error' ? 'var(--error-text)' : 'var(--text-muted)';
+  const statusColor = isConnected
+    ? 'var(--success-text)'
+    : conn.status === 'connecting'
+      ? 'var(--accent-acp)'
+      : conn.status === 'error'
+        ? 'var(--error-text)'
+        : 'var(--text-muted)';
 
   return (
-    <div onClick={onClick} style={{
-      background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
-      borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px',
-      cursor: 'pointer', transition: 'border-color 0.2s',
-    }}
-    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-acp)'}
-    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
+    <div
+      onClick={onClick}
+      style={{
+        background: 'var(--color-bg-secondary)',
+        border: '1px solid var(--color-border)',
+        borderRadius: '12px',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        cursor: 'pointer',
+        transition: 'border-color 0.2s',
+      }}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.borderColor = 'var(--accent-acp)')
+      }
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.borderColor = 'var(--color-border)')
+      }
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ConnectionIcon icon={conn.icon} size={32} />
           <div>
             <div style={{ fontSize: '16px', fontWeight: 600 }}>{conn.name}</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                fontFamily: 'monospace',
+              }}
+            >
               {conn.command} {(conn.args || []).join(' ')}
             </div>
             {conn.cwd && (
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: '2px' }}>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'monospace',
+                  marginTop: '2px',
+                }}
+              >
                 📁 {conn.cwd}
               </div>
             )}
           </div>
         </div>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 500,
-          padding: '3px 8px', borderRadius: '4px', background: `color-mix(in srgb, ${statusColor} 12%, transparent)`, color: statusColor,
-        }}>
-          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: statusColor }} />
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: 500,
+            padding: '3px 8px',
+            borderRadius: '4px',
+            background: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
+            color: statusColor,
+          }}
+        >
+          <span
+            style={{
+              width: '5px',
+              height: '5px',
+              borderRadius: '50%',
+              background: statusColor,
+            }}
+          />
           {conn.status}
         </span>
       </div>
 
       {isConnected && agents.length > 0 && (
         <div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div
+            style={{
+              fontSize: '11px',
+              color: 'var(--text-muted)',
+              marginBottom: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
+          >
             {agents.length} agents
           </div>
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-            {agents.slice(0, 8).map(a => (
-              <span key={a.slug} style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '3px', background: 'color-mix(in srgb, var(--accent-acp) 12%, transparent)', color: 'var(--accent-acp)', border: '1px solid color-mix(in srgb, var(--accent-acp) 25%, transparent)' }}>{a.name}</span>
+            {agents.slice(0, 8).map((a) => (
+              <span
+                key={a.slug}
+                style={{
+                  fontSize: '11px',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  background:
+                    'color-mix(in srgb, var(--accent-acp) 12%, transparent)',
+                  color: 'var(--accent-acp)',
+                  border:
+                    '1px solid color-mix(in srgb, var(--accent-acp) 25%, transparent)',
+                }}
+              >
+                {a.name}
+              </span>
             ))}
             {agents.length > 8 && (
-              <span style={{ fontSize: '11px', padding: '2px 6px', color: 'var(--text-muted)' }}>+{agents.length - 8} more</span>
+              <span
+                style={{
+                  fontSize: '11px',
+                  padding: '2px 6px',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                +{agents.length - 8} more
+              </span>
             )}
           </div>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-        <button className={`button button--small ${conn.enabled ? 'button--success' : 'button--secondary'}`} onClick={e => { e.stopPropagation(); if (conn.enabled) setShowDisableConfirm(true); else onToggle(true); }}>
+        <button
+          className={`button button--small ${conn.enabled ? 'button--success' : 'button--secondary'}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (conn.enabled) setShowDisableConfirm(true);
+            else onToggle(true);
+          }}
+        >
           {conn.enabled ? '● Enabled' : '○ Disabled'}
         </button>
         <div style={{ flex: 1 }} />
-        <button className="button button--small button--danger-outline" onClick={e => { e.stopPropagation(); setShowRemoveConfirm(true); }}>
+        <button
+          className="button button--small button--danger-outline"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowRemoveConfirm(true);
+          }}
+        >
           Remove
         </button>
       </div>
@@ -211,7 +414,10 @@ function ConnectionCard({ conn, agents, onClick, onToggle, onRemove }: {
         confirmLabel="Disable"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => { setShowDisableConfirm(false); onToggle(false); }}
+        onConfirm={() => {
+          setShowDisableConfirm(false);
+          onToggle(false);
+        }}
         onCancel={() => setShowDisableConfirm(false)}
       />
       <ConfirmModal
@@ -221,15 +427,28 @@ function ConnectionCard({ conn, agents, onClick, onToggle, onRemove }: {
         confirmLabel="Remove"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => { setShowRemoveConfirm(false); onRemove(); }}
+        onConfirm={() => {
+          setShowRemoveConfirm(false);
+          onRemove();
+        }}
         onCancel={() => setShowRemoveConfirm(false)}
       />
     </div>
   );
 }
 
-function AddConnectionModal({ onAdd, onCancel }: {
-  onAdd: (data: { id: string; name: string; command: string; args: string; icon: string; cwd: string }) => void;
+function AddConnectionModal({
+  onAdd,
+  onCancel,
+}: {
+  onAdd: (data: {
+    id: string;
+    name: string;
+    command: string;
+    args: string;
+    icon: string;
+    cwd: string;
+  }) => void;
   onCancel: () => void;
 }) {
   const [id, setId] = useState('');
@@ -241,7 +460,10 @@ function AddConnectionModal({ onAdd, onCancel }: {
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-dialog acp-custom-modal" onClick={e => e.stopPropagation()}>
+      <div
+        className="modal-dialog acp-custom-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Custom ACP Connection</h3>
         </div>
@@ -249,34 +471,77 @@ function AddConnectionModal({ onAdd, onCancel }: {
           <div className="acp-custom-modal__grid">
             <div>
               <label className="acp-custom-modal__label">ID (slug)</label>
-              <input className="acp-custom-modal__input" value={id} onChange={e => setId(e.target.value)} placeholder="gemini" />
+              <input
+                className="acp-custom-modal__input"
+                value={id}
+                onChange={(e) => setId(e.target.value)}
+                placeholder="gemini"
+              />
             </div>
             <div>
               <label className="acp-custom-modal__label">Display Name</label>
-              <input className="acp-custom-modal__input" value={name} onChange={e => setName(e.target.value)} placeholder="Gemini CLI" />
+              <input
+                className="acp-custom-modal__input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Gemini CLI"
+              />
             </div>
             <div>
               <label className="acp-custom-modal__label">Command</label>
-              <input className="acp-custom-modal__input" value={command} onChange={e => setCommand(e.target.value)} placeholder="gemini" />
+              <input
+                className="acp-custom-modal__input"
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                placeholder="gemini"
+              />
             </div>
             <div>
               <label className="acp-custom-modal__label">Arguments</label>
-              <input className="acp-custom-modal__input" value={args} onChange={e => setArgs(e.target.value)} placeholder="--acp" />
+              <input
+                className="acp-custom-modal__input"
+                value={args}
+                onChange={(e) => setArgs(e.target.value)}
+                placeholder="--acp"
+              />
             </div>
             <div>
-              <label className="acp-custom-modal__label">Icon (emoji or URL)</label>
-              <input className="acp-custom-modal__input" value={icon} onChange={e => setIcon(e.target.value)} placeholder="Emoji or image URL" />
+              <label className="acp-custom-modal__label">
+                Icon (emoji or URL)
+              </label>
+              <input
+                className="acp-custom-modal__input"
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                placeholder="Emoji or image URL"
+              />
             </div>
             <div>
-              <label className="acp-custom-modal__label">Working Directory</label>
-              <input className="acp-custom-modal__input" value={cwd} onChange={e => setCwd(e.target.value)} placeholder="(defaults to server cwd)" />
+              <label className="acp-custom-modal__label">
+                Working Directory
+              </label>
+              <input
+                className="acp-custom-modal__input"
+                value={cwd}
+                onChange={(e) => setCwd(e.target.value)}
+                placeholder="(defaults to server cwd)"
+              />
             </div>
           </div>
         </div>
         <div className="modal-footer">
-          <button className="button button--secondary" onClick={onCancel}>Cancel</button>
-          <button className="button button--primary" onClick={() => id && command && onAdd({ id, name: name || id, command, args, icon, cwd })}
-            disabled={!id || !command}>
+          <button className="button button--secondary" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            className="button button--primary"
+            onClick={() =>
+              id &&
+              command &&
+              onAdd({ id, name: name || id, command, args, icon, cwd })
+            }
+            disabled={!id || !command}
+          >
             Add Connection
           </button>
         </div>
@@ -285,53 +550,190 @@ function AddConnectionModal({ onAdd, onCancel }: {
   );
 }
 
-function ConnectionDetailModal({ conn, agents, onClose }: {
-  conn: ACPConnectionInfo; agents: AgentSummary[]; onClose: () => void;
+function ConnectionDetailModal({
+  conn,
+  agents,
+  onClose,
+}: {
+  conn: ACPConnectionInfo;
+  agents: AgentSummary[];
+  onClose: () => void;
 }) {
   const isConnected = conn.status === 'connected';
-  const statusColor = isConnected ? 'var(--success-text)' : conn.status === 'error' ? 'var(--error-text)' : 'var(--text-muted)';
+  const statusColor = isConnected
+    ? 'var(--success-text)'
+    : conn.status === 'error'
+      ? 'var(--error-text)'
+      : 'var(--text-muted)';
 
-  const sectionLabel: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' };
+  const sectionLabel: React.CSSProperties = {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '8px',
+  };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }} onClick={onClose}>
-      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)', borderRadius: '12px', width: '90%', maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--border-primary)',
+          borderRadius: '12px',
+          width: '90%',
+          maxWidth: '600px',
+          maxHeight: '80vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-primary)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div
+          style={{
+            padding: '20px',
+            borderBottom: '1px solid var(--border-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
           <ConnectionIcon icon={conn.icon} size={32} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '18px', fontWeight: 600 }}>{conn.name}</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{conn.id}</div>
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                fontFamily: 'monospace',
+              }}
+            >
+              {conn.id}
+            </div>
           </div>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 500, padding: '4px 10px', borderRadius: '4px', background: `color-mix(in srgb, ${statusColor} 12%, transparent)`, color: statusColor }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusColor }} />
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '4px 10px',
+              borderRadius: '4px',
+              background: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
+              color: statusColor,
+            }}
+          >
+            <span
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: statusColor,
+              }}
+            />
             {conn.status}
           </span>
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div
+          style={{
+            padding: '20px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+          }}
+        >
           {/* Command */}
           <div>
             <div style={sectionLabel}>Command</div>
-            <code style={{ fontSize: '13px', color: 'var(--text-primary)', background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: '6px', display: 'block', fontFamily: 'monospace' }}>
+            <code
+              style={{
+                fontSize: '13px',
+                color: 'var(--text-primary)',
+                background: 'var(--bg-tertiary)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                display: 'block',
+                fontFamily: 'monospace',
+              }}
+            >
               {conn.command} {(conn.args || []).join(' ')}
             </code>
-            {conn.cwd && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>📁 {conn.cwd}</div>}
+            {conn.cwd && (
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  marginTop: '4px',
+                }}
+              >
+                📁 {conn.cwd}
+              </div>
+            )}
           </div>
 
           {/* Agents */}
           {agents.length > 0 && (
             <div>
               <div style={sectionLabel}>Agents ({agents.length})</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {agents.map(a => (
-                  <div key={a.slug} style={{ fontSize: '13px', padding: '8px 10px', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+              >
+                {agents.map((a) => (
+                  <div
+                    key={a.slug}
+                    style={{
+                      fontSize: '13px',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      background: 'var(--bg-tertiary)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
                       <span style={{ fontWeight: 500 }}>{a.name}</span>
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '11px' }}>{a.slug}</span>
+                      <span
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontFamily: 'monospace',
+                          fontSize: '11px',
+                        }}
+                      >
+                        {a.slug}
+                      </span>
                     </div>
-                    {a.description && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{a.description}</div>}
+                    {a.description && (
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: 'var(--text-muted)',
+                          marginTop: '4px',
+                        }}
+                      >
+                        {a.description}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -342,11 +744,27 @@ function ConnectionDetailModal({ conn, agents, onClose }: {
           {conn.configOptions && conn.configOptions.length > 0 && (
             <div>
               <div style={sectionLabel}>Configuration</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
+              >
                 {conn.configOptions.map((opt, i) => (
-                  <div key={i} style={{ fontSize: '13px', padding: '6px 10px', borderRadius: '6px', background: 'var(--bg-tertiary)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{opt.category}</span>
-                    <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{opt.currentValue || '—'}</span>
+                  <div
+                    key={i}
+                    style={{
+                      fontSize: '13px',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      background: 'var(--bg-tertiary)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {opt.category}
+                    </span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                      {opt.currentValue || '—'}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -357,14 +775,31 @@ function ConnectionDetailModal({ conn, agents, onClose }: {
           {conn.sessionId && (
             <div>
               <div style={sectionLabel}>Session</div>
-              <code style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{conn.sessionId}</code>
+              <code
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'monospace',
+                }}
+              >
+                {conn.sessionId}
+              </code>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-primary)', display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="button button--secondary" onClick={onClose}>Close</button>
+        <div
+          style={{
+            padding: '16px 20px',
+            borderTop: '1px solid var(--border-primary)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <button className="button button--secondary" onClick={onClose}>
+            Close
+          </button>
         </div>
       </div>
     </div>

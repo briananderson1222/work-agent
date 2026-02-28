@@ -1,16 +1,22 @@
-import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useSyncExternalStore,
+} from 'react';
 
 type NavigationState = {
   // Path-based routing
   pathname: string;
-  
+
   // Query params
   selectedAgent: string | null;
   selectedWorkspace: string | null;
   activeConversation: string | null;
   activeChat: string | null;
   activeTab: string | null;
-  
+
   // UI state from URL
   isDockOpen: boolean;
   isDockMaximized: boolean;
@@ -23,7 +29,7 @@ class NavigationStore {
 
   constructor() {
     this.state = this.parseUrl();
-    
+
     // Listen for browser navigation
     if (typeof window !== 'undefined') {
       window.addEventListener('popstate', this.handlePopState);
@@ -32,25 +38,32 @@ class NavigationStore {
 
   private handlePopState = () => {
     const newState = this.parseUrl();
-    
+
     // Only notify if non-hash parts of the URL changed
     const oldUrl = new URL(window.location.href);
     oldUrl.pathname = this.state.pathname;
     oldUrl.search = new URLSearchParams({
       ...(this.state.selectedAgent && { agent: this.state.selectedAgent }),
-      ...(this.state.selectedWorkspace && { workspace: this.state.selectedWorkspace }),
-      ...(this.state.activeConversation && { conversation: this.state.activeConversation }),
+      ...(this.state.selectedWorkspace && {
+        workspace: this.state.selectedWorkspace,
+      }),
+      ...(this.state.activeConversation && {
+        conversation: this.state.activeConversation,
+      }),
       ...(this.state.activeChat && { chat: this.state.activeChat }),
       ...(this.state.activeTab && { tab: this.state.activeTab }),
       ...(this.state.isDockOpen && { dock: 'open' }),
       ...(this.state.isDockMaximized && { maximize: 'true' }),
       ...(this.state.fontSize && { fontSize: this.state.fontSize.toString() }),
     }).toString();
-    
+
     const currentUrl = new URL(window.location.href);
-    
+
     // Compare URLs without hash
-    if (oldUrl.pathname !== currentUrl.pathname || oldUrl.search !== currentUrl.search) {
+    if (
+      oldUrl.pathname !== currentUrl.pathname ||
+      oldUrl.search !== currentUrl.search
+    ) {
       this.state = newState;
       this.notify();
     } else {
@@ -76,17 +89,19 @@ class NavigationStore {
 
     const params = new URLSearchParams(window.location.search);
     const pathname = window.location.pathname;
-    
+
     // Extract agent from path or query
     let selectedAgent = params.get('agent');
     const agentMatch = pathname.match(/^\/agents?\/([^/]+)/);
     if (agentMatch) selectedAgent = agentMatch[1];
-    
+
     // Extract workspace and tab from path or query
     let selectedWorkspace = params.get('workspace');
     let activeTab = params.get('tab'); // Fallback to query param for backward compatibility
-    
-    const workspaceMatch = pathname.match(/^\/workspaces?\/([^/]+)(?:\/([^/]+))?/);
+
+    const workspaceMatch = pathname.match(
+      /^\/workspaces?\/([^/]+)(?:\/([^/]+))?/,
+    );
     if (workspaceMatch) {
       selectedWorkspace = workspaceMatch[1];
       if (workspaceMatch[2]) {
@@ -103,7 +118,9 @@ class NavigationStore {
       activeTab,
       isDockOpen: params.get('dock') === 'open',
       isDockMaximized: params.get('maximize') === 'true',
-      fontSize: params.get('fontSize') ? parseInt(params.get('fontSize')!, 10) : null,
+      fontSize: params.get('fontSize')
+        ? parseInt(params.get('fontSize')!, 10)
+        : null,
     };
   }
 
@@ -117,7 +134,7 @@ class NavigationStore {
   };
 
   private notify = () => {
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   };
 
   // Navigation methods
@@ -125,7 +142,7 @@ class NavigationStore {
     const url = new URL(window.location.href);
     const currentHash = url.hash; // Preserve the hash
     url.pathname = pathname;
-    
+
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value === null) {
@@ -135,7 +152,7 @@ class NavigationStore {
         }
       });
     }
-    
+
     url.hash = currentHash; // Restore the hash
     window.history.pushState({}, '', url.toString());
     this.state = this.parseUrl();
@@ -147,7 +164,7 @@ class NavigationStore {
   updateParams(params: Record<string, string | null>) {
     const url = new URL(window.location.href);
     const currentHash = url.hash; // Preserve the hash
-    
+
     Object.entries(params).forEach(([key, value]) => {
       if (value === null) {
         url.searchParams.delete(key);
@@ -155,7 +172,7 @@ class NavigationStore {
         url.searchParams.set(key, value);
       }
     });
-    
+
     url.hash = currentHash; // Restore the hash
     window.history.replaceState({}, '', url.toString());
     this.state = this.parseUrl();
@@ -224,9 +241,12 @@ const NavigationContext = createContext<{
 } | null>(null);
 
 export function NavigationProvider({ children }: { children: ReactNode }) {
-  const navigate = useCallback((pathname: string, params?: Record<string, string | null>) => {
-    navigationStore.navigate(pathname, params);
-  }, []);
+  const navigate = useCallback(
+    (pathname: string, params?: Record<string, string | null>) => {
+      navigationStore.navigate(pathname, params);
+    },
+    [],
+  );
 
   const updateParams = useCallback((params: Record<string, string | null>) => {
     navigationStore.updateParams(params);
@@ -240,9 +260,12 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     navigationStore.setWorkspace(slug);
   }, []);
 
-  const setWorkspaceTab = useCallback((workspaceSlug: string, tabId: string | null) => {
-    navigationStore.setWorkspaceTab(workspaceSlug, tabId);
-  }, []);
+  const setWorkspaceTab = useCallback(
+    (workspaceSlug: string, tabId: string | null) => {
+      navigationStore.setWorkspaceTab(workspaceSlug, tabId);
+    },
+    [],
+  );
 
   const setConversation = useCallback((id: string | null) => {
     navigationStore.setConversation(id);
@@ -257,16 +280,18 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <NavigationContext.Provider value={{
-      navigate,
-      updateParams,
-      setAgent,
-      setWorkspace,
-      setWorkspaceTab,
-      setConversation,
-      setActiveChat,
-      setDockState,
-    }}>
+    <NavigationContext.Provider
+      value={{
+        navigate,
+        updateParams,
+        setAgent,
+        setWorkspace,
+        setWorkspaceTab,
+        setConversation,
+        setActiveChat,
+        setDockState,
+      }}
+    >
       {children}
     </NavigationContext.Provider>
   );
@@ -280,7 +305,7 @@ export function useNavigation() {
 
   const state = useSyncExternalStore(
     navigationStore.subscribe,
-    navigationStore.getSnapshot
+    navigationStore.getSnapshot,
   );
 
   return {

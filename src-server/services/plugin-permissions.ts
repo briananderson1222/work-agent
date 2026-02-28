@@ -1,12 +1,12 @@
 /**
  * Plugin Permission System
- * 
+ *
  * Three tiers: passive (auto-grant), active (prompt), trusted (prompt + warning).
  * Grants persisted in plugin-grants.json keyed by plugin name.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ── Permission Tiers ───────────────────────────────────
 
@@ -44,7 +44,11 @@ function grantsPath(workAgentDir: string): string {
 function readGrants(workAgentDir: string): GrantsFile {
   const p = grantsPath(workAgentDir);
   if (!existsSync(p)) return {};
-  try { return JSON.parse(readFileSync(p, 'utf-8')); } catch { return {}; }
+  try {
+    return JSON.parse(readFileSync(p, 'utf-8'));
+  } catch {
+    return {};
+  }
 }
 
 function writeGrants(workAgentDir: string, grants: GrantsFile): void {
@@ -52,11 +56,18 @@ function writeGrants(workAgentDir: string, grants: GrantsFile): void {
   writeFileSync(grantsPath(workAgentDir), JSON.stringify(grants, null, 2));
 }
 
-export function getPluginGrants(workAgentDir: string, pluginName: string): string[] {
+export function getPluginGrants(
+  workAgentDir: string,
+  pluginName: string,
+): string[] {
   return readGrants(workAgentDir)[pluginName] || [];
 }
 
-export function grantPermissions(workAgentDir: string, pluginName: string, permissions: string[]): void {
+export function grantPermissions(
+  workAgentDir: string,
+  pluginName: string,
+  permissions: string[],
+): void {
   const grants = readGrants(workAgentDir);
   const existing = new Set(grants[pluginName] || []);
   for (const p of permissions) existing.add(p);
@@ -64,13 +75,20 @@ export function grantPermissions(workAgentDir: string, pluginName: string, permi
   writeGrants(workAgentDir, grants);
 }
 
-export function revokeAllGrants(workAgentDir: string, pluginName: string): void {
+export function revokeAllGrants(
+  workAgentDir: string,
+  pluginName: string,
+): void {
   const grants = readGrants(workAgentDir);
   delete grants[pluginName];
   writeGrants(workAgentDir, grants);
 }
 
-export function hasGrant(workAgentDir: string, pluginName: string, permission: string): boolean {
+export function hasGrant(
+  workAgentDir: string,
+  pluginName: string,
+  permission: string,
+): boolean {
   return getPluginGrants(workAgentDir, pluginName).includes(permission);
 }
 

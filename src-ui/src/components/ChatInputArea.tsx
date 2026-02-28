@@ -1,10 +1,10 @@
-import React from 'react';
-import { FileAttachmentInput } from './FileAttachmentInput';
-import { SlashCommandSelector } from './SlashCommandSelector';
-import { ModelSelectorAutocomplete } from './ModelSelector';
-import { ContextPercentage } from './ConversationStats';
+import type React from 'react';
 import type { SlashCommand } from '../hooks/useSlashCommands';
 import type { FileAttachment } from '../types';
+import { ContextPercentage } from './ConversationStats';
+import { FileAttachmentInput } from './FileAttachmentInput';
+import { ModelSelectorAutocomplete } from './ModelSelector';
+import { SlashCommandSelector } from './SlashCommandSelector';
 
 interface Model {
   id: string;
@@ -94,10 +94,13 @@ export function ChatInputArea({
   closeAll,
 }: ChatInputAreaProps) {
   const isOverride = currentModel && currentModel !== agentDefaultModel;
-  const modelInfo = availableModels.find(m => m.id === currentModel);
+  const modelInfo = availableModels.find((m) => m.id === currentModel);
 
   return (
-    <div className="chat-input" style={{ display: 'flex', alignItems: 'stretch' }}>
+    <div
+      className="chat-input"
+      style={{ display: 'flex', alignItems: 'stretch' }}
+    >
       <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
         {modelQuery !== null && (
           <ModelSelectorAutocomplete
@@ -133,33 +136,41 @@ export function ChatInputArea({
           }}
           onKeyDown={async (e) => {
             if (e.defaultPrevented) return;
-            
-            if (e.key === 'Escape' && (commandQuery !== null || modelQuery !== null)) {
+
+            if (
+              e.key === 'Escape' &&
+              (commandQuery !== null || modelQuery !== null)
+            ) {
               e.preventDefault();
               closeAll();
               return;
             }
-            
+
             if (e.key === 'Tab' && !e.shiftKey) return;
-            
+
             if (e.key === 'ArrowUp') {
               e.preventDefault();
               onHistoryUp();
               return;
             }
-            
+
             if (e.key === 'ArrowDown') {
               e.preventDefault();
               onHistoryDown();
               return;
             }
-            
+
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               if (input.trim()) await onSend();
             }
           }}
-          style={{ fontSize: `${fontSize}px`, flex: 1, resize: 'none', minHeight: 0 }}
+          style={{
+            fontSize: `${fontSize}px`,
+            flex: 1,
+            resize: 'none',
+            minHeight: 0,
+          }}
         />
         {input && (
           <button
@@ -176,7 +187,7 @@ export function ChatInputArea({
               color: 'var(--text-muted)',
               padding: '4px',
               lineHeight: '1',
-              zIndex: 1
+              zIndex: 1,
             }}
             title="Clear input"
           >
@@ -199,7 +210,7 @@ export function ChatInputArea({
               onClick={onCancel}
               tabIndex={0}
               className="send-button"
-              style={{ 
+              style={{
                 background: 'var(--error-bg)',
                 padding: 0,
                 border: '1px solid var(--error-border)',
@@ -210,16 +221,21 @@ export function ChatInputArea({
                 flex: '0 0 75%',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
               }}
             >
               Cancel
             </button>
           ) : (
             <button
-              onClick={async () => { if (input.trim() || attachments.length > 0) await onSend(); }}
+              onClick={async () => {
+                if (input.trim() || attachments.length > 0) await onSend();
+              }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (input.trim() || attachments.length > 0)) {
+                if (
+                  e.key === 'Enter' &&
+                  (input.trim() || attachments.length > 0)
+                ) {
                   e.preventDefault();
                   onSend();
                 }
@@ -230,32 +246,41 @@ export function ChatInputArea({
               style={{
                 padding: 0,
                 border: 'none',
-                background: (input.trim() || attachments.length > 0) ? 'var(--color-primary)' : 'var(--bg-tertiary)',
-                color: (input.trim() || attachments.length > 0) ? 'white' : 'var(--text-muted)',
-                cursor: (input.trim() || attachments.length > 0) ? 'pointer' : 'not-allowed',
+                background:
+                  input.trim() || attachments.length > 0
+                    ? 'var(--color-primary)'
+                    : 'var(--bg-tertiary)',
+                color:
+                  input.trim() || attachments.length > 0
+                    ? 'white'
+                    : 'var(--text-muted)',
+                cursor:
+                  input.trim() || attachments.length > 0
+                    ? 'pointer'
+                    : 'not-allowed',
                 fontSize: '13px',
                 fontWeight: 500,
-                opacity: (input.trim() || attachments.length > 0) ? 1 : 0.25,
+                opacity: input.trim() || attachments.length > 0 ? 1 : 0.25,
                 flex: '0 0 75%',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
               }}
             >
               Send
             </button>
           )}
         </div>
-        <button 
+        <button
           onClick={onModelOpen}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = isOverride 
-              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.25)' 
+            e.currentTarget.style.background = isOverride
+              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.25)'
               : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.2)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = isOverride 
-              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)' 
+            e.currentTarget.style.background = isOverride
+              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)'
               : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)';
           }}
           style={{
@@ -267,12 +292,16 @@ export function ChatInputArea({
             fontWeight: isOverride ? 600 : 400,
             border: 'none',
             width: '100%',
-            background: isOverride 
-              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)' 
+            background: isOverride
+              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)'
               : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)',
             transition: 'background 0.2s',
           }}
-          title={isOverride ? "Model override active - click to change" : "Click to change model"}
+          title={
+            isOverride
+              ? 'Model override active - click to change'
+              : 'Click to change model'
+          }
         >
           {modelInfo?.name || 'Default Model'}
         </button>

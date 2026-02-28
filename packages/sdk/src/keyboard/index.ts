@@ -19,15 +19,14 @@ export class KeyboardAPI {
 
   private bindCommand(command: KeyboardCommand): void {
     const handler = (e: KeyboardEvent) => {
-      const matches = 
+      const matches =
         e.key.toLowerCase() === command.key.toLowerCase() &&
-        (!command.modifiers || (
-          command.modifiers.includes('ctrl') === e.ctrlKey &&
-          command.modifiers.includes('shift') === e.shiftKey &&
-          command.modifiers.includes('alt') === e.altKey &&
-          command.modifiers.includes('meta') === e.metaKey
-        ));
-      
+        (!command.modifiers ||
+          (command.modifiers.includes('ctrl') === e.ctrlKey &&
+            command.modifiers.includes('shift') === e.shiftKey &&
+            command.modifiers.includes('alt') === e.altKey &&
+            command.modifiers.includes('meta') === e.metaKey));
+
       if (matches) {
         e.preventDefault();
         command.handler();

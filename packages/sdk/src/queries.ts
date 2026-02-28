@@ -3,11 +3,11 @@
  * Plugins use these instead of raw useQuery
  */
 
-import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
-import { transformTool, invokeAgent, invoke, _getApiBase } from './api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { _getApiBase, invokeAgent, transformTool } from './api';
 import { agentQueries } from './queryFactories';
 
-interface QueryConfig<T> {
+interface QueryConfig<_T> {
   staleTime?: number;
   gcTime?: number; // Renamed from cacheTime in React Query v5
   enabled?: boolean;
@@ -22,7 +22,7 @@ export function useTransformTool<T = any>(
   toolName: string,
   toolArgs: any,
   transformFn: string,
-  config?: QueryConfig<T>
+  config?: QueryConfig<T>,
 ) {
   return useQuery({
     queryKey: ['transform', agentSlug, toolName, toolArgs],
@@ -41,7 +41,7 @@ export function useInvokeAgent<T = any>(
   agentSlug: string,
   content: string,
   options?: { schema?: any; model?: string },
-  config?: QueryConfig<T>
+  config?: QueryConfig<T>,
 ) {
   return useQuery({
     queryKey: ['invoke', agentSlug, content, options],
@@ -58,7 +58,7 @@ export function useInvokeAgent<T = any>(
 export function useApiQuery<T = any>(
   queryKey: (string | number | object)[],
   queryFn: () => Promise<T>,
-  config?: QueryConfig<T>
+  config?: QueryConfig<T>,
 ) {
   return useQuery({
     queryKey,
@@ -78,15 +78,15 @@ export function useApiMutation<TData = any, TVariables = any>(
     onSuccess?: (data: TData) => void;
     onError?: (error: Error) => void;
     invalidateKeys?: (string | number)[][];
-  }
+  },
 ) {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn,
     onSuccess: (data) => {
       options?.onSuccess?.(data);
-      options?.invalidateKeys?.forEach(key => {
+      options?.invalidateKeys?.forEach((key) => {
         queryClient.invalidateQueries({ queryKey: key });
       });
     },
@@ -117,7 +117,7 @@ export function useWorkspaceQuery(slug: string, config?: QueryConfig<any>) {
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
-    config
+    config,
   );
 }
 
@@ -134,7 +134,7 @@ export function useWorkspacesQuery(config?: QueryConfig<any>) {
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
-    config
+    config,
   );
 }
 
@@ -151,7 +151,7 @@ export function useUsageQuery(config?: QueryConfig<any>) {
       const result = await response.json();
       return result.data;
     },
-    config
+    config,
   );
 }
 
@@ -168,7 +168,7 @@ export function useAchievementsQuery(config?: QueryConfig<any>) {
       const result = await response.json();
       return result.data;
     },
-    config
+    config,
   );
 }
 
@@ -185,7 +185,7 @@ export function useAgentsQuery(config?: QueryConfig<any>) {
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
-    config
+    config,
   );
 }
 
@@ -202,14 +202,17 @@ export function useModelsQuery(config?: QueryConfig<any>) {
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
-    config
+    config,
   );
 }
 
 /**
  * Fetch tools for an agent
  */
-export function useAgentToolsQuery(agentSlug: string | undefined, config?: QueryConfig<any>) {
+export function useAgentToolsQuery(
+  agentSlug: string | undefined,
+  config?: QueryConfig<any>,
+) {
   return useQuery({
     ...agentQueries.tools(agentSlug!),
     ...config,
@@ -228,15 +231,19 @@ export function useModelCapabilitiesQuery(config?: QueryConfig<any>) {
       const response = await fetch(`${apiBase}/api/models/capabilities`);
       if (!response.ok) {
         if (response.status === 401) {
-          console.warn('AWS credentials not configured - model capabilities unavailable');
+          console.warn(
+            'AWS credentials not configured - model capabilities unavailable',
+          );
           return [];
         }
-        throw new Error(`Failed to fetch model capabilities: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch model capabilities: ${response.statusText}`,
+        );
       }
       const result = await response.json();
       return result.data || [];
     },
-    config
+    config,
   );
 }
 
@@ -253,24 +260,29 @@ export function useConfigQuery(config?: QueryConfig<any>) {
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
-    config
+    config,
   );
 }
 
 /**
  * Fetch conversations for an agent
  */
-export function useConversationsQuery(agentSlug: string | undefined, config?: QueryConfig<any>) {
+export function useConversationsQuery(
+  agentSlug: string | undefined,
+  config?: QueryConfig<any>,
+) {
   return useApiQuery(
     agentSlug ? ['conversations', agentSlug] : ['conversations'],
     async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/conversations`);
+      const response = await fetch(
+        `${apiBase}/agents/${agentSlug}/conversations`,
+      );
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
-    { ...config, enabled: !!agentSlug && (config?.enabled ?? true) }
+    { ...config, enabled: !!agentSlug && (config?.enabled ?? true) },
   );
 }
 
@@ -280,7 +292,7 @@ export function useConversationsQuery(agentSlug: string | undefined, config?: Qu
 export function useStatsQuery(
   agentSlug: string | undefined,
   conversationId: string | undefined,
-  config?: QueryConfig<any>
+  config?: QueryConfig<any>,
 ) {
   return useQuery({
     ...agentQueries.stats(agentSlug || '', conversationId || ''),

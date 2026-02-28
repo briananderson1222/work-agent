@@ -34,15 +34,17 @@ export class AgentService {
     private configLoader: ConfigLoader,
     private activeAgents: Map<string, Agent>,
     private agentMetadataMap: Map<string, AgentMetadata>,
-    private agentSpecs: Map<string, AgentSpec>,
-    private logger: any
+    _agentSpecs: Map<string, AgentSpec>,
+    private logger: any,
   ) {}
 
   async listAgents(): Promise<AgentMetadata[]> {
     return this.configLoader.listAgents();
   }
 
-  async getEnrichedAgents(coreAgents: Array<{ id: string; [key: string]: any }>): Promise<EnrichedAgent[]> {
+  async getEnrichedAgents(
+    coreAgents: Array<{ id: string; [key: string]: any }>,
+  ): Promise<EnrichedAgent[]> {
     const enriched = await Promise.all(
       coreAgents.map(async (agent: { id: string; [key: string]: any }) => {
         const metadata = this.agentMetadataMap.get(agent.id);
@@ -66,38 +68,53 @@ export class AgentService {
             updatedAt: metadata.updatedAt,
           } as EnrichedAgent;
         } catch {
-          this.logger.warn('Agent spec not found, skipping', { agent: metadata.slug });
+          this.logger.warn('Agent spec not found, skipping', {
+            agent: metadata.slug,
+          });
           return null;
         }
-      })
+      }),
     );
     return enriched.filter((a): a is EnrichedAgent => a !== null);
   }
 
-  async createAgent(body: Record<string, any>): Promise<{ slug: string; spec: AgentSpec }> {
-    const { slug, spec } = await this.configLoader.createAgent(body as AgentSpec);
+  async createAgent(
+    body: Record<string, any>,
+  ): Promise<{ slug: string; spec: AgentSpec }> {
+    const { slug, spec } = await this.configLoader.createAgent(
+      body as AgentSpec,
+    );
     return { slug, spec };
   }
 
-  async updateAgent(slug: string, updates: Record<string, any>): Promise<AgentSpec> {
+  async updateAgent(
+    slug: string,
+    updates: Record<string, any>,
+  ): Promise<AgentSpec> {
     // Remove null values to allow unsetting optional fields
-    const filtered = Object.entries(updates).reduce((acc, [key, value]) => {
-      if (value !== null) {
-        acc[key] = value;
-      }
-      return acc;
-    }, {} as Record<string, any>);
+    const filtered = Object.entries(updates).reduce(
+      (acc, [key, value]) => {
+        if (value !== null) {
+          acc[key] = value;
+        }
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
 
     return this.configLoader.updateAgent(slug, filtered);
   }
 
-  async deleteAgent(slug: string): Promise<{ success: boolean; error?: string }> {
+  async deleteAgent(
+    slug: string,
+  ): Promise<{ success: boolean; error?: string }> {
     // Check if any workspaces reference this agent
-    const dependentWorkspaces = await this.configLoader.getWorkspacesUsingAgent(slug);
+    const dependentWorkspaces =
+      await this.configLoader.getWorkspacesUsingAgent(slug);
     if (dependentWorkspaces.length > 0) {
       return {
         success: false,
-        error: `Cannot delete agent '${slug}' - it is referenced by workspaces: ${dependentWorkspaces.join(', ')}`
+        error: `Cannot delete agent '${slug}' - it is referenced by workspaces: ${dependentWorkspaces.join(', ')}`,
       };
     }
 

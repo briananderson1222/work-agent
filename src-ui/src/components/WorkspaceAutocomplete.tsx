@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
+import { getWorkspaceIcon } from '../utils/workspace';
 import { AutocompleteSelector } from './AutocompleteSelector';
 import { WorkspaceIcon } from './WorkspaceIcon';
-import { getWorkspaceIcon } from '../utils/workspace';
 
 interface WorkspaceAutocompleteProps {
   query: string;
@@ -11,25 +11,26 @@ interface WorkspaceAutocompleteProps {
   onClose: () => void;
 }
 
-export function WorkspaceAutocomplete({ 
-  query, 
-  workspaces, 
-  currentWorkspace, 
-  onSelect, 
-  onClose 
+export function WorkspaceAutocomplete({
+  query,
+  workspaces,
+  currentWorkspace,
+  onSelect,
+  onClose,
 }: WorkspaceAutocompleteProps) {
   const items = useMemo(() => {
     const searchTerm = (query || '').toLowerCase();
-    const filtered = (workspaces || []).filter(w => 
-      w.name.toLowerCase().includes(searchTerm) || 
-      w.slug.toLowerCase().includes(searchTerm) ||
-      w.description?.toLowerCase().includes(searchTerm)
+    const filtered = (workspaces || []).filter(
+      (w) =>
+        w.name.toLowerCase().includes(searchTerm) ||
+        w.slug.toLowerCase().includes(searchTerm) ||
+        w.description?.toLowerCase().includes(searchTerm),
     );
 
-    const mapped = filtered.map(workspace => {
+    const mapped = filtered.map((workspace) => {
       const isActive = currentWorkspace === workspace.slug;
       const icon = getWorkspaceIcon(workspace);
-      
+
       return {
         id: workspace.slug,
         title: workspace.name,
@@ -54,7 +55,9 @@ export function WorkspaceAutocomplete({
       onSelect={(item) => onSelect(item.metadata)}
       onClose={onClose}
       emptyMessage="No workspaces found"
-      renderIcon={(item) => <WorkspaceIcon workspace={item.metadata} size={32} />}
+      renderIcon={(item) => (
+        <WorkspaceIcon workspace={item.metadata} size={32} />
+      )}
     />
   );
 }

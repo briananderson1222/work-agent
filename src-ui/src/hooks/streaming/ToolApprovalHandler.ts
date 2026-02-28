@@ -2,10 +2,10 @@
  * Handler for tool-approval-request events
  */
 
-import { StreamEventHandler } from './BaseHandler';
-import type { StreamEvent, StreamState, HandlerResult } from './types';
-import { createResult } from './stateHelpers';
 import { log } from '@/utils/logger';
+import { StreamEventHandler } from './BaseHandler';
+import { createResult } from './stateHelpers';
+import type { HandlerResult, StreamEvent, StreamState } from './types';
 
 export class ToolApprovalHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {
@@ -13,7 +13,8 @@ export class ToolApprovalHandler extends StreamEventHandler {
   }
 
   handle(event: StreamEvent, state: StreamState): HandlerResult {
-    const chatState = this.context.activeChatsStore?.getSnapshot()[this.context.sessionId];
+    const chatState =
+      this.context.activeChatsStore?.getSnapshot()[this.context.sessionId];
     const sessionAutoApprove = chatState?.sessionAutoApprove || [];
 
     // Auto-approve if tool is in session auto-approve list
@@ -38,10 +39,10 @@ export class ToolApprovalHandler extends StreamEventHandler {
     const chatPendingApprovals = chatState?.pendingApprovals || [];
     const chatApprovalToasts = new Map(chatState?.approvalToasts || []);
     chatApprovalToasts.set(event.approvalId, toastId);
-    
+
     this.context.updateChat(this.context.sessionId, {
-      pendingApprovals: chatPendingApprovals.includes(event.approvalId) 
-        ? chatPendingApprovals 
+      pendingApprovals: chatPendingApprovals.includes(event.approvalId)
+        ? chatPendingApprovals
         : [...chatPendingApprovals, event.approvalId],
       approvalToasts: chatApprovalToasts,
     });
@@ -60,15 +61,17 @@ export class ToolApprovalHandler extends StreamEventHandler {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ approved: true }),
-    }).catch(err => log.api('Failed to auto-approve tool:', err));
+    }).catch((err) => log.api('Failed to auto-approve tool:', err));
   }
 
   private showApprovalToast(event: StreamEvent, chatState: any): string {
-    if (!this.context.showToolApproval || !this.context.handleToolApproval) return '';
+    if (!this.context.showToolApproval || !this.context.handleToolApproval)
+      return '';
 
     const agentName = chatState?.agentName || 'Agent';
     const agentSlug = chatState?.agentSlug || '';
-    const conversationTitle = chatState?.title || chatState?.conversationId || 'Conversation';
+    const conversationTitle =
+      chatState?.title || chatState?.conversationId || 'Conversation';
 
     return this.context.showToolApproval({
       sessionId: this.context.sessionId,
@@ -90,7 +93,7 @@ export class ToolApprovalHandler extends StreamEventHandler {
               agentSlug,
               event.approvalId,
               event.toolName,
-              'deny'
+              'deny',
             ),
         },
         {
@@ -102,7 +105,7 @@ export class ToolApprovalHandler extends StreamEventHandler {
               agentSlug,
               event.approvalId,
               event.toolName,
-              'once'
+              'once',
             ),
         },
         {
@@ -114,7 +117,7 @@ export class ToolApprovalHandler extends StreamEventHandler {
               agentSlug,
               event.approvalId,
               event.toolName,
-              'trust'
+              'trust',
             ),
         },
       ],

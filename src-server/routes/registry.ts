@@ -4,8 +4,11 @@
  */
 
 import { Hono } from 'hono';
-import { getAgentRegistryProvider, getToolRegistryProvider } from '../providers/registry.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
+import {
+  getAgentRegistryProvider,
+  getToolRegistryProvider,
+} from '../providers/registry.js';
 
 export function createRegistryRoutes(
   configLoader: ConfigLoader,
@@ -38,7 +41,9 @@ export function createRegistryRoutes(
   });
 
   app.delete('/agents/:id', async (c) => {
-    const result = await getAgentRegistryProvider().uninstall(c.req.param('id'));
+    const result = await getAgentRegistryProvider().uninstall(
+      c.req.param('id'),
+    );
     if (result.success) {
       await refreshACPModes().catch(() => {});
     }

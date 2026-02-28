@@ -1,5 +1,5 @@
-import { getUserIconStyle, getInitials } from '../utils/workspace';
 import { useAuth } from '../contexts/AuthContext';
+import { getInitials, getUserIconStyle } from '../utils/workspace';
 
 interface UserIconProps {
   size?: number;
@@ -13,7 +13,10 @@ export function UserIcon({ size = 20, className, style }: UserIconProps) {
   const baseStyle = getUserIconStyle({ name }, size);
 
   return (
-    <div className={className} style={{ ...baseStyle, overflow: 'hidden', ...style }}>
+    <div
+      className={className}
+      style={{ ...baseStyle, overflow: 'hidden', ...style }}
+    >
       {getInitials(name)}
     </div>
   );

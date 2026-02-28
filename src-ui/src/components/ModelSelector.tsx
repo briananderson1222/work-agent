@@ -1,8 +1,8 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
-import { AutocompleteSelector, AutocompleteItem } from './AutocompleteSelector';
-import { useModels } from '../contexts/ModelsContext';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useModelCapabilities } from '../contexts/ModelCapabilitiesContext';
+import { useModels } from '../contexts/ModelsContext';
+import { AutocompleteSelector } from './AutocompleteSelector';
 
 export interface Model {
   id: string;
@@ -21,52 +21,70 @@ interface ModelSelectorAutocompleteProps {
   maxHeight?: string;
 }
 
-export function ModelSelectorAutocomplete({ query, models, currentModel, agentDefaultModel, onSelect, onClose, maxHeight }: ModelSelectorAutocompleteProps) {
+export function ModelSelectorAutocomplete({
+  query,
+  models,
+  currentModel,
+  agentDefaultModel,
+  onSelect,
+  onClose,
+  maxHeight,
+}: ModelSelectorAutocompleteProps) {
   const capabilities = useModelCapabilities();
-  
+
   const items = useMemo(() => {
     const searchTerm = (query || '').toLowerCase();
-    const filtered = (models || []).filter(m => 
-      m.name.toLowerCase().includes(searchTerm) || 
-      m.id.toLowerCase().includes(searchTerm) ||
-      m.originalId.toLowerCase().includes(searchTerm)
+    const filtered = (models || []).filter(
+      (m) =>
+        m.name.toLowerCase().includes(searchTerm) ||
+        m.id.toLowerCase().includes(searchTerm) ||
+        m.originalId.toLowerCase().includes(searchTerm),
     );
 
     const normalizeId = (id: any) => {
       if (typeof id !== 'string') return '';
       return id.replace(/^us\./, '');
     };
-    const currentModelStr = typeof currentModel === 'string' ? currentModel : '';
-    const agentDefaultModelStr = typeof agentDefaultModel === 'string' 
-      ? agentDefaultModel 
-      : typeof agentDefaultModel === 'object' && agentDefaultModel?.modelId
-      ? agentDefaultModel.modelId
-      : '';
+    const currentModelStr =
+      typeof currentModel === 'string' ? currentModel : '';
+    const agentDefaultModelStr =
+      typeof agentDefaultModel === 'string'
+        ? agentDefaultModel
+        : typeof agentDefaultModel === 'object' && agentDefaultModel?.modelId
+          ? agentDefaultModel.modelId
+          : '';
 
-    const mapped = filtered.map(model => {
-      const isActive = normalizeId(currentModelStr) === normalizeId(model.id) || 
-                       currentModelStr === model.id ||
-                       currentModelStr === model.originalId;
-      
-      const isAgentDefault = normalizeId(agentDefaultModelStr) === normalizeId(model.id) ||
-                             agentDefaultModelStr === model.id ||
-                             agentDefaultModelStr === model.originalId;
-      
-      const capability = capabilities.find(c => c.modelId === model.id);
+    const mapped = filtered.map((model) => {
+      const isActive =
+        normalizeId(currentModelStr) === normalizeId(model.id) ||
+        currentModelStr === model.id ||
+        currentModelStr === model.originalId;
+
+      const isAgentDefault =
+        normalizeId(agentDefaultModelStr) === normalizeId(model.id) ||
+        agentDefaultModelStr === model.id ||
+        agentDefaultModelStr === model.originalId;
+
+      const capability = capabilities.find((c) => c.modelId === model.id);
       const modalities = [];
       if (capability?.supportsImages) modalities.push('📷');
       if (capability?.supportsVideo) modalities.push('🎥');
       if (capability?.supportsAudio) modalities.push('🎵');
-      const modalityStr = modalities.length > 0 ? ` • ${modalities.join(' ')}` : '';
-      
+      const modalityStr =
+        modalities.length > 0 ? ` • ${modalities.join(' ')}` : '';
+
       return {
         id: model.id,
         title: model.name,
         description: `ID: ${model.id}${modalityStr}`,
-        badge: isActive ? 'Active' : isAgentDefault ? 'Agent Default' : undefined,
+        badge: isActive
+          ? 'Active'
+          : isAgentDefault
+            ? 'Agent Default'
+            : undefined,
         metadata: model,
         isActive,
-        isAgentDefault
+        isAgentDefault,
       };
     });
 
@@ -98,7 +116,12 @@ interface ModelSelectorProps {
   defaultModel?: string; // Global default model to show as option
 }
 
-export function ModelSelector({ value, onChange, placeholder, defaultModel }: ModelSelectorProps) {
+export function ModelSelector({
+  value,
+  onChange,
+  placeholder,
+  defaultModel,
+}: ModelSelectorProps) {
   const { apiBase } = useApiBase();
   const models = useModels(apiBase);
   const [isOpen, setIsOpen] = useState(false);
@@ -106,43 +129,56 @@ export function ModelSelector({ value, onChange, placeholder, defaultModel }: Mo
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const selectedModel = models.find(m => m.id === value);
-  const defaultModelInfo = defaultModel ? models.find(m => m.id === defaultModel) : null;
-  
+  const selectedModel = models.find((m) => m.id === value);
+  const defaultModelInfo = defaultModel
+    ? models.find((m) => m.id === defaultModel)
+    : null;
+
   // Display value: show default model info if no value, otherwise show selected model
-  const displayValue = value 
-    ? (selectedModel?.name || value)
-    : (defaultModelInfo ? `${defaultModelInfo.name} (default)` : placeholder || 'Select a model...');
+  const displayValue = value
+    ? selectedModel?.name || value
+    : defaultModelInfo
+      ? `${defaultModelInfo.name} (default)`
+      : placeholder || 'Select a model...';
 
   const filteredModels = useMemo(() => {
     let filtered = models;
     if (search) {
       const term = search.toLowerCase();
-      filtered = models.filter(m => 
-        m.name.toLowerCase().includes(term) || 
-        m.id.toLowerCase().includes(term)
+      filtered = models.filter(
+        (m) =>
+          m.name.toLowerCase().includes(term) ||
+          m.id.toLowerCase().includes(term),
       );
     }
-    
+
     // Add default option at the top if we have a default model
-    const options = defaultModel && defaultModelInfo ? [
-      { ...defaultModelInfo, id: '', name: `${defaultModelInfo.name} (default)`, originalId: '' }
-    ] : [];
-    
+    const options =
+      defaultModel && defaultModelInfo
+        ? [
+            {
+              ...defaultModelInfo,
+              id: '',
+              name: `${defaultModelInfo.name} (default)`,
+              originalId: '',
+            },
+          ]
+        : [];
+
     // Sort: selected model first (if not empty), then alphabetically
     const sorted = filtered.sort((a, b) => {
       if (value && a.id === value) return -1;
       if (value && b.id === value) return 1;
       return a.name.localeCompare(b.name);
     });
-    
+
     return [...options, ...sorted];
   }, [models, search, value, defaultModel, defaultModelInfo]);
 
   // Reset selected index when filtered list changes
   useEffect(() => {
     setSelectedIndex(0);
-  }, [filteredModels.length]);
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -151,10 +187,12 @@ export function ModelSelector({ value, onChange, placeholder, defaultModel }: Mo
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex(prev => Math.min(prev + 1, filteredModels.length - 1));
+        setSelectedIndex((prev) =>
+          Math.min(prev + 1, filteredModels.length - 1),
+        );
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
+        setSelectedIndex((prev) => Math.max(prev - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (filteredModels[selectedIndex]) {
@@ -195,25 +233,27 @@ export function ModelSelector({ value, onChange, placeholder, defaultModel }: Mo
         style={{ width: '100%' }}
       />
       {isOpen && filteredModels.length > 0 && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          marginTop: '4px',
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border-primary)',
-          borderRadius: '4px',
-          maxHeight: '300px',
-          overflowY: 'auto',
-          zIndex: 1000,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: '4px',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-primary)',
+            borderRadius: '4px',
+            maxHeight: '300px',
+            overflowY: 'auto',
+            zIndex: 1000,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          }}
+        >
           {filteredModels.map((model, idx) => {
             const isActive = model.id === value || (!value && model.id === '');
             const isSelected = idx === selectedIndex;
             const isDefaultOption = model.id === '';
-            
+
             return (
               <div
                 key={model.id || 'default'}
@@ -227,16 +267,34 @@ export function ModelSelector({ value, onChange, placeholder, defaultModel }: Mo
                   padding: '10px 12px',
                   cursor: 'pointer',
                   background: isSelected ? 'var(--bg-hover)' : 'transparent',
-                  borderLeft: isSelected ? '3px solid var(--accent-primary)' : '3px solid transparent',
-                  borderBottom: isDefaultOption ? '1px solid var(--border-primary)' : 'none',
+                  borderLeft: isSelected
+                    ? '3px solid var(--accent-primary)'
+                    : '3px solid transparent',
+                  borderBottom: isDefaultOption
+                    ? '1px solid var(--border-primary)'
+                    : 'none',
                 }}
               >
                 <div style={{ fontWeight: 600, marginBottom: '2px' }}>
                   {model.name}
-                  {isActive && !isDefaultOption && <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--accent-primary)' }}>(active)</span>}
+                  {isActive && !isDefaultOption && (
+                    <span
+                      style={{
+                        marginLeft: '8px',
+                        fontSize: '11px',
+                        color: 'var(--accent-primary)',
+                      }}
+                    >
+                      (active)
+                    </span>
+                  )}
                 </div>
                 {!isDefaultOption && (
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{model.id}</div>
+                  <div
+                    style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
+                  >
+                    {model.id}
+                  </div>
                 )}
               </div>
             );

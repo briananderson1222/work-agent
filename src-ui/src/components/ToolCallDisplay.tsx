@@ -35,15 +35,24 @@ interface ToolCallDisplayProps {
   showDetails?: boolean;
 }
 
-export function ToolCallDisplay({ toolCall, onApprove, showDetails = true }: ToolCallDisplayProps) {
+export function ToolCallDisplay({
+  toolCall,
+  onApprove,
+  showDetails = true,
+}: ToolCallDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   if (!showDetails) return null;
-  
+
   const tool = toolCall.tool || toolCall;
   const id = tool.id || toolCall.toolCallId || '';
   const server = tool.server || toolCall.server;
-  const toolName = tool.toolName || toolCall.toolName || tool.name || toolCall.type?.replace('tool-', '') || '';
+  const toolName =
+    tool.toolName ||
+    toolCall.toolName ||
+    tool.name ||
+    toolCall.type?.replace('tool-', '') ||
+    '';
   const originalName = tool.originalName || toolCall.originalName;
   const args = tool.args || toolCall.input;
   const result = tool.result || toolCall.output;
@@ -51,18 +60,20 @@ export function ToolCallDisplay({ toolCall, onApprove, showDetails = true }: Too
   const needsApproval = tool.needsApproval || toolCall.needsApproval;
   const cancelled = tool.cancelled || toolCall.cancelled;
   const approvalStatus = tool.approvalStatus || toolCall.approvalStatus;
-  
-  const argsPreview = args 
+
+  const argsPreview = args
     ? Object.keys(args).length > 0
-      ? Object.keys(args).map(k => `${k}: ${JSON.stringify(args[k])}`).join(', ')
+      ? Object.keys(args)
+          .map((k) => `${k}: ${JSON.stringify(args[k])}`)
+          .join(', ')
       : 'no args'
     : 'no args';
 
   return (
-    <div 
-      className="tool-call" 
-      style={{ 
-        display: 'block', 
+    <div
+      className="tool-call"
+      style={{
+        display: 'block',
         margin: '0.5rem 0',
         padding: '0.5rem',
         background: 'var(--color-bg-secondary)',
@@ -72,22 +83,58 @@ export function ToolCallDisplay({ toolCall, onApprove, showDetails = true }: Too
       }}
       onClick={() => setIsExpanded(!isExpanded)}
     >
-      <div className="tool-call__header" style={{ display: 'block', padding: 0, color: 'inherit', textAlign: 'left', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
+      <div
+        className="tool-call__header"
+        style={{
+          display: 'block',
+          padding: 0,
+          color: 'inherit',
+          textAlign: 'left',
+          width: '100%',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            marginBottom: '0.25rem',
+          }}
+        >
           <span className="tool-call__toggle">{isExpanded ? '▼' : '▶'}</span>
-          {server && (
-            <span className="tool-call__server-badge">{server}</span>
+          {server && <span className="tool-call__server-badge">{server}</span>}
+          <span className="tool-call__name" style={{ fontWeight: 500 }}>
+            {toolName}
+          </span>
+          {approvalStatus === 'auto-approved' && (
+            <span className="tool-call__status-badge">Auto-approved</span>
           )}
-          <span className="tool-call__name" style={{ fontWeight: 500 }}>{toolName}</span>
-          {approvalStatus === 'auto-approved' && <span className="tool-call__status-badge">Auto-approved</span>}
-          {approvalStatus === 'user-approved' && <span className="tool-call__status-badge tool-call__status-badge--success">User approved</span>}
-          {approvalStatus === 'user-denied' && <span className="tool-call__status-badge tool-call__status-badge--error">User denied</span>}
-          {result && !error && <span style={{ color: 'var(--success-primary)' }} title="Success">✓</span>}
-          {error && <span style={{ color: 'var(--error-primary)' }} title="Error">✗</span>}
+          {approvalStatus === 'user-approved' && (
+            <span className="tool-call__status-badge tool-call__status-badge--success">
+              User approved
+            </span>
+          )}
+          {approvalStatus === 'user-denied' && (
+            <span className="tool-call__status-badge tool-call__status-badge--error">
+              User denied
+            </span>
+          )}
+          {result && !error && (
+            <span style={{ color: 'var(--success-primary)' }} title="Success">
+              ✓
+            </span>
+          )}
+          {error && (
+            <span style={{ color: 'var(--error-primary)' }} title="Error">
+              ✗
+            </span>
+          )}
           {needsApproval && onApprove && !error && !result && !cancelled && (
             <ToolApprovalButtons onApprove={onApprove} />
           )}
-          {needsApproval && !error && !result && !cancelled && <span style={{ color: 'orange' }}>⏸</span>}
+          {needsApproval && !error && !result && !cancelled && (
+            <span style={{ color: 'orange' }}>⏸</span>
+          )}
           {error && <span className="tool-call__error">⚠️</span>}
         </div>
         <div className="tool-call__args-preview">{argsPreview}</div>
@@ -107,23 +154,36 @@ export function ToolCallDisplay({ toolCall, onApprove, showDetails = true }: Too
   );
 }
 
-function ToolApprovalButtons({ onApprove }: { onApprove: (action: 'once' | 'trust' | 'deny') => void }) {
+function ToolApprovalButtons({
+  onApprove,
+}: {
+  onApprove: (action: 'once' | 'trust' | 'deny') => void;
+}) {
   return (
     <>
-      <button 
-        onClick={(e) => { e.stopPropagation(); onApprove('once'); }} 
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onApprove('once');
+        }}
         className="tool-call__approve-btn tool-call__approve-btn--primary"
       >
         Allow Once
       </button>
-      <button 
-        onClick={(e) => { e.stopPropagation(); onApprove('trust'); }} 
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onApprove('trust');
+        }}
         className="tool-call__approve-btn tool-call__approve-btn--secondary"
       >
         Always Allow
       </button>
-      <button 
-        onClick={(e) => { e.stopPropagation(); onApprove('deny'); }} 
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onApprove('deny');
+        }}
         className="tool-call__approve-btn tool-call__approve-btn--danger"
       >
         Deny
@@ -132,7 +192,15 @@ function ToolApprovalButtons({ onApprove }: { onApprove: (action: 'once' | 'trus
   );
 }
 
-function ToolCallDetails({ id, server, toolName, originalName, args, result, error }: {
+function ToolCallDetails({
+  id,
+  server,
+  toolName,
+  originalName,
+  args,
+  result,
+  error,
+}: {
   id: string;
   server?: string;
   toolName: string;
@@ -142,18 +210,39 @@ function ToolCallDetails({ id, server, toolName, originalName, args, result, err
   error?: string;
 }) {
   return (
-    <div className="tool-call__details" style={{ marginTop: '0.5rem', fontSize: '0.9em' }}>
+    <div
+      className="tool-call__details"
+      style={{ marginTop: '0.5rem', fontSize: '0.9em' }}
+    >
       <div className="tool-call__meta">
-        <span><strong>ID:</strong> <code>{id}</code></span>
-        {server && <span><strong>Server:</strong> <code>{server}</code></span>}
-        {toolName && <span><strong>Tool:</strong> <code>{toolName}</code></span>}
+        <span>
+          <strong>ID:</strong> <code>{id}</code>
+        </span>
+        {server && (
+          <span>
+            <strong>Server:</strong> <code>{server}</code>
+          </span>
+        )}
+        {toolName && (
+          <span>
+            <strong>Tool:</strong> <code>{toolName}</code>
+          </span>
+        )}
         {originalName && originalName !== `${server}_${toolName}` && (
-          <span><strong>Original Name:</strong> <code>{originalName}</code></span>
+          <span>
+            <strong>Original Name:</strong> <code>{originalName}</code>
+          </span>
         )}
         {(result || error) && (
           <span>
             <strong>Status:</strong>{' '}
-            <span style={{ color: error ? 'var(--error-primary)' : 'var(--success-primary)' }}>
+            <span
+              style={{
+                color: error
+                  ? 'var(--error-primary)'
+                  : 'var(--success-primary)',
+              }}
+            >
               {error ? 'Failed' : 'Success'}
             </span>
           </span>
@@ -166,7 +255,9 @@ function ToolCallDetails({ id, server, toolName, originalName, args, result, err
       {result && (
         <div className="tool-call__section">
           <strong>Response:</strong>
-          <pre className="tool-call__code tool-call__code--scrollable">{JSON.stringify(result, null, 2)}</pre>
+          <pre className="tool-call__code tool-call__code--scrollable">
+            {JSON.stringify(result, null, 2)}
+          </pre>
         </div>
       )}
       {error && (

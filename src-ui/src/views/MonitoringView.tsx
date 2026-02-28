@@ -1,11 +1,14 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useApiBase } from '../contexts/ApiBaseContext';
+import { useModels } from '../contexts/ModelsContext';
+import type { MonitoringEvent as BaseMonitoringEvent } from '../contexts/MonitoringContext';
 import { useMonitoring } from '../contexts/MonitoringContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
-import { useSearchAutocomplete, parseSearchQuery } from '../hooks/useSearchAutocomplete';
-import { useModels } from '../contexts/ModelsContext';
-import { useApiBase } from '../contexts/ApiBaseContext';
-import type { AgentStats, MonitoringEvent as BaseMonitoringEvent } from '../contexts/MonitoringContext';
+import {
+  parseSearchQuery,
+  useSearchAutocomplete,
+} from '../hooks/useSearchAutocomplete';
 
 // Extended monitoring event interface with additional backend fields
 interface MonitoringEvent extends BaseMonitoringEvent {
@@ -33,57 +36,81 @@ export function MonitoringView() {
   const models = useModels(apiBase);
   const [autoFollow, setAutoFollow] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Search autocomplete
-  const searchFilters = useMemo(() => [
-    {
-      key: 'agent',
-      type: 'agent' as const,
-      getOptions: () => (stats?.agents || []).map(a => a.slug)
-    },
-    {
-      key: 'conversation',
-      type: 'conversation' as const,
-      getOptions: () => [...new Set(events.map(e => e.conversationId).filter(Boolean))] as string[]
-    },
-    {
-      key: 'tool',
-      type: 'tool' as const,
-      getOptions: () => [...new Set(events.map(e => e.toolCallId).filter(Boolean))] as string[]
-    },
-    {
-      key: 'trace',
-      type: 'trace' as const,
-      getOptions: () => [...new Set(events.map(e => e.traceId).filter(Boolean))] as string[]
-    }
-  ], [stats, events]);
-  
-  const { showAutocomplete, autocompleteOptions, selectedIndex, handleSelect, handleKeyDown } = useSearchAutocomplete(searchQuery, searchFilters);
-  
+  const searchFilters = useMemo(
+    () => [
+      {
+        key: 'agent',
+        type: 'agent' as const,
+        getOptions: () => (stats?.agents || []).map((a) => a.slug),
+      },
+      {
+        key: 'conversation',
+        type: 'conversation' as const,
+        getOptions: () =>
+          [
+            ...new Set(events.map((e) => e.conversationId).filter(Boolean)),
+          ] as string[],
+      },
+      {
+        key: 'tool',
+        type: 'tool' as const,
+        getOptions: () =>
+          [
+            ...new Set(events.map((e) => e.toolCallId).filter(Boolean)),
+          ] as string[],
+      },
+      {
+        key: 'trace',
+        type: 'trace' as const,
+        getOptions: () =>
+          [
+            ...new Set(events.map((e) => e.traceId).filter(Boolean)),
+          ] as string[],
+      },
+    ],
+    [stats, events],
+  );
+
+  const {
+    showAutocomplete,
+    autocompleteOptions,
+    selectedIndex,
+    handleSelect,
+    handleKeyDown,
+  } = useSearchAutocomplete(searchQuery, searchFilters);
+
   // Event type groups
   const eventTypeGroups = {
-    'Agent': ['agent-start', 'agent-complete'],
-    'Tool': ['tool-call', 'tool-result'],
-    'Reasoning': ['reasoning'],
-    'Planning': ['planning'],
-    'Health': ['agent-health']
+    Agent: ['agent-start', 'agent-complete'],
+    Tool: ['tool-call', 'tool-result'],
+    Reasoning: ['reasoning'],
+    Planning: ['planning'],
+    Health: ['agent-health'],
   };
-  
+
   const [eventTypeFilter, setEventTypeFilter] = useState<string[]>(
-    Object.values(eventTypeGroups).flat()
+    Object.values(eventTypeGroups).flat(),
   );
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [selectedToolCallId, setSelectedToolCallId] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<
+    string | null
+  >(null);
+  const [selectedToolCallId, setSelectedToolCallId] = useState<string | null>(
+    null,
+  );
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [timeMode, setTimeMode] = useState<'relative' | 'absolute'>('absolute');
-  const [relativeTime, setRelativeTime] = useState<'5m' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d'>('5m');
+  const [relativeTime, setRelativeTime] = useState<
+    '5m' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d'
+  >('5m');
   const [absoluteStart, setAbsoluteStart] = useState<string>('');
   const [absoluteEnd, setAbsoluteEnd] = useState<string>('');
   const [isLiveMode, setIsLiveMode] = useState(true);
   const [clearTime, setClearTime] = useState<Date | null>(null);
   const [elapsedLabel, setElapsedLabel] = useState<string>('');
-  
+
   const handleClearAll = () => {
     clearEvents();
     const now = new Date();
@@ -92,42 +119,50 @@ export function MonitoringView() {
     setIsLiveMode(true);
     setTimeMode('absolute');
     // Update absolute inputs
-    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    const localDateTime = new Date(
+      now.getTime() - now.getTimezoneOffset() * 60000,
+    )
       .toISOString()
       .slice(0, 16);
     setAbsoluteStart(localDateTime);
     setAbsoluteEnd(localDateTime);
   };
-  
+
   // Update absolute end time when in live mode
   useEffect(() => {
     if (!isLiveMode) return;
-    
+
     const updateEndTime = () => {
       const now = new Date();
-      const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      const localDateTime = new Date(
+        now.getTime() - now.getTimezoneOffset() * 60000,
+      )
         .toISOString()
         .slice(0, 16);
       setAbsoluteEnd(localDateTime);
     };
-    
+
     updateEndTime();
     const interval = setInterval(updateEndTime, 1000);
     return () => clearInterval(interval);
   }, [isLiveMode]);
-  
+
   // Update elapsed time label
   useEffect(() => {
-    const startTime = clearTime || (timeMode === 'absolute' && absoluteStart ? new Date(absoluteStart) : null);
+    const startTime =
+      clearTime ||
+      (timeMode === 'absolute' && absoluteStart
+        ? new Date(absoluteStart)
+        : null);
     if (!startTime || !isLiveMode) return;
-    
+
     const updateLabel = () => {
       const elapsed = Date.now() - startTime.getTime();
       const seconds = Math.floor(elapsed / 1000);
       const minutes = Math.floor(seconds / 60);
       const hours = Math.floor(minutes / 60);
       const days = Math.floor(hours / 24);
-      
+
       if (days > 0) {
         setElapsedLabel(`Last ${days} day${days > 1 ? 's' : ''}`);
       } else if (hours > 0) {
@@ -138,24 +173,33 @@ export function MonitoringView() {
         setElapsedLabel(`Last ${seconds} sec`);
       }
     };
-    
+
     updateLabel();
     const interval = setInterval(updateLabel, 1000);
     return () => clearInterval(interval);
   }, [clearTime, timeMode, absoluteStart, isLiveMode]);
-  
+
   // When switching to absolute mode, initialize start time from current relative time
   const handleTimeModeChange = (mode: 'relative' | 'absolute') => {
     if (mode === 'absolute' && !absoluteStart) {
-      const ms = relativeTime === '5m' ? 5 * 60 * 1000 
-        : relativeTime === '15m' ? 15 * 60 * 1000
-        : relativeTime === '1h' ? 60 * 60 * 1000
-        : relativeTime === '6h' ? 6 * 60 * 60 * 1000
-        : relativeTime === '24h' ? 24 * 60 * 60 * 1000
-        : relativeTime === '7d' ? 7 * 24 * 60 * 60 * 1000
-        : 30 * 24 * 60 * 60 * 1000;
+      const ms =
+        relativeTime === '5m'
+          ? 5 * 60 * 1000
+          : relativeTime === '15m'
+            ? 15 * 60 * 1000
+            : relativeTime === '1h'
+              ? 60 * 60 * 1000
+              : relativeTime === '6h'
+                ? 6 * 60 * 60 * 1000
+                : relativeTime === '24h'
+                  ? 24 * 60 * 60 * 1000
+                  : relativeTime === '7d'
+                    ? 7 * 24 * 60 * 60 * 1000
+                    : 30 * 24 * 60 * 60 * 1000;
       const start = new Date(Date.now() - ms);
-      const localDateTime = new Date(start.getTime() - start.getTimezoneOffset() * 60000)
+      const localDateTime = new Date(
+        start.getTime() - start.getTimezoneOffset() * 60000,
+      )
         .toISOString()
         .slice(0, 16);
       setAbsoluteStart(localDateTime);
@@ -175,9 +219,11 @@ export function MonitoringView() {
     const now = new Date();
     const start = new Date(now.getTime() - ms);
     setTimeRange(start, now, isLiveMode);
-    
+
     // Set absolute inputs
-    const localStart = new Date(start.getTime() - start.getTimezoneOffset() * 60000)
+    const localStart = new Date(
+      start.getTime() - start.getTimezoneOffset() * 60000,
+    )
       .toISOString()
       .slice(0, 16);
     const localEnd = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -186,18 +232,25 @@ export function MonitoringView() {
     setAbsoluteStart(localStart);
     setAbsoluteEnd(localEnd);
     setTimeMode('relative');
-  }, []); // Only run on mount
-  
+  }, [isLiveMode, setTimeRange]); // Only run on mount
+
   // Update time range when live mode changes
   useEffect(() => {
     if (timeMode === 'relative') {
-      const ms = relativeTime === '5m' ? 5 * 60 * 1000 
-        : relativeTime === '15m' ? 15 * 60 * 1000
-        : relativeTime === '1h' ? 60 * 60 * 1000
-        : relativeTime === '6h' ? 6 * 60 * 60 * 1000
-        : relativeTime === '24h' ? 24 * 60 * 60 * 1000
-        : relativeTime === '7d' ? 7 * 24 * 60 * 60 * 1000
-        : 30 * 24 * 60 * 60 * 1000;
+      const ms =
+        relativeTime === '5m'
+          ? 5 * 60 * 1000
+          : relativeTime === '15m'
+            ? 15 * 60 * 1000
+            : relativeTime === '1h'
+              ? 60 * 60 * 1000
+              : relativeTime === '6h'
+                ? 6 * 60 * 60 * 1000
+                : relativeTime === '24h'
+                  ? 24 * 60 * 60 * 1000
+                  : relativeTime === '7d'
+                    ? 7 * 24 * 60 * 60 * 1000
+                    : 30 * 24 * 60 * 60 * 1000;
       const now = new Date();
       const start = new Date(now.getTime() - ms);
       setTimeRange(start, now, isLiveMode);
@@ -206,7 +259,14 @@ export function MonitoringView() {
       const end = absoluteEnd ? new Date(absoluteEnd) : new Date();
       setTimeRange(start, end, isLiveMode);
     }
-  }, [isLiveMode]);
+  }, [
+    isLiveMode,
+    absoluteEnd,
+    absoluteStart,
+    relativeTime,
+    setTimeRange,
+    timeMode,
+  ]);
 
   // Track new events for animation
   useEffect(() => {
@@ -218,14 +278,14 @@ export function MonitoringView() {
         newIds.add(`${event.timestamp}-${event.type}`);
       }
       setNewEventIds(newIds);
-      
+
       // Remove animation class after 5 seconds
       setTimeout(() => {
         setNewEventIds(new Set());
       }, 5000);
     }
     prevEventCountRef.current = events.length;
-  }, [events]);
+  }, [events, newEventIds]);
 
   // Detect if user is at bottom
   useEffect(() => {
@@ -233,7 +293,9 @@ export function MonitoringView() {
     if (!logStream) return;
 
     const handleScroll = () => {
-      const isAtBottom = logStream.scrollHeight - logStream.scrollTop - logStream.clientHeight < 50;
+      const isAtBottom =
+        logStream.scrollHeight - logStream.scrollTop - logStream.clientHeight <
+        50;
       setShowScrollButton(!autoFollow && !isAtBottom);
     };
 
@@ -245,7 +307,10 @@ export function MonitoringView() {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleConversationClick = (conversationId: string, agentSlug: string) => {
+  const handleConversationClick = (
+    conversationId: string,
+    agentSlug: string,
+  ) => {
     // Toggle filter on conversation
     if (selectedConversation === conversationId) {
       setSelectedConversation(null);
@@ -276,15 +341,15 @@ export function MonitoringView() {
   const handleAgentClick = (agentSlug: string, event: React.MouseEvent) => {
     if (event.shiftKey) {
       // Multi-select with shift
-      setSelectedAgents(prev => 
-        prev.includes(agentSlug) 
-          ? prev.filter(a => a !== agentSlug)
-          : [...prev, agentSlug]
+      setSelectedAgents((prev) =>
+        prev.includes(agentSlug)
+          ? prev.filter((a) => a !== agentSlug)
+          : [...prev, agentSlug],
       );
     } else {
       // Single select
-      setSelectedAgents(prev => 
-        prev.length === 1 && prev[0] === agentSlug ? [] : [agentSlug]
+      setSelectedAgents((prev) =>
+        prev.length === 1 && prev[0] === agentSlug ? [] : [agentSlug],
       );
     }
   };
@@ -292,15 +357,33 @@ export function MonitoringView() {
   // Generate consistent color for agent
   const getAgentColor = (agentSlug: string) => {
     // Avoid filter colors: blue (#3b82f6), orange (#f59e0b), cyan (#06b6d4), purple (#8b5cf6)
-    const colors = ['#ef4444', '#22c55e', '#a855f7', '#f97316', '#14b8a6', '#ec4899'];
-    const hash = agentSlug.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const colors = [
+      '#ef4444',
+      '#22c55e',
+      '#a855f7',
+      '#f97316',
+      '#14b8a6',
+      '#ec4899',
+    ];
+    const hash = agentSlug
+      .split('')
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
   };
 
   // Generate consistent color for conversation ID
   const getConversationColor = (conversationId: string) => {
-    const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
-    const hash = conversationId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const colors = [
+      '#3b82f6',
+      '#8b5cf6',
+      '#ec4899',
+      '#f59e0b',
+      '#10b981',
+      '#06b6d4',
+    ];
+    const hash = conversationId
+      .split('')
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
   };
 
@@ -308,9 +391,11 @@ export function MonitoringView() {
     if (autoFollow && logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [events, autoFollow]);
+  }, [autoFollow]);
 
-  const handleAutocompleteSelect = (option: typeof autocompleteOptions[0]) => {
+  const handleAutocompleteSelect = (
+    option: (typeof autocompleteOptions)[0],
+  ) => {
     const newQuery = handleSelect(option);
     setSearchQuery(newQuery);
     syncFiltersFromQuery(newQuery);
@@ -325,7 +410,12 @@ export function MonitoringView() {
   };
 
   const syncFiltersFromQuery = (query: string) => {
-    const parsed = parseSearchQuery(query, ['agent', 'conversation', 'tool', 'trace']);
+    const parsed = parseSearchQuery(query, [
+      'agent',
+      'conversation',
+      'tool',
+      'trace',
+    ]);
     if (parsed.filters.agent) {
       setSelectedAgents(parsed.filters.agent);
     }
@@ -342,37 +432,64 @@ export function MonitoringView() {
     setSearchQuery(parsed.text);
   };
 
-  const filteredEvents = events.filter(event => {
-    const parsed = parseSearchQuery(searchQuery, ['agent', 'conversation', 'tool', 'trace']);
-    // Check both parsed query agents and selectedAgents from sidebar clicks
-    const agentsToFilter = parsed.filters.agent || selectedAgents;
-    if (agentsToFilter.length > 0 && !agentsToFilter.includes(event.agentSlug || '')) return false;
-    // Check both parsed conversation and selectedConversation from sidebar clicks
-    const conversationToFilter = parsed.filters.conversation?.[0] || selectedConversation;
-    if (conversationToFilter && event.conversationId !== conversationToFilter) return false;
-    // Check tool call ID filter
-    const toolCallIdToFilter = parsed.filters.tool?.[0] || selectedToolCallId;
-    if (toolCallIdToFilter && event.toolCallId !== toolCallIdToFilter) return false;
-    // Check trace ID filter
-    const traceIdToFilter = parsed.filters.trace?.[0] || selectedTraceId;
-    if (traceIdToFilter && event.traceId !== traceIdToFilter) return false;
-    if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.type)) return false;
-    // Only apply text filter if it's not just a filter key with colon
-    const isIncompleteFilter = /^(agent|conversation|tool|trace):$/.test(parsed.text.trim());
-    if (parsed.text && !isIncompleteFilter && !JSON.stringify(event).toLowerCase().includes(parsed.text.toLowerCase())) return false;
-    return true;
-  }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()); // Oldest to newest
+  const filteredEvents = events
+    .filter((event) => {
+      const parsed = parseSearchQuery(searchQuery, [
+        'agent',
+        'conversation',
+        'tool',
+        'trace',
+      ]);
+      // Check both parsed query agents and selectedAgents from sidebar clicks
+      const agentsToFilter = parsed.filters.agent || selectedAgents;
+      if (
+        agentsToFilter.length > 0 &&
+        !agentsToFilter.includes(event.agentSlug || '')
+      )
+        return false;
+      // Check both parsed conversation and selectedConversation from sidebar clicks
+      const conversationToFilter =
+        parsed.filters.conversation?.[0] || selectedConversation;
+      if (conversationToFilter && event.conversationId !== conversationToFilter)
+        return false;
+      // Check tool call ID filter
+      const toolCallIdToFilter = parsed.filters.tool?.[0] || selectedToolCallId;
+      if (toolCallIdToFilter && event.toolCallId !== toolCallIdToFilter)
+        return false;
+      // Check trace ID filter
+      const traceIdToFilter = parsed.filters.trace?.[0] || selectedTraceId;
+      if (traceIdToFilter && event.traceId !== traceIdToFilter) return false;
+      if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.type))
+        return false;
+      // Only apply text filter if it's not just a filter key with colon
+      const isIncompleteFilter = /^(agent|conversation|tool|trace):$/.test(
+        parsed.text.trim(),
+      );
+      if (
+        parsed.text &&
+        !isIncompleteFilter &&
+        !JSON.stringify(event).toLowerCase().includes(parsed.text.toLowerCase())
+      )
+        return false;
+      return true;
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    ); // Oldest to newest
 
   const toggleEventType = (group: string) => {
     const groupTypes = eventTypeGroups[group as keyof typeof eventTypeGroups];
-    const allSelected = groupTypes.every(type => eventTypeFilter.includes(type));
-    
+    const allSelected = groupTypes.every((type) =>
+      eventTypeFilter.includes(type),
+    );
+
     if (allSelected) {
       // Remove all types in this group
-      setEventTypeFilter(prev => prev.filter(t => !groupTypes.includes(t)));
+      setEventTypeFilter((prev) => prev.filter((t) => !groupTypes.includes(t)));
     } else {
       // Add all types in this group
-      setEventTypeFilter(prev => [...new Set([...prev, ...groupTypes])]);
+      setEventTypeFilter((prev) => [...new Set([...prev, ...groupTypes])]);
     }
   };
 
@@ -387,21 +504,25 @@ export function MonitoringView() {
             Connected
           </div>
         </div>
-        
+
         <div className="monitoring-stats">
           <div className="stat-item">
             <span className="stat-label">Active:</span>
-            <span className="stat-value">{stats?.summary.activeAgents || 0}</span>
+            <span className="stat-value">
+              {stats?.summary.activeAgents || 0}
+            </span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Running:</span>
-            <span className="stat-value">{stats?.summary.runningAgents || 0}</span>
+            <span className="stat-value">
+              {stats?.summary.runningAgents || 0}
+            </span>
           </div>
         </div>
 
         <div className="monitoring-actions">
           <div className="time-filter-wrapper">
-            <button 
+            <button
               onClick={() => {
                 setShowTimeControls(!showTimeControls);
                 // Don't change tab if already open, otherwise set based on current mode
@@ -415,48 +536,131 @@ export function MonitoringView() {
               }}
               className="time-filter-button"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                }}
+              >
                 <span>
-                  {(clearTime || (timeMode === 'absolute' && absoluteStart)) && isLiveMode
+                  {(clearTime || (timeMode === 'absolute' && absoluteStart)) &&
+                  isLiveMode
                     ? elapsedLabel
-                    : clearTime 
+                    : clearTime
                       ? 'Custom Range'
-                      : timeMode === 'relative' 
-                        ? `Last ${relativeTime === '5m' ? '5 min' : relativeTime === '15m' ? '15 min' : relativeTime === '1h' ? '1 hour' : relativeTime === '6h' ? '6 hours' : relativeTime === '24h' ? '24 hours' : relativeTime === '7d' ? '7 days' : '30 days'}` 
+                      : timeMode === 'relative'
+                        ? `Last ${relativeTime === '5m' ? '5 min' : relativeTime === '15m' ? '15 min' : relativeTime === '1h' ? '1 hour' : relativeTime === '6h' ? '6 hours' : relativeTime === '24h' ? '24 hours' : relativeTime === '7d' ? '7 days' : '30 days'}`
                         : 'Custom Range'}
                 </span>
                 {(() => {
                   if (clearTime && !isLiveMode) {
                     // Show fixed range when cleared but not live
                     return (
-                      <span style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '2px' }}>
-                        {clearTime.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} → {new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          opacity: 0.7,
+                          marginTop: '2px',
+                        }}
+                      >
+                        {clearTime.toLocaleString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}{' '}
+                        →{' '}
+                        {new Date().toLocaleString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </span>
                     );
                   } else if (timeMode === 'relative' && !clearTime) {
                     // Show relative range
-                    const ms = relativeTime === '5m' ? 5 * 60 * 1000 
-                      : relativeTime === '15m' ? 15 * 60 * 1000
-                      : relativeTime === '1h' ? 60 * 60 * 1000
-                      : relativeTime === '6h' ? 6 * 60 * 60 * 1000
-                      : relativeTime === '24h' ? 24 * 60 * 60 * 1000
-                      : relativeTime === '7d' ? 7 * 24 * 60 * 60 * 1000
-                      : 30 * 24 * 60 * 60 * 1000;
+                    const ms =
+                      relativeTime === '5m'
+                        ? 5 * 60 * 1000
+                        : relativeTime === '15m'
+                          ? 15 * 60 * 1000
+                          : relativeTime === '1h'
+                            ? 60 * 60 * 1000
+                            : relativeTime === '6h'
+                              ? 6 * 60 * 60 * 1000
+                              : relativeTime === '24h'
+                                ? 24 * 60 * 60 * 1000
+                                : relativeTime === '7d'
+                                  ? 7 * 24 * 60 * 60 * 1000
+                                  : 30 * 24 * 60 * 60 * 1000;
                     const start = new Date(Date.now() - ms);
                     return (
-                      <span style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '2px' }}>
-                        {start.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} → {isLiveMode ? 'now' : new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          opacity: 0.7,
+                          marginTop: '2px',
+                        }}
+                      >
+                        {start.toLocaleString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}{' '}
+                        →{' '}
+                        {isLiveMode
+                          ? 'now'
+                          : new Date().toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                       </span>
                     );
-                  } else if (timeMode === 'absolute' && absoluteStart && !clearTime) {
+                  } else if (
+                    timeMode === 'absolute' &&
+                    absoluteStart &&
+                    !clearTime
+                  ) {
                     // Show absolute range
                     return (
-                      <span style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '2px' }}>
-                        {new Date(absoluteStart).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} → {absoluteEnd ? new Date(absoluteEnd).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'now'}
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          opacity: 0.7,
+                          marginTop: '2px',
+                        }}
+                      >
+                        {new Date(absoluteStart).toLocaleString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}{' '}
+                        →{' '}
+                        {absoluteEnd
+                          ? new Date(absoluteEnd).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'now'}
                       </span>
                     );
                   }
@@ -464,43 +668,78 @@ export function MonitoringView() {
                 })()}
               </div>
             </button>
-            
+
             {showTimeControls && (
               <div className="time-controls-dropdown">
                 <div className="time-mode-tabs">
-                  <button 
+                  <button
                     className={timeMode === 'relative' ? 'active' : ''}
                     onClick={() => handleTimeModeChange('relative')}
                   >
                     Relative
                   </button>
-                  <button 
+                  <button
                     className={timeMode === 'absolute' ? 'active' : ''}
                     onClick={() => handleTimeModeChange('absolute')}
                   >
                     Absolute
                   </button>
                 </div>
-                
+
                 {timeMode === 'relative' ? (
                   <div className="relative-time-options">
                     {[
-                      { value: '5m', label: 'Last 5 minutes', ms: 5 * 60 * 1000 },
-                      { value: '15m', label: 'Last 15 minutes', ms: 15 * 60 * 1000 },
+                      {
+                        value: '5m',
+                        label: 'Last 5 minutes',
+                        ms: 5 * 60 * 1000,
+                      },
+                      {
+                        value: '15m',
+                        label: 'Last 15 minutes',
+                        ms: 15 * 60 * 1000,
+                      },
                       { value: '1h', label: 'Last 1 hour', ms: 60 * 60 * 1000 },
-                      { value: '6h', label: 'Last 6 hours', ms: 6 * 60 * 60 * 1000 },
-                      { value: '24h', label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000 },
-                      { value: '7d', label: 'Last 7 days', ms: 7 * 24 * 60 * 60 * 1000 },
-                      { value: '30d', label: 'Last 30 days', ms: 30 * 24 * 60 * 60 * 1000 },
-                    ].map(option => {
+                      {
+                        value: '6h',
+                        label: 'Last 6 hours',
+                        ms: 6 * 60 * 60 * 1000,
+                      },
+                      {
+                        value: '24h',
+                        label: 'Last 24 hours',
+                        ms: 24 * 60 * 60 * 1000,
+                      },
+                      {
+                        value: '7d',
+                        label: 'Last 7 days',
+                        ms: 7 * 24 * 60 * 60 * 1000,
+                      },
+                      {
+                        value: '30d',
+                        label: 'Last 30 days',
+                        ms: 30 * 24 * 60 * 60 * 1000,
+                      },
+                    ].map((option) => {
                       const now = new Date();
                       const start = new Date(now.getTime() - option.ms);
                       return (
                         <button
                           key={option.value}
-                          className={relativeTime === option.value ? 'active' : ''}
+                          className={
+                            relativeTime === option.value ? 'active' : ''
+                          }
                           onClick={() => {
-                            setRelativeTime(option.value as '5m' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d');
+                            setRelativeTime(
+                              option.value as
+                                | '5m'
+                                | '15m'
+                                | '1h'
+                                | '6h'
+                                | '24h'
+                                | '7d'
+                                | '30d',
+                            );
                             setTimeMode('relative');
                             const now = new Date();
                             const start = new Date(now.getTime() - option.ms);
@@ -510,7 +749,9 @@ export function MonitoringView() {
                           }}
                         >
                           <div className="option-label">{option.label}</div>
-                          <div className="option-time">{start.toLocaleString()} → now</div>
+                          <div className="option-time">
+                            {start.toLocaleString()} → now
+                          </div>
                         </button>
                       );
                     })}
@@ -519,8 +760,8 @@ export function MonitoringView() {
                   <div className="absolute-time-inputs">
                     <label>
                       Start
-                      <input 
-                        type="datetime-local" 
+                      <input
+                        type="datetime-local"
                         value={absoluteStart}
                         onChange={(e) => setAbsoluteStart(e.target.value)}
                       />
@@ -528,8 +769,8 @@ export function MonitoringView() {
                     <label>
                       End
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <input 
-                          type="datetime-local" 
+                        <input
+                          type="datetime-local"
                           value={absoluteEnd}
                           onChange={(e) => {
                             setAbsoluteEnd(e.target.value);
@@ -537,17 +778,19 @@ export function MonitoringView() {
                           }}
                           disabled={isLiveMode}
                           placeholder="Leave empty for now"
-                          style={{ 
+                          style={{
                             flex: 1,
                             opacity: isLiveMode ? 0.6 : 1,
-                            cursor: isLiveMode ? 'not-allowed' : 'text'
+                            cursor: isLiveMode ? 'not-allowed' : 'text',
                           }}
                         />
                         <button
                           type="button"
                           onClick={() => {
                             const now = new Date();
-                            const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                            const localDateTime = new Date(
+                              now.getTime() - now.getTimezoneOffset() * 60000,
+                            )
                               .toISOString()
                               .slice(0, 16);
                             setAbsoluteEnd(localDateTime);
@@ -564,19 +807,21 @@ export function MonitoringView() {
                             fontWeight: 600,
                             cursor: isLiveMode ? 'not-allowed' : 'pointer',
                             opacity: isLiveMode ? 0.6 : 1,
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           Now
                         </button>
                       </div>
                     </label>
-                    <button 
+                    <button
                       className="apply-button"
                       onClick={() => {
                         if (absoluteStart) {
                           const start = new Date(absoluteStart);
-                          const end = absoluteEnd ? new Date(absoluteEnd) : new Date();
+                          const end = absoluteEnd
+                            ? new Date(absoluteEnd)
+                            : new Date();
                           setTimeRange(start, end, isLiveMode);
                           setClearTime(null);
                         }
@@ -593,12 +838,18 @@ export function MonitoringView() {
           <button
             onClick={() => setIsLiveMode(!isLiveMode)}
             className={`live-mode-toggle ${isLiveMode ? 'active' : ''}`}
-            title={isLiveMode ? 'Live mode: streaming real-time events' : 'Historical mode: fixed time range'}
+            title={
+              isLiveMode
+                ? 'Live mode: streaming real-time events'
+                : 'Historical mode: fixed time range'
+            }
           >
             <span className="live-dot"></span>
             LIVE
           </button>
-          <button onClick={handleClearAll} className="btn-secondary">CLEAR ALL</button>
+          <button onClick={handleClearAll} className="btn-secondary">
+            CLEAR ALL
+          </button>
         </div>
       </div>
 
@@ -610,122 +861,172 @@ export function MonitoringView() {
             <span className="agent-count">
               {(() => {
                 const activeCount = stats?.agents.length || 0;
-                const historicalSlugs = [...new Set(filteredEvents.map(e => e.agentSlug).filter(Boolean))];
-                const historicalCount = historicalSlugs.filter(slug => !stats?.agents.some(a => a.slug === slug)).length;
+                const historicalSlugs = [
+                  ...new Set(
+                    filteredEvents.map((e) => e.agentSlug).filter(Boolean),
+                  ),
+                ];
+                const historicalCount = historicalSlugs.filter(
+                  (slug) => !stats?.agents.some((a) => a.slug === slug),
+                ).length;
                 return `${activeCount} Active${historicalCount > 0 ? ` • ${historicalCount} Historical` : ''}`;
               })()}
             </span>
           </div>
-          
+
           <div className="agent-list">
             {/* Active Agents */}
-            {stats?.agents.map(agent => {
+            {stats?.agents.map((agent) => {
               const runningConversations = events
-                .filter(e => e.agentSlug === agent.slug && e.type === 'agent-start' && e.conversationId)
-                .reduce((acc, e) => {
-                  if (e.conversationId && !acc.some(c => c.id === e.conversationId)) {
-                    acc.push({ id: e.conversationId, color: getConversationColor(e.conversationId) });
-                  }
-                  return acc;
-                }, [] as Array<{ id: string; color: string }>);
-              
+                .filter(
+                  (e) =>
+                    e.agentSlug === agent.slug &&
+                    e.type === 'agent-start' &&
+                    e.conversationId,
+                )
+                .reduce(
+                  (acc, e) => {
+                    if (
+                      e.conversationId &&
+                      !acc.some((c) => c.id === e.conversationId)
+                    ) {
+                      acc.push({
+                        id: e.conversationId,
+                        color: getConversationColor(e.conversationId),
+                      });
+                    }
+                    return acc;
+                  },
+                  [] as Array<{ id: string; color: string }>,
+                );
+
               return (
-              <div 
-                key={agent.slug} 
-                className={`agent-card status-${agent.status} ${selectedAgents.includes(agent.slug) ? 'selected' : ''}`}
-                onClick={(e) => handleAgentClick(agent.slug, e)}
-                style={{ 
-                  borderLeftColor: getAgentColor(agent.slug),
-                  background: selectedAgents.includes(agent.slug) 
-                    ? `color-mix(in srgb, ${getAgentColor(agent.slug)} 10%, var(--bg-secondary))`
-                    : undefined
-                }}
-              >
-                <div className="agent-header">
-                  <span className="agent-name">
-                    <span 
-                      className={`health-dot ${agent.healthy === false ? 'unhealthy' : agent.healthy === true ? 'healthy' : 'unknown'}`}
-                      title={agent.healthy === false ? 'Unhealthy' : agent.healthy === true ? 'Healthy' : 'Status unknown'}
-                    ></span>
-                    {agent.name}
-                  </span>
-                  <span className={`agent-status ${agent.status}`}>{agent.status.toUpperCase()}</span>
-                </div>
-                {agent.status === 'running' && runningConversations.length > 0 && (
-                  <div className="running-conversations">
-                    <div className="conversations-label">Active Chats</div>
-                    {runningConversations.map((conv, idx) => (
-                      <div 
-                        key={idx} 
-                        className="conversation-item"
-                        style={{ borderLeftColor: conv.color }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleConversationClick(conv.id, agent.slug);
-                        }}
-                      >
-                        <span className="conversation-id">{conv.id.split(':').pop()?.substring(0, 8)}...</span>
+                <div
+                  key={agent.slug}
+                  className={`agent-card status-${agent.status} ${selectedAgents.includes(agent.slug) ? 'selected' : ''}`}
+                  onClick={(e) => handleAgentClick(agent.slug, e)}
+                  style={{
+                    borderLeftColor: getAgentColor(agent.slug),
+                    background: selectedAgents.includes(agent.slug)
+                      ? `color-mix(in srgb, ${getAgentColor(agent.slug)} 10%, var(--bg-secondary))`
+                      : undefined,
+                  }}
+                >
+                  <div className="agent-header">
+                    <span className="agent-name">
+                      <span
+                        className={`health-dot ${agent.healthy === false ? 'unhealthy' : agent.healthy === true ? 'healthy' : 'unknown'}`}
+                        title={
+                          agent.healthy === false
+                            ? 'Unhealthy'
+                            : agent.healthy === true
+                              ? 'Healthy'
+                              : 'Status unknown'
+                        }
+                      ></span>
+                      {agent.name}
+                    </span>
+                    <span className={`agent-status ${agent.status}`}>
+                      {agent.status.toUpperCase()}
+                    </span>
+                  </div>
+                  {agent.status === 'running' &&
+                    runningConversations.length > 0 && (
+                      <div className="running-conversations">
+                        <div className="conversations-label">Active Chats</div>
+                        {runningConversations.map((conv, idx) => (
+                          <div
+                            key={idx}
+                            className="conversation-item"
+                            style={{ borderLeftColor: conv.color }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConversationClick(conv.id, agent.slug);
+                            }}
+                          >
+                            <span className="conversation-id">
+                              {conv.id.split(':').pop()?.substring(0, 8)}...
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-                <div className="agent-meta">
-                  <div className="meta-item">
-                    <span className="meta-label">Model:</span>
-                    <span className="meta-value">{models.find(m => m.id === agent.model)?.name || agent.model || 'N/A'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Messages:</span>
-                    <span className="meta-value">{agent.messageCount}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Cost:</span>
-                    <span className="meta-value">${agent.cost.toFixed(3)}</span>
+                    )}
+                  <div className="agent-meta">
+                    <div className="meta-item">
+                      <span className="meta-label">Model:</span>
+                      <span className="meta-value">
+                        {models.find((m) => m.id === agent.model)?.name ||
+                          agent.model ||
+                          'N/A'}
+                      </span>
+                    </div>
+                    <div className="meta-item">
+                      <span className="meta-label">Messages:</span>
+                      <span className="meta-value">{agent.messageCount}</span>
+                    </div>
+                    <div className="meta-item">
+                      <span className="meta-label">Cost:</span>
+                      <span className="meta-value">
+                        ${agent.cost.toFixed(3)}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
+              );
             })}
-            
+
             {/* Historical Agents (from events but not currently loaded) */}
             {(() => {
-              const historicalSlugs = [...new Set(filteredEvents.map(e => e.agentSlug).filter(Boolean))]
-                .filter(slug => !stats?.agents.some(a => a.slug === slug));
-              
+              const historicalSlugs = [
+                ...new Set(
+                  filteredEvents.map((e) => e.agentSlug).filter(Boolean),
+                ),
+              ].filter((slug) => !stats?.agents.some((a) => a.slug === slug));
+
               if (historicalSlugs.length === 0) return null;
-              
+
               return (
                 <>
-                  <div style={{ 
-                    padding: '0.75rem 0.5rem 0.5rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    color: 'var(--text-secondary)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    borderTop: '1px solid var(--border-primary)',
-                    marginTop: '0.5rem'
-                  }}>
+                  <div
+                    style={{
+                      padding: '0.75rem 0.5rem 0.5rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: 'var(--text-secondary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      borderTop: '1px solid var(--border-primary)',
+                      marginTop: '0.5rem',
+                    }}
+                  >
                     Historical
                   </div>
-                  {historicalSlugs.map(slug => {
-                    const eventCount = filteredEvents.filter(e => e.agentSlug === slug).length;
+                  {historicalSlugs.map((slug) => {
+                    const eventCount = filteredEvents.filter(
+                      (e) => e.agentSlug === slug,
+                    ).length;
                     return (
-                      <div 
-                        key={slug} 
+                      <div
+                        key={slug}
                         className={`agent-card ${selectedAgents.includes(slug) ? 'selected' : ''}`}
                         onClick={(e) => handleAgentClick(slug, e)}
-                        style={{ 
+                        style={{
                           borderLeftColor: getAgentColor(slug),
-                          background: selectedAgents.includes(slug) 
+                          background: selectedAgents.includes(slug)
                             ? `color-mix(in srgb, ${getAgentColor(slug)} 10%, var(--bg-secondary))`
                             : undefined,
-                          opacity: 0.7
+                          opacity: 0.7,
                         }}
                       >
                         <div className="agent-header">
                           <span className="agent-name">{slug}</span>
-                          <span className="agent-status" style={{ background: 'var(--text-tertiary)', color: 'var(--bg-secondary)' }}>
+                          <span
+                            className="agent-status"
+                            style={{
+                              background: 'var(--text-tertiary)',
+                              color: 'var(--bg-secondary)',
+                            }}
+                          >
                             HISTORICAL
                           </span>
                         </div>
@@ -749,9 +1050,12 @@ export function MonitoringView() {
           <div className="log-controls">
             <div className="log-controls-row">
               <div className="event-filters">
-                {Object.keys(eventTypeGroups).map(group => {
-                  const groupTypes = eventTypeGroups[group as keyof typeof eventTypeGroups];
-                  const allSelected = groupTypes.every(type => eventTypeFilter.includes(type));
+                {Object.keys(eventTypeGroups).map((group) => {
+                  const groupTypes =
+                    eventTypeGroups[group as keyof typeof eventTypeGroups];
+                  const allSelected = groupTypes.every((type) =>
+                    eventTypeFilter.includes(type),
+                  );
                   return (
                     <button
                       key={group}
@@ -776,7 +1080,7 @@ export function MonitoringView() {
                   className="search-input"
                 />
                 {searchQuery && (
-                  <button 
+                  <button
                     className="search-clear"
                     onClick={() => setSearchQuery('')}
                     title="Clear search"
@@ -784,7 +1088,7 @@ export function MonitoringView() {
                     ×
                   </button>
                 )}
-                
+
                 {showAutocomplete && (
                   <div className="autocomplete-dropdown">
                     {autocompleteOptions.map((option, idx) => (
@@ -792,16 +1096,24 @@ export function MonitoringView() {
                         key={idx}
                         className={`autocomplete-item ${idx === selectedIndex ? 'selected' : ''} ${option.isEmpty ? 'empty' : ''}`}
                         data-type={option.type}
-                        onClick={() => !option.isEmpty && handleAutocompleteSelect(option)}
+                        onClick={() =>
+                          !option.isEmpty && handleAutocompleteSelect(option)
+                        }
                       >
                         {option.isEmpty ? (
                           <div className="autocomplete-empty">
                             <div>{option.label}</div>
-                            {option.emptyMessage && <div className="autocomplete-hint">{option.emptyMessage}</div>}
+                            {option.emptyMessage && (
+                              <div className="autocomplete-hint">
+                                {option.emptyMessage}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <>
-                            <span className="autocomplete-type">{option.type}</span>
+                            <span className="autocomplete-type">
+                              {option.type}
+                            </span>
                             {option.value}
                           </>
                         )}
@@ -818,52 +1130,68 @@ export function MonitoringView() {
                 AUTO-FOLLOW
               </button>
             </div>
-            
-            {(selectedAgents.length > 0 || selectedConversation || selectedToolCallId || selectedTraceId) && (
+
+            {(selectedAgents.length > 0 ||
+              selectedConversation ||
+              selectedToolCallId ||
+              selectedTraceId) && (
               <div className="active-filters-inline">
-                {selectedAgents.map(agent => (
-                  <span 
-                    key={agent} 
-                    className="filter-badge-inline" 
-                    style={{ 
+                {selectedAgents.map((agent) => (
+                  <span
+                    key={agent}
+                    className="filter-badge-inline"
+                    style={{
                       borderLeft: `3px solid ${getAgentColor(agent)}`,
-                      background: `color-mix(in srgb, ${getAgentColor(agent)} 15%, var(--bg-tertiary))`
+                      background: `color-mix(in srgb, ${getAgentColor(agent)} 15%, var(--bg-tertiary))`,
                     }}
                   >
                     agent:{agent}
-                    <button onClick={() => setSelectedAgents(prev => prev.filter(a => a !== agent))}>×</button>
+                    <button
+                      onClick={() =>
+                        setSelectedAgents((prev) =>
+                          prev.filter((a) => a !== agent),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
                   </span>
                 ))}
                 {selectedConversation && (
-                  <span 
+                  <span
                     className="filter-badge-inline"
-                    style={{ 
+                    style={{
                       borderLeft: `3px solid var(--event-agent-start)`,
-                      background: `color-mix(in srgb, var(--event-agent-start) 15%, var(--bg-tertiary))`
+                      background: `color-mix(in srgb, var(--event-agent-start) 15%, var(--bg-tertiary))`,
                     }}
                   >
-                    conversation:{selectedConversation.split(':').pop()?.substring(0, 8)}
-                    <button onClick={() => setSelectedConversation(null)}>×</button>
+                    conversation:
+                    {selectedConversation.split(':').pop()?.substring(0, 8)}
+                    <button onClick={() => setSelectedConversation(null)}>
+                      ×
+                    </button>
                   </span>
                 )}
                 {selectedToolCallId && (
-                  <span 
+                  <span
                     className="filter-badge-inline"
-                    style={{ 
+                    style={{
                       borderLeft: `3px solid var(--event-tool-call)`,
-                      background: `color-mix(in srgb, var(--event-tool-call) 15%, var(--bg-tertiary))`
+                      background: `color-mix(in srgb, var(--event-tool-call) 15%, var(--bg-tertiary))`,
                     }}
                   >
                     tool:{selectedToolCallId}
-                    <button onClick={() => setSelectedToolCallId(null)}>×</button>
+                    <button onClick={() => setSelectedToolCallId(null)}>
+                      ×
+                    </button>
                   </span>
                 )}
                 {selectedTraceId && (
-                  <span 
+                  <span
                     className="filter-badge-inline"
-                    style={{ 
+                    style={{
                       borderLeft: `3px solid var(--color-primary)`,
-                      background: `color-mix(in srgb, var(--color-primary) 15%, var(--bg-tertiary))`
+                      background: `color-mix(in srgb, var(--color-primary) 15%, var(--bg-tertiary))`,
                     }}
                   >
                     trace:...{selectedTraceId.slice(-8)}
@@ -883,213 +1211,372 @@ export function MonitoringView() {
               filteredEvents.map((event, idx) => {
                 const eventId = `${event.timestamp}-${event.type}`;
                 const isNew = newEventIds.has(eventId);
-                const agentColor = event.agentSlug ? getAgentColor(event.agentSlug) : undefined;
+                const agentColor = event.agentSlug
+                  ? getAgentColor(event.agentSlug)
+                  : undefined;
                 return (
-                <div 
-                  key={idx} 
-                  className={`log-entry event-${event.type} agent-${event.agentSlug} ${isNew ? 'new-event' : ''}`}
-                  style={agentColor ? {
-                    background: `color-mix(in srgb, ${agentColor} 8%, var(--bg-secondary))`
-                  } : undefined}
-                >
-                  <div className="log-row">
-                    <div className="log-timestamp-col">
-                      <div 
-                        className="log-timestamp" 
-                        title={event.timestamp ? new Date(event.timestamp).toLocaleString('en-US', { 
-                          dateStyle: 'full', 
-                          timeStyle: 'long' 
-                        }) : 'No timestamp'}
-                      >
-                        {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : '-'}
-                        {event.timestampMs && (
-                          <span style={{ fontSize: '0.7em', opacity: 0.6, marginLeft: '0.25rem' }}>
-                            .{String(event.timestampMs % 1000).padStart(3, '0')}
+                  <div
+                    key={idx}
+                    className={`log-entry event-${event.type} agent-${event.agentSlug} ${isNew ? 'new-event' : ''}`}
+                    style={
+                      agentColor
+                        ? {
+                            background: `color-mix(in srgb, ${agentColor} 8%, var(--bg-secondary))`,
+                          }
+                        : undefined
+                    }
+                  >
+                    <div className="log-row">
+                      <div className="log-timestamp-col">
+                        <div
+                          className="log-timestamp"
+                          title={
+                            event.timestamp
+                              ? new Date(event.timestamp).toLocaleString(
+                                  'en-US',
+                                  {
+                                    dateStyle: 'full',
+                                    timeStyle: 'long',
+                                  },
+                                )
+                              : 'No timestamp'
+                          }
+                        >
+                          {event.timestamp
+                            ? new Date(event.timestamp).toLocaleTimeString()
+                            : '-'}
+                          {event.timestampMs && (
+                            <span
+                              style={{
+                                fontSize: '0.7em',
+                                opacity: 0.6,
+                                marginLeft: '0.25rem',
+                              }}
+                            >
+                              .
+                              {String(event.timestampMs % 1000).padStart(
+                                3,
+                                '0',
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        {event.traceId && (
+                          <button
+                            className={`trace-pill ${selectedTraceId === event.traceId ? 'selected' : ''}`}
+                            onClick={() => handleTraceClick(event.traceId!)}
+                            title={`Trace ID: ${event.traceId}\nClick to filter`}
+                            style={
+                              selectedTraceId === event.traceId && agentColor
+                                ? {
+                                    borderColor: agentColor,
+                                    color: agentColor,
+                                  }
+                                : undefined
+                            }
+                          >
+                            {event.traceId.slice(-8)}
+                          </button>
+                        )}
+                      </div>
+                      <div className="log-type">{event.type.toUpperCase()}</div>
+                      <div className="log-agent">{event.agentSlug || '-'}</div>
+
+                      <div className="log-data">
+                        {event.conversationId && (
+                          <span className="log-inline">
+                            <span className="meta-label">Conversation:</span>
+                            <button
+                              className={`pill-button ${selectedConversation === event.conversationId ? 'selected' : ''}`}
+                              style={{
+                                backgroundColor: 'var(--event-agent-start)',
+                                borderColor: 'var(--event-agent-start)',
+                              }}
+                              onClick={() =>
+                                handleConversationClick(
+                                  event.conversationId!,
+                                  event.agentSlug!,
+                                )
+                              }
+                              title="Filter by conversation"
+                            >
+                              ...{event.conversationId.slice(-6)}
+                            </button>
+                          </span>
+                        )}
+
+                        {event.toolCallId && (
+                          <span className="log-inline">
+                            <span className="meta-label">Tool Call:</span>
+                            <button
+                              className={`pill-button ${selectedToolCallId === event.toolCallId ? 'selected' : ''}`}
+                              onClick={() =>
+                                handleToolCallClick(event.toolCallId!)
+                              }
+                              title="Filter by tool call ID"
+                              style={{
+                                background: 'var(--event-tool-call)',
+                                borderColor: 'var(--event-tool-call)',
+                                color: 'white',
+                              }}
+                            >
+                              ...{event.toolCallId.slice(-6)}
+                            </button>
+                          </span>
+                        )}
+
+                        {event.toolName && (
+                          <span className="log-inline">
+                            <span className="meta-label">Tool:</span>
+                            <span className="pill-badge tool-badge">
+                              {event.toolName}
+                            </span>
+                            {event.requiresApproval && (
+                              <span
+                                style={{
+                                  marginLeft: '0.5rem',
+                                  fontSize: '0.75rem',
+                                  color: 'var(--warning-primary)',
+                                }}
+                              >
+                                🔒 Requires Approval
+                              </span>
+                            )}
+                            {event.toolCallNumber !== undefined && (
+                              <span
+                                style={{
+                                  marginLeft: '0.5rem',
+                                  fontSize: '0.75rem',
+                                  color: 'var(--text-secondary)',
+                                }}
+                              >
+                                Call #{event.toolCallNumber}
+                              </span>
+                            )}
+                          </span>
+                        )}
+
+                        {event.healthy !== undefined && (
+                          <span className="log-inline">
+                            <span className="meta-label">Status:</span>
+                            <span
+                              className={`pill-badge ${event.healthy ? 'health-ok' : 'health-error'}`}
+                            >
+                              {event.healthy ? '✓ Healthy' : '⚠ Unhealthy'}
+                            </span>
+                          </span>
+                        )}
+
+                        {event.integrations &&
+                          event.integrations.length > 0 && (
+                            <span className="log-inline">
+                              <span className="meta-label">Integrations:</span>
+                              {event.integrations.map((integration, idx) => (
+                                <span
+                                  key={idx}
+                                  className={`pill-badge ${integration.connected ? 'health-ok' : 'health-error'}`}
+                                  title={`${integration.type.toUpperCase()} - ${integration.connected ? 'Connected' : 'Disconnected'}${integration.metadata ? `\nTransport: ${integration.metadata.transport}\nTools: ${integration.metadata.toolCount}` : ''}`}
+                                >
+                                  {integration.id}
+                                  {integration.metadata &&
+                                    ` (${integration.metadata.toolCount} tools)`}
+                                </span>
+                              ))}
+                            </span>
+                          )}
+
+                        {event.reason && (
+                          <span className="log-inline">
+                            <span className="meta-label">Reason:</span>
+                            <span className="pill-badge">{event.reason}</span>
+                            {event.reason === 'tool-calls' &&
+                              event.maxSteps && (
+                                <span
+                                  style={{
+                                    marginLeft: '0.5rem',
+                                    fontSize: '0.75rem',
+                                    color: 'var(--text-secondary)',
+                                  }}
+                                >
+                                  (Hit max steps limit: {event.steps}/
+                                  {event.maxSteps})
+                                </span>
+                              )}
                           </span>
                         )}
                       </div>
-                      {event.traceId && (
-                        <button
-                          className={`trace-pill ${selectedTraceId === event.traceId ? 'selected' : ''}`}
-                          onClick={() => handleTraceClick(event.traceId!)}
-                          title={`Trace ID: ${event.traceId}\nClick to filter`}
-                          style={selectedTraceId === event.traceId && agentColor ? {
-                            borderColor: agentColor,
-                            color: agentColor
-                          } : undefined}
-                        >
-                          {event.traceId.slice(-8)}
-                        </button>
-                      )}
                     </div>
-                    <div className="log-type">{event.type.toUpperCase()}</div>
-                    <div className="log-agent">{event.agentSlug || '-'}</div>
-                    
-                    <div className="log-data">
-                    {event.conversationId && (
-                      <span className="log-inline">
-                        <span className="meta-label">Conversation:</span>
-                        <button 
-                          className={`pill-button ${selectedConversation === event.conversationId ? 'selected' : ''}`}
-                          style={{ 
-                            backgroundColor: 'var(--event-agent-start)',
-                            borderColor: 'var(--event-agent-start)'
-                          }}
-                          onClick={() => handleConversationClick(event.conversationId!, event.agentSlug!)}
-                          title="Filter by conversation"
-                        >
-                          ...{event.conversationId.slice(-6)}
-                        </button>
-                      </span>
-                    )}
-                    
-                    {event.toolCallId && (
-                      <span className="log-inline">
-                        <span className="meta-label">Tool Call:</span>
-                        <button
-                          className={`pill-button ${selectedToolCallId === event.toolCallId ? 'selected' : ''}`}
-                          onClick={() => handleToolCallClick(event.toolCallId!)}
-                          title="Filter by tool call ID"
-                          style={{ 
-                            background: 'var(--event-tool-call)',
-                            borderColor: 'var(--event-tool-call)',
-                            color: 'white'
-                          }}
-                        >
-                          ...{event.toolCallId.slice(-6)}
-                        </button>
-                      </span>
-                    )}
-                    
-                    {event.toolName && (
-                      <span className="log-inline">
-                        <span className="meta-label">Tool:</span>
-                        <span className="pill-badge tool-badge">{event.toolName}</span>
-                        {event.requiresApproval && (
-                          <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--warning-primary)' }}>
-                            🔒 Requires Approval
-                          </span>
-                        )}
-                        {event.toolCallNumber !== undefined && (
-                          <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            Call #{event.toolCallNumber}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                    
-                    {event.healthy !== undefined && (
-                      <span className="log-inline">
-                        <span className="meta-label">Status:</span>
-                        <span className={`pill-badge ${event.healthy ? 'health-ok' : 'health-error'}`}>
-                          {event.healthy ? '✓ Healthy' : '⚠ Unhealthy'}
-                        </span>
-                      </span>
-                    )}
-                    
-                    {event.integrations && event.integrations.length > 0 && (
-                      <span className="log-inline">
-                        <span className="meta-label">Integrations:</span>
-                        {event.integrations.map((integration, idx) => (
-                          <span 
-                            key={idx}
-                            className={`pill-badge ${integration.connected ? 'health-ok' : 'health-error'}`}
-                            title={`${integration.type.toUpperCase()} - ${integration.connected ? 'Connected' : 'Disconnected'}${integration.metadata ? `\nTransport: ${integration.metadata.transport}\nTools: ${integration.metadata.toolCount}` : ''}`}
-                          >
-                            {integration.id}
-                            {integration.metadata && ` (${integration.metadata.toolCount} tools)`}
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                    
-                    {event.reason && (
-                      <span className="log-inline">
-                        <span className="meta-label">Reason:</span>
-                        <span className="pill-badge">{event.reason}</span>
-                        {event.reason === 'tool-calls' && event.maxSteps && (
-                          <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            (Hit max steps limit: {event.steps}/{event.maxSteps})
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  </div>
-                  
-                  {/* Collapsible sections */}
-                  {event.data && (
-                      <details className="log-details" style={{ marginTop: '0.75rem' }}>
+
+                    {/* Collapsible sections */}
+                    {event.data && (
+                      <details
+                        className="log-details"
+                        style={{ marginTop: '0.75rem' }}
+                      >
                         <summary>
                           Output
-                          <span style={{ fontSize: '0.75rem', marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>
+                          <span
+                            style={{
+                              fontSize: '0.75rem',
+                              marginLeft: '0.5rem',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
                             ({event.data.length} chars)
                           </span>
                         </summary>
-                        <pre style={{ whiteSpace: 'pre-wrap', maxHeight: '400px', overflow: 'auto' }}>
+                        <pre
+                          style={{
+                            whiteSpace: 'pre-wrap',
+                            maxHeight: '400px',
+                            overflow: 'auto',
+                          }}
+                        >
                           {event.data}
                         </pre>
                       </details>
                     )}
-                    
+
                     {event.checks && (
                       <details className="log-details">
                         <summary>Health Checks</summary>
                         <div style={{ padding: '0.5rem 0' }}>
                           {Object.entries(event.checks).map(([key, value]) => (
-                            <div key={key} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                              <span style={{ color: 'var(--text-secondary)' }}>{key}:</span>
-                              <span style={{ color: value ? 'var(--success)' : 'var(--error)' }}>
+                            <div
+                              key={key}
+                              style={{
+                                display: 'flex',
+                                gap: '0.5rem',
+                                marginBottom: '0.25rem',
+                              }}
+                            >
+                              <span style={{ color: 'var(--text-secondary)' }}>
+                                {key}:
+                              </span>
+                              <span
+                                style={{
+                                  color: value
+                                    ? 'var(--success)'
+                                    : 'var(--error)',
+                                }}
+                              >
                                 {value ? '✓' : '✗'}
                               </span>
                             </div>
                           ))}
-                          {event.integrations && event.integrations.length > 0 && (
-                            <div style={{ marginTop: '1rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-primary)' }}>
-                              <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Integrations:</div>
-                              {event.integrations.map((integration, idx) => (
-                                <div key={idx} style={{ marginLeft: '1rem', marginBottom: '0.5rem' }}>
-                                  <div style={{ fontWeight: 500 }}>
-                                    {integration.id} ({integration.type})
-                                    <span style={{ color: integration.connected ? 'var(--success)' : 'var(--error)', marginLeft: '0.5rem' }}>
-                                      {integration.connected ? '✓ Connected' : '✗ Disconnected'}
-                                    </span>
-                                  </div>
-                                  {integration.metadata && (
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                                      Transport: {integration.metadata.transport} | Tools: {integration.metadata.toolCount}
-                                    </div>
-                                  )}
+                          {event.integrations &&
+                            event.integrations.length > 0 && (
+                              <div
+                                style={{
+                                  marginTop: '1rem',
+                                  paddingTop: '0.5rem',
+                                  borderTop: '1px solid var(--border-primary)',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    color: 'var(--text-secondary)',
+                                    marginBottom: '0.5rem',
+                                  }}
+                                >
+                                  Integrations:
                                 </div>
-                              ))}
-                            </div>
-                          )}
+                                {event.integrations.map((integration, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      marginLeft: '1rem',
+                                      marginBottom: '0.5rem',
+                                    }}
+                                  >
+                                    <div style={{ fontWeight: 500 }}>
+                                      {integration.id} ({integration.type})
+                                      <span
+                                        style={{
+                                          color: integration.connected
+                                            ? 'var(--success)'
+                                            : 'var(--error)',
+                                          marginLeft: '0.5rem',
+                                        }}
+                                      >
+                                        {integration.connected
+                                          ? '✓ Connected'
+                                          : '✗ Disconnected'}
+                                      </span>
+                                    </div>
+                                    {integration.metadata && (
+                                      <div
+                                        style={{
+                                          fontSize: '0.8rem',
+                                          color: 'var(--text-secondary)',
+                                          marginTop: '0.25rem',
+                                        }}
+                                      >
+                                        Transport:{' '}
+                                        {integration.metadata.transport} |
+                                        Tools: {integration.metadata.toolCount}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                         </div>
                       </details>
                     )}
-                    
-                    {event.input && (typeof event.input === 'string' || Object.keys(event.input).length > 0) && (
-                      <details className="log-details">
-                        <summary>Input ({typeof event.input === 'string' ? event.input.length + ' chars' : Object.keys(event.input).length + ' params'})</summary>
-                        <pre>{typeof event.input === 'string' ? event.input : JSON.stringify(event.input, null, 2)}</pre>
-                      </details>
-                    )}
-                    
+
+                    {event.input &&
+                      (typeof event.input === 'string' ||
+                        Object.keys(event.input).length > 0) && (
+                        <details className="log-details">
+                          <summary>
+                            Input (
+                            {typeof event.input === 'string'
+                              ? `${event.input.length} chars`
+                              : `${Object.keys(event.input).length} params`}
+                            )
+                          </summary>
+                          <pre>
+                            {typeof event.input === 'string'
+                              ? event.input
+                              : JSON.stringify(event.input, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+
                     {event.result && (
                       <details className="log-details">
                         <summary>
                           Result
-                          <button 
+                          <button
                             className="export-btn"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigator.clipboard.writeText(JSON.stringify(event.result, null, 2));
+                              navigator.clipboard.writeText(
+                                JSON.stringify(event.result, null, 2),
+                              );
                               showToast('Copied to clipboard');
                             }}
                             title="Copy to clipboard"
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <rect
+                                x="9"
+                                y="9"
+                                width="13"
+                                height="13"
+                                rx="2"
+                                ry="2"
+                              ></rect>
                               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                             </svg>
                           </button>
@@ -1097,122 +1584,287 @@ export function MonitoringView() {
                         <pre>{JSON.stringify(event.result, null, 2)}</pre>
                       </details>
                     )}
-                    
-                    {event.type === 'agent-complete' && event.artifacts && (() => {
-                      const textArtifacts = event.artifacts.filter(a => a.type === 'text');
-                      const finalOutput = textArtifacts.length > 0 ? textArtifacts[textArtifacts.length - 1].content : null;
-                      const toolCalls = event.artifacts.filter(a => a.type === 'tool-call');
-                      
-                      return (
-                        <>
-                          {finalOutput && (() => {
-                            const preview = finalOutput.length > 200 ? finalOutput.substring(0, 200) + '...' : finalOutput;
-                            const needsExpansion = finalOutput.length > 200;
-                            
-                            return (
+
+                    {event.type === 'agent-complete' &&
+                      event.artifacts &&
+                      (() => {
+                        const textArtifacts = event.artifacts.filter(
+                          (a) => a.type === 'text',
+                        );
+                        const finalOutput =
+                          textArtifacts.length > 0
+                            ? textArtifacts[textArtifacts.length - 1].content
+                            : null;
+                        const toolCalls = event.artifacts.filter(
+                          (a) => a.type === 'tool-call',
+                        );
+
+                        return (
+                          <>
+                            {finalOutput &&
+                              (() => {
+                                const _preview =
+                                  finalOutput.length > 200
+                                    ? `${finalOutput.substring(0, 200)}...`
+                                    : finalOutput;
+                                const needsExpansion = finalOutput.length > 200;
+
+                                return (
+                                  <details className="log-details">
+                                    <summary>
+                                      Output
+                                      {needsExpansion && (
+                                        <span
+                                          style={{
+                                            fontSize: '0.75rem',
+                                            marginLeft: '0.5rem',
+                                            color: 'var(--text-secondary)',
+                                          }}
+                                        >
+                                          ({finalOutput.length} chars)
+                                        </span>
+                                      )}
+                                    </summary>
+                                    <pre
+                                      style={{
+                                        whiteSpace: 'pre-wrap',
+                                        maxHeight: '400px',
+                                        overflow: 'auto',
+                                      }}
+                                    >
+                                      {finalOutput}
+                                    </pre>
+                                  </details>
+                                );
+                              })()}
+                            {toolCalls.length > 0 && (
                               <details className="log-details">
                                 <summary>
-                                  Output
-                                  {needsExpansion && <span style={{ fontSize: '0.75rem', marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>({finalOutput.length} chars)</span>}
+                                  Tools Used ({toolCalls.length})
                                 </summary>
-                                <pre style={{ whiteSpace: 'pre-wrap', maxHeight: '400px', overflow: 'auto' }}>{finalOutput}</pre>
+                                <div style={{ padding: '0.5rem 0' }}>
+                                  {toolCalls.map((tool, idx) => (
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        marginBottom: '0.5rem',
+                                        paddingBottom: '0.5rem',
+                                        borderBottom:
+                                          idx < toolCalls.length - 1
+                                            ? '1px solid var(--border-primary)'
+                                            : 'none',
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          fontWeight: 500,
+                                          color: 'var(--event-tool-call)',
+                                        }}
+                                      >
+                                        {tool.name}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </details>
-                            );
-                          })()}
-                          {toolCalls.length > 0 && (
-                            <details className="log-details">
-                              <summary>Tools Used ({toolCalls.length})</summary>
-                              <div style={{ padding: '0.5rem 0' }}>
-                                {toolCalls.map((tool, idx) => (
-                                  <div key={idx} style={{ marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: idx < toolCalls.length - 1 ? '1px solid var(--border-primary)' : 'none' }}>
-                                    <div style={{ fontWeight: 500, color: 'var(--event-tool-call)' }}>{tool.name}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </details>
-                          )}
-                          {event.usage && (
-                            <details className="log-details">
-                              <summary>Usage & Stats</summary>
-                              <div style={{ padding: '0.5rem 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem', fontSize: '0.9em' }}>
-                                {/* Character Counts */}
-                                {event.inputChars !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)' }}>Input:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{event.inputChars.toLocaleString()} chars</div>
-                                  </>
-                                )}
-                                
-                                {event.outputChars !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)' }}>Output:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{event.outputChars.toLocaleString()} chars</div>
-                                  </>
-                                )}
-                                
-                                {event.inputChars !== undefined && event.outputChars !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Total:</div>
-                                    <div style={{ fontFamily: 'monospace', fontWeight: 500 }}>{(event.inputChars + event.outputChars).toLocaleString()} chars</div>
-                                  </>
-                                )}
-                                
-                                {/* Token Usage */}
-                                {event.usage?.promptTokens !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Prompt Tokens:</div>
-                                    <div style={{ fontFamily: 'monospace', marginTop: '0.5rem' }}>{event.usage.promptTokens.toLocaleString()}</div>
-                                  </>
-                                )}
-                                
-                                {event.usage?.completionTokens !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)' }}>Completion Tokens:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{event.usage.completionTokens.toLocaleString()}</div>
-                                  </>
-                                )}
-                                
-                                {event.usage?.totalTokens !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Total Tokens:</div>
-                                    <div style={{ fontFamily: 'monospace', fontWeight: 500 }}>{event.usage.totalTokens.toLocaleString()}</div>
-                                  </>
-                                )}
-                                
-                                {/* Execution Stats */}
-                                {event.steps !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Steps Taken:</div>
-                                    <div style={{ fontFamily: 'monospace', marginTop: '0.5rem' }}>{event.steps}</div>
-                                  </>
-                                )}
-                                
-                                {event.maxSteps !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)' }}>Max Steps:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{event.maxSteps}</div>
-                                  </>
-                                )}
-                                
-                                {event.toolCallCount !== undefined && (
-                                  <>
-                                    <div style={{ color: 'var(--text-secondary)' }}>Tool Calls:</div>
-                                    <div style={{ fontFamily: 'monospace' }}>{event.toolCallCount}</div>
-                                  </>
-                                )}
-                              </div>
-                            </details>
-                          )}
-                        </>
-                      );
-                    })()}
-                </div>
-              );
+                            )}
+                            {event.usage && (
+                              <details className="log-details">
+                                <summary>Usage & Stats</summary>
+                                <div
+                                  style={{
+                                    padding: '0.5rem 0',
+                                    display: 'grid',
+                                    gridTemplateColumns: 'auto 1fr',
+                                    gap: '0.5rem',
+                                    fontSize: '0.9em',
+                                  }}
+                                >
+                                  {/* Character Counts */}
+                                  {event.inputChars !== undefined && (
+                                    <>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                        }}
+                                      >
+                                        Input:
+                                      </div>
+                                      <div style={{ fontFamily: 'monospace' }}>
+                                        {event.inputChars.toLocaleString()}{' '}
+                                        chars
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {event.outputChars !== undefined && (
+                                    <>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                        }}
+                                      >
+                                        Output:
+                                      </div>
+                                      <div style={{ fontFamily: 'monospace' }}>
+                                        {event.outputChars.toLocaleString()}{' '}
+                                        chars
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {event.inputChars !== undefined &&
+                                    event.outputChars !== undefined && (
+                                      <>
+                                        <div
+                                          style={{
+                                            color: 'var(--text-secondary)',
+                                            fontWeight: 500,
+                                          }}
+                                        >
+                                          Total:
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontFamily: 'monospace',
+                                            fontWeight: 500,
+                                          }}
+                                        >
+                                          {(
+                                            event.inputChars + event.outputChars
+                                          ).toLocaleString()}{' '}
+                                          chars
+                                        </div>
+                                      </>
+                                    )}
+
+                                  {/* Token Usage */}
+                                  {event.usage?.promptTokens !== undefined && (
+                                    <>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                          marginTop: '0.5rem',
+                                        }}
+                                      >
+                                        Prompt Tokens:
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontFamily: 'monospace',
+                                          marginTop: '0.5rem',
+                                        }}
+                                      >
+                                        {event.usage.promptTokens.toLocaleString()}
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {event.usage?.completionTokens !==
+                                    undefined && (
+                                    <>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                        }}
+                                      >
+                                        Completion Tokens:
+                                      </div>
+                                      <div style={{ fontFamily: 'monospace' }}>
+                                        {event.usage.completionTokens.toLocaleString()}
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {event.usage?.totalTokens !== undefined && (
+                                    <>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        Total Tokens:
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontFamily: 'monospace',
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        {event.usage.totalTokens.toLocaleString()}
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {/* Execution Stats */}
+                                  {event.steps !== undefined && (
+                                    <>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                          marginTop: '0.5rem',
+                                        }}
+                                      >
+                                        Steps Taken:
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontFamily: 'monospace',
+                                          marginTop: '0.5rem',
+                                        }}
+                                      >
+                                        {event.steps}
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {event.maxSteps !== undefined && (
+                                    <>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                        }}
+                                      >
+                                        Max Steps:
+                                      </div>
+                                      <div style={{ fontFamily: 'monospace' }}>
+                                        {event.maxSteps}
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {event.toolCallCount !== undefined && (
+                                    <>
+                                      <div
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                        }}
+                                      >
+                                        Tool Calls:
+                                      </div>
+                                      <div style={{ fontFamily: 'monospace' }}>
+                                        {event.toolCallCount}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </details>
+                            )}
+                          </>
+                        );
+                      })()}
+                  </div>
+                );
               })
             )}
             <div ref={logEndRef} />
             {showScrollButton && (
-              <button className="scroll-to-bottom" onClick={scrollToBottom} title="Scroll to bottom">
+              <button
+                className="scroll-to-bottom"
+                onClick={scrollToBottom}
+                title="Scroll to bottom"
+              >
                 ↓
               </button>
             )}

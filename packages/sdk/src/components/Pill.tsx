@@ -8,7 +8,18 @@ export interface PillProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 export const Pill = React.forwardRef<HTMLSpanElement, PillProps>(
-  ({ variant = 'default', size = 'md', removable, onRemove, children, style, ...props }, ref) => {
+  (
+    {
+      variant = 'default',
+      size = 'md',
+      removable,
+      onRemove,
+      children,
+      style,
+      ...props
+    },
+    ref,
+  ) => {
     const baseStyles: React.CSSProperties = {
       display: 'inline-flex',
       alignItems: 'center',
@@ -30,27 +41,35 @@ export const Pill = React.forwardRef<HTMLSpanElement, PillProps>(
       primary: {
         background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)',
         color: 'var(--color-primary)',
-        border: '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)',
+        border:
+          '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)',
       },
       success: {
         background: 'color-mix(in srgb, var(--color-success) 15%, transparent)',
         color: 'var(--color-success)',
-        border: '1px solid color-mix(in srgb, var(--color-success) 30%, transparent)',
+        border:
+          '1px solid color-mix(in srgb, var(--color-success) 30%, transparent)',
       },
       warning: {
         background: 'color-mix(in srgb, var(--color-warning) 15%, transparent)',
         color: 'var(--color-warning)',
-        border: '1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)',
+        border:
+          '1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)',
       },
       error: {
         background: 'color-mix(in srgb, var(--color-error) 15%, transparent)',
         color: 'var(--color-error)',
-        border: '1px solid color-mix(in srgb, var(--color-error) 30%, transparent)',
+        border:
+          '1px solid color-mix(in srgb, var(--color-error) 30%, transparent)',
       },
     };
 
     return (
-      <span ref={ref} style={{ ...baseStyles, ...variantStyles[variant] }} {...props}>
+      <span
+        ref={ref}
+        style={{ ...baseStyles, ...variantStyles[variant] }}
+        {...props}
+      >
         {children}
         {removable && (
           <button
@@ -76,7 +95,7 @@ export const Pill = React.forwardRef<HTMLSpanElement, PillProps>(
         )}
       </span>
     );
-  }
+  },
 );
 
 Pill.displayName = 'Pill';

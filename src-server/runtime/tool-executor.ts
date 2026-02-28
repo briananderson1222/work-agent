@@ -3,13 +3,12 @@
  * Handles tool invocation, approval flow, and elicitation
  */
 
-import { Tool, createHooks } from '@voltagent/core';
-import type { AgentSpec, AppConfig } from '../domain/types.js';
-import type { ConfigLoader } from '../domain/config-loader.js';
-import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import { createHooks, type Tool } from '@voltagent/core';
 import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { ConfigLoader } from '../domain/config-loader.js';
+import type { AgentSpec, AppConfig } from '../domain/types.js';
+import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
-import { parseToolName } from '../utils/tool-name-normalizer.js';
 
 // Type extensions for tool executor
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
@@ -47,7 +46,7 @@ interface UIMessage {
  * Supports wildcards: "tool_*" matches "tool_read", "tool_write", etc.
  */
 export function isAutoApproved(toolName: string, patterns: string[]): boolean {
-  return patterns.some(pattern => {
+  return patterns.some((pattern) => {
     if (pattern === '*') return true;
     const regexPattern = pattern
       .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
@@ -60,16 +59,24 @@ export function isAutoApproved(toolName: string, patterns: string[]): boolean {
  * Wrap a tool to add elicitation-based approval for non-auto-approved tools
  */
 export function wrapToolWithElicitation(
-  tool: Tool<any>, 
+  tool: Tool<any>,
   spec: AgentSpec,
-  toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>,
-  approvalRegistry: ApprovalRegistry,
-  logger: any
+  _toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  >,
+  _approvalRegistry: ApprovalRegistry,
+  logger: any,
 ): Tool<any> {
   if (!spec?.tools) return tool;
 
   const autoApprove = spec.tools.autoApprove || [];
-  const isAutoApprovedTool = autoApprove.some(pattern => {
+  const isAutoApprovedTool = autoApprove.some((pattern) => {
     if (pattern === '*') return true;
     if (pattern.endsWith('*')) {
       return tool.name.startsWith(pattern.slice(0, -1));
@@ -78,11 +85,15 @@ export function wrapToolWithElicitation(
   });
 
   if (isAutoApprovedTool) {
-    logger.debug('[Wrapper] Tool auto-approved, skipping wrapper', { toolName: tool.name });
+    logger.debug('[Wrapper] Tool auto-approved, skipping wrapper', {
+      toolName: tool.name,
+    });
     return tool;
   }
 
-  logger.debug('[Wrapper] Wrapping tool with elicitation', { toolName: tool.name });
+  logger.debug('[Wrapper] Wrapping tool with elicitation', {
+    toolName: tool.name,
+  });
 
   // Wrap the execute function
   const originalExecute = tool.execute;
@@ -93,16 +104,18 @@ export function wrapToolWithElicitation(
     execute: async (args: any, options: any) => {
       // Get elicitation from options (VoltAgent passes OperationContext properties directly)
       const elicitation = options?.elicitation;
-      
-      logger.debug('[Wrapper] Tool execute called, requesting approval', { 
+
+      logger.debug('[Wrapper] Tool execute called, requesting approval', {
         toolName: tool.name,
-        hasElicitation: !!elicitation
+        hasElicitation: !!elicitation,
       });
 
       // Request approval via elicitation
       if (elicitation) {
-        logger.debug('[Wrapper] Calling elicitation for approval', { toolName: tool.name });
-        
+        logger.debug('[Wrapper] Calling elicitation for approval', {
+          toolName: tool.name,
+        });
+
         const approved = await elicitation({
           type: 'tool-approval',
           toolName: tool.name,
@@ -110,10 +123,10 @@ export function wrapToolWithElicitation(
           toolArgs: args,
         });
 
-        logger.info('[Wrapper] Tool approval decision', { 
-          toolName: tool.name, 
+        logger.info('[Wrapper] Tool approval decision', {
+          toolName: tool.name,
           approved,
-          reason: approved ? 'user_approved' : 'user_denied'
+          reason: approved ? 'user_approved' : 'user_denied',
         });
 
         if (!approved) {
@@ -121,18 +134,18 @@ export function wrapToolWithElicitation(
           return {
             success: false,
             error: 'USER_DENIED',
-            message: `I requested permission to use this tool, but the user explicitly denied the request. I should ask what I should do differently.`
+            message: `I requested permission to use this tool, but the user explicitly denied the request. I should ask what I should do differently.`,
           };
         }
       } else {
-        logger.info('[Wrapper] Tool auto-approved (no elicitation available)', { 
-          toolName: tool.name 
+        logger.info('[Wrapper] Tool auto-approved (no elicitation available)', {
+          toolName: tool.name,
         });
       }
 
       // Execute the original tool
       return originalExecute(args, options);
-    }
+    },
   };
 }
 
@@ -145,33 +158,37 @@ export function createToolApprovalHooks(
   appConfig: AppConfig,
   configLoader: ConfigLoader,
   modelCatalog: BedrockModelCatalog | undefined,
-  agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }>,
+  agentFixedTokens: Map<
+    string,
+    { systemPromptTokens: number; mcpServerTokens: number }
+  >,
   memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>,
-  logger: any
+  logger: any,
 ) {
   const autoApprove = spec.tools?.autoApprove || [];
 
   return createHooks({
     onToolStart: async ({ tool, context }) => {
       // Track tool call count in context Map
-      const currentCount = (context.context.get('toolCallCount') as number) || 0;
+      const currentCount =
+        (context.context.get('toolCallCount') as number) || 0;
       context.context.set('toolCallCount', currentCount + 1);
-      
+
       logger.debug('Tool execution starting', {
         toolName: tool.name,
         conversationId: context.conversationId,
       });
-      
+
       // Check if this is a silent invocation (no conversationId means silent mode)
       const isSilentInvocation = !context.conversationId;
-      
+
       if (isSilentInvocation) {
         return;
       }
 
       // Check if tool is in autoApprove list
       const isAutoApprovedTool = isAutoApproved(tool.name, autoApprove);
-      
+
       logger.info('[Tool] Executing', {
         toolName: tool.name,
         isAutoApproved: isAutoApprovedTool,
@@ -188,17 +205,23 @@ export function createToolApprovalHooks(
         if (!memory) return;
 
         // Get current conversation
-        const conversation = await memory.getConversation(context.conversationId);
+        const conversation = await memory.getConversation(
+          context.conversationId,
+        );
         if (!conversation) return;
 
         // Extract usage data (may be undefined if aborted)
         const usage = 'usage' in output ? output.usage : undefined;
 
         // Count tool calls from context (tracked in onToolStart)
-        const toolCallCount = (context.context.get('toolCallCount') as number) || 0;
+        const toolCallCount =
+          (context.context.get('toolCallCount') as number) || 0;
 
         // Get messages for this conversation
-        const messages = await memory.getMessages(context.userId || '', context.conversationId);
+        const messages = await memory.getMessages(
+          context.userId || '',
+          context.conversationId,
+        );
 
         // Log stats (even if usage is incomplete due to abortion)
         logger.info('[Usage Stats]', {
@@ -215,7 +238,8 @@ export function createToolApprovalHooks(
         if (!usage) return;
 
         // Get existing stats or initialize
-        const existingStats = (conversation.metadata?.stats as ConversationStats) || {
+        const existingStats = (conversation.metadata
+          ?.stats as ConversationStats) || {
           inputTokens: 0,
           outputTokens: 0,
           totalTokens: 0,
@@ -229,28 +253,37 @@ export function createToolApprovalHooks(
         const agentSlug = conversation.resourceId;
         const agentSpec = await configLoader.loadAgent(agentSlug);
         const modelId = agentSpec.model || appConfig.defaultModel;
-        const cost = await calculateCost(modelId, usage, modelCatalog, appConfig, logger);
+        const cost = await calculateCost(
+          modelId,
+          usage,
+          modelCatalog,
+          appConfig,
+          logger,
+        );
 
         // Calculate context tokens: accumulated outputs + latest input
         // Context represents what's in memory (grows with conversation)
-        const newOutputTokens = existingStats.outputTokens + (usage.completionTokens || 0);
-        const newInputTokens = existingStats.inputTokens + (usage.promptTokens || 0);
-        
+        const newOutputTokens =
+          existingStats.outputTokens + (usage.completionTokens || 0);
+        const newInputTokens =
+          existingStats.inputTokens + (usage.promptTokens || 0);
+
         // Get fixed token counts from cache (calculated once at agent initialization)
         const fixedTokens = agentFixedTokens.get(agentSlug);
         const systemPromptTokens = fixedTokens?.systemPromptTokens || 0;
         const mcpServerTokens = fixedTokens?.mcpServerTokens || 0;
-        
+
         // Get existing breakdown for incremental calculation
         const existingBreakdown = existingStats.tokenBreakdown || {};
-        
+
         // Context = system prompt + tools + all user messages + all assistant responses
         // Optimize: only calculate new user message tokens, not all messages
-        const existingUserMessageTokens = existingBreakdown.userMessageTokens || 0;
-        
+        const existingUserMessageTokens =
+          existingBreakdown.userMessageTokens || 0;
+
         // Get messages for user message token calculation
         const userMessages = messages.filter((m: any) => m.role === 'user');
-        
+
         logger.info('[Token Calculation Debug]', {
           conversationId: context.conversationId,
           totalMessages: messages.length,
@@ -258,10 +291,10 @@ export function createToolApprovalHooks(
           existingUserMessageTokens,
           turn: existingStats.turns + 1,
         });
-        
+
         // Find the latest user message (should be the last one added)
         const latestUserMessage = userMessages[userMessages.length - 1];
-        
+
         let newUserMessageTokens = 0;
         if (latestUserMessage) {
           // UIMessage uses 'parts' array with text parts
@@ -271,7 +304,7 @@ export function createToolApprovalHooks(
             .map((p: any) => p.text || '')
             .join('');
           newUserMessageTokens = Math.ceil(content.length / 4);
-          
+
           logger.info('[New User Message]', {
             conversationId: context.conversationId,
             contentLength: content.length,
@@ -283,10 +316,11 @@ export function createToolApprovalHooks(
             userMessageCount: userMessages.length,
           });
         }
-        
-        const userMessageTokens = existingUserMessageTokens + newUserMessageTokens;
+
+        const userMessageTokens =
+          existingUserMessageTokens + newUserMessageTokens;
         const assistantMessageTokens = newOutputTokens;
-        
+
         logger.info('[Token Breakdown]', {
           conversationId: context.conversationId,
           turn: existingStats.turns + 1,
@@ -296,8 +330,12 @@ export function createToolApprovalHooks(
           mcpServerTokens,
           assistantMessageTokens,
         });
-        
-        const contextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + assistantMessageTokens;
+
+        const contextTokens =
+          systemPromptTokens +
+          mcpServerTokens +
+          userMessageTokens +
+          assistantMessageTokens;
 
         // Store breakdown for stats endpoint
         const tokenBreakdown = {
@@ -320,7 +358,10 @@ export function createToolApprovalHooks(
         };
 
         // Track per-model stats
-        const modelStats = (conversation.metadata?.modelStats || {}) as Record<string, any>;
+        const modelStats = (conversation.metadata?.modelStats || {}) as Record<
+          string,
+          any
+        >;
         const currentModelStats = modelStats[modelId] || {
           inputTokens: 0,
           outputTokens: 0,
@@ -331,12 +372,18 @@ export function createToolApprovalHooks(
           estimatedCost: 0,
         };
 
-        const newModelOutputTokens = currentModelStats.outputTokens + (usage.completionTokens || 0);
-        const newModelInputTokens = currentModelStats.inputTokens + (usage.promptTokens || 0);
-        
+        const newModelOutputTokens =
+          currentModelStats.outputTokens + (usage.completionTokens || 0);
+        const newModelInputTokens =
+          currentModelStats.inputTokens + (usage.promptTokens || 0);
+
         // Per-model context is harder to track accurately, use accumulated outputs as approximation
-        const modelContextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + newModelOutputTokens;
-        
+        const modelContextTokens =
+          systemPromptTokens +
+          mcpServerTokens +
+          userMessageTokens +
+          newModelOutputTokens;
+
         modelStats[modelId] = {
           inputTokens: newModelInputTokens,
           outputTokens: newModelOutputTokens,
@@ -364,53 +411,68 @@ export function createToolApprovalHooks(
             return;
           }
 
-          const messages = await adapter.getMessages(`agent:${agentSlug}`, context.conversationId);
+          const messages = await adapter.getMessages(
+            `agent:${agentSlug}`,
+            context.conversationId,
+          );
           const lastMessage = messages[messages.length - 1];
-          
+
           if (lastMessage && lastMessage.role === 'assistant') {
             // Get model capabilities
             const models = await modelCatalog?.listModels();
-            const modelInfo = models?.find(m => m.modelId === modelId);
-            
+            const modelInfo = models?.find((m) => m.modelId === modelId);
+
             // Get pricing
-            const pricing = await modelCatalog?.getModelPricing(appConfig.region);
-            const pricingInfo = pricing?.find(p => 
-              p.modelId === modelId || 
-              modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-'))
+            const pricing = await modelCatalog?.getModelPricing(
+              appConfig.region,
+            );
+            const pricingInfo = pricing?.find(
+              (p) =>
+                p.modelId === modelId ||
+                modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
             );
 
             // Remove and re-add with metadata
-            await adapter.removeLastMessage(`agent:${agentSlug}`, context.conversationId);
+            await adapter.removeLastMessage(
+              `agent:${agentSlug}`,
+              context.conversationId,
+            );
             await adapter.addMessage(
               lastMessage,
               `agent:${agentSlug}`,
               context.conversationId,
               {
                 model: modelId,
-                modelMetadata: modelInfo ? {
-                  capabilities: {
-                    inputModalities: modelInfo.inputModalities,
-                    outputModalities: modelInfo.outputModalities,
-                    supportsStreaming: modelInfo.responseStreamingSupported,
-                  },
-                  pricing: pricingInfo ? {
-                    inputTokenPrice: pricingInfo.inputTokenPrice,
-                    outputTokenPrice: pricingInfo.outputTokenPrice,
-                    currency: 'USD',
-                    region: appConfig.region,
-                  } : undefined,
-                } : undefined,
+                modelMetadata: modelInfo
+                  ? {
+                      capabilities: {
+                        inputModalities: modelInfo.inputModalities,
+                        outputModalities: modelInfo.outputModalities,
+                        supportsStreaming: modelInfo.responseStreamingSupported,
+                      },
+                      pricing: pricingInfo
+                        ? {
+                            inputTokenPrice: pricingInfo.inputTokenPrice,
+                            outputTokenPrice: pricingInfo.outputTokenPrice,
+                            currency: 'USD',
+                            region: appConfig.region,
+                          }
+                        : undefined,
+                    }
+                  : undefined,
                 usage: {
                   inputTokens: usage.promptTokens || 0,
                   outputTokens: usage.completionTokens || 0,
                   totalTokens: usage.totalTokens || 0,
                   estimatedCost: cost,
                 },
-              }
+              },
             );
           }
         } catch (error) {
-          logger.error('Failed to enrich message with model metadata', { error });
+          logger.error('Failed to enrich message with model metadata', {
+            error,
+          });
         }
       } catch (error) {
         logger.error('Failed to update conversation stats', { error });
@@ -424,11 +486,11 @@ export function createToolApprovalHooks(
  * Uses dynamic pricing from AWS Pricing API
  */
 export async function calculateCost(
-  modelId: string, 
+  modelId: string,
   usage: { promptTokens?: number; completionTokens?: number },
   modelCatalog: BedrockModelCatalog | undefined,
   appConfig: AppConfig,
-  logger: any
+  logger: any,
 ): Promise<number> {
   const inputTokens = usage.promptTokens || 0;
   const outputTokens = usage.completionTokens || 0;
@@ -439,14 +501,17 @@ export async function calculateCost(
 
   try {
     const pricing = await modelCatalog.getModelPricing(appConfig.region);
-    const modelPricing = pricing.find(p => 
-      p.modelId === modelId || 
-      modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-'))
+    const modelPricing = pricing.find(
+      (p) =>
+        p.modelId === modelId ||
+        modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
     );
 
     if (modelPricing) {
-      const inputCost = (inputTokens / 1000) * (modelPricing.inputTokenPrice || 0);
-      const outputCost = (outputTokens / 1000) * (modelPricing.outputTokenPrice || 0);
+      const inputCost =
+        (inputTokens / 1000) * (modelPricing.inputTokenPrice || 0);
+      const outputCost =
+        (outputTokens / 1000) * (modelPricing.outputTokenPrice || 0);
       return inputCost + outputCost;
     }
   } catch (error) {
@@ -461,7 +526,10 @@ export async function calculateCost(
  * Calculate context window usage percentage
  * Note: Context window size is not available via API, using 200k default
  */
-export function calculateContextWindowPercentage(modelId: string, totalTokens: number): number {
+export function calculateContextWindowPercentage(
+  _modelId: string,
+  totalTokens: number,
+): number {
   const maxTokens = 200000; // Default context window
   return Math.round((totalTokens / maxTokens) * 100 * 100) / 100;
 }

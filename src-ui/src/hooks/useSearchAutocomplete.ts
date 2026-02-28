@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface FilterConfig {
   key: string;
@@ -16,15 +16,17 @@ interface AutocompleteOption {
 
 export function useSearchAutocomplete(
   searchQuery: string,
-  filters: FilterConfig[]
+  filters: FilterConfig[],
 ) {
   const [showAutocomplete, setShowAutocomplete] = useState(false);
-  const [autocompleteOptions, setAutocompleteOptions] = useState<AutocompleteOption[]>([]);
+  const [autocompleteOptions, setAutocompleteOptions] = useState<
+    AutocompleteOption[]
+  >([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [autocompleteOptions]);
+  }, []);
 
   useEffect(() => {
     const query = searchQuery.toLowerCase();
@@ -35,23 +37,26 @@ export function useSearchAutocomplete(
       const filterKey = `${filter.key}:`;
       if (lastWord.startsWith(filterKey)) {
         const prefix = lastWord.substring(filterKey.length);
-        const options = filter.getOptions()
-          .filter(opt => !prefix || opt.toLowerCase().includes(prefix))
-          .map(opt => ({
+        const options = filter
+          .getOptions()
+          .filter((opt) => !prefix || opt.toLowerCase().includes(prefix))
+          .map((opt) => ({
             type: filter.type,
             value: opt,
-            label: `${filterKey}${opt}`
+            label: `${filterKey}${opt}`,
           }));
-        
+
         if (options.length === 0 && prefix.length === 0) {
           // Show empty state message
-          setAutocompleteOptions([{
-            type: filter.type,
-            value: '',
-            label: `No ${filter.key}s available`,
-            isEmpty: true,
-            emptyMessage: 'Try expanding the date range to see more results'
-          }]);
+          setAutocompleteOptions([
+            {
+              type: filter.type,
+              value: '',
+              label: `No ${filter.key}s available`,
+              isEmpty: true,
+              emptyMessage: 'Try expanding the date range to see more results',
+            },
+          ]);
           setShowAutocomplete(true);
         } else {
           setAutocompleteOptions(options.slice(0, 10));
@@ -64,13 +69,13 @@ export function useSearchAutocomplete(
     // Check if typing partial filter keyword
     if (lastWord) {
       const matchingFilters = filters
-        .filter(f => `${f.key}:`.startsWith(lastWord))
-        .filter(f => f.getOptions().length > 0); // Only show if options available
+        .filter((f) => `${f.key}:`.startsWith(lastWord))
+        .filter((f) => f.getOptions().length > 0); // Only show if options available
       if (matchingFilters.length > 0) {
-        const options = matchingFilters.map(f => ({
+        const options = matchingFilters.map((f) => ({
           type: f.type,
           value: `${f.key}:`,
-          label: `${f.key}:`
+          label: `${f.key}:`,
         }));
         setAutocompleteOptions(options);
         setShowAutocomplete(true);
@@ -85,7 +90,8 @@ export function useSearchAutocomplete(
     const words = searchQuery.split(/\s+/);
     words[words.length - 1] = option.label;
     // Only add space if it's a complete selection (not just the keyword)
-    const addSpace = option.label.includes(':') && option.label.split(':')[1].length > 0;
+    const addSpace =
+      option.label.includes(':') && option.label.split(':')[1].length > 0;
     return words.join(' ') + (addSpace ? ' ' : '');
   };
 
@@ -94,10 +100,13 @@ export function useSearchAutocomplete(
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(prev => (prev + 1) % autocompleteOptions.length);
+      setSelectedIndex((prev) => (prev + 1) % autocompleteOptions.length);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => (prev - 1 + autocompleteOptions.length) % autocompleteOptions.length);
+      setSelectedIndex(
+        (prev) =>
+          (prev - 1 + autocompleteOptions.length) % autocompleteOptions.length,
+      );
     } else if (e.key === 'Enter' && selectedIndex >= 0) {
       const option = autocompleteOptions[selectedIndex];
       if (!option.isEmpty) {
@@ -110,7 +119,13 @@ export function useSearchAutocomplete(
     return null;
   };
 
-  return { showAutocomplete, autocompleteOptions, selectedIndex, handleSelect, handleKeyDown };
+  return {
+    showAutocomplete,
+    autocompleteOptions,
+    selectedIndex,
+    handleSelect,
+    handleKeyDown,
+  };
 }
 
 export function parseSearchQuery(query: string, filterKeys: string[]) {
@@ -121,9 +136,9 @@ export function parseSearchQuery(query: string, filterKeys: string[]) {
     const regex = new RegExp(`(?:^|\\s)(${key}:(\\S+))`, 'g');
     const matches = [...query.matchAll(regex)];
     if (matches.length > 0) {
-      filters[key] = matches.map(m => m[2]);
+      filters[key] = matches.map((m) => m[2]);
       // Remove the matched filter from text query
-      matches.forEach(m => {
+      matches.forEach((m) => {
         textQuery = textQuery.replace(m[1], '').trim();
       });
     }

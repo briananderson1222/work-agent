@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
-import type { AgentSummary, Tool } from '../types';
-import { getAgentIcon } from '../utils/workspace';
 import { AgentIcon } from '../components/AgentIcon';
-import { useModels } from '../contexts/ModelsContext';
-import { useConfig } from '../contexts/ConfigContext';
-import { ModelSelector } from '../components/ModelSelector';
-import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
-import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import { ImportPromptsModal } from '../components/ImportPromptsModal';
+import { ModelSelector } from '../components/ModelSelector';
+import { useConfig } from '../contexts/ConfigContext';
+import { useModels } from '../contexts/ModelsContext';
+import { useCloseShortcut } from '../hooks/useCloseShortcut';
+import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
+import type { Tool } from '../types';
 
 export interface AgentEditorViewProps {
   apiBase: string;
@@ -34,14 +33,29 @@ interface AgentFormData {
 
 type FormStep = 'basic' | 'model' | 'tools' | 'commands';
 
-const FORM_STEPS: readonly FormStep[] = ['basic', 'model', 'tools', 'commands'] as const;
+const FORM_STEPS: readonly FormStep[] = [
+  'basic',
+  'model',
+  'tools',
+  'commands',
+] as const;
 
-export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: AgentEditorViewProps) {
-  const availableModels = useModels(apiBase);
+export function AgentEditorView({
+  apiBase,
+  slug,
+  initialTab,
+  onBack,
+  onSaved,
+}: AgentEditorViewProps) {
+  const _availableModels = useModels(apiBase);
   const appConfig = useConfig();
-  const [currentStep, setCurrentStep] = useState<FormStep>(initialTab || 'basic');
-  const [expandedCommands, setExpandedCommands] = useState<Record<string, boolean>>({});
-  
+  const [currentStep, setCurrentStep] = useState<FormStep>(
+    initialTab || 'basic',
+  );
+  const [expandedCommands, setExpandedCommands] = useState<
+    Record<string, boolean>
+  >({});
+
   useTabKeyboardShortcuts(FORM_STEPS, currentStep, setCurrentStep);
   useCloseShortcut(onBack);
 
@@ -60,7 +74,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
   const [isLoading, setIsLoading] = useState(!!slug);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [showNewToolForm, setShowNewToolForm] = useState(false);
   const [newTool, setNewTool] = useState({
@@ -74,7 +90,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
   });
   const [isCreatingTool, setIsCreatingTool] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'failed' | null>(null);
+  const [connectionTestResult, setConnectionTestResult] = useState<
+    'success' | 'failed' | null
+  >(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
@@ -85,7 +103,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
       loadAgent(slug);
     }
     loadTools();
-  }, [slug]);
+  }, [slug, loadAgent, loadTools]);
 
   const loadAgent = async (agentSlug: string) => {
     try {
@@ -94,7 +112,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
       const response = await fetch(`${apiBase}/api/agents`);
       if (!response.ok) throw new Error('Failed to load agents');
       const data = await response.json();
-      const agent = (data.data || []).find((a: any) => a.slug === agentSlug || a.id === agentSlug);
+      const agent = (data.data || []).find(
+        (a: any) => a.slug === agentSlug || a.id === agentSlug,
+      );
       if (!agent) throw new Error('Agent not found');
 
       setUpdatedAt(agent.updatedAt);
@@ -103,7 +123,10 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         name: agent.name || '',
         description: agent.description || '',
         prompt: agent.prompt || '',
-        modelId: typeof agent.model === 'string' ? agent.model : agent.model?.modelId || '',
+        modelId:
+          typeof agent.model === 'string'
+            ? agent.model
+            : agent.model?.modelId || '',
         region: agent.region || '',
         guardrails: agent.guardrails || '',
         maxSteps: agent.maxSteps?.toString() || '',
@@ -134,9 +157,11 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
 
     if (step === 'basic') {
       if (!formData.name.trim()) errors.name = 'Name is required';
-      if (!isEditMode && !formData.slug.trim()) errors.slug = 'Slug is required';
+      if (!isEditMode && !formData.slug.trim())
+        errors.slug = 'Slug is required';
       if (!isEditMode && !/^[a-z0-9-]+$/.test(formData.slug))
-        errors.slug = 'Slug must contain only lowercase letters, numbers, and hyphens';
+        errors.slug =
+          'Slug must contain only lowercase letters, numbers, and hyphens';
     }
 
     if (step === 'model') {
@@ -147,7 +172,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
     return Object.keys(errors).length === 0;
   };
 
-  const nextStep = () => {
+  const _nextStep = () => {
     if (!validateStep(currentStep)) return;
 
     const steps: FormStep[] = ['basic', 'model', 'tools', 'commands'];
@@ -157,7 +182,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
     }
   };
 
-  const prevStep = () => {
+  const _prevStep = () => {
     const steps: FormStep[] = ['basic', 'model', 'tools', 'commands'];
     const currentIndex = steps.indexOf(currentStep);
     if (currentIndex > 0) {
@@ -180,13 +205,18 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         model: formData.modelId || null,
         region: formData.region || null,
         guardrails: formData.guardrails || null,
-        maxSteps: formData.maxSteps ? parseInt(formData.maxSteps) : null,
+        maxSteps: formData.maxSteps ? parseInt(formData.maxSteps, 10) : null,
         tools: formData.tools.length > 0 ? { use: formData.tools } : null,
         icon: formData.icon || null,
-        commands: formData.commands && Object.keys(formData.commands).length > 0 ? formData.commands : null,
+        commands:
+          formData.commands && Object.keys(formData.commands).length > 0
+            ? formData.commands
+            : null,
       };
 
-      const url = isEditMode ? `${apiBase}/agents/${slug}` : `${apiBase}/agents`;
+      const url = isEditMode
+        ? `${apiBase}/agents/${slug}`
+        : `${apiBase}/agents`;
       const method = isEditMode ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -202,12 +232,12 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
 
       const savedAgent = await response.json();
       const savedSlug = savedAgent.data?.slug || formData.slug;
-      
+
       // Reload the agent data to show updated values
       if (isEditMode) {
         await loadAgent(savedSlug);
       }
-      
+
       onSaved?.(savedSlug);
     } catch (err: any) {
       setError(err.message);
@@ -241,7 +271,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: userMessage,
-          silent: true
+          silent: true,
         }),
       });
 
@@ -278,7 +308,10 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
       };
 
       if (newTool.args) {
-        toolPayload.args = newTool.args.split(',').map((s) => s.trim()).filter(Boolean);
+        toolPayload.args = newTool.args
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
       }
 
       // Test the MCP connection via API
@@ -331,7 +364,10 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         toolPayload.transport = newTool.transport;
         toolPayload.command = newTool.command;
         if (newTool.args) {
-          toolPayload.args = newTool.args.split(',').map((s) => s.trim()).filter(Boolean);
+          toolPayload.args = newTool.args
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
         }
       }
 
@@ -377,7 +413,11 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
       <div className="management-view">
         <div className="management-view__header">
           <h2>{isEditMode ? 'Edit Agent' : 'New Agent'}</h2>
-          <button type="button" className="button button--secondary" onClick={onBack}>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={onBack}
+          >
             Back
           </button>
         </div>
@@ -387,34 +427,52 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
   }
 
   return (
-    <div className="management-view" tabIndex={-1} ref={(el) => el?.focus()} style={{ outline: 'none' }}>
-      <div className="management-view__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div
+      className="management-view"
+      tabIndex={-1}
+      ref={(el) => el?.focus()}
+      style={{ outline: 'none' }}
+    >
+      <div
+        className="management-view__header"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h2>{isEditMode ? formData.name : 'New Agent'}</h2>
           {isEditMode && updatedAt && (
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+            <span
+              style={{
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                fontWeight: 'normal',
+              }}
+            >
               Last updated: {new Date(updatedAt).toLocaleString()}
             </span>
           )}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button 
-            type="button" 
-            className="button button--secondary" 
+          <button
+            type="button"
+            className="button button--secondary"
             onClick={() => window.history.back()}
             title="Back"
           >
             Back
           </button>
-          <button 
-            type="button" 
-            className="button button--secondary" 
+          <button
+            type="button"
+            className="button button--secondary"
             onClick={onBack}
-            style={{ 
+            style={{
               minWidth: '40px',
               padding: '8px 12px',
               fontSize: '18px',
-              lineHeight: '1'
+              lineHeight: '1',
             }}
             title="Close (⌘X)"
           >
@@ -432,44 +490,72 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
             className={`step-indicator ${currentStep === 'basic' ? 'is-active' : ''}`}
             onClick={() => {
               setCurrentStep('basic');
-              window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=basic`);
+              window.history.replaceState(
+                {},
+                '',
+                `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=basic`,
+              );
             }}
             title="Basic Info (⌘1)"
           >
-            Basic Info <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘1</span>
+            Basic Info{' '}
+            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
+              ⌘1
+            </span>
           </button>
           <button
             type="button"
             className={`step-indicator ${currentStep === 'model' ? 'is-active' : ''}`}
             onClick={() => {
               setCurrentStep('model');
-              window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=model`);
+              window.history.replaceState(
+                {},
+                '',
+                `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=model`,
+              );
             }}
             title="Model Config (⌘2)"
           >
-            Model Config <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘2</span>
+            Model Config{' '}
+            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
+              ⌘2
+            </span>
           </button>
           <button
             type="button"
             className={`step-indicator ${currentStep === 'tools' ? 'is-active' : ''}`}
             onClick={() => {
               setCurrentStep('tools');
-              window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=tools`);
+              window.history.replaceState(
+                {},
+                '',
+                `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=tools`,
+              );
             }}
             title="Tools (⌘3)"
           >
-            Tools <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘3</span>
+            Tools{' '}
+            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
+              ⌘3
+            </span>
           </button>
           <button
             type="button"
             className={`step-indicator ${currentStep === 'commands' ? 'is-active' : ''}`}
             onClick={() => {
               setCurrentStep('commands');
-              window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=commands`);
+              window.history.replaceState(
+                {},
+                '',
+                `${window.location.pathname}${window.location.search}#/agents/${slug || 'new'}/edit?tab=commands`,
+              );
             }}
             title="Slash Commands (⌘4)"
           >
-            Slash Commands <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>⌘4</span>
+            Slash Commands{' '}
+            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
+              ⌘4
+            </span>
           </button>
         </div>
 
@@ -482,7 +568,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   id="slug"
                   type="text"
                   value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, slug: e.target.value })
+                  }
                   disabled={isEditMode}
                   placeholder="my-agent"
                 />
@@ -500,17 +588,26 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   id="name"
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   placeholder="My Agent"
                 />
-                {validationErrors.name && <span className="form-error">{validationErrors.name}</span>}
+                {validationErrors.name && (
+                  <span className="form-error">{validationErrors.name}</span>
+                )}
               </div>
 
               <div className="form-group">
                 <label>Icon</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <AgentIcon 
-                    agent={{ name: formData.name || 'Agent', icon: formData.icon }} 
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
+                >
+                  <AgentIcon
+                    agent={{
+                      name: formData.name || 'Agent',
+                      icon: formData.icon,
+                    }}
                     size="large"
                     style={{ borderRadius: '12px' }}
                   />
@@ -518,7 +615,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                     <input
                       type="text"
                       value={formData.icon || ''}
-                      onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, icon: e.target.value })
+                      }
                       placeholder="Enter emoji (e.g., 🤖) or leave empty for initials"
                       style={{ marginBottom: '4px' }}
                     />
@@ -535,7 +634,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   id="description"
                   type="text"
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
                   placeholder="A helpful agent for..."
                 />
               </div>
@@ -545,7 +646,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                 <textarea
                   id="prompt"
                   value={formData.prompt}
-                  onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, prompt: e.target.value })
+                  }
                   placeholder="You are a helpful assistant..."
                   rows={8}
                 />
@@ -577,9 +680,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                 {validationErrors.modelId && (
                   <span className="form-error">{validationErrors.modelId}</span>
                 )}
-                <span className="form-help">
-                  AWS Bedrock model identifier
-                </span>
+                <span className="form-help">AWS Bedrock model identifier</span>
               </div>
 
               <div className="form-group">
@@ -588,10 +689,15 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   id="region"
                   type="text"
                   value={formData.region}
-                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, region: e.target.value })
+                  }
                   placeholder={appConfig?.region || 'us-east-1'}
                 />
-                <span className="form-help">Leave empty to use default region ({appConfig?.region || 'us-east-1'})</span>
+                <span className="form-help">
+                  Leave empty to use default region (
+                  {appConfig?.region || 'us-east-1'})
+                </span>
               </div>
 
               <div className="form-group">
@@ -600,10 +706,14 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   id="guardrails"
                   type="text"
                   value={formData.guardrails}
-                  onChange={(e) => setFormData({ ...formData, guardrails: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, guardrails: e.target.value })
+                  }
                   placeholder="Optional guardrail ID"
                 />
-                <span className="form-help">Optional guardrail configuration</span>
+                <span className="form-help">
+                  Optional guardrail configuration
+                </span>
               </div>
 
               <div className="form-group">
@@ -614,17 +724,29 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   min="1"
                   max="100"
                   value={formData.maxSteps}
-                  onChange={(e) => setFormData({ ...formData, maxSteps: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, maxSteps: e.target.value })
+                  }
                   placeholder={appConfig?.defaultMaxSteps?.toString() || '10'}
                 />
-                <span className="form-help">Maximum conversation steps (default: {appConfig?.defaultMaxSteps || 10})</span>
+                <span className="form-help">
+                  Maximum conversation steps (default:{' '}
+                  {appConfig?.defaultMaxSteps || 10})
+                </span>
               </div>
             </div>
           )}
 
           {currentStep === 'tools' && (
             <div className="form-panel">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '16px',
+                }}
+              >
                 <h3>Available Tools</h3>
                 <button
                   type="button"
@@ -644,10 +766,14 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                       id="newToolId"
                       type="text"
                       value={newTool.id}
-                      onChange={(e) => setNewTool({ ...newTool, id: e.target.value })}
+                      onChange={(e) =>
+                        setNewTool({ ...newTool, id: e.target.value })
+                      }
                       placeholder="my-tool"
                     />
-                    <span className="form-help">Lowercase, hyphenated identifier</span>
+                    <span className="form-help">
+                      Lowercase, hyphenated identifier
+                    </span>
                   </div>
                   <div className="form-group">
                     <label htmlFor="newToolName">Tool Name</label>
@@ -655,7 +781,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                       id="newToolName"
                       type="text"
                       value={newTool.name}
-                      onChange={(e) => setNewTool({ ...newTool, name: e.target.value })}
+                      onChange={(e) =>
+                        setNewTool({ ...newTool, name: e.target.value })
+                      }
                       placeholder="My Tool"
                     />
                   </div>
@@ -665,7 +793,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                       id="newToolDescription"
                       type="text"
                       value={newTool.description}
-                      onChange={(e) => setNewTool({ ...newTool, description: e.target.value })}
+                      onChange={(e) =>
+                        setNewTool({ ...newTool, description: e.target.value })
+                      }
                       placeholder="What this tool does..."
                     />
                   </div>
@@ -674,7 +804,12 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                     <select
                       id="newToolKind"
                       value={newTool.kind}
-                      onChange={(e) => setNewTool({ ...newTool, kind: e.target.value as 'mcp' | 'builtin' })}
+                      onChange={(e) =>
+                        setNewTool({
+                          ...newTool,
+                          kind: e.target.value as 'mcp' | 'builtin',
+                        })
+                      }
                     >
                       <option value="mcp">MCP Server</option>
                       <option value="builtin">Built-in</option>
@@ -687,7 +822,15 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                         <select
                           id="newToolTransport"
                           value={newTool.transport}
-                          onChange={(e) => setNewTool({ ...newTool, transport: e.target.value as 'stdio' | 'ws' | 'tcp' })}
+                          onChange={(e) =>
+                            setNewTool({
+                              ...newTool,
+                              transport: e.target.value as
+                                | 'stdio'
+                                | 'ws'
+                                | 'tcp',
+                            })
+                          }
                         >
                           <option value="stdio">Standard I/O (stdio)</option>
                           <option value="ws">WebSocket (ws)</option>
@@ -700,7 +843,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                           id="newToolCommand"
                           type="text"
                           value={newTool.command}
-                          onChange={(e) => setNewTool({ ...newTool, command: e.target.value })}
+                          onChange={(e) =>
+                            setNewTool({ ...newTool, command: e.target.value })
+                          }
                           placeholder="node"
                         />
                       </div>
@@ -710,14 +855,25 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                           id="newToolArgs"
                           type="text"
                           value={newTool.args}
-                          onChange={(e) => setNewTool({ ...newTool, args: e.target.value })}
+                          onChange={(e) =>
+                            setNewTool({ ...newTool, args: e.target.value })
+                          }
                           placeholder="arg1, arg2, arg3"
                         />
-                        <span className="form-help">Comma-separated arguments</span>
+                        <span className="form-help">
+                          Comma-separated arguments
+                        </span>
                       </div>
                     </>
                   )}
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '8px',
+                      marginTop: '12px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
                     {newTool.kind === 'mcp' && (
                       <button
                         type="button"
@@ -758,7 +914,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
               )}
 
               {availableTools.length === 0 ? (
-                <p className="form-help">No tools available. Create a tool to get started.</p>
+                <p className="form-help">
+                  No tools available. Create a tool to get started.
+                </p>
               ) : (
                 <div className="tool-grid">
                   {availableTools.map((tool) => (
@@ -769,22 +927,34 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                         onChange={() => toggleTool(tool.id)}
                       />
                       <div className="tool-info">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                          }}
+                        >
                           {tool.server && (
-                            <span style={{ 
-                              fontSize: '0.8em',
-                              padding: '2px 6px',
-                              background: 'var(--color-bg-tertiary)',
-                              color: 'var(--text-secondary)',
-                              borderRadius: '3px',
-                              fontFamily: 'monospace'
-                            }}>
+                            <span
+                              style={{
+                                fontSize: '0.8em',
+                                padding: '2px 6px',
+                                background: 'var(--color-bg-tertiary)',
+                                color: 'var(--text-secondary)',
+                                borderRadius: '3px',
+                                fontFamily: 'monospace',
+                              }}
+                            >
                               {tool.server}
                             </span>
                           )}
-                          <span className="tool-name">{tool.toolName || tool.name}</span>
+                          <span className="tool-name">
+                            {tool.toolName || tool.name}
+                          </span>
                         </div>
-                        {tool.description && <span className="tool-desc">{tool.description}</span>}
+                        {tool.description && (
+                          <span className="tool-desc">{tool.description}</span>
+                        )}
                         <span className="tool-meta">
                           {tool.kind} {tool.transport && `· ${tool.transport}`}
                         </span>
@@ -798,15 +968,31 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
 
           {currentStep === 'commands' && (
             <div className="form-panel">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  marginBottom: '16px',
+                }}
+              >
                 <div>
                   <h3>Slash Commands</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '8px' }}>
-                    Define custom slash commands that users can invoke in chat. Commands can accept parameters and execute specific prompts.
+                  <p
+                    style={{
+                      color: 'var(--text-muted)',
+                      fontSize: '14px',
+                      marginTop: '8px',
+                    }}
+                  >
+                    Define custom slash commands that users can invoke in chat.
+                    Commands can accept parameters and execute specific prompts.
                   </p>
                 </div>
                 {(() => {
-                  const hasCommands = formData.commands && Object.keys(formData.commands).length > 0;
+                  const hasCommands =
+                    formData.commands &&
+                    Object.keys(formData.commands).length > 0;
                   return hasCommands ? (
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
@@ -828,12 +1014,15 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                                 name: '',
                                 description: '',
                                 prompt: '',
-                                params: []
+                                params: [],
                               },
-                              ...formData.commands
-                            }
+                              ...formData.commands,
+                            },
                           });
-                          setExpandedCommands({ ...expandedCommands, [commandKey]: true });
+                          setExpandedCommands({
+                            ...expandedCommands,
+                            [commandKey]: true,
+                          });
                         }}
                       >
                         + Add Command
@@ -843,16 +1032,26 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                 })()}
               </div>
 
-              {(!formData.commands || Object.keys(formData.commands).length === 0) ? (
-                <div style={{ 
-                  padding: '32px', 
-                  textAlign: 'center', 
-                  color: 'var(--text-muted)',
-                  border: '2px dashed var(--border-primary)',
-                  borderRadius: '8px'
-                }}>
+              {!formData.commands ||
+              Object.keys(formData.commands).length === 0 ? (
+                <div
+                  style={{
+                    padding: '32px',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)',
+                    border: '2px dashed var(--border-primary)',
+                    borderRadius: '8px',
+                  }}
+                >
                   <p>No slash commands defined yet.</p>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '12px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '8px',
+                      justifyContent: 'center',
+                      marginTop: '12px',
+                    }}
+                  >
                     <button
                       type="button"
                       className="button button--secondary button--small"
@@ -872,9 +1071,9 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                               name: '',
                               description: '',
                               prompt: '',
-                              params: []
-                            }
-                          }
+                              params: [],
+                            },
+                          },
                         });
                         setExpandedCommands({ [commandKey]: true });
                       }}
@@ -884,106 +1083,174 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {Object.entries(formData.commands).map(([key, cmd]: [string, any]) => {
-                    const isExpanded = expandedCommands[key] || false;
-                    return (
-                      <div key={key} style={{
-                        border: '1px solid var(--color-border)',
-                        borderRadius: '8px',
-                        background: 'var(--color-bg-secondary)',
-                        overflow: 'hidden'
-                      }}>
-                        <div 
-                          style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center',
-                            padding: '12px 16px',
-                            cursor: 'pointer',
-                            background: isExpanded ? 'var(--color-bg-tertiary)' : 'transparent'
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  {Object.entries(formData.commands).map(
+                    ([key, cmd]: [string, any]) => {
+                      const isExpanded = expandedCommands[key] || false;
+                      return (
+                        <div
+                          key={key}
+                          style={{
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '8px',
+                            background: 'var(--color-bg-secondary)',
+                            overflow: 'hidden',
                           }}
-                          onClick={() => setExpandedCommands({ ...expandedCommands, [key]: !isExpanded })}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-                            <span style={{ fontSize: '14px', opacity: 0.6 }}>
-                              {isExpanded ? '▼' : '▶'}
-                            </span>
-                            <div>
-                              <strong style={{ fontSize: '15px', color: 'var(--color-text-primary)' }}>/{cmd.name}</strong>
-                              <p style={{ color: 'var(--color-text-secondary)', fontSize: '13px', marginTop: '2px', marginBottom: 0 }}>
-                                {cmd.description || 'No description'}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            className="button button--danger button--small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const newCommands = { ...formData.commands };
-                              delete newCommands[key];
-                              setFormData({ ...formData, commands: newCommands });
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '12px 16px',
+                              cursor: 'pointer',
+                              background: isExpanded
+                                ? 'var(--color-bg-tertiary)'
+                                : 'transparent',
                             }}
+                            onClick={() =>
+                              setExpandedCommands({
+                                ...expandedCommands,
+                                [key]: !isExpanded,
+                              })
+                            }
                           >
-                            Delete
-                          </button>
-                        </div>
-                        {isExpanded && (
-                          <div style={{ 
-                            padding: '16px',
-                            borderTop: '1px solid var(--border-primary)',
-                            background: 'var(--bg-primary)'
-                          }}>
-                            <div className="form-group">
-                              <label>Command Name</label>
-                              <input
-                                type="text"
-                                value={cmd.name}
-                                onChange={(e) => {
-                                  const newCommands = { ...formData.commands };
-                                  newCommands[key] = { ...cmd, name: e.target.value };
-                                  setFormData({ ...formData, commands: newCommands });
-                                }}
-                                placeholder="command-name"
-                              />
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                flex: 1,
+                              }}
+                            >
+                              <span style={{ fontSize: '14px', opacity: 0.6 }}>
+                                {isExpanded ? '▼' : '▶'}
+                              </span>
+                              <div>
+                                <strong
+                                  style={{
+                                    fontSize: '15px',
+                                    color: 'var(--color-text-primary)',
+                                  }}
+                                >
+                                  /{cmd.name}
+                                </strong>
+                                <p
+                                  style={{
+                                    color: 'var(--color-text-secondary)',
+                                    fontSize: '13px',
+                                    marginTop: '2px',
+                                    marginBottom: 0,
+                                  }}
+                                >
+                                  {cmd.description || 'No description'}
+                                </p>
+                              </div>
                             </div>
-                            <div className="form-group">
-                              <label>Description</label>
-                              <input
-                                type="text"
-                                value={cmd.description || ''}
-                                onChange={(e) => {
-                                  const newCommands = { ...formData.commands };
-                                  newCommands[key] = { ...cmd, description: e.target.value };
-                                  setFormData({ ...formData, commands: newCommands });
-                                }}
-                                placeholder="What does this command do?"
-                              />
-                            </div>
-                            <div className="form-group">
-                              <label>Prompt</label>
-                              <textarea
-                                value={cmd.prompt || ''}
-                                onChange={(e) => {
-                                  const newCommands = { ...formData.commands };
-                                  newCommands[key] = { ...cmd, prompt: e.target.value };
-                                  setFormData({ ...formData, commands: newCommands });
-                                }}
-                                placeholder="The prompt to execute when this command is invoked..."
-                                style={{ 
-                                  minHeight: '120px',
-                                  resize: 'vertical',
-                                  fontFamily: 'monospace',
-                                  fontSize: '13px',
-                                }}
-                              />
-                            </div>
+                            <button
+                              type="button"
+                              className="button button--danger button--small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newCommands = { ...formData.commands };
+                                delete newCommands[key];
+                                setFormData({
+                                  ...formData,
+                                  commands: newCommands,
+                                });
+                              }}
+                            >
+                              Delete
+                            </button>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          {isExpanded && (
+                            <div
+                              style={{
+                                padding: '16px',
+                                borderTop: '1px solid var(--border-primary)',
+                                background: 'var(--bg-primary)',
+                              }}
+                            >
+                              <div className="form-group">
+                                <label>Command Name</label>
+                                <input
+                                  type="text"
+                                  value={cmd.name}
+                                  onChange={(e) => {
+                                    const newCommands = {
+                                      ...formData.commands,
+                                    };
+                                    newCommands[key] = {
+                                      ...cmd,
+                                      name: e.target.value,
+                                    };
+                                    setFormData({
+                                      ...formData,
+                                      commands: newCommands,
+                                    });
+                                  }}
+                                  placeholder="command-name"
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Description</label>
+                                <input
+                                  type="text"
+                                  value={cmd.description || ''}
+                                  onChange={(e) => {
+                                    const newCommands = {
+                                      ...formData.commands,
+                                    };
+                                    newCommands[key] = {
+                                      ...cmd,
+                                      description: e.target.value,
+                                    };
+                                    setFormData({
+                                      ...formData,
+                                      commands: newCommands,
+                                    });
+                                  }}
+                                  placeholder="What does this command do?"
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Prompt</label>
+                                <textarea
+                                  value={cmd.prompt || ''}
+                                  onChange={(e) => {
+                                    const newCommands = {
+                                      ...formData.commands,
+                                    };
+                                    newCommands[key] = {
+                                      ...cmd,
+                                      prompt: e.target.value,
+                                    };
+                                    setFormData({
+                                      ...formData,
+                                      commands: newCommands,
+                                    });
+                                  }}
+                                  placeholder="The prompt to execute when this command is invoked..."
+                                  style={{
+                                    minHeight: '120px',
+                                    resize: 'vertical',
+                                    fontFamily: 'monospace',
+                                    fontSize: '13px',
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    },
+                  )}
                 </div>
               )}
             </div>
@@ -997,7 +1264,11 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
             onClick={saveAgent}
             disabled={isSaving}
           >
-            {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Agent'}
+            {isSaving
+              ? 'Saving...'
+              : isEditMode
+                ? 'Save Changes'
+                : 'Create Agent'}
           </button>
         </div>
       </div>
@@ -1007,7 +1278,7 @@ export function AgentEditorView({ apiBase, slug, initialTab, onBack, onSaved }: 
         onImport={(commands) => {
           setFormData({
             ...formData,
-            commands: { ...formData.commands, ...commands }
+            commands: { ...formData.commands, ...commands },
           });
           setShowImportModal(false);
         }}

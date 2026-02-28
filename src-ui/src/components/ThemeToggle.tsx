@@ -1,5 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useKeyboardShortcut, useShortcutDisplay } from '../hooks/useKeyboardShortcut';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  useKeyboardShortcut,
+  useShortcutDisplay,
+} from '../hooks/useKeyboardShortcut';
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -13,10 +16,16 @@ export function ThemeToggle() {
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
 
-  useKeyboardShortcut('theme.toggle', 'h', ['cmd'], 'Toggle theme', toggleTheme);
+  useKeyboardShortcut(
+    'theme.toggle',
+    'h',
+    ['cmd'],
+    'Toggle theme',
+    toggleTheme,
+  );
   const shortcut = useShortcutDisplay('theme.toggle');
 
   return (

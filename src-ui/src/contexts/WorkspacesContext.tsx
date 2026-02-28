@@ -1,4 +1,10 @@
-import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useSyncExternalStore,
+} from 'react';
 import { log } from '@/utils/logger';
 
 type WorkspaceData = {
@@ -38,7 +44,7 @@ class WorkspacesStore {
   getSnapshot = () => this.workspaces;
 
   private notify = () => {
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   };
 
   async fetchAll(apiBase: string) {
@@ -51,7 +57,7 @@ class WorkspacesStore {
       try {
         const response = await fetch(`${apiBase}/workspaces`);
         const result = await response.json();
-        
+
         if (result.success) {
           this.workspaces = result.data;
           this.notify();
@@ -77,9 +83,9 @@ class WorkspacesStore {
       try {
         const response = await fetch(`${apiBase}/workspaces/${slug}`);
         const result = await response.json();
-        
+
         if (result.success) {
-          const idx = this.workspaces.findIndex(w => w.slug === slug);
+          const idx = this.workspaces.findIndex((w) => w.slug === slug);
           if (idx >= 0) {
             this.workspaces[idx] = result.data;
           } else {
@@ -106,7 +112,7 @@ class WorkspacesStore {
         body: JSON.stringify(workspace),
       });
       const result = await response.json();
-      
+
       if (result.success) {
         this.workspaces.push(result.data);
         this.notify();
@@ -124,9 +130,9 @@ class WorkspacesStore {
         body: JSON.stringify(updates),
       });
       const result = await response.json();
-      
+
       if (result.success) {
-        const idx = this.workspaces.findIndex(w => w.slug === slug);
+        const idx = this.workspaces.findIndex((w) => w.slug === slug);
         if (idx >= 0) {
           this.workspaces[idx] = result.data;
           this.notify();
@@ -143,9 +149,9 @@ class WorkspacesStore {
         method: 'DELETE',
       });
       const result = await response.json();
-      
+
       if (result.success) {
-        this.workspaces = this.workspaces.filter(w => w.slug !== slug);
+        this.workspaces = this.workspaces.filter((w) => w.slug !== slug);
         this.notify();
       }
     } catch (error) {
@@ -160,19 +166,42 @@ const WorkspacesContext = createContext<{
   fetchAll: (apiBase: string) => Promise<void>;
   fetchOne: (apiBase: string, slug: string) => Promise<void>;
   create: (apiBase: string, workspace: WorkspaceData) => Promise<void>;
-  update: (apiBase: string, slug: string, updates: Partial<WorkspaceData>) => Promise<void>;
+  update: (
+    apiBase: string,
+    slug: string,
+    updates: Partial<WorkspaceData>,
+  ) => Promise<void>;
   delete: (apiBase: string, slug: string) => Promise<void>;
 } | null>(null);
 
 export function WorkspacesProvider({ children }: { children: ReactNode }) {
-  const fetchAll = useCallback((apiBase: string) => workspacesStore.fetchAll(apiBase), []);
-  const fetchOne = useCallback((apiBase: string, slug: string) => workspacesStore.fetchOne(apiBase, slug), []);
-  const create = useCallback((apiBase: string, workspace: WorkspaceData) => workspacesStore.create(apiBase, workspace), []);
-  const update = useCallback((apiBase: string, slug: string, updates: Partial<WorkspaceData>) => workspacesStore.update(apiBase, slug, updates), []);
-  const deleteWorkspace = useCallback((apiBase: string, slug: string) => workspacesStore.delete(apiBase, slug), []);
+  const fetchAll = useCallback(
+    (apiBase: string) => workspacesStore.fetchAll(apiBase),
+    [],
+  );
+  const fetchOne = useCallback(
+    (apiBase: string, slug: string) => workspacesStore.fetchOne(apiBase, slug),
+    [],
+  );
+  const create = useCallback(
+    (apiBase: string, workspace: WorkspaceData) =>
+      workspacesStore.create(apiBase, workspace),
+    [],
+  );
+  const update = useCallback(
+    (apiBase: string, slug: string, updates: Partial<WorkspaceData>) =>
+      workspacesStore.update(apiBase, slug, updates),
+    [],
+  );
+  const deleteWorkspace = useCallback(
+    (apiBase: string, slug: string) => workspacesStore.delete(apiBase, slug),
+    [],
+  );
 
   return (
-    <WorkspacesContext.Provider value={{ fetchAll, fetchOne, create, update, delete: deleteWorkspace }}>
+    <WorkspacesContext.Provider
+      value={{ fetchAll, fetchOne, create, update, delete: deleteWorkspace }}
+    >
       {children}
     </WorkspacesContext.Provider>
   );
@@ -182,25 +211,27 @@ export function WorkspacesProvider({ children }: { children: ReactNode }) {
 export function useWorkspacesActions() {
   const context = useContext(WorkspacesContext);
   if (!context) {
-    throw new Error('useWorkspacesActions must be used within WorkspacesProvider');
+    throw new Error(
+      'useWorkspacesActions must be used within WorkspacesProvider',
+    );
   }
   return context;
 }
 
 // Hook for data subscription (no side effects)
-export function useWorkspaces(apiBase: string) {
+export function useWorkspaces(_apiBase: string) {
   const workspaces = useSyncExternalStore(
     workspacesStore.subscribe,
-    workspacesStore.getSnapshot
+    workspacesStore.getSnapshot,
   );
   return workspaces;
 }
 
 // Hook for single workspace (no auto-fetch)
-export function useWorkspace(apiBase: string, slug: string, enabled = true) {
+export function useWorkspace(_apiBase: string, slug: string, _enabled = true) {
   const workspaces = useSyncExternalStore(
     workspacesStore.subscribe,
-    workspacesStore.getSnapshot
+    workspacesStore.getSnapshot,
   );
-  return workspaces.find(w => w.slug === slug) || null;
+  return workspaces.find((w) => w.slug === slug) || null;
 }

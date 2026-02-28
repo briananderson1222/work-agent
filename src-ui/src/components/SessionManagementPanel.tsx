@@ -36,25 +36,17 @@ export function SessionManagementPanel({
         </div>
         <div className="session-panel__actions">
           {conversationCount > 0 && (
-            <button
-              className="session-panel__clear-btn"
-              onClick={onClearAll}
-            >
+            <button className="session-panel__clear-btn" onClick={onClearAll}>
               Clear All
             </button>
           )}
-          <button
-            className="session-panel__close-btn"
-            onClick={onClose}
-          >
+          <button className="session-panel__close-btn" onClick={onClose}>
             ×
           </button>
         </div>
       </div>
-      
-      <div className="session-panel__content">
-        {children}
-      </div>
+
+      <div className="session-panel__content">{children}</div>
     </div>
   );
 }

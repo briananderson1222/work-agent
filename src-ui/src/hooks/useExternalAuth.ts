@@ -8,14 +8,17 @@ export function useExternalAuth() {
   const authenticate = async (pin: string): Promise<boolean> => {
     setIsAuthenticating(true);
     setError(null);
-    
+
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('authenticate_external', { pin });
       return true;
     } catch (err: any) {
       // Tauri not available (browser mode) or auth command not configured
-      if (err?.toString?.().includes('not a function') || err?.toString?.().includes('Could not resolve')) {
+      if (
+        err?.toString?.().includes('not a function') ||
+        err?.toString?.().includes('Could not resolve')
+      ) {
         setError('Desktop auth not available in browser mode');
       } else {
         log.api('[Auth] Failed:', err);

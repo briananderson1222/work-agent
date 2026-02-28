@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from 'react';
 
 interface PreviewItem {
   url: string;
@@ -17,24 +23,31 @@ export function PreviewProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState<PreviewItem | null>(null);
   const [items, setItems] = useState<PreviewItem[]>([]);
 
-  const openPreview = useCallback((item: PreviewItem, allItems?: PreviewItem[]) => {
-    setCurrent(item);
-    setItems(allItems || [item]);
-  }, []);
+  const openPreview = useCallback(
+    (item: PreviewItem, allItems?: PreviewItem[]) => {
+      setCurrent(item);
+      setItems(allItems || [item]);
+    },
+    [],
+  );
 
   const closePreview = useCallback(() => {
     setCurrent(null);
     setItems([]);
   }, []);
 
-  const currentIdx = current ? items.findIndex(i => i.url === current.url) : -1;
+  const currentIdx = current
+    ? items.findIndex((i) => i.url === current.url)
+    : -1;
   const canPrev = currentIdx > 0;
   const canNext = currentIdx < items.length - 1;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') closePreview();
-    else if (e.key === 'ArrowLeft' && canPrev) setCurrent(items[currentIdx - 1]);
-    else if (e.key === 'ArrowRight' && canNext) setCurrent(items[currentIdx + 1]);
+    else if (e.key === 'ArrowLeft' && canPrev)
+      setCurrent(items[currentIdx - 1]);
+    else if (e.key === 'ArrowRight' && canNext)
+      setCurrent(items[currentIdx + 1]);
   };
 
   const canPreview = (mediaType?: string) => mediaType?.startsWith('image/');
@@ -62,7 +75,10 @@ export function PreviewProvider({ children }: { children: ReactNode }) {
           {canPrev && (
             <button
               className="image-preview-modal__nav image-preview-modal__nav--prev"
-              onClick={(e) => { e.stopPropagation(); setCurrent(items[currentIdx - 1]); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrent(items[currentIdx - 1]);
+              }}
             >
               ‹
             </button>
@@ -76,7 +92,10 @@ export function PreviewProvider({ children }: { children: ReactNode }) {
           {canNext && (
             <button
               className="image-preview-modal__nav image-preview-modal__nav--next"
-              onClick={(e) => { e.stopPropagation(); setCurrent(items[currentIdx + 1]); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrent(items[currentIdx + 1]);
+              }}
             >
               ›
             </button>

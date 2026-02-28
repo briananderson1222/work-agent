@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 import { useApiBase } from './ApiBaseContext';
 
 type AuthStatus = 'valid' | 'expiring' | 'expired' | 'missing' | 'loading';
@@ -7,7 +14,13 @@ interface AuthState {
   status: AuthStatus;
   expiresAt: Date | null;
   provider: string;
-  user: { alias: string; profileUrl?: string; name?: string; title?: string; email?: string } | null;
+  user: {
+    alias: string;
+    profileUrl?: string;
+    name?: string;
+    title?: string;
+    email?: string;
+  } | null;
   renew: () => Promise<void>;
   isRenewing: boolean;
 }
@@ -40,8 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await fetch(`${apiBase}/api/auth/renew`, { method: 'POST' });
       setTimeout(checkStatus, 3000);
-    } catch { /* ignore */ }
-    finally { setIsRenewing(false); }
+    } catch {
+      /* ignore */
+    } finally {
+      setIsRenewing(false);
+    }
   }, [apiBase, checkStatus]);
 
   useEffect(() => {
@@ -51,7 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [checkStatus]);
 
   return (
-    <AuthContext.Provider value={{ status, expiresAt, provider, user, renew, isRenewing }}>
+    <AuthContext.Provider
+      value={{ status, expiresAt, provider, user, renew, isRenewing }}
+    >
       {children}
     </AuthContext.Provider>
   );

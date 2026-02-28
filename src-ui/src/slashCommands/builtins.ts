@@ -1,51 +1,69 @@
-import { registerCommand } from './registry';
 import { agentQueries } from '@work-agent/sdk';
+import { registerCommand } from './registry';
 
 // MCP command
-registerCommand('mcp', async ({ chatState, queryClient, addEphemeralMessage, sessionId }) => {
-  try {
-    const data = await queryClient.fetchQuery(
-      agentQueries.agent(chatState.agentSlug)
-    );
-    
-    const tools = data?.tools || [];
-    
-    const mcpServers = [...new Set(
-      tools
-        .map((t: any) => {
-          const name = typeof t === 'string' ? t : (t.name || t.id || '');
-          return name.includes('_') ? name.split('_')[0] : null;
-        })
-        .filter((s: string | null) => s !== null)
-    )].sort();
-    
-    const content = mcpServers.length > 0
-      ? `**MCP Servers (${mcpServers.length}):**\n\n${mcpServers.map((s: string) => `- ${s}`).join('\n')}`
-      : 'No MCP servers loaded for this agent.';
-    
-    addEphemeralMessage(sessionId, { role: 'system', content });
-  } catch (error) {
-    addEphemeralMessage(sessionId, { role: 'system', content: `Error: ${error}` });
-  }
-});
+registerCommand(
+  'mcp',
+  async ({ chatState, queryClient, addEphemeralMessage, sessionId }) => {
+    try {
+      const data = await queryClient.fetchQuery(
+        agentQueries.agent(chatState.agentSlug),
+      );
+
+      const tools = data?.tools || [];
+
+      const mcpServers = [
+        ...new Set(
+          tools
+            .map((t: any) => {
+              const name = typeof t === 'string' ? t : t.name || t.id || '';
+              return name.includes('_') ? name.split('_')[0] : null;
+            })
+            .filter((s: string | null) => s !== null),
+        ),
+      ].sort();
+
+      const content =
+        mcpServers.length > 0
+          ? `**MCP Servers (${mcpServers.length}):**\n\n${mcpServers.map((s: string) => `- ${s}`).join('\n')}`
+          : 'No MCP servers loaded for this agent.';
+
+      addEphemeralMessage(sessionId, { role: 'system', content });
+    } catch (error) {
+      addEphemeralMessage(sessionId, {
+        role: 'system',
+        content: `Error: ${error}`,
+      });
+    }
+  },
+);
 
 // Prompts command
-registerCommand('prompts', async ({ agent, addEphemeralMessage, sessionId }) => {
-  if (agent?.commands && Object.keys(agent.commands).length > 0) {
-    const commandList = Object.values(agent.commands).map((cmd: any) => {
-      const params = cmd.params?.map((p: any) => 
-        `${p.name}${p.required === false ? '?' : ''}`
-      ).join(' ') || '';
-      return `• **/${cmd.name}** ${params ? `\`${params}\`` : ''}\n  ${cmd.description || 'No description'}`;
-    }).join('\n\n');
-    addEphemeralMessage(sessionId, { 
-      role: 'system', 
-      content: `**Custom Slash Commands (${Object.keys(agent.commands).length})**\n\n${commandList}` 
-    });
-  } else {
-    addEphemeralMessage(sessionId, { role: 'system', content: 'No custom slash commands defined for this agent.' });
-  }
-});
+registerCommand(
+  'prompts',
+  async ({ agent, addEphemeralMessage, sessionId }) => {
+    if (agent?.commands && Object.keys(agent.commands).length > 0) {
+      const commandList = Object.values(agent.commands)
+        .map((cmd: any) => {
+          const params =
+            cmd.params
+              ?.map((p: any) => `${p.name}${p.required === false ? '?' : ''}`)
+              .join(' ') || '';
+          return `• **/${cmd.name}** ${params ? `\`${params}\`` : ''}\n  ${cmd.description || 'No description'}`;
+        })
+        .join('\n\n');
+      addEphemeralMessage(sessionId, {
+        role: 'system',
+        content: `**Custom Slash Commands (${Object.keys(agent.commands).length})**\n\n${commandList}`,
+      });
+    } else {
+      addEphemeralMessage(sessionId, {
+        role: 'system',
+        content: 'No custom slash commands defined for this agent.',
+      });
+    }
+  },
+);
 
 // Model command - override default by setting input and opening model selector
 registerCommand('model', async ({ updateChat, sessionId, autocomplete }) => {
@@ -55,18 +73,23 @@ registerCommand('model', async ({ updateChat, sessionId, autocomplete }) => {
 });
 
 // Stats command
-registerCommand('stats', async ({ sessionId, chatState, queryClient, addEphemeralMessage }) => {
-  try {
-    if (!chatState.conversationId) {
-      addEphemeralMessage(sessionId, { role: 'system', content: 'No conversation ID available.' });
-      return;
-    }
-    
-    const stats = await queryClient.fetchQuery(
-      agentQueries.stats(chatState.agentSlug, chatState.conversationId)
-    );
-    
-    const html = `
+registerCommand(
+  'stats',
+  async ({ sessionId, chatState, queryClient, addEphemeralMessage }) => {
+    try {
+      if (!chatState.conversationId) {
+        addEphemeralMessage(sessionId, {
+          role: 'system',
+          content: 'No conversation ID available.',
+        });
+        return;
+      }
+
+      const stats = await queryClient.fetchQuery(
+        agentQueries.stats(chatState.agentSlug, chatState.conversationId),
+      );
+
+      const html = `
       <div style="font-family: system-ui, -apple-system, sans-serif; font-size: 14px;">
         <strong style="font-size: 16px;">Conversation Statistics</strong><br/><br/>
         
@@ -129,13 +152,17 @@ registerCommand('stats', async ({ sessionId, chatState, queryClient, addEphemera
           </div>
         </details>
         
-        ${stats.modelStats && Object.keys(stats.modelStats).length > 0 ? `
+        ${
+          stats.modelStats && Object.keys(stats.modelStats).length > 0
+            ? `
           <details style="margin-bottom: 12px;">
             <summary style="cursor: pointer; font-weight: 600; padding: 8px; background: var(--bg-secondary); border-radius: 4px; user-select: none;">
               Per-Model Breakdown
             </summary>
             <div style="padding: 12px 8px;">
-              ${Object.entries(stats.modelStats).map(([modelId, modelData]: [string, any]) => `
+              ${Object.entries(stats.modelStats)
+                .map(
+                  ([modelId, modelData]: [string, any]) => `
                 <div style="margin-bottom: 12px; padding: 8px; background: var(--bg-tertiary); border-radius: 4px;">
                   <div style="font-family: monospace; font-size: 12px; margin-bottom: 8px;">${modelId}</div>
                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
@@ -153,26 +180,50 @@ registerCommand('stats', async ({ sessionId, chatState, queryClient, addEphemera
                     </div>
                   </div>
                 </div>
-              `).join('')}
+              `,
+                )
+                .join('')}
             </div>
           </details>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
-    
-    addEphemeralMessage(sessionId, { role: 'system', content: html, contentType: 'html' });
-  } catch (error) {
-    addEphemeralMessage(sessionId, { role: 'system', content: `Error fetching stats: ${error}` });
-  }
-});
+
+      addEphemeralMessage(sessionId, {
+        role: 'system',
+        content: html,
+        contentType: 'html',
+      });
+    } catch (error) {
+      addEphemeralMessage(sessionId, {
+        role: 'system',
+        content: `Error fetching stats: ${error}`,
+      });
+    }
+  },
+);
 
 // Clear/New command
-registerCommand('clear', async ({ updateChat, sessionId, addEphemeralMessage }) => {
-  updateChat(sessionId, { messages: [] });
-  addEphemeralMessage(sessionId, { role: 'system', content: 'Conversation cleared' });
-});
+registerCommand(
+  'clear',
+  async ({ updateChat, sessionId, addEphemeralMessage }) => {
+    updateChat(sessionId, { messages: [] });
+    addEphemeralMessage(sessionId, {
+      role: 'system',
+      content: 'Conversation cleared',
+    });
+  },
+);
 
-registerCommand('new', async ({ updateChat, sessionId, addEphemeralMessage }) => {
-  updateChat(sessionId, { messages: [] });
-  addEphemeralMessage(sessionId, { role: 'system', content: 'Conversation cleared' });
-});
+registerCommand(
+  'new',
+  async ({ updateChat, sessionId, addEphemeralMessage }) => {
+    updateChat(sessionId, { messages: [] });
+    addEphemeralMessage(sessionId, {
+      role: 'system',
+      content: 'Conversation cleared',
+    });
+  },
+);

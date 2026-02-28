@@ -1,46 +1,34 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useServerEvents } from './hooks/useServerEvents';
-import { log } from '@/utils/logger';
-import type { KeyboardEvent } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { AgentSelector } from './components/AgentSelector';
-import { Header } from './components/Header';
-import { WorkspaceHeader } from './components/WorkspaceHeader';
-import { NotificationsPage } from './pages/NotificationsPage';
-import { AgentSelectorModal } from './components/AgentSelectorModal';
-import { PinDialog } from './components/PinDialog';
-import { ShortcutsCheatsheet } from './components/ShortcutsCheatsheet';
+import { useWorkspaceQuery, useWorkspacesQuery } from '@work-agent/sdk';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ACPConnectionsSection } from './components/ACPConnectionsSection';
+import { AgentIcon } from './components/AgentIcon';
 import { ChatDock } from './components/ChatDock';
-import { useModels } from './contexts/ModelsContext';
+import { Header } from './components/Header';
+import { ShortcutsCheatsheet } from './components/ShortcutsCheatsheet';
+import { useAgents } from './contexts/AgentsContext';
 import { useApiBase } from './contexts/ApiBaseContext';
-import { useConfig, CONFIG_DEFAULTS } from './contexts/ConfigContext';
+import { useConfig } from './contexts/ConfigContext';
+import { useModels } from './contexts/ModelsContext';
 import { useNavigation } from './contexts/NavigationContext';
 import { useToast } from './contexts/ToastContext';
-import { useWorkspacesQuery, useWorkspaceQuery } from '@work-agent/sdk';
-import { useAgents } from './contexts/AgentsContext';
 import { useWorkflows } from './contexts/WorkflowsContext';
-import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
-import { WorkspaceRenderer } from './workspaces';
-import { WorkspaceView } from './views/WorkspaceView';
-import { AgentEditorView } from './views/AgentEditorView';
-import { WorkspaceEditorView } from './views/WorkspaceEditorView';
-import { ACPConnectionsSection } from './components/ACPConnectionsSection';
-import { ToolManagementView } from './views/ToolManagementView';
-import { WorkflowManagementView } from './views/WorkflowManagementView';
-import { SettingsView } from './views/SettingsView';
-import { PluginManagementView } from './views/PluginManagementView';
-import { MonitoringView } from './views/MonitoringView';
-import { ScheduleView } from './views/ScheduleView';
-import { ProfilePage } from './pages/ProfilePage';
 import { useExternalAuth } from './hooks/useExternalAuth';
+import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
+import { useServerEvents } from './hooks/useServerEvents';
 import { useSystemStatus } from './hooks/useSystemStatus';
 import { setAuthCallback } from './lib/apiClient';
-import { getAgentIcon, getAgentIconStyle } from './utils/workspace';
-import { AgentIcon } from './components/AgentIcon';
-import type {
-  AgentSummary,
-  NavigationView,
-} from './types';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { ProfilePage } from './pages/ProfilePage';
+import type { AgentSummary, NavigationView } from './types';
+import { AgentEditorView } from './views/AgentEditorView';
+import { MonitoringView } from './views/MonitoringView';
+import { PluginManagementView } from './views/PluginManagementView';
+import { ScheduleView } from './views/ScheduleView';
+import { SettingsView } from './views/SettingsView';
+import { ToolManagementView } from './views/ToolManagementView';
+import { WorkflowManagementView } from './views/WorkflowManagementView';
+import { WorkspaceEditorView } from './views/WorkspaceEditorView';
+import { WorkspaceView } from './views/WorkspaceView';
 
 function App() {
   const { apiBase: API_BASE } = useApiBase();
@@ -49,29 +37,47 @@ function App() {
 
   // SSE event stream — replaces all polling for ACP status, agent changes, etc.
   useServerEvents();
-  const { selectedAgent, selectedWorkspace, setAgent, setWorkspace, setWorkspaceTab, navigate, isDockOpen } = useNavigation();
+  const {
+    selectedAgent,
+    selectedWorkspace,
+    setAgent,
+    setWorkspace,
+    setWorkspaceTab,
+    navigate,
+    isDockOpen,
+  } = useNavigation();
   const { showToast } = useToast();
   const { data: workspaces = [] } = useWorkspacesQuery();
-  const { data: selectedWorkspaceData } = useWorkspaceQuery(selectedWorkspace || '', { enabled: !!selectedWorkspace });
+  const { data: selectedWorkspaceData } = useWorkspaceQuery(
+    selectedWorkspace || '',
+    { enabled: !!selectedWorkspace },
+  );
   const [activeTabId, setActiveTabId] = useState<string>('');
-  const [agentSelectorModal, setAgentSelectorModal] = useState<{
+  const [_agentSelectorModal, _setAgentSelectorModal] = useState<{
     show: boolean;
     onSelect: (slug: string) => void;
   } | null>(null);
-  
+
   const appConfig = useConfig();
-  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [globalError, _setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
-  const workflowCatalog = useWorkflows(API_BASE);
-  const [showPinDialog, setShowPinDialog] = useState(false);
+  const _workflowCatalog = useWorkflows(API_BASE);
+  const [_showPinDialog, setShowPinDialog] = useState(false);
   const [showShortcutsCheatsheet, setShowShortcutsCheatsheet] = useState(false);
-  const [pinDialogResolver, setPinDialogResolver] = useState<((success: boolean) => void) | null>(null);
-  const [activeAbortController, setActiveAbortController] = useState<AbortController | null>(null);
-  const { authenticate, isAuthenticating, error: authError } = useExternalAuth();
+  const [pinDialogResolver, setPinDialogResolver] = useState<
+    ((success: boolean) => void) | null
+  >(null);
+  const [_activeAbortController, _setActiveAbortController] =
+    useState<AbortController | null>(null);
+  const {
+    authenticate,
+    isAuthenticating,
+    error: authError,
+  } = useExternalAuth();
   const { data: systemStatus } = useSystemStatus();
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
     const path = window.location.pathname;
-    
+
     if (path === '/agents') return { type: 'agents' };
     if (path === '/prompts') return { type: 'prompts' };
     if (path === '/plugins') return { type: 'plugins' };
@@ -98,16 +104,16 @@ function App() {
       const slug = path.split('/')[2];
       return { type: 'workspace-edit', slug };
     }
-    
+
     return { type: 'workspace' };
   });
-  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const [_historyIndex, _setHistoryIndex] = useState<number>(-1);
 
   // Listen for path changes (back/forward navigation)
   useEffect(() => {
     const handlePathChange = () => {
       const path = window.location.pathname;
-      
+
       // Check path for main app navigation
       if (path === '/agents') {
         setCurrentView({ type: 'agents' });
@@ -156,18 +162,18 @@ function App() {
         setCurrentView({ type: 'workspace-edit', slug });
         return;
       }
-      
+
       // Parse workspace paths from URL (for workspace tab navigation)
       if (path.startsWith('/workspaces/')) {
         const pathParts = path.split('/');
         const workspaceSlug = pathParts[2];
         const tabId = pathParts[3];
-        
+
         // Skip if this is an edit path (already handled above)
         if (workspaceSlug === 'new' || path.endsWith('/edit')) {
           return;
         }
-        
+
         if (workspaceSlug && workspaceSlug !== selectedWorkspace) {
           handleWorkspaceSelect(workspaceSlug, tabId);
         } else if (tabId && tabId !== activeTabId) {
@@ -176,7 +182,7 @@ function App() {
         setCurrentView({ type: 'workspace' });
         return;
       }
-      
+
       // Default to workspace if no path matches
       setCurrentView({ type: 'workspace' });
     };
@@ -186,64 +192,87 @@ function App() {
     return () => {
       window.removeEventListener('popstate', handlePathChange);
     };
-  }, []);
+  }, [activeTabId, handleWorkspaceSelect, selectedWorkspace]);
 
-  const generateId = () =>
+  const _generateId = () =>
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
       : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
   const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-  const modKey = isMac ? '⌘' : 'Ctrl+';
+  const _modKey = isMac ? '⌘' : 'Ctrl+';
 
-  const humanizeWorkflowId = (identifier: string) => {
-    const base = identifier.includes('.') ? identifier.split('.')[0] : identifier;
-    return base.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+  const _humanizeWorkflowId = (identifier: string) => {
+    const base = identifier.includes('.')
+      ? identifier.split('.')[0]
+      : identifier;
+    return base
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
   };
 
-  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const chatSectionRef = useRef<HTMLDivElement>(null);
-  const tabListRef = useRef<HTMLDivElement>(null);
-  const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
-  const [showCommandAutocomplete, setShowCommandAutocomplete] = useState(false);
-  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
-  const [showModelSelector, setShowModelSelector] = useState(false);
-  const [selectedModelIndex, setSelectedModelIndex] = useState(0);
-  const [modelSelectorDismissed, setModelSelectorDismissed] = useState(false);
+  const [_isUserScrolledUp, _setIsUserScrolledUp] = useState(false);
+  const _textareaRef = useRef<HTMLTextAreaElement>(null);
+  const _chatSectionRef = useRef<HTMLDivElement>(null);
+  const _tabListRef = useRef<HTMLDivElement>(null);
+  const [_showScrollButtons, _setShowScrollButtons] = useState({
+    left: false,
+    right: false,
+  });
+  const [_showCommandAutocomplete, _setShowCommandAutocomplete] =
+    useState(false);
+  const [_selectedCommandIndex, _setSelectedCommandIndex] = useState(0);
+  const [_showModelSelector, _setShowModelSelector] = useState(false);
+  const [_selectedModelIndex, _setSelectedModelIndex] = useState(0);
+  const [_modelSelectorDismissed, _setModelSelectorDismissed] = useState(false);
 
   // Models are now provided by ModelsContext
 
   const currentAgent = useMemo(
     () => agents.find((agent) => agent.slug === selectedAgent) ?? null,
-    [agents, selectedAgent]
+    [agents, selectedAgent],
   );
 
-  const slashCommands = useMemo(() => {
+  const _slashCommands = useMemo(() => {
     const baseCommands = [
       { cmd: '/mcp', description: 'List MCP servers for this agent' },
-      { cmd: '/tools', description: 'Show available tools and auto-approved list' },
-      { cmd: '/model', description: 'List and select model for this conversation' },
-      { cmd: '/prompts', description: 'List custom slash commands for this agent' },
-      { cmd: '/clear', aliases: ['/new'], description: 'Clear conversation and start fresh' },
+      {
+        cmd: '/tools',
+        description: 'Show available tools and auto-approved list',
+      },
+      {
+        cmd: '/model',
+        description: 'List and select model for this conversation',
+      },
+      {
+        cmd: '/prompts',
+        description: 'List custom slash commands for this agent',
+      },
+      {
+        cmd: '/clear',
+        aliases: ['/new'],
+        description: 'Clear conversation and start fresh',
+      },
       { cmd: '/stats', description: 'Show conversation statistics' },
     ];
 
     // Add custom agent commands
     if (currentAgent?.commands) {
-      const customCommands = Object.values(currentAgent.commands).map((cmd: any) => ({
-        cmd: `/${cmd.name}`,
-        description: cmd.description || 'Custom command',
-        isCustom: true,
-      }));
+      const customCommands = Object.values(currentAgent.commands).map(
+        (cmd: any) => ({
+          cmd: `/${cmd.name}`,
+          description: cmd.description || 'Custom command',
+          isCustom: true,
+        }),
+      );
       return [...baseCommands, ...customCommands];
     }
 
     return baseCommands;
   }, [currentAgent]);
 
-  const quickPrompts = currentAgent?.ui?.quickPrompts;
-  const workflowShortcuts = currentAgent?.ui?.workflowShortcuts;
+  const _quickPrompts = currentAgent?.ui?.quickPrompts;
+  const _workflowShortcuts = currentAgent?.ui?.workflowShortcuts;
 
   // Setup auth callback
   useEffect(() => {
@@ -253,13 +282,17 @@ function App() {
         setShowPinDialog(true);
       });
     };
-    
+
     setAuthCallback(authCallback);
     // Also expose globally for SDK
-    (globalThis as typeof globalThis & { authCallback?: () => Promise<boolean> }).authCallback = authCallback;
+    (
+      globalThis as typeof globalThis & {
+        authCallback?: () => Promise<boolean>;
+      }
+    ).authCallback = authCallback;
   }, []);
 
-  const handlePinSubmit = async (pin: string) => {
+  const _handlePinSubmit = async (pin: string) => {
     const success = await authenticate(pin);
     if (success) {
       setShowPinDialog(false);
@@ -271,7 +304,7 @@ function App() {
     // Keep dialog open on failure to show error
   };
 
-  const handlePinCancel = () => {
+  const _handlePinCancel = () => {
     setShowPinDialog(false);
     pinDialogResolver?.(false);
     setPinDialogResolver(null);
@@ -315,7 +348,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentView]);
+  }, [currentView, navigateToView, navigateToWorkspace]);
 
   // Update scroll button visibility - handled by ChatDock
   useEffect(() => {
@@ -323,9 +356,12 @@ function App() {
 
     // Workflows auto-load via context
 
-    if (currentAgent.workflowWarnings && currentAgent.workflowWarnings.length > 0) {
+    if (
+      currentAgent.workflowWarnings &&
+      currentAgent.workflowWarnings.length > 0
+    ) {
       const warningText = `Missing workflow shortcuts for ${currentAgent.name}: ${currentAgent.workflowWarnings.join(
-        ', '
+        ', ',
       )}`;
       setManagementNotice((prev) => prev ?? warningText);
     }
@@ -337,30 +373,45 @@ function App() {
 
   // Auto-select first workspace if none selected
   useEffect(() => {
-    if (workspaces.length > 0 && !selectedWorkspace && !selectedAgent && currentView.type === 'workspace') {
+    if (
+      workspaces.length > 0 &&
+      !selectedWorkspace &&
+      !selectedAgent &&
+      currentView.type === 'workspace'
+    ) {
       setWorkspace(workspaces[0].slug);
     }
-  }, [workspaces, selectedWorkspace, selectedAgent, currentView.type, setWorkspace]);
+  }, [
+    workspaces,
+    selectedWorkspace,
+    selectedAgent,
+    currentView.type,
+    setWorkspace,
+  ]);
 
-  const handleWorkspaceSelect = async (slug: string, preferredTabId?: string) => {
+  const handleWorkspaceSelect = async (
+    slug: string,
+    preferredTabId?: string,
+  ) => {
     // React Query will fetch workspace data automatically
     // Just get it from cache or wait for it to load
-    const workspace = workspaces.find(w => w.slug === slug);
+    const workspace = workspaces.find((w) => w.slug === slug);
     if (workspace) {
       // Use preferred tab ID if provided and valid, otherwise use first tab
       const tabs = workspace.tabs || [];
-      const validTabId = preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
-        ? preferredTabId 
-        : tabs[0]?.id || '';
-      
+      const validTabId =
+        preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
+          ? preferredTabId
+          : tabs[0]?.id || '';
+
       setActiveTabId(validTabId);
-      
+
       // Use setWorkspaceTab to include tab in URL
       setWorkspaceTab(slug, validTabId);
     }
   };
 
-  const handleTabChange = (tabId: string) => {
+  const _handleTabChange = (tabId: string) => {
     setActiveTabId(tabId);
     // Update URL via NavigationContext
     if (selectedWorkspace) {
@@ -371,33 +422,36 @@ function App() {
   // Sessions are loaded automatically via ConversationsContext in useDerivedSessions
 
   // Chat functions - handled by ChatDock
-  const removeSession = (sessionId: string) => {
-  };
+  const _removeSession = (_sessionId: string) => {};
 
-  const focusSession = (sessionId: string) => {
-  };
+  const _focusSession = (_sessionId: string) => {};
 
-  const ensureManualSession = (agent: AgentSummary) => {
-  };
+  const _ensureManualSession = (_agent: AgentSummary) => {};
 
-  const sendMessage = async (sessionId: string, overrideContent?: string) => {
-  };
+  const _sendMessage = async (
+    _sessionId: string,
+    _overrideContent?: string,
+  ) => {};
 
-  const openChatForAgent = useCallback((agent: AgentSummary | null) => {
-  }, []);
+  const _openChatForAgent = useCallback(
+    (_agent: AgentSummary | null) => {},
+    [],
+  );
 
-  const openConversation = async (conversationId: string, agentSlug: string) => {
-  };
+  const _openConversation = async (
+    _conversationId: string,
+    _agentSlug: string,
+  ) => {};
 
   // Navigation functions
-  const switchAgent = (slug: string) => {
+  const _switchAgent = (slug: string) => {
     setAgent(slug);
     setManagementNotice(null);
   };
 
   const navigateToView = (view: NavigationView) => {
     setCurrentView(view);
-    
+
     // Update URL based on view type
     if (view.type === 'workspace') {
       // Navigate to current workspace or home (ignore synthetic slugs like 'new')
@@ -448,15 +502,20 @@ function App() {
     }
   };
 
-
   // Stub handlers for legacy calls - ChatDock handles all chat operations
-  const handleSendToChat = useCallback((text: string, agentSlug?: string, promptLabel?: string) => {
-    showToast('Please use the chat dock to send messages');
-  }, [showToast]);
+  const _handleSendToChat = useCallback(
+    (_text: string, _agentSlug?: string, _promptLabel?: string) => {
+      showToast('Please use the chat dock to send messages');
+    },
+    [showToast],
+  );
 
-  const handlePromptSelect = useCallback((prompt: any) => {
-    showToast('Please use the chat dock to send prompts');
-  }, [showToast]);
+  const _handlePromptSelect = useCallback(
+    (_prompt: any) => {
+      showToast('Please use the chat dock to send prompts');
+    },
+    [showToast],
+  );
 
   const handleSettingsSaved = () => {
     showToast('Settings saved successfully');
@@ -473,22 +532,39 @@ function App() {
   };
 
   // Keyboard shortcuts
-  useKeyboardShortcut('app.settings', ',', ['cmd'], 'Toggle settings', useCallback(() => {
-    if (currentView.type === 'settings') {
-      navigateToWorkspace();
-    } else {
-      navigateToView({ type: 'settings' });
-    }
-  }, [currentView.type, navigateToWorkspace, navigateToView]));
+  useKeyboardShortcut(
+    'app.settings',
+    ',',
+    ['cmd'],
+    'Toggle settings',
+    useCallback(() => {
+      if (currentView.type === 'settings') {
+        navigateToWorkspace();
+      } else {
+        navigateToView({ type: 'settings' });
+      }
+    }, [currentView.type, navigateToWorkspace, navigateToView]),
+  );
 
-  useKeyboardShortcut('app.newWorkspace', 'n', ['cmd'], 'New workspace', useCallback(() => {
-    navigateToView({ type: 'workspace-new' });
-  }, [navigateToView]));
+  useKeyboardShortcut(
+    'app.newWorkspace',
+    'n',
+    ['cmd'],
+    'New workspace',
+    useCallback(() => {
+      navigateToView({ type: 'workspace-new' });
+    }, [navigateToView]),
+  );
 
-  useKeyboardShortcut('app.shortcuts', '/', ['cmd'], 'Show keyboard shortcuts', useCallback(() => {
-    setShowShortcutsCheatsheet(true);
-  }, []));
-
+  useKeyboardShortcut(
+    'app.shortcuts',
+    '/',
+    ['cmd'],
+    'Show keyboard shortcuts',
+    useCallback(() => {
+      setShowShortcutsCheatsheet(true);
+    }, []),
+  );
 
   // Render current view content
   const renderViewContent = () => {
@@ -511,390 +587,712 @@ function App() {
     // Management views
     return (
       <>
-          {currentView.type === 'workspaces' && (
-            <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>Workspaces</h1>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Manage workspace configurations and layouts
-                  </p>
-                </div>
-                <button className="button button--primary" onClick={() => navigateToView({ type: 'workspace-new' })}>
-                  + New Workspace
-                </button>
+        {currentView.type === 'workspaces' && (
+          <div
+            style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '24px',
+              }}
+            >
+              <div>
+                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>
+                  Workspaces
+                </h1>
+                <p
+                  style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '14px',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  Manage workspace configurations and layouts
+                </p>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                {workspaces.map((workspace) => (
+              <button
+                className="button button--primary"
+                onClick={() => navigateToView({ type: 'workspace-new' })}
+              >
+                + New Workspace
+              </button>
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                gap: '16px',
+              }}
+            >
+              {workspaces.map((workspace) => (
+                <div
+                  key={workspace.slug}
+                  style={{
+                    background: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '8px',
+                    padding: '20px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onClick={() =>
+                    navigateToView({
+                      type: 'workspace-edit',
+                      slug: workspace.slug,
+                    })
+                  }
+                >
                   <div
-                    key={workspace.slug}
                     style={{
-                      background: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      marginBottom: '12px',
                     }}
-                    onClick={() => navigateToView({ type: 'workspace-edit', slug: workspace.slug })}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                      <div style={{ fontSize: '32px' }}>
-                        {workspace.icon || '📋'}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>{workspace.name}</h3>
-                      </div>
+                    <div style={{ fontSize: '32px' }}>
+                      {workspace.icon || '📋'}
                     </div>
-                    {workspace.description && (
-                      <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                        {workspace.description}
-                      </p>
-                    )}
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      {workspace.tabs?.length || 0} tabs
+                    <div style={{ flex: 1 }}>
+                      <h3
+                        style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}
+                      >
+                        {workspace.name}
+                      </h3>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {currentView.type === 'agents' && (
-            <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>Agents</h1>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Manage AI agents with custom prompts, models, and tools
-                  </p>
+                  {workspace.description && (
+                    <p
+                      style={{
+                        margin: '0 0 12px 0',
+                        fontSize: '14px',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {workspace.description}
+                    </p>
+                  )}
+                  <div
+                    style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
+                  >
+                    {workspace.tabs?.length || 0} tabs
+                  </div>
                 </div>
-                <button
-                  className="button button--primary"
-                  onClick={() => navigateToView({ type: 'agent-new' })}
-                  disabled={!systemStatus?.bedrock.credentialsFound}
-                  title={!systemStatus?.bedrock.credentialsFound ? 'AWS Bedrock credentials required to create agents' : undefined}
-                  style={!systemStatus?.bedrock.credentialsFound ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                >
-                  + New Agent
-                </button>
-              </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-              {/* Bedrock onboarding card when credentials not found */}
-              {systemStatus && !systemStatus.bedrock.credentialsFound && (
-                <div style={{ padding: '20px', marginBottom: '24px', background: 'var(--bg-secondary, #1a1a1a)', border: '1px solid var(--border-primary, #333)', borderRadius: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    <span style={{ fontSize: '24px' }}>🧠</span>
-                    <div>
-                      <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>Bedrock Setup Required</div>
-                      <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                        Creating and managing custom agents requires AWS Bedrock credentials. Configure your AWS credentials to get started.
+        {currentView.type === 'agents' && (
+          <div
+            style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '24px',
+              }}
+            >
+              <div>
+                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>
+                  Agents
+                </h1>
+                <p
+                  style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '14px',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  Manage AI agents with custom prompts, models, and tools
+                </p>
+              </div>
+              <button
+                className="button button--primary"
+                onClick={() => navigateToView({ type: 'agent-new' })}
+                disabled={!systemStatus?.bedrock.credentialsFound}
+                title={
+                  !systemStatus?.bedrock.credentialsFound
+                    ? 'AWS Bedrock credentials required to create agents'
+                    : undefined
+                }
+                style={
+                  !systemStatus?.bedrock.credentialsFound
+                    ? { opacity: 0.5, cursor: 'not-allowed' }
+                    : undefined
+                }
+              >
+                + New Agent
+              </button>
+            </div>
+
+            {/* Bedrock onboarding card when credentials not found */}
+            {systemStatus && !systemStatus.bedrock.credentialsFound && (
+              <div
+                style={{
+                  padding: '20px',
+                  marginBottom: '24px',
+                  background: 'var(--bg-secondary, #1a1a1a)',
+                  border: '1px solid var(--border-primary, #333)',
+                  borderRadius: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                  }}
+                >
+                  <span style={{ fontSize: '24px' }}>🧠</span>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        marginBottom: '4px',
+                      }}
+                    >
+                      Bedrock Setup Required
+                    </div>
+                    <p
+                      style={{
+                        margin: '0 0 12px',
+                        fontSize: '13px',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Creating and managing custom agents requires AWS Bedrock
+                      credentials. Configure your AWS credentials to get
+                      started.
+                    </p>
+                    <button
+                      className="button button--secondary"
+                      onClick={() => navigateToView({ type: 'settings' })}
+                      style={{ fontSize: '13px', padding: '6px 14px' }}
+                    >
+                      Open Settings →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(() => {
+              const workspaceAgents = agents.filter((a) =>
+                (a.slug || a.id).includes(':'),
+              );
+              const standaloneAgents = agents.filter(
+                (a) => !(a.slug || a.id).includes(':') && a.source !== 'acp',
+              );
+              const acpAgents = agents.filter((a) => a.source === 'acp');
+
+              return (
+                <>
+                  <h2
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: 'var(--text-secondary)',
+                      marginBottom: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    Agents
+                  </h2>
+                  {standaloneAgents.length > 0 ? (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns:
+                          'repeat(auto-fill, minmax(320px, 1fr))',
+                        gap: '16px',
+                        marginBottom: '32px',
+                      }}
+                    >
+                      {standaloneAgents.map((agent) => (
+                        <div
+                          key={agent.slug || agent.id}
+                          style={{
+                            background: 'var(--color-bg-secondary)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '12px',
+                            padding: '20px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px',
+                            transition: 'all 0.2s ease',
+                            cursor: 'pointer',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor =
+                              'var(--accent-primary)';
+                            e.currentTarget.style.transform =
+                              'translateY(-2px)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor =
+                              'var(--color-border)';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                          }}
+                          onClick={() =>
+                            navigateToView({
+                              type: 'agent-edit',
+                              slug: agent.slug || agent.id,
+                            })
+                          }
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '12px',
+                              flex: 1,
+                            }}
+                          >
+                            <AgentIcon agent={agent} size={48} />
+                            <div style={{ flex: 1 }}>
+                              <div
+                                style={{
+                                  fontSize: '16px',
+                                  fontWeight: 600,
+                                  marginBottom: '4px',
+                                }}
+                              >
+                                {agent.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: '13px',
+                                  color: 'var(--text-secondary)',
+                                  fontFamily: 'monospace',
+                                }}
+                              >
+                                {agent.slug}
+                              </div>
+                            </div>
+                          </div>
+                          {agent.description && (
+                            <div
+                              style={{
+                                fontSize: '14px',
+                                color: 'var(--text-secondary)',
+                                lineHeight: '1.5',
+                              }}
+                            >
+                              {agent.description.length > 100
+                                ? `${agent.description.substring(0, 100)}...`
+                                : agent.description}
+                            </div>
+                          )}
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: '8px',
+                              flexWrap: 'wrap',
+                              marginTop: 'auto',
+                            }}
+                          >
+                            {(() => {
+                              const modelId =
+                                agent.model || appConfig.defaultModel;
+                              if (!modelId) return null;
+
+                              const isInherited = !agent.model;
+                              const modelInfo = availableModels.find(
+                                (m) => m.id === modelId,
+                              );
+
+                              let displayName = 'model';
+                              if (modelInfo) {
+                                displayName = modelInfo.name;
+                              } else if (typeof modelId === 'string') {
+                                const parts = modelId.split('.');
+                                if (parts.length > 1) {
+                                  const modelPart = parts[1].split('-')[0];
+                                  displayName =
+                                    modelPart.charAt(0).toUpperCase() +
+                                    modelPart.slice(1);
+                                }
+                              }
+
+                              return (
+                                <div
+                                  style={{
+                                    fontSize: '12px',
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    background: 'var(--color-bg)',
+                                    color: 'var(--text-secondary)',
+                                  }}
+                                >
+                                  {displayName}
+                                  {isInherited && (
+                                    <span
+                                      style={{
+                                        marginLeft: '4px',
+                                        opacity: 0.7,
+                                      }}
+                                    >
+                                      (default)
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        padding: '40px 20px',
+                        textAlign: 'center',
+                        background: 'var(--color-bg-secondary)',
+                        border: '1px dashed var(--border-primary)',
+                        borderRadius: '12px',
+                        marginBottom: '32px',
+                      }}
+                    >
+                      <div style={{ fontSize: '48px', marginBottom: '12px' }}>
+                        🤖
+                      </div>
+                      <p
+                        style={{
+                          margin: '0 0 8px 0',
+                          fontSize: '14px',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        No standalone agents yet
+                      </p>
+                      <p
+                        style={{
+                          margin: '0 0 16px 0',
+                          fontSize: '13px',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        Create an agent to get started with custom AI assistants
                       </p>
                       <button
-                        className="button button--secondary"
-                        onClick={() => navigateToView({ type: 'settings' })}
-                        style={{ fontSize: '13px', padding: '6px 14px' }}
+                        className="button button--primary"
+                        onClick={() => navigateToView({ type: 'agent-new' })}
+                        style={{ fontSize: '13px', padding: '8px 16px' }}
                       >
-                        Open Settings →
+                        + Create Agent
                       </button>
                     </div>
-                  </div>
-                </div>
-              )}
-              
-              {(() => {
-                const workspaceAgents = agents.filter(a => (a.slug || a.id).includes(':'));
-                const standaloneAgents = agents.filter(a => !(a.slug || a.id).includes(':') && a.source !== 'acp');
-                const acpAgents = agents.filter(a => a.source === 'acp');
-                
-                return (
-                  <>
-                    <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Agents
-                    </h2>
-                    {standaloneAgents.length > 0 ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-                        {standaloneAgents.map((agent) => (
-                  <div
-                    key={agent.slug || agent.id}
-                    style={{
-                      background: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      transition: 'all 0.2s ease',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                    onClick={() => navigateToView({ type: 'agent-edit', slug: agent.slug || agent.id })}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
-                      <AgentIcon agent={agent} size={48} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                          {agent.slug}
-                        </div>
-                      </div>
-                    </div>
-                    {agent.description && (
-                      <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                        {agent.description.length > 100 ? `${agent.description.substring(0, 100)}...` : agent.description}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto' }}>
-                      {(() => {
-                        const modelId = agent.model || appConfig.defaultModel;
-                        if (!modelId) return null;
-                        
-                        const isInherited = !agent.model;
-                        const modelInfo = availableModels.find(m => m.id === modelId);
-                        
-                        let displayName = 'model';
-                        if (modelInfo) {
-                          displayName = modelInfo.name;
-                        } else if (typeof modelId === 'string') {
-                          const parts = modelId.split('.');
-                          if (parts.length > 1) {
-                            const modelPart = parts[1].split('-')[0];
-                            displayName = modelPart.charAt(0).toUpperCase() + modelPart.slice(1);
-                          }
-                        }
-                        
-                        return (
-                          <div style={{
-                            fontSize: '12px',
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            background: 'var(--color-bg)',
-                            color: 'var(--text-secondary)',
-                          }}>
-                            {displayName}
-                            {isInherited && <span style={{ marginLeft: '4px', opacity: 0.7 }}>(default)</span>}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                ))}
-                        </div>
-                    ) : (
-                      <div style={{ 
-                        padding: '40px 20px', 
-                        textAlign: 'center', 
-                        background: 'var(--color-bg-secondary)', 
-                        border: '1px dashed var(--border-primary)', 
-                        borderRadius: '12px',
-                        marginBottom: '32px'
-                      }}>
-                        <div style={{ fontSize: '48px', marginBottom: '12px' }}>🤖</div>
-                        <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                          No standalone agents yet
-                        </p>
-                        <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)' }}>
-                          Create an agent to get started with custom AI assistants
-                        </p>
-                        <button 
-                          className="button button--primary" 
-                          onClick={() => navigateToView({ type: 'agent-new' })}
-                          style={{ fontSize: '13px', padding: '8px 16px' }}
-                        >
-                          + Create Agent
-                        </button>
-                      </div>
-                    )}
-                    
-                    {workspaceAgents.length > 0 && (
-                      <>
-                        <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          Workspace Agents
-                        </h2>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                          {workspaceAgents.map((agent) => {
-                            const owningWorkspace = (agent.slug || agent.id).split(':')[0];
-                            
-                            return (
-                  <div
-                    key={agent.slug || agent.id}
-                    style={{
-                      background: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      transition: 'all 0.2s ease',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                    onClick={() => navigateToView({ type: 'agent-edit', slug: agent.slug || agent.id })}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
-                      <AgentIcon agent={agent} size={48} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{agent.name}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                          {agent.slug}
-                        </div>
-                      </div>
-                    </div>
-                    {agent.description && (
-                      <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                        {agent.description.length > 100 ? `${agent.description.substring(0, 100)}...` : agent.description}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto', alignItems: 'center' }}>
-                      {(() => {
-                        const modelId = agent.model || appConfig.defaultModel;
-                        if (!modelId) return null;
-                        
-                        const isInherited = !agent.model;
-                        const modelInfo = availableModels.find(m => m.id === modelId);
-                        
-                        let displayName = 'model';
-                        if (modelInfo) {
-                          displayName = modelInfo.name;
-                        } else if (typeof modelId === 'string') {
-                          const parts = modelId.split('.');
-                          if (parts.length > 1) {
-                            const modelPart = parts[1].split('-')[0];
-                            displayName = modelPart.charAt(0).toUpperCase() + modelPart.slice(1);
-                          }
-                        }
-                        
-                        return (
-                          <div style={{
-                            fontSize: '12px',
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            background: 'var(--color-bg)',
-                            color: 'var(--text-secondary)',
-                          }}>
-                            {displayName}
-                            {isInherited && <span style={{ marginLeft: '4px', opacity: 0.7 }}>(default)</span>}
-                          </div>
-                        );
-                      })()}
-                      <div style={{ marginLeft: 'auto', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', background: 'var(--accent-primary)', color: 'var(--bg-primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {owningWorkspace}
-                      </div>
-                    </div>
-                  </div>
-                  );
-                })}
-                        </div>
-                      </>
-                    )}
+                  )}
 
-                    {/* ACP Connections */}
-                    <ACPConnectionsSection acpAgents={acpAgents} apiBase={API_BASE} />
-                  </>
-                );
-              })()}
-            </div>
-          )}
-          {currentView.type === 'prompts' && (
-            <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>Global Prompts</h1>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Create reusable prompts for workspaces and agent commands
-                  </p>
-                </div>
+                  {workspaceAgents.length > 0 && (
+                    <>
+                      <h2
+                        style={{
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          color: 'var(--text-secondary)',
+                          marginBottom: '12px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        Workspace Agents
+                      </h2>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns:
+                            'repeat(auto-fill, minmax(320px, 1fr))',
+                          gap: '16px',
+                        }}
+                      >
+                        {workspaceAgents.map((agent) => {
+                          const owningWorkspace = (
+                            agent.slug || agent.id
+                          ).split(':')[0];
+
+                          return (
+                            <div
+                              key={agent.slug || agent.id}
+                              style={{
+                                background: 'var(--color-bg-secondary)',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: '12px',
+                                padding: '20px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '12px',
+                                transition: 'all 0.2s ease',
+                                cursor: 'pointer',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor =
+                                  'var(--accent-primary)';
+                                e.currentTarget.style.transform =
+                                  'translateY(-2px)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor =
+                                  'var(--color-border)';
+                                e.currentTarget.style.transform =
+                                  'translateY(0)';
+                              }}
+                              onClick={() =>
+                                navigateToView({
+                                  type: 'agent-edit',
+                                  slug: agent.slug || agent.id,
+                                })
+                              }
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  gap: '12px',
+                                  flex: 1,
+                                }}
+                              >
+                                <AgentIcon agent={agent} size={48} />
+                                <div style={{ flex: 1 }}>
+                                  <div
+                                    style={{
+                                      fontSize: '16px',
+                                      fontWeight: 600,
+                                      marginBottom: '4px',
+                                    }}
+                                  >
+                                    {agent.name}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '13px',
+                                      color: 'var(--text-secondary)',
+                                      fontFamily: 'monospace',
+                                    }}
+                                  >
+                                    {agent.slug}
+                                  </div>
+                                </div>
+                              </div>
+                              {agent.description && (
+                                <div
+                                  style={{
+                                    fontSize: '14px',
+                                    color: 'var(--text-secondary)',
+                                    lineHeight: '1.5',
+                                  }}
+                                >
+                                  {agent.description.length > 100
+                                    ? `${agent.description.substring(0, 100)}...`
+                                    : agent.description}
+                                </div>
+                              )}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  gap: '8px',
+                                  flexWrap: 'wrap',
+                                  marginTop: 'auto',
+                                  alignItems: 'center',
+                                }}
+                              >
+                                {(() => {
+                                  const modelId =
+                                    agent.model || appConfig.defaultModel;
+                                  if (!modelId) return null;
+
+                                  const isInherited = !agent.model;
+                                  const modelInfo = availableModels.find(
+                                    (m) => m.id === modelId,
+                                  );
+
+                                  let displayName = 'model';
+                                  if (modelInfo) {
+                                    displayName = modelInfo.name;
+                                  } else if (typeof modelId === 'string') {
+                                    const parts = modelId.split('.');
+                                    if (parts.length > 1) {
+                                      const modelPart = parts[1].split('-')[0];
+                                      displayName =
+                                        modelPart.charAt(0).toUpperCase() +
+                                        modelPart.slice(1);
+                                    }
+                                  }
+
+                                  return (
+                                    <div
+                                      style={{
+                                        fontSize: '12px',
+                                        padding: '6px 10px',
+                                        borderRadius: '6px',
+                                        background: 'var(--color-bg)',
+                                        color: 'var(--text-secondary)',
+                                      }}
+                                    >
+                                      {displayName}
+                                      {isInherited && (
+                                        <span
+                                          style={{
+                                            marginLeft: '4px',
+                                            opacity: 0.7,
+                                          }}
+                                        >
+                                          (default)
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                                <div
+                                  style={{
+                                    marginLeft: 'auto',
+                                    fontSize: '10px',
+                                    padding: '3px 8px',
+                                    borderRadius: '4px',
+                                    background: 'var(--accent-primary)',
+                                    color: 'var(--bg-primary)',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px',
+                                  }}
+                                >
+                                  {owningWorkspace}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {/* ACP Connections */}
+                  <ACPConnectionsSection
+                    acpAgents={acpAgents}
+                    apiBase={API_BASE}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        )}
+        {currentView.type === 'prompts' && (
+          <div
+            style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '24px',
+              }}
+            >
+              <div>
+                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>
+                  Global Prompts
+                </h1>
+                <p
+                  style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '14px',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  Create reusable prompts for workspaces and agent commands
+                </p>
               </div>
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
-                <p>Prompts management coming soon.</p>
-              </div>
             </div>
-          )}
-          {currentView.type === 'plugins' && (
-            <PluginManagementView />
-          )}
-          {currentView.type === 'agent-new' && (
-            <AgentEditorView
-              apiBase={API_BASE}
-              onBack={navigateToWorkspace}
-              onSaved={handleAgentSaved}
-            />
-          )}
-          {currentView.type === 'agent-edit' && (
-            <AgentEditorView
-              apiBase={API_BASE}
-              slug={currentView.slug}
-              initialTab={currentView.initialTab}
-              onBack={navigateToWorkspace}
-              onSaved={handleAgentSaved}
-            />
-          )}
-          {currentView.type === 'workspace-new' && (
-            <WorkspaceEditorView
-              apiBase={API_BASE}
-              onBack={navigateToWorkspace}
-              onSaved={handleWorkspaceSaved}
-            />
-          )}
-          {currentView.type === 'workspace-edit' && (
-            <WorkspaceEditorView
-              apiBase={API_BASE}
-              slug={currentView.slug}
-              onBack={navigateToWorkspace}
-              onSaved={handleWorkspaceSaved}
-            />
-          )}
-          {currentView.type === 'tools' && (
-            <ToolManagementView
-              apiBase={API_BASE}
-              agentSlug={currentView.slug}
-              agentName={
-                agents.find((a) => a.slug === currentView.slug)?.name || currentView.slug
-              }
-              onBack={navigateToWorkspace}
-            />
-          )}
-          {currentView.type === 'workflows' && (
-            <WorkflowManagementView
-              apiBase={API_BASE}
-              agentSlug={currentView.slug}
-              agentName={
-                agents.find((a) => a.slug === currentView.slug)?.name || currentView.slug
-              }
-              onBack={navigateToWorkspace}
-            />
-          )}
-          {currentView.type === 'settings' && (
-            <SettingsView
-              onBack={navigateToWorkspace}
-              onSaved={handleSettingsSaved}
-              onNavigate={navigateToView}
-              chatFontSize={14}
-              onChatFontSizeChange={() => {}}
-            />
-          )}
-          {currentView.type === 'profile' && <ProfilePage />}
-          {currentView.type === 'notifications' && <NotificationsPage />}
-          {currentView.type === 'monitoring' && <MonitoringView />}
-          {currentView.type === 'schedule' && <ScheduleView />}
-        </>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '60px 20px',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
+              <p>Prompts management coming soon.</p>
+            </div>
+          </div>
+        )}
+        {currentView.type === 'plugins' && <PluginManagementView />}
+        {currentView.type === 'agent-new' && (
+          <AgentEditorView
+            apiBase={API_BASE}
+            onBack={navigateToWorkspace}
+            onSaved={handleAgentSaved}
+          />
+        )}
+        {currentView.type === 'agent-edit' && (
+          <AgentEditorView
+            apiBase={API_BASE}
+            slug={currentView.slug}
+            initialTab={currentView.initialTab}
+            onBack={navigateToWorkspace}
+            onSaved={handleAgentSaved}
+          />
+        )}
+        {currentView.type === 'workspace-new' && (
+          <WorkspaceEditorView
+            apiBase={API_BASE}
+            onBack={navigateToWorkspace}
+            onSaved={handleWorkspaceSaved}
+          />
+        )}
+        {currentView.type === 'workspace-edit' && (
+          <WorkspaceEditorView
+            apiBase={API_BASE}
+            slug={currentView.slug}
+            onBack={navigateToWorkspace}
+            onSaved={handleWorkspaceSaved}
+          />
+        )}
+        {currentView.type === 'tools' && (
+          <ToolManagementView
+            apiBase={API_BASE}
+            agentSlug={currentView.slug}
+            agentName={
+              agents.find((a) => a.slug === currentView.slug)?.name ||
+              currentView.slug
+            }
+            onBack={navigateToWorkspace}
+          />
+        )}
+        {currentView.type === 'workflows' && (
+          <WorkflowManagementView
+            apiBase={API_BASE}
+            agentSlug={currentView.slug}
+            agentName={
+              agents.find((a) => a.slug === currentView.slug)?.name ||
+              currentView.slug
+            }
+            onBack={navigateToWorkspace}
+          />
+        )}
+        {currentView.type === 'settings' && (
+          <SettingsView
+            onBack={navigateToWorkspace}
+            onSaved={handleSettingsSaved}
+            onNavigate={navigateToView}
+            chatFontSize={14}
+            onChatFontSizeChange={() => {}}
+          />
+        )}
+        {currentView.type === 'profile' && <ProfilePage />}
+        {currentView.type === 'notifications' && <NotificationsPage />}
+        {currentView.type === 'monitoring' && <MonitoringView />}
+        {currentView.type === 'schedule' && <ScheduleView />}
+      </>
     );
   };
 
@@ -906,7 +1304,9 @@ function App() {
         currentView={currentView}
         onWorkspaceSelect={handleWorkspaceSelect}
         onCreateWorkspace={() => navigateToView({ type: 'workspace-new' })}
-        onEditWorkspace={(slug) => navigateToView({ type: 'workspace-edit', slug })}
+        onEditWorkspace={(slug) =>
+          navigateToView({ type: 'workspace-edit', slug })
+        }
         onNavigate={navigateToView}
         onToggleSettings={() => {
           if (currentView.type === 'settings') {
@@ -923,15 +1323,13 @@ function App() {
         </div>
       )}
 
-      <ShortcutsCheatsheet 
-        isOpen={showShortcutsCheatsheet} 
-        onClose={() => setShowShortcutsCheatsheet(false)} 
+      <ShortcutsCheatsheet
+        isOpen={showShortcutsCheatsheet}
+        onClose={() => setShowShortcutsCheatsheet(false)}
       />
 
       <div className="main-content">
-        <div className="content-view">
-          {renderViewContent()}
-        </div>
+        <div className="content-view">{renderViewContent()}</div>
       </div>
 
       <ChatDock onRequestAuth={handleAuthError} />

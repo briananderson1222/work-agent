@@ -3,10 +3,13 @@
  * Handles MCP server lifecycle, tool loading, and tool name normalization
  */
 
-import { Tool, MCPConfiguration } from '@voltagent/core';
-import { normalizeToolName, parseToolName } from '../utils/tool-name-normalizer.js';
-import type { ToolDef, AgentSpec } from '../domain/types.js';
+import { MCPConfiguration, type Tool } from '@voltagent/core';
 import type { ConfigLoader } from '../domain/config-loader.js';
+import type { AgentSpec, ToolDef } from '../domain/types.js';
+import {
+  normalizeToolName,
+  parseToolName,
+} from '../utils/tool-name-normalizer.js';
 
 /**
  * Reference counting for MCP connections - tracks which agents use each toolId
@@ -21,14 +24,17 @@ export function releaseMCPRef(
   toolId: string,
   mcpConfigs: Map<string, MCPConfiguration>,
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>,
-  integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }>
+  integrationMetadata: Map<
+    string,
+    { type: string; transport?: string; toolCount?: number }
+  >,
 ): void {
   const mcpKey = toolId;
   const refSet = mcpRefCounts.get(mcpKey);
-  
+
   if (refSet) {
     refSet.delete(agentSlug);
-    
+
     // Clean up if no more references
     if (refSet.size === 0) {
       mcpRefCounts.delete(mcpKey);
@@ -45,10 +51,10 @@ export function releaseMCPRef(
 export function createMCPServerConfig(toolDef: ToolDef): any {
   if (toolDef.transport === 'stdio' || toolDef.transport === 'process') {
     // Replace ./ with actual cwd for cross-platform compatibility
-    const args = (toolDef.args || []).map(arg => 
-      arg === './' ? process.cwd() : arg
+    const args = (toolDef.args || []).map((arg) =>
+      arg === './' ? process.cwd() : arg,
     );
-    
+
     return {
       type: 'stdio',
       command: toolDef.command,
@@ -82,10 +88,21 @@ export async function createMCPTools(
   toolDef: ToolDef,
   mcpConfigs: Map<string, MCPConfiguration>,
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>,
-  integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }>,
-  toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>,
+  integrationMetadata: Map<
+    string,
+    { type: string; transport?: string; toolCount?: number }
+  >,
+  toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  >,
   toolNameReverseMapping: Map<string, string>,
-  logger: any
+  logger: any,
 ): Promise<Tool<any>[]> {
   const mcpKey = toolId;
 
@@ -113,36 +130,49 @@ export async function createMCPTools(
 
     mcpConfigs.set(mcpKey, mcpConfig);
     isNewConfig = true;
-    
+
     // Set up event listeners for connection status
     const clients = await mcpConfig.getClients();
     const client = clients[toolId];
-    
+
     if (client) {
       client.on('connect', () => {
         mcpConnectionStatus.set(mcpKey, { connected: true });
-        logger.debug('MCP client connected', { agent: agentSlug, tool: toolId });
+        logger.debug('MCP client connected', {
+          agent: agentSlug,
+          tool: toolId,
+        });
       });
-      
+
       client.on('disconnect', () => {
         mcpConnectionStatus.set(mcpKey, { connected: false });
-        logger.debug('MCP client disconnected', { agent: agentSlug, tool: toolId });
+        logger.debug('MCP client disconnected', {
+          agent: agentSlug,
+          tool: toolId,
+        });
       });
-      
+
       client.on('error', (error: Error) => {
-        mcpConnectionStatus.set(mcpKey, { connected: false, error: error.message });
-        logger.error('MCP client error', { agent: agentSlug, tool: toolId, error: error.message });
+        mcpConnectionStatus.set(mcpKey, {
+          connected: false,
+          error: error.message,
+        });
+        logger.error('MCP client error', {
+          agent: agentSlug,
+          tool: toolId,
+          error: error.message,
+        });
       });
     }
   }
 
   // Get tools from MCP server
   const tools = await mcpConfig.getTools();
-  
+
   // Normalize tool names for Nova compatibility and store mapping with parsed data
-  const normalizedTools = tools.map(tool => {
+  const normalizedTools = tools.map((tool) => {
     const normalized = normalizeToolName(tool.name);
-    
+
     // Store mapping with parsed data if name changed
     if (normalized !== tool.name) {
       const parsed = parseToolName(tool.name);
@@ -150,28 +180,28 @@ export async function createMCPTools(
         original: tool.name,
         normalized: normalized,
         server: parsed.server,
-        tool: parsed.tool
+        tool: parsed.tool,
       });
       toolNameReverseMapping.set(tool.name, normalized);
-      
+
       logger.debug('Tool name normalized', {
         agent: agentSlug,
         original: tool.name,
         normalized: normalized,
         server: parsed.server,
-        tool: parsed.tool
+        tool: parsed.tool,
       });
     }
-    
+
     return {
       ...tool,
-      name: normalized
+      name: normalized,
     };
   });
-  
+
   // Mark as connected after successful getTools
   mcpConnectionStatus.set(mcpKey, { connected: true });
-  
+
   // Store integration metadata
   integrationMetadata.set(mcpKey, {
     type: 'mcp',
@@ -180,11 +210,11 @@ export async function createMCPTools(
   });
 
   if (isNewConfig) {
-    logger.info('MCP tools loaded', { 
-      agent: agentSlug, 
-      tool: toolId, 
+    logger.info('MCP tools loaded', {
+      agent: agentSlug,
+      tool: toolId,
       count: normalizedTools.length,
-      sampleNames: normalizedTools.slice(0, 3).map(t => t.name)
+      sampleNames: normalizedTools.slice(0, 3).map((t) => t.name),
     });
   }
 
@@ -195,32 +225,49 @@ export async function createMCPTools(
  * Check if tool name matches any pattern in the list
  */
 export function matchesToolPattern(
-  toolName: string, 
-  patterns: string[], 
-  toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>
+  toolName: string,
+  patterns: string[],
+  toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  >,
 ): boolean {
   // Get original name if this is a normalized name
   const mapping = toolNameMapping.get(toolName);
   const originalName = mapping?.original || toolName;
-  
+
   for (const pattern of patterns) {
     // Exact match (check both normalized and original)
     if (pattern === toolName || pattern === originalName) return true;
-    
+
     // Wildcard pattern (e.g., "my-server_*" or "myServer_*")
     if (pattern.endsWith('_*')) {
       const prefix = pattern.slice(0, -2);
-      if (toolName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}_`)) return true;
+      if (
+        toolName.startsWith(`${prefix}_`) ||
+        originalName.startsWith(`${prefix}_`)
+      )
+        return true;
     }
-    
+
     // Legacy slash pattern support (e.g., "my-server/*")
     if (pattern.endsWith('/*')) {
       const prefix = pattern.slice(0, -2);
-      if (toolName.startsWith(`${prefix}_`) || toolName.startsWith(`${prefix}/`) ||
-          originalName.startsWith(`${prefix}_`) || originalName.startsWith(`${prefix}/`)) return true;
+      if (
+        toolName.startsWith(`${prefix}_`) ||
+        toolName.startsWith(`${prefix}/`) ||
+        originalName.startsWith(`${prefix}_`) ||
+        originalName.startsWith(`${prefix}/`)
+      )
+        return true;
     }
   }
-  
+
   return false;
 }
 
@@ -233,14 +280,29 @@ export async function loadAgentTools(
   configLoader: ConfigLoader,
   mcpConfigs: Map<string, MCPConfiguration>,
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>,
-  integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }>,
-  toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>,
+  integrationMetadata: Map<
+    string,
+    { type: string; transport?: string; toolCount?: number }
+  >,
+  toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  >,
   toolNameReverseMapping: Map<string, string>,
-  logger: any
+  logger: any,
 ): Promise<Tool<any>[]> {
   const tools: Tool<any>[] = [];
 
-  if (!spec.tools || !spec.tools.mcpServers || spec.tools.mcpServers.length === 0) {
+  if (
+    !spec.tools ||
+    !spec.tools.mcpServers ||
+    spec.tools.mcpServers.length === 0
+  ) {
     return tools;
   }
 
@@ -251,15 +313,15 @@ export async function loadAgentTools(
 
       if (toolDef.kind === 'mcp') {
         const mcpTools = await createMCPTools(
-          agentSlug, 
-          toolId, 
+          agentSlug,
+          toolId,
           toolDef,
           mcpConfigs,
           mcpConnectionStatus,
           integrationMetadata,
           toolNameMapping,
           toolNameReverseMapping,
-          logger
+          logger,
         );
         tools.push(...mcpTools);
       } else if (toolDef.kind === 'builtin') {
@@ -275,21 +337,23 @@ export async function loadAgentTools(
 
   // Apply available filter (defaults to all tools)
   const available = spec.tools.available || ['*'];
-  
+
   logger.debug('Tool filtering', {
     agent: agentSlug,
     totalTools: tools.length,
     availablePatterns: available,
-    toolNames: tools.slice(0, 5).map(t => t.name)
+    toolNames: tools.slice(0, 5).map((t) => t.name),
   });
-  
+
   if (!available.includes('*')) {
-    const filtered = tools.filter(tool => matchesToolPattern(tool.name, available, toolNameMapping));
+    const filtered = tools.filter((tool) =>
+      matchesToolPattern(tool.name, available, toolNameMapping),
+    );
     logger.info('Tools filtered', {
       agent: agentSlug,
       before: tools.length,
       after: filtered.length,
-      removed: tools.length - filtered.length
+      removed: tools.length - filtered.length,
     });
     return filtered;
   }
@@ -300,7 +364,10 @@ export async function loadAgentTools(
 /**
  * Create a built-in tool from definition
  */
-export function createBuiltinTool(toolDef: ToolDef, logger: any): Tool<any> | null {
+export function createBuiltinTool(
+  toolDef: ToolDef,
+  logger: any,
+): Tool<any> | null {
   // Built-in tools would be implemented here
   // For now, returning null as they need specific implementations
   logger.warn('Built-in tools not yet implemented', { tool: toolDef.id });
@@ -312,7 +379,15 @@ export function createBuiltinTool(toolDef: ToolDef, logger: any): Tool<any> | nu
  */
 export function getOriginalToolName(
   normalizedName: string,
-  toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>
+  toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  >,
 ): string {
   const mapping = toolNameMapping.get(normalizedName);
   return mapping?.original || normalizedName;
@@ -323,7 +398,7 @@ export function getOriginalToolName(
  */
 export function getNormalizedToolName(
   originalName: string,
-  toolNameReverseMapping: Map<string, string>
+  toolNameReverseMapping: Map<string, string>,
 ): string {
   return toolNameReverseMapping.get(originalName) || originalName;
 }

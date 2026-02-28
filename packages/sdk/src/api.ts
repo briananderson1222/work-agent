@@ -1,11 +1,14 @@
 /**
  * SDK API Utilities - Direct API calls without hooks
- * 
+ *
  * These functions allow plugins to make API calls directly without
  * relying on React hooks (useful for event handlers, etc.)
  */
 
-import { resolveAgentName, _setWorkspaceContext as _setWorkspaceContextResolver } from './agentResolver';
+import {
+  _setWorkspaceContext as _setWorkspaceContextResolver,
+  resolveAgentName,
+} from './agentResolver';
 import type { WorkspaceConfig } from './types';
 
 // Internal context for API configuration
@@ -55,10 +58,10 @@ export async function _getApiBase(): Promise<string> {
   // React Context to ensure API base is available before components can call SDK functions.
   let attempts = 0;
   while (!_apiBase && attempts < 50) {
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
     attempts++;
   }
-  
+
   if (!_apiBase) {
     throw new Error('API base not configured. Ensure SDKProvider is mounted.');
   }
@@ -86,9 +89,9 @@ export interface StreamMessageOptions extends SendMessageOptions {
  * Create a new chat session
  */
 export async function createChatSession(
-  agentSlug: string,
-  sessionId: string,
-  title?: string
+  _agentSlug: string,
+  _sessionId: string,
+  _title?: string,
 ): Promise<void> {
   // Implementation delegated to core app
   // This is a placeholder that plugins can use
@@ -101,23 +104,26 @@ export async function createChatSession(
 export async function sendMessage(
   agentSlug: string,
   content: string,
-  options: SendMessageOptions = {}
+  options: SendMessageOptions = {},
 ): Promise<any> {
   const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/text`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      input: content,
-      options: {
-        model: options.model,
-        conversationId: options.conversationId,
-        userId: options.userId,
-      },
-      attachments: options.attachments,
-    }),
-  });
+  const response = await fetch(
+    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/text`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: content,
+        options: {
+          model: options.model,
+          conversationId: options.conversationId,
+          userId: options.userId,
+        },
+        attachments: options.attachments,
+      }),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to send message: ${response.statusText}`);
@@ -132,23 +138,26 @@ export async function sendMessage(
 export async function streamMessage(
   agentSlug: string,
   content: string,
-  options: StreamMessageOptions = {}
+  options: StreamMessageOptions = {},
 ): Promise<void> {
   const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      input: content,
-      options: {
-        model: options.model,
-        conversationId: options.conversationId,
-        userId: options.userId,
-      },
-      attachments: options.attachments,
-    }),
-  });
+  const response = await fetch(
+    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/stream`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: content,
+        options: {
+          model: options.model,
+          conversationId: options.conversationId,
+          userId: options.userId,
+        },
+        attachments: options.attachments,
+      }),
+    },
+  );
 
   if (!response.ok) {
     const error = new Error(`Failed to stream message: ${response.statusText}`);
@@ -162,16 +171,16 @@ export async function streamMessage(
   }
 
   const decoder = new TextDecoder();
-  
+
   try {
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) {
         options.onComplete?.();
         break;
       }
-      
+
       const chunk = decoder.decode(value, { stream: true });
       options.onChunk?.(chunk);
     }
@@ -187,24 +196,27 @@ export async function streamMessage(
 export async function invokeAgent(
   agentSlug: string,
   content: string,
-  options: SendMessageOptions & { schema?: any } = {}
+  options: SendMessageOptions & { schema?: any } = {},
 ): Promise<any> {
   const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/invoke`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      input: content,
-      schema: options.schema,
-      options: {
-        model: options.model,
-        conversationId: options.conversationId,
-        userId: options.userId,
-      },
-      attachments: options.attachments,
-    }),
-  });
+  const response = await fetch(
+    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/invoke`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: content,
+        schema: options.schema,
+        options: {
+          model: options.model,
+          conversationId: options.conversationId,
+          userId: options.userId,
+        },
+        attachments: options.attachments,
+      }),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to invoke agent: ${response.statusText}`);
@@ -223,15 +235,18 @@ export async function invokeAgent(
 export async function callTool(
   agentSlug: string,
   toolName: string,
-  toolArgs: any = {}
+  toolArgs: any = {},
 ): Promise<any> {
   const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tools/${encodeURIComponent(toolName)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toolArgs)
-  });
+  const response = await fetch(
+    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tools/${encodeURIComponent(toolName)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(toolArgs),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`Tool call failed: ${response.statusText}`);
@@ -250,18 +265,21 @@ export async function transformTool(
   agentSlug: string,
   toolName: string,
   toolArgs: any,
-  transformFn: string
+  transformFn: string,
 ): Promise<any> {
   const apiBase = await _getApiBase();
   const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tool/${encodeURIComponent(toolName)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      toolArgs,
-      transform: transformFn
-    })
-  });
+  const response = await fetch(
+    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tool/${encodeURIComponent(toolName)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toolArgs,
+        transform: transformFn,
+      }),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to transform tool: ${response.statusText}`);
@@ -271,7 +289,7 @@ export async function transformTool(
   if (!data.success) {
     throw new Error(data.error || 'Transform failed');
   }
-  
+
   return data.response;
 }
 
@@ -294,7 +312,7 @@ export async function invoke(options: InvokeOptions): Promise<any> {
   const response = await fetch(`${apiBase}/invoke`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(options)
+    body: JSON.stringify(options),
   });
 
   if (!response.ok) {
@@ -305,7 +323,7 @@ export async function invoke(options: InvokeOptions): Promise<any> {
   if (!data.success) {
     throw new Error(data.error || 'Invoke failed');
   }
-  
+
   return data.response;
 }
 
@@ -315,11 +333,11 @@ export async function invoke(options: InvokeOptions): Promise<any> {
 export async function fetchAgents(): Promise<any[]> {
   const apiBase = await _getApiBase();
   const response = await fetch(`${apiBase}/agents`);
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch agents: ${response.statusText}`);
   }
-  
+
   return response.json();
 }
 
@@ -329,32 +347,30 @@ export async function fetchAgents(): Promise<any[]> {
 export async function fetchWorkspaces(): Promise<any[]> {
   const apiBase = await _getApiBase();
   const response = await fetch(`${apiBase}/workspaces`);
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch workspaces: ${response.statusText}`);
   }
-  
+
   return response.json();
 }
 
 /**
  * Fetch conversation history
  */
-export async function fetchConversations(
-  agentSlug?: string
-): Promise<any[]> {
+export async function fetchConversations(agentSlug?: string): Promise<any[]> {
   const apiBase = await _getApiBase();
   const resolvedAgent = agentSlug ? _resolveAgent(agentSlug) : undefined;
   const url = resolvedAgent
     ? `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/conversations`
     : `${apiBase}/conversations`;
-    
+
   const response = await fetch(url);
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch conversations: ${response.statusText}`);
   }
-  
+
   return response.json();
 }
 
@@ -362,15 +378,17 @@ export async function fetchConversations(
  * Fetch conversation messages
  */
 export async function fetchConversationMessages(
-  conversationId: string
+  conversationId: string,
 ): Promise<any[]> {
   const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/conversations/${conversationId}/messages`);
-  
+  const response = await fetch(
+    `${apiBase}/conversations/${conversationId}/messages`,
+  );
+
   if (!response.ok) {
     throw new Error(`Failed to fetch messages: ${response.statusText}`);
   }
-  
+
   return response.json();
 }
 
@@ -380,10 +398,10 @@ export async function fetchConversationMessages(
 export async function fetchConfig(): Promise<any> {
   const apiBase = await _getApiBase();
   const response = await fetch(`${apiBase}/config/app`);
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch config: ${response.statusText}`);
   }
-  
+
   return response.json();
 }

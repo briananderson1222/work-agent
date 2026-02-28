@@ -179,7 +179,11 @@ export type NavigationView =
   | { type: 'profile' }
   | { type: 'notifications' }
   | { type: 'agent-new' }
-  | { type: 'agent-edit'; slug: string; initialTab?: 'basic' | 'model' | 'tools' | 'commands' }
+  | {
+      type: 'agent-edit';
+      slug: string;
+      initialTab?: 'basic' | 'model' | 'tools' | 'commands';
+    }
   | { type: 'tools'; slug: string }
   | { type: 'workflows'; slug: string }
   | { type: 'settings' }

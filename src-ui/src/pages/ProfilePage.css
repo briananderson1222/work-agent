@@ -2,8 +2,17 @@
   height: 100%;
   overflow: auto;
   background-color: var(--bg-primary);
-  background-image: radial-gradient(circle at 20% 50%, var(--accent-primary)08 0%, transparent 50%), 
-                    radial-gradient(circle at 80% 80%, var(--accent-secondary)08 0%, transparent 50%);
+  background-image:
+    radial-gradient(
+      circle at 20% 50%,
+      var(--accent-primary) 08 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 80% 80%,
+      var(--accent-secondary) 08 0%,
+      transparent 50%
+    );
 }
 
 .profile-container {
@@ -20,9 +29,13 @@
   overflow: hidden;
   border-radius: 1rem;
   padding: 2rem;
-  background: linear-gradient(135deg, var(--accent-primary)15 0%, var(--accent-secondary)15 100%);
+  background: linear-gradient(
+    135deg,
+    var(--accent-primary) 15 0%,
+    var(--accent-secondary) 15 100%
+  );
   border: 1px solid var(--border-primary);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .profile-hero-content {
@@ -41,7 +54,7 @@
   justify-content: center;
   font-size: 3rem;
   background-color: var(--accent-primary);
-  box-shadow: 0 4px 16px var(--accent-primary)40;
+  box-shadow: 0 4px 16px var(--accent-primary) 40;
   border: 3px solid var(--bg-primary);
   flex-shrink: 0;
 }
@@ -60,7 +73,7 @@
   font-weight: bold;
   background-color: var(--accent-success);
   color: var(--text-on-accent);
-  box-shadow: 0 2px 8px var(--accent-success)60;
+  box-shadow: 0 2px 8px var(--accent-success) 60;
 }
 
 .profile-hero-info {
@@ -94,12 +107,12 @@
 }
 
 .profile-badge-primary {
-  background-color: var(--accent-primary)20;
+  background-color: var(--accent-primary) 20;
   color: var(--accent-primary);
 }
 
 .profile-badge-secondary {
-  background-color: var(--accent-secondary)20;
+  background-color: var(--accent-secondary) 20;
   color: var(--accent-secondary);
 }
 
@@ -114,7 +127,7 @@
   overflow: hidden;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-primary);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
 .profile-timeline {
@@ -122,7 +135,7 @@
   padding: 1.5rem;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-primary);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
 .profile-timeline-title {

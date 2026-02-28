@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
-import { AutoSelectModal, AutoSelectItem } from './AutoSelectModal';
+import { type AutoSelectItem, AutoSelectModal } from './AutoSelectModal';
 
 interface ConversationMetadata {
   id: string;
@@ -25,24 +25,35 @@ interface SessionPickerModalProps {
   activeConversationIds?: string[];
 }
 
-export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents, activeConversationIds = [] }: SessionPickerModalProps) {
-  const [conversations, setConversations] = useState<ConversationMetadata[]>([]);
+export function SessionPickerModal({
+  isOpen,
+  onClose,
+  onSelect,
+  apiBase,
+  agents,
+  activeConversationIds = [],
+}: SessionPickerModalProps) {
+  const [conversations, setConversations] = useState<ConversationMetadata[]>(
+    [],
+  );
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadConversations();
     }
-  }, [isOpen]);
+  }, [isOpen, loadConversations]);
 
   const loadConversations = async () => {
     setLoading(true);
     try {
       const allConversations: ConversationMetadata[] = [];
-      
+
       for (const agent of agents) {
         try {
-          const response = await fetch(`${apiBase}/agents/${agent.slug}/conversations`);
+          const response = await fetch(
+            `${apiBase}/agents/${agent.slug}/conversations`,
+          );
           if (response.ok) {
             const data = await response.json();
             const agentConvos = (data.data || []).map((conv: any) => ({
@@ -56,11 +67,12 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents,
           log.api(`Failed to load conversations for ${agent.slug}:`, error);
         }
       }
-      
-      allConversations.sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+
+      allConversations.sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
-      
+
       setConversations(allConversations);
     } catch (error) {
       log.api('Failed to load conversations:', error);
@@ -84,19 +96,21 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents,
     return date.toLocaleDateString();
   };
 
-  const items: AutoSelectItem<ConversationMetadata>[] = conversations.map(conv => {
-    const agent = agents.find(a => a.slug === conv.agentSlug);
-    const isActive = activeConversationIds.includes(conv.id);
-    
-    return {
-      id: conv.id,
-      title: conv.title || 'Untitled Conversation',
-      subtitle: agent?.name || conv.agentSlug,
-      timestamp: formatDate(conv.updatedAt),
-      isActive,
-      metadata: conv,
-    };
-  });
+  const items: AutoSelectItem<ConversationMetadata>[] = conversations.map(
+    (conv) => {
+      const agent = agents.find((a) => a.slug === conv.agentSlug);
+      const isActive = activeConversationIds.includes(conv.id);
+
+      return {
+        id: conv.id,
+        title: conv.title || 'Untitled Conversation',
+        subtitle: agent?.name || conv.agentSlug,
+        timestamp: formatDate(conv.updatedAt),
+        isActive,
+        metadata: conv,
+      };
+    },
+  );
 
   return (
     <AutoSelectModal
@@ -114,18 +128,22 @@ export function SessionPickerModal({ isOpen, onClose, onSelect, apiBase, agents,
       renderMetadata={(item) => {
         const stats = item.metadata?.metadata?.stats;
         if (!stats?.turns && !stats?.totalTokens) return null;
-        
+
         return (
-          <div style={{ 
-            fontSize: '12px', 
-            color: 'var(--text-muted)',
-            display: 'flex',
-            gap: '12px',
-            marginTop: '4px',
-          }}>
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+              display: 'flex',
+              gap: '12px',
+              marginTop: '4px',
+            }}
+          >
             {stats.turns && <span>{stats.turns} messages</span>}
             {stats.turns && stats.totalTokens && <span>•</span>}
-            {stats.totalTokens && <span>{stats.totalTokens.toLocaleString()} tokens</span>}
+            {stats.totalTokens && (
+              <span>{stats.totalTokens.toLocaleString()} tokens</span>
+            )}
           </div>
         );
       }}

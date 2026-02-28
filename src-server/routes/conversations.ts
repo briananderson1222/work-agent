@@ -7,7 +7,7 @@ import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memo
 
 export function createConversationRoutes(
   memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>,
-  logger: any
+  logger: any,
 ) {
   const app = new Hono();
 
@@ -16,13 +16,13 @@ export function createConversationRoutes(
     try {
       const slug = c.req.param('slug');
       const adapter = memoryAdapters.get(slug);
-      
+
       if (!adapter) {
         return c.json({ success: true, data: [] });
       }
 
       const conversations = await adapter.getConversations(slug);
-      
+
       return c.json({ success: true, data: conversations });
     } catch (error: any) {
       logger.error('Failed to load conversations', { error });
@@ -36,14 +36,14 @@ export function createConversationRoutes(
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);
-      
+
       if (!adapter) {
         return c.json({ success: false, error: 'Agent not found' }, 404);
       }
 
       const body = await c.req.json();
       const updated = await adapter.updateConversation(conversationId, body);
-      
+
       return c.json({ success: true, data: updated });
     } catch (error: any) {
       logger.error('Failed to update conversation', { error });
@@ -57,13 +57,13 @@ export function createConversationRoutes(
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);
-      
+
       if (!adapter) {
         return c.json({ success: false, error: 'Agent not found' }, 404);
       }
 
       await adapter.deleteConversation(conversationId);
-      
+
       return c.json({ success: true });
     } catch (error: any) {
       logger.error('Failed to delete conversation', { error });
@@ -77,13 +77,16 @@ export function createConversationRoutes(
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);
-      
+
       if (!adapter) {
         return c.json({ success: true, data: [] });
       }
 
-      const messages = await adapter.getMessages(`agent:${slug}`, conversationId);
-      
+      const messages = await adapter.getMessages(
+        `agent:${slug}`,
+        conversationId,
+      );
+
       return c.json({ success: true, data: messages });
     } catch (error: any) {
       logger.error('Failed to load messages', { error });

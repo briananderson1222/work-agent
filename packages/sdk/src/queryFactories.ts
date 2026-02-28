@@ -45,7 +45,9 @@ export const agentQueries = {
     queryKey: ['stats', agentSlug, conversationId],
     queryFn: async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}/stats`);
+      const response = await fetch(
+        `${apiBase}/agents/${agentSlug}/conversations/${conversationId}/stats`,
+      );
       if (!response.ok) throw new Error('Failed to fetch stats');
       const result = await response.json();
       if (!result.success) throw new Error(result.error);

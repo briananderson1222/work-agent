@@ -52,7 +52,11 @@ export function ConfirmModal({
           <p>{message}</p>
         </div>
         <div className="modal-footer">
-          <button type="button" className="button button--secondary" onClick={onCancel}>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={onCancel}
+          >
             {cancelLabel}
           </button>
           <button

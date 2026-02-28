@@ -1,6 +1,6 @@
 /**
  * Workspace Provider Hook - Thin wrapper for plugins to access providers
- * 
+ *
  * The actual provider registry lives in core app. This just exposes
  * the interface plugins need.
  */
@@ -9,8 +9,16 @@
 let _getProvider: <T>(workspace: string, type: string) => T;
 let _hasProvider: (workspace: string, type: string) => boolean;
 let _getActiveProviderId: (workspace: string, type: string) => string | null;
-let _registerProvider: (id: string, metadata: ProviderMetadata, factory: () => any) => void;
-let _configureProvider: (workspace: string, type: string, providerId: string) => void;
+let _registerProvider: (
+  id: string,
+  metadata: ProviderMetadata,
+  factory: () => any,
+) => void;
+let _configureProvider: (
+  workspace: string,
+  type: string,
+  providerId: string,
+) => void;
 
 export interface ProviderMetadata {
   workspace: string;
@@ -22,8 +30,16 @@ export function _setProviderFunctions(fns: {
   getProvider: <T>(workspace: string, type: string) => T;
   hasProvider: (workspace: string, type: string) => boolean;
   getActiveProviderId: (workspace: string, type: string) => string | null;
-  registerProvider: (id: string, metadata: ProviderMetadata, factory: () => any) => void;
-  configureProvider: (workspace: string, type: string, providerId: string) => void;
+  registerProvider: (
+    id: string,
+    metadata: ProviderMetadata,
+    factory: () => any,
+  ) => void;
+  configureProvider: (
+    workspace: string,
+    type: string,
+    providerId: string,
+  ) => void;
 }) {
   _getProvider = fns.getProvider;
   _hasProvider = fns.hasProvider;
@@ -45,19 +61,30 @@ export function hasProvider(workspace: string, type: string): boolean {
 }
 
 /** Get the active provider ID */
-export function getActiveProviderId(workspace: string, type: string): string | null {
+export function getActiveProviderId(
+  workspace: string,
+  type: string,
+): string | null {
   if (!_getActiveProviderId) return null;
   return _getActiveProviderId(workspace, type);
 }
 
 /** Register a provider (called by workspace plugins) */
-export function registerProvider(id: string, metadata: ProviderMetadata, factory: () => any) {
+export function registerProvider(
+  id: string,
+  metadata: ProviderMetadata,
+  factory: () => any,
+) {
   if (!_registerProvider) throw new Error('Provider system not initialized');
   _registerProvider(id, metadata, factory);
 }
 
 /** Configure which provider to use (called by workspace plugins for defaults) */
-export function configureProvider(workspace: string, type: string, providerId: string) {
+export function configureProvider(
+  workspace: string,
+  type: string,
+  providerId: string,
+) {
   if (!_configureProvider) throw new Error('Provider system not initialized');
   _configureProvider(workspace, type, providerId);
 }

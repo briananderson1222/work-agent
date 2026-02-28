@@ -4,8 +4,12 @@
  */
 
 import { StreamEventHandler } from './BaseHandler';
-import type { StreamEvent, StreamState, HandlerResult } from './types';
-import { createResult, appendContentPart, getTextFromParts } from './stateHelpers';
+import {
+  appendContentPart,
+  createResult,
+  getTextFromParts,
+} from './stateHelpers';
+import type { HandlerResult, StreamEvent, StreamState } from './types';
 
 export class ToolLifecycleHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {
@@ -19,7 +23,10 @@ export class ToolLifecycleHandler extends StreamEventHandler {
     return this.handleToolResult(event, state);
   }
 
-  private handleToolCall(event: StreamEvent, state: StreamState): HandlerResult {
+  private handleToolCall(
+    event: StreamEvent,
+    state: StreamState,
+  ): HandlerResult {
     let newContentParts = [...state.contentParts];
 
     // Add current text chunk as a text part if present
@@ -31,7 +38,8 @@ export class ToolLifecycleHandler extends StreamEventHandler {
     }
 
     // Check if tool needs approval
-    const chatState = this.context.activeChatsStore?.getSnapshot()[this.context.sessionId];
+    const chatState =
+      this.context.activeChatsStore?.getSnapshot()[this.context.sessionId];
     const sessionAutoApprove = chatState?.sessionAutoApprove || [];
     const isAutoApproved = sessionAutoApprove.includes(event.toolName);
 
@@ -56,7 +64,7 @@ export class ToolLifecycleHandler extends StreamEventHandler {
 
     const streamingMessage = this.createStreamingMessage(
       getTextFromParts(newContentParts),
-      newContentParts
+      newContentParts,
     );
     this.updateChat({ streamingMessage });
 
@@ -67,12 +75,15 @@ export class ToolLifecycleHandler extends StreamEventHandler {
     });
   }
 
-  private handleToolResult(event: StreamEvent, state: StreamState): HandlerResult {
+  private handleToolResult(
+    event: StreamEvent,
+    state: StreamState,
+  ): HandlerResult {
     const toolCallId = event.toolCallId;
     const output = event.output || event.result;
     const error = event.error;
 
-    const newContentParts = state.contentParts.map(part => {
+    const newContentParts = state.contentParts.map((part) => {
       if (part.type === 'tool' && part.tool?.id === toolCallId) {
         return {
           ...part,
@@ -89,7 +100,7 @@ export class ToolLifecycleHandler extends StreamEventHandler {
 
     const streamingMessage = this.createStreamingMessage(
       getTextFromParts(newContentParts),
-      newContentParts
+      newContentParts,
     );
     this.updateChat({ streamingMessage });
 

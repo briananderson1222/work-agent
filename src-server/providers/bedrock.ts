@@ -4,7 +4,7 @@
 
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
-import type { AppConfig, AgentSpec } from '../domain/types.js';
+import type { AgentSpec, AppConfig } from '../domain/types.js';
 
 export interface BedrockProviderOptions {
   appConfig: AppConfig;

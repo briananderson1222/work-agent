@@ -9,8 +9,8 @@
  * DO NOT redefine these types elsewhere. Import from here.
  */
 
-import { readFileSync, existsSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ── Plugin Manifest ────────────────────────────────────────────────
 
@@ -122,7 +122,11 @@ export interface ToolDef {
   };
   permissions?: ToolPermissions;
   timeouts?: { startupMs?: number; requestMs?: number };
-  healthCheck?: { kind?: 'jsonrpc' | 'http' | 'command'; path?: string; intervalMs?: number };
+  healthCheck?: {
+    kind?: 'jsonrpc' | 'http' | 'command';
+    path?: string;
+    intervalMs?: number;
+  };
   exposedTools?: string[];
 }
 
@@ -278,11 +282,15 @@ export function readAgentSpec(path: string): AgentSpec {
 }
 
 export function readWorkspaceConfig(path: string): WorkspaceConfig {
-  if (!existsSync(path)) throw new Error(`Workspace config not found at ${path}`);
+  if (!existsSync(path))
+    throw new Error(`Workspace config not found at ${path}`);
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 
-export function resolvePluginTools(pluginDir: string, toolsDir: string): Map<string, ToolDef> {
+export function resolvePluginTools(
+  pluginDir: string,
+  toolsDir: string,
+): Map<string, ToolDef> {
   const manifest = readPluginManifest(pluginDir);
   const tools = new Map<string, ToolDef>();
   for (const agentRef of manifest.agents || []) {
@@ -291,7 +299,9 @@ export function resolvePluginTools(pluginDir: string, toolsDir: string): Map<str
     const agent = readAgentSpec(agentPath);
     for (const serverId of agent.tools?.mcpServers || []) {
       if (tools.has(serverId)) continue;
-      try { tools.set(serverId, readToolDef(toolsDir, serverId)); } catch {}
+      try {
+        tools.set(serverId, readToolDef(toolsDir, serverId));
+      } catch {}
     }
   }
   return tools;
@@ -300,6 +310,8 @@ export function resolvePluginTools(pluginDir: string, toolsDir: string): Map<str
 export function listToolIds(toolsDir: string): string[] {
   if (!existsSync(toolsDir)) return [];
   return readdirSync(toolsDir, { withFileTypes: true })
-    .filter(d => d.isDirectory() && existsSync(join(toolsDir, d.name, 'tool.json')))
-    .map(d => d.name);
+    .filter(
+      (d) => d.isDirectory() && existsSync(join(toolsDir, d.name, 'tool.json')),
+    )
+    .map((d) => d.name);
 }

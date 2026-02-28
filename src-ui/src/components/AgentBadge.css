@@ -40,6 +40,6 @@
 }
 
 .agent-badge__namespace::after {
-  content: ':';
+  content: ":";
   margin-left: 0.125rem;
 }

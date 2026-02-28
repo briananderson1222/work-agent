@@ -19,7 +19,11 @@ export interface ACPConnectionInfo {
   sessionId: string | null;
   mcpServers: string[];
   currentModel: string | null;
-  configOptions?: { category: string; currentValue?: string; options?: string[] }[];
+  configOptions?: {
+    category: string;
+    currentValue?: string;
+    options?: string[];
+  }[];
 }
 
 export function useACPConnections() {

@@ -1,22 +1,22 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { ConversationStats } from './ConversationStats';
-import { ChatEmptyState } from './ChatEmptyState';
-import { EphemeralMessage } from './EphemeralMessage';
-import { SystemEventMessage } from './SystemEventMessage';
-import { MessageBubble } from './MessageBubble';
-import { StreamingMessage } from './StreamingMessage';
-import { ReasoningSection } from './ReasoningSection';
-import { ToolCallDisplay } from './ToolCallDisplay';
-import { ScrollToBottomButton } from './ScrollToBottomButton';
-import { QueuedMessages } from './QueuedMessages';
-import { ChatInputArea } from './ChatInputArea';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useToast } from '../contexts/ToastContext';
-import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useToolApproval } from '../hooks/useToolApproval';
 import { AgentIcon } from './AgentIcon';
-import { getAgentIconStyle, getInitials } from '../utils/workspace';
+import { ChatEmptyState } from './ChatEmptyState';
+import { ChatInputArea } from './ChatInputArea';
+import { ConversationStats } from './ConversationStats';
+import { EphemeralMessage } from './EphemeralMessage';
+import { MessageBubble } from './MessageBubble';
+import { QueuedMessages } from './QueuedMessages';
+import { ReasoningSection } from './ReasoningSection';
+import { ScrollToBottomButton } from './ScrollToBottomButton';
+import { StreamingMessage } from './StreamingMessage';
+import { SystemEventMessage } from './SystemEventMessage';
+import { ToolCallDisplay } from './ToolCallDisplay';
 
 interface Message {
   id?: string;
@@ -98,41 +98,49 @@ export function ChatDockBody({
   // Local state - only used within this component
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
-  const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
+  const [removingMessages, setRemovingMessages] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const agent = agents.find(a => a.slug === activeSession.agentSlug);
-  const ephemeralMessages = activeSession.messages.filter(m => m.ephemeral);
+  const agent = agents.find((a) => a.slug === activeSession.agentSlug);
+  const ephemeralMessages = activeSession.messages.filter((m) => m.ephemeral);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (!isUserScrolledUp && messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
     }
-  }, [activeSession.messages, isUserScrolledUp]);
+  }, [isUserScrolledUp]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
-    const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 10;
+    const isAtBottom =
+      target.scrollHeight - target.scrollTop - target.clientHeight < 10;
     setIsUserScrolledUp(!isAtBottom);
   };
 
   const handleScrollToBottom = () => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
       setIsUserScrolledUp(false);
     }
   };
 
   const handleDismissEphemeral = (messageId: string) => {
-    setRemovingMessages(prev => new Set(prev).add(messageId));
+    setRemovingMessages((prev) => new Set(prev).add(messageId));
     setTimeout(() => {
-      const updated = ephemeralMessages.filter(m => (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId);
+      const updated = ephemeralMessages.filter(
+        (m) =>
+          (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId,
+      );
       if (updated.length === 0) {
         clearEphemeralMessages(activeSession.id);
       } else {
         updateChat(activeSession.id, { ephemeralMessages: updated });
       }
-      setRemovingMessages(prev => {
+      setRemovingMessages((prev) => {
         const next = new Set(prev);
         next.delete(messageId);
         return next;
@@ -141,7 +149,13 @@ export function ChatDockBody({
   };
 
   const renderMessage = (msg: Message, idx: number) => {
-    const textContent = msg.contentParts?.filter(p => p.type === 'text').map(p => p.content).join('\n') || msg.content || '';
+    const textContent =
+      msg.contentParts
+        ?.filter((p) => p.type === 'text')
+        .map((p) => p.content)
+        .join('\n') ||
+      msg.content ||
+      '';
 
     if (msg.ephemeral) {
       const messageId = msg.id || `ephemeral-${idx}`;
@@ -153,12 +167,20 @@ export function ChatDockBody({
           fontSize={chatFontSize}
           isRemoving={removingMessages.has(messageId)}
           onDismiss={() => handleDismissEphemeral(messageId)}
-          onAction={msg.action ? () => { msg.action!.handler(); clearEphemeralMessages(activeSession.id); } : undefined}
+          onAction={
+            msg.action
+              ? () => {
+                  msg.action!.handler();
+                  clearEphemeralMessages(activeSession.id);
+                }
+              : undefined
+          }
         />
       );
     }
 
-    const isSystemEvent = msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
+    const isSystemEvent =
+      msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
     if (isSystemEvent) {
       return (
         <SystemEventMessage
@@ -179,7 +201,10 @@ export function ChatDockBody({
         chatFontSize={chatFontSize}
         showReasoning={showReasoning}
         showToolDetails={showToolDetails}
-        onCopy={(text) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard'); }}
+        onCopy={(text) => {
+          navigator.clipboard.writeText(text);
+          showToast('Copied to clipboard');
+        }}
         onToolApproval={handleToolApproval}
       />
     );
@@ -198,7 +223,12 @@ export function ChatDockBody({
           key={`${activeSession.conversationId || activeSession.agentSlug}-${activeSession.status}`}
         />
       )}
-      <div className="chat-messages" ref={messagesContainerRef} style={{ fontSize: `${chatFontSize}px` }} onScroll={handleScroll}>
+      <div
+        className="chat-messages"
+        ref={messagesContainerRef}
+        style={{ fontSize: `${chatFontSize}px` }}
+        onScroll={handleScroll}
+      >
         {activeSession.messages.length === 0 ? (
           <ChatEmptyState agentName={activeSession.agentName} />
         ) : (
@@ -207,17 +237,37 @@ export function ChatDockBody({
             {activeSession.status === 'sending' && (
               <StreamingMessage
                 sessionId={activeSession.id}
-                agentIcon={<AgentIcon agent={agent || { name: 'AI' }} size={20} />}
+                agentIcon={
+                  <AgentIcon agent={agent || { name: 'AI' }} size={20} />
+                }
                 agentIconStyle={{}}
                 fontSize={chatFontSize}
                 showReasoning={showReasoning}
-                renderReasoning={(content, i) => <ReasoningSection key={i} content={content} fontSize={chatFontSize} show={showReasoning} />}
+                renderReasoning={(content, i) => (
+                  <ReasoningSection
+                    key={i}
+                    content={content}
+                    fontSize={chatFontSize}
+                    show={showReasoning}
+                  />
+                )}
                 renderToolCall={(part, i) => (
                   <ToolCallDisplay
                     key={i}
                     toolCall={part}
                     showDetails={showToolDetails}
-                    onApprove={part.tool?.needsApproval ? (action) => handleToolApproval(activeSession.id, activeSession.agentSlug, part.tool!.approvalId!, part.tool!.name, action) : undefined}
+                    onApprove={
+                      part.tool?.needsApproval
+                        ? (action) =>
+                            handleToolApproval(
+                              activeSession.id,
+                              activeSession.agentSlug,
+                              part.tool!.approvalId!,
+                              part.tool!.name,
+                              action,
+                            )
+                        : undefined
+                    }
                   />
                 )}
               />
@@ -225,8 +275,13 @@ export function ChatDockBody({
           </>
         )}
       </div>
-      {isUserScrolledUp && <ScrollToBottomButton onClick={handleScrollToBottom} />}
-      <QueuedMessages sessionId={activeSession.id} messages={activeSession.queuedMessages} />
+      {isUserScrolledUp && (
+        <ScrollToBottomButton onClick={handleScrollToBottom} />
+      )}
+      <QueuedMessages
+        sessionId={activeSession.id}
+        messages={activeSession.queuedMessages}
+      />
       <ChatInputArea
         agentSlug={activeSession.agentSlug}
         conversationId={activeSession.conversationId}

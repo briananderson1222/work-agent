@@ -1,11 +1,11 @@
-import React, { useRef, useEffect, RefObject, useState } from 'react';
-import { SessionManagementMenu } from './SessionManagementMenu';
-import { SessionTab } from './SessionTab';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { AgentSummary } from '../types';
+import { SessionManagementMenu } from './SessionManagementMenu';
+import { SessionTab } from './SessionTab';
 
 interface Session {
   id: string;
@@ -27,9 +27,16 @@ interface ChatDockTabBarProps {
 }
 
 export function ChatDockTabBar({
-  sessions, activeSessionId, chatDockRef,
-  focusSession, removeSession, openConversation, openChatForAgent, updateChat,
-  setShowSessionPicker, setShowNewChatModal,
+  sessions,
+  activeSessionId,
+  chatDockRef,
+  focusSession,
+  removeSession,
+  openConversation,
+  openChatForAgent,
+  updateChat,
+  setShowSessionPicker,
+  setShowNewChatModal,
 }: ChatDockTabBarProps) {
   const agents = useAgents();
   const { apiBase } = useApiBase();
@@ -39,7 +46,10 @@ export function ChatDockTabBar({
   const openConversationShortcut = useShortcutDisplay('dock.openConversation');
 
   const tabListRef = useRef<HTMLDivElement>(null);
-  const [showScrollButtons, setShowScrollButtons] = useState({ left: false, right: false });
+  const [showScrollButtons, setShowScrollButtons] = useState({
+    left: false,
+    right: false,
+  });
 
   useEffect(() => {
     const checkScroll = () => {
@@ -54,7 +64,7 @@ export function ChatDockTabBar({
     checkScroll();
     window.addEventListener('resize', checkScroll);
     return () => window.removeEventListener('resize', checkScroll);
-  }, [sessions.length]);
+  }, []);
 
   const handleScroll = () => {
     if (tabListRef.current) {
@@ -70,7 +80,7 @@ export function ChatDockTabBar({
     <div className="chat-dock__tabs">
       <div className="chat-dock__tab-container">
         <SessionManagementMenu
-          sessions={sessions.filter(s => s.conversationId)}
+          sessions={sessions.filter((s) => s.conversationId)}
           activeSessionId={activeSessionId}
           apiBase={apiBase}
           agents={agents}
@@ -81,16 +91,28 @@ export function ChatDockTabBar({
           onOpenConversation={openConversation}
         />
         {showScrollButtons.left && (
-          <button type="button" className="chat-dock__scroll-btn chat-dock__scroll-btn--left" onClick={() => tabListRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}>←</button>
+          <button
+            type="button"
+            className="chat-dock__scroll-btn chat-dock__scroll-btn--left"
+            onClick={() =>
+              tabListRef.current?.scrollBy({ left: -200, behavior: 'smooth' })
+            }
+          >
+            ←
+          </button>
         )}
-        <div className="chat-dock__tab-list" ref={tabListRef} onScroll={handleScroll}>
+        <div
+          className="chat-dock__tab-list"
+          ref={tabListRef}
+          onScroll={handleScroll}
+        >
           {sessions.map((session, idx) => (
             <SessionTab
               key={session.id}
               session={session}
               index={idx}
               isActive={session.id === activeSessionId}
-              agent={agents.find(a => a.slug === session.agentSlug)}
+              agent={agents.find((a) => a.slug === session.agentSlug)}
               availableModels={availableModels}
               closeTabShortcut={closeTabShortcut}
               onFocus={() => focusSession(session.id)}
@@ -99,12 +121,28 @@ export function ChatDockTabBar({
           ))}
         </div>
         {showScrollButtons.right && (
-          <button type="button" className="chat-dock__scroll-btn chat-dock__scroll-btn--right" onClick={() => tabListRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}>→</button>
+          <button
+            type="button"
+            className="chat-dock__scroll-btn chat-dock__scroll-btn--right"
+            onClick={() =>
+              tabListRef.current?.scrollBy({ left: 200, behavior: 'smooth' })
+            }
+          >
+            →
+          </button>
         )}
       </div>
       <div className="chat-dock__tab-actions">
-        <button type="button" className="chat-dock__new" onClick={() => setShowSessionPicker(true)} title={`Open Conversation (${openConversationShortcut})`}>
-          Open <span className="chat-dock__subtitle">{openConversationShortcut}</span>
+        <button
+          type="button"
+          className="chat-dock__new"
+          onClick={() => setShowSessionPicker(true)}
+          title={`Open Conversation (${openConversationShortcut})`}
+        >
+          Open{' '}
+          <span className="chat-dock__subtitle">
+            {openConversationShortcut}
+          </span>
         </button>
         <button
           type="button"

@@ -32,15 +32,19 @@ export function getModelCapabilities(modelId?: string): ModelCapabilities {
   }
 
   const normalizedId = modelId.toLowerCase();
-  const supportsVision = VISION_MODELS.some(model => 
-    normalizedId.includes(model.toLowerCase())
+  const supportsVision = VISION_MODELS.some((model) =>
+    normalizedId.includes(model.toLowerCase()),
   );
 
   return {
     supportsVision,
     supportsFiles: supportsVision, // Most vision models also support files
-    supportedImageFormats: supportsVision ? ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] : [],
-    supportedFileFormats: supportsVision ? ['application/pdf', 'text/plain', 'text/csv'] : [],
+    supportedImageFormats: supportsVision
+      ? ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+      : [],
+    supportedFileFormats: supportsVision
+      ? ['application/pdf', 'text/plain', 'text/csv']
+      : [],
   };
 }
 

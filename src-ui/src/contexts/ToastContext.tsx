@@ -1,4 +1,10 @@
-import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useSyncExternalStore,
+} from 'react';
 
 type ToastAction = {
   label: string;
@@ -49,26 +55,26 @@ class ToastStore {
 
   private notify = () => {
     this.snapshot = [...this.toasts];
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   };
 
   private notifyHistory = () => {
     this.historySnapshot = [...this.history];
-    this.historyListeners.forEach(listener => listener());
+    this.historyListeners.forEach((listener) => listener());
   };
 
   show(message: string, sessionId?: string, duration = 5000) {
     const id = `${Date.now()}-${Math.random()}`;
     const toast: Toast = { id, message, sessionId, duration, type: 'info' };
-    
+
     this.toasts.push(toast);
     this.history.unshift({ ...toast, timestamp: Date.now(), dismissed: false });
-    
+
     // Keep history size limited
     if (this.history.length > this.maxHistory) {
       this.history = this.history.slice(0, this.maxHistory);
     }
-    
+
     this.notify();
     this.notifyHistory();
 
@@ -92,14 +98,15 @@ class ToastStore {
     onNavigate?: () => void;
   }) {
     const id = `approval-${Date.now()}-${Math.random()}`;
-    
+
     // Format tool display: [server] tool or just toolName
-    const toolDisplay = options.server && options.tool 
-      ? `[${options.server}] ${options.tool}`
-      : options.toolName;
-    
+    const toolDisplay =
+      options.server && options.tool
+        ? `[${options.server}] ${options.tool}`
+        : options.toolName;
+
     const conversationInfo = options.conversationTitle || 'Conversation';
-    
+
     const toast: Toast = {
       id,
       message: `${options.agentName} wants to use ${toolDisplay}`,
@@ -112,14 +119,14 @@ class ToastStore {
       onNavigate: options.onNavigate,
       duration: 0, // No auto-dismiss for approvals
     };
-    
+
     this.toasts.push(toast);
     this.history.unshift({ ...toast, timestamp: Date.now(), dismissed: false });
-    
+
     if (this.history.length > this.maxHistory) {
       this.history = this.history.slice(0, this.maxHistory);
     }
-    
+
     this.notify();
     this.notifyHistory();
 
@@ -132,20 +139,20 @@ class ToastStore {
       clearTimeout(timeout);
       this.timeouts.delete(id);
     }
-    
+
     // Mark as dismissed in history
-    const historyItem = this.history.find(h => h.id === id);
+    const historyItem = this.history.find((h) => h.id === id);
     if (historyItem) {
       historyItem.dismissed = true;
       this.notifyHistory();
     }
-    
-    this.toasts = this.toasts.filter(t => t.id !== id);
+
+    this.toasts = this.toasts.filter((t) => t.id !== id);
     this.notify();
   }
 
   clear() {
-    this.timeouts.forEach(timeout => clearTimeout(timeout));
+    this.timeouts.forEach((timeout) => clearTimeout(timeout));
     this.timeouts.clear();
     this.toasts = [];
     this.notify();
@@ -177,22 +184,28 @@ const ToastContext = createContext<{
 } | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const showToast = useCallback((message: string, sessionId?: string, duration?: number) => {
-    return toastStore.show(message, sessionId, duration);
-  }, []);
+  const showToast = useCallback(
+    (message: string, sessionId?: string, duration?: number) => {
+      return toastStore.show(message, sessionId, duration);
+    },
+    [],
+  );
 
-  const showToolApproval = useCallback((options: {
-    sessionId: string;
-    toolName: string;
-    server?: string;
-    tool?: string;
-    agentName: string;
-    conversationTitle?: string;
-    actions: ToastAction[];
-    onNavigate?: () => void;
-  }) => {
-    return toastStore.showToolApproval(options);
-  }, []);
+  const showToolApproval = useCallback(
+    (options: {
+      sessionId: string;
+      toolName: string;
+      server?: string;
+      tool?: string;
+      agentName: string;
+      conversationTitle?: string;
+      actions: ToastAction[];
+      onNavigate?: () => void;
+    }) => {
+      return toastStore.showToolApproval(options);
+    },
+    [],
+  );
 
   const dismissToast = useCallback((id: string) => {
     toastStore.dismiss(id);
@@ -207,7 +220,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ToastContext.Provider value={{ showToast, showToolApproval, dismissToast, clearToasts, clearHistory }}>
+    <ToastContext.Provider
+      value={{
+        showToast,
+        showToolApproval,
+        dismissToast,
+        clearToasts,
+        clearHistory,
+      }}
+    >
       {children}
     </ToastContext.Provider>
   );
@@ -222,16 +243,13 @@ export function useToast() {
 }
 
 export function useToasts() {
-  return useSyncExternalStore(
-    toastStore.subscribe,
-    toastStore.getSnapshot
-  );
+  return useSyncExternalStore(toastStore.subscribe, toastStore.getSnapshot);
 }
 
 export function useNotificationHistory() {
   return useSyncExternalStore(
     toastStore.subscribeHistory,
-    toastStore.getHistorySnapshot
+    toastStore.getHistorySnapshot,
   );
 }
 
@@ -243,17 +261,19 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: '20px',
-      right: '20px',
-      zIndex: 10000,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-      pointerEvents: 'none',
-    }}>
-      {toasts.map(toast => {
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        zIndex: 10000,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        pointerEvents: 'none',
+      }}
+    >
+      {toasts.map((toast) => {
         if (toast.type === 'tool-approval') {
           return (
             <div
@@ -285,19 +305,40 @@ export function ToastContainer() {
                   e.currentTarget.style.opacity = '1';
                 }}
               >
-                <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '4px' }}>
+                <div
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    marginBottom: '4px',
+                  }}
+                >
                   Tool Approval Required
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                <div
+                  style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
+                >
                   {toast.message}
                 </div>
                 {toast.onNavigate && (
-                  <div style={{ fontSize: '12px', color: 'var(--color-primary)', marginTop: '4px', textDecoration: 'underline' }}>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--color-primary)',
+                      marginTop: '4px',
+                      textDecoration: 'underline',
+                    }}
+                  >
                     Click to view chat
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                  justifyContent: 'flex-end',
+                }}
+              >
                 {toast.actions?.map((action, idx) => (
                   <button
                     key={idx}
@@ -309,17 +350,22 @@ export function ToastContainer() {
                       padding: '6px 12px',
                       fontSize: '13px',
                       borderRadius: '4px',
-                      border: action.variant === 'primary' ? 'none' : '1px solid var(--border-primary)',
-                      background: action.variant === 'primary' 
-                        ? 'var(--accent-primary)' 
-                        : action.variant === 'danger'
-                        ? 'var(--error-bg)'
-                        : 'transparent',
-                      color: action.variant === 'primary'
-                        ? 'white'
-                        : action.variant === 'danger'
-                        ? 'var(--error-text)'
-                        : 'var(--text-primary)',
+                      border:
+                        action.variant === 'primary'
+                          ? 'none'
+                          : '1px solid var(--border-primary)',
+                      background:
+                        action.variant === 'primary'
+                          ? 'var(--accent-primary)'
+                          : action.variant === 'danger'
+                            ? 'var(--error-bg)'
+                            : 'transparent',
+                      color:
+                        action.variant === 'primary'
+                          ? 'white'
+                          : action.variant === 'danger'
+                            ? 'var(--error-text)'
+                            : 'var(--text-primary)',
                       cursor: 'pointer',
                       fontWeight: action.variant === 'primary' ? 500 : 400,
                     }}

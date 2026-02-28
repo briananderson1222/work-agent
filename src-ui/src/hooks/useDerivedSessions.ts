@@ -1,49 +1,62 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import { useConversations, useMessages, useConversationStatus, conversationsStore } from '../contexts/ConversationsContext';
-import { useActiveChatState, useAllActiveChats } from '../contexts/ActiveChatsContext';
+import { useAllActiveChats } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
-import { useAgentTools } from './useAgentTools';
+import { conversationsStore } from '../contexts/ConversationsContext';
 import type { ChatSession } from '../types';
 
 // Hook to get all open tabs (with messages loaded from backend)
-export function useDerivedSessions(apiBase: string, agentSlug: string | null): ChatSession[] {
+export function useDerivedSessions(
+  _apiBase: string,
+  agentSlug: string | null,
+): ChatSession[] {
   const agents = useAgents();
   const allChats = useAllActiveChats();
-  
+
   // Subscribe to conversations store for messages
   const conversationsSnapshot = useSyncExternalStore(
     conversationsStore.subscribe,
     conversationsStore.getSnapshot,
-    conversationsStore.getSnapshot
+    conversationsStore.getSnapshot,
   );
-  
+
   return useMemo(() => {
     const sessions: ChatSession[] = [];
-    
+
     // Show all active chats (agentSlug filter is optional for ChatDock)
     for (const [chatId, chatState] of Object.entries(allChats)) {
       // If agentSlug is provided, filter by it (for workspace views)
       if (agentSlug && chatState.agentSlug !== agentSlug) continue;
-      
-      const agent = agents.find(a => a.slug === chatState.agentSlug);
-      
+
+      const agent = agents.find((a) => a.slug === chatState.agentSlug);
+
       // Get conversation metadata for title
-      const conversationsList = conversationsSnapshot.conversations[chatState.agentSlug!] || [];
-      const conversationMeta = conversationsList.find(c => c.id === chatState.conversationId);
-      
+      const conversationsList =
+        conversationsSnapshot.conversations[chatState.agentSlug!] || [];
+      const conversationMeta = conversationsList.find(
+        (c) => c.id === chatState.conversationId,
+      );
+
       // Get status from ActiveChatsContext (UI state)
       const sessionStatus = chatState.status || 'idle';
-      
+
       // Get messages from backend
-      const messagesKey = chatState.conversationId ? `messages:${chatState.agentSlug}:${chatState.conversationId}` : null;
-      const backendMessages = messagesKey ? conversationsSnapshot.messages[messagesKey] || [] : [];
-      
+      const messagesKey = chatState.conversationId
+        ? `messages:${chatState.agentSlug}:${chatState.conversationId}`
+        : null;
+      const backendMessages = messagesKey
+        ? conversationsSnapshot.messages[messagesKey] || []
+        : [];
+
       // During sending, use chatState.messages as source of truth to avoid race conditions
       // with fetchMessages updating conversationsSnapshot before chatState.messages is updated
       let messages: any[];
-      if (sessionStatus === 'sending' && chatState.messages && chatState.messages.length > 0) {
+      if (
+        sessionStatus === 'sending' &&
+        chatState.messages &&
+        chatState.messages.length > 0
+      ) {
         // Use optimistic messages during sending
-        messages = chatState.messages.map(m => ({
+        messages = chatState.messages.map((m) => ({
           ...m,
           timestamp: m.timestamp || Date.now(),
           optimistic: true,
@@ -53,39 +66,42 @@ export function useDerivedSessions(apiBase: string, agentSlug: string | null): C
         // Only show optimistic messages that are newer than what backend has
         const optimisticMessages = (chatState.messages || [])
           .slice(backendMessages.length) // Only messages after backend count
-          .map(m => ({
+          .map((m) => ({
             ...m,
             timestamp: m.timestamp || Date.now(),
             optimistic: true,
           }));
-        
+
         // Merge all message sources
         messages = [...backendMessages, ...optimisticMessages];
       }
-      
-      
+
       // Merge backend and ephemeral messages, sort by timestamp
       const ephemeralMessages = chatState.ephemeralMessages || [];
-      
+
       // Preserve backend timestamps, only assign fallback for messages without timestamps
       const messagesWithTimestamps = messages.map((m, index) => ({
         ...m,
-        timestamp: m.timestamp || (Date.now() - (messages.length - index) * 1000), // Fallback: recent timestamps in reverse order
+        timestamp: m.timestamp || Date.now() - (messages.length - index) * 1000, // Fallback: recent timestamps in reverse order
       }));
-      
+
       // NOTE: Streaming message is rendered separately via StreamingText component
       // to bypass React batching and enable smooth character-by-character display
-      
-      const allMessages = [...messagesWithTimestamps, ...ephemeralMessages]
-        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-      
+
+      const allMessages = [
+        ...messagesWithTimestamps,
+        ...ephemeralMessages,
+      ].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
       // Compute isThinking: sending but not actively processing a step
-      const isThinking = sessionStatus === 'sending' && !chatState.isProcessingStep;
-      
+      const isThinking =
+        sessionStatus === 'sending' && !chatState.isProcessingStep;
+
       // Derive agent name and title reactively
       const agentName = agent?.name || chatState.agentSlug || 'Unknown Agent';
-      const title = conversationMeta?.title || chatState.title || `${agentName} Chat`;
-      
+      const title =
+        conversationMeta?.title || chatState.title || `${agentName} Chat`;
+
       sessions.push({
         id: chatId,
         conversationId: chatState.conversationId,
@@ -108,9 +124,9 @@ export function useDerivedSessions(apiBase: string, agentSlug: string | null): C
         model: undefined,
       });
     }
-    
+
     return sessions;
-  }, [agents, allChats, conversationsSnapshot]);
+  }, [agents, allChats, conversationsSnapshot, agentSlug]);
 }
 
 // Hook to get full session data for a specific conversation (with messages and UI state)

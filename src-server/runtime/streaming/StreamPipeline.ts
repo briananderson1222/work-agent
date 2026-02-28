@@ -2,7 +2,7 @@ import type { StreamChunk, StreamHandler } from './types.js';
 
 /**
  * Pipeline executor that chains handlers using generators
- * 
+ *
  * Each handler processes the output of the previous handler.
  * Handlers can yield 0+ chunks per input chunk.
  */
@@ -22,7 +22,7 @@ export class StreamPipeline {
 
   /**
    * Run the pipeline on a stream
-   * 
+   *
    * Chains all handlers together, then yields the final output.
    * Each handler processes the output of the previous handler.
    */
@@ -33,12 +33,12 @@ export class StreamPipeline {
     }
 
     let stream: AsyncIterable<StreamChunk> = input;
-    
+
     // Chain handlers: each processes output of previous
     for (const handler of this.handlers) {
       stream = handler.process(stream);
     }
-    
+
     // Yield final output, checking abort signal periodically
     for await (const chunk of stream) {
       if (this.abortSignal?.aborted) {
@@ -50,19 +50,19 @@ export class StreamPipeline {
 
   /**
    * Finalize the stream
-   * 
+   *
    * Called after all chunks have been processed.
    * Calls finalize() on each handler that implements it.
    */
   async finalize(): Promise<Record<string, any>> {
     const results: Record<string, any> = {};
-    
+
     for (const handler of this.handlers) {
       if ('finalize' in handler && typeof handler.finalize === 'function') {
         results[handler.name] = await handler.finalize();
       }
     }
-    
+
     return results;
   }
 }

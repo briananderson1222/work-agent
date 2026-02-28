@@ -3,12 +3,16 @@
  */
 
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { WorkspaceConfig, WorkspaceMetadata, WorkflowMetadata } from '../domain/types.js';
+import type {
+  WorkflowMetadata,
+  WorkspaceConfig,
+  WorkspaceMetadata,
+} from '../domain/types.js';
 
 export class WorkspaceService {
   constructor(
     private configLoader: ConfigLoader,
-    private logger: any
+    _logger: any,
   ) {}
 
   async listWorkspaces(): Promise<WorkspaceMetadata[]> {
@@ -24,7 +28,10 @@ export class WorkspaceService {
     return config;
   }
 
-  async updateWorkspace(slug: string, updates: Partial<WorkspaceConfig>): Promise<WorkspaceConfig> {
+  async updateWorkspace(
+    slug: string,
+    updates: Partial<WorkspaceConfig>,
+  ): Promise<WorkspaceConfig> {
     return this.configLoader.updateWorkspace(slug, updates);
   }
 
@@ -41,11 +48,19 @@ export class WorkspaceService {
     return this.configLoader.readWorkflow(agentSlug, workflowId);
   }
 
-  async createWorkflow(agentSlug: string, filename: string, content: string): Promise<void> {
+  async createWorkflow(
+    agentSlug: string,
+    filename: string,
+    content: string,
+  ): Promise<void> {
     await this.configLoader.createWorkflow(agentSlug, filename, content);
   }
 
-  async updateWorkflow(agentSlug: string, workflowId: string, content: string): Promise<void> {
+  async updateWorkflow(
+    agentSlug: string,
+    workflowId: string,
+    content: string,
+  ): Promise<void> {
     await this.configLoader.updateWorkflow(agentSlug, workflowId, content);
   }
 

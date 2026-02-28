@@ -3,28 +3,28 @@
  * Aligns with VoltAgent v1.x storage interfaces.
  */
 
+import { createReadStream, existsSync } from 'node:fs';
 import {
-  readFile,
-  writeFile,
-  readdir,
-  unlink,
-  truncate,
-  mkdir,
   appendFile,
-} from 'fs/promises';
-import { existsSync, createReadStream } from 'fs';
-import { join, dirname } from 'path';
-import { createInterface } from 'readline';
-import { createPinoLogger } from '@voltagent/logger';
+  mkdir,
+  readdir,
+  readFile,
+  truncate,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { createInterface } from 'node:readline';
 import type {
-  StorageAdapter,
   Conversation,
+  ConversationQueryOptions,
   CreateConversationInput,
   GetMessagesOptions,
-  ConversationQueryOptions,
-  WorkingMemoryScope,
+  StorageAdapter,
   WorkflowStateEntry,
+  WorkingMemoryScope,
 } from '@voltagent/core';
+import { createPinoLogger } from '@voltagent/logger';
 import type { UIMessage } from 'ai';
 import { parseReasoningFromMessage } from '../../utils/reasoning-parser.js';
 
@@ -40,11 +40,17 @@ export interface FileVoltAgentMemoryAdapterOptions {
   usageAggregator?: any;
 }
 
-type SerializedSuspension = Omit<NonNullable<WorkflowStateEntry['suspension']>, 'suspendedAt'> & {
+type SerializedSuspension = Omit<
+  NonNullable<WorkflowStateEntry['suspension']>,
+  'suspendedAt'
+> & {
   suspendedAt: string;
 };
 
-type WorkflowStateJson = Omit<WorkflowStateEntry, 'createdAt' | 'updatedAt' | 'suspension'> & {
+type WorkflowStateJson = Omit<
+  WorkflowStateEntry,
+  'createdAt' | 'updatedAt' | 'suspension'
+> & {
   createdAt: string;
   updatedAt: string;
   suspension?: SerializedSuspension;
@@ -89,7 +95,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   /**
    * Path to a conversation metadata file.
    */
-  private getConversationPath(resourceId: string, conversationId: string): string {
+  private getConversationPath(
+    resourceId: string,
+    conversationId: string,
+  ): string {
     return join(this.getConversationsDir(resourceId), `${conversationId}.json`);
   }
 
@@ -110,22 +119,34 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   /**
    * Directory for working memory scoped by resource and scope.
    */
-  private getWorkingMemoryDir(resourceId: string, scope: WorkingMemoryScope): string {
+  private getWorkingMemoryDir(
+    resourceId: string,
+    scope: WorkingMemoryScope,
+  ): string {
     return join(this.getAgentMemoryDir(resourceId), 'working', scope);
   }
 
   /**
    * Path to a conversation-scoped working memory file.
    */
-  private getConversationWorkingMemoryPath(resourceId: string, conversationId: string): string {
-    return join(this.getWorkingMemoryDir(resourceId, 'conversation'), `${conversationId}.json`);
+  private getConversationWorkingMemoryPath(
+    resourceId: string,
+    conversationId: string,
+  ): string {
+    return join(
+      this.getWorkingMemoryDir(resourceId, 'conversation'),
+      `${conversationId}.json`,
+    );
   }
 
   /**
    * Path to a user-scoped working memory file.
    */
   private getUserWorkingMemoryPath(resourceId: string, userId: string): string {
-    return join(this.getWorkingMemoryDir(resourceId, 'user'), `${this.sanitizeId(userId)}.json`);
+    return join(
+      this.getWorkingMemoryDir(resourceId, 'user'),
+      `${this.sanitizeId(userId)}.json`,
+    );
   }
 
   /**
@@ -154,13 +175,18 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
    */
   private cacheConversation(conversation: Conversation): void {
     this.conversationCache.set(conversation.id, conversation);
-    this.conversationResourceCache.set(conversation.id, conversation.resourceId);
+    this.conversationResourceCache.set(
+      conversation.id,
+      conversation.resourceId,
+    );
   }
 
   /**
    * Attempt to load a conversation from disk and populate caches.
    */
-  private async loadConversationFromDisk(conversationId: string): Promise<Conversation | null> {
+  private async loadConversationFromDisk(
+    conversationId: string,
+  ): Promise<Conversation | null> {
     if (this.conversationCache.has(conversationId)) {
       return this.conversationCache.get(conversationId)!;
     }
@@ -184,10 +210,15 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   /**
    * Find the on-disk location for a conversation by scanning agent folders.
    */
-  private async findConversationLocation(conversationId: string): Promise<{ path: string; resourceId: string } | null> {
+  private async findConversationLocation(
+    conversationId: string,
+  ): Promise<{ path: string; resourceId: string } | null> {
     const cachedResource = this.conversationResourceCache.get(conversationId);
     if (cachedResource) {
-      const cachedPath = this.getConversationPath(cachedResource, conversationId);
+      const cachedPath = this.getConversationPath(
+        cachedResource,
+        conversationId,
+      );
       if (existsSync(cachedPath)) {
         return { path: cachedPath, resourceId: cachedResource };
       }
@@ -202,7 +233,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     for (const entry of agentEntries) {
       if (!entry.isDirectory()) continue;
       const resourceId = entry.name;
-      const conversationPath = this.getConversationPath(resourceId, conversationId);
+      const conversationPath = this.getConversationPath(
+        resourceId,
+        conversationId,
+      );
       if (existsSync(conversationPath)) {
         return { path: conversationPath, resourceId };
       }
@@ -217,8 +251,15 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   private async persistConversation(conversation: Conversation): Promise<void> {
     const conversationDir = this.getConversationsDir(conversation.resourceId);
     await mkdir(conversationDir, { recursive: true });
-    const conversationPath = this.getConversationPath(conversation.resourceId, conversation.id);
-    await writeFile(conversationPath, JSON.stringify(conversation, null, 2), 'utf-8');
+    const conversationPath = this.getConversationPath(
+      conversation.resourceId,
+      conversation.id,
+    );
+    await writeFile(
+      conversationPath,
+      JSON.stringify(conversation, null, 2),
+      'utf-8',
+    );
     this.cacheConversation(conversation);
   }
 
@@ -249,7 +290,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   /**
    * Resolve the resource ID for a conversation using cache, disk lookup, or userId hint.
    */
-  private async resolveResourceId(conversationId?: string, userId?: string): Promise<string> {
+  private async resolveResourceId(
+    conversationId?: string,
+    userId?: string,
+  ): Promise<string> {
     if (conversationId) {
       const cached = this.conversationResourceCache.get(conversationId);
       if (cached) {
@@ -273,7 +317,9 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   /**
    * Load all conversations for a given resource.
    */
-  private async listAgentConversations(resourceId: string): Promise<Conversation[]> {
+  private async listAgentConversations(
+    resourceId: string,
+  ): Promise<Conversation[]> {
     const conversationsDir = this.getConversationsDir(resourceId);
     if (!existsSync(conversationsDir)) {
       return [];
@@ -325,7 +371,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
    */
   private applyQueryOptions(
     conversations: Conversation[],
-    options?: ConversationQueryOptions
+    options?: ConversationQueryOptions,
   ): Conversation[] {
     if (!options) {
       return conversations.slice();
@@ -334,11 +380,15 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     let filtered = conversations.slice();
 
     if (options.userId) {
-      filtered = filtered.filter(conversation => conversation.userId === options.userId);
+      filtered = filtered.filter(
+        (conversation) => conversation.userId === options.userId,
+      );
     }
 
     if (options.resourceId) {
-      filtered = filtered.filter(conversation => conversation.resourceId === options.resourceId);
+      filtered = filtered.filter(
+        (conversation) => conversation.resourceId === options.resourceId,
+      );
     }
 
     const orderBy = options.orderBy ?? 'updated_at';
@@ -364,7 +414,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   /**
    * Delete a conversation's message file if it exists.
    */
-  private async deleteMessagesFile(resourceId: string, conversationId: string): Promise<void> {
+  private async deleteMessagesFile(
+    resourceId: string,
+    conversationId: string,
+  ): Promise<void> {
     const messagesPath = this.getMessagesPath(resourceId, conversationId);
     if (existsSync(messagesPath)) {
       await unlink(messagesPath);
@@ -374,8 +427,14 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   /**
    * Delete working memory stored for a conversation.
    */
-  private async deleteConversationWorkingMemory(resourceId: string, conversationId: string): Promise<void> {
-    const path = this.getConversationWorkingMemoryPath(resourceId, conversationId);
+  private async deleteConversationWorkingMemory(
+    resourceId: string,
+    conversationId: string,
+  ): Promise<void> {
+    const path = this.getConversationWorkingMemoryPath(
+      resourceId,
+      conversationId,
+    );
     if (existsSync(path)) {
       await unlink(path);
     }
@@ -386,7 +445,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
    */
   private serializeWorkflowState(state: WorkflowStateEntry): WorkflowStateJson {
     const { createdAt, updatedAt, suspension, ...rest } = state;
-    const base = rest as Omit<WorkflowStateEntry, 'createdAt' | 'updatedAt' | 'suspension'>;
+    const base = rest as Omit<
+      WorkflowStateEntry,
+      'createdAt' | 'updatedAt' | 'suspension'
+    >;
 
     return {
       ...base,
@@ -404,10 +466,15 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   /**
    * Deserialize workflow state entry from disk.
    */
-  private deserializeWorkflowState(json: WorkflowStateJson): WorkflowStateEntry | null {
+  private deserializeWorkflowState(
+    json: WorkflowStateJson,
+  ): WorkflowStateEntry | null {
     try {
       const { createdAt, updatedAt, suspension, ...rest } = json;
-      const base = rest as Omit<WorkflowStateEntry, 'createdAt' | 'updatedAt' | 'suspension'>;
+      const base = rest as Omit<
+        WorkflowStateEntry,
+        'createdAt' | 'updatedAt' | 'suspension'
+      >;
 
       return {
         ...base,
@@ -430,7 +497,12 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   // Message Operations
   // ===========================================================================
 
-  async addMessage(message: UIMessage, userId: string, conversationId: string, context?: any): Promise<void> {
+  async addMessage(
+    message: UIMessage,
+    userId: string,
+    conversationId: string,
+    context?: any,
+  ): Promise<void> {
     const resourceId = await this.resolveResourceId(conversationId, userId);
     await mkdir(this.getSessionsDir(resourceId), { recursive: true });
 
@@ -447,40 +519,55 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
         usage: context?.usage,
         model: context?.model,
         traceId: context?.traceId,
-      }
+      },
     };
 
     // Check if operation was aborted and append cancellation notice to assistant messages
     const abortController = context?.abortController;
-    if (abortController?.signal.aborted && messageWithMetadata.role === 'assistant') {
+    if (
+      abortController?.signal.aborted &&
+      messageWithMetadata.role === 'assistant'
+    ) {
       messageWithMetadata.parts = [
         ...messageWithMetadata.parts,
-        { type: 'text', text: '\n\n---\n\n_⚠️ Response cancelled by user_' }
+        { type: 'text', text: '\n\n---\n\n_⚠️ Response cancelled by user_' },
       ];
     }
 
     const messagesPath = this.getMessagesPath(resourceId, conversationId);
-    await appendFile(messagesPath, JSON.stringify(messageWithMetadata) + '\n', 'utf-8');
+    await appendFile(
+      messagesPath,
+      `${JSON.stringify(messageWithMetadata)}\n`,
+      'utf-8',
+    );
     await this.touchConversation(conversationId);
 
     // Update analytics if aggregator is available for assistant messages
     if (this.usageAggregator && messageWithMetadata.role === 'assistant') {
       try {
-        await this.usageAggregator.incrementalUpdate(messageWithMetadata, resourceId, conversationId);
+        await this.usageAggregator.incrementalUpdate(
+          messageWithMetadata,
+          resourceId,
+          conversationId,
+        );
       } catch (error) {
         logger.error('Failed to update usage stats', { error });
       }
     }
   }
 
-  async addMessages(messages: UIMessage[], userId: string, conversationId: string): Promise<void> {
+  async addMessages(
+    messages: UIMessage[],
+    userId: string,
+    conversationId: string,
+  ): Promise<void> {
     if (messages.length === 0) return;
 
     const resourceId = await this.resolveResourceId(conversationId, userId);
     await mkdir(this.getSessionsDir(resourceId), { recursive: true });
 
     const messagesPath = this.getMessagesPath(resourceId, conversationId);
-    const payload = messages.map(message => JSON.stringify(message)).join('\n') + '\n';
+    const payload = `${messages.map((message) => JSON.stringify(message)).join('\n')}\n`;
     await appendFile(messagesPath, payload, 'utf-8');
     await this.touchConversation(conversationId);
   }
@@ -488,7 +575,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   async getMessages(
     userId: string,
     conversationId: string,
-    options?: GetMessagesOptions
+    options?: GetMessagesOptions,
   ): Promise<UIMessage[]> {
     let resourceId = await this.resolveResourceId(conversationId, userId);
     let messagesPath = this.getMessagesPath(resourceId, conversationId);
@@ -541,19 +628,25 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
 
     const conversations = await this.getConversationsByUserId(userId);
     await Promise.all(
-      conversations.map(async conversation => {
-        const path = this.getMessagesPath(conversation.resourceId, conversation.id);
+      conversations.map(async (conversation) => {
+        const path = this.getMessagesPath(
+          conversation.resourceId,
+          conversation.id,
+        );
         if (existsSync(path)) {
           await truncate(path, 0);
         }
-      })
+      }),
     );
   }
 
-  async removeLastMessage(userId: string, conversationId: string): Promise<void> {
+  async removeLastMessage(
+    userId: string,
+    conversationId: string,
+  ): Promise<void> {
     const resourceId = await this.resolveResourceId(conversationId, userId);
     const path = this.getMessagesPath(resourceId, conversationId);
-    
+
     if (!existsSync(path)) {
       return;
     }
@@ -562,13 +655,13 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     const lines: string[] = [];
     const fileStream = createReadStream(path);
     const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
-    
+
     for await (const line of rl) {
       if (line.trim()) {
         lines.push(line);
       }
     }
-    
+
     // Remove last line and rewrite file
     if (lines.length > 0) {
       lines.pop();
@@ -580,7 +673,9 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   // Conversation Operations
   // ===========================================================================
 
-  async createConversation(input: CreateConversationInput): Promise<Conversation> {
+  async createConversation(
+    input: CreateConversationInput,
+  ): Promise<Conversation> {
     const now = new Date().toISOString();
     const conversation: Conversation = {
       id: input.id,
@@ -608,20 +703,22 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
 
   async getConversationsByUserId(
     userId: string,
-    options?: Omit<ConversationQueryOptions, 'userId'>
+    options?: Omit<ConversationQueryOptions, 'userId'>,
   ): Promise<Conversation[]> {
     const conversations = await this.loadAllConversations();
     return this.applyQueryOptions(conversations, { ...options, userId });
   }
 
-  async queryConversations(options: ConversationQueryOptions): Promise<Conversation[]> {
+  async queryConversations(
+    options: ConversationQueryOptions,
+  ): Promise<Conversation[]> {
     const conversations = await this.loadAllConversations();
     return this.applyQueryOptions(conversations, options);
   }
 
   async updateConversation(
     id: string,
-    updates: Partial<Omit<Conversation, 'id' | 'createdAt' | 'updatedAt'>>
+    updates: Partial<Omit<Conversation, 'id' | 'createdAt' | 'updatedAt'>>,
   ): Promise<Conversation> {
     const conversation = await this.getConversation(id);
     if (!conversation) {
@@ -646,7 +743,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
       return;
     }
 
-    const conversationPath = this.getConversationPath(conversation.resourceId, id);
+    const conversationPath = this.getConversationPath(
+      conversation.resourceId,
+      id,
+    );
     if (existsSync(conversationPath)) {
       await unlink(conversationPath);
     }
@@ -667,19 +767,32 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     userId?: string;
     scope: WorkingMemoryScope;
   }): Promise<string | null> {
-    const resourceId = await this.resolveResourceId(params.conversationId, params.userId);
+    const resourceId = await this.resolveResourceId(
+      params.conversationId,
+      params.userId,
+    );
 
     if (params.scope === 'conversation') {
       if (!params.conversationId) return null;
-      const path = this.getConversationWorkingMemoryPath(resourceId, params.conversationId);
+      const path = this.getConversationWorkingMemoryPath(
+        resourceId,
+        params.conversationId,
+      );
       if (!existsSync(path)) {
         // Backwards compatibility: old structure without scope directory
-        const legacyPath = join(this.getAgentMemoryDir(resourceId), 'working', `${params.conversationId}.json`);
+        const legacyPath = join(
+          this.getAgentMemoryDir(resourceId),
+          'working',
+          `${params.conversationId}.json`,
+        );
         if (!existsSync(legacyPath)) {
           return null;
         }
         const legacyContent = await readFile(legacyPath, 'utf-8');
-        const legacyData = JSON.parse(legacyContent) as { memory?: string; content?: string };
+        const legacyData = JSON.parse(legacyContent) as {
+          memory?: string;
+          content?: string;
+        };
         return legacyData.memory ?? legacyData.content ?? null;
       }
       const content = await readFile(path, 'utf-8');
@@ -703,7 +816,10 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     content: string;
     scope: WorkingMemoryScope;
   }): Promise<void> {
-    const resourceId = await this.resolveResourceId(params.conversationId, params.userId);
+    const resourceId = await this.resolveResourceId(
+      params.conversationId,
+      params.userId,
+    );
     const payload = {
       content: params.content,
       updatedAt: new Date().toISOString(),
@@ -711,9 +827,14 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
 
     if (params.scope === 'conversation') {
       if (!params.conversationId) {
-        throw new Error('conversationId is required for conversation-scoped working memory');
+        throw new Error(
+          'conversationId is required for conversation-scoped working memory',
+        );
       }
-      const path = this.getConversationWorkingMemoryPath(resourceId, params.conversationId);
+      const path = this.getConversationWorkingMemoryPath(
+        resourceId,
+        params.conversationId,
+      );
       await mkdir(dirname(path), { recursive: true });
       await writeFile(path, JSON.stringify(payload, null, 2), 'utf-8');
       return;
@@ -733,11 +854,17 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     userId?: string;
     scope: WorkingMemoryScope;
   }): Promise<void> {
-    const resourceId = await this.resolveResourceId(params.conversationId, params.userId);
+    const resourceId = await this.resolveResourceId(
+      params.conversationId,
+      params.userId,
+    );
 
     if (params.scope === 'conversation') {
       if (!params.conversationId) return;
-      const path = this.getConversationWorkingMemoryPath(resourceId, params.conversationId);
+      const path = this.getConversationWorkingMemoryPath(
+        resourceId,
+        params.conversationId,
+      );
       if (existsSync(path)) {
         await unlink(path);
       }
@@ -755,7 +882,9 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
   // Workflow State
   // ===========================================================================
 
-  async getWorkflowState(executionId: string): Promise<WorkflowStateEntry | null> {
+  async getWorkflowState(
+    executionId: string,
+  ): Promise<WorkflowStateEntry | null> {
     const path = this.getWorkflowStatePath(executionId);
     if (!existsSync(path)) {
       return null;
@@ -763,7 +892,9 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
 
     try {
       const content = await readFile(path, 'utf-8');
-      const state = this.deserializeWorkflowState(JSON.parse(content) as WorkflowStateJson);
+      const state = this.deserializeWorkflowState(
+        JSON.parse(content) as WorkflowStateJson,
+      );
       return state ?? null;
     } catch (error) {
       logger.error('Failed to read workflow state', { error });
@@ -771,16 +902,23 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     }
   }
 
-  async setWorkflowState(executionId: string, state: WorkflowStateEntry): Promise<void> {
+  async setWorkflowState(
+    executionId: string,
+    state: WorkflowStateEntry,
+  ): Promise<void> {
     const dir = this.getWorkflowStatesDir();
     await mkdir(dir, { recursive: true });
     const path = this.getWorkflowStatePath(executionId);
-    await writeFile(path, JSON.stringify(this.serializeWorkflowState(state), null, 2), 'utf-8');
+    await writeFile(
+      path,
+      JSON.stringify(this.serializeWorkflowState(state), null, 2),
+      'utf-8',
+    );
   }
 
   async updateWorkflowState(
     executionId: string,
-    updates: Partial<WorkflowStateEntry>
+    updates: Partial<WorkflowStateEntry>,
   ): Promise<void> {
     const existing = await this.getWorkflowState(executionId);
     if (!existing) {
@@ -804,7 +942,9 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
     await this.setWorkflowState(executionId, merged);
   }
 
-  async getSuspendedWorkflowStates(workflowId: string): Promise<WorkflowStateEntry[]> {
+  async getSuspendedWorkflowStates(
+    workflowId: string,
+  ): Promise<WorkflowStateEntry[]> {
     const dir = this.getWorkflowStatesDir();
     if (!existsSync(dir)) {
       return [];
@@ -820,7 +960,11 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
         const content = await readFile(path, 'utf-8');
         const parsed = JSON.parse(content) as WorkflowStateJson;
         const state = this.deserializeWorkflowState(parsed);
-        if (state && state.status === 'suspended' && state.workflowId === workflowId) {
+        if (
+          state &&
+          state.status === 'suspended' &&
+          state.workflowId === workflowId
+        ) {
           states.push(state);
         }
       } catch (error) {

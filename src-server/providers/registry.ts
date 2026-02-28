@@ -2,11 +2,20 @@
  * Provider registry — register/get pattern with lazy default fallback
  */
 
-import type { IAuthProvider, IUserIdentityProvider, IUserDirectoryProvider, IAgentRegistryProvider, IToolRegistryProvider } from './types.js';
 import {
-  DefaultAuthProvider, DefaultUserIdentityProvider, DefaultUserDirectoryProvider,
-  DefaultAgentRegistryProvider, DefaultToolRegistryProvider,
+  DefaultAgentRegistryProvider,
+  DefaultAuthProvider,
+  DefaultToolRegistryProvider,
+  DefaultUserDirectoryProvider,
+  DefaultUserIdentityProvider,
 } from './defaults.js';
+import type {
+  IAgentRegistryProvider,
+  IAuthProvider,
+  IToolRegistryProvider,
+  IUserDirectoryProvider,
+  IUserIdentityProvider,
+} from './types.js';
 
 let authProvider: IAuthProvider | null = null;
 let userIdentityProvider: IUserIdentityProvider | null = null;
@@ -31,27 +40,40 @@ export function registerUserIdentityProvider(provider: IUserIdentityProvider) {
 }
 
 export function getUserIdentityProvider(): IUserIdentityProvider {
-  return userIdentityProvider ?? (userIdentityProvider = new DefaultUserIdentityProvider());
+  return (
+    userIdentityProvider ??
+    (userIdentityProvider = new DefaultUserIdentityProvider())
+  );
 }
 
 // ── User Directory ─────────────────────────────────────
 
-export function registerUserDirectoryProvider(provider: IUserDirectoryProvider) {
+export function registerUserDirectoryProvider(
+  provider: IUserDirectoryProvider,
+) {
   userDirectoryProvider = provider;
 }
 
 export function getUserDirectoryProvider(): IUserDirectoryProvider {
-  return userDirectoryProvider ?? (userDirectoryProvider = new DefaultUserDirectoryProvider());
+  return (
+    userDirectoryProvider ??
+    (userDirectoryProvider = new DefaultUserDirectoryProvider())
+  );
 }
 
 // ── Agent Registry ─────────────────────────────────────
 
-export function registerAgentRegistryProvider(provider: IAgentRegistryProvider) {
+export function registerAgentRegistryProvider(
+  provider: IAgentRegistryProvider,
+) {
   agentRegistryProvider = provider;
 }
 
 export function getAgentRegistryProvider(): IAgentRegistryProvider {
-  return agentRegistryProvider ?? (agentRegistryProvider = new DefaultAgentRegistryProvider());
+  return (
+    agentRegistryProvider ??
+    (agentRegistryProvider = new DefaultAgentRegistryProvider())
+  );
 }
 
 // ── Tool Registry ──────────────────────────────────────
@@ -61,7 +83,10 @@ export function registerToolRegistryProvider(provider: IToolRegistryProvider) {
 }
 
 export function getToolRegistryProvider(): IToolRegistryProvider {
-  return toolRegistryProvider ?? (toolRegistryProvider = new DefaultToolRegistryProvider());
+  return (
+    toolRegistryProvider ??
+    (toolRegistryProvider = new DefaultToolRegistryProvider())
+  );
 }
 
 // ── Onboarding ─────────────────────────────────────────
@@ -70,7 +95,9 @@ import type { IOnboardingProvider } from './types.js';
 
 const onboardingProviders: IOnboardingProvider[] = [];
 
-export function registerOnboardingProvider(provider: IOnboardingProvider): void {
+export function registerOnboardingProvider(
+  provider: IOnboardingProvider,
+): void {
   onboardingProviders.push(provider);
 }
 

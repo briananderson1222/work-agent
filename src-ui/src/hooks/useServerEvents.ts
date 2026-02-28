@@ -3,14 +3,15 @@
  * Dispatches server-pushed events to React Query invalidations and callbacks.
  */
 
-import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 type EventHandler = (data: Record<string, unknown>) => void;
 
 const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
-  'agents:changed': (qc) => qc.invalidateQueries({ queryKey: ['agents'], refetchType: 'none' }),
+  'agents:changed': (qc) =>
+    qc.invalidateQueries({ queryKey: ['agents'], refetchType: 'none' }),
   'acp:status': (qc) => {
     qc.invalidateQueries({ queryKey: ['agents'] });
     qc.invalidateQueries({ queryKey: ['acp-connections'] });
@@ -20,12 +21,15 @@ const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
     qc.invalidateQueries({ queryKey: ['config'], refetchType: 'none' });
     qc.invalidateQueries({ queryKey: ['agents'], refetchType: 'none' });
   },
-  'system:status-changed': (qc) => qc.invalidateQueries({ queryKey: ['system-status'] }),
+  'system:status-changed': (qc) =>
+    qc.invalidateQueries({ queryKey: ['system-status'] }),
   'plugins:updated': (qc) => {
     qc.invalidateQueries({ queryKey: ['plugins'] });
     qc.invalidateQueries({ queryKey: ['workspaces'] });
     // Hot-reload plugin bundles
-    import('../core/PluginRegistry').then(({ pluginRegistry }) => pluginRegistry.reload()).catch(() => {});
+    import('../core/PluginRegistry')
+      .then(({ pluginRegistry }) => pluginRegistry.reload())
+      .catch(() => {});
   },
   'plugins:updates-available': (qc) => {
     qc.invalidateQueries({ queryKey: ['plugin-updates'] });
@@ -57,7 +61,11 @@ export function useServerEvents(handlers?: Record<string, EventHandler>) {
       if (handlersRef.current) {
         for (const [event, handler] of Object.entries(handlersRef.current)) {
           es.addEventListener(event, (e: MessageEvent) => {
-            try { handler(JSON.parse(e.data)); } catch { handler({}); }
+            try {
+              handler(JSON.parse(e.data));
+            } catch {
+              handler({});
+            }
           });
         }
       }

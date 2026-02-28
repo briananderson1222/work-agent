@@ -20,7 +20,12 @@ export function useDragResize({
 
     const handleMouseMove = (e: MouseEvent) => {
       const newHeight = window.innerHeight - e.clientY;
-      setHeight(Math.max(minHeight, Math.min(newHeight, window.innerHeight - maxHeightOffset)));
+      setHeight(
+        Math.max(
+          minHeight,
+          Math.min(newHeight, window.innerHeight - maxHeightOffset),
+        ),
+      );
     };
 
     const handleMouseUp = () => setIsDragging(false);

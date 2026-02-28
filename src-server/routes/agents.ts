@@ -8,7 +8,7 @@ import type { AgentService } from '../services/agent-service.js';
 export function createAgentRoutes(
   agentService: AgentService,
   reinitialize: () => Promise<void>,
-  getVoltAgent: () => any
+  getVoltAgent: () => any,
 ) {
   const app = new Hono();
 
@@ -17,7 +17,10 @@ export function createAgentRoutes(
     try {
       const voltAgent = getVoltAgent();
       if (!voltAgent) {
-        return c.json({ success: false, error: 'VoltAgent not initialized' }, 500);
+        return c.json(
+          { success: false, error: 'VoltAgent not initialized' },
+          500,
+        );
       }
       const coreAgents = await voltAgent.getAgents();
       const enrichedAgents = await agentService.getEnrichedAgents(coreAgents);

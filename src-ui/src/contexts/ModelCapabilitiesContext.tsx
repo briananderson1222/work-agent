@@ -18,11 +18,18 @@ export function useModelCapabilities(): ModelCapability[] {
   return data;
 }
 
-export function useModelSupportsAttachments(modelId: string | undefined): boolean {
+export function useModelSupportsAttachments(
+  modelId: string | undefined,
+): boolean {
   const capabilities = useModelCapabilities();
-  
+
   if (!modelId) return false;
-  
-  const capability = capabilities.find(c => c.modelId === modelId);
-  return capability?.supportsImages || capability?.supportsVideo || capability?.supportsAudio || false;
+
+  const capability = capabilities.find((c) => c.modelId === modelId);
+  return (
+    capability?.supportsImages ||
+    capability?.supportsVideo ||
+    capability?.supportsAudio ||
+    false
+  );
 }

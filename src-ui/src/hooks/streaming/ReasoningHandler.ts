@@ -3,12 +3,22 @@
  */
 
 import { StreamEventHandler } from './BaseHandler';
-import type { StreamEvent, StreamState, HandlerResult } from './types';
-import { createResult, prependContentPart, updateContentPart, hasContentPartOfType } from './stateHelpers';
+import {
+  createResult,
+  hasContentPartOfType,
+  prependContentPart,
+  updateContentPart,
+} from './stateHelpers';
+import type { HandlerResult, StreamEvent, StreamState } from './types';
 
 export class ReasoningHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {
-    return ['reasoning-start', 'reasoning-delta', 'reasoning-end', 'reasoning'].includes(event.type);
+    return [
+      'reasoning-start',
+      'reasoning-delta',
+      'reasoning-end',
+      'reasoning',
+    ].includes(event.type);
   }
 
   handle(event: StreamEvent, state: StreamState): HandlerResult {
@@ -32,7 +42,10 @@ export class ReasoningHandler extends StreamEventHandler {
       content: '',
     });
 
-    const streamingMessage = this.createStreamingMessage(state.currentTextChunk, newContentParts);
+    const streamingMessage = this.createStreamingMessage(
+      state.currentTextChunk,
+      newContentParts,
+    );
     this.updateChat({ streamingMessage });
 
     return createResult(state, {
@@ -45,14 +58,18 @@ export class ReasoningHandler extends StreamEventHandler {
   private handleDelta(event: StreamEvent, state: StreamState): HandlerResult {
     if (!event.textDelta) return this.noOp(state);
 
-    const newReasoningChunk = (state.currentReasoningChunk || '') + event.textDelta;
+    const newReasoningChunk =
+      (state.currentReasoningChunk || '') + event.textDelta;
     const newContentParts = updateContentPart(
       state.contentParts,
       'reasoning',
-      part => ({ ...part, content: newReasoningChunk })
+      (part) => ({ ...part, content: newReasoningChunk }),
     );
 
-    const streamingMessage = this.createStreamingMessage(state.currentTextChunk, newContentParts);
+    const streamingMessage = this.createStreamingMessage(
+      state.currentTextChunk,
+      newContentParts,
+    );
     this.updateChat({ streamingMessage });
 
     return createResult(state, {
@@ -75,7 +92,7 @@ export class ReasoningHandler extends StreamEventHandler {
 
     const hasReasoning = hasContentPartOfType(state.contentParts, 'reasoning');
     const newContentParts = hasReasoning
-      ? updateContentPart(state.contentParts, 'reasoning', part => ({
+      ? updateContentPart(state.contentParts, 'reasoning', (part) => ({
           ...part,
           content: reasoningContent,
         }))
@@ -84,7 +101,10 @@ export class ReasoningHandler extends StreamEventHandler {
           content: reasoningContent,
         });
 
-    const streamingMessage = this.createStreamingMessage(state.currentTextChunk, newContentParts);
+    const streamingMessage = this.createStreamingMessage(
+      state.currentTextChunk,
+      newContentParts,
+    );
     this.updateChat({ streamingMessage });
 
     return createResult(state, {

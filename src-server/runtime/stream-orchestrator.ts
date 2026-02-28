@@ -3,17 +3,16 @@
  * Handles streaming pipeline setup, handler creation, and SSE output
  */
 
-import { StreamPipeline } from './streaming/StreamPipeline.js';
-import { ReasoningHandler } from './streaming/handlers/ReasoningHandler.js';
-import { ElicitationHandler } from './streaming/handlers/ElicitationHandler.js';
-import { TextDeltaHandler } from './streaming/handlers/TextDeltaHandler.js';
-import { ToolCallHandler } from './streaming/handlers/ToolCallHandler.js';
-import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';
-import { MetadataHandler } from './streaming/handlers/MetadataHandler.js';
-import { InjectableStream } from './streaming/InjectableStream.js';
-import { parseToolName } from '../utils/tool-name-normalizer.js';
 import type { AgentSpec } from '../domain/types.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
+import { parseToolName } from '../utils/tool-name-normalizer.js';
+import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';
+import { MetadataHandler } from './streaming/handlers/MetadataHandler.js';
+import { ReasoningHandler } from './streaming/handlers/ReasoningHandler.js';
+import { TextDeltaHandler } from './streaming/handlers/TextDeltaHandler.js';
+import { ToolCallHandler } from './streaming/handlers/ToolCallHandler.js';
+import type { InjectableStream } from './streaming/InjectableStream.js';
+import { StreamPipeline } from './streaming/StreamPipeline.js';
 import { isAutoApproved } from './tool-executor.js';
 
 // Type extensions for stream orchestrator
@@ -32,48 +31,61 @@ interface ToolApprovalRequestChunk {
  */
 export function createElicitationCallback(
   agentSpec: AgentSpec,
-  toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>,
+  toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  >,
   approvalRegistry: ApprovalRegistry,
   injectableStream: InjectableStream,
-  logger: any
+  logger: any,
 ) {
   const autoApprove = agentSpec?.tools?.autoApprove || [];
-  
+
   return async (request: any) => {
     if (request.type === 'tool-approval') {
       const toolName = request.toolName;
-      
+
       // Check if auto-approved (check both normalized and original names)
       const isApproved = isAutoApproved(toolName, autoApprove);
-      
+
       // Also check if the original (non-normalized) name matches
       const toolMapping = Array.from(toolNameMapping.values()).find(
-        m => m.normalized === toolName
+        (m) => m.normalized === toolName,
       );
-      const isApprovedOriginal = toolMapping ? isAutoApproved(toolMapping.original, autoApprove) : false;
-      
+      const isApprovedOriginal = toolMapping
+        ? isAutoApproved(toolMapping.original, autoApprove)
+        : false;
+
       if (isApproved || isApprovedOriginal) {
-        logger.info('[Elicitation] Auto-approved, returning true immediately', { 
+        logger.info('[Elicitation] Auto-approved, returning true immediately', {
           toolName,
           originalName: toolMapping?.original,
-          matched: isApproved ? 'normalized' : 'original'
+          matched: isApproved ? 'normalized' : 'original',
         });
         return true;
       }
-      
+
       // Not auto-approved - inject approval request into stream
       const approvalId = `approval-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
+
       // Parse tool name for UI display
       const { server, tool } = parseToolName(toolName);
-      
-      logger.info('[Elicitation] NOT auto-approved, injecting approval request', {
-        approvalId,
-        toolName,
-        originalName: toolMapping?.original,
-        autoApproveList: autoApprove
-      });
-      
+
+      logger.info(
+        '[Elicitation] NOT auto-approved, injecting approval request',
+        {
+          approvalId,
+          toolName,
+          originalName: toolMapping?.original,
+          autoApproveList: autoApprove,
+        },
+      );
+
       // Inject event (will appear at next chunk boundary)
       injectableStream.inject({
         type: 'tool-approval-request',
@@ -84,7 +96,7 @@ export function createElicitationCallback(
         toolDescription: request.toolDescription,
         toolArgs: request.toolArgs,
       } as unknown as any);
-      
+
       // Wait for user approval
       return approvalRegistry.register(approvalId);
     }
@@ -103,12 +115,12 @@ export function createStreamingPipeline(
     conversationId: string | undefined;
     userId: string | undefined;
     traceId: string;
-  }
+  },
 ): StreamPipeline {
   const pipeline = new StreamPipeline(abortSignal);
   const completionHandler = new CompletionHandler();
   const metadataHandler = new MetadataHandler(monitoringEvents, contextData);
-  
+
   // Add handlers in order (elicitation handled via callback + injectable stream)
   pipeline
     .use(new ReasoningHandler({ enableThinking: true }))
@@ -116,18 +128,21 @@ export function createStreamingPipeline(
     .use(new ToolCallHandler())
     .use(metadataHandler)
     .use(completionHandler);
-    
+
   return pipeline;
 }
 
 /**
  * Write SSE chunk to stream
  */
-export async function writeSSEChunk(streamWriter: any, chunk: any): Promise<void> {
+export async function writeSSEChunk(
+  streamWriter: any,
+  chunk: any,
+): Promise<void> {
   await streamWriter.write(`data: ${JSON.stringify(chunk)}\n\n`);
   // Force flush by yielding to event loop with setTimeout(0)
   // setImmediate doesn't flush network buffers, but setTimeout does
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /**
@@ -140,15 +155,21 @@ export async function writeSSEDone(streamWriter: any): Promise<void> {
 /**
  * Write SSE error
  */
-export async function writeSSEError(streamWriter: any, error: any): Promise<void> {
-  const isCredentialError = error.message?.includes('credential') || 
-                           error.message?.includes('accessKeyId') ||
-                           error.message?.includes('secretAccessKey');
-  await streamWriter.write(`data: ${JSON.stringify({ 
-    type: 'error', 
-    errorText: error.message,
-    statusCode: isCredentialError ? 401 : undefined
-  })}\n\n`);
+export async function writeSSEError(
+  streamWriter: any,
+  error: any,
+): Promise<void> {
+  const isCredentialError =
+    error.message?.includes('credential') ||
+    error.message?.includes('accessKeyId') ||
+    error.message?.includes('secretAccessKey');
+  await streamWriter.write(
+    `data: ${JSON.stringify({
+      type: 'error',
+      errorText: error.message,
+      statusCode: isCredentialError ? 401 : undefined,
+    })}\n\n`,
+  );
 }
 
 /**
@@ -156,7 +177,7 @@ export async function writeSSEError(streamWriter: any, error: any): Promise<void
  */
 export async function saveCancellationMessage(
   agent: any,
-  operationContext: any
+  operationContext: any,
 ): Promise<void> {
   const mem = agent.getMemory();
   if (mem && operationContext.conversationId && operationContext.userId) {
@@ -164,10 +185,10 @@ export async function saveCancellationMessage(
       {
         id: crypto.randomUUID(),
         role: 'assistant',
-        parts: [{ type: 'text', text: '_⚠️ Response cancelled by user_' }]
+        parts: [{ type: 'text', text: '_⚠️ Response cancelled by user_' }],
       },
       operationContext.userId,
-      operationContext.conversationId
+      operationContext.conversationId,
     );
   }
 }

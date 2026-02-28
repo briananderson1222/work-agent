@@ -8,7 +8,10 @@ export function isTauriApp(): boolean {
 }
 
 // Open a URL in a new Tauri WebView window (bypasses X-Frame-Options)
-export async function openResearchUrl(url: string, title: string): Promise<void> {
+export async function openResearchUrl(
+  url: string,
+  title: string,
+): Promise<void> {
   if (!isTauriApp()) {
     // Fallback: open in new browser tab
     window.open(url, '_blank', 'noopener,noreferrer');

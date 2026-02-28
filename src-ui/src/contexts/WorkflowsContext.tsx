@@ -1,4 +1,11 @@
-import { createContext, useContext, useCallback, ReactNode, useSyncExternalStore, useEffect } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useSyncExternalStore,
+} from 'react';
 import { log } from '@/utils/logger';
 
 type WorkflowMetadata = {
@@ -25,7 +32,7 @@ class WorkflowsStore {
   };
 
   private notify = () => {
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   };
 
   async fetchAll(apiBase: string) {
@@ -38,7 +45,7 @@ class WorkflowsStore {
       try {
         const response = await fetch(`${apiBase}/workflows`);
         const result = await response.json();
-        
+
         if (result.success) {
           this.workflows = result.data;
           this.notify();
@@ -61,9 +68,11 @@ class WorkflowsStore {
 
     const promise = (async () => {
       try {
-        const response = await fetch(`${apiBase}/agents/${agentSlug}/workflows/files`);
+        const response = await fetch(
+          `${apiBase}/agents/${agentSlug}/workflows/files`,
+        );
         const result = await response.json();
-        
+
         if (result.success) {
           this.workflows[agentSlug] = result.data.map((w: any) => ({
             ...w,
@@ -90,16 +99,21 @@ type WorkflowsContextType = {
   fetchAgentWorkflows: (apiBase: string, agentSlug: string) => Promise<void>;
 };
 
-const WorkflowsContext = createContext<WorkflowsContextType | undefined>(undefined);
+const WorkflowsContext = createContext<WorkflowsContextType | undefined>(
+  undefined,
+);
 
 export function WorkflowsProvider({ children }: { children: ReactNode }) {
   const fetchWorkflows = useCallback((apiBase: string) => {
     return workflowsStore.fetchAll(apiBase);
   }, []);
 
-  const fetchAgentWorkflows = useCallback((apiBase: string, agentSlug: string) => {
-    return workflowsStore.fetchForAgent(apiBase, agentSlug);
-  }, []);
+  const fetchAgentWorkflows = useCallback(
+    (apiBase: string, agentSlug: string) => {
+      return workflowsStore.fetchForAgent(apiBase, agentSlug);
+    },
+    [],
+  );
 
   return (
     <WorkflowsContext.Provider value={{ fetchWorkflows, fetchAgentWorkflows }}>
@@ -108,7 +122,10 @@ export function WorkflowsProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useWorkflows(apiBase: string, shouldFetch: boolean = true): WorkflowCatalog {
+export function useWorkflows(
+  apiBase: string,
+  shouldFetch: boolean = true,
+): WorkflowCatalog {
   const context = useContext(WorkflowsContext);
   if (!context) {
     throw new Error('useWorkflows must be used within WorkflowsProvider');
@@ -119,7 +136,7 @@ export function useWorkflows(apiBase: string, shouldFetch: boolean = true): Work
   const workflows = useSyncExternalStore(
     workflowsStore.subscribe,
     workflowsStore.getSnapshot,
-    workflowsStore.getSnapshot
+    workflowsStore.getSnapshot,
   );
 
   useEffect(() => {
@@ -131,7 +148,11 @@ export function useWorkflows(apiBase: string, shouldFetch: boolean = true): Work
   return workflows;
 }
 
-export function useAgentWorkflows(apiBase: string, agentSlug: string, shouldFetch: boolean = true): WorkflowMetadata[] {
+export function useAgentWorkflows(
+  apiBase: string,
+  agentSlug: string,
+  shouldFetch: boolean = true,
+): WorkflowMetadata[] {
   const context = useContext(WorkflowsContext);
   if (!context) {
     throw new Error('useAgentWorkflows must be used within WorkflowsProvider');
@@ -142,7 +163,7 @@ export function useAgentWorkflows(apiBase: string, agentSlug: string, shouldFetc
   const workflows = useSyncExternalStore(
     workflowsStore.subscribe,
     workflowsStore.getSnapshot,
-    workflowsStore.getSnapshot
+    workflowsStore.getSnapshot,
   );
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import type { WorkflowFile } from '../types';
 
@@ -35,7 +35,9 @@ export function WorkflowManagementView({
 }: WorkflowManagementViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [workflows, setWorkflows] = useState<WorkflowFile[]>([]);
-  const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowFile | null>(null);
+  const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowFile | null>(
+    null,
+  );
   const [editorContent, setEditorContent] = useState('');
   const [newWorkflowName, setNewWorkflowName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -45,13 +47,15 @@ export function WorkflowManagementView({
 
   useEffect(() => {
     loadWorkflows();
-  }, [agentSlug]);
+  }, [loadWorkflows]);
 
   const loadWorkflows = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/workflows/files`);
+      const response = await fetch(
+        `${apiBase}/agents/${agentSlug}/workflows/files`,
+      );
       if (!response.ok) throw new Error('Failed to load workflows');
       const data = await response.json();
       setWorkflows(data.data || []);
@@ -66,7 +70,9 @@ export function WorkflowManagementView({
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/workflows/${workflowId}`);
+      const response = await fetch(
+        `${apiBase}/agents/${agentSlug}/workflows/${workflowId}`,
+      );
       if (!response.ok) throw new Error('Failed to load workflow content');
       const data = await response.json();
       const workflow = data.data;
@@ -91,11 +97,17 @@ export function WorkflowManagementView({
       setError(null);
 
       if (viewMode === 'create') {
-        const response = await fetch(`${apiBase}/agents/${agentSlug}/workflows`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: newWorkflowName, content: editorContent }),
-        });
+        const response = await fetch(
+          `${apiBase}/agents/${agentSlug}/workflows`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename: newWorkflowName,
+              content: editorContent,
+            }),
+          },
+        );
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Failed to create workflow');
@@ -107,7 +119,7 @@ export function WorkflowManagementView({
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: editorContent }),
-          }
+          },
         );
         if (!response.ok) {
           const errorData = await response.json();
@@ -132,9 +144,12 @@ export function WorkflowManagementView({
       setIsSaving(true);
       setError(null);
       setWorkflowToDelete(null);
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/workflows/${workflowId}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(
+        `${apiBase}/agents/${agentSlug}/workflows/${workflowId}`,
+        {
+          method: 'DELETE',
+        },
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete workflow');
@@ -170,7 +185,11 @@ export function WorkflowManagementView({
     return (
       <div className="management-view">
         <div className="management-view__header">
-          <button type="button" className="button button--secondary" onClick={onBack}>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={onBack}
+          >
             Back
           </button>
           <h2>Manage Workflows: {agentName}</h2>
@@ -184,7 +203,11 @@ export function WorkflowManagementView({
     <>
       <div className="management-view">
         <div className="management-view__header">
-          <button type="button" className="button button--secondary" onClick={viewMode === 'list' ? onBack : cancelEdit}>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={viewMode === 'list' ? onBack : cancelEdit}
+          >
             {viewMode === 'list' ? 'Back' : 'Cancel'}
           </button>
           <h2>
@@ -195,7 +218,11 @@ export function WorkflowManagementView({
                 : `Edit: ${currentWorkflow?.name}`}
           </h2>
           {viewMode === 'list' && (
-            <button type="button" className="button button--primary" onClick={startCreate}>
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={startCreate}
+            >
               New Workflow
             </button>
           )}
@@ -219,7 +246,11 @@ export function WorkflowManagementView({
               <div className="empty-state">
                 <h3>No workflows yet</h3>
                 <p>Create your first workflow to get started.</p>
-                <button type="button" className="button button--primary" onClick={startCreate}>
+                <button
+                  type="button"
+                  className="button button--primary"
+                  onClick={startCreate}
+                >
                   New Workflow
                 </button>
               </div>
@@ -229,7 +260,9 @@ export function WorkflowManagementView({
                   <div key={workflow.id} className="workflow-card">
                     <div className="workflow-card__header">
                       <h3>{workflow.name}</h3>
-                      <span className="workflow-badge">{workflow.extension}</span>
+                      <span className="workflow-badge">
+                        {workflow.extension}
+                      </span>
                     </div>
                     <div className="workflow-card__meta">
                       <span>Modified: {formatDate(workflow.lastModified)}</span>

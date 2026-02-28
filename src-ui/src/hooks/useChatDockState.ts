@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface UseChatDockStateOptions {
   defaultFontSize: number;
@@ -6,7 +6,11 @@ interface UseChatDockStateOptions {
   isDockMaximized: boolean;
 }
 
-export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized }: UseChatDockStateOptions) {
+export function useChatDockState({
+  defaultFontSize,
+  isDockOpen,
+  isDockMaximized,
+}: UseChatDockStateOptions) {
   // Dock sizing
   const [dockHeight, setDockHeight] = useState(400);
   const [previousDockHeight, setPreviousDockHeight] = useState(400);
@@ -32,27 +36,52 @@ export function useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized 
   // Update CSS variable for content-view padding
   useEffect(() => {
     const styles = getComputedStyle(document.documentElement);
-    const headerHeight = parseInt(styles.getPropertyValue('--chat-dock-header-height'));
-    const toolbarHeight = parseInt(styles.getPropertyValue('--app-toolbar-height'));
-    const height = !isDockOpen ? headerHeight : isDockMaximized ? window.innerHeight - toolbarHeight : dockHeight;
-    document.documentElement.style.setProperty('--chat-dock-height', `${height}px`);
+    const headerHeight = parseInt(
+      styles.getPropertyValue('--chat-dock-header-height'),
+      10,
+    );
+    const toolbarHeight = parseInt(
+      styles.getPropertyValue('--app-toolbar-height'),
+      10,
+    );
+    const height = !isDockOpen
+      ? headerHeight
+      : isDockMaximized
+        ? window.innerHeight - toolbarHeight
+        : dockHeight;
+    document.documentElement.style.setProperty(
+      '--chat-dock-height',
+      `${height}px`,
+    );
   }, [isDockOpen, isDockMaximized, dockHeight]);
 
   return {
     // Dock sizing
-    dockHeight, setDockHeight,
-    previousDockHeight, setPreviousDockHeight,
-    previousDockOpen, setPreviousDockOpen,
-    isDragging, setIsDragging,
+    dockHeight,
+    setDockHeight,
+    previousDockHeight,
+    setPreviousDockHeight,
+    previousDockOpen,
+    setPreviousDockOpen,
+    isDragging,
+    setIsDragging,
     // Chat UI
-    chatFontSize, setChatFontSize,
-    showStatsPanel, setShowStatsPanel,
-    showReasoning, setShowReasoning,
-    showToolDetails, setShowToolDetails,
-    showChatSettings, setShowChatSettings,
-    showNewChatModal, setShowNewChatModal,
-    showSessionPicker, setShowSessionPicker,
+    chatFontSize,
+    setChatFontSize,
+    showStatsPanel,
+    setShowStatsPanel,
+    showReasoning,
+    setShowReasoning,
+    showToolDetails,
+    setShowToolDetails,
+    showChatSettings,
+    setShowChatSettings,
+    showNewChatModal,
+    setShowNewChatModal,
+    showSessionPicker,
+    setShowSessionPicker,
     // Session
-    activeSessionId, setActiveSessionId,
+    activeSessionId,
+    setActiveSessionId,
   };
 }

@@ -21,7 +21,7 @@ export class EventsAPI {
   emit<T = any>(event: string, data: T): void {
     const handlers = this.handlers.get(event);
     if (handlers) {
-      handlers.forEach(handler => handler(data));
+      handlers.forEach((handler) => handler(data));
     }
   }
 

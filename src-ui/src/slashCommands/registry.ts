@@ -8,7 +8,14 @@ export type SlashCommandContext = {
   args: string[];
   apiBase: string;
   updateChat: (sessionId: string, updates: any) => void;
-  addEphemeralMessage: (sessionId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; contentType?: 'markdown' | 'html' }) => void;
+  addEphemeralMessage: (
+    sessionId: string,
+    message: {
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      contentType?: 'markdown' | 'html';
+    },
+  ) => void;
   queryClient: QueryClient;
   sendMessage: (content: string) => Promise<void>;
   autocomplete: {
@@ -19,7 +26,9 @@ export type SlashCommandContext = {
 };
 
 // Commands just do their work, no return value needed
-export type SlashCommandHandler = (context: SlashCommandContext) => Promise<void>;
+export type SlashCommandHandler = (
+  context: SlashCommandContext,
+) => Promise<void>;
 
 // Command registry
 const commands = new Map<string, SlashCommandHandler>();

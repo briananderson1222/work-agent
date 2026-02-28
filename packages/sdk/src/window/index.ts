@@ -8,14 +8,14 @@ export class WindowAPI {
       new WebviewWindow(options.title || 'Window', {
         url: options.url,
         width: options.width,
-        height: options.height
+        height: options.height,
       });
     } else {
       // Fallback to browser window
       window.open(
         options.url,
         options.title || '_blank',
-        `width=${options.width || 800},height=${options.height || 600}`
+        `width=${options.width || 800},height=${options.height || 600}`,
       );
     }
   }

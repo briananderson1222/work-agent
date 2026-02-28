@@ -7,7 +7,7 @@ import type { MCPService } from '../services/mcp-service.js';
 
 export function createToolRoutes(
   mcpService: MCPService,
-  reinitialize: () => Promise<void>
+  _reinitialize: () => Promise<void>,
 ) {
   const app = new Hono();
 
@@ -31,7 +31,7 @@ export function createToolRoutes(
 export function createAgentToolRoutes(
   mcpService: MCPService,
   getActiveAgent: (slug: string) => any,
-  reinitialize: () => Promise<void>
+  reinitialize: () => Promise<void>,
 ) {
   const app = new Hono<{ Variables: { slug: string } }>();
 
@@ -40,9 +40,12 @@ export function createAgentToolRoutes(
     try {
       const slug = c.req.param('slug')!;
       const agent = getActiveAgent(slug);
-      
+
       if (!agent) {
-        return c.json({ success: false, error: 'Agent not found or not active' }, 404);
+        return c.json(
+          { success: false, error: 'Agent not found or not active' },
+          404,
+        );
       }
 
       const toolsData = mcpService.getAgentTools(slug);

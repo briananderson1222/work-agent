@@ -1,14 +1,14 @@
 /**
  * Workspace Provider System
- * 
+ *
  * Manages provider registration and resolution for workspaces.
  * Providers are resolved workspace-first, then global fallback.
  */
 
 // Provider metadata (from package.json stallionProvider field)
 export interface ProviderMetadata {
-  workspace: string;  // workspace slug, or '*' for global
-  type: string;       // provider type (e.g., 'calendar', 'crm')
+  workspace: string; // workspace slug, or '*' for global
+  type: string; // provider type (e.g., 'calendar', 'crm')
 }
 
 interface ProviderEntry {
@@ -30,15 +30,15 @@ const config = new Map<string, Map<string, string>>();
 export function registerProvider(
   id: string,
   metadata: ProviderMetadata,
-  factory: () => any
+  factory: () => any,
 ) {
   const { workspace, type } = metadata;
-  
+
   if (!registry.has(workspace)) {
     registry.set(workspace, new Map());
   }
   const wsRegistry = registry.get(workspace)!;
-  
+
   if (!wsRegistry.has(type)) {
     wsRegistry.set(type, new Map());
   }
@@ -46,12 +46,16 @@ export function registerProvider(
 }
 
 /** Configure which provider to use for a workspace + type */
-export function configureProvider(workspace: string, type: string, providerId: string) {
+export function configureProvider(
+  workspace: string,
+  type: string,
+  providerId: string,
+) {
   if (!config.has(workspace)) {
     config.set(workspace, new Map());
   }
   config.get(workspace)!.set(type, providerId);
-  
+
   // Clear active instance so it gets re-resolved
   active.get(workspace)?.delete(type);
 }
@@ -64,22 +68,29 @@ export function getProviderConfig(workspace: string): Record<string, string> {
 }
 
 /** Set provider configuration for a workspace (bulk) */
-export function setProviderConfig(workspace: string, cfg: Record<string, string>) {
+export function setProviderConfig(
+  workspace: string,
+  cfg: Record<string, string>,
+) {
   config.set(workspace, new Map(Object.entries(cfg)));
   // Clear active instances
   active.delete(workspace);
 }
 
 /** Find provider entry - workspace first, then global */
-function findProvider(workspace: string, type: string, providerId: string): ProviderEntry | null {
+function findProvider(
+  workspace: string,
+  type: string,
+  providerId: string,
+): ProviderEntry | null {
   // Check workspace-specific
   const wsEntry = registry.get(workspace)?.get(type)?.get(providerId);
   if (wsEntry) return wsEntry;
-  
+
   // Check global (workspace: '*')
   const globalEntry = registry.get('*')?.get(type)?.get(providerId);
   if (globalEntry) return globalEntry;
-  
+
   return null;
 }
 
@@ -90,27 +101,31 @@ export function getProvider<T = any>(workspace: string, type: string): T {
   if (wsActive?.has(type)) {
     return wsActive.get(type)!.instance as T;
   }
-  
+
   // Get configured provider ID
   const providerId = config.get(workspace)?.get(type);
   if (!providerId) {
-    throw new Error(`No provider configured for workspace '${workspace}' type '${type}'`);
+    throw new Error(
+      `No provider configured for workspace '${workspace}' type '${type}'`,
+    );
   }
-  
+
   // Find and instantiate
   const entry = findProvider(workspace, type, providerId);
   if (!entry) {
-    throw new Error(`Provider '${providerId}' not found for workspace '${workspace}' type '${type}'`);
+    throw new Error(
+      `Provider '${providerId}' not found for workspace '${workspace}' type '${type}'`,
+    );
   }
-  
+
   const instance = entry.factory();
-  
+
   // Cache instance
   if (!active.has(workspace)) {
     active.set(workspace, new Map());
   }
   active.get(workspace)!.set(type, { id: providerId, instance });
-  
+
   return instance as T;
 }
 
@@ -122,19 +137,31 @@ export function hasProvider(workspace: string, type: string): boolean {
 }
 
 /** List available providers for a workspace + type (workspace-specific + global) */
-export function getAvailableProviders(workspace: string, type: string): string[] {
+export function getAvailableProviders(
+  workspace: string,
+  type: string,
+): string[] {
   const ids = new Set<string>();
-  
+
   // Workspace-specific
-  registry.get(workspace)?.get(type)?.forEach((_, id) => ids.add(id));
-  
+  registry
+    .get(workspace)
+    ?.get(type)
+    ?.forEach((_, id) => ids.add(id));
+
   // Global
-  registry.get('*')?.get(type)?.forEach((_, id) => ids.add(id));
-  
+  registry
+    .get('*')
+    ?.get(type)
+    ?.forEach((_, id) => ids.add(id));
+
   return Array.from(ids);
 }
 
 /** Get active provider ID for a workspace + type */
-export function getActiveProviderId(workspace: string, type: string): string | null {
+export function getActiveProviderId(
+  workspace: string,
+  type: string,
+): string | null {
   return active.get(workspace)?.get(type)?.id ?? null;
 }

@@ -1,6 +1,10 @@
-import { Hono } from 'hono';
 import { createPinoLogger } from '@voltagent/logger';
-import { getAuthProvider, getUserIdentityProvider, getUserDirectoryProvider } from '../providers/registry.js';
+import { Hono } from 'hono';
+import {
+  getAuthProvider,
+  getUserDirectoryProvider,
+  getUserIdentityProvider,
+} from '../providers/registry.js';
 import type { UserIdentity } from '../providers/types.js';
 
 const logger = createPinoLogger({ name: 'auth' });
@@ -13,9 +17,11 @@ let cachedUser: UserIdentity | null = null;
 export function getCachedUser(): UserIdentity {
   if (!cachedUser) {
     // Synchronous fallback — kick off async resolution
-    const os = require('os');
+    const os = require('node:os');
     cachedUser = { alias: os.userInfo().username };
-    resolveUser().catch((e) => logger.error('resolveUser failed', { error: e }));
+    resolveUser().catch((e) =>
+      logger.error('resolveUser failed', { error: e }),
+    );
   }
   return cachedUser;
 }
@@ -25,7 +31,12 @@ async function resolveUser(): Promise<UserIdentity> {
   const provider = getUserIdentityProvider();
   cachedUser = await provider.getIdentity();
   if (provider.enrichIdentity) {
-    provider.enrichIdentity(cachedUser).then((enriched) => { cachedUser = enriched; }).catch(() => {});
+    provider
+      .enrichIdentity(cachedUser)
+      .then((enriched) => {
+        cachedUser = enriched;
+      })
+      .catch(() => {});
   }
   return cachedUser;
 }

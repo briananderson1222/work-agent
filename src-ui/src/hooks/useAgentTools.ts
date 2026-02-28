@@ -16,4 +16,3 @@ export function useAgentTools(apiBase: string, agentSlug: string | undefined) {
 
   return tools;
 }
-

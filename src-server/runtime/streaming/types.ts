@@ -22,7 +22,7 @@ export interface HandlerConfig {
 
 /**
  * Stream handler interface - processes chunks using generator pattern
- * 
+ *
  * Each handler:
  * - Receives an async iterable of chunks (output of previous handler)
  * - Yields 0 or more chunks per input chunk
@@ -34,14 +34,14 @@ export interface HandlerConfig {
 export interface StreamHandler {
   /** Handler name for debugging */
   name: string;
-  
+
   /**
    * Process a stream of chunks
    * @param input - Async iterable of chunks from previous handler (or source)
    * @returns Async generator yielding 0+ chunks per input
    */
   process(input: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk>;
-  
+
   /**
    * Optional finalize method called after all chunks processed
    * Can return metadata/stats collected during processing

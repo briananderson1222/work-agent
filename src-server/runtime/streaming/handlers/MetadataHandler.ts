@@ -1,25 +1,25 @@
+import type { EventEmitter } from 'node:events';
 import type { StreamChunk, StreamHandler } from '../types.js';
-import type { EventEmitter } from 'events';
 
 /**
  * Collects statistics and emits monitoring events
- * 
+ *
  * Tracks:
  * - Text chunks
- * - Reasoning blocks  
+ * - Reasoning blocks
  * - Tool calls
  * - Step count
- * 
+ *
  * Emits monitoring events for observability
  */
 export class MetadataHandler implements StreamHandler {
   name = 'metadata';
-  
+
   private stats = {
     textChunks: 0,
     reasoningBlocks: 0,
     toolCalls: 0,
-    steps: 0
+    steps: 0,
   };
 
   constructor(
@@ -29,17 +29,19 @@ export class MetadataHandler implements StreamHandler {
       conversationId?: string;
       userId?: string;
       traceId?: string;
-    }
+    },
   ) {}
 
-  async *process(input: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk> {
+  async *process(
+    input: AsyncIterable<StreamChunk>,
+  ): AsyncGenerator<StreamChunk> {
     for await (const chunk of input) {
       // Collect stats
       this.collectStats(chunk);
-      
+
       // Emit monitoring events
       this.emitMonitoringEvent(chunk);
-      
+
       // Pass through unchanged
       yield chunk;
     }
@@ -96,7 +98,7 @@ export class MetadataHandler implements StreamHandler {
         });
         break;
 
-      case 'reasoning-end':
+      case 'reasoning-end': {
         // Only emit reasoning event at the end with complete content
         // Note: reasoning-end in AI SDK doesn't have text field, but custom handlers may add it
         const reasoningChunk = chunk as StreamChunk & { text?: string };
@@ -108,6 +110,7 @@ export class MetadataHandler implements StreamHandler {
           });
         }
         break;
+      }
     }
   }
 

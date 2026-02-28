@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
-import { useKeyboardShortcuts, KeyboardShortcut } from '../contexts/KeyboardShortcutsContext';
+import {
+  type KeyboardShortcut,
+  useKeyboardShortcuts,
+} from '../contexts/KeyboardShortcutsContext';
 
 export function useKeyboardShortcut(
   id: string,
@@ -7,16 +10,22 @@ export function useKeyboardShortcut(
   modifiers: ('cmd' | 'ctrl' | 'shift' | 'alt')[],
   description: string,
   handler: () => void,
-  enabled = true
+  enabled = true,
 ) {
   const { register } = useKeyboardShortcuts();
 
   useEffect(() => {
     if (!enabled) return;
-    
-    const shortcut: KeyboardShortcut = { id, key, modifiers, description, handler };
+
+    const shortcut: KeyboardShortcut = {
+      id,
+      key,
+      modifiers,
+      description,
+      handler,
+    };
     return register(shortcut);
-  }, [id, key, modifiers.join(','), description, handler, enabled, register]);
+  }, [id, key, description, handler, enabled, register, modifiers]);
 }
 
 export function useShortcutDisplay(id: string): string {

@@ -7,25 +7,25 @@ import type { ReactElement } from 'react';
 
 // Re-export all shared types
 export type {
-  PluginManifest,
-  AgentSpec,
   AgentGuardrails,
+  AgentInvokeResponse,
+  AgentMetadata,
+  AgentQuickPrompt,
+  AgentSpec,
   AgentTools,
   AgentUIConfig,
-  AgentQuickPrompt,
-  AgentMetadata,
+  ConversationStats,
+  PluginManifest,
   SlashCommand,
   SlashCommandParam,
-  ToolDef,
-  ToolPermissions,
-  ToolMetadata,
-  WorkspaceConfig,
-  WorkspaceTab,
-  WorkspacePrompt,
-  WorkspaceMetadata,
   ToolCallResponse,
-  AgentInvokeResponse,
-  ConversationStats,
+  ToolDef,
+  ToolMetadata,
+  ToolPermissions,
+  WorkspaceConfig,
+  WorkspaceMetadata,
+  WorkspacePrompt,
+  WorkspaceTab,
 } from '@work-agent/shared';
 
 // ── SDK-specific types (React/UI concerns) ─────────────────────────
@@ -34,14 +34,18 @@ export interface WorkspaceComponentProps {
   agent?: AgentSummary;
   workspace?: import('@work-agent/shared').WorkspaceConfig;
   activeTab?: import('@work-agent/shared').WorkspaceTab;
-  onLaunchPrompt?: (prompt: import('@work-agent/shared').AgentQuickPrompt) => void;
+  onLaunchPrompt?: (
+    prompt: import('@work-agent/shared').AgentQuickPrompt,
+  ) => void;
   onLaunchWorkflow?: (workflowId: string) => void;
   onShowChat?: () => void;
   onRequestAuth?: () => Promise<boolean>;
   onSendToChat?: (text: string, agent?: string) => void;
 }
 
-export type WorkspaceComponent = (props: WorkspaceComponentProps) => ReactElement;
+export type WorkspaceComponent = (
+  props: WorkspaceComponentProps,
+) => ReactElement;
 
 export interface AgentSummary {
   slug: string;

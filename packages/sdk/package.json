@@ -9,7 +9,11 @@
     "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/components',dst='dist/components';fs.readdirSync(src).filter(f=>f.endsWith('.css')).forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dst,f)))\"",
     "watch": "tsc --watch"
   },
-  "keywords": ["work-agent", "plugin", "sdk"],
+  "keywords": [
+    "work-agent",
+    "plugin",
+    "sdk"
+  ],
   "author": "Stallion AI",
   "license": "MIT",
   "peerDependencies": {

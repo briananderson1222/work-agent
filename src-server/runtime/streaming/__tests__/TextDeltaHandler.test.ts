@@ -1,12 +1,16 @@
-import { describe, test, expect } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { TextDeltaHandler } from '../handlers/TextDeltaHandler.js';
 import type { StreamChunk } from '../types.js';
-import { toStream, collect } from './helpers.js';
+import { collect, toStream } from './helpers.js';
 
 describe('TextDeltaHandler', () => {
   test('passes through text-delta events', async () => {
     const handler = new TextDeltaHandler();
-    const input = { type: 'text-delta', id: '0', text: 'test' } as unknown as StreamChunk;
+    const input = {
+      type: 'text-delta',
+      id: '0',
+      text: 'test',
+    } as unknown as StreamChunk;
     const result = await collect(handler.process(toStream([input])));
 
     expect(result).toHaveLength(1);
@@ -15,7 +19,12 @@ describe('TextDeltaHandler', () => {
 
   test('passes through non-text-delta events', async () => {
     const handler = new TextDeltaHandler();
-    const input = { type: 'tool-call', toolCallId: '1', toolName: 'test', args: {} } as unknown as StreamChunk;
+    const input = {
+      type: 'tool-call',
+      toolCallId: '1',
+      toolName: 'test',
+      args: {},
+    } as unknown as StreamChunk;
     const result = await collect(handler.process(toStream([input])));
 
     expect(result).toHaveLength(1);

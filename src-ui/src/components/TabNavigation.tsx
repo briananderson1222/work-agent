@@ -7,7 +7,11 @@ export interface TabNavigationProps {
   onTabChange: (tabId: string) => void;
 }
 
-export function TabNavigation({ tabs, activeTabId, onTabChange }: TabNavigationProps) {
+export function TabNavigation({
+  tabs,
+  activeTabId,
+  onTabChange,
+}: TabNavigationProps) {
   if (tabs.length <= 1) return null;
 
   return (
@@ -21,7 +25,9 @@ export function TabNavigation({ tabs, activeTabId, onTabChange }: TabNavigationP
               activeTabId === tab.id ? 'workspace-tabs__tab--active' : ''
             }`}
           >
-            {tab.icon && <span className="workspace-tabs__icon">{tab.icon}</span>}
+            {tab.icon && (
+              <span className="workspace-tabs__icon">{tab.icon}</span>
+            )}
             <span className="workspace-tabs__label">{tab.label}</span>
           </button>
         ))}

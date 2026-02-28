@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
-import { getInitials } from '../utils/workspace';
-import { WorkspaceIcon } from './WorkspaceIcon';
-import { NotificationHistory } from './NotificationHistory';
 import { useAuth } from '../contexts/AuthContext';
+import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { NavigationView } from '../types';
+import { getInitials } from '../utils/workspace';
+import { NotificationHistory } from './NotificationHistory';
+import { WorkspaceIcon } from './WorkspaceIcon';
 
 interface HeaderProps {
   workspaces: any[];
@@ -31,7 +31,8 @@ export function Header({
   const { user: authUser } = useAuth();
   const userName = authUser?.name || authUser?.alias || 'User';
   const userInitials = getInitials(userName);
-  const [showWorkspaceAutocomplete, setShowWorkspaceAutocomplete] = useState(false);
+  const [showWorkspaceAutocomplete, setShowWorkspaceAutocomplete] =
+    useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [workspaceQuery, setWorkspaceQuery] = useState('');
 
@@ -42,13 +43,13 @@ export function Header({
     if (workspaces.length === 1) {
       return;
     }
-    
+
     // Otherwise show autocomplete to switch workspaces
     setWorkspaceQuery('');
     setShowWorkspaceAutocomplete(true);
   };
 
-  const handleWorkspaceButtonClick = () => {
+  const _handleWorkspaceButtonClick = () => {
     // Navigate to workspaces management page
     onNavigate({ type: 'workspaces' });
   };
@@ -57,30 +58,57 @@ export function Header({
     onWorkspaceSelect(workspace.slug);
     setShowWorkspaceAutocomplete(false);
     setWorkspaceQuery('');
+    onNavigate({ type: 'workspace' });
   };
-  
+
   return (
     <header className="app-toolbar">
-      <div 
-        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          cursor: 'pointer',
+        }}
         onClick={() => onNavigate({ type: 'workspace' })}
       >
-        <img src="/favicon.png" alt="" style={{ width: '20px', height: '20px' }} />
-        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+        <img
+          src="/favicon.png"
+          alt=""
+          style={{ width: '20px', height: '20px' }}
+        />
+        <div
+          style={{
+            fontSize: '14px',
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+          }}
+        >
           Project Stallion
         </div>
       </div>
 
-      {/* Workspace indicator when in workspace view */}
-      {currentView?.type === 'workspace' && selectedWorkspace && (
+      {/* Workspace indicator — always visible when a workspace is selected */}
+      {selectedWorkspace && (
         <>
           <div className="header-divider" />
           <button
             type="button"
             className="button button--secondary"
             onClick={handleWorkspaceIndicatorClick}
-            title={workspaces.length > 1 ? "Switch workspace" : selectedWorkspace.name}
-            style={{ fontSize: '14px', padding: '6px 12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
+            title={
+              workspaces.length > 1
+                ? 'Switch workspace'
+                : selectedWorkspace.name
+            }
+            style={{
+              fontSize: '14px',
+              padding: '6px 12px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
           >
             <WorkspaceIcon workspace={selectedWorkspace} size={24} />
             <span>{selectedWorkspace.name}</span>
@@ -91,17 +119,14 @@ export function Header({
       <div style={{ flex: 1 }} />
 
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <nav style={{ display: 'flex', gap: '4px', alignItems: 'center' }} className="header-nav">
+        <nav
+          style={{ display: 'flex', gap: '4px', alignItems: 'center' }}
+          className="header-nav"
+        >
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'workspaces' ? 'is-active' : ''}`}
-            onClick={() => {
-              if (currentView?.type === 'workspaces') {
-                onNavigate({ type: 'workspace' });
-              } else {
-                onNavigate({ type: 'workspaces' });
-              }
-            }}
+            onClick={() => onNavigate({ type: 'workspaces' })}
             title="Workspaces"
           >
             Workspaces
@@ -184,14 +209,30 @@ export function Header({
             className="button button--secondary"
             onClick={() => setShowNotifications(!showNotifications)}
             title="Notifications"
-            style={{ fontSize: '14px', padding: '6px 12px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{
+              fontSize: '14px',
+              padding: '6px 12px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
             </svg>
           </button>
-          <NotificationHistory 
+          <NotificationHistory
             isOpen={showNotifications}
             onClose={() => setShowNotifications(false)}
             onViewAll={() => onNavigate({ type: 'notifications' })}
@@ -247,14 +288,16 @@ export function Header({
             }
           }}
         >
-          <div style={{
-            background: 'var(--bg-secondary)',
-            borderRadius: '8px',
-            padding: '16px',
-            minWidth: '400px',
-            maxWidth: '600px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-          }}>
+          <div
+            style={{
+              background: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              padding: '16px',
+              minWidth: '400px',
+              maxWidth: '600px',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            }}
+          >
             <input
               type="text"
               value={workspaceQuery}
@@ -279,9 +322,12 @@ export function Header({
             />
             <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
               {workspaces
-                .filter(w => {
+                .filter((w) => {
                   const q = (workspaceQuery || '').toLowerCase();
-                  return w.name.toLowerCase().includes(q) || w.slug.toLowerCase().includes(q);
+                  return (
+                    w.name.toLowerCase().includes(q) ||
+                    w.slug.toLowerCase().includes(q)
+                  );
                 })
                 .map((ws: any) => (
                   <div
@@ -295,30 +341,80 @@ export function Header({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '12px',
-                      background: selectedWorkspace?.slug === ws.slug ? 'var(--bg-hover)' : 'transparent',
+                      background:
+                        selectedWorkspace?.slug === ws.slug
+                          ? 'var(--bg-hover)'
+                          : 'transparent',
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = selectedWorkspace?.slug === ws.slug ? 'var(--bg-hover)' : 'transparent'}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = 'var(--bg-hover)')
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background =
+                        selectedWorkspace?.slug === ws.slug
+                          ? 'var(--bg-hover)'
+                          : 'transparent')
+                    }
                   >
                     <WorkspaceIcon workspace={ws} size={32} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
                         <span>{ws.name}</span>
                         {selectedWorkspace?.slug === ws.slug && (
-                          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', background: 'var(--accent-primary)', color: 'white', fontWeight: 500 }}>active</span>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              background: 'var(--accent-primary)',
+                              color: 'white',
+                              fontWeight: 500,
+                            }}
+                          >
+                            active
+                          </span>
                         )}
                       </div>
                       {ws.description && (
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.description}</div>
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            color: 'var(--text-secondary)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {ws.description}
+                        </div>
                       )}
                     </div>
                   </div>
                 ))}
-              {workspaces.filter(w => {
+              {workspaces.filter((w) => {
                 const q = (workspaceQuery || '').toLowerCase();
-                return w.name.toLowerCase().includes(q) || w.slug.toLowerCase().includes(q);
+                return (
+                  w.name.toLowerCase().includes(q) ||
+                  w.slug.toLowerCase().includes(q)
+                );
               }).length === 0 && (
-                <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No workspaces found</div>
+                <div
+                  style={{
+                    padding: '12px',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)',
+                    fontSize: '14px',
+                  }}
+                >
+                  No workspaces found
+                </div>
               )}
             </div>
           </div>

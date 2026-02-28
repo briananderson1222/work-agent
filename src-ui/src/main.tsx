@@ -1,44 +1,48 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import * as ReactAll from 'react';
-import * as jsxRuntime from 'react/jsx-runtime';
-import * as SDK from '@work-agent/sdk';
 import * as ReactQuery from '@tanstack/react-query';
-import DOMPurify from 'dompurify';
+import * as SDK from '@work-agent/sdk';
 import debug from 'debug';
+import DOMPurify from 'dompurify';
+import React, * as ReactAll from 'react';
+import * as jsxRuntime from 'react/jsx-runtime';
+import ReactDOM from 'react-dom/client';
 import * as zod from 'zod';
 import { UserDetailModal } from './components/UserDetailModal';
 
 // Expose shared modules globally for dynamically loaded plugin bundles
 (window as any).__work_agent_shared = {
-  'react': ReactAll,
+  react: ReactAll,
   'react/jsx-runtime': jsxRuntime,
   'react/jsx-dev-runtime': jsxRuntime,
   '@work-agent/sdk': SDK,
   '@tanstack/react-query': ReactQuery,
-  'dompurify': Object.assign((...a: any[]) => DOMPurify.sanitize(...a), { ...DOMPurify, default: DOMPurify, __esModule: true }),
-  'debug': Object.assign(debug, { default: debug, __esModule: true }),
-  'zod': zod,
+  dompurify: Object.assign((...a: any[]) => DOMPurify.sanitize(...a), {
+    ...DOMPurify,
+    default: DOMPurify,
+    __esModule: true,
+  }),
+  debug: Object.assign(debug, { default: debug, __esModule: true }),
+  zod: zod,
   '@work-agent/components': { UserDetailModal },
 };
+
 import App from './App';
 import './index.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { _setApiBase } from '@work-agent/sdk';
-import { NavigationProvider } from './contexts/NavigationContext';
-import { WorkspacesProvider } from './contexts/WorkspacesContext';
-import { WorkflowsProvider } from './contexts/WorkflowsContext';
-import { ConversationsProvider } from './contexts/ConversationsContext';
+import { NotificationContainer } from './components/NotificationContainer';
+import { OnboardingGate } from './components/OnboardingGate';
 import { ActiveChatsProvider } from './contexts/ActiveChatsContext';
-import { StreamingProvider } from './contexts/StreamingContext';
 import { AnalyticsProvider } from './contexts/AnalyticsContext';
 import { ApiBaseProvider } from './contexts/ApiBaseContext';
 import { AuthProvider } from './contexts/AuthContext';
-import { ToastProvider } from './contexts/ToastContext';
-import { PreviewProvider } from './contexts/PreviewContext';
-import { NotificationContainer } from './components/NotificationContainer';
+import { ConversationsProvider } from './contexts/ConversationsContext';
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext';
-import { OnboardingGate } from './components/OnboardingGate';
+import { NavigationProvider } from './contexts/NavigationContext';
+import { PreviewProvider } from './contexts/PreviewContext';
+import { StreamingProvider } from './contexts/StreamingContext';
+import { ToastProvider } from './contexts/ToastContext';
+import { WorkflowsProvider } from './contexts/WorkflowsContext';
+import { WorkspacesProvider } from './contexts/WorkspacesContext';
 import { PermissionManager } from './core/PermissionManager';
 import { pluginRegistry } from './core/PluginRegistry';
 
@@ -77,34 +81,34 @@ pluginRegistry.initialize().then(() => {
         <ApiBaseProvider>
           <AuthProvider>
             <OnboardingGate>
-            <PermissionManager>
-            <NavigationProvider>
-              <KeyboardShortcutsProvider>
-                <ToastProvider>
-                <WorkspacesProvider>
-                  <WorkflowsProvider>
-                    <ConversationsProvider>
-                      <ActiveChatsProvider>
-                        <StreamingProvider>
-                          <AnalyticsProvider>
-                            <PreviewProvider>
-                              <App />
-                              <NotificationContainer />
-                            </PreviewProvider>
-                          </AnalyticsProvider>
-                        </StreamingProvider>
-                      </ActiveChatsProvider>
-                    </ConversationsProvider>
-                  </WorkflowsProvider>
-                </WorkspacesProvider>
-              </ToastProvider>
-            </KeyboardShortcutsProvider>
-          </NavigationProvider>
-          </PermissionManager>
-          </OnboardingGate>
+              <PermissionManager>
+                <NavigationProvider>
+                  <KeyboardShortcutsProvider>
+                    <ToastProvider>
+                      <WorkspacesProvider>
+                        <WorkflowsProvider>
+                          <ConversationsProvider>
+                            <ActiveChatsProvider>
+                              <StreamingProvider>
+                                <AnalyticsProvider>
+                                  <PreviewProvider>
+                                    <App />
+                                    <NotificationContainer />
+                                  </PreviewProvider>
+                                </AnalyticsProvider>
+                              </StreamingProvider>
+                            </ActiveChatsProvider>
+                          </ConversationsProvider>
+                        </WorkflowsProvider>
+                      </WorkspacesProvider>
+                    </ToastProvider>
+                  </KeyboardShortcutsProvider>
+                </NavigationProvider>
+              </PermissionManager>
+            </OnboardingGate>
           </AuthProvider>
         </ApiBaseProvider>
       </QueryClientProvider>
-    </React.StrictMode>
+    </React.StrictMode>,
   );
 });

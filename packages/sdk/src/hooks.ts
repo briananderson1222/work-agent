@@ -1,14 +1,14 @@
 /**
  * SDK Hooks - Wraps core app contexts for plugin consumption
- * 
+ *
  * These hooks provide a stable API for plugins to access core functionality.
  * They delegate to the actual context implementations in the core app.
  */
 
-import { useContext, useCallback, useState, useEffect } from 'react';
-import { SDKContext } from './providers';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import { resolveAgentName } from './agentResolver';
 import { _getApiBase, _getPluginName } from './api';
+import { SDKContext } from './providers';
 import type { AgentSummary } from './types';
 
 // SDK Context Access
@@ -33,83 +33,95 @@ export function useAgent(slug: string) {
 export function useResolveAgent(agentSlug: string) {
   const workspaces = useWorkspaces();
   const navigation = useNavigation();
-  const currentWorkspace = workspaces.find((w: any) => w.slug === navigation.selectedWorkspace);
-  
+  const currentWorkspace = workspaces.find(
+    (w: any) => w.slug === navigation.selectedWorkspace,
+  );
+
   if (agentSlug.includes(':')) {
     return agentSlug;
   }
-  
+
   if (currentWorkspace?.availableAgents) {
-    const match = currentWorkspace.availableAgents.find((a: string) => 
-      a.endsWith(`:${agentSlug}`)
+    const match = currentWorkspace.availableAgents.find((a: string) =>
+      a.endsWith(`:${agentSlug}`),
     );
     if (match) return match;
   }
-  
+
   return agentSlug;
 }
 
 // Workspace Management
 export function useWorkspaces() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.workspaces) throw new Error('WorkspacesContext not available');
+  if (!sdk?.contexts?.workspaces)
+    throw new Error('WorkspacesContext not available');
   return sdk.contexts.workspaces.useWorkspaces();
 }
 
 export function useWorkspace(slug: string, enabled = true) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.workspaces) throw new Error('WorkspacesContext not available');
+  if (!sdk?.contexts?.workspaces)
+    throw new Error('WorkspacesContext not available');
   return sdk.contexts.workspaces.useWorkspace(slug, enabled);
 }
 
 // Conversation Management
 export function useConversations(agentSlug?: string) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.conversations) throw new Error('ConversationsContext not available');
+  if (!sdk?.contexts?.conversations)
+    throw new Error('ConversationsContext not available');
   return sdk.contexts.conversations.useConversations(agentSlug);
 }
 
 export function useConversation(conversationId: string) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.conversations) throw new Error('ConversationsContext not available');
+  if (!sdk?.contexts?.conversations)
+    throw new Error('ConversationsContext not available');
   return sdk.contexts.conversations.useConversation(conversationId);
 }
 
 export function useConversationMessages(conversationId: string) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.conversations) throw new Error('ConversationsContext not available');
+  if (!sdk?.contexts?.conversations)
+    throw new Error('ConversationsContext not available');
   return sdk.contexts.conversations.useConversationMessages(conversationId);
 }
 
 // Chat Operations
 export function useCreateChatSession() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.activeChats) throw new Error('ActiveChatsContext not available');
+  if (!sdk?.contexts?.activeChats)
+    throw new Error('ActiveChatsContext not available');
   return sdk.contexts.activeChats.useCreateChatSession();
 }
 
 /** Open/resume an existing conversation in the chat dock. Returns the session ID. */
 export function useOpenConversation() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.activeChats?.useOpenConversation) throw new Error('ActiveChatsContext not available');
+  if (!sdk?.contexts?.activeChats?.useOpenConversation)
+    throw new Error('ActiveChatsContext not available');
   return sdk.contexts.activeChats.useOpenConversation();
 }
 
 export function useSendMessage() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.activeChats) throw new Error('ActiveChatsContext not available');
+  if (!sdk?.contexts?.activeChats)
+    throw new Error('ActiveChatsContext not available');
   return sdk.contexts.activeChats.useSendMessage();
 }
 
 export function useActiveChatActions(sessionId: string) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.activeChats) throw new Error('ActiveChatsContext not available');
+  if (!sdk?.contexts?.activeChats)
+    throw new Error('ActiveChatsContext not available');
   return sdk.contexts.activeChats.useActiveChatActions(sessionId);
 }
 
 export function useActiveChatState(sessionId: string) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.activeChats) throw new Error('ActiveChatsContext not available');
+  if (!sdk?.contexts?.activeChats)
+    throw new Error('ActiveChatsContext not available');
   return sdk.contexts.activeChats.useActiveChatState(sessionId);
 }
 
@@ -135,7 +147,15 @@ export function useApiBase() {
 
 export function useAuth() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.auth) return { status: 'missing' as const, user: null, expiresAt: null, provider: '', renew: async () => {}, isRenewing: false };
+  if (!sdk?.contexts?.auth)
+    return {
+      status: 'missing' as const,
+      user: null,
+      expiresAt: null,
+      provider: '',
+      renew: async () => {},
+      isRenewing: false,
+    };
   return sdk.contexts.auth.useAuth();
 }
 
@@ -148,7 +168,8 @@ export function useConfig() {
 // Navigation
 export function useNavigation() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.navigation) throw new Error('NavigationContext not available');
+  if (!sdk?.contexts?.navigation)
+    throw new Error('NavigationContext not available');
   return sdk.contexts.navigation.useNavigation();
 }
 
@@ -171,12 +192,15 @@ export function useToast() {
 // Generic Notification System
 export function useNotifications() {
   const toast = useToast();
-  
+
   return {
-    notify: (message: string, options?: { 
-      type?: 'info' | 'warning' | 'error' | 'success';
-      duration?: number;
-    }) => {
+    notify: (
+      message: string,
+      options?: {
+        type?: 'info' | 'warning' | 'error' | 'success';
+        duration?: number;
+      },
+    ) => {
       toast.showToast(message, options?.type || 'info', options?.duration);
     },
   };
@@ -185,20 +209,23 @@ export function useNotifications() {
 // Slash Commands
 export function useSlashCommandHandler() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.hooks?.slashCommandHandler) throw new Error('useSlashCommandHandler not available');
+  if (!sdk?.hooks?.slashCommandHandler)
+    throw new Error('useSlashCommandHandler not available');
   return sdk.hooks.slashCommandHandler();
 }
 
 export function useSlashCommands() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.hooks?.slashCommands) throw new Error('useSlashCommands not available');
+  if (!sdk?.hooks?.slashCommands)
+    throw new Error('useSlashCommands not available');
   return sdk.hooks.slashCommands();
 }
 
 // Tool Approval
 export function useToolApproval() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.hooks?.toolApproval) throw new Error('useToolApproval not available');
+  if (!sdk?.hooks?.toolApproval)
+    throw new Error('useToolApproval not available');
   return sdk.hooks.toolApproval();
 }
 
@@ -216,28 +243,36 @@ export function useConversationStats(conversationId?: string) {
 }
 
 // Keyboard Shortcuts
-export function useKeyboardShortcut(key: string, callback: () => void, deps?: any[]) {
+export function useKeyboardShortcut(
+  key: string,
+  callback: () => void,
+  deps?: any[],
+) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.hooks?.keyboardShortcut) throw new Error('useKeyboardShortcut not available');
+  if (!sdk?.hooks?.keyboardShortcut)
+    throw new Error('useKeyboardShortcut not available');
   return sdk.hooks.keyboardShortcut(key, callback, deps);
 }
 
 export function useKeyboardShortcuts() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.keyboardShortcuts) throw new Error('KeyboardShortcutsContext not available');
+  if (!sdk?.contexts?.keyboardShortcuts)
+    throw new Error('KeyboardShortcutsContext not available');
   return sdk.contexts.keyboardShortcuts.useKeyboardShortcuts();
 }
 
 // Workflows
 export function useWorkflows(agentSlug?: string) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.workflows) throw new Error('WorkflowsContext not available');
+  if (!sdk?.contexts?.workflows)
+    throw new Error('WorkflowsContext not available');
   return sdk.contexts.workflows.useWorkflows(agentSlug);
 }
 
 export function useWorkflowFiles(agentSlug: string) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.workflows) throw new Error('WorkflowsContext not available');
+  if (!sdk?.contexts?.workflows)
+    throw new Error('WorkflowsContext not available');
   return sdk.contexts.workflows.useWorkflowFiles(agentSlug);
 }
 
@@ -246,12 +281,12 @@ export function useWorkflowFiles(agentSlug: string) {
 /**
  * Hook to send a message to chat and open the dock.
  * Plugins MUST specify the agent slug - there is no default.
- * 
- * @param agentSlug - The agent to send messages to (required). Can be short name (e.g., 'work-agent') 
- *                    which will be resolved using current workspace context, or fully qualified 
+ *
+ * @param agentSlug - The agent to send messages to (required). Can be short name (e.g., 'work-agent')
+ *                    which will be resolved using current workspace context, or fully qualified
  *                    (e.g., 'stallion-workspace:work-agent').
  * @returns Function to send a message and open chat
- * 
+ *
  * @example
  * ```typescript
  * const sendToChat = useSendToChat('work-agent');
@@ -264,19 +299,24 @@ export function useSendToChat(agentSlug: string) {
   const navigation = useNavigation();
   const sendMessage = useSendMessage();
 
-  return useCallback((message: string) => {
-    // Resolve short name to full slug using workspace context
-    const resolvedSlug = resolveAgentName(agentSlug);
-    const agent = agents.find((a: any) => a.slug === resolvedSlug);
-    if (!agent) {
-      console.warn(`[useSendToChat] Agent '${agentSlug}' (resolved: '${resolvedSlug}') not found`);
-      return;
-    }
-    const sessionId = createChatSession(resolvedSlug, agent.name);
-    navigation.setDockState(true);
-    navigation.setActiveChat(sessionId);
-    sendMessage(sessionId, resolvedSlug, undefined, message);
-  }, [agents, agentSlug, createChatSession, navigation, sendMessage]);
+  return useCallback(
+    (message: string) => {
+      // Resolve short name to full slug using workspace context
+      const resolvedSlug = resolveAgentName(agentSlug);
+      const agent = agents.find((a: any) => a.slug === resolvedSlug);
+      if (!agent) {
+        console.warn(
+          `[useSendToChat] Agent '${agentSlug}' (resolved: '${resolvedSlug}') not found`,
+        );
+        return;
+      }
+      const sessionId = createChatSession(resolvedSlug, agent.name);
+      navigation.setDockState(true);
+      navigation.setActiveChat(sessionId);
+      sendMessage(sessionId, resolvedSlug, undefined, message);
+    },
+    [agents, agentSlug, createChatSession, navigation, sendMessage],
+  );
 }
 
 /**
@@ -289,20 +329,30 @@ export function useUserLookup(alias: string | null) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!alias) { setData(null); return; }
+    if (!alias) {
+      setData(null);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
-    _getApiBase().then(apiBase =>
-      fetch(`${apiBase}/api/users/${encodeURIComponent(alias)}`)
-    ).then(r => r.json()).then(d => {
-      if (!cancelled) setData(d);
-    }).catch(e => {
-      if (!cancelled) setError(e.message);
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
+    _getApiBase()
+      .then((apiBase) =>
+        fetch(`${apiBase}/api/users/${encodeURIComponent(alias)}`),
+      )
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [alias]);
 
   return { data, loading, error };
@@ -314,20 +364,39 @@ export function useUserLookup(alias: string | null) {
  * Returns a fetch-like function that routes through the backend to avoid CORS.
  */
 export function useServerFetch() {
-  return useCallback(async (url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }) => {
-    const apiBase = await _getApiBase();
-    const pluginName = _getPluginName();
-    const fetchUrl = pluginName 
-      ? `${apiBase}/api/plugins/${encodeURIComponent(pluginName)}/fetch`
-      : `${apiBase}/api/plugins/fetch`;
-    
-    const resp = await fetch(fetchUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, method: options?.method, headers: options?.headers, body: options?.body }),
-    });
-    const data = await resp.json();
-    if (!data.success) throw new Error(data.error || 'Server fetch failed');
-    return { status: data.status, contentType: data.contentType, body: data.body } as { status: number; contentType: string; body: string };
-  }, []);
+  return useCallback(
+    async (
+      url: string,
+      options?: {
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string;
+      },
+    ) => {
+      const apiBase = await _getApiBase();
+      const pluginName = _getPluginName();
+      const fetchUrl = pluginName
+        ? `${apiBase}/api/plugins/${encodeURIComponent(pluginName)}/fetch`
+        : `${apiBase}/api/plugins/fetch`;
+
+      const resp = await fetch(fetchUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          method: options?.method,
+          headers: options?.headers,
+          body: options?.body,
+        }),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Server fetch failed');
+      return {
+        status: data.status,
+        contentType: data.contentType,
+        body: data.body,
+      } as { status: number; contentType: string; body: string };
+    },
+    [],
+  );
 }

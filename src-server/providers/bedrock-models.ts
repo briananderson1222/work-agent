@@ -1,5 +1,9 @@
-import { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } from "@aws-sdk/client-bedrock";
-import { PricingClient, GetProductsCommand } from "@aws-sdk/client-pricing";
+import {
+  BedrockClient,
+  ListFoundationModelsCommand,
+  ListInferenceProfilesCommand,
+} from '@aws-sdk/client-bedrock';
+import { GetProductsCommand, PricingClient } from '@aws-sdk/client-pricing';
 
 export interface BedrockModel {
   modelId: string;
@@ -25,7 +29,7 @@ export interface InferenceProfile {
 export interface ModelPricing {
   modelId: string;
   provider?: string;
-  inputTokenPrice?: number;  // per 1K tokens
+  inputTokenPrice?: number; // per 1K tokens
   outputTokenPrice?: number; // per 1K tokens
   region: string;
   feature: string; // "On-demand Inference", "Batch Inference", etc.
@@ -38,9 +42,9 @@ export class BedrockModelCatalog {
   private profilesCache: InferenceProfile[] | null = null;
   private pricingCache: Map<string, ModelPricing[]> = new Map();
 
-  constructor(region: string = "us-east-1") {
+  constructor(region: string = 'us-east-1') {
     this.bedrockClient = new BedrockClient({ region });
-    this.pricingClient = new PricingClient({ region: "us-east-1" }); // Pricing API only in us-east-1
+    this.pricingClient = new PricingClient({ region: 'us-east-1' }); // Pricing API only in us-east-1
   }
 
   async listModels(): Promise<BedrockModel[]> {
@@ -70,20 +74,22 @@ export class BedrockModelCatalog {
     const command = new ListInferenceProfilesCommand({});
     const response = await this.bedrockClient.send(command);
 
-    const profiles = (response.inferenceProfileSummaries || []).map((profile) => ({
-      inferenceProfileId: profile.inferenceProfileId!,
-      inferenceProfileArn: profile.inferenceProfileArn!,
-      inferenceProfileName: profile.inferenceProfileName!,
-      type: profile.type!,
-      status: profile.status!,
-      models: profile.models || [],
-    }));
+    const profiles = (response.inferenceProfileSummaries || []).map(
+      (profile) => ({
+        inferenceProfileId: profile.inferenceProfileId!,
+        inferenceProfileArn: profile.inferenceProfileArn!,
+        inferenceProfileName: profile.inferenceProfileName!,
+        type: profile.type!,
+        status: profile.status!,
+        models: profile.models || [],
+      }),
+    );
 
     this.profilesCache = profiles;
     return profiles;
   }
 
-  async getModelPricing(region: string = "us-east-1"): Promise<ModelPricing[]> {
+  async getModelPricing(region: string = 'us-east-1'): Promise<ModelPricing[]> {
     const cacheKey = region;
     if (this.pricingCache.has(cacheKey)) {
       return this.pricingCache.get(cacheKey)!;
@@ -94,17 +100,21 @@ export class BedrockModelCatalog {
 
     do {
       const command = new GetProductsCommand({
-        ServiceCode: "AmazonBedrock",
+        ServiceCode: 'AmazonBedrock',
         Filters: [
-          { Type: "TERM_MATCH", Field: "regionCode", Value: region },
-          { Type: "TERM_MATCH", Field: "productFamily", Value: "Amazon Bedrock" },
+          { Type: 'TERM_MATCH', Field: 'regionCode', Value: region },
+          {
+            Type: 'TERM_MATCH',
+            Field: 'productFamily',
+            Value: 'Amazon Bedrock',
+          },
         ],
         MaxResults: 100,
         NextToken: nextToken,
       });
 
       const response = await this.pricingClient.send(command);
-      
+
       for (const priceItem of response.PriceList || []) {
         const product = JSON.parse(priceItem);
         const attrs = product.product?.attributes;
@@ -130,23 +140,27 @@ export class BedrockModelCatalog {
 
         // Map inference type to input/output
         const existing = pricing.find(
-          (p) => p.modelId === model && p.feature === feature
+          (p) => p.modelId === model && p.feature === feature,
         );
 
         if (existing) {
-          if (inferenceType?.includes("Output")) {
+          if (inferenceType?.includes('Output')) {
             existing.outputTokenPrice = price;
-          } else if (inferenceType?.includes("Input")) {
+          } else if (inferenceType?.includes('Input')) {
             existing.inputTokenPrice = price;
           }
         } else {
           pricing.push({
             modelId: model,
             provider,
-            inputTokenPrice: inferenceType?.includes("Input") ? price : undefined,
-            outputTokenPrice: inferenceType?.includes("Output") ? price : undefined,
+            inputTokenPrice: inferenceType?.includes('Input')
+              ? price
+              : undefined,
+            outputTokenPrice: inferenceType?.includes('Output')
+              ? price
+              : undefined,
             region,
-            feature: feature || "On-demand Inference",
+            feature: feature || 'On-demand Inference',
           });
         }
       }
@@ -161,10 +175,12 @@ export class BedrockModelCatalog {
   async validateModelId(modelId: string): Promise<boolean> {
     const [models, profiles] = await Promise.all([
       this.listModels(),
-      this.listInferenceProfiles()
+      this.listInferenceProfiles(),
     ]);
-    return models.some((m) => m.modelId === modelId) || 
-           profiles.some((p) => p.inferenceProfileId === modelId);
+    return (
+      models.some((m) => m.modelId === modelId) ||
+      profiles.some((p) => p.inferenceProfileId === modelId)
+    );
   }
 
   async getModelInfo(modelId: string): Promise<BedrockModel | undefined> {
@@ -180,10 +196,15 @@ export class BedrockModelCatalog {
 
     // Check if this model requires inference profile
     const model = await this.getModelInfo(modelId);
-    if (model?.inferenceTypesSupported?.length === 1 && model.inferenceTypesSupported[0] === 'INFERENCE_PROFILE') {
+    if (
+      model?.inferenceTypesSupported?.length === 1 &&
+      model.inferenceTypesSupported[0] === 'INFERENCE_PROFILE'
+    ) {
       // Find corresponding inference profile (default to us. prefix)
       const profiles = await this.listInferenceProfiles();
-      const profile = profiles.find(p => p.inferenceProfileId === `us.${modelId}`);
+      const profile = profiles.find(
+        (p) => p.inferenceProfileId === `us.${modelId}`,
+      );
       if (profile) {
         return profile.inferenceProfileId;
       }

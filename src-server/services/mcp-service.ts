@@ -3,9 +3,9 @@
  */
 
 import type { MCPConfiguration, Tool } from '@voltagent/core';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, ToolDef } from '../domain/types.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // Type extensions for MCP service
 interface MCPConfigurationWithClose extends MCPConfiguration {
@@ -40,8 +40,16 @@ export class MCPService {
     private mcpConnectionStatus: Map<string, MCPConnectionStatus>,
     private integrationMetadata: Map<string, IntegrationMetadata>,
     private agentTools: Map<string, Tool<any>[]>,
-    private toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>,
-    private logger: any
+    private toolNameMapping: Map<
+      string,
+      {
+        original: string;
+        normalized: string;
+        server: string | null;
+        tool: string;
+      }
+    >,
+    private logger: any,
   ) {}
 
   async listTools(): Promise<ToolDef[]> {
@@ -55,11 +63,18 @@ export class MCPService {
 
       // Convert Zod schema to JSON schema if parameters is a Zod object
       let parameters = tool.parameters;
-      if (parameters && typeof parameters === 'object' && '_def' in parameters) {
+      if (
+        parameters &&
+        typeof parameters === 'object' &&
+        '_def' in parameters
+      ) {
         try {
           parameters = zodToJsonSchema(parameters);
         } catch (error) {
-          this.logger.warn('Failed to convert Zod schema to JSON schema', { tool: tool.name, error });
+          this.logger.warn('Failed to convert Zod schema to JSON schema', {
+            tool: tool.name,
+            error,
+          });
         }
       }
 
@@ -70,7 +85,7 @@ export class MCPService {
         server: mapping?.server || null,
         toolName: mapping?.tool || tool.name,
         description: tool.description,
-        parameters
+        parameters,
       };
     });
   }
@@ -96,7 +111,10 @@ export class MCPService {
     await this.configLoader.updateAgent(slug, { tools });
   }
 
-  async updateAllowedTools(slug: string, allowed: string[]): Promise<AgentSpec['tools']> {
+  async updateAllowedTools(
+    slug: string,
+    allowed: string[],
+  ): Promise<AgentSpec['tools']> {
     const agent = await this.configLoader.loadAgent(slug);
     const tools = agent.tools || { mcpServers: [] };
 
@@ -106,7 +124,10 @@ export class MCPService {
     return tools;
   }
 
-  async updateToolAliases(slug: string, aliases: Record<string, string>): Promise<AgentSpec['tools']> {
+  async updateToolAliases(
+    slug: string,
+    aliases: Record<string, string>,
+  ): Promise<AgentSpec['tools']> {
     const agent = await this.configLoader.loadAgent(slug);
     const tools = agent.tools || { mcpServers: [] };
 
@@ -116,12 +137,18 @@ export class MCPService {
     return tools;
   }
 
-  getConnectionStatus(agentSlug: string, toolId: string): MCPConnectionStatus | undefined {
+  getConnectionStatus(
+    agentSlug: string,
+    toolId: string,
+  ): MCPConnectionStatus | undefined {
     const key = `${agentSlug}:${toolId}`;
     return this.mcpConnectionStatus.get(key);
   }
 
-  getIntegrationMetadata(agentSlug: string, toolId: string): IntegrationMetadata | undefined {
+  getIntegrationMetadata(
+    agentSlug: string,
+    toolId: string,
+  ): IntegrationMetadata | undefined {
     const key = `${agentSlug}:${toolId}`;
     return this.integrationMetadata.get(key);
   }

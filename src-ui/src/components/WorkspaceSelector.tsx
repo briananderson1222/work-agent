@@ -46,10 +46,10 @@ export function WorkspaceSelector({
         buttonRef.current?.focus();
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
-        setFocusedIndex(prev => Math.min(prev + 1, workspaces.length - 1));
+        setFocusedIndex((prev) => Math.min(prev + 1, workspaces.length - 1));
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
-        setFocusedIndex(prev => Math.max(prev - 1, -1));
+        setFocusedIndex((prev) => Math.max(prev - 1, -1));
       } else if (event.key === 'Enter' && focusedIndex >= 0) {
         event.preventDefault();
         handleSelect(workspaces[focusedIndex].slug);
@@ -62,7 +62,7 @@ export function WorkspaceSelector({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, focusedIndex, workspaces]);
+  }, [isOpen, focusedIndex, workspaces, close, handleSelect]);
 
   const handleSelect = (slug: string) => {
     onSelect(slug);
@@ -106,46 +106,71 @@ export function WorkspaceSelector({
           cursor: 'pointer',
           transition: 'background-color 0.2s',
         }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')
+        }
       >
         {selectedWorkspace && (
-          <div style={{
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--color-primary)',
-            color: 'var(--bg-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: getWorkspaceIcon(selectedWorkspace).isCustomIcon ? '14px' : '11px',
-            fontWeight: 600,
-          }}>
+          <div
+            style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--bg-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: getWorkspaceIcon(selectedWorkspace).isCustomIcon
+                ? '14px'
+                : '11px',
+              fontWeight: 600,
+            }}
+          >
             {getWorkspaceIcon(selectedWorkspace).display}
           </div>
         )}
-        <span style={{ fontWeight: 500 }}>{selectedWorkspace?.name || 'Select Workspace'}</span>
-        <svg style={{ 
-          width: '16px', 
-          height: '16px',
-          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-          transition: 'transform 0.2s',
-        }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        <span style={{ fontWeight: 500 }}>
+          {selectedWorkspace?.name || 'Select Workspace'}
+        </span>
+        <svg
+          style={{
+            width: '16px',
+            height: '16px',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s',
+          }}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
         </svg>
       </button>
 
       {isOpen && (
         <div style={getDropdownStyle()}>
-          <div style={{ 
-            padding: '6px 8px', 
-            borderBottom: '1px solid var(--border-primary)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-          }}>
+          <div
+            style={{
+              padding: '6px 8px',
+              borderBottom: '1px solid var(--border-primary)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
             <button
-              onClick={() => { close(); onCreateWorkspace(); }}
+              onClick={() => {
+                close();
+                onCreateWorkspace();
+              }}
               style={{
                 padding: '4px 10px',
                 backgroundColor: 'transparent',
@@ -158,19 +183,32 @@ export function WorkspaceSelector({
                 alignItems: 'center',
                 gap: '6px',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = 'transparent')
+              }
               title={`New (${newWorkspaceShortcut})`}
             >
               <span style={{ fontSize: '16px' }}>+</span>
               <span>New</span>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{newWorkspaceShortcut}</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                {newWorkspaceShortcut}
+              </span>
             </button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
             {workspaces.length === 0 ? (
-              <div style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
+              <div
+                style={{
+                  padding: '12px 16px',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
+                  fontSize: '14px',
+                }}
+              >
                 No workspaces found. Create one to get started.
               </div>
             ) : (
@@ -180,7 +218,12 @@ export function WorkspaceSelector({
                   style={{
                     marginBottom: '4px',
                     padding: '8px 12px',
-                    backgroundColor: selectedWorkspace?.slug === ws.slug ? 'var(--bg-hover)' : focusedIndex === idx ? 'var(--bg-hover)' : 'transparent',
+                    backgroundColor:
+                      selectedWorkspace?.slug === ws.slug
+                        ? 'var(--bg-hover)'
+                        : focusedIndex === idx
+                          ? 'var(--bg-hover)'
+                          : 'transparent',
                     color: 'var(--text-primary)',
                     border: '1px solid var(--border-primary)',
                     borderRadius: '4px',
@@ -192,27 +235,54 @@ export function WorkspaceSelector({
                   onClick={() => handleSelect(ws.slug)}
                   onMouseEnter={() => setFocusedIndex(idx)}
                 >
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    backgroundColor: 'var(--color-primary)',
-                    color: 'var(--bg-primary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: getWorkspaceIcon(ws).isCustomIcon ? '18px' : '13px',
-                    fontWeight: 600,
-                    flexShrink: 0,
-                  }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--color-primary)',
+                      color: 'var(--bg-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: getWorkspaceIcon(ws).isCustomIcon
+                        ? '18px'
+                        : '13px',
+                      fontWeight: 600,
+                      flexShrink: 0,
+                    }}
+                  >
                     {getWorkspaceIcon(ws).display}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</div>
+                    <div
+                      style={{
+                        fontWeight: 500,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {ws.name}
+                    </div>
                     {ws.description && (
-                      <div style={{ fontSize: '14px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.description}</div>
+                      <div
+                        style={{
+                          fontSize: '14px',
+                          color: 'var(--text-secondary)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {ws.description}
+                      </div>
                     )}
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{ws.tabCount} tab{ws.tabCount !== 1 ? 's' : ''}</div>
+                    <div
+                      style={{ fontSize: '12px', color: 'var(--text-muted)' }}
+                    >
+                      {ws.tabCount} tab{ws.tabCount !== 1 ? 's' : ''}
+                    </div>
                   </div>
                   <button
                     onClick={(e) => {
@@ -231,7 +301,8 @@ export function WorkspaceSelector({
                       flexShrink: 0,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                      e.currentTarget.style.backgroundColor =
+                        'var(--bg-secondary)';
                       e.currentTarget.style.color = 'var(--text-primary)';
                     }}
                     onMouseLeave={(e) => {

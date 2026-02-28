@@ -1,5 +1,5 @@
-import { ComponentType, lazy, Suspense } from 'react';
 import type { WorkspaceProps } from '@work-agent/sdk';
+import { type ComponentType, lazy, Suspense } from 'react';
 
 interface PluginLoaderProps {
   pluginPath: string;
@@ -7,7 +7,9 @@ interface PluginLoaderProps {
 }
 
 export function PluginLoader({ pluginPath, agentSlug }: PluginLoaderProps) {
-  const Component = lazy(() => import(`../plugins/${pluginPath}/index.tsx`)) as ComponentType<WorkspaceProps>;
+  const Component = lazy(
+    () => import(`../plugins/${pluginPath}/index.tsx`),
+  ) as ComponentType<WorkspaceProps>;
 
   return (
     <Suspense fallback={<div>Loading plugin...</div>}>

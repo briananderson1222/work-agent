@@ -21,7 +21,11 @@ export class EventBus {
   emit(event: string, data?: Record<string, unknown>): void {
     const evt: ServerEvent = { event, data };
     for (const fn of this.listeners) {
-      try { fn(evt); } catch { this.listeners.delete(fn); }
+      try {
+        fn(evt);
+      } catch {
+        this.listeners.delete(fn);
+      }
     }
   }
 }

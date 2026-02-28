@@ -2,16 +2,38 @@
  * Plugin Routes — list, serve, install, remove, and reload plugins
  */
 
+import { execSync } from 'node:child_process';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Hono } from 'hono';
-import { readFile, readdir, mkdir, rm, cp, writeFile } from 'fs/promises';
-import { existsSync, mkdirSync, cpSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { execSync } from 'child_process';
+import {
+  getAgentRegistryProvider,
+  getToolRegistryProvider,
+} from '../providers/registry.js';
 import type { EventBus } from '../services/event-bus.js';
-import { getAgentRegistryProvider, getToolRegistryProvider } from '../providers/registry.js';
-import { processInstallPermissions, grantPermissions, revokeAllGrants, hasGrant, getPluginGrants, getPermissionTier } from '../services/plugin-permissions.js';
+import {
+  getPermissionTier,
+  getPluginGrants,
+  grantPermissions,
+  hasGrant,
+  processInstallPermissions,
+  revokeAllGrants,
+} from '../services/plugin-permissions.js';
 
-export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?: EventBus) {
+export function createPluginRoutes(
+  workAgentDir: string,
+  logger: any,
+  eventBus?: EventBus,
+) {
   const app = new Hono();
   const pluginsDir = join(workAgentDir, 'plugins');
   const agentsDir = join(workAgentDir, 'agents');
@@ -24,7 +46,10 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
     if (!hasBuildMjs && !hasBuildSh) return;
     try {
       if (existsSync(join(pluginDir, 'package.json'))) {
-        execSync('npm install --omit=dev --no-package-lock --legacy-peer-deps', { cwd: pluginDir, timeout: 60000, stdio: 'pipe' });
+        execSync(
+          'npm install --omit=dev --no-package-lock --legacy-peer-deps',
+          { cwd: pluginDir, timeout: 60000, stdio: 'pipe' },
+        );
       }
       const cmd = hasBuildMjs ? 'node build.mjs' : 'bash build.sh';
       execSync(cmd, { cwd: pluginDir, timeout: 30000, stdio: 'pipe' });
@@ -57,10 +82,21 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
         let git: { hash: string; branch: string; remote?: string } | undefined;
         if (isGit) {
           try {
-            const hash = execSync('git rev-parse --short HEAD', { cwd: pluginDir, encoding: 'utf-8' }).trim();
-            const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: pluginDir, encoding: 'utf-8' }).trim();
+            const hash = execSync('git rev-parse --short HEAD', {
+              cwd: pluginDir,
+              encoding: 'utf-8',
+            }).trim();
+            const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+              cwd: pluginDir,
+              encoding: 'utf-8',
+            }).trim();
             let remote: string | undefined;
-            try { remote = execSync('git remote get-url origin', { cwd: pluginDir, encoding: 'utf-8' }).trim(); } catch {}
+            try {
+              remote = execSync('git remote get-url origin', {
+                cwd: pluginDir,
+                encoding: 'utf-8',
+              }).trim();
+            } catch {}
             git = { hash, branch, remote };
           } catch {}
         }
@@ -84,7 +120,10 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
           permissions: { declared, granted, missing },
         });
       } catch (e: any) {
-        logger.error('Failed to read plugin manifest', { plugin: entry.name, error: e.message });
+        logger.error('Failed to read plugin manifest', {
+          plugin: entry.name,
+          error: e.message,
+        });
       }
     }
 
@@ -96,14 +135,20 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
   app.post('/install', async (c) => {
     try {
       const { source } = await c.req.json();
-      if (!source) return c.json({ success: false, error: 'source is required' }, 400);
+      if (!source)
+        return c.json({ success: false, error: 'source is required' }, 400);
 
-      const isGit = source.startsWith('git@') || source.endsWith('.git') ||
-        (source.startsWith('https://') && (source.includes('.git') || source.includes('gitlab') || source.includes('github')));
+      const isGit =
+        source.startsWith('git@') ||
+        source.endsWith('.git') ||
+        (source.startsWith('https://') &&
+          (source.includes('.git') ||
+            source.includes('gitlab') ||
+            source.includes('github')));
 
       // Clone/copy to temp dir first, read manifest, then move to canonical name
       const tempName = extractPluginName(source);
-      const tempDir = join(pluginsDir, '.installing-' + tempName);
+      const tempDir = join(pluginsDir, `.installing-${tempName}`);
 
       if (existsSync(tempDir)) rmSync(tempDir, { recursive: true });
       mkdirSync(tempDir, { recursive: true });
@@ -115,23 +160,36 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
         if (branch) cloneArgs.push('--branch', branch);
         cloneArgs.push(url, tempDir);
         try {
-          execSync(['git', ...cloneArgs].map(a => `"${a}"`).join(' '), { timeout: 30000 });
+          execSync(['git', ...cloneArgs].map((a) => `"${a}"`).join(' '), {
+            timeout: 30000,
+          });
         } catch {
           rmSync(tempDir, { recursive: true, force: true });
           mkdirSync(tempDir, { recursive: true });
-          execSync(`git clone --depth 1 "${url}" "${tempDir}"`, { timeout: 30000 });
+          execSync(`git clone --depth 1 "${url}" "${tempDir}"`, {
+            timeout: 30000,
+          });
         }
       } else {
-        if (!existsSync(source)) { rmSync(tempDir, { recursive: true }); return c.json({ success: false, error: `Source not found: ${source}` }, 400); }
+        if (!existsSync(source)) {
+          rmSync(tempDir, { recursive: true });
+          return c.json(
+            { success: false, error: `Source not found: ${source}` },
+            400,
+          );
+        }
         cpSync(source, tempDir, { recursive: true });
       }
 
-      const manifest = JSON.parse(await readFile(join(tempDir, 'plugin.json'), 'utf-8'));
+      const manifest = JSON.parse(
+        await readFile(join(tempDir, 'plugin.json'), 'utf-8'),
+      );
       const pluginName = manifest.name || tempName;
       const pluginDir = join(pluginsDir, pluginName);
 
       // Move to canonical directory (removes old version if exists)
-      if (existsSync(pluginDir) && pluginDir !== tempDir) rmSync(pluginDir, { recursive: true });
+      if (existsSync(pluginDir) && pluginDir !== tempDir)
+        rmSync(pluginDir, { recursive: true });
       if (tempDir !== pluginDir) {
         cpSync(tempDir, pluginDir, { recursive: true });
         rmSync(tempDir, { recursive: true });
@@ -169,7 +227,10 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
       // Resolve required tools
       const toolsDir = join(workAgentDir, 'tools');
       const requiredTools = manifest.tools?.required || [];
-      const toolResults: Array<{ id: string; status: 'installed' | 'missing' | 'installed-now' }> = [];
+      const toolResults: Array<{
+        id: string;
+        status: 'installed' | 'missing' | 'installed-now';
+      }> = [];
 
       for (const toolId of requiredTools) {
         if (existsSync(join(toolsDir, toolId, 'tool.json'))) {
@@ -179,13 +240,21 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
           try {
             const registry = getToolRegistryProvider();
             const result = await registry.install(toolId);
-            const toolDef = result.success ? await registry.getToolDef(toolId) : null;
+            const toolDef = result.success
+              ? await registry.getToolDef(toolId)
+              : null;
             if (toolDef) {
               const toolDir = join(toolsDir, toolId);
               mkdirSync(toolDir, { recursive: true });
-              writeFileSync(join(toolDir, 'tool.json'), JSON.stringify(toolDef, null, 2));
+              writeFileSync(
+                join(toolDir, 'tool.json'),
+                JSON.stringify(toolDef, null, 2),
+              );
             }
-            toolResults.push({ id: toolId, status: result.success ? 'installed-now' : 'missing' });
+            toolResults.push({
+              id: toolId,
+              status: result.success ? 'installed-now' : 'missing',
+            });
           } catch {
             toolResults.push({ id: toolId, status: 'missing' });
           }
@@ -194,7 +263,9 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
 
       // Process permissions
       const { autoGranted, pendingConsent } = processInstallPermissions(
-        workAgentDir, pluginName, manifest.permissions || [],
+        workAgentDir,
+        pluginName,
+        manifest.permissions || [],
       );
 
       return c.json({
@@ -217,7 +288,12 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
   // ── Check for plugin updates ─────────────────────────
 
   app.get('/check-updates', async (c) => {
-    const updates: Array<{ name: string; currentVersion: string; latestVersion: string; source: string }> = [];
+    const updates: Array<{
+      name: string;
+      currentVersion: string;
+      latestVersion: string;
+      source: string;
+    }> = [];
 
     try {
       // 1. Check git-installed plugins by comparing local vs remote HEAD
@@ -231,9 +307,19 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
           if (!existsSync(gitDir) || !existsSync(manifestPath)) continue;
 
           try {
-            execSync('git fetch --quiet', { cwd: dir, timeout: 10000, stdio: 'pipe' });
-            const local = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf-8' }).trim();
-            const remote = execSync('git rev-parse @{u}', { cwd: dir, encoding: 'utf-8' }).trim();
+            execSync('git fetch --quiet', {
+              cwd: dir,
+              timeout: 10000,
+              stdio: 'pipe',
+            });
+            const local = execSync('git rev-parse HEAD', {
+              cwd: dir,
+              encoding: 'utf-8',
+            }).trim();
+            const remote = execSync('git rev-parse @{u}', {
+              cwd: dir,
+              encoding: 'utf-8',
+            }).trim();
             if (local !== remote) {
               const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
               updates.push({
@@ -243,7 +329,9 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
                 source: 'git',
               });
             }
-          } catch { /* no remote tracking, skip */ }
+          } catch {
+            /* no remote tracking, skip */
+          }
         }
       }
 
@@ -255,9 +343,9 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
           registryProvider.listInstalled(),
         ]);
         for (const inst of installed) {
-          if (updates.some(u => u.name === inst.id)) continue; // already found via git
-          const avail = available.find(p => p.id === inst.id);
-          if (avail && avail.version && avail.version !== inst.version) {
+          if (updates.some((u) => u.name === inst.id)) continue; // already found via git
+          const avail = available.find((p) => p.id === inst.id);
+          if (avail?.version && avail.version !== inst.version) {
             updates.push({
               name: inst.id,
               currentVersion: inst.version || 'unknown',
@@ -266,7 +354,9 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
             });
           }
         }
-      } catch { /* no registry configured, that's fine */ }
+      } catch {
+        /* no registry configured, that's fine */
+      }
 
       return c.json({ updates });
     } catch (e: any) {
@@ -314,8 +404,8 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
         success: true,
         plugin: {
           name: manifest.name,
-          version: manifest.version
-        }
+          version: manifest.version,
+        },
       });
     } catch (e: any) {
       logger.error('Plugin update failed', { plugin: name, error: e.message });
@@ -329,15 +419,22 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
     const name = c.req.param('name');
     const pluginDir = join(pluginsDir, name);
 
-    if (!existsSync(pluginDir)) return c.json({ success: false, error: 'Plugin not found' }, 404);
+    if (!existsSync(pluginDir))
+      return c.json({ success: false, error: 'Plugin not found' }, 404);
 
     try {
-      const manifest = JSON.parse(await readFile(join(pluginDir, 'plugin.json'), 'utf-8'));
+      const manifest = JSON.parse(
+        await readFile(join(pluginDir, 'plugin.json'), 'utf-8'),
+      );
 
       // Remove agents (preserve memory)
       if (manifest.agents) {
         for (const agent of manifest.agents) {
-          const agentJson = join(agentsDir, `${name}:${agent.slug}`, 'agent.json');
+          const agentJson = join(
+            agentsDir,
+            `${name}:${agent.slug}`,
+            'agent.json',
+          );
           if (existsSync(agentJson)) rmSync(agentJson);
         }
       }
@@ -363,7 +460,12 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
   // ── Serve plugin bundle JS ───────────────────────────
 
   app.get('/:name/bundle.js', async (c) => {
-    const bundlePath = join(pluginsDir, c.req.param('name'), 'dist', 'bundle.js');
+    const bundlePath = join(
+      pluginsDir,
+      c.req.param('name'),
+      'dist',
+      'bundle.js',
+    );
     if (!existsSync(bundlePath)) return c.text('Bundle not found', 404);
     c.header('Content-Type', 'application/javascript');
     c.header('Cache-Control', 'no-cache');
@@ -386,7 +488,8 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
   app.get('/:name/permissions', async (c) => {
     const name = c.req.param('name');
     const manifestPath = join(pluginsDir, name, 'plugin.json');
-    if (!existsSync(manifestPath)) return c.json({ success: false, error: 'Plugin not found' }, 404);
+    if (!existsSync(manifestPath))
+      return c.json({ success: false, error: 'Plugin not found' }, 404);
     const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
     const declared = manifest.permissions || [];
     const granted = getPluginGrants(workAgentDir, name);
@@ -396,7 +499,11 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
   app.post('/:name/grant', async (c) => {
     const name = c.req.param('name');
     const { permissions } = await c.req.json();
-    if (!Array.isArray(permissions)) return c.json({ success: false, error: 'permissions array required' }, 400);
+    if (!Array.isArray(permissions))
+      return c.json(
+        { success: false, error: 'permissions array required' },
+        400,
+      );
     grantPermissions(workAgentDir, name, permissions);
     return c.json({ success: true, granted: permissions });
   });
@@ -407,7 +514,13 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
   app.post('/:name/fetch', async (c) => {
     const name = c.req.param('name');
     if (!hasGrant(workAgentDir, name, 'network.fetch')) {
-      return c.json({ success: false, error: `Plugin '${name}' does not have network.fetch permission` }, 403);
+      return c.json(
+        {
+          success: false,
+          error: `Plugin '${name}' does not have network.fetch permission`,
+        },
+        403,
+      );
     }
     return proxyFetch(c);
   });
@@ -447,18 +560,26 @@ export function createPluginRoutes(workAgentDir: string, logger: any, eventBus?:
 async function proxyFetch(c: any) {
   try {
     const { url, method, headers, body } = await c.req.json();
-    if (!url || typeof url !== 'string') return c.json({ success: false, error: 'url is required' }, 400);
+    if (!url || typeof url !== 'string')
+      return c.json({ success: false, error: 'url is required' }, 400);
 
     const resp = await fetch(url, {
       method: method || 'GET',
       headers: headers || {},
-      ...(body ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {}),
+      ...(body
+        ? { body: typeof body === 'string' ? body : JSON.stringify(body) }
+        : {}),
     });
 
     const contentType = resp.headers.get('content-type') || '';
     const text = await resp.text();
 
-    return c.json({ success: true, status: resp.status, contentType, body: text });
+    return c.json({
+      success: true,
+      status: resp.status,
+      contentType,
+      body: text,
+    });
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 502);
   }
@@ -467,17 +588,33 @@ async function proxyFetch(c: any) {
 // ── Helpers ────────────────────────────────────────────
 
 function extractPluginName(source: string): string {
-  if (source.startsWith('git@') || source.includes('.git') || source.startsWith('https://')) {
+  if (
+    source.startsWith('git@') ||
+    source.includes('.git') ||
+    source.startsWith('https://')
+  ) {
     const match = source.split('#')[0].match(/\/([^/]+?)(?:\.git)?$/);
     return match ? match[1] : 'unknown';
   }
   return source.split('/').pop() || 'unknown';
 }
 
-async function loadProviders(pluginsDir: string, pluginName: string, manifest: any, logger: any): Promise<number> {
+async function loadProviders(
+  pluginsDir: string,
+  pluginName: string,
+  manifest: any,
+  logger: any,
+): Promise<number> {
   if (!manifest.providers) return 0;
 
-  const { registerAuthProvider, registerUserIdentityProvider, registerUserDirectoryProvider, registerAgentRegistryProvider, registerToolRegistryProvider, registerOnboardingProvider } = await import('../providers/registry.js');
+  const {
+    registerAuthProvider,
+    registerUserIdentityProvider,
+    registerUserDirectoryProvider,
+    registerAgentRegistryProvider,
+    registerToolRegistryProvider,
+    registerOnboardingProvider,
+  } = await import('../providers/registry.js');
   let loaded = 0;
 
   for (const p of manifest.providers) {
@@ -485,21 +622,29 @@ async function loadProviders(pluginsDir: string, pluginName: string, manifest: a
     if (!existsSync(modulePath)) continue;
 
     try {
-      const fileUrl = 'file://' + modulePath + '?t=' + Date.now();
+      const fileUrl = `file://${modulePath}?t=${Date.now()}`;
       const mod = await import(fileUrl);
       const factory = mod.default || mod;
       const instance = typeof factory === 'function' ? factory() : factory;
 
       if (p.type === 'auth') registerAuthProvider(instance);
-      else if (p.type === 'userIdentity') registerUserIdentityProvider(instance);
-      else if (p.type === 'userDirectory') registerUserDirectoryProvider(instance);
-      else if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-      else if (p.type === 'toolRegistry') registerToolRegistryProvider(instance);
+      else if (p.type === 'userIdentity')
+        registerUserIdentityProvider(instance);
+      else if (p.type === 'userDirectory')
+        registerUserDirectoryProvider(instance);
+      else if (p.type === 'agentRegistry')
+        registerAgentRegistryProvider(instance);
+      else if (p.type === 'toolRegistry')
+        registerToolRegistryProvider(instance);
       else if (p.type === 'onboarding') registerOnboardingProvider(instance);
 
       loaded++;
     } catch (e: any) {
-      logger.error('Failed to load provider', { plugin: pluginName, type: p.type, error: e.message });
+      logger.error('Failed to load provider', {
+        plugin: pluginName,
+        type: p.type,
+        error: e.message,
+      });
     }
   }
 

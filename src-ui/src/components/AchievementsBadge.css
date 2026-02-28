@@ -25,7 +25,7 @@
   border-radius: 9999px;
   font-size: 0.875rem;
   font-weight: 500;
-  background-color: var(--accent-success)20;
+  background-color: var(--accent-success) 20;
   color: var(--accent-success);
 }
 
@@ -49,8 +49,8 @@
 }
 
 .achievement-card-unlocked {
-  background-color: var(--accent-success)10;
-  border: 2px solid var(--accent-success)40;
+  background-color: var(--accent-success) 10;
+  border: 2px solid var(--accent-success) 40;
   opacity: 1;
 }
 

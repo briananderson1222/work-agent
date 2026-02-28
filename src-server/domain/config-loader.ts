@@ -2,18 +2,24 @@
  * Configuration loader for reading and watching .work-agent/ files
  */
 
-import { readFile, readdir, stat, writeFile, mkdir, rm } from 'fs/promises';
-import { existsSync } from 'fs';
-import { basename, extname, join, resolve } from 'path';
-import { watch, type FSWatcher } from 'chokidar';
+import { existsSync } from 'node:fs';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { basename, extname, join, resolve } from 'node:path';
 import { createPinoLogger } from '@voltagent/logger';
+import { type FSWatcher, watch } from 'chokidar';
 import type {
-  AgentSpec,
-  ToolDef,
-  AppConfig,
   ACPConfig,
-  ACPConnectionConfig,
   AgentMetadata,
+  AgentSpec,
+  AppConfig,
+  ToolDef,
   ToolMetadata,
   WorkflowMetadata,
   WorkspaceConfig,
@@ -61,7 +67,7 @@ export class ConfigLoader {
         region: 'us-east-1',
         defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
         invokeModel: 'us.amazon.nova-2-lite-v1:0',
-        structureModel: 'us.amazon.nova-micro-v1:0'
+        structureModel: 'us.amazon.nova-micro-v1:0',
       };
 
       await this.saveAppConfig(defaultConfig);
@@ -70,11 +76,11 @@ export class ConfigLoader {
 
     const content = await readFile(path, 'utf-8');
     const data = JSON.parse(content);
-    
+
     // Migrate: add defaults for new required fields
     if (!data.invokeModel) data.invokeModel = 'us.amazon.nova-2-lite-v1:0';
     if (!data.structureModel) data.structureModel = 'us.amazon.nova-micro-v1:0';
-    
+
     validator.validateAppConfig(data);
     return data;
   }
@@ -119,7 +125,9 @@ export class ConfigLoader {
   /**
    * Create a new agent (generates slug from name)
    */
-  async createAgent(spec: AgentSpec): Promise<{ slug: string; spec: AgentSpec }> {
+  async createAgent(
+    spec: AgentSpec,
+  ): Promise<{ slug: string; spec: AgentSpec }> {
     validator.validateAgentSpec(spec);
 
     // Generate slug from name
@@ -129,7 +137,9 @@ export class ConfigLoader {
       .replace(/^-+|-+$/g, '');
 
     if (!slug) {
-      throw new Error('Agent name must contain at least one alphanumeric character');
+      throw new Error(
+        'Agent name must contain at least one alphanumeric character',
+      );
     }
 
     // Check if agent already exists
@@ -144,12 +154,21 @@ export class ConfigLoader {
   /**
    * Update an existing agent
    */
-  async updateAgent(slug: string, updates: Partial<AgentSpec>): Promise<AgentSpec> {
+  async updateAgent(
+    slug: string,
+    updates: Partial<AgentSpec>,
+  ): Promise<AgentSpec> {
     // Load existing agent
     const existing = await this.loadAgent(slug);
 
     // Filter out metadata fields that aren't part of AgentSpec
-    const { slug: _, updatedAt, description, workflowWarnings, ...cleanUpdates } = updates as Partial<AgentSpec> & {
+    const {
+      slug: _,
+      updatedAt,
+      description,
+      workflowWarnings,
+      ...cleanUpdates
+    } = updates as Partial<AgentSpec> & {
       slug?: string;
       updatedAt?: string;
       description?: string;
@@ -226,7 +245,10 @@ export class ConfigLoader {
         const spec = await this.loadAgent(entry.name);
         const stats = await stat(agentPath);
 
-        const workflowWarnings = await this.validateWorkflowShortcuts(entry.name, spec.ui?.workflowShortcuts);
+        const workflowWarnings = await this.validateWorkflowShortcuts(
+          entry.name,
+          spec.ui?.workflowShortcuts,
+        );
 
         agents.push({
           slug: entry.name,
@@ -235,10 +257,14 @@ export class ConfigLoader {
           updatedAt: stats.mtime.toISOString(),
           description: spec.prompt,
           ui: spec.ui,
-          workflowWarnings: workflowWarnings.length > 0 ? workflowWarnings : undefined
+          workflowWarnings:
+            workflowWarnings.length > 0 ? workflowWarnings : undefined,
         });
       } catch (error: any) {
-        logger.error('Failed to load agent', { agent: entry.name, error: error.message || error });
+        logger.error('Failed to load agent', {
+          agent: entry.name,
+          error: error.message || error,
+        });
         if (error.name === 'ValidationError') {
           logger.error('Validation errors', { errors: error.errors });
         }
@@ -282,11 +308,17 @@ export class ConfigLoader {
   /**
    * Create a new workflow file
    */
-  async createWorkflow(slug: string, filename: string, content: string): Promise<void> {
+  async createWorkflow(
+    slug: string,
+    filename: string,
+    content: string,
+  ): Promise<void> {
     // Validate filename extension
     const ext = extname(filename).toLowerCase();
     if (!['.ts', '.js', '.mjs', '.cjs'].includes(ext)) {
-      throw new Error('Workflow filename must end with .ts, .js, .mjs, or .cjs');
+      throw new Error(
+        'Workflow filename must end with .ts, .js, .mjs, or .cjs',
+      );
     }
 
     const workflowsDir = join(this.workAgentDir, 'agents', slug, 'workflows');
@@ -305,7 +337,13 @@ export class ConfigLoader {
    * Read workflow file content
    */
   async readWorkflow(slug: string, workflowId: string): Promise<string> {
-    const path = join(this.workAgentDir, 'agents', slug, 'workflows', workflowId);
+    const path = join(
+      this.workAgentDir,
+      'agents',
+      slug,
+      'workflows',
+      workflowId,
+    );
 
     if (!existsSync(path)) {
       throw new Error(`Workflow '${workflowId}' not found`);
@@ -317,8 +355,18 @@ export class ConfigLoader {
   /**
    * Update an existing workflow file
    */
-  async updateWorkflow(slug: string, workflowId: string, content: string): Promise<void> {
-    const path = join(this.workAgentDir, 'agents', slug, 'workflows', workflowId);
+  async updateWorkflow(
+    slug: string,
+    workflowId: string,
+    content: string,
+  ): Promise<void> {
+    const path = join(
+      this.workAgentDir,
+      'agents',
+      slug,
+      'workflows',
+      workflowId,
+    );
 
     if (!existsSync(path)) {
       throw new Error(`Workflow '${workflowId}' not found`);
@@ -331,7 +379,13 @@ export class ConfigLoader {
    * Delete a workflow file
    */
   async deleteWorkflow(slug: string, workflowId: string): Promise<void> {
-    const path = join(this.workAgentDir, 'agents', slug, 'workflows', workflowId);
+    const path = join(
+      this.workAgentDir,
+      'agents',
+      slug,
+      'workflows',
+      workflowId,
+    );
 
     if (!existsSync(path)) {
       throw new Error(`Workflow '${workflowId}' not found`);
@@ -347,7 +401,10 @@ export class ConfigLoader {
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
-  private async validateWorkflowShortcuts(slug: string, shortcuts?: string[]): Promise<string[]> {
+  private async validateWorkflowShortcuts(
+    slug: string,
+    shortcuts?: string[],
+  ): Promise<string[]> {
     if (!shortcuts || shortcuts.length === 0) {
       return [];
     }
@@ -358,15 +415,21 @@ export class ConfigLoader {
       const missing = shortcuts.filter((id) => !knownIds.has(id));
 
       if (missing.length > 0) {
-        logger.warn('Agent references missing workflows in ui.workflowShortcuts', { 
-          agent: slug, 
-          missing: missing.join(', ') 
-        });
+        logger.warn(
+          'Agent references missing workflows in ui.workflowShortcuts',
+          {
+            agent: slug,
+            missing: missing.join(', '),
+          },
+        );
       }
 
       return missing;
     } catch (error) {
-      logger.error('Failed to validate workflow shortcuts', { agent: slug, error });
+      logger.error('Failed to validate workflow shortcuts', {
+        agent: slug,
+        error,
+      });
       return shortcuts;
     }
   }
@@ -425,7 +488,7 @@ export class ConfigLoader {
           id: def.id,
           kind: def.kind,
           displayName: def.displayName,
-          description: def.description
+          description: def.description,
         });
       } catch (error) {
         logger.error('Failed to load tool', { tool: entry.name, error });
@@ -448,21 +511,25 @@ export class ConfigLoader {
     const content = await readFile(path, 'utf-8');
     const data = JSON.parse(content);
     validator.validateWorkspaceConfig(data);
-    
+
     // Validate agent references
     for (const prompt of data.globalPrompts || []) {
       if (prompt.agent && !(await this.agentExists(prompt.agent))) {
-        throw new Error(`Workspace '${slug}' references non-existent agent '${prompt.agent}'`);
+        throw new Error(
+          `Workspace '${slug}' references non-existent agent '${prompt.agent}'`,
+        );
       }
     }
     for (const tab of data.tabs || []) {
       for (const prompt of tab.prompts || []) {
         if (prompt.agent && !(await this.agentExists(prompt.agent))) {
-          throw new Error(`Workspace '${slug}' tab '${tab.id}' references non-existent agent '${prompt.agent}'`);
+          throw new Error(
+            `Workspace '${slug}' tab '${tab.id}' references non-existent agent '${prompt.agent}'`,
+          );
         }
       }
     }
-    
+
     return data;
   }
 
@@ -495,7 +562,10 @@ export class ConfigLoader {
           tabCount: config.tabs?.length || 0,
         });
       } catch (error) {
-        logger.error('Failed to load workspace', { workspace: entry.name, error });
+        logger.error('Failed to load workspace', {
+          workspace: entry.name,
+          error,
+        });
       }
     }
 
@@ -518,7 +588,10 @@ export class ConfigLoader {
   /**
    * Update an existing workspace
    */
-  async updateWorkspace(slug: string, updates: Partial<WorkspaceConfig>): Promise<WorkspaceConfig> {
+  async updateWorkspace(
+    slug: string,
+    updates: Partial<WorkspaceConfig>,
+  ): Promise<WorkspaceConfig> {
     const existing = await this.loadWorkspace(slug);
     const updated = { ...existing, ...updates };
     await this.saveWorkspace(slug, updated);
@@ -561,13 +634,15 @@ export class ConfigLoader {
     for (const ws of workspaces) {
       try {
         const config = await this.loadWorkspace(ws.slug);
-        
+
         // Check global prompts
-        const hasGlobalRef = config.globalPrompts?.some(p => p.agent === agentSlug);
-        
+        const hasGlobalRef = config.globalPrompts?.some(
+          (p) => p.agent === agentSlug,
+        );
+
         // Check tab prompts
-        const hasTabRef = config.tabs.some(tab => 
-          tab.prompts?.some(p => p.agent === agentSlug)
+        const hasTabRef = config.tabs.some((tab) =>
+          tab.prompts?.some((p) => p.agent === agentSlug),
         );
 
         if (hasGlobalRef || hasTabRef) {
@@ -612,12 +687,12 @@ export class ConfigLoader {
     const patterns = [
       join(this.workAgentDir, 'config', '*.json'),
       join(this.workAgentDir, 'agents', '*', 'agent.json'),
-      join(this.workAgentDir, 'tools', '*', 'tool.json')
+      join(this.workAgentDir, 'tools', '*', 'tool.json'),
     ];
 
     this.watcher = watch(patterns, {
       persistent: true,
-      ignoreInitial: true
+      ignoreInitial: true,
     });
 
     this.watcher.on('change', (path) => {
@@ -674,7 +749,14 @@ export class ConfigLoader {
     if (!existsSync(path)) {
       const defaultConfig: ACPConfig = {
         connections: [
-          { id: 'kiro', name: 'kiro-cli', command: 'kiro-cli', args: ['acp'], icon: '/kiro-icon.png', enabled: true },
+          {
+            id: 'kiro',
+            name: 'kiro-cli',
+            command: 'kiro-cli',
+            args: ['acp'],
+            icon: '/kiro-icon.png',
+            enabled: true,
+          },
         ],
       };
       await mkdir(join(this.workAgentDir, 'config'), { recursive: true });

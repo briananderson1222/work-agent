@@ -1,9 +1,9 @@
-import { useRef, useEffect, useState } from 'react';
-import { useSessionManagementViewModel } from '../hooks/useSessionManagementViewModel';
+import { useEffect, useRef, useState } from 'react';
 import { useSessionManagementMenu } from '../hooks/useSessionManagementMenu';
+import { useSessionManagementViewModel } from '../hooks/useSessionManagementViewModel';
 import { ConfirmModal } from './ConfirmModal';
-import { SessionManagementPanel } from './SessionManagementPanel';
 import { SessionConversationItem } from './SessionConversationItem';
+import { SessionManagementPanel } from './SessionManagementPanel';
 
 interface Conversation {
   id: string;
@@ -50,7 +50,11 @@ export function SessionManagementMenu({
   onOpenConversation,
 }: SessionManagementMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const [panelBounds, setPanelBounds] = useState({ top: 0, bottom: 0, left: 0 });
+  const [panelBounds, setPanelBounds] = useState({
+    top: 0,
+    bottom: 0,
+    left: 0,
+  });
 
   const menu = useSessionManagementMenu({
     sessions,
@@ -59,7 +63,10 @@ export function SessionManagementMenu({
     onDelete,
   });
 
-  const { conversations, loading } = useSessionManagementViewModel(agents, menu.isOpen);
+  const { conversations, loading } = useSessionManagementViewModel(
+    agents,
+    menu.isOpen,
+  );
 
   useEffect(() => {
     if (menu.isOpen && chatDockRef.current) {
@@ -73,7 +80,7 @@ export function SessionManagementMenu({
   }, [menu.isOpen, chatDockRef]);
 
   const handleSelectConversation = (conv: Conversation) => {
-    const existingSession = sessions.find(s => s.conversationId === conv.id);
+    const existingSession = sessions.find((s) => s.conversationId === conv.id);
     if (existingSession) {
       onSelect(existingSession.id);
     } else {
@@ -83,7 +90,10 @@ export function SessionManagementMenu({
   };
 
   return (
-    <div ref={menuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+    <div
+      ref={menuRef}
+      style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+    >
       <button
         className="session-menu__trigger"
         onClick={() => menu.setIsOpen(!menu.isOpen)}
@@ -124,7 +134,7 @@ export function SessionManagementMenu({
               }
             }}
           />
-          
+
           <SessionManagementPanel
             bounds={panelBounds}
             conversationCount={conversations.length}
@@ -140,8 +150,13 @@ export function SessionManagementMenu({
                 <SessionConversationItem
                   key={conv.id}
                   conversation={conv}
-                  isActive={sessions.some(s => s.conversationId === conv.id && s.id === activeSessionId)}
-                  hasActiveChat={sessions.some(s => s.conversationId === conv.id)}
+                  isActive={sessions.some(
+                    (s) =>
+                      s.conversationId === conv.id && s.id === activeSessionId,
+                  )}
+                  hasActiveChat={sessions.some(
+                    (s) => s.conversationId === conv.id,
+                  )}
                   isRenaming={menu.renamingId === conv.id}
                   newTitle={menu.newTitle}
                   inputRef={menu.inputRef}

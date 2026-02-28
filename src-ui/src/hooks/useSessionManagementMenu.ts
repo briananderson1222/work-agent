@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
 import { useInvalidateQuery } from '@work-agent/sdk';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { log } from '../utils/logger';
 
@@ -44,11 +44,13 @@ export function useSessionManagementMenu({
 }: UseSessionManagementMenuOptions) {
   const { apiBase } = useApiBase();
   const invalidate = useInvalidateQuery();
-  
+
   const [isOpen, setIsOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState<{ conv: Conversation } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    conv: Conversation;
+  } | null>(null);
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -59,31 +61,39 @@ export function useSessionManagementMenu({
     }
   }, [renamingId]);
 
-  const handleRename = useCallback(async (conv: Conversation) => {
-    if (!newTitle.trim() || newTitle === conv.title) {
-      setRenamingId(null);
-      return;
-    }
-
-    try {
-      const response = await fetch(`${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle.trim() }),
-      });
-
-      if (response.ok) {
-        invalidate(['conversations', conv.agentSlug]);
-        const activeSession = sessions.find(s => s.conversationId === conv.id);
-        if (activeSession) {
-          onTitleUpdate(activeSession.id, newTitle.trim());
-        }
+  const handleRename = useCallback(
+    async (conv: Conversation) => {
+      if (!newTitle.trim() || newTitle === conv.title) {
         setRenamingId(null);
+        return;
       }
-    } catch (error) {
-      log.api('Failed to rename conversation:', error);
-    }
-  }, [apiBase, invalidate, sessions, onTitleUpdate, newTitle]);
+
+      try {
+        const response = await fetch(
+          `${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: newTitle.trim() }),
+          },
+        );
+
+        if (response.ok) {
+          invalidate(['conversations', conv.agentSlug]);
+          const activeSession = sessions.find(
+            (s) => s.conversationId === conv.id,
+          );
+          if (activeSession) {
+            onTitleUpdate(activeSession.id, newTitle.trim());
+          }
+          setRenamingId(null);
+        }
+      } catch (error) {
+        log.api('Failed to rename conversation:', error);
+      }
+    },
+    [apiBase, invalidate, sessions, onTitleUpdate, newTitle],
+  );
 
   const handleDelete = useCallback((conv: Conversation) => {
     setDeleteConfirm({ conv });
@@ -95,20 +105,27 @@ export function useSessionManagementMenu({
     setDeleteConfirm(null);
 
     try {
-      const response = await fetch(`${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(
+        `${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`,
+        {
+          method: 'DELETE',
+        },
+      );
 
       if (response.ok) {
         invalidate(['conversations', conv.agentSlug]);
-        const activeSession = sessions.find(s => s.conversationId === conv.id);
+        const activeSession = sessions.find(
+          (s) => s.conversationId === conv.id,
+        );
         if (activeSession) {
           onDelete(activeSession.id);
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
         log.api('Delete failed:', errorData);
-        alert(`Failed to delete conversation: ${errorData.error || 'Unknown error'}`);
+        alert(
+          `Failed to delete conversation: ${errorData.error || 'Unknown error'}`,
+        );
       }
     } catch (error) {
       log.api('Failed to delete conversation:', error);
@@ -116,29 +133,37 @@ export function useSessionManagementMenu({
     }
   }, [apiBase, deleteConfirm, invalidate, sessions, onDelete]);
 
-  const clearAll = useCallback(async (conversations: Conversation[]) => {
-    setShowClearAllConfirm(false);
-    
-    try {
-      for (const conv of conversations) {
-        await fetch(`${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`, {
-          method: 'DELETE',
-        });
-        
-        const activeSession = sessions.find(s => s.conversationId === conv.id);
-        if (activeSession) {
-          onDelete(activeSession.id);
+  const clearAll = useCallback(
+    async (conversations: Conversation[]) => {
+      setShowClearAllConfirm(false);
+
+      try {
+        for (const conv of conversations) {
+          await fetch(
+            `${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`,
+            {
+              method: 'DELETE',
+            },
+          );
+
+          const activeSession = sessions.find(
+            (s) => s.conversationId === conv.id,
+          );
+          if (activeSession) {
+            onDelete(activeSession.id);
+          }
         }
+
+        agents.forEach((agent) => {
+          invalidate(['conversations', agent.slug]);
+        });
+      } catch (error) {
+        log.api('Failed to clear all conversations:', error);
+        alert('Failed to clear all conversations. Check console for details.');
       }
-      
-      agents.forEach(agent => {
-        invalidate(['conversations', agent.slug]);
-      });
-    } catch (error) {
-      log.api('Failed to clear all conversations:', error);
-      alert('Failed to clear all conversations. Check console for details.');
-    }
-  }, [apiBase, agents, invalidate, sessions, onDelete]);
+    },
+    [apiBase, agents, invalidate, sessions, onDelete],
+  );
 
   const startRename = useCallback((conv: Conversation) => {
     setRenamingId(conv.id);

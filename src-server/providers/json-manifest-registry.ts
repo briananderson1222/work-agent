@@ -4,11 +4,16 @@
  * by fetching a remote JSON manifest.
  */
 
-import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
-import { execSync } from 'child_process';
-import type { IAgentRegistryProvider, IToolRegistryProvider, RegistryItem, InstallResult } from './types.js';
+import { execSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ToolDef } from '../domain/types.js';
+import type {
+  IAgentRegistryProvider,
+  InstallResult,
+  IToolRegistryProvider,
+  RegistryItem,
+} from './types.js';
 
 interface ManifestPlugin {
   id: string;
@@ -33,14 +38,16 @@ interface Manifest {
   tools: ManifestTool[];
 }
 
-export class JsonManifestRegistryProvider implements IAgentRegistryProvider, IToolRegistryProvider {
+export class JsonManifestRegistryProvider
+  implements IAgentRegistryProvider, IToolRegistryProvider
+{
   private manifestCache: Manifest | null = null;
   private cacheExpiry = 0;
   private readonly cacheTimeout = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     private readonly manifestUrl: string,
-    private readonly workAgentDir: string
+    private readonly workAgentDir: string,
   ) {}
 
   private async fetchManifest(): Promise<Manifest> {
@@ -51,20 +58,18 @@ export class JsonManifestRegistryProvider implements IAgentRegistryProvider, ITo
 
     const response = await fetch(this.manifestUrl);
     if (!response.ok) {
-      throw new Error(`Failed to fetch manifest: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch manifest: ${response.status} ${response.statusText}`,
+      );
     }
 
-    this.manifestCache = await response.json() as Manifest;
+    this.manifestCache = (await response.json()) as Manifest;
     this.cacheExpiry = now + this.cacheTimeout;
     return this.manifestCache!;
   }
 
   private getPluginsDir(): string {
     return join(this.workAgentDir, 'plugins');
-  }
-
-  private getToolsDir(): string {
-    return join(this.workAgentDir, 'tools');
   }
 
   private readInstalledPlugins(): RegistryItem[] {
@@ -96,46 +101,28 @@ export class JsonManifestRegistryProvider implements IAgentRegistryProvider, ITo
     return items;
   }
 
-  private readInstalledTools(): RegistryItem[] {
-    const toolsDir = this.getToolsDir();
-    if (!existsSync(toolsDir)) return [];
-
-    const items: RegistryItem[] = [];
-    const entries = readdirSync(toolsDir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const toolPath = join(toolsDir, entry.name, 'tool.json');
-      if (!existsSync(toolPath)) continue;
-
-      try {
-        const tool = JSON.parse(readFileSync(toolPath, 'utf-8'));
-        items.push({
-          id: tool.id || entry.name,
-          displayName: tool.displayName,
-          description: tool.description,
-          version: tool.version,
-          installed: true,
-        });
-      } catch {
-        // Skip invalid tools
-      }
-    }
-
-    return items;
-  }
-
-  private async installFromSource(id: string, source: string, targetDir: string): Promise<void> {
-    const isGit = source.startsWith('git@') || source.endsWith('.git') ||
-      (source.startsWith('https://') && (source.includes('.git') || source.includes('gitlab') || source.includes('github')));
+  private async installFromSource(
+    _id: string,
+    source: string,
+    targetDir: string,
+  ): Promise<void> {
+    const isGit =
+      source.startsWith('git@') ||
+      source.endsWith('.git') ||
+      (source.startsWith('https://') &&
+        (source.includes('.git') ||
+          source.includes('gitlab') ||
+          source.includes('github')));
 
     if (isGit) {
       const [url, branch] = source.split('#');
       const cloneArgs = ['clone', '--depth', '1'];
       if (branch) cloneArgs.push('--branch', branch);
       cloneArgs.push(url, targetDir);
-      
-      execSync(['git', ...cloneArgs].map(a => `"${a}"`).join(' '), { timeout: 30000 });
+
+      execSync(['git', ...cloneArgs].map((a) => `"${a}"`).join(' '), {
+        timeout: 30000,
+      });
     } else {
       throw new Error('Only git sources are supported');
     }
@@ -145,7 +132,7 @@ export class JsonManifestRegistryProvider implements IAgentRegistryProvider, ITo
 
   async listAvailable(): Promise<RegistryItem[]> {
     const manifest = await this.fetchManifest();
-    return manifest.plugins.map(plugin => ({
+    return manifest.plugins.map((plugin) => ({
       id: plugin.id,
       displayName: plugin.displayName,
       description: plugin.description,
@@ -161,10 +148,13 @@ export class JsonManifestRegistryProvider implements IAgentRegistryProvider, ITo
   async install(id: string): Promise<InstallResult> {
     try {
       const manifest = await this.fetchManifest();
-      const plugin = manifest.plugins.find(p => p.id === id);
-      
+      const plugin = manifest.plugins.find((p) => p.id === id);
+
       if (!plugin) {
-        return { success: false, message: `Plugin '${id}' not found in registry` };
+        return {
+          success: false,
+          message: `Plugin '${id}' not found in registry`,
+        };
       }
 
       const pluginsDir = this.getPluginsDir();
@@ -172,7 +162,10 @@ export class JsonManifestRegistryProvider implements IAgentRegistryProvider, ITo
 
       await this.installFromSource(id, plugin.source, targetDir);
 
-      return { success: true, message: `Plugin '${id}' installed successfully` };
+      return {
+        success: true,
+        message: `Plugin '${id}' installed successfully`,
+      };
     } catch (error: any) {
       return { success: false, message: error.message };
     }
@@ -188,7 +181,10 @@ export class JsonManifestRegistryProvider implements IAgentRegistryProvider, ITo
       }
 
       execSync(`rm -rf "${targetDir}"`);
-      return { success: true, message: `Plugin '${id}' uninstalled successfully` };
+      return {
+        success: true,
+        message: `Plugin '${id}' uninstalled successfully`,
+      };
     } catch (error: any) {
       return { success: false, message: error.message };
     }
@@ -196,7 +192,7 @@ export class JsonManifestRegistryProvider implements IAgentRegistryProvider, ITo
 
   // IToolRegistryProvider implementation
 
-  async getToolDef(id: string): Promise<ToolDef | null> {
+  async getToolDef(_id: string): Promise<ToolDef | null> {
     return null; // Not implemented for now
   }
 

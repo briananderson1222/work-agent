@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useState } from 'react';
 
 interface WorkspaceContextConfig<T> {
   workspaceSlug: string;
@@ -6,7 +6,9 @@ interface WorkspaceContextConfig<T> {
   persist?: boolean; // Auto-save to sessionStorage
 }
 
-export function createWorkspaceContext<T extends Record<string, any>>(config: WorkspaceContextConfig<T>) {
+export function createWorkspaceContext<T extends Record<string, any>>(
+  config: WorkspaceContextConfig<T>,
+) {
   const { workspaceSlug, initialState, persist = true } = config;
   const storageKey = `workspace:${workspaceSlug}:context`;
 
@@ -21,23 +23,28 @@ export function createWorkspaceContext<T extends Record<string, any>>(config: Wo
   function Provider({ children }: { children: ReactNode }) {
     const [state, setStateInternal] = useState<T>(() => {
       if (!persist) return initialState;
-      
+
       try {
         const stored = sessionStorage.getItem(storageKey);
-        return stored ? { ...initialState, ...JSON.parse(stored) } : initialState;
+        return stored
+          ? { ...initialState, ...JSON.parse(stored) }
+          : initialState;
       } catch {
         return initialState;
       }
     });
 
     const setState = (updates: Partial<T>) => {
-      setStateInternal(prev => {
+      setStateInternal((prev) => {
         const next = { ...prev, ...updates };
         if (persist) {
           try {
             sessionStorage.setItem(storageKey, JSON.stringify(next));
           } catch (err) {
-            console.warn(`Failed to persist workspace context for ${workspaceSlug}:`, err);
+            console.warn(
+              `Failed to persist workspace context for ${workspaceSlug}:`,
+              err,
+            );
           }
         }
         return next;
@@ -61,7 +68,9 @@ export function createWorkspaceContext<T extends Record<string, any>>(config: Wo
   function useWorkspaceContext() {
     const context = useContext(Context);
     if (!context) {
-      throw new Error(`useWorkspaceContext must be used within ${workspaceSlug} workspace Provider`);
+      throw new Error(
+        `useWorkspaceContext must be used within ${workspaceSlug} workspace Provider`,
+      );
     }
     return context;
   }

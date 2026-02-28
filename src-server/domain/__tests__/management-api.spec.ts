@@ -1,14 +1,15 @@
 // @vitest-environment node
 
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ConfigLoader } from '../config-loader.js';
 import type { AgentSpec } from '../types.js';
 
-const createTempDir = () => mkdtempSync(join(tmpdir(), 'work-agent-mgmt-test-'));
+const createTempDir = () =>
+  mkdtempSync(join(tmpdir(), 'work-agent-mgmt-test-'));
 
 describe('Agent CRUD operations', () => {
   let tempDir: string;
@@ -59,7 +60,7 @@ describe('Agent CRUD operations', () => {
     await loader.createAgent(spec);
 
     await expect(loader.createAgent(spec)).rejects.toThrow(
-      "Agent with slug 'duplicate' already exists"
+      "Agent with slug 'duplicate' already exists",
     );
   });
 
@@ -165,8 +166,10 @@ export default andThen(() => 'Hello from workflow');
 
   it('throws error for invalid file extension', async () => {
     await expect(
-      loader.createWorkflow(agentSlug, 'bad.txt', 'content')
-    ).rejects.toThrow('Workflow filename must end with .ts, .js, .mjs, or .cjs');
+      loader.createWorkflow(agentSlug, 'bad.txt', 'content'),
+    ).rejects.toThrow(
+      'Workflow filename must end with .ts, .js, .mjs, or .cjs',
+    );
   });
 });
 
@@ -187,7 +190,9 @@ describe('App config operations', () => {
     const config = await loader.loadAppConfig();
 
     expect(config.region).toBe('us-east-1');
-    expect(config.defaultModel).toBe('anthropic.claude-3-5-sonnet-20240620-v1:0');
+    expect(config.defaultModel).toBe(
+      'anthropic.claude-3-5-sonnet-20240620-v1:0',
+    );
   });
 
   it('updates app config', async () => {
@@ -198,6 +203,8 @@ describe('App config operations', () => {
     });
 
     expect(updated.region).toBe('us-west-2');
-    expect(updated.defaultModel).toBe('anthropic.claude-3-5-sonnet-20240620-v1:0'); // unchanged
+    expect(updated.defaultModel).toBe(
+      'anthropic.claude-3-5-sonnet-20240620-v1:0',
+    ); // unchanged
   });
 });

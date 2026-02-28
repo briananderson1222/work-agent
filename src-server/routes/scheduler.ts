@@ -6,25 +6,34 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { SchedulerService } from '../services/scheduler-service.js';
 
-export function createSchedulerRoutes(schedulerService: SchedulerService, logger: any) {
+export function createSchedulerRoutes(
+  schedulerService: SchedulerService,
+  logger: any,
+) {
   const app = new Hono();
 
   // SSE endpoint for real-time job events
   app.get('/events', (c) => {
     return streamSSE(c, async (stream) => {
       const unsub = schedulerService.subscribe((data) => {
-        stream.writeSSE({ data }).catch((e) => logger.error('SSE write failed', { error: e }));
+        stream
+          .writeSSE({ data })
+          .catch((e) => logger.error('SSE write failed', { error: e }));
       });
       // Keep alive
       const keepAlive = setInterval(() => {
-        stream.writeSSE({ event: 'ping', data: '' }).catch((e) => logger.error('SSE ping failed', { error: e }));
+        stream
+          .writeSSE({ event: 'ping', data: '' })
+          .catch((e) => logger.error('SSE ping failed', { error: e }));
       }, 30_000);
       // Wait until client disconnects
       try {
         await new Promise((_, reject) => {
           stream.onAbort(() => reject(new Error('aborted')));
         });
-      } catch { /* client disconnected */ }
+      } catch {
+        /* client disconnected */
+      }
       clearInterval(keepAlive);
       unsub();
     });
@@ -86,7 +95,10 @@ export function createSchedulerRoutes(schedulerService: SchedulerService, logger
   app.get('/jobs/:target/logs', async (c) => {
     try {
       const count = parseInt(c.req.query('count') || '20', 10);
-      const data = await schedulerService.getJobLogs(c.req.param('target'), count);
+      const data = await schedulerService.getJobLogs(
+        c.req.param('target'),
+        count,
+      );
       return c.json({ success: true, data });
     } catch (error: any) {
       logger.error('Failed to get job logs', { error });
@@ -165,7 +177,12 @@ export function createSchedulerRoutes(schedulerService: SchedulerService, logger
         return c.json({ success: false, error: 'path required' }, 400);
       }
       const { execFile } = await import('node:child_process');
-      const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+      const cmd =
+        process.platform === 'darwin'
+          ? 'open'
+          : process.platform === 'win32'
+            ? 'start'
+            : 'xdg-open';
       execFile(cmd, [filePath], (err) => {
         if (err) logger.error('Failed to open file', { error: err });
       });

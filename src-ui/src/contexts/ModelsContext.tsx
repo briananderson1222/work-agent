@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
 import { useModelsQuery } from '@work-agent/sdk';
+import { useMemo } from 'react';
 import { log } from '@/utils/logger';
 
 interface Model {
@@ -15,7 +15,7 @@ export function useModels(): Model[] {
 
   const models = useMemo(() => {
     if (!data) return [];
-    
+
     const processedModels = data
       .filter((m: any) => m.outputModalities.includes('TEXT'))
       .map((m: any) => ({
@@ -23,25 +23,25 @@ export function useModels(): Model[] {
         name: m.modelName || m.modelId,
         originalId: m.modelId,
         isInferenceProfile: m.isInferenceProfile || false,
-        profileType: m.profileType
+        profileType: m.profileType,
       }));
-    
+
     // Add suffix to duplicate names
     const nameCounts = new Map<string, number>();
     processedModels.forEach((m: any) => {
       nameCounts.set(m.name, (nameCounts.get(m.name) || 0) + 1);
     });
-    
+
     processedModels.forEach((m: any) => {
       if (nameCounts.get(m.name)! > 1) {
         const parts = m.originalId.split(':');
         const suffix = parts[parts.length - 1];
-        if (suffix && suffix !== '0' && isNaN(Number(suffix))) {
+        if (suffix && suffix !== '0' && Number.isNaN(Number(suffix))) {
           m.name = `${m.name} (${suffix})`;
         }
       }
     });
-    
+
     processedModels.sort((a: any, b: any) => a.name.localeCompare(b.name));
     return processedModels;
   }, [data]);

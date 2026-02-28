@@ -3,9 +3,9 @@
  */
 
 import 'dotenv/config';
-import { createInterface } from 'readline';
-import { homedir } from 'os';
-import { join } from 'path';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { createInterface } from 'node:readline';
 import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
 
 async function main() {
@@ -19,7 +19,9 @@ async function main() {
   const agents = runtime.listAgents();
 
   if (agents.length === 0) {
-    console.log('No agents found. Please create an agent in .work-agent/agents/');
+    console.log(
+      'No agents found. Please create an agent in .work-agent/agents/',
+    );
     process.exit(1);
   }
 

@@ -27,13 +27,17 @@ export function setActiveSessions(sessions: PersistedSession[]): void {
 
 export function addActiveSession(session: PersistedSession): void {
   const sessions = getActiveSessions();
-  const exists = sessions.some(s => s.conversationId === session.conversationId);
+  const exists = sessions.some(
+    (s) => s.conversationId === session.conversationId,
+  );
   if (!exists) {
     setActiveSessions([...sessions, session]);
   }
 }
 
 export function removeActiveSession(conversationId: string): void {
-  const sessions = getActiveSessions().filter(s => s.conversationId !== conversationId);
+  const sessions = getActiveSessions().filter(
+    (s) => s.conversationId !== conversationId,
+  );
   setActiveSessions(sessions);
 }

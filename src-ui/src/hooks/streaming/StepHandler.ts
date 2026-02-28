@@ -3,7 +3,7 @@
  */
 
 import { StreamEventHandler } from './BaseHandler';
-import type { StreamEvent, StreamState, HandlerResult } from './types';
+import type { HandlerResult, StreamEvent, StreamState } from './types';
 
 export class StepHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {

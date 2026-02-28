@@ -1,5 +1,5 @@
-import { useEffect, ReactNode } from 'react';
 import { useEvents } from '@work-agent/sdk';
+import { type ReactNode, useEffect } from 'react';
 
 export function EventRouter({ children }: { children: ReactNode }) {
   const events = useEvents();

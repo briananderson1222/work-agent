@@ -1,12 +1,11 @@
 // @vitest-environment node
 
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-
-import { validator } from '../validator.js';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigLoader } from '../config-loader.js';
+import { validator } from '../validator.js';
 
 // Mock the logger
 vi.mock('@voltagent/logger', () => ({
@@ -14,8 +13,8 @@ vi.mock('@voltagent/logger', () => ({
     warn: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
-    debug: vi.fn()
-  }))
+    debug: vi.fn(),
+  })),
 }));
 
 const createTempDir = () => mkdtempSync(join(tmpdir(), 'work-agent-test-'));
@@ -50,7 +49,7 @@ describe('Agent schema validation', () => {
     } as any;
 
     expect(() => validator.validateAgentSpec(spec)).toThrowError(
-      /Invalid agent configuration:[\s\S]*missing required property 'label'/
+      /Invalid agent configuration:[\s\S]*missing required property 'label'/,
     );
   });
 });
@@ -75,13 +74,21 @@ describe('ConfigLoader workflow metadata', () => {
           },
         },
         null,
-        2
+        2,
       ),
-      'utf-8'
+      'utf-8',
     );
 
-    writeFileSync(join(agentDir, 'workflows', 'existing.ts'), '// workflow placeholder', 'utf-8');
-    writeFileSync(join(agentDir, 'workflows', 'second-workflow.js'), '// another', 'utf-8');
+    writeFileSync(
+      join(agentDir, 'workflows', 'existing.ts'),
+      '// workflow placeholder',
+      'utf-8',
+    );
+    writeFileSync(
+      join(agentDir, 'workflows', 'second-workflow.js'),
+      '// another',
+      'utf-8',
+    );
   });
 
   afterEach(() => {
@@ -93,8 +100,16 @@ describe('ConfigLoader workflow metadata', () => {
     const workflows = await loader.listAgentWorkflows('example');
 
     expect(workflows).toEqual([
-      expect.objectContaining({ id: 'existing.ts', label: 'Existing', filename: 'existing.ts' }),
-      expect.objectContaining({ id: 'second-workflow.js', label: 'Second Workflow', filename: 'second-workflow.js' }),
+      expect.objectContaining({
+        id: 'existing.ts',
+        label: 'Existing',
+        filename: 'existing.ts',
+      }),
+      expect.objectContaining({
+        id: 'second-workflow.js',
+        label: 'Second Workflow',
+        filename: 'second-workflow.js',
+      }),
     ]);
   });
 
@@ -103,14 +118,14 @@ describe('ConfigLoader workflow metadata', () => {
     const agents = await loader.listAgents();
 
     expect(agents[0].workflowWarnings).toEqual(['missing.ts']);
-    
+
     // Get the mocked logger instance
     const { createPinoLogger } = await import('@voltagent/logger');
     const mockLogger = vi.mocked(createPinoLogger).mock.results[0].value;
-    
+
     expect(mockLogger.warn).toHaveBeenCalledWith(
       'Agent references missing workflows in ui.workflowShortcuts',
-      { agent: 'example', missing: 'missing.ts' }
+      { agent: 'example', missing: 'missing.ts' },
     );
   });
 });

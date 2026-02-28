@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import type { Tool } from '../types';
 
@@ -15,31 +15,41 @@ interface AgentToolConfig {
   aliases?: Record<string, string>;
 }
 
-export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: ToolManagementViewProps) {
+export function ToolManagementView({
+  apiBase,
+  agentSlug,
+  agentName,
+  onBack,
+}: ToolManagementViewProps) {
   const [globalTools, setGlobalTools] = useState<Tool[]>([]);
-  const [agentConfig, setAgentConfig] = useState<AgentToolConfig>({ tools: [] });
+  const [agentConfig, setAgentConfig] = useState<AgentToolConfig>({
+    tools: [],
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toolToRemove, setToolToRemove] = useState<string | null>(null);
   const [allowListText, setAllowListText] = useState('');
-  const [aliasEditMode, setAliasEditMode] = useState<Record<string, boolean>>({});
+  const [aliasEditMode, setAliasEditMode] = useState<Record<string, boolean>>(
+    {},
+  );
   const [aliasValues, setAliasValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadData();
-  }, [agentSlug]);
+  }, [loadData]);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const [toolsResponse, agentResponse, agentToolsResponse] = await Promise.all([
-        fetch(`${apiBase}/tools`),
-        fetch(`${apiBase}/agents`),
-        fetch(`${apiBase}/agents/${agentSlug}/tools`).catch(() => null),
-      ]);
+      const [toolsResponse, agentResponse, agentToolsResponse] =
+        await Promise.all([
+          fetch(`${apiBase}/tools`),
+          fetch(`${apiBase}/agents`),
+          fetch(`${apiBase}/agents/${agentSlug}/tools`).catch(() => null),
+        ]);
 
       if (!toolsResponse.ok) throw new Error('Failed to load tools');
       if (!agentResponse.ok) throw new Error('Failed to load agent');
@@ -48,22 +58,24 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
       const agentData = await agentResponse.json();
 
       const agent = (agentData.data || []).find(
-        (a: any) => a.slug === agentSlug || a.id === agentSlug
+        (a: any) => a.slug === agentSlug || a.id === agentSlug,
       );
       if (!agent) throw new Error('Agent not found');
 
       let tools = toolsData.data || [];
-      
+
       // Enrich with parameters from active agent if available
       if (agentToolsResponse?.ok) {
         const agentToolsData = await agentToolsResponse.json();
         if (agentToolsData.success && agentToolsData.data) {
           const toolsWithParams = new Map(
-            agentToolsData.data.map((t: any) => [t.id || t.name, t])
+            agentToolsData.data.map((t: any) => [t.id || t.name, t]),
           );
           tools = tools.map((tool: any) => {
             const enriched = toolsWithParams.get(tool.id);
-            return enriched ? { ...tool, parameters: enriched.parameters } : tool;
+            return enriched
+              ? { ...tool, parameters: enriched.parameters }
+              : tool;
           });
         }
       }
@@ -110,9 +122,12 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
       setIsSaving(true);
       setError(null);
       setToolToRemove(null);
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/tools/${toolId}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(
+        `${apiBase}/agents/${agentSlug}/tools/${toolId}`,
+        {
+          method: 'DELETE',
+        },
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to remove tool');
@@ -133,11 +148,14 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/tools/allowed`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allowed }),
-      });
+      const response = await fetch(
+        `${apiBase}/agents/${agentSlug}/tools/allowed`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ allowed }),
+        },
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to update allow list');
@@ -154,11 +172,14 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
     try {
       setIsSaving(true);
       setError(null);
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/tools/aliases`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aliases: aliasValues }),
-      });
+      const response = await fetch(
+        `${apiBase}/agents/${agentSlug}/tools/aliases`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ aliases: aliasValues }),
+        },
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to update aliases');
@@ -185,10 +206,10 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
 
   const renderParameters = (params: any) => {
     if (!params?.properties) return null;
-    
+
     const required = params.required || [];
     const props = params.properties;
-    
+
     return (
       <div className="tool-params">
         {Object.entries(props).map(([key, schema]: [string, any]) => (
@@ -196,7 +217,9 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
             <code>{key}</code>
             {required.includes(key) && <span className="required">*</span>}
             {schema.type && <span className="param-type">{schema.type}</span>}
-            {schema.description && <span className="param-desc">{schema.description}</span>}
+            {schema.description && (
+              <span className="param-desc">{schema.description}</span>
+            )}
           </div>
         ))}
       </div>
@@ -207,7 +230,11 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
     return (
       <div className="management-view">
         <div className="management-view__header">
-          <button type="button" className="button button--secondary" onClick={onBack}>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={onBack}
+          >
             Back
           </button>
           <h2>Manage Tools: {agentName}</h2>
@@ -217,14 +244,22 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
     );
   }
 
-  const enabledTools = globalTools.filter((tool) => agentConfig.tools.includes(tool.id));
-  const availableTools = globalTools.filter((tool) => !agentConfig.tools.includes(tool.id));
+  const enabledTools = globalTools.filter((tool) =>
+    agentConfig.tools.includes(tool.id),
+  );
+  const availableTools = globalTools.filter(
+    (tool) => !agentConfig.tools.includes(tool.id),
+  );
 
   return (
     <>
       <div className="management-view">
         <div className="management-view__header">
-          <button type="button" className="button button--secondary" onClick={onBack}>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={onBack}
+          >
             Back
           </button>
           <h2>Manage Tools: {agentName}</h2>
@@ -235,7 +270,9 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
         <div className="tool-management">
           <div className="tool-management__column">
             <h3>Global Tool Catalog</h3>
-            <p className="column-help">Available tools that can be added to this agent</p>
+            <p className="column-help">
+              Available tools that can be added to this agent
+            </p>
             {availableTools.length === 0 ? (
               <div className="empty-state-small">
                 <p>All available tools have been added to this agent.</p>
@@ -248,9 +285,13 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
                       <h4>{tool.name}</h4>
                       {tool.description && <p>{tool.description}</p>}
                       <div className="tool-card__meta">
-                        <span className="tool-badge tool-badge--kind">{tool.kind}</span>
+                        <span className="tool-badge tool-badge--kind">
+                          {tool.kind}
+                        </span>
                         {tool.transport && (
-                          <span className="tool-badge tool-badge--transport">{tool.transport}</span>
+                          <span className="tool-badge tool-badge--transport">
+                            {tool.transport}
+                          </span>
                         )}
                       </div>
                       {tool.parameters && renderParameters(tool.parameters)}
@@ -284,9 +325,13 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
                       <h4>{tool.name}</h4>
                       {tool.description && <p>{tool.description}</p>}
                       <div className="tool-card__meta">
-                        <span className="tool-badge tool-badge--kind">{tool.kind}</span>
+                        <span className="tool-badge tool-badge--kind">
+                          {tool.kind}
+                        </span>
                         {tool.transport && (
-                          <span className="tool-badge tool-badge--transport">{tool.transport}</span>
+                          <span className="tool-badge tool-badge--transport">
+                            {tool.transport}
+                          </span>
                         )}
                       </div>
                       {tool.parameters && renderParameters(tool.parameters)}
@@ -295,7 +340,9 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
                           <input
                             type="text"
                             value={aliasValues[tool.id] || ''}
-                            onChange={(e) => updateAlias(tool.id, e.target.value)}
+                            onChange={(e) =>
+                              updateAlias(tool.id, e.target.value)
+                            }
                             placeholder="Alias name"
                           />
                           <button
@@ -347,7 +394,8 @@ export function ToolManagementView({ apiBase, agentSlug, agentName, onBack }: To
             <div className="tool-allow-list">
               <h4>Allow List</h4>
               <p className="form-help">
-                Comma-separated list of allowed tool names. Leave empty to allow all.
+                Comma-separated list of allowed tool names. Leave empty to allow
+                all.
               </p>
               <div className="allow-list-editor">
                 <input

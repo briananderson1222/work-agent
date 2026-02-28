@@ -62,7 +62,9 @@ export function AttachmentPreviewMenu({
             )}
             <div className="attachment-menu__info">
               <div className="attachment-menu__name">{att.name}</div>
-              <div className="attachment-menu__size">{(att.size / 1024).toFixed(1)} KB</div>
+              <div className="attachment-menu__size">
+                {(att.size / 1024).toFixed(1)} KB
+              </div>
             </div>
             <button
               className="attachment-menu__remove-btn"

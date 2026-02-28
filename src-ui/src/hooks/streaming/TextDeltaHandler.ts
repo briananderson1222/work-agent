@@ -3,8 +3,8 @@
  */
 
 import { StreamEventHandler } from './BaseHandler';
-import type { StreamEvent, StreamState, HandlerResult } from './types';
 import { createResult, getTextFromParts } from './stateHelpers';
+import type { HandlerResult, StreamEvent, StreamState } from './types';
 
 export class TextDeltaHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {
@@ -17,12 +17,12 @@ export class TextDeltaHandler extends StreamEventHandler {
 
     const newTextChunk = state.currentTextChunk + textDelta;
     const totalContent = getTextFromParts(state.contentParts) + newTextChunk;
-    
+
     const streamingMessage = this.createStreamingMessage(
       totalContent,
-      state.contentParts.length > 0 ? state.contentParts : undefined
+      state.contentParts.length > 0 ? state.contentParts : undefined,
     );
-    
+
     this.updateChat({
       streamingMessage,
       isProcessingStep: true,
