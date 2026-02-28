@@ -14,13 +14,13 @@ const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-workspace');
 test.describe('Plugin System', () => {
   test.beforeAll(() => {
     // Build the demo workspace bundle
-    execSync('./build.sh', { cwd: DEMO_DIR, timeout: 15000 });
+    execSync('node build.mjs', { cwd: DEMO_DIR, timeout: 15000 });
     // Ensure it's not installed
-    try { execSync(`node packages/cli/src/cli.js remove demo-workspace`, { cwd: PROJECT_DIR, timeout: 5000 }); } catch {}
+    try { execSync(`npx tsx packages/cli/src/cli.ts remove demo-workspace`, { cwd: PROJECT_DIR, timeout: 5000 }); } catch {}
   });
 
   test.afterAll(() => {
-    try { execSync(`node packages/cli/src/cli.js remove demo-workspace`, { cwd: PROJECT_DIR, timeout: 5000 }); } catch {}
+    try { execSync(`npx tsx packages/cli/src/cli.ts remove demo-workspace`, { cwd: PROJECT_DIR, timeout: 5000 }); } catch {}
   });
 
   test('plugin API lists no plugins when none installed', async () => {
