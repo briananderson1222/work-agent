@@ -14,7 +14,7 @@ import {
 import { basename, extname, join, resolve } from 'node:path';
 import { createPinoLogger } from '@voltagent/logger';
 import { type FSWatcher, watch } from 'chokidar';
-import type { PluginOverrides } from '@work-agent/shared';
+import type { PluginOverrides } from '@stallion-ai/shared';
 import type {
   ACPConfig,
   AgentMetadata,

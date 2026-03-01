@@ -61,7 +61,7 @@ Tab `component` values must match keys in the `components` export from `src/inde
 ## Entry Point (src/index.tsx)
 
 ```tsx
-import { useSendToChat, useAuth } from '@work-agent/sdk';
+import { useSendToChat, useAuth } from '@stallion-ai/sdk';
 
 function Dashboard({ workspace, activeTab, onShowChat }) {
   const sendToChat = useSendToChat('my-agent');
@@ -80,7 +80,7 @@ export default Dashboard;
 
 - Export a `components` map — keys match workspace.json tab `component` fields
 - Components receive `{ workspace, activeTab, onShowChat, onLaunchPrompt }`
-- Use any hook from `@work-agent/sdk`
+- Use any hook from `@stallion-ai/sdk`
 - Use `@tanstack/react-query` hooks — they share the host's QueryClient
 
 ## Build System
@@ -102,7 +102,7 @@ The server runs: `npm install --omit=dev && node build.mjs` (or `bash build.sh`)
     "react": "^19.0.0"
   },
   "peerDependencies": {
-    "@work-agent/sdk": "^0.3.0",
+    "@stallion-ai/sdk": "^0.3.0",
     "react": "^18.0.0 || ^19.0.0"
   }
 }
@@ -125,7 +125,7 @@ await build({
 const __shared = window.__work_agent_shared || {};
 const __require = (m) => {
   if (m === 'react' || m === 'react/jsx-runtime') return __shared['react'];
-  if (m === '@work-agent/sdk') return __shared['@work-agent/sdk'];
+  if (m === '@stallion-ai/sdk') return __shared['@stallion-ai/sdk'];
   if (m === '@tanstack/react-query') return __shared['@tanstack/react-query'];
   throw new Error('Plugin requires unknown module: ' + m);
 };
@@ -136,7 +136,7 @@ const __require = (m) => {
     name: 'externalize-shared',
     setup(build) {
       build.onResolve({
-        filter: /^react$|^react\/|^@work-agent\/sdk$|^@tanstack\/react-query$/
+        filter: /^react$|^react\/|^@stallion-ai\/sdk$|^@tanstack\/react-query$/
       }, args => ({ path: args.path, namespace: 'shared-external' }));
       build.onLoad({ filter: /.*/, namespace: 'shared-external' }, args => ({
         contents: `module.exports = __require('${args.path.startsWith('react') ? 'react' : args.path}')`,
@@ -157,7 +157,7 @@ These are provided by the host via `window.__work_agent_shared` and must be **ex
 | Module | What |
 |--------|------|
 | `react`, `react/jsx-runtime` | React runtime |
-| `@work-agent/sdk` | SDK hooks, navigation, auth, providers |
+| `@stallion-ai/sdk` | SDK hooks, navigation, auth, providers |
 | `@tanstack/react-query` | Data fetching — shares host's QueryClient |
 | `dompurify` | HTML sanitization |
 | `debug` | Debug logging |

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://work-agent.dev/schemas/app.schema.json",
   "title": "App Configuration",
-  "description": "Global application configuration for Work Agent",
+  "description": "Global application configuration for Stallion",
   "type": "object",
   "required": ["region", "defaultModel", "invokeModel", "structureModel"],
   "properties": {

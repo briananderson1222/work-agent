@@ -1,7 +1,7 @@
 {
   "name": "@stallion-ai/minimal-workspace",
   "version": "1.0.0",
-  "description": "Minimal workspace plugin example for Work Agent",
+  "description": "Minimal workspace plugin example for Stallion",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

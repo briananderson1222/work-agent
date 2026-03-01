@@ -1,5 +1,5 @@
 /**
- * VoltAgent runtime integration for Work Agent
+ * VoltAgent runtime integration for Stallion
  * Handles dynamic agent loading, switching, and MCP tool management
  */
 
@@ -107,7 +107,7 @@ export interface WorkAgentRuntimeOptions {
 }
 
 /**
- * Main runtime for Work Agent system
+ * Main runtime for Stallion system
  * Manages VoltAgent instances with dynamic agent loading
  */
 export class WorkAgentRuntime {
@@ -227,7 +227,7 @@ export class WorkAgentRuntime {
     );
 
     // Log versions for debugging
-    this.logger.info('Work Agent Runtime initializing', {
+    this.logger.info('Stallion Runtime initializing', {
       voltagentCore: '1.1.37',
       aiSdkBedrock: '3.0.56',
       nodeVersion: process.version,
@@ -290,7 +290,7 @@ export class WorkAgentRuntime {
    * Initialize the runtime
    */
   async initialize(): Promise<void> {
-    this.logger.debug('Initializing Work Agent Runtime...');
+    this.logger.debug('Initializing Stallion Runtime...');
 
     // Load app configuration
     this.appConfig = await this.configLoader.loadAppConfig();
@@ -2167,7 +2167,7 @@ export class WorkAgentRuntime {
       }),
     });
 
-    this.logger.debug('Work Agent Runtime initialized', { port: this.port });
+    this.logger.debug('Stallion Runtime initialized', { port: this.port });
 
     // Load persisted events from disk
     await this.loadEventsFromDisk();
@@ -2831,7 +2831,7 @@ export class WorkAgentRuntime {
    * Shutdown the runtime
    */
   async shutdown(): Promise<void> {
-    this.logger.info('Shutting down Work Agent Runtime...');
+    this.logger.info('Shutting down Stallion Runtime...');
 
     // Disconnect all MCP configurations
     for (const [key, mcpConfig] of this.mcpConfigs.entries()) {

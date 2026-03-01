@@ -36,10 +36,10 @@ work-agent-plugins/
 ## Benefits
 
 1. **Self-contained**: Workspace + agents in one package
-2. **Shareable**: `npm install @work-agent/work-workspace` gets everything
+2. **Shareable**: `npm install @stallion-ai/work-workspace` gets everything
 3. **Versioned together**: Agent prompts and UI stay in sync
 4. **Community-friendly**: Easy to contribute complete workflows
-5. **Portable**: Move between Work Agent instances easily
+5. **Portable**: Move between Stallion instances easily
 
 ## Manifest Schema
 
@@ -174,7 +174,7 @@ Workspace config references bundled agents:
 
 ```typescript
 // src/Calendar.tsx
-import { useSendMessage, useAgent } from '@work-agent/sdk';
+import { useSendMessage, useAgent } from '@stallion-ai/sdk';
 
 export function Calendar() {
   const agent = useAgent('work-workspace:calendar-agent');
@@ -226,7 +226,7 @@ work-agent-plugins/
 
 ### Workspace Naming
 
-- **Package**: `@work-agent/work-workspace`
+- **Package**: `@stallion-ai/work-workspace`
 - **Workspace slug**: `work`
 - **Display name**: "Work"
 

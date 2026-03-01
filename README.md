@@ -1,10 +1,10 @@
-# Work Agent
+# Stallion
 
 A local-first AI agent system with a pluggable workspace architecture. Built on [VoltAgent](https://voltagent.dev) and Amazon Bedrock.
 
 ## Overview
 
-Work Agent is a desktop-ready platform for running multiple AI agents with MCP tool integration. The core platform is generic — all domain-specific functionality (auth, user identity, workspace UI) is delivered through **plugins**.
+Stallion is a desktop-ready platform for running multiple AI agents with MCP tool integration. The core platform is generic — all domain-specific functionality (auth, user identity, workspace UI) is delivered through **plugins**.
 
 - **Plugin system** — Install workspace plugins from git repos or local paths. No rebuild needed.
 - **Provider interfaces** — Pluggable auth, user identity, and user directory. Core ships with sensible defaults (OS username, always-valid auth).
@@ -24,7 +24,7 @@ Work Agent is a desktop-ready platform for running multiple AI agents with MCP t
 
 ```bash
 git clone <repo-url>
-cd work-agent
+cd stallion
 npm install
 npm run build
 npm run start:server
@@ -52,11 +52,11 @@ All runtime data lives in `~/.work-agent/`:
 └── analytics/            # Usage data
 ```
 
-Set `WORK_AGENT_DIR` to override the default location.
+Set `STALLION_DIR` to override the default location.
 
 ## Plugin System
 
-Plugins extend Work Agent with workspace UIs, agents, and providers. A plugin is a directory with a `plugin.json` manifest:
+Plugins extend Stallion with workspace UIs, agents, and providers. A plugin is a directory with a `plugin.json` manifest:
 
 ```json
 {
@@ -99,7 +99,7 @@ wa remove my-workspace
 
 ### Plugin Bundles
 
-Plugins ship pre-built IIFE bundles. The core loads them at runtime via `<script>` injection — no rebuild of the core platform needed. Shared dependencies (React, react-query, zod, etc.) are provided by the core via `window.__work_agent_shared`.
+Plugins ship pre-built IIFE bundles. The core loads them at runtime via `<script>` injection — no rebuild of the core platform needed. Shared dependencies (React, react-query, zod, etc.) are provided by the core via `window.__stallion_ai_shared`.
 
 ### Creating a Plugin
 
@@ -123,8 +123,8 @@ See `examples/demo-workspace/` for a minimal working example.
 
 | Package | Path | Description |
 |---------|------|-------------|
-| `@work-agent/sdk` | `packages/sdk/` | TypeScript SDK for plugin development — hooks, components, types |
-| `@work-agent/cli` | `packages/cli/` | Unified CLI (`wa`) for managing and developing plugins |
+| `@stallion-ai/sdk` | `packages/sdk/` | TypeScript SDK for plugin development — hooks, components, types |
+| `@stallion-ai/cli` | `packages/cli/` | Unified CLI (`wa`) for managing and developing plugins |
 
 ## Provider System
 
@@ -155,8 +155,8 @@ Providers are declared in `plugin.json` and loaded when the server starts. Each 
 │       └── components/   # Shared UI components
 ├── src-desktop/          # Tauri desktop app (Rust)
 ├── packages/
-│   ├── sdk/              # @work-agent/sdk
-│   └── cli/              # @work-agent/cli (wa)
+│   ├── sdk/              # @stallion-ai/sdk
+│   └── cli/              # @stallion-ai/cli (wa)
 ├── examples/
 │   └── demo-workspace/   # Minimal plugin example
 ├── schemas/              # JSON schemas for app/agent/tool configs

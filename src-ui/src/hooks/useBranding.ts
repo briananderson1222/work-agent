@@ -12,7 +12,7 @@ interface BrandingData {
 export function useBranding(): BrandingData {
   const { apiBase } = useApiBase();
   const [data, setData] = useState<BrandingData>({
-    appName: 'Work Agent',
+    appName: 'Stallion',
     logo: null,
     theme: null,
     welcomeMessage: null,
@@ -25,7 +25,7 @@ export function useBranding(): BrandingData {
       .then((r) => r.json())
       .then((b) =>
         setData({
-          appName: b.name || 'Work Agent',
+          appName: b.name || 'Stallion',
           logo: b.logo,
           theme: b.theme,
           welcomeMessage: b.welcomeMessage,

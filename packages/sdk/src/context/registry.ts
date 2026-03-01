@@ -11,18 +11,23 @@ import type { MessageContextProvider } from './types.js';
 
 class ContextRegistry extends ListenerManager {
   private _providers = new Map<string, MessageContextProvider>();
+  private _cachedAll: MessageContextProvider[] = [];
 
   register(provider: MessageContextProvider): void {
     this._providers.set(provider.id, provider);
+    this._cachedAll = Array.from(this._providers.values());
     this._notify();
   }
 
   unregister(id: string): void {
-    if (this._providers.delete(id)) this._notify();
+    if (this._providers.delete(id)) {
+      this._cachedAll = Array.from(this._providers.values());
+      this._notify();
+    }
   }
 
   getAll(): MessageContextProvider[] {
-    return Array.from(this._providers.values());
+    return this._cachedAll;
   }
 
   get(id: string): MessageContextProvider | undefined {

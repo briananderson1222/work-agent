@@ -7,6 +7,7 @@
 import { ConnectionManagerModal, useConnections } from '@stallion-ai/connect';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useSystemStatus, verifyBedrock } from '../hooks/useSystemStatus';
+import { useBranding } from '../hooks/useBranding';
 
 function checkServerHealth(url: string): Promise<boolean> {
   return fetch(`${url}/api/system/status`).then((r) => r.ok).catch(() => false);
@@ -15,6 +16,7 @@ function checkServerHealth(url: string): Promise<boolean> {
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const { data: status, isLoading, isError } = useSystemStatus();
   const { apiBase, activeConnection } = useConnections();
+  const { appName, welcomeMessage } = useBranding();
   const [path, setPath] = useState<'bedrock' | 'acp' | null>(null);
   const [serverUrl, setServerUrl] = useState(apiBase);
   const [verifying, setVerifying] = useState(false);
@@ -197,7 +199,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
             style={{ width: 56, height: 56, marginBottom: 16 }}
           />
           <h1 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 600 }}>
-            {`Welcome to Stallion`}
+            {welcomeMessage || `Welcome to ${appName}`}
           </h1>
           <p
             style={{

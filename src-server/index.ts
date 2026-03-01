@@ -1,5 +1,5 @@
 /**
- * Work Agent - VoltAgent-based local-first AI agent system
+ * Stallion - VoltAgent-based local-first AI agent system
  * Main entry point
  */
 
@@ -45,7 +45,7 @@ async function main() {
       process.exit(0);
     });
   } catch (error) {
-    console.error('Failed to start Work Agent:', error);
+    console.error('Failed to start Stallion:', error);
     process.exit(1);
   }
 }

@@ -12,31 +12,41 @@ import type { STTProvider, TTSProvider } from './types.js';
 class VoiceRegistry extends ListenerManager {
   private _stt = new Map<string, STTProvider>();
   private _tts = new Map<string, TTSProvider>();
+  private _cachedSTT: STTProvider[] = [];
+  private _cachedTTS: TTSProvider[] = [];
 
   registerSTT(provider: STTProvider): void {
     this._stt.set(provider.id, provider);
+    this._cachedSTT = Array.from(this._stt.values());
     this._notify();
   }
 
   registerTTS(provider: TTSProvider): void {
     this._tts.set(provider.id, provider);
+    this._cachedTTS = Array.from(this._tts.values());
     this._notify();
   }
 
   unregisterSTT(id: string): void {
-    if (this._stt.delete(id)) this._notify();
+    if (this._stt.delete(id)) {
+      this._cachedSTT = Array.from(this._stt.values());
+      this._notify();
+    }
   }
 
   unregisterTTS(id: string): void {
-    if (this._tts.delete(id)) this._notify();
+    if (this._tts.delete(id)) {
+      this._cachedTTS = Array.from(this._tts.values());
+      this._notify();
+    }
   }
 
   getAvailableSTT(): STTProvider[] {
-    return Array.from(this._stt.values());
+    return this._cachedSTT;
   }
 
   getAvailableTTS(): TTSProvider[] {
-    return Array.from(this._tts.values());
+    return this._cachedTTS;
   }
 
   getSTT(id: string): STTProvider | undefined {

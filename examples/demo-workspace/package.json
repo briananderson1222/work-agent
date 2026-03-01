@@ -1,7 +1,7 @@
 {
   "name": "demo-workspace",
   "version": "1.0.0",
-  "description": "Demo workspace plugin for Work Agent",
+  "description": "Demo workspace plugin for Stallion",
   "type": "module",
   "scripts": {
     "build": "node build.mjs"

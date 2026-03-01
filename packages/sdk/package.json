@@ -1,7 +1,7 @@
 {
   "name": "@stallion-ai/sdk",
   "version": "0.3.0",
-  "description": "SDK for building Work Agent workspace plugins",
+  "description": "SDK for building Stallion workspace plugins",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

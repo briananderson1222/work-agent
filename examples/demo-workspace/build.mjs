@@ -9,7 +9,7 @@ await build({
   external: [],
   banner: {
     js: `
-const __shared = window.__work_agent_shared || {};
+const __shared = window.__stallion_ai_shared || {};
 const __require = (m) => {
   if (m === 'react' || m === 'react/jsx-runtime') return __shared['react'];
   if (m === '@stallion-ai/sdk') return __shared['@stallion-ai/sdk'];
@@ -24,7 +24,7 @@ const __require = (m) => {
   plugins: [{
     name: 'externalize-shared',
     setup(build) {
-      build.onResolve({ filter: /^react$|^react\/|^@work-agent\/sdk$|^@tanstack\/react-query$/ }, args => ({
+      build.onResolve({ filter: /^react$|^react\/|^@stallion-ai\/sdk$|^@tanstack\/react-query$/ }, args => ({
         path: args.path,
         namespace: 'shared-external',
       }));

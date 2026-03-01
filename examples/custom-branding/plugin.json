@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "tool",
   "displayName": "Custom Branding Example",
-  "description": "Example plugin showing how to override Work Agent branding via the provider system",
+  "description": "Example plugin showing how to override Stallion branding via the provider system",
   "providers": [
     {
       "type": "branding",

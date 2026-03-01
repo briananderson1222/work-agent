@@ -126,7 +126,7 @@ export class DefaultOnboardingProvider implements IOnboardingProvider {
 
 export class DefaultBrandingProvider implements IBrandingProvider {
   async getAppName(): Promise<string> {
-    return 'Work Agent';
+    return 'Stallion';
   }
   async getLogo() {
     return null;

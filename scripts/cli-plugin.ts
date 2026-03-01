@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Work Agent Plugin CLI
+ * Stallion Plugin CLI
  * 
  * Commands:
  *   work-agent plugin install <source>
@@ -327,7 +327,7 @@ switch (command) {
 
   default:
     console.log(`
-Work Agent Plugin Manager
+Stallion Plugin Manager
 
 Usage:
   work-agent plugin install <source>   Install plugin from git or local path

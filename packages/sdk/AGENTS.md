@@ -137,7 +137,7 @@ export function useAgentTools(slug: string, config?: QueryConfig) {
 ### 3. Use in Commands (Imperative)
 
 ```typescript
-import { agentQueries } from '@work-agent/sdk';
+import { agentQueries } from '@stallion-ai/sdk';
 
 registerCommand('tools', async ({ agent, queryClient }) => {
   // Uses same query factory as the hook!

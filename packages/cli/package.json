@@ -1,7 +1,7 @@
 {
   "name": "@stallion-ai/cli",
   "version": "0.4.0",
-  "description": "CLI for managing and developing Work Agent plugins",
+  "description": "CLI for managing and developing Stallion plugins",
   "type": "module",
   "bin": {
     "wa": "./src/cli.ts"

@@ -1,5 +1,6 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
   useMemo,
   useSyncExternalStore,
@@ -73,15 +74,12 @@ export function ConnectionsProvider({
 
   const resolvedStore = store;
 
-  const connections = useSyncExternalStore(
-    (cb) => resolvedStore.subscribe(cb),
-    () => resolvedStore.getAll(),
-  );
+  const getAll = useCallback(() => resolvedStore.getAll(), [resolvedStore]);
+  const getActive = useCallback(() => resolvedStore.getActive(), [resolvedStore]);
+  const subscribe = useCallback((cb: () => void) => resolvedStore.subscribe(cb), [resolvedStore]);
 
-  const activeConnection = useSyncExternalStore(
-    (cb) => resolvedStore.subscribe(cb),
-    () => resolvedStore.getActive(),
-  );
+  const connections = useSyncExternalStore(subscribe, getAll);
+  const activeConnection = useSyncExternalStore(subscribe, getActive);
 
   const value = useMemo<ConnectionsContextType>(
     () => ({

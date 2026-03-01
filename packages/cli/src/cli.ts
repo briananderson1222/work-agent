@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 /**
- * @stallion-ai/cli — Unified CLI for Work Agent
+ * @stallion-ai/cli — Unified CLI for Stallion
  *
  * Plugin Management:
  *   wa install <source>     Install from git URL or local path
@@ -418,7 +418,7 @@ function init(name = 'my-workspace'): void {
           .split('-')
           .map((w) => w[0].toUpperCase() + w.slice(1))
           .join(' '),
-        description: 'A Work Agent workspace plugin',
+        description: 'A Stallion workspace plugin',
         entrypoint: 'src/index.tsx',
         capabilities: ['chat', 'navigation'],
         permissions: ['navigation.dock'],
@@ -930,7 +930,7 @@ try {
     }
     default:
       console.log(`
-Work Agent CLI (@stallion-ai/cli)
+Stallion CLI (@stallion-ai/cli)
 
 Plugin Management:
   wa install <source>     Install from git URL or local path

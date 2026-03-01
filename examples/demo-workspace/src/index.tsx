@@ -8,7 +8,7 @@ function Welcome({ onShowChat }: WorkspaceComponentProps) {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '720px', margin: '0 auto' }}>
-      <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>👋 Welcome to Work Agent</h1>
+      <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>👋 Welcome to Stallion</h1>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
         This is a demo workspace. Install plugins to add real functionality.
       </p>

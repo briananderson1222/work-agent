@@ -55,14 +55,14 @@ Provider Interface (contract)  →  Provider Impl (plugin)        →  ViewModel
 | `packages/sdk/` | SDK: Query hooks, API utilities, Types |
 | `examples/*/` | Plugins: Components, ViewModels, styles |
 
-**Key rule**: Plugins import from `@work-agent/sdk` only.
+**Key rule**: Plugins import from `@stallion-ai/sdk` only.
 
 ### Cross-Tab Navigation
 
 Plugins must use SDK hooks for navigating between workspace tabs — never use raw `sessionStorage`, `window.history.pushState`, or `window.dispatchEvent` directly.
 
 ```typescript
-import { useNavigation, useWorkspaceNavigation } from '@work-agent/sdk';
+import { useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
 
 const nav = useNavigation();
 const { setTabState, getTabState } = useWorkspaceNavigation();

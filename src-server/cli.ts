@@ -1,5 +1,5 @@
 /**
- * Simple CLI for interacting with Work Agent
+ * Simple CLI for interacting with Stallion
  */
 
 import 'dotenv/config';
@@ -26,7 +26,7 @@ async function main() {
   }
 
   console.log('\\n╔════════════════════════════════════════╗');
-  console.log('║        Work Agent CLI                 ║');
+  console.log('║        Stallion CLI                 ║');
   console.log('╚════════════════════════════════════════╝\\n');
   console.log('Available agents:', agents.join(', '));
   console.log('\\nCommands:');

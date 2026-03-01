@@ -2,7 +2,7 @@
   "name": "Demo",
   "slug": "demo",
   "icon": "🚀",
-  "description": "A demo workspace showing Work Agent capabilities",
+  "description": "A demo workspace showing Stallion capabilities",
   "availableAgents": ["demo-workspace:assistant"],
   "defaultAgent": "demo-workspace:assistant",
   "tabs": [

@@ -1,6 +1,6 @@
 # Minimal Workspace Plugin
 
-A minimal workspace plugin example for Work Agent, demonstrating the plugin architecture and SDK usage.
+A minimal workspace plugin example for Stallion, demonstrating the plugin architecture and SDK usage.
 
 ## Features
 
@@ -15,7 +15,7 @@ A minimal workspace plugin example for Work Agent, demonstrating the plugin arch
 
 ```bash
 cd work-agent
-npm install @work-agent/minimal-workspace
+npm install @stallion-ai/minimal-workspace
 ```
 
 ### From local directory (development)
@@ -72,7 +72,7 @@ ln -s $(pwd)/examples/minimal-workspace/dist \
 
 ## Usage
 
-1. Install the plugin in your Work Agent instance
+1. Install the plugin in your Stallion instance
 2. Create a workspace configuration that references this component:
 
 ```json
@@ -98,7 +98,7 @@ This plugin demonstrates:
 ### Accessing Agents
 
 ```typescript
-import { useAgents } from '@work-agent/sdk';
+import { useAgents } from '@stallion-ai/sdk';
 
 const agents = useAgents();
 ```
@@ -106,7 +106,7 @@ const agents = useAgents();
 ### Controlling Navigation
 
 ```typescript
-import { useNavigation } from '@work-agent/sdk';
+import { useNavigation } from '@stallion-ai/sdk';
 
 const { setDockState } = useNavigation();
 setDockState(true); // Open chat dock
@@ -115,7 +115,7 @@ setDockState(true); // Open chat dock
 ### Showing Notifications
 
 ```typescript
-import { useToast } from '@work-agent/sdk';
+import { useToast } from '@stallion-ai/sdk';
 
 const { showToast } = useToast();
 showToast({
@@ -176,10 +176,10 @@ Available variables:
 
 ## TypeScript
 
-The plugin is fully typed using types from `@work-agent/sdk`:
+The plugin is fully typed using types from `@stallion-ai/sdk`:
 
 ```typescript
-import type { WorkspaceComponentProps } from '@work-agent/sdk';
+import type { WorkspaceComponentProps } from '@stallion-ai/sdk';
 
 export default function MyWorkspace(props: WorkspaceComponentProps) {
   // ...
