@@ -536,16 +536,24 @@ export function createPluginRoutes(
     try {
       if (!existsSync(pluginsDir)) return c.json({ success: true, loaded: 0 });
 
+      const { clearAll } = await import('../providers/registry.js');
+      const { resolvePluginProviders } = await import('../providers/resolver.js');
+      const { ConfigLoader } = await import('../domain/config-loader.js');
+
+      const configLoader = new ConfigLoader({ workAgentDir });
+      const overrides = await configLoader.loadPluginOverrides();
+
+      clearAll();
+      const { resolved, conflicts } = resolvePluginProviders(pluginsDir, overrides);
+
+      for (const conflict of conflicts) {
+        logger.warn('Provider conflict on reload', { type: conflict.type, candidates: conflict.candidates });
+      }
+
       let loaded = 0;
-      const entries = await readdir(pluginsDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        const manifestPath = join(pluginsDir, entry.name, 'plugin.json');
-        if (!existsSync(manifestPath)) continue;
-
-        const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
-        loaded += await loadProviders(pluginsDir, entry.name, manifest, logger);
+      for (const entry of resolved) {
+        loaded += await loadProviders(pluginsDir, entry.pluginName, 
+          { providers: [{ type: entry.type, module: entry.module }], displayName: entry.pluginName }, logger);
       }
 
       return c.json({ success: true, loaded });

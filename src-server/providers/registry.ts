@@ -74,6 +74,11 @@ export function listProviders(type: string): ProviderEntry[] {
   return Array.from(typeMap.values());
 }
 
+export function clearAll(): void {
+  store.clear();
+  additiveStore.clear();
+}
+
 // ── Auth ───────────────────────────────────────────────
 
 export function registerAuthProvider(provider: IAuthProvider) {

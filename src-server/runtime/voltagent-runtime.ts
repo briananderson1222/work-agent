@@ -2639,6 +2639,7 @@ export class WorkAgentRuntime {
 
     const { resolvePluginProviders } = await import('../providers/resolver.js');
     const {
+      clearAll,
       registerProvider,
       registerBrandingProvider,
       registerSettingsProvider,
@@ -2650,6 +2651,7 @@ export class WorkAgentRuntime {
       registerOnboardingProvider,
     } = await import('../providers/registry.js');
 
+    clearAll();
     const overrides = await this.configLoader.loadPluginOverrides();
     const { resolved, conflicts } = resolvePluginProviders(pluginsDir, overrides);
 
