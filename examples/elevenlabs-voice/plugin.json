@@ -1,0 +1,22 @@
+{
+  "id": "elevenlabs-voice",
+  "name": "ElevenLabs Voice",
+  "version": "0.1.0",
+  "description": "ElevenLabs Scribe v2 STT and streaming TTS via signed WebSocket tokens.",
+  "providerTypes": ["stt", "tts"],
+  "permissions": ["voice:api-key"],
+  "serverModule": "plugin.mjs",
+  "clientBundle": "dist/index.js",
+  "config": {
+    "apiKey": {
+      "label": "ElevenLabs API Key",
+      "type": "secret",
+      "envVar": "ELEVENLABS_API_KEY"
+    },
+    "voiceId": {
+      "label": "TTS Voice ID",
+      "type": "string",
+      "default": "21m00Tcm4TlvDq8ikWAM"
+    }
+  }
+}

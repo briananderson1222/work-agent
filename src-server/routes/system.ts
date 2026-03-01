@@ -175,6 +175,50 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
     }
   });
 
+  // Capabilities manifest — tells the client which voice/context providers are
+  // available and configured on this server.  clientOnly providers are always
+  // advertised; server-backed providers require credentials or API keys.
+  app.get('/capabilities', (c) => {
+    return c.json({
+      voice: {
+        stt: [
+          {
+            id: 'webspeech',
+            name: 'WebSpeech (Browser)',
+            clientOnly: true,
+            visibleOn: ['all'],
+            configured: true,
+          },
+          // Server-backed providers would be inserted here by plugin registrations
+          // (e.g. ElevenLabs, Nova Sonic) with configured: true when credentials exist.
+        ],
+        tts: [
+          {
+            id: 'webspeech',
+            name: 'WebSpeech (Browser)',
+            clientOnly: true,
+            visibleOn: ['all'],
+            configured: true,
+          },
+        ],
+      },
+      context: {
+        providers: [
+          {
+            id: 'geolocation',
+            name: 'Geolocation',
+            visibleOn: ['mobile'],
+          },
+          {
+            id: 'timezone',
+            name: 'Timezone',
+            visibleOn: ['all'],
+          },
+        ],
+      },
+    });
+  });
+
   // Discovery beacon — open CORS so LAN clients can probe without credentials.
   // Reveals nothing sensitive: just confirms this is a Stallion server.
   app.use('/discover', async (c, next) => {

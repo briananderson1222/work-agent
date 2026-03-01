@@ -20,6 +20,7 @@ import { setAuthCallback } from './lib/apiClient';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import type { AgentSummary, NavigationView } from './types';
+import { GlobalVoiceButton } from './components/GlobalVoiceButton';
 import { AgentEditorView } from './views/AgentEditorView';
 import { MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
@@ -1328,6 +1329,7 @@ function App() {
       </div>
 
       <ChatDock onRequestAuth={handleAuthError} />
+      <GlobalVoiceButton />
     </div>
   );
 }

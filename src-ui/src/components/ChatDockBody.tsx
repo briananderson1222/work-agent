@@ -4,16 +4,15 @@ import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useToast } from '../contexts/ToastContext';
-import { useLocationContext } from '../hooks/useLocationContext';
-import { useMeetingTranscription } from '../hooks/useMeetingTranscription';
+import { useMessageContext } from '../hooks/useMessageContext';
 import { useMobileSettings } from '../hooks/useMobileSettings';
 import { useShareReceiver } from '../hooks/useShareReceiver';
+import { useSTT } from '../hooks/useSTT';
+import { useTTS } from '../hooks/useTTS';
 import { useToolApproval } from '../hooks/useToolApproval';
-import { useVoiceMode } from '../hooks/useVoiceMode';
 import { AgentIcon } from './AgentIcon';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInputArea } from './ChatInputArea';
-import { MeetingTranscriptionModal } from './MeetingTranscriptionModal';
 import { ConversationStats } from './ConversationStats';
 import { EphemeralMessage } from './EphemeralMessage';
 import { MessageBubble } from './MessageBubble';
@@ -94,53 +93,49 @@ export function ChatDockBody({
   chatInput,
   setShowStatsPanel,
 }: ChatDockBodyProps) {
-  // Hooks for global state
   const agents = useAgents();
   const { apiBase } = useApiBase();
   const { showToast } = useToast();
   const handleToolApproval = useToolApproval(apiBase);
   const { updateChat, clearEphemeralMessages } = useActiveChatActions();
 
-  // Mobile/voice features
+  // Mobile settings (only non-voice flags remain here)
   const { settings } = useMobileSettings();
-  const [showMeetingModal, setShowMeetingModal] = useState(false);
-  const voice = useVoiceMode({
-    enabled: settings.voiceModeEnabled,
-    onTranscript: useCallback(
-      (text: string) => {
-        chatInput.handleInputChange(chatInput.input ? chatInput.input + ' ' + text : text);
-      },
-      [chatInput],
-    ),
-  });
-  const transcription = useMeetingTranscription({
-    enabled: settings.meetingTranscriptionEnabled,
-  });
-  const location = useLocationContext({ enabled: settings.locationContextEnabled });
 
-  // Share sheet / PWA share target: pre-fill input with incoming shared content
+  // Voice via provider pattern
+  const stt = useSTT();
+  const tts = useTTS();
+  const { getComposedContext } = useMessageContext();
+
+  // Wire STT transcript into chat input
+  useEffect(() => {
+    if (stt.state === 'idle' && stt.transcript) {
+      chatInput.handleInputChange(
+        chatInput.input ? chatInput.input + ' ' + stt.transcript : stt.transcript,
+      );
+    }
+  }, [stt.state, stt.transcript]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Share sheet / PWA share target
   useShareReceiver({
-    enabled: true, // always watch; no privacy concerns
+    enabled: true,
     onShare: useCallback(
       (text: string) => chatInput.handleInputChange(text),
       [chatInput],
     ),
   });
 
-  // Wrap handleSend to optionally prepend location context
+  // Wrap handleSend to prepend composed context
   const handleSendWithContext = useCallback(async () => {
-    if (settings.locationContextEnabled) {
-      const locStr = location.getContextString();
-      if (locStr && chatInput.input && !chatInput.input.startsWith('[My location:')) {
-        chatInput.handleInputChange(locStr + '\n' + chatInput.input);
-        // Give React a tick to update the input before sending
-        await new Promise((r) => setTimeout(r, 0));
-      }
+    const ctx = getComposedContext();
+    if (ctx && chatInput.input && !chatInput.input.startsWith('[')) {
+      chatInput.handleInputChange(ctx + '\n' + chatInput.input);
+      await new Promise((r) => setTimeout(r, 0));
     }
     return chatInput.handleSend();
-  }, [settings.locationContextEnabled, location, chatInput]);
+  }, [getComposedContext, chatInput]);
 
-  // TTS readback: speak the last assistant message when streaming completes
+  // TTS readback when streaming ends
   const prevStatusRef = useRef(activeSession.status);
   useEffect(() => {
     const wasStreaming = prevStatusRef.current === 'sending';
@@ -154,38 +149,31 @@ export function ChatDockBody({
         ?.filter((p) => p.type === 'text')
         .map((p) => p.content)
         .join(' ') ?? lastMsg.content ?? '';
-    if (text.trim()) voice.speak(text.slice(0, 800)); // cap length for TTS
+    if (text.trim()) tts.speak(text.slice(0, 800));
   }, [activeSession.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Local state - only used within this component
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
-  const [removingMessages, setRemovingMessages] = useState<Set<string>>(
-    new Set(),
-  );
+  const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
 
   const agent = agents.find((a) => a.slug === activeSession.agentSlug);
   const ephemeralMessages = activeSession.messages.filter((m) => m.ephemeral);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (!isUserScrolledUp && messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop =
-        messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [isUserScrolledUp]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
-    const isAtBottom =
-      target.scrollHeight - target.scrollTop - target.clientHeight < 10;
+    const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 10;
     setIsUserScrolledUp(!isAtBottom);
   };
 
   const handleScrollToBottom = () => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop =
-        messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
       setIsUserScrolledUp(false);
     }
   };
@@ -194,8 +182,7 @@ export function ChatDockBody({
     setRemovingMessages((prev) => new Set(prev).add(messageId));
     setTimeout(() => {
       const updated = ephemeralMessages.filter(
-        (m) =>
-          (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId,
+        (m) => (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId,
       );
       if (updated.length === 0) {
         clearEphemeralMessages(activeSession.id);
@@ -212,10 +199,7 @@ export function ChatDockBody({
 
   const renderMessage = (msg: Message, idx: number) => {
     const textContent =
-      msg.contentParts
-        ?.filter((p) => p.type === 'text')
-        .map((p) => p.content)
-        .join('\n') ||
+      msg.contentParts?.filter((p) => p.type === 'text').map((p) => p.content).join('\n') ||
       msg.content ||
       '';
 
@@ -231,18 +215,14 @@ export function ChatDockBody({
           onDismiss={() => handleDismissEphemeral(messageId)}
           onAction={
             msg.action
-              ? () => {
-                  msg.action!.handler();
-                  clearEphemeralMessages(activeSession.id);
-                }
+              ? () => { msg.action!.handler(); clearEphemeralMessages(activeSession.id); }
               : undefined
           }
         />
       );
     }
 
-    const isSystemEvent =
-      msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
+    const isSystemEvent = msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
     if (isSystemEvent) {
       return (
         <SystemEventMessage
@@ -263,10 +243,7 @@ export function ChatDockBody({
         chatFontSize={chatFontSize}
         showReasoning={showReasoning}
         showToolDetails={showToolDetails}
-        onCopy={(text) => {
-          navigator.clipboard.writeText(text);
-          showToast('Copied to clipboard');
-        }}
+        onCopy={(text) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard'); }}
         onToolApproval={handleToolApproval}
       />
     );
@@ -299,19 +276,12 @@ export function ChatDockBody({
             {activeSession.status === 'sending' && (
               <StreamingMessage
                 sessionId={activeSession.id}
-                agentIcon={
-                  <AgentIcon agent={agent || { name: 'AI' }} size={20} />
-                }
+                agentIcon={<AgentIcon agent={agent || { name: 'AI' }} size={20} />}
                 agentIconStyle={{}}
                 fontSize={chatFontSize}
                 showReasoning={showReasoning}
                 renderReasoning={(content, i) => (
-                  <ReasoningSection
-                    key={i}
-                    content={content}
-                    fontSize={chatFontSize}
-                    show={showReasoning}
-                  />
+                  <ReasoningSection key={i} content={content} fontSize={chatFontSize} show={showReasoning} />
                 )}
                 renderToolCall={(part, i) => (
                   <ToolCallDisplay
@@ -337,47 +307,8 @@ export function ChatDockBody({
           </>
         )}
       </div>
-      {isUserScrolledUp && (
-        <ScrollToBottomButton onClick={handleScrollToBottom} />
-      )}
-      <QueuedMessages
-        sessionId={activeSession.id}
-        messages={activeSession.queuedMessages}
-      />
-      {/* Meeting transcription trigger */}
-      {transcription.supported && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 8px 2px' }}>
-          <button
-            type="button"
-            onClick={() => setShowMeetingModal(true)}
-            title="Transcribe a meeting and extract action items"
-            style={{
-              background: transcription.running ? 'var(--color-error, #ef4444)' : 'transparent',
-              color: transcription.running ? 'white' : 'var(--text-muted)',
-              border: 'none',
-              borderRadius: 6,
-              padding: '2px 8px',
-              fontSize: 11,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            {transcription.running ? '● Recording' : '⏺ Meeting'}
-          </button>
-        </div>
-      )}
-      {/* Meeting transcription modal */}
-      <MeetingTranscriptionModal
-        isOpen={showMeetingModal}
-        transcription={transcription}
-        onSend={(prompt) => {
-          chatInput.handleInputChange(prompt);
-          setShowMeetingModal(false);
-        }}
-        onClose={() => setShowMeetingModal(false)}
-      />
+      {isUserScrolledUp && <ScrollToBottomButton onClick={handleScrollToBottom} />}
+      <QueuedMessages sessionId={activeSession.id} messages={activeSession.queuedMessages} />
       <ChatInputArea
         agentSlug={activeSession.agentSlug}
         conversationId={activeSession.conversationId}
@@ -414,10 +345,10 @@ export function ChatDockBody({
         onShowStats={() => setShowStatsPanel(true)}
         updateFromInput={chatInput.updateFromInput}
         closeAll={chatInput.closeAll}
-        voiceState={voice.state}
-        voiceSupported={voice.supported}
-        onVoiceStart={voice.startListening}
-        onVoiceStop={voice.stopListening}
+        voiceState={stt.state}
+        voiceSupported={stt.supported}
+        onVoiceStart={() => stt.startListening()}
+        onVoiceStop={() => stt.stopListening()}
       />
     </>
   );

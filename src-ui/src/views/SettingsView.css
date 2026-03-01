@@ -1,0 +1,44 @@
+/* SettingsView — voice & context provider section */
+
+.voice-provider-section {
+  margin-bottom: 16px;
+}
+
+.voice-provider-section__label {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.voice-provider-section__hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.voice-provider-section__select {
+  width: 100%;
+}
+
+/* Context provider toggles */
+.context-provider-section {
+  margin-bottom: 16px;
+}
+
+.context-provider-section__label {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.context-provider-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+}

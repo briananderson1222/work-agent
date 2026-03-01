@@ -1,6 +1,6 @@
 import React from 'react';
 import type { SlashCommand } from '../hooks/useSlashCommands';
-import type { VoiceState } from '../hooks/useVoiceMode';
+import type { STTState as VoiceState } from '@stallion-ai/sdk';
 import type { FileAttachment } from '../types';
 import { ContextPercentage } from './ConversationStats';
 import { FileAttachmentInput } from './FileAttachmentInput';

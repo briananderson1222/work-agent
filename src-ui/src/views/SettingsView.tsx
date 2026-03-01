@@ -1,4 +1,5 @@
 import { QRDisplay, useConnections, useHostUrl } from '@stallion-ai/connect';
+import './SettingsView.css';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -6,6 +7,8 @@ import { ModelSelector } from '../components/ModelSelector';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
+import { useMessageContextContext } from '../contexts/MessageContextContext';
+import { useVoiceProviderContext } from '../contexts/VoiceProviderContext';
 import { useApprovalNotifications } from '../hooks/useApprovalNotifications';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import type { MobileSettings } from '../hooks/useMobileSettings';
@@ -329,6 +332,7 @@ function OnboardingChecklist({ apiBase }: { apiBase: string }) {
 
 // ─── Voice & Features Section ────────────────────────────────────────────────
 
+/** Non-voice feature flags that remain in useMobileSettings */
 const FEATURE_META: Array<{
   key: keyof MobileSettings;
   label: string;
@@ -336,25 +340,9 @@ const FEATURE_META: Array<{
   privacyNote?: string;
 }> = [
   {
-    key: 'voiceModeEnabled',
-    label: 'Voice input (hold-to-talk mic)',
-    description: 'Press-and-hold the mic button in the chat input to dictate messages. Works in Chrome/Edge on all platforms.',
-  },
-  {
     key: 'ttsReadbackEnabled',
     label: 'Read agent responses aloud (TTS)',
-    description: 'Automatically reads the latest assistant response via the browser\'s text-to-speech engine after each reply.',
-  },
-  {
-    key: 'meetingTranscriptionEnabled',
-    label: 'Meeting transcription',
-    description: 'Continuously records speech during meetings; tap "Extract action items" to send the transcript to an agent.',
-  },
-  {
-    key: 'locationContextEnabled',
-    label: 'Location context',
-    description: 'Prepend GPS coordinates to outgoing messages so the agent knows your current location.',
-    privacyNote: 'Requires location permission. Coordinates are sent to your configured server only.',
+    description: "Automatically reads the latest assistant response via the selected TTS provider after each reply.",
   },
   {
     key: 'offlineQueueEnabled',
@@ -466,10 +454,81 @@ function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
 
 function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
   const { settings, toggle } = useMobileSettings();
+  const { availableSTT, availableTTS, activeSTT, activeTTS, setSTTProvider, setTTSProvider } =
+    useVoiceProviderContext();
+  const { providers: contextProviders, toggleProvider } = useMessageContextContext();
 
   return (
     <div className="form-group">
-      <label>Voice &amp; Features</label>
+      <label>Voice Providers</label>
+
+      {/* STT provider */}
+      <div className="voice-provider-section">
+        <div className="voice-provider-section__label">
+          Speech-to-text (microphone input)
+        </div>
+        <select
+          className="voice-provider-section__select"
+          data-testid="stt-provider-select"
+          value={activeSTT?.id ?? ''}
+          onChange={(e) => setSTTProvider(e.target.value)}
+        >
+          {availableSTT.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}{p.isSupported ? '' : ' (not available)'}
+            </option>
+          ))}
+          {availableSTT.length === 0 && (
+            <option value="">No STT providers registered</option>
+          )}
+        </select>
+        <div className="voice-provider-section__hint">
+          Using WisprFlow? Focus the chat input and press your hotkey — it injects text naturally.
+        </div>
+      </div>
+
+      {/* TTS provider */}
+      <div className="voice-provider-section">
+        <div className="voice-provider-section__label">
+          Text-to-speech (agent readback)
+        </div>
+        <select
+          className="voice-provider-section__select"
+          data-testid="tts-provider-select"
+          value={activeTTS?.id ?? ''}
+          onChange={(e) => setTTSProvider(e.target.value)}
+        >
+          {availableTTS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}{p.isSupported ? '' : ' (not available)'}
+            </option>
+          ))}
+          {availableTTS.length === 0 && (
+            <option value="">No TTS providers registered</option>
+          )}
+        </select>
+      </div>
+
+      {/* Context providers */}
+      {contextProviders.length > 0 && (
+        <div className="context-provider-section">
+          <div className="context-provider-section__label">
+            Message Context
+          </div>
+          {contextProviders.map((p) => (
+            <label key={p.id} className="context-provider-toggle">
+              <input
+                type="checkbox"
+                checked={p.enabled}
+                onChange={() => toggleProvider(p.id)}
+              />
+              {p.name}
+            </label>
+          ))}
+        </div>
+      )}
+
+      {/* Remaining feature flags */}
       <div>
         {FEATURE_META.map((f) => (
           <FeatureToggle
@@ -487,8 +546,8 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
         <NotificationSubscribeButton apiBase={apiBase} />
       )}
       <span className="form-help" style={{ marginTop: 8, display: 'block' }}>
-        These settings are saved in this browser only (localStorage). Each device
-        can have independent feature settings.
+        Voice provider selection and context settings are saved in this browser only.
+        Install plugins to add ElevenLabs or Nova Sonic providers.
       </span>
     </div>
   );

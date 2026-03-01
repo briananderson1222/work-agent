@@ -8,14 +8,8 @@
 import { useCallback, useState } from 'react';
 
 export interface MobileSettings {
-  /** Voice-to-text mic button in the chat input (SpeechRecognition API). */
-  voiceModeEnabled: boolean;
-  /** Text-to-speech readback of the latest agent response (SpeechSynthesis). */
+  /** Text-to-speech readback of the latest agent response via the active TTS provider. */
   ttsReadbackEnabled: boolean;
-  /** Continuous speech recording → transcript → send to agent as action items. */
-  meetingTranscriptionEnabled: boolean;
-  /** Prepend GPS coordinates to outgoing messages as context. Off by default (privacy). */
-  locationContextEnabled: boolean;
   /** Cache pending messages in IndexedDB when offline; flush on reconnect. */
   offlineQueueEnabled: boolean;
   /** Subscribe to Web Push notifications for tool-approval requests. */
@@ -25,10 +19,7 @@ export interface MobileSettings {
 const STORAGE_KEY = 'stallion-feature-settings';
 
 const DEFAULTS: MobileSettings = {
-  voiceModeEnabled: true,
   ttsReadbackEnabled: false,
-  meetingTranscriptionEnabled: true,
-  locationContextEnabled: false,
   offlineQueueEnabled: true,
   approvalNotificationsEnabled: false,
 };

@@ -1,0 +1,64 @@
+/* VoiceOrb — press-and-hold mic button */
+
+/* Component-level tokens */
+.voice-orb {
+  --vo-size: 34px;
+  --vo-active-bg: var(--health-error, #ef4444);
+  --vo-active-color: #fff;
+  --vo-active-outline: rgba(239, 68, 68, 0.4);
+  --vo-idle-bg: var(--bg-tertiary);
+  --vo-error-color: var(--health-error, #ef4444);
+
+  position: relative;
+  width: var(--vo-size);
+  height: var(--vo-size);
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  touch-action: none;
+  user-select: none;
+  background: var(--vo-idle-bg);
+  color: var(--text-muted);
+  transition: background 0.15s, outline 0.15s;
+  outline: 2px solid transparent;
+}
+
+.voice-orb:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.voice-orb:active:not(:disabled) {
+  opacity: 0.8;
+}
+
+/* States */
+.voice-orb--listening {
+  background: var(--vo-active-bg);
+  color: var(--vo-active-color);
+  outline-color: var(--vo-active-outline);
+}
+
+.voice-orb--error {
+  color: var(--vo-error-color);
+}
+
+/* Pulse ring (rendered as a sibling span inside the button) */
+.voice-orb__pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--vo-active-bg);
+  animation: voice-orb-pulse 1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes voice-orb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50%       { transform: scale(1.4); opacity: 0.2; }
+}

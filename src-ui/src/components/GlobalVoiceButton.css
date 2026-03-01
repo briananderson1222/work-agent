@@ -1,0 +1,69 @@
+/* GlobalVoiceButton — floating mic FAB (mobile) / inline button (desktop) */
+
+/* Component-level tokens */
+.gvb {
+  --gvb-active-bg: var(--health-error, #ef4444);
+  --gvb-active-color: #fff;
+  --gvb-active-outline: rgba(239, 68, 68, 0.4);
+  --gvb-idle-bg: var(--bg-tertiary);
+  --gvb-error-color: var(--health-error, #ef4444);
+  --gvb-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--gvb-idle-bg);
+  color: var(--text-muted);
+  touch-action: none;
+  user-select: none;
+  transition: background 0.15s, outline 0.15s;
+  outline: 2px solid transparent;
+}
+
+/* Mobile FAB: fixed bottom-right */
+.gvb--mobile {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: 56px;
+  height: 56px;
+  box-shadow: var(--gvb-shadow);
+}
+
+/* Desktop: small inline button */
+.gvb--desktop {
+  position: relative;
+  width: 32px;
+  height: 32px;
+}
+
+/* States */
+.gvb--listening {
+  background: var(--gvb-active-bg);
+  color: var(--gvb-active-color);
+  outline-color: var(--gvb-active-outline);
+}
+
+.gvb--error {
+  color: var(--gvb-error-color);
+}
+
+/* Pulse ring (only on mobile while listening) */
+.gvb__pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--gvb-active-bg);
+  animation: gvb-pulse 1s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes gvb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50%       { transform: scale(1.5); opacity: 0; }
+}

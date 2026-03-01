@@ -1,0 +1,23 @@
+{
+  "id": "nova-sonic-voice",
+  "name": "Nova Sonic Voice",
+  "version": "0.1.0",
+  "description": "Amazon Nova Sonic bidirectional conversational voice via AWS Bedrock HTTP/2 relay.",
+  "providerTypes": ["conversational"],
+  "permissions": ["aws:bedrock"],
+  "serverModule": "plugin.mjs",
+  "clientBundle": "dist/index.js",
+  "config": {
+    "region": {
+      "label": "AWS Region",
+      "type": "string",
+      "default": "us-east-1"
+    },
+    "model": {
+      "label": "Nova Sonic Model",
+      "type": "select",
+      "options": ["us.amazon.nova-lite-v1:0", "us.amazon.nova-pro-v1:0"],
+      "default": "us.amazon.nova-lite-v1:0"
+    }
+  }
+}
