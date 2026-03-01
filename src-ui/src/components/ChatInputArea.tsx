@@ -1,10 +1,12 @@
 import React from 'react';
 import type { SlashCommand } from '../hooks/useSlashCommands';
+import type { VoiceState } from '../hooks/useVoiceMode';
 import type { FileAttachment } from '../types';
 import { ContextPercentage } from './ConversationStats';
 import { FileAttachmentInput } from './FileAttachmentInput';
 import { ModelSelectorAutocomplete } from './ModelSelector';
 import { SlashCommandSelector } from './SlashCommandSelector';
+import { VoiceOrb } from './VoiceOrb';
 
 interface Model {
   id: string;
@@ -54,6 +56,11 @@ interface ChatInputAreaProps {
   onShowStats: () => void;
   updateFromInput: (value: string) => void;
   closeAll: () => void;
+  // Voice mode (optional — omit to hide the mic button)
+  voiceState?: VoiceState;
+  voiceSupported?: boolean;
+  onVoiceStart?: () => void;
+  onVoiceStop?: () => void;
 }
 
 export function ChatInputArea({
@@ -92,6 +99,10 @@ export function ChatInputArea({
   onShowStats,
   updateFromInput,
   closeAll,
+  voiceState,
+  voiceSupported,
+  onVoiceStart,
+  onVoiceStop,
 }: ChatInputAreaProps) {
   const isOverride = currentModel && currentModel !== agentDefaultModel;
   const modelInfo = availableModels.find((m) => m.id === currentModel);
@@ -197,6 +208,15 @@ export function ChatInputArea({
       </div>
       <div className="chat-controls">
         <div className="chat-controls-row">
+          {voiceSupported && voiceState !== undefined && onVoiceStart && onVoiceStop && (
+            <VoiceOrb
+              state={voiceState}
+              supported={voiceSupported}
+              disabled={disabled || isSending}
+              onStart={onVoiceStart}
+              onStop={onVoiceStop}
+            />
+          )}
           <FileAttachmentInput
             attachments={attachments}
             onAdd={onAddAttachments}

@@ -6,7 +6,10 @@ import { ModelSelector } from '../components/ModelSelector';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
+import { useApprovalNotifications } from '../hooks/useApprovalNotifications';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
+import type { MobileSettings } from '../hooks/useMobileSettings';
+import { useMobileSettings } from '../hooks/useMobileSettings';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import type { AppConfig, NavigationView } from '../types';
 
@@ -320,6 +323,173 @@ function OnboardingChecklist({ apiBase }: { apiBase: string }) {
           {optional.map(renderItem)}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Voice & Features Section ────────────────────────────────────────────────
+
+const FEATURE_META: Array<{
+  key: keyof MobileSettings;
+  label: string;
+  description: string;
+  privacyNote?: string;
+}> = [
+  {
+    key: 'voiceModeEnabled',
+    label: 'Voice input (hold-to-talk mic)',
+    description: 'Press-and-hold the mic button in the chat input to dictate messages. Works in Chrome/Edge on all platforms.',
+  },
+  {
+    key: 'ttsReadbackEnabled',
+    label: 'Read agent responses aloud (TTS)',
+    description: 'Automatically reads the latest assistant response via the browser\'s text-to-speech engine after each reply.',
+  },
+  {
+    key: 'meetingTranscriptionEnabled',
+    label: 'Meeting transcription',
+    description: 'Continuously records speech during meetings; tap "Extract action items" to send the transcript to an agent.',
+  },
+  {
+    key: 'locationContextEnabled',
+    label: 'Location context',
+    description: 'Prepend GPS coordinates to outgoing messages so the agent knows your current location.',
+    privacyNote: 'Requires location permission. Coordinates are sent to your configured server only.',
+  },
+  {
+    key: 'offlineQueueEnabled',
+    label: 'Offline command queue',
+    description: 'Save messages in IndexedDB when the server is unreachable; auto-sends them when connectivity returns.',
+  },
+  {
+    key: 'approvalNotificationsEnabled',
+    label: 'Tool-approval push notifications',
+    description: 'Receive browser push notifications (with Allow/Deny buttons) when an agent needs your approval to run a tool.',
+    privacyNote: 'Requires notification permission and HTTPS. See server docs to configure VAPID keys.',
+  },
+];
+
+function FeatureToggle({
+  featureKey,
+  label,
+  description,
+  privacyNote,
+  checked,
+  onToggle,
+}: {
+  featureKey: keyof MobileSettings;
+  label: string;
+  description: string;
+  privacyNote?: string;
+  checked: boolean;
+  onToggle: (key: keyof MobileSettings) => void;
+}) {
+  const id = `feature-${featureKey}`;
+  return (
+    <label
+      htmlFor={id}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: '12px 0',
+        borderBottom: '1px solid var(--border-primary)',
+        cursor: 'pointer',
+      }}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={() => onToggle(featureKey)}
+        style={{ marginTop: 3, flexShrink: 0 }}
+      />
+      <div>
+        <div style={{ fontWeight: 500, marginBottom: 2 }}>{label}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          {description}
+        </div>
+        {privacyNote && (
+          <div style={{ fontSize: 11, color: 'var(--color-warning, #eab308)', marginTop: 3 }}>
+            {privacyNote}
+          </div>
+        )}
+      </div>
+    </label>
+  );
+}
+
+function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
+  const { settings } = useMobileSettings();
+  const notifs = useApprovalNotifications({
+    enabled: settings.approvalNotificationsEnabled,
+    apiBase,
+  });
+
+  if (!notifs.supported) return null;
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {notifs.subscribed ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--success-text, #22c55e)' }}>
+            ✓ Subscribed to push notifications
+          </span>
+          <button
+            type="button"
+            className="button button--secondary button--small"
+            onClick={notifs.unsubscribe}
+          >
+            Unsubscribe
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="button button--secondary button--small"
+          onClick={notifs.subscribe}
+          disabled={notifs.permission === 'denied'}
+        >
+          {notifs.permission === 'denied'
+            ? 'Notifications blocked by browser'
+            : 'Enable push notifications'}
+        </button>
+      )}
+      {notifs.error && (
+        <div style={{ fontSize: 12, color: 'var(--error-text, #ef4444)', marginTop: 4 }}>
+          {notifs.error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
+  const { settings, toggle } = useMobileSettings();
+
+  return (
+    <div className="form-group">
+      <label>Voice &amp; Features</label>
+      <div>
+        {FEATURE_META.map((f) => (
+          <FeatureToggle
+            key={f.key}
+            featureKey={f.key}
+            label={f.label}
+            description={f.description}
+            privacyNote={f.privacyNote}
+            checked={settings[f.key]}
+            onToggle={toggle}
+          />
+        ))}
+      </div>
+      {settings.approvalNotificationsEnabled && (
+        <NotificationSubscribeButton apiBase={apiBase} />
+      )}
+      <span className="form-help" style={{ marginTop: 8, display: 'block' }}>
+        These settings are saved in this browser only (localStorage). Each device
+        can have independent feature settings.
+      </span>
     </div>
   );
 }
@@ -942,6 +1112,8 @@ export function SettingsView({
               </div>
 
               <MobilePairingSection />
+
+              <VoiceFeaturesSection apiBase={currentApiBase} />
 
               <div className="form-group">
                 <label htmlFor="region">AWS Region</label>

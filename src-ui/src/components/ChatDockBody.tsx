@@ -1,13 +1,19 @@
 import React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useToast } from '../contexts/ToastContext';
+import { useLocationContext } from '../hooks/useLocationContext';
+import { useMeetingTranscription } from '../hooks/useMeetingTranscription';
+import { useMobileSettings } from '../hooks/useMobileSettings';
+import { useShareReceiver } from '../hooks/useShareReceiver';
 import { useToolApproval } from '../hooks/useToolApproval';
+import { useVoiceMode } from '../hooks/useVoiceMode';
 import { AgentIcon } from './AgentIcon';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInputArea } from './ChatInputArea';
+import { MeetingTranscriptionModal } from './MeetingTranscriptionModal';
 import { ConversationStats } from './ConversationStats';
 import { EphemeralMessage } from './EphemeralMessage';
 import { MessageBubble } from './MessageBubble';
@@ -94,6 +100,62 @@ export function ChatDockBody({
   const { showToast } = useToast();
   const handleToolApproval = useToolApproval(apiBase);
   const { updateChat, clearEphemeralMessages } = useActiveChatActions();
+
+  // Mobile/voice features
+  const { settings } = useMobileSettings();
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const voice = useVoiceMode({
+    enabled: settings.voiceModeEnabled,
+    onTranscript: useCallback(
+      (text: string) => {
+        chatInput.handleInputChange(chatInput.input ? chatInput.input + ' ' + text : text);
+      },
+      [chatInput],
+    ),
+  });
+  const transcription = useMeetingTranscription({
+    enabled: settings.meetingTranscriptionEnabled,
+  });
+  const location = useLocationContext({ enabled: settings.locationContextEnabled });
+
+  // Share sheet / PWA share target: pre-fill input with incoming shared content
+  useShareReceiver({
+    enabled: true, // always watch; no privacy concerns
+    onShare: useCallback(
+      (text: string) => chatInput.handleInputChange(text),
+      [chatInput],
+    ),
+  });
+
+  // Wrap handleSend to optionally prepend location context
+  const handleSendWithContext = useCallback(async () => {
+    if (settings.locationContextEnabled) {
+      const locStr = location.getContextString();
+      if (locStr && chatInput.input && !chatInput.input.startsWith('[My location:')) {
+        chatInput.handleInputChange(locStr + '\n' + chatInput.input);
+        // Give React a tick to update the input before sending
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+    return chatInput.handleSend();
+  }, [settings.locationContextEnabled, location, chatInput]);
+
+  // TTS readback: speak the last assistant message when streaming completes
+  const prevStatusRef = useRef(activeSession.status);
+  useEffect(() => {
+    const wasStreaming = prevStatusRef.current === 'sending';
+    prevStatusRef.current = activeSession.status;
+    if (!wasStreaming || activeSession.status === 'sending') return;
+    if (!settings.ttsReadbackEnabled) return;
+    const lastMsg = [...activeSession.messages].reverse().find((m) => m.role === 'assistant');
+    if (!lastMsg) return;
+    const text =
+      lastMsg.contentParts
+        ?.filter((p) => p.type === 'text')
+        .map((p) => p.content)
+        .join(' ') ?? lastMsg.content ?? '';
+    if (text.trim()) voice.speak(text.slice(0, 800)); // cap length for TTS
+  }, [activeSession.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Local state - only used within this component
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -282,6 +344,40 @@ export function ChatDockBody({
         sessionId={activeSession.id}
         messages={activeSession.queuedMessages}
       />
+      {/* Meeting transcription trigger */}
+      {transcription.supported && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 8px 2px' }}>
+          <button
+            type="button"
+            onClick={() => setShowMeetingModal(true)}
+            title="Transcribe a meeting and extract action items"
+            style={{
+              background: transcription.running ? 'var(--color-error, #ef4444)' : 'transparent',
+              color: transcription.running ? 'white' : 'var(--text-muted)',
+              border: 'none',
+              borderRadius: 6,
+              padding: '2px 8px',
+              fontSize: 11,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            {transcription.running ? '● Recording' : '⏺ Meeting'}
+          </button>
+        </div>
+      )}
+      {/* Meeting transcription modal */}
+      <MeetingTranscriptionModal
+        isOpen={showMeetingModal}
+        transcription={transcription}
+        onSend={(prompt) => {
+          chatInput.handleInputChange(prompt);
+          setShowMeetingModal(false);
+        }}
+        onClose={() => setShowMeetingModal(false)}
+      />
       <ChatInputArea
         agentSlug={activeSession.agentSlug}
         conversationId={activeSession.conversationId}
@@ -303,7 +399,7 @@ export function ChatDockBody({
         commandQuery={chatInput.commandQuery}
         slashCommands={chatInput.slashCommands}
         onInputChange={chatInput.handleInputChange}
-        onSend={chatInput.handleSend}
+        onSend={handleSendWithContext}
         onCancel={chatInput.handleCancel}
         onClearInput={chatInput.handleClearInput}
         onAddAttachments={chatInput.handleAddAttachments}
@@ -318,6 +414,10 @@ export function ChatDockBody({
         onShowStats={() => setShowStatsPanel(true)}
         updateFromInput={chatInput.updateFromInput}
         closeAll={chatInput.closeAll}
+        voiceState={voice.state}
+        voiceSupported={voice.supported}
+        onVoiceStart={voice.startListening}
+        onVoiceStop={voice.stopListening}
       />
     </>
   );
