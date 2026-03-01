@@ -35,11 +35,7 @@ export function ToolManagementView({
   );
   const [aliasValues, setAliasValues] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    loadData();
-  }, []); // eslint-disable-line
-
-  const loadData = async () => {
+  async function loadData() {
     try {
       setIsLoading(true);
       setError(null);
@@ -72,7 +68,7 @@ export function ToolManagementView({
             agentToolsData.data.map((t: any) => [t.id || t.name, t]),
           );
           tools = tools.map((tool: any) => {
-            const enriched = toolsWithParams.get(tool.id);
+            const enriched: any = toolsWithParams.get(tool.id);
             return enriched
               ? { ...tool, parameters: enriched.parameters }
               : tool;
@@ -94,7 +90,12 @@ export function ToolManagementView({
     } finally {
       setIsLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const addTool = async (toolId: string) => {
     try {

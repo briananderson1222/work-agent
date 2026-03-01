@@ -27,11 +27,26 @@ export interface MonitoringStats {
 export interface MonitoringEvent {
   type: string;
   timestamp: string;
+  timestampMs?: number;
   agentSlug?: string;
   conversationId?: string;
+  traceId?: string;
   reason?: string;
   toolName?: string;
   toolCallId?: string;
+  toolCallNumber?: number;
+  toolCallCount?: number;
+  requiresApproval?: boolean;
+  maxSteps?: number;
+  steps?: number;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    estimatedCost?: number;
+  };
+  inputChars?: number;
+  outputChars?: number;
   input?: any;
   result?: any;
   artifacts?: Array<{ type: string; name?: string; content?: any }>;
@@ -62,6 +77,8 @@ class MonitoringStore {
     stats: MonitoringStats | null;
     events: MonitoringEvent[];
   } | null = null;
+  isLiveMode: boolean = true;
+  dateRange: { start?: Date; end?: Date } | null = null;
 
   constructor(apiBase: string) {
     this.apiBase = apiBase;
@@ -246,7 +263,7 @@ class MonitoringStore {
       const timeSinceHeartbeat = Date.now() - this.lastHeartbeat;
       if (timeSinceHeartbeat > 60000 && this.stats) {
         // 60 seconds without heartbeat
-        log.debug('No heartbeat for 60s, resetting running agents to idle');
+        log.api('No heartbeat for 60s, resetting running agents to idle');
         this.stats.agents.forEach((agent) => {
           if (agent.status === 'running') {
             agent.status = 'idle';

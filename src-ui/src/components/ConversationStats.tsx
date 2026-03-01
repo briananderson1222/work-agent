@@ -12,24 +12,6 @@ interface ModelStats {
   estimatedCost: number;
 }
 
-interface ConversationStatsData {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  contextTokens: number;
-  systemPromptTokens?: number;
-  mcpServerTokens?: number;
-  userMessageTokens?: number;
-  assistantMessageTokens?: number;
-  contextFilesTokens?: number;
-  turns: number;
-  toolCalls: number;
-  estimatedCost: number;
-  contextWindowPercentage?: number;
-  modelId?: string;
-  modelStats?: Record<string, ModelStats>;
-}
-
 interface ConversationStatsProps {
   agentSlug: string;
   conversationId: string;
@@ -455,7 +437,7 @@ export function ConversationStats({
                 >
                   Per-Model Breakdown
                 </div>
-                {Object.entries(stats.modelStats).map(
+                {Object.entries(stats.modelStats as Record<string, ModelStats>).map(
                   ([modelId, modelStat]) => (
                     <div
                       key={modelId}

@@ -121,6 +121,6 @@ export class ToolApprovalHandler extends StreamEventHandler {
             ),
         },
       ],
-    });
+    }) || '';
   }
 }

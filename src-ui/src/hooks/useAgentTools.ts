@@ -1,18 +1,10 @@
-import { useEffect } from 'react';
-import { useAgentToolsWithState } from '@/contexts/AgentToolsContext';
+import { useAgentTools as useAgentToolsContext } from '@/contexts/AgentToolsContext';
 
 /**
  * Hook to fetch and access agent tools
  * Automatically fetches on mount, uses cached data on subsequent calls
  */
-export function useAgentTools(apiBase: string, agentSlug: string | undefined) {
-  const { tools, fetch } = useAgentToolsWithState(apiBase, agentSlug);
-
-  useEffect(() => {
-    if (agentSlug) {
-      fetch();
-    }
-  }, [agentSlug, fetch]);
-
+export function useAgentTools(_apiBase: string, agentSlug: string | undefined) {
+  const { tools } = useAgentToolsContext(agentSlug);
   return tools;
 }

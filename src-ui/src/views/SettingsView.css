@@ -203,6 +203,45 @@
 .settings__toggle-label { font-size: 0.8rem; font-weight: 500; color: var(--text-primary); }
 .settings__toggle-desc { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.15rem; }
 
+/* ── Voice Provider ── */
+.voice-provider-section {
+  margin-bottom: 16px;
+}
+.voice-provider-section__label {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+.voice-provider-section__hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.voice-provider-section__select {
+  width: 100%;
+}
+
+/* ── Context Provider Toggles ── */
+.context-provider-section {
+  margin-bottom: 16px;
+}
+.context-provider-section__label {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+.context-provider-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
 /* ── Notification Thresholds ── */
 .settings__thresholds {
   display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;

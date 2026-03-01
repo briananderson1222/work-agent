@@ -1,5 +1,5 @@
 /**
- * @work-agent/shared — Canonical types, config parsing, and API contracts.
+ * @stallion-ai/shared — Canonical types, config parsing, and API contracts.
  *
  * This is the SINGLE SOURCE OF TRUTH for all types shared between:
  *   - src-server (core)

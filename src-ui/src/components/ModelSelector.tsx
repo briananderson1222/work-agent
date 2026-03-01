@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import { useModelCapabilities } from '../contexts/ModelCapabilitiesContext';
 import { useModels } from '../contexts/ModelsContext';
 import { AutocompleteSelector } from './AutocompleteSelector';
@@ -122,8 +121,7 @@ export function ModelSelector({
   placeholder,
   defaultModel,
 }: ModelSelectorProps) {
-  const { apiBase } = useApiBase();
-  const models = useModels(apiBase);
+  const models = useModels();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);

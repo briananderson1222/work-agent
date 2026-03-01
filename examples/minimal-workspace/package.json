@@ -1,5 +1,5 @@
 {
-  "name": "@work-agent/minimal-workspace",
+  "name": "@stallion-ai/minimal-workspace",
   "version": "1.0.0",
   "description": "Minimal workspace plugin example for Work Agent",
   "type": "module",
@@ -15,11 +15,11 @@
     "postinstall": "node scripts/install-plugin.js"
   },
   "peerDependencies": {
-    "@work-agent/sdk": "^0.4.0",
+    "@stallion-ai/sdk": "^0.4.0",
     "react": "^19.0.0"
   },
   "devDependencies": {
-    "@work-agent/sdk": "^0.4.0",
+    "@stallion-ai/sdk": "^0.4.0",
     "@types/react": "^19.0.0",
     "typescript": "^5.0.0"
   },

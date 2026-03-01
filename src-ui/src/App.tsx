@@ -1,5 +1,5 @@
-import { useWorkspaceQuery, useWorkspacesQuery } from '@work-agent/sdk';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useWorkspaceQuery, useWorkspacesQuery } from '@stallion-ai/sdk';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ACPConnectionsSection } from './components/ACPConnectionsSection';
 import { AgentIcon } from './components/AgentIcon';
 import { ChatDock } from './components/ChatDock';
@@ -20,6 +20,7 @@ import { setAuthCallback } from './lib/apiClient';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import type { AgentSummary, NavigationView } from './types';
+import { GlobalVoiceButton } from './components/GlobalVoiceButton';
 import { AgentEditorView } from './views/AgentEditorView';
 import { MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
@@ -32,7 +33,7 @@ import { WorkspaceView } from './views/WorkspaceView';
 
 function App() {
   const { apiBase: API_BASE } = useApiBase();
-  const availableModels = useModels(API_BASE);
+  const availableModels = useModels();
   const agents = useAgents();
 
   // SSE event stream — replaces all polling for ACP status, agent changes, etc.
@@ -40,11 +41,9 @@ function App() {
   const {
     selectedAgent,
     selectedWorkspace,
-    setAgent,
     setWorkspace,
     setWorkspaceTab,
     navigate,
-    isDockOpen,
   } = useNavigation();
   const { showToast } = useToast();
   const { data: workspaces = [] } = useWorkspacesQuery();
@@ -53,27 +52,12 @@ function App() {
     { enabled: !!selectedWorkspace },
   );
   const [activeTabId, setActiveTabId] = useState<string>('');
-  const [_agentSelectorModal, _setAgentSelectorModal] = useState<{
-    show: boolean;
-    onSelect: (slug: string) => void;
-  } | null>(null);
-
   const appConfig = useConfig();
   const [globalError, _setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
-  const _workflowCatalog = useWorkflows(API_BASE);
-  const [_showPinDialog, setShowPinDialog] = useState(false);
+  useWorkflows(API_BASE);
   const [showShortcutsCheatsheet, setShowShortcutsCheatsheet] = useState(false);
-  const [pinDialogResolver, setPinDialogResolver] = useState<
-    ((success: boolean) => void) | null
-  >(null);
-  const [_activeAbortController, _setActiveAbortController] =
-    useState<AbortController | null>(null);
-  const {
-    authenticate,
-    isAuthenticating,
-    error: authError,
-  } = useExternalAuth();
+  useExternalAuth();
   const { data: systemStatus } = useSystemStatus();
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
     const path = window.location.pathname;
@@ -107,13 +91,11 @@ function App() {
 
     return { type: 'workspace' };
   });
-  const [_historyIndex, _setHistoryIndex] = useState<number>(-1);
-
   const handleWorkspaceSelect = useCallback(async (
     slug: string,
     preferredTabId?: string,
   ) => {
-    const workspace = workspaces.find((w) => w.slug === slug);
+    const workspace = workspaces.find((w: any) => w.slug === slug);
     if (workspace) {
       const tabs = workspace.tabs || [];
       const validTabId =
@@ -128,6 +110,59 @@ function App() {
       navigate(`/workspaces/${slug}`);
     }
   }, [workspaces, setWorkspace, setWorkspaceTab, navigate]);
+
+  // Navigation functions (declared early so useEffect closures can reference them)
+  const navigateToView = useCallback((view: NavigationView) => {
+    setCurrentView(view);
+
+    // Update URL based on view type
+    if (view.type === 'workspace') {
+      if (selectedWorkspace && selectedWorkspace !== 'new') {
+        navigate(`/workspaces/${selectedWorkspace}`);
+      } else {
+        navigate('/');
+      }
+    } else if (view.type === 'workspaces') {
+      navigate('/workspaces');
+    } else if (view.type === 'agents') {
+      navigate('/agents');
+    } else if (view.type === 'prompts') {
+      navigate('/prompts');
+    } else if (view.type === 'plugins') {
+      navigate('/plugins');
+    } else if (view.type === 'profile') {
+      navigate('/profile');
+    } else if (view.type === 'notifications') {
+      navigate('/notifications');
+    } else if (view.type === 'settings') {
+      navigate('/settings');
+    } else if (view.type === 'monitoring') {
+      navigate('/monitoring');
+    } else if (view.type === 'schedule') {
+      navigate('/schedule');
+    } else if (view.type === 'agent-new') {
+      navigate('/agents/new');
+    } else if (view.type === 'agent-edit' && 'slug' in view) {
+      navigate(`/agents/${view.slug}/edit`);
+    } else if (view.type === 'tools' && 'slug' in view) {
+      navigate(`/agents/${view.slug}/tools`);
+    } else if (view.type === 'workflows' && 'slug' in view) {
+      navigate(`/agents/${view.slug}/workflows`);
+    } else if (view.type === 'workspace-new') {
+      navigate('/workspaces/new');
+    } else if (view.type === 'workspace-edit' && 'slug' in view) {
+      navigate(`/workspaces/${view.slug}/edit`);
+    }
+  }, [selectedWorkspace, navigate]);
+
+  const navigateToWorkspace = useCallback(() => {
+    setCurrentView({ type: 'workspace' });
+    if (selectedWorkspace) {
+      navigate(`/workspaces/${selectedWorkspace}`);
+    } else {
+      navigate('/');
+    }
+  }, [selectedWorkspace, navigate]);
 
   // Listen for path changes (back/forward navigation)
   useEffect(() => {
@@ -219,97 +254,16 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const _generateId = () =>
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-
-  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-  const _modKey = isMac ? '⌘' : 'Ctrl+';
-
-  const _humanizeWorkflowId = (identifier: string) => {
-    const base = identifier.includes('.')
-      ? identifier.split('.')[0]
-      : identifier;
-    return base
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  };
-
-  const [_isUserScrolledUp, _setIsUserScrolledUp] = useState(false);
-  const _textareaRef = useRef<HTMLTextAreaElement>(null);
-  const _chatSectionRef = useRef<HTMLDivElement>(null);
-  const _tabListRef = useRef<HTMLDivElement>(null);
-  const [_showScrollButtons, _setShowScrollButtons] = useState({
-    left: false,
-    right: false,
-  });
-  const [_showCommandAutocomplete, _setShowCommandAutocomplete] =
-    useState(false);
-  const [_selectedCommandIndex, _setSelectedCommandIndex] = useState(0);
-  const [_showModelSelector, _setShowModelSelector] = useState(false);
-  const [_selectedModelIndex, _setSelectedModelIndex] = useState(0);
-  const [_modelSelectorDismissed, _setModelSelectorDismissed] = useState(false);
-
-  // Models are now provided by ModelsContext
 
   const currentAgent = useMemo(
     () => agents.find((agent) => agent.slug === selectedAgent) ?? null,
     [agents, selectedAgent],
   );
 
-  const _slashCommands = useMemo(() => {
-    const baseCommands = [
-      { cmd: '/mcp', description: 'List MCP servers for this agent' },
-      {
-        cmd: '/tools',
-        description: 'Show available tools and auto-approved list',
-      },
-      {
-        cmd: '/model',
-        description: 'List and select model for this conversation',
-      },
-      {
-        cmd: '/prompts',
-        description: 'List custom slash commands for this agent',
-      },
-      {
-        cmd: '/clear',
-        aliases: ['/new'],
-        description: 'Clear conversation and start fresh',
-      },
-      { cmd: '/stats', description: 'Show conversation statistics' },
-    ];
-
-    // Add custom agent commands
-    if (currentAgent?.commands) {
-      const customCommands = Object.values(currentAgent.commands).map(
-        (cmd: any) => ({
-          cmd: `/${cmd.name}`,
-          description: cmd.description || 'Custom command',
-          isCustom: true,
-        }),
-      );
-      return [...baseCommands, ...customCommands];
-    }
-
-    return baseCommands;
-  }, [currentAgent]);
-
-  const _quickPrompts = currentAgent?.ui?.quickPrompts;
-  const _workflowShortcuts = currentAgent?.ui?.workflowShortcuts;
-
   // Setup auth callback
   useEffect(() => {
-    const authCallback = async () => {
-      return new Promise<boolean>((resolve) => {
-        setPinDialogResolver(() => resolve);
-        setShowPinDialog(true);
-      });
-    };
-
+    const authCallback = async () => Promise.resolve(false);
     setAuthCallback(authCallback);
-    // Also expose globally for SDK
     (
       globalThis as typeof globalThis & {
         authCallback?: () => Promise<boolean>;
@@ -317,30 +271,7 @@ function App() {
     ).authCallback = authCallback;
   }, []);
 
-  const _handlePinSubmit = async (pin: string) => {
-    const success = await authenticate(pin);
-    if (success) {
-      setShowPinDialog(false);
-      pinDialogResolver?.(true);
-      setPinDialogResolver(null);
-      // Refresh page after successful auth
-      window.location.reload();
-    }
-    // Keep dialog open on failure to show error
-  };
-
-  const _handlePinCancel = () => {
-    setShowPinDialog(false);
-    pinDialogResolver?.(false);
-    setPinDialogResolver(null);
-  };
-
-  const handleAuthError = async (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      setPinDialogResolver(() => resolve);
-      setShowPinDialog(true);
-    });
-  };
+  const handleAuthError = async (): Promise<boolean> => Promise.resolve(false);
 
   // Sessions are loaded automatically via ConversationsContext
 
@@ -351,56 +282,6 @@ function App() {
   // Sync font size from config - handled by ChatDock
 
   // Auto-scroll to bottom when new messages arrive - handled by ChatDock
-
-  const navigateToView = useCallback((view: NavigationView) => {
-    setCurrentView(view);
-    if (view.type === 'workspace') {
-      if (selectedWorkspace && selectedWorkspace !== 'new') {
-        navigate(`/workspaces/${selectedWorkspace}`);
-      } else {
-        navigate('/');
-      }
-    } else if (view.type === 'workspaces') {
-      navigate('/workspaces');
-    } else if (view.type === 'agents') {
-      navigate('/agents');
-    } else if (view.type === 'prompts') {
-      navigate('/prompts');
-    } else if (view.type === 'plugins') {
-      navigate('/plugins');
-    } else if (view.type === 'profile') {
-      navigate('/profile');
-    } else if (view.type === 'notifications') {
-      navigate('/notifications');
-    } else if (view.type === 'settings') {
-      navigate('/settings');
-    } else if (view.type === 'monitoring') {
-      navigate('/monitoring');
-    } else if (view.type === 'schedule') {
-      navigate('/schedule');
-    } else if (view.type === 'agent-new') {
-      navigate('/agents/new');
-    } else if (view.type === 'agent-edit' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/edit`);
-    } else if (view.type === 'tools' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/tools`);
-    } else if (view.type === 'workflows' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/workflows`);
-    } else if (view.type === 'workspace-new') {
-      navigate('/workspaces/new');
-    } else if (view.type === 'workspace-edit' && 'slug' in view) {
-      navigate(`/workspaces/${view.slug}/edit`);
-    }
-  }, [selectedWorkspace, navigate]);
-
-  const navigateToWorkspace = useCallback(() => {
-    setCurrentView({ type: 'workspace' });
-    if (selectedWorkspace) {
-      navigate(`/workspaces/${selectedWorkspace}`);
-    } else {
-      navigate('/');
-    }
-  }, [selectedWorkspace, navigate]);
 
   // Keyboard shortcuts for navigation (chat shortcuts handled by ChatDock)
   useEffect(() => {
@@ -464,58 +345,7 @@ function App() {
     setWorkspace,
   ]);
 
-  const _handleTabChange = (tabId: string) => {
-    setActiveTabId(tabId);
-    // Update URL via NavigationContext
-    if (selectedWorkspace) {
-      setWorkspaceTab(selectedWorkspace.slug, tabId);
-    }
-  };
 
-  // Sessions are loaded automatically via ConversationsContext in useDerivedSessions
-
-  // Chat functions - handled by ChatDock
-  const _removeSession = (_sessionId: string) => {};
-
-  const _focusSession = (_sessionId: string) => {};
-
-  const _ensureManualSession = (_agent: AgentSummary) => {};
-
-  const _sendMessage = async (
-    _sessionId: string,
-    _overrideContent?: string,
-  ) => {};
-
-  const _openChatForAgent = useCallback(
-    (_agent: AgentSummary | null) => {},
-    [],
-  );
-
-  const _openConversation = async (
-    _conversationId: string,
-    _agentSlug: string,
-  ) => {};
-
-  // Navigation functions
-  const _switchAgent = (slug: string) => {
-    setAgent(slug);
-    setManagementNotice(null);
-  };
-
-  // Stub handlers for legacy calls - ChatDock handles all chat operations
-  const _handleSendToChat = useCallback(
-    (_text: string, _agentSlug?: string, _promptLabel?: string) => {
-      showToast('Please use the chat dock to send messages');
-    },
-    [showToast],
-  );
-
-  const _handlePromptSelect = useCallback(
-    (_prompt: any) => {
-      showToast('Please use the chat dock to send prompts');
-    },
-    [showToast],
-  );
 
   const handleSettingsSaved = () => {
     showToast('Settings saved successfully');
@@ -627,7 +457,7 @@ function App() {
                 gap: '16px',
               }}
             >
-              {workspaces.map((workspace) => (
+              {workspaces.map((workspace: any) => (
                 <div
                   key={workspace.slug}
                   style={{
@@ -804,10 +634,10 @@ function App() {
 
             {(() => {
               const workspaceAgents = agents.filter((a) =>
-                (a.slug || a.id).includes(':'),
+                (a.slug).includes(':'),
               );
               const standaloneAgents = agents.filter(
-                (a) => !(a.slug || a.id).includes(':') && a.source !== 'acp',
+                (a) => !(a.slug).includes(':') && a.source !== 'acp',
               );
               const acpAgents = agents.filter((a) => a.source === 'acp');
 
@@ -837,7 +667,7 @@ function App() {
                     >
                       {standaloneAgents.map((agent) => (
                         <div
-                          key={agent.slug || agent.id}
+                          key={agent.slug}
                           style={{
                             background: 'var(--color-bg-secondary)',
                             border: '1px solid var(--color-border)',
@@ -863,7 +693,7 @@ function App() {
                           onClick={() =>
                             navigateToView({
                               type: 'agent-edit',
-                              slug: agent.slug || agent.id,
+                              slug: agent.slug,
                             })
                           }
                         >
@@ -920,7 +750,7 @@ function App() {
                           >
                             {(() => {
                               const modelId =
-                                agent.model || appConfig.defaultModel;
+                                agent.model || appConfig?.defaultModel;
                               if (!modelId) return null;
 
                               const isInherited = !agent.model;
@@ -1035,12 +865,12 @@ function App() {
                       >
                         {workspaceAgents.map((agent) => {
                           const owningWorkspace = (
-                            agent.slug || agent.id
+                            agent.slug
                           ).split(':')[0];
 
                           return (
                             <div
-                              key={agent.slug || agent.id}
+                              key={agent.slug}
                               style={{
                                 background: 'var(--color-bg-secondary)',
                                 border: '1px solid var(--color-border)',
@@ -1067,7 +897,7 @@ function App() {
                               onClick={() =>
                                 navigateToView({
                                   type: 'agent-edit',
-                                  slug: agent.slug || agent.id,
+                                  slug: agent.slug,
                                 })
                               }
                             >
@@ -1125,7 +955,7 @@ function App() {
                               >
                                 {(() => {
                                   const modelId =
-                                    agent.model || appConfig.defaultModel;
+                                    agent.model || appConfig?.defaultModel;
                                   if (!modelId) return null;
 
                                   const isInherited = !agent.model;
@@ -1195,7 +1025,7 @@ function App() {
 
                   {/* ACP Connections */}
                   <ACPConnectionsSection
-                    acpAgents={acpAgents}
+                    acpAgents={acpAgents as unknown as AgentSummary[]}
                     apiBase={API_BASE}
                   />
                 </>
@@ -1348,6 +1178,7 @@ function App() {
       </div>
 
       <ChatDock onRequestAuth={handleAuthError} />
+      <GlobalVoiceButton />
     </div>
   );
 }

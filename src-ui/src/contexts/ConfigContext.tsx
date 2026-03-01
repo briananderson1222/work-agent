@@ -2,26 +2,13 @@ import {
   useApiMutation,
   useConfigQuery,
   useInvalidateQuery,
-} from '@work-agent/sdk';
+} from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
+import type { AppConfig } from '../types';
 
-type ConfigData = {
-  apiEndpoint?: string;
-  region?: string;
-  defaultModel?: string;
-  defaultChatFontSize?: number;
-  systemPrompt?: string;
-  templateVariables?: Array<{
-    key: string;
-    type: string;
-    value?: string;
-    format?: string;
-  }>;
+type ConfigData = AppConfig & {
+  defaultMaxSteps?: number;
   logLevel?: string;
-  meetingNotifications?: {
-    enabled?: boolean;
-    thresholds?: number[];
-  };
 };
 
 export const CONFIG_DEFAULTS = {

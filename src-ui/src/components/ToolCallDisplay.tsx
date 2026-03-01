@@ -44,7 +44,7 @@ export function ToolCallDisplay({
 
   if (!showDetails) return null;
 
-  const tool = toolCall.tool || toolCall;
+  const tool: any = toolCall.tool || toolCall;
   const id = tool.id || toolCall.toolCallId || '';
   const server = tool.server || toolCall.server;
   const toolName =

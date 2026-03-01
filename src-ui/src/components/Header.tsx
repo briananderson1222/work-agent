@@ -1,3 +1,9 @@
+import {
+  ConnectionManagerModal,
+  ConnectionStatusDot,
+  useConnectionStatus,
+  useConnections,
+} from '@stallion-ai/connect';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
@@ -7,13 +13,19 @@ import { getInitials } from '../utils/workspace';
 import { NotificationHistory } from './NotificationHistory';
 import { WorkspaceIcon } from './WorkspaceIcon';
 
+function checkServerHealth(url: string): Promise<boolean> {
+  return fetch(`${url}/api/system/status`)
+    .then((r) => r.ok)
+    .catch(() => false);
+}
+
 interface HeaderProps {
   workspaces: any[];
   selectedWorkspace: any | null;
   currentView?: NavigationView;
   onWorkspaceSelect: (slug: string) => void;
-  onCreateWorkspace: () => void;
-  onEditWorkspace: (slug: string) => void;
+  onCreateWorkspace?: () => void;
+  onEditWorkspace?: (slug: string) => void;
   onToggleSettings: () => void;
   onNavigate: (view: NavigationView) => void;
 }
@@ -23,8 +35,6 @@ export function Header({
   selectedWorkspace,
   currentView,
   onWorkspaceSelect,
-  onCreateWorkspace,
-  onEditWorkspace,
   onToggleSettings,
   onNavigate,
 }: HeaderProps) {
@@ -37,6 +47,12 @@ export function Header({
     useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [workspaceQuery, setWorkspaceQuery] = useState('');
+  const [showConnectionModal, setShowConnectionModal] = useState(false);
+  const { activeConnection } = useConnections();
+  const { status: connStatus } = useConnectionStatus({
+    checkHealth: checkServerHealth,
+    pollInterval: 15_000,
+  });
 
   // Debug logging
 
@@ -49,11 +65,6 @@ export function Header({
     // Otherwise show autocomplete to switch workspaces
     setWorkspaceQuery('');
     setShowWorkspaceAutocomplete(true);
-  };
-
-  const _handleWorkspaceButtonClick = () => {
-    // Navigate to workspaces management page
-    onNavigate({ type: 'workspaces' });
   };
 
   const handleWorkspaceSelect = (workspace: any) => {
@@ -216,6 +227,33 @@ export function Header({
 
         <div className="header-divider" />
 
+        {/* Connection status chip */}
+        <button
+          type="button"
+          className="button button--secondary"
+          onClick={() => setShowConnectionModal(true)}
+          title="Manage connections"
+          style={{
+            fontSize: '13px',
+            padding: '6px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          <ConnectionStatusDot status={connStatus} size={7} />
+          <span
+            style={{
+              maxWidth: 120,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {activeConnection?.name || activeConnection?.url || 'No connection'}
+          </span>
+        </button>
+
         <div style={{ position: 'relative' }}>
           <button
             type="button"
@@ -278,6 +316,13 @@ export function Header({
           ⚙
         </button>
       </div>
+
+      {/* Connection manager modal */}
+      <ConnectionManagerModal
+        isOpen={showConnectionModal}
+        onClose={() => setShowConnectionModal(false)}
+        checkHealth={checkServerHealth}
+      />
 
       {/* Workspace autocomplete modal */}
       {showWorkspaceAutocomplete && (

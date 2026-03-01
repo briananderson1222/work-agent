@@ -24,7 +24,7 @@ function getModelDisplayName(modelId: string): string {
 
 export function useSlashCommands(agentSlug: string | null) {
   const { apiBase } = useApiBase();
-  const agents = useAgents(apiBase);
+  const agents = useAgents();
   const [acpCommands, setAcpCommands] = useState<SlashCommand[]>([]);
 
   const currentAgent = agentSlug
@@ -53,11 +53,7 @@ export function useSlashCommands(agentSlug: string | null) {
   }, [isAcp, agentSlug, apiBase]);
 
   const commands = useMemo(() => {
-    const currentModelId = currentAgent
-      ? typeof currentAgent.model === 'string'
-        ? currentAgent.model
-        : currentAgent.model?.modelId || 'default'
-      : 'default';
+    const currentModelId = currentAgent?.model || 'default';
     const modelDisplayName = getModelDisplayName(currentModelId);
 
     const BUILTIN_COMMANDS: SlashCommand[] = [

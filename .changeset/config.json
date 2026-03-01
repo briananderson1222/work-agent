@@ -3,7 +3,7 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [["@work-agent/sdk", "@work-agent/shared", "@work-agent/cli"]],
+  "linked": [["@stallion-ai/sdk", "@stallion-ai/shared", "@stallion-ai/cli"]],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",

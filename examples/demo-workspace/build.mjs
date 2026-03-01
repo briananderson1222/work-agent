@@ -12,7 +12,7 @@ await build({
 const __shared = window.__work_agent_shared || {};
 const __require = (m) => {
   if (m === 'react' || m === 'react/jsx-runtime') return __shared['react'];
-  if (m === '@work-agent/sdk') return __shared['@work-agent/sdk'];
+  if (m === '@stallion-ai/sdk') return __shared['@stallion-ai/sdk'];
   if (m === '@tanstack/react-query') return __shared['@tanstack/react-query'];
   throw new Error('Plugin requires unknown module: ' + m);
 };

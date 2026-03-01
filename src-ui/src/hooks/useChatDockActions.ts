@@ -6,7 +6,7 @@ import {
 } from '../contexts/ActiveChatsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import type { AgentSummary } from '../types';
+import type { AgentData } from '../contexts/AgentsContext';
 
 interface DerivedSession {
   id: string;
@@ -16,7 +16,7 @@ interface DerivedSession {
 
 interface UseChatDockActionsOptions {
   sessions: DerivedSession[];
-  agents: AgentSummary[];
+  agents: AgentData[];
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
 }
@@ -63,7 +63,7 @@ export function useChatDockActions({
   );
 
   const openChatForAgent = useCallback(
-    (agent: AgentSummary) => {
+    (agent: AgentData) => {
       const sessionId = createChatSession(agent.slug, agent.name);
       setActiveSessionId(sessionId);
       setActiveChat(sessionId);

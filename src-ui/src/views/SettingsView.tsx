@@ -1,13 +1,80 @@
-import { useInvalidateQuery } from '@work-agent/sdk';
+import { QRDisplay, useConnections, useHostUrl } from '@stallion-ai/connect';
+import './SettingsView.css';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
+import { useMessageContextContext } from '../contexts/MessageContextContext';
+import { useVoiceProviderContext } from '../contexts/VoiceProviderContext';
+import { useApprovalNotifications } from '../hooks/useApprovalNotifications';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
+import type { MobileSettings } from '../hooks/useMobileSettings';
+import { useMobileSettings } from '../hooks/useMobileSettings';
+import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import type { AppConfig, NavigationView } from '../types';
 import './SettingsView.css';
+
+function MobilePairingSection() {
+  const { activeConnection } = useConnections();
+  const serverPort = (() => {
+    try {
+      const url = new URL(activeConnection?.url || 'http://localhost:3141');
+      return Number(url.port) || 3141;
+    } catch {
+      return 3141;
+    }
+  })();
+  const { hostUrl, isDetecting } = useHostUrl({
+    port: serverPort,
+    fallback: activeConnection?.url || `http://localhost:${serverPort}`,
+  });
+  const isLocalhost =
+    hostUrl.includes('localhost') || hostUrl.includes('127.0.0.1');
+
+  return (
+    <div className="form-group">
+      <label>Mobile Pairing</label>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 12,
+        }}
+      >
+        {isDetecting ? (
+          <div
+            style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
+          >
+            Detecting local IP…
+          </div>
+        ) : (
+          <QRDisplay url={hostUrl} size={160} label={hostUrl} />
+        )}
+        {isLocalhost && !isDetecting && (
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--color-warning, #eab308)',
+              maxWidth: 320,
+            }}
+          >
+            Showing localhost — your Android device may not be able to reach
+            this address. Make sure both devices are on the same network and
+            use your computer's LAN IP.
+          </div>
+        )}
+        <span className="form-help">
+          Scan this QR code with the Android app to connect to this server
+          automatically.
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export interface SettingsViewProps {
   onBack: () => void;
@@ -272,7 +339,228 @@ function Section({ icon, title, children }: { icon: string; title: string; child
   );
 }
 
-/* ── Main View ── */
+// ─── Voice & Features Section ────────────────────────────────────────────────
+
+/** Non-voice feature flags that remain in useMobileSettings */
+const FEATURE_META: Array<{
+  key: keyof MobileSettings;
+  label: string;
+  description: string;
+  privacyNote?: string;
+}> = [
+  {
+    key: 'ttsReadbackEnabled',
+    label: 'Read agent responses aloud (TTS)',
+    description: "Automatically reads the latest assistant response via the selected TTS provider after each reply.",
+  },
+  {
+    key: 'offlineQueueEnabled',
+    label: 'Offline command queue',
+    description: 'Save messages in IndexedDB when the server is unreachable; auto-sends them when connectivity returns.',
+  },
+  {
+    key: 'approvalNotificationsEnabled',
+    label: 'Tool-approval push notifications',
+    description: 'Receive browser push notifications (with Allow/Deny buttons) when an agent needs your approval to run a tool.',
+    privacyNote: 'Requires notification permission and HTTPS. See server docs to configure VAPID keys.',
+  },
+];
+
+function FeatureToggle({
+  featureKey,
+  label,
+  description,
+  privacyNote,
+  checked,
+  onToggle,
+}: {
+  featureKey: keyof MobileSettings;
+  label: string;
+  description: string;
+  privacyNote?: string;
+  checked: boolean;
+  onToggle: (key: keyof MobileSettings) => void;
+}) {
+  const id = `feature-${featureKey}`;
+  return (
+    <label
+      htmlFor={id}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: '12px 0',
+        borderBottom: '1px solid var(--border-primary)',
+        cursor: 'pointer',
+      }}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={() => onToggle(featureKey)}
+        style={{ marginTop: 3, flexShrink: 0 }}
+      />
+      <div>
+        <div style={{ fontWeight: 500, marginBottom: 2 }}>{label}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          {description}
+        </div>
+        {privacyNote && (
+          <div style={{ fontSize: 11, color: 'var(--color-warning, #eab308)', marginTop: 3 }}>
+            {privacyNote}
+          </div>
+        )}
+      </div>
+    </label>
+  );
+}
+
+function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
+  const { settings } = useMobileSettings();
+  const notifs = useApprovalNotifications({
+    enabled: settings.approvalNotificationsEnabled,
+    apiBase,
+  });
+
+  if (!notifs.supported) return null;
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {notifs.subscribed ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--success-text, #22c55e)' }}>
+            ✓ Subscribed to push notifications
+          </span>
+          <button
+            type="button"
+            className="button button--secondary button--small"
+            onClick={notifs.unsubscribe}
+          >
+            Unsubscribe
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="button button--secondary button--small"
+          onClick={notifs.subscribe}
+          disabled={notifs.permission === 'denied'}
+        >
+          {notifs.permission === 'denied'
+            ? 'Notifications blocked by browser'
+            : 'Enable push notifications'}
+        </button>
+      )}
+      {notifs.error && (
+        <div style={{ fontSize: 12, color: 'var(--error-text, #ef4444)', marginTop: 4 }}>
+          {notifs.error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
+  const { settings, toggle } = useMobileSettings();
+  const { availableSTT, availableTTS, activeSTT, activeTTS, setSTTProvider, setTTSProvider } =
+    useVoiceProviderContext();
+  const { providers: contextProviders, toggleProvider } = useMessageContextContext();
+
+  return (
+    <div className="form-group">
+      <label>Voice Providers</label>
+
+      {/* STT provider */}
+      <div className="voice-provider-section">
+        <div className="voice-provider-section__label">
+          Speech-to-text (microphone input)
+        </div>
+        <select
+          className="voice-provider-section__select"
+          data-testid="stt-provider-select"
+          value={activeSTT?.id ?? ''}
+          onChange={(e) => setSTTProvider(e.target.value)}
+        >
+          {availableSTT.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}{p.isSupported ? '' : ' (not available)'}
+            </option>
+          ))}
+          {availableSTT.length === 0 && (
+            <option value="">No STT providers registered</option>
+          )}
+        </select>
+        <div className="voice-provider-section__hint">
+          Using WisprFlow? Focus the chat input and press your hotkey — it injects text naturally.
+        </div>
+      </div>
+
+      {/* TTS provider */}
+      <div className="voice-provider-section">
+        <div className="voice-provider-section__label">
+          Text-to-speech (agent readback)
+        </div>
+        <select
+          className="voice-provider-section__select"
+          data-testid="tts-provider-select"
+          value={activeTTS?.id ?? ''}
+          onChange={(e) => setTTSProvider(e.target.value)}
+        >
+          {availableTTS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}{p.isSupported ? '' : ' (not available)'}
+            </option>
+          ))}
+          {availableTTS.length === 0 && (
+            <option value="">No TTS providers registered</option>
+          )}
+        </select>
+      </div>
+
+      {/* Context providers */}
+      {contextProviders.length > 0 && (
+        <div className="context-provider-section">
+          <div className="context-provider-section__label">
+            Message Context
+          </div>
+          {contextProviders.map((p) => (
+            <label key={p.id} className="context-provider-toggle">
+              <input
+                type="checkbox"
+                checked={p.enabled}
+                onChange={() => toggleProvider(p.id)}
+              />
+              {p.name}
+            </label>
+          ))}
+        </div>
+      )}
+
+      {/* Remaining feature flags */}
+      <div>
+        {FEATURE_META.map((f) => (
+          <FeatureToggle
+            key={f.key}
+            featureKey={f.key}
+            label={f.label}
+            description={f.description}
+            privacyNote={f.privacyNote}
+            checked={settings[f.key]}
+            onToggle={toggle}
+          />
+        ))}
+      </div>
+      {settings.approvalNotificationsEnabled && (
+        <NotificationSubscribeButton apiBase={apiBase} />
+      )}
+      <span className="form-help" style={{ marginTop: 8, display: 'block' }}>
+        Voice provider selection and context settings are saved in this browser only.
+        Install plugins to add ElevenLabs or Nova Sonic providers.
+      </span>
+    </div>
+  );
+}
 
 export function SettingsView({
   onBack,
@@ -608,6 +896,10 @@ export function SettingsView({
             <span className="settings__field-hint">Region for Bedrock API calls.</span>
           </div>
         </Section>
+
+        <MobilePairingSection />
+
+        <VoiceFeaturesSection apiBase={currentApiBase} />
 
         {/* ── System ── */}
         <Section icon="⚙" title="System">

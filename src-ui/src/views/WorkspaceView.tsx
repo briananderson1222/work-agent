@@ -3,7 +3,7 @@ import {
   useWorkspaceQuery,
   useWorkspacesQuery,
   WorkspaceNavigationProvider,
-} from '@work-agent/sdk';
+} from '@stallion-ai/sdk';
 import { useCallback, useEffect, useState } from 'react';
 import {
   useCreateChatSession,
@@ -12,7 +12,6 @@ import {
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import { pluginRegistry } from '../core/PluginRegistry';
 import { SDKAdapter } from '../core/SDKAdapter';
 import { useBranding } from '../hooks/useBranding';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
@@ -71,7 +70,7 @@ export function WorkspaceView() {
   });
 
   const createChatSession = useCreateChatSession();
-  const slashCommandHandler = useSlashCommandHandler(apiBase);
+  const slashCommandHandler = useSlashCommandHandler();
 
   // Set active tab via NavigationContext
   const setActiveTabId = useCallback(
@@ -92,7 +91,13 @@ export function WorkspaceView() {
   // Wrap slash command handler to match useSendMessage signature
   const handleSlashCommand = useCallback(
     async (sessionId: string, content: string) => {
-      return await slashCommandHandler(sessionId, content);
+      return await slashCommandHandler(sessionId, content, {
+        autocomplete: {
+          openModel: () => {},
+          closeCommand: () => {},
+          closeAll: () => {},
+        },
+      });
     },
     [slashCommandHandler],
   );
@@ -236,11 +241,10 @@ export function WorkspaceView() {
           activeTab={activeTabObject}
           activeTabId={activeTabId}
           onTabChange={setActiveTabId}
-          agent={agent || null}
+          agent={agent as any}
           componentId={activeTabObject?.component}
           onLaunchPrompt={handleLaunchPrompt}
           onShowChat={() => setDockState(true)}
-          pluginRegistry={pluginRegistry}
           refreshKey={refreshKey}
           onRefresh={handleRefresh}
         />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAgents, useAuth, useNavigation, type WorkspaceComponentProps } from '@work-agent/sdk';
+import { useAgents, useAuth, useNavigation, type WorkspaceComponentProps } from '@stallion-ai/sdk';
 
 function Welcome({ onShowChat }: WorkspaceComponentProps) {
   const agents = useAgents();
@@ -37,7 +37,7 @@ function Welcome({ onShowChat }: WorkspaceComponentProps) {
       <div style={{ marginTop: '2rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', fontSize: '0.85rem' }}>
         <strong>Getting Started</strong>
         <ol style={{ margin: '0.5rem 0 0', paddingLeft: '1.2rem' }}>
-          <li>Install a workspace plugin: <code>npx @work-agent/cli install &lt;git-url&gt;</code></li>
+          <li>Install a workspace plugin: <code>npx @stallion-ai/cli install &lt;git-url&gt;</code></li>
           <li>Restart the server to load new agents and providers</li>
           <li>Switch to the installed workspace from the workspace selector</li>
         </ol>

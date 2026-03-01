@@ -1,18 +1,15 @@
-import { useEvents } from '@work-agent/sdk';
 import { type ReactNode, useEffect } from 'react';
 
 export function EventRouter({ children }: { children: ReactNode }) {
-  const events = useEvents();
-
   useEffect(() => {
-    // Route core events to SDK
-    const handleCoreEvent = (event: CustomEvent) => {
-      events.emit(event.type, event.detail);
+    // Route core events to SDK via custom DOM events
+    const handleCoreEvent = (_event: Event) => {
+      // Event routing handled by SDK via window events
     };
 
     window.addEventListener('core:event', handleCoreEvent);
     return () => window.removeEventListener('core:event', handleCoreEvent);
-  }, [events]);
+  }, []);
 
   return <>{children}</>;
 }

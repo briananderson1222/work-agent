@@ -1,5 +1,5 @@
 /**
- * Core domain types — re-exported from @work-agent/shared.
+ * Core domain types — re-exported from @stallion-ai/shared.
  * DO NOT define types here. Add them to packages/shared/src/index.ts.
  */
 export {
@@ -27,7 +27,7 @@ export {
   type WorkspaceMetadata,
   type WorkspacePrompt,
   type WorkspaceTab,
-} from '@work-agent/shared';
+} from '@stallion-ai/shared';
 
 // Legacy aliases kept for backwards compat with existing core server code
 // that imports ACPConfig from this file

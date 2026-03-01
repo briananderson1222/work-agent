@@ -230,14 +230,14 @@ export function MessageBubble({
                 return (
                   <ToolCallDisplay
                     key={i}
-                    toolCall={part}
+                    toolCall={part as any}
                     showDetails={showToolDetails}
                     onApprove={
                       isStreamingMessage &&
                       part.tool?.needsApproval &&
                       onToolApproval
                         ? (action) => {
-                            onToolApproval(
+                            (onToolApproval as any)(
                               activeSession.id,
                               activeSession.agentSlug,
                               part.tool!.approvalId!,

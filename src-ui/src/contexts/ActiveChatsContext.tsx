@@ -1,4 +1,4 @@
-import { useInvalidateQuery } from '@work-agent/sdk';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
 import {
   createContext,
   type ReactNode,
@@ -10,7 +10,6 @@ import {
 import { log } from '@/utils/logger';
 import { useStreamingMessage } from '../hooks/useStreamingMessage';
 import type { FileAttachment } from '../types';
-import { useApiBase } from './ApiBaseContext';
 import {
   conversationsStore,
   useConversationActions,
@@ -47,6 +46,10 @@ type ChatUIState = {
     attachments?: any[];
     action?: { label: string; handler: () => void };
     traceId?: string;
+    id?: string;
+    timestamp?: number;
+    ephemeral?: boolean;
+    insertAfterCount?: number;
   }>;
   // Tool calls from this conversation (persisted across refreshes)
   toolCalls?: Array<{
@@ -67,6 +70,8 @@ type ChatUIState = {
       tool?: any;
     }>;
   };
+  // Model override for this session
+  model?: string;
   // Session-specific autoApprove list (tools trusted for this session only)
   sessionAutoApprove?: string[];
   // Pending tool approvals (approvalId -> toolName)
@@ -121,7 +126,7 @@ class ActiveChatsStore {
         this.snapshot = this.chats;
       }
     } catch (e) {
-      log.debug('Failed to load active chats from sessionStorage:', e);
+      log.api('Failed to load active chats from sessionStorage:', e);
     }
   }
 
@@ -141,7 +146,7 @@ class ActiveChatsStore {
         }));
       sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(minimal));
     } catch (e) {
-      log.debug('Failed to save active chats to sessionStorage:', e);
+      log.api('Failed to save active chats to sessionStorage:', e);
     }
   }
 
@@ -174,7 +179,7 @@ class ActiveChatsStore {
 
   initChat(
     conversationId: string,
-    metadata?: { agentSlug: string; agentName: string; title: string },
+    metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string },
   ) {
     if (!this.chats[conversationId]) {
       this.chats[conversationId] = {
@@ -189,7 +194,7 @@ class ActiveChatsStore {
     }
   }
 
-  updateChat(conversationId: string, updates: Partial<ChatUIState>) {
+  updateChat(conversationId: string, updates: Partial<ChatUIState>, _sync?: boolean) {
     if (this.chats[conversationId]) {
       // If updating input and not navigating history, reset historyIndex
       if ('input' in updates && !('historyIndex' in updates)) {
@@ -319,7 +324,7 @@ class ActiveChatsStore {
 
       const latestTimestamp =
         backendMessages.length > 0
-          ? Math.max(...backendMessages.map((m) => m.timestamp || 0))
+          ? Math.max(...backendMessages.map((m) => (m as any).timestamp ? new Date((m as any).timestamp).getTime() : 0))
           : Date.now();
 
       this.chats[conversationId] = {
@@ -407,7 +412,7 @@ export const activeChatsStore = new ActiveChatsStore();
 type ActiveChatsContextType = {
   initChat: (
     conversationId: string,
-    metadata?: { agentSlug: string; agentName: string; title: string },
+    metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string },
   ) => void;
   updateChat: (
     conversationId: string,
@@ -487,7 +492,7 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
   const initChat = useCallback(
     (
       conversationId: string,
-      metadata?: { agentSlug: string; agentName: string; title: string },
+      metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string },
     ) => {
       activeChatsStore.initChat(conversationId, metadata);
     },
@@ -781,7 +786,7 @@ export function useSendMessage(
           // Determine effective finish reason from stream or last backend message
           const effectiveFinishReason =
             finishReason ||
-            backendMessages[backendMessages.length - 1]?.finishReason;
+            (backendMessages[backendMessages.length - 1] as any)?.finishReason;
 
           const updates: Partial<ChatUIState> = {
             status: 'idle',
@@ -904,7 +909,6 @@ export function useSendMessage(
 
 export function useCancelMessage() {
   const { updateChat } = useActiveChatActions();
-  const _apiBase = useApiBase().apiBase;
 
   return useCallback(
     (sessionId: string) => {

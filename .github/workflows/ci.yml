@@ -41,6 +41,45 @@ jobs:
       - name: Unit tests
         run: npm test -- --run
 
+  mobile-playwright:
+    name: Mobile Playwright (Android viewport)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build SDK
+        run: cd packages/sdk && npm run build
+
+      - name: Build UI
+        run: npm run build:ui
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Start preview server
+        run: npx vite preview --port 5173 --host &
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:5173 --timeout 30000
+
+      - name: Run Android viewport tests
+        run: npx playwright test --project=android --reporter=list,html
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   # TODO: Integration tests disabled — plugin install needs devDep handling in CI.
   # The server builds plugins on install, requiring esbuild in the copied plugin dir.
   # Re-enable once plugin installer runs `npm install` before `node build.mjs`.

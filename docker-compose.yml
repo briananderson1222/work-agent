@@ -1,0 +1,53 @@
+services:
+  # ── Production (default) ──
+  server:
+    build:
+      context: .
+      target: server
+    ports:
+      - "3141:3141"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - work-agent-data:/root/.work-agent
+
+  ui:
+    build:
+      context: .
+      target: ui
+    ports:
+      - "5173:80"
+
+  # ── Development (docker compose --profile dev up) ──
+  server-dev:
+    profiles: [dev]
+    image: node:20-slim
+    working_dir: /app
+    command: npm run dev:server
+    ports:
+      - "3141:3141"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - .:/app
+      - dev-node-modules:/app/node_modules
+      - work-agent-data:/root/.work-agent
+
+  ui-dev:
+    profiles: [dev]
+    image: node:20-slim
+    working_dir: /app
+    command: npm run dev:ui
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=http://localhost:3141
+    volumes:
+      - .:/app
+      - dev-node-modules:/app/node_modules
+
+volumes:
+  dev-node-modules:
+  work-agent-data:

@@ -2,7 +2,7 @@ import {
   useAchievementsQuery,
   useInvalidateQuery,
   useUsageQuery,
-} from '@work-agent/sdk';
+} from '@stallion-ai/sdk';
 import React from 'react';
 import { createContext, useContext } from 'react';
 import { useApiBase } from './ApiBaseContext';

@@ -1,5 +1,25 @@
 // Re-export all types
 
+// Core utilities
+export { ListenerManager, noopSubscribe } from './core/ListenerManager.js';
+
+// Voice + context provider interfaces and registries
+export type {
+  ConversationalOptions,
+  ConversationalSessionState,
+  ConversationalVoiceProvider,
+  ProviderCapability,
+  STTOptions,
+  STTProvider,
+  STTState,
+  TTSOptions,
+  TTSProvider,
+  VisibleOn,
+} from './voice/types.js';
+export { voiceRegistry } from './voice/registry.js';
+export type { ContextCapability, MessageContextProvider } from './context/types.js';
+export { contextRegistry } from './context/registry.js';
+
 // Re-export useQueryClient for contexts that need access to cache
 export { useQueryClient } from '@tanstack/react-query';
 export {

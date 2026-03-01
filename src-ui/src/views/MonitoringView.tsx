@@ -1,39 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import { useModels } from '../contexts/ModelsContext';
-import type { MonitoringEvent as BaseMonitoringEvent } from '../contexts/MonitoringContext';
 import { useMonitoring } from '../contexts/MonitoringContext';
-import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 import {
   parseSearchQuery,
   useSearchAutocomplete,
 } from '../hooks/useSearchAutocomplete';
 
-// Extended monitoring event interface with additional backend fields
-interface MonitoringEvent extends BaseMonitoringEvent {
-  traceId?: string;
-  timestampMs?: number;
-  toolCallNumber?: number;
-  requiresApproval?: boolean;
-  maxSteps?: number;
-  steps?: number;
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  };
-  inputChars?: number;
-  outputChars?: number;
-  toolCallCount?: number;
-}
 
 export function MonitoringView() {
   const { stats, events, clearEvents, setTimeRange } = useMonitoring();
-  const { setConversation, setActiveChat } = useNavigation();
   const { showToast } = useToast();
-  const { apiBase } = useApiBase();
-  const models = useModels(apiBase);
+  const models = useModels();
   const [autoFollow, setAutoFollow] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -863,7 +841,7 @@ export function MonitoringView() {
                 const activeCount = stats?.agents.length || 0;
                 const historicalSlugs = [
                   ...new Set(
-                    filteredEvents.map((e) => e.agentSlug).filter(Boolean),
+                    filteredEvents.map((e) => e.agentSlug).filter((s): s is string => !!s),
                   ),
                 ];
                 const historicalCount = historicalSlugs.filter(
@@ -979,7 +957,7 @@ export function MonitoringView() {
             {(() => {
               const historicalSlugs = [
                 ...new Set(
-                  filteredEvents.map((e) => e.agentSlug).filter(Boolean),
+                  filteredEvents.map((e) => e.agentSlug).filter((s): s is string => !!s),
                 ),
               ].filter((slug) => !stats?.agents.some((a) => a.slug === slug));
 
@@ -1603,10 +1581,6 @@ export function MonitoringView() {
                           <>
                             {finalOutput &&
                               (() => {
-                                const _preview =
-                                  finalOutput.length > 200
-                                    ? `${finalOutput.substring(0, 200)}...`
-                                    : finalOutput;
                                 const needsExpansion = finalOutput.length > 200;
 
                                 return (
@@ -1739,7 +1713,7 @@ export function MonitoringView() {
                                     )}
 
                                   {/* Token Usage */}
-                                  {event.usage?.promptTokens !== undefined && (
+                                  {event.usage?.inputTokens !== undefined && (
                                     <>
                                       <div
                                         style={{
@@ -1747,7 +1721,7 @@ export function MonitoringView() {
                                           marginTop: '0.5rem',
                                         }}
                                       >
-                                        Prompt Tokens:
+                                        Input Tokens:
                                       </div>
                                       <div
                                         style={{
@@ -1755,12 +1729,12 @@ export function MonitoringView() {
                                           marginTop: '0.5rem',
                                         }}
                                       >
-                                        {event.usage.promptTokens.toLocaleString()}
+                                        {event.usage.inputTokens.toLocaleString()}
                                       </div>
                                     </>
                                   )}
 
-                                  {event.usage?.completionTokens !==
+                                  {event.usage?.outputTokens !==
                                     undefined && (
                                     <>
                                       <div
@@ -1768,10 +1742,10 @@ export function MonitoringView() {
                                           color: 'var(--text-secondary)',
                                         }}
                                       >
-                                        Completion Tokens:
+                                        Output Tokens:
                                       </div>
                                       <div style={{ fontFamily: 'monospace' }}>
-                                        {event.usage.completionTokens.toLocaleString()}
+                                        {event.usage.outputTokens.toLocaleString()}
                                       </div>
                                     </>
                                   )}

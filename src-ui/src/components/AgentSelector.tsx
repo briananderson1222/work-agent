@@ -102,9 +102,7 @@ export function AgentSelector({
           </span>
           {selectedAgent?.model && (
             <span className="agent-selector__current-model">
-              {typeof selectedAgent.model === 'string'
-                ? selectedAgent.model
-                : selectedAgent.model.modelId}
+              {selectedAgent.model}
             </span>
           )}
         </div>
@@ -134,11 +132,7 @@ export function AgentSelector({
                         {agent.name}
                       </span>
                       <span className="agent-selector__option-meta">
-                        {agent.model
-                          ? typeof agent.model === 'string'
-                            ? agent.model
-                            : agent.model.modelId
-                          : 'Default model'}{' '}
+                        {agent.model || 'Default model'}{' '}
                         · {formatRelativeTime(agent.updatedAt)}
                       </span>
                     </button>

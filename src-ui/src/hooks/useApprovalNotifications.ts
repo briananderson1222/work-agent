@@ -1,0 +1,146 @@
+/**
+ * useApprovalNotifications — Web Push notifications for tool-approval requests.
+ *
+ * When an agent needs approval for a dangerous tool call and the app is in the
+ * background (or screen is off on mobile), a push notification is sent with
+ * [Allow] / [Deny] action buttons so the user can approve without opening the app.
+ *
+ * Architecture:
+ *   1. Client subscribes to Web Push (this hook).
+ *   2. Subscription is POSTed to /api/system/push-subscribe on the server.
+ *   3. Server sends push messages when a tool needs approval.
+ *   4. Service worker (public/sw.js) receives the push and shows a notification
+ *      with action buttons.
+ *   5. When the user taps an action, sw.js calls /api/tools/approve.
+ *
+ * Requires:
+ *   - VAPID public key on the server (GET /api/system/vapid-public-key)
+ *   - Service worker registered at /sw.js
+ *   - HTTPS (or localhost) — push requires a secure context
+ */
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+type NotificationPermission = 'default' | 'denied' | 'granted';
+
+interface UseApprovalNotificationsOptions {
+  enabled: boolean;
+  apiBase: string;
+}
+
+export interface UseApprovalNotificationsResult {
+  supported: boolean;
+  permission: NotificationPermission;
+  subscribed: boolean;
+  /** Call this to request permission + subscribe. */
+  subscribe: () => Promise<void>;
+  /** Unsubscribe and remove from server. */
+  unsubscribe: () => Promise<void>;
+  error: string | null;
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+export function useApprovalNotifications({
+  enabled,
+  apiBase,
+}: UseApprovalNotificationsOptions): UseApprovalNotificationsResult {
+  const [supported] = useState(
+    () => 'serviceWorker' in navigator && 'PushManager' in window,
+  );
+  const [permission, setPermission] = useState<NotificationPermission>(
+    () => (typeof Notification !== 'undefined' ? Notification.permission : 'default'),
+  );
+  const [subscribed, setSubscribed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
+
+  // Register service worker on mount (no-op if already registered)
+  useEffect(() => {
+    if (!supported || !enabled) return;
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        swRegRef.current = reg;
+        return reg.pushManager.getSubscription();
+      })
+      .then((sub) => {
+        setSubscribed(!!sub);
+      })
+      .catch((err) => setError(err.message));
+  }, [supported, enabled]);
+
+  const subscribe = useCallback(async () => {
+    if (!supported || !enabled) return;
+    setError(null);
+
+    try {
+      // Request notification permission
+      const perm = await Notification.requestPermission();
+      setPermission(perm);
+      if (perm !== 'granted') {
+        setError('Notification permission denied');
+        return;
+      }
+
+      // Get VAPID public key from server
+      const keyRes = await fetch(`${apiBase}/api/system/vapid-public-key`);
+      if (!keyRes.ok) throw new Error('Server does not support push notifications');
+      const { publicKey } = await keyRes.json();
+
+      // Register SW if not yet done
+      const reg =
+        swRegRef.current ?? (await navigator.serviceWorker.register('/sw.js'));
+      swRegRef.current = reg;
+
+      // Subscribe to push
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+      });
+
+      // Send subscription to server
+      await fetch(`${apiBase}/api/system/push-subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription),
+      });
+
+      setSubscribed(true);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, [supported, enabled, apiBase]);
+
+  const unsubscribe = useCallback(async () => {
+    if (!swRegRef.current) return;
+    try {
+      const sub = await swRegRef.current.pushManager.getSubscription();
+      if (sub) {
+        await sub.unsubscribe();
+        // Notify server to remove subscription
+        await fetch(`${apiBase}/api/system/push-unsubscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        }).catch(() => {/* best-effort */});
+      }
+      setSubscribed(false);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, [apiBase]);
+
+  return {
+    supported: supported && enabled,
+    permission,
+    subscribed,
+    subscribe,
+    unsubscribe,
+    error,
+  };
+}

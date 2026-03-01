@@ -1,4 +1,4 @@
-import { useConversationsQuery, useQueryClient } from '@work-agent/sdk';
+import { useConversationsQuery, useQueryClient } from '@stallion-ai/sdk';
 import {
   createContext,
   type ReactNode,
@@ -271,9 +271,7 @@ class ConversationsStore {
     model?: string,
     attachments?: FileAttachment[],
   ): Promise<{ conversationId?: string; finishReason?: string }> {
-    const _key = conversationId
-      ? `${agentSlug}:${conversationId}`
-      : `${agentSlug}:temp`;
+    void (conversationId ? `${agentSlug}:${conversationId}` : `${agentSlug}:temp`);
     this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
 
     try {
@@ -431,8 +429,9 @@ class ConversationsStore {
               currentTextChunk: result.currentTextChunk,
               contentParts: result.contentParts,
               pendingApprovals: result.pendingApprovals,
-              reasoningChunks: result.reasoningChunks,
-              currentReasoningChunk: result.currentReasoningChunk,
+              reasoningChunks: result.currentReasoningChunk
+                ? [...result.reasoningChunks, result.currentReasoningChunk]
+                : result.reasoningChunks,
             };
           }
         }
@@ -443,7 +442,7 @@ class ConversationsStore {
           signal?.aborted ||
           (error as Error).name === 'AbortError'
         ) {
-          return;
+          return {};
         }
         throw error;
       } finally {

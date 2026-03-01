@@ -1,55 +1,22 @@
-import { createContext, type ReactNode, useContext, useState } from 'react';
-
-interface ApiBaseContextType {
-  apiBase: string;
-  setApiBase: (url: string) => void;
-  resetToDefault: () => void;
-  isCustom: boolean;
-}
+/**
+ * ApiBaseContext — thin backward-compat wrapper over @stallion-ai/connect.
+ * Consumers continue to call useApiBase() / <ApiBaseProvider> with the same API shape.
+ */
+import { type ReactNode } from 'react';
+import { ConnectionsProvider, useConnections } from '@stallion-ai/connect';
 
 const DEFAULT_API_BASE =
   import.meta.env.VITE_API_BASE || 'http://localhost:3141';
-const STORAGE_KEY = 'project-stallion-api-base';
-
-const ApiBaseContext = createContext<ApiBaseContextType | undefined>(undefined);
 
 export function ApiBaseProvider({ children }: { children: ReactNode }) {
-  const [apiBase, setApiBaseState] = useState<string>(() => {
-    // Load from localStorage on initialization
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored || DEFAULT_API_BASE;
-  });
-
-  const setApiBase = (url: string) => {
-    const normalizedUrl = url.trim() || DEFAULT_API_BASE;
-    setApiBaseState(normalizedUrl);
-
-    if (normalizedUrl === DEFAULT_API_BASE) {
-      localStorage.removeItem(STORAGE_KEY);
-    } else {
-      localStorage.setItem(STORAGE_KEY, normalizedUrl);
-    }
-  };
-
-  const resetToDefault = () => {
-    setApiBase(DEFAULT_API_BASE);
-  };
-
-  const isCustom = apiBase !== DEFAULT_API_BASE;
-
   return (
-    <ApiBaseContext.Provider
-      value={{ apiBase, setApiBase, resetToDefault, isCustom }}
-    >
-      {children}
-    </ApiBaseContext.Provider>
+    <ConnectionsProvider defaultUrl={DEFAULT_API_BASE}>
+      {children as any}
+    </ConnectionsProvider>
   );
 }
 
 export function useApiBase() {
-  const context = useContext(ApiBaseContext);
-  if (context === undefined) {
-    throw new Error('useApiBase must be used within an ApiBaseProvider');
-  }
-  return context;
+  const { apiBase, setApiBase, resetToDefault, isCustom } = useConnections();
+  return { apiBase, setApiBase, resetToDefault, isCustom };
 }

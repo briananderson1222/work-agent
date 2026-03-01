@@ -1,21 +1,4 @@
-import { useStatsQuery } from '@work-agent/sdk';
-
-type StatsData = {
-  contextWindowPercentage?: number;
-  contextTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-  turns?: number;
-  toolCalls?: number;
-  estimatedCost?: number;
-  systemPromptTokens?: number;
-  mcpServerTokens?: number;
-  userMessageTokens?: number;
-  assistantMessageTokens?: number;
-  contextFilesTokens?: number;
-  modelStats?: Record<string, any>;
-};
+import { useStatsQuery } from '@stallion-ai/sdk';
 
 export function useStats(
   agentSlug: string,

@@ -1,0 +1,17 @@
+node_modules
+dist-server
+dist-ui
+dist-desktop
+.git
+.work-agent
+.env
+.env.local
+.DS_Store
+*.png
+archive
+test-results
+src-desktop
+.amazonq
+.kiro
+.claude
+.opencode

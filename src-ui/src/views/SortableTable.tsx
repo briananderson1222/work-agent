@@ -41,7 +41,7 @@ export function useSortableTable<T extends Record<string, any>>(
       const cmp =
         typeof av === 'number'
           ? av - (bv as number)
-          : av instanceof Date
+          : (av as unknown) instanceof Date
             ? av.getTime() - (bv as Date).getTime()
             : String(av).localeCompare(String(bv));
       return sortDir === 'asc' ? cmp : -cmp;

@@ -2,6 +2,8 @@
  * Tauri integration utilities
  */
 
+import { log } from '@/utils/logger';
+
 // Check if we're running in Tauri
 export function isTauriApp(): boolean {
   return typeof window !== 'undefined' && '__TAURI__' in window;

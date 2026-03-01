@@ -1,12 +1,6 @@
-import { useInvalidateQuery, useModelsQuery } from '@work-agent/sdk';
+import { useInvalidateQuery, useModelsQuery } from '@stallion-ai/sdk';
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { log } from '@/utils/logger';
-
-interface Model {
-  id: string;
-  name: string;
-  originalId: string;
-}
 
 const AppDataContext = createContext<{} | undefined>(undefined);
 

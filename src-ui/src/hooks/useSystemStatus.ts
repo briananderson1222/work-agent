@@ -33,6 +33,7 @@ export function useSystemStatus(pollInterval?: number) {
     },
     refetchInterval: pollInterval,
     staleTime: 10_000,
+    retry: 1,
   });
 }
 

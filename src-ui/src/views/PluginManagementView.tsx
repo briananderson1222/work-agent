@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { LoadingState } from '@work-agent/sdk';
+import { LoadingState } from '@stallion-ai/sdk';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { usePermissions } from '../core/PermissionManager';
 import './PluginManagementView.css';

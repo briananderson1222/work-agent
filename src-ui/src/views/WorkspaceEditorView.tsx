@@ -40,10 +40,35 @@ export function WorkspaceEditorView({
     new Set(),
   );
 
+  async function loadAgents() {
+    try {
+      const res = await fetch(`${apiBase}/api/agents`);
+      if (!res.ok) throw new Error('Failed to load agents');
+      const data = await res.json();
+      setAgents(data.data || []);
+    } catch (err: any) {
+      log.api('Failed to load agents:', err);
+    }
+  }
+
+  async function loadWorkspace(workspaceSlug: string) {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${apiBase}/workspaces/${workspaceSlug}`);
+      if (!res.ok) throw new Error('Failed to load workspace');
+      const data = await res.json();
+      setFormData(data.data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadAgents();
     if (slug) loadWorkspace(slug);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   // Keyboard shortcuts
@@ -57,31 +82,6 @@ export function WorkspaceEditorView({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onBack]);
-
-  const loadAgents = async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/agents`);
-      if (!res.ok) throw new Error('Failed to load agents');
-      const data = await res.json();
-      setAgents(data.data || []);
-    } catch (err: any) {
-      log.api('Failed to load agents:', err);
-    }
-  };
-
-  const loadWorkspace = async (workspaceSlug: string) => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`${apiBase}/workspaces/${workspaceSlug}`);
-      if (!res.ok) throw new Error('Failed to load workspace');
-      const data = await res.json();
-      setFormData(data.data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSave = async () => {
     try {
