@@ -59,15 +59,6 @@ export interface FileAttachment {
   preview?: string; // For images
 }
 
-export interface FileAttachment {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  data: string; // base64 or URL
-  preview?: string; // For images
-}
-
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -106,7 +97,7 @@ export type ChatSessionStatus = 'idle' | 'sending' | 'error';
 
 export interface ChatSession {
   id: string;
-  conversationId: string;
+  conversationId?: string;
   agentSlug: string;
   agentName: string;
   title: string;
@@ -124,7 +115,6 @@ export interface ChatSession {
   hasUnread: boolean;
   model?: string;
   inputHistory: string[];
-  attachments?: FileAttachment[];
   abortController?: AbortController;
 }
 
@@ -136,6 +126,8 @@ export interface Tool {
   transport?: string;
   enabled?: boolean;
   parameters?: any;
+  server?: string;
+  toolName?: string;
 }
 
 export interface WorkflowFile {

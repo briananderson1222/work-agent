@@ -55,13 +55,13 @@ export interface HandlerContext {
   sessionId: string;
   updateChat: (sessionId: string, updates: any) => void;
   apiBase?: string;
-  showToolApproval?: (options: any) => void;
+  showToolApproval?: (options: any) => string | void;
   handleToolApproval?: (
     sessionId: string,
     agentSlug: string,
     approvalId: string,
     toolName: string,
-    action: string,
+    action: 'once' | 'trust' | 'deny',
   ) => void;
   onNavigateToChat?: (sessionId: string) => void;
   activeChatsStore?: any;

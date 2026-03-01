@@ -6,7 +6,7 @@ import {
 import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
 
-type AgentData = {
+export type AgentData = {
   slug: string;
   name: string;
   description?: string;
@@ -23,7 +23,7 @@ type AgentData = {
 };
 
 export function useAgents(): AgentData[] {
-  const { data, isLoading, error } = useAgentsQuery();
+  const { data, error } = useAgentsQuery();
 
   if (error) log.api('Failed to fetch agents:', error);
 

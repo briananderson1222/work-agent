@@ -18,7 +18,7 @@ export function WorkspaceSelector({
   onSelect,
   onCreateWorkspace,
   onEditWorkspace,
-  onSettings,
+  onSettings: _onSettings,
 }: WorkspaceSelectorProps) {
   const newWorkspaceShortcut = useShortcutDisplay('app.newWorkspace');
   const [isOpen, setIsOpen] = useState(false);
@@ -29,6 +29,11 @@ export function WorkspaceSelector({
   const close = () => {
     setIsOpen(false);
     setFocusedIndex(-1);
+  };
+
+  const handleSelect = (slug: string) => {
+    onSelect(slug);
+    close();
   };
 
   useEffect(() => {
@@ -63,11 +68,6 @@ export function WorkspaceSelector({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, focusedIndex, workspaces, close, handleSelect]);
-
-  const handleSelect = (slug: string) => {
-    onSelect(slug);
-    close();
-  };
 
   const getDropdownStyle = () => {
     if (!buttonRef.current) return {};

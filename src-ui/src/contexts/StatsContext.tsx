@@ -1,22 +1,5 @@
 import { useStatsQuery } from '@stallion-ai/sdk';
 
-type StatsData = {
-  contextWindowPercentage?: number;
-  contextTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-  turns?: number;
-  toolCalls?: number;
-  estimatedCost?: number;
-  systemPromptTokens?: number;
-  mcpServerTokens?: number;
-  userMessageTokens?: number;
-  assistantMessageTokens?: number;
-  contextFilesTokens?: number;
-  modelStats?: Record<string, any>;
-};
-
 export function useStats(
   agentSlug: string,
   conversationId: string,

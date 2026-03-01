@@ -15,7 +15,7 @@ export function UsageStatsPanel() {
   const { apiBase } = useApiBase();
   const [resetting, setResetting] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const models = useModels(apiBase);
+  const models = useModels();
   const agents = useAgents();
   const [drillDown, setDrillDown] = useState<{
     type: DrillDownType;
@@ -35,7 +35,7 @@ export function UsageStatsPanel() {
       );
 
       if (!hasConversations) {
-        log.debug('Auto-rescanning to populate conversation counts...');
+        log.api('Auto-rescanning to populate conversation counts...');
         rescan().then(() => setHasAutoRescanned(true));
       }
     }
@@ -54,7 +54,7 @@ export function UsageStatsPanel() {
     return (
       <div className="usage-stats-error">
         <div className="usage-stats-error-icon">⚠️</div>
-        <div className="usage-stats-error-message">Error: {error}</div>
+        <div className="usage-stats-error-message">Error: {(error as Error)?.message ?? String(error)}</div>
         <button onClick={refresh} className="usage-stats-error-button">
           Retry
         </button>
@@ -166,8 +166,8 @@ export function UsageStatsPanel() {
             <span>Top Models</span>
           </h4>
           <div className="usage-breakdown-list">
-            {Object.entries(byModel)
-              .sort(([, a], [, b]) => b.messages - a.messages)
+            {Object.entries(byModel as Record<string, any>)
+              .sort(([, a], [, b]) => (b as any).messages - (a as any).messages)
               .slice(0, 5)
               .map(([model, stats]) => (
                 <ModelRow
@@ -192,8 +192,8 @@ export function UsageStatsPanel() {
             <span>Top Agents</span>
           </h4>
           <div className="usage-breakdown-list">
-            {Object.entries(byAgent)
-              .sort(([, a], [, b]) => b.messages - a.messages)
+            {Object.entries(byAgent as Record<string, any>)
+              .sort(([, a], [, b]) => (b as any).messages - (a as any).messages)
               .slice(0, 5)
               .map(([agent, stats]) => (
                 <AgentRow

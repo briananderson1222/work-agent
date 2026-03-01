@@ -11,6 +11,7 @@ import { VoiceOrb } from './VoiceOrb';
 interface Model {
   id: string;
   name: string;
+  originalId?: string;
 }
 
 interface ChatInputAreaProps {
@@ -116,7 +117,7 @@ export function ChatInputArea({
         {modelQuery !== null && (
           <ModelSelectorAutocomplete
             query={modelQuery}
-            models={availableModels}
+            models={availableModels.map((m) => ({ ...m, originalId: m.originalId || m.id }))}
             currentModel={currentModel}
             agentDefaultModel={agentDefaultModel}
             maxHeight={`calc(${dockHeight}px - 200px)`}

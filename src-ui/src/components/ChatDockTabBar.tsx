@@ -1,26 +1,19 @@
 import { type RefObject, useEffect, useRef, useState } from 'react';
-import { useAgents } from '../contexts/AgentsContext';
-import { useApiBase } from '../contexts/ApiBaseContext';
+import { useAgents, type AgentData } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
-import type { AgentSummary } from '../types';
+import type { ChatSession } from '../types';
 import { SessionManagementMenu } from './SessionManagementMenu';
 import { SessionTab } from './SessionTab';
 
-interface Session {
-  id: string;
-  agentSlug: string;
-  conversationId?: string;
-}
-
 interface ChatDockTabBarProps {
-  sessions: Session[];
+  sessions: ChatSession[];
   activeSessionId: string | null;
-  chatDockRef: RefObject<HTMLDivElement>;
+  chatDockRef: RefObject<HTMLDivElement | null>;
   focusSession: (id: string) => void;
   removeSession: (id: string) => void;
   openConversation: (conversationId: string, agentSlug: string) => void;
-  openChatForAgent: (agent: AgentSummary) => void;
+  openChatForAgent: (agent: AgentData) => void;
   updateChat: (id: string, updates: { title?: string }) => void;
   setShowSessionPicker: (show: boolean) => void;
   setShowNewChatModal: (show: boolean) => void;
@@ -39,8 +32,7 @@ export function ChatDockTabBar({
   setShowNewChatModal,
 }: ChatDockTabBarProps) {
   const agents = useAgents();
-  const { apiBase } = useApiBase();
-  const availableModels = useModels(apiBase);
+  const availableModels = useModels();
   const closeTabShortcut = useShortcutDisplay('dock.closeTab');
   const newChatShortcut = useShortcutDisplay('dock.newChat');
   const openConversationShortcut = useShortcutDisplay('dock.openConversation');
@@ -80,11 +72,10 @@ export function ChatDockTabBar({
     <div className="chat-dock__tabs">
       <div className="chat-dock__tab-container">
         <SessionManagementMenu
-          sessions={sessions.filter((s) => s.conversationId)}
+          sessions={sessions.filter((s) => s.conversationId) as any[]}
           activeSessionId={activeSessionId}
-          apiBase={apiBase}
           agents={agents}
-          chatDockRef={chatDockRef}
+          chatDockRef={chatDockRef as any}
           onTitleUpdate={(sessionId, title) => updateChat(sessionId, { title })}
           onDelete={removeSession}
           onSelect={focusSession}

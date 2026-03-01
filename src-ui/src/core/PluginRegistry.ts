@@ -30,7 +30,6 @@ export class PluginRegistry {
         await this.loadPlugin(plugin);
       }
 
-      this.initialized = true;
       log.plugin(
         `[PluginRegistry] Loaded ${this.pluginMeta.size} plugins, ${this.workspaces.size} components`,
       );
@@ -121,7 +120,6 @@ export class PluginRegistry {
 
   /** Reload — re-fetch plugin list and load any new bundles */
   async reload(): Promise<void> {
-    this.initialized = false;
     this.workspaces.clear();
     this.pluginMeta.clear();
     await this.initialize();

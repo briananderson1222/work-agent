@@ -23,8 +23,8 @@ interface HeaderProps {
   selectedWorkspace: any | null;
   currentView?: NavigationView;
   onWorkspaceSelect: (slug: string) => void;
-  onCreateWorkspace: () => void;
-  onEditWorkspace: (slug: string) => void;
+  onCreateWorkspace?: () => void;
+  onEditWorkspace?: (slug: string) => void;
   onToggleSettings: () => void;
   onNavigate: (view: NavigationView) => void;
 }
@@ -34,8 +34,6 @@ export function Header({
   selectedWorkspace,
   currentView,
   onWorkspaceSelect,
-  onCreateWorkspace,
-  onEditWorkspace,
   onToggleSettings,
   onNavigate,
 }: HeaderProps) {
@@ -65,11 +63,6 @@ export function Header({
     // Otherwise show autocomplete to switch workspaces
     setWorkspaceQuery('');
     setShowWorkspaceAutocomplete(true);
-  };
-
-  const _handleWorkspaceButtonClick = () => {
-    // Navigate to workspaces management page
-    onNavigate({ type: 'workspaces' });
   };
 
   const handleWorkspaceSelect = (workspace: any) => {

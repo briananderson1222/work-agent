@@ -11,7 +11,7 @@ import './ProfilePage.css';
 
 export function ProfilePage() {
   const { usageStats, refresh } = useAnalytics();
-  const { status: authStatus, user } = useAuth();
+  const { user } = useAuth();
   const userName = user?.name || user?.alias || 'User';
   const totalMessages = usageStats?.lifetime.totalMessages || 0;
   const totalCost = usageStats?.lifetime.totalCost || 0;

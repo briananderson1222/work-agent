@@ -81,6 +81,7 @@ export function useSlashCommandHandler() {
           updateChat,
           addEphemeralMessage,
           queryClient,
+          sendMessage: async () => {},
           autocomplete: context.autocomplete,
         });
 
@@ -93,7 +94,7 @@ export function useSlashCommandHandler() {
         role: 'system',
         content: `Unknown command: ${command}\n\nAvailable:\n${availableCommands.map((c) => `• /${c}`).join('\n')}`,
       });
-      clearAndClose();
+      cleanup();
       return true;
     },
     [apiBase, agents, updateChat, addEphemeralMessage, queryClient],

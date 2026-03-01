@@ -45,11 +45,7 @@ export function WorkflowManagementView({
   const [error, setError] = useState<string | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadWorkflows();
-  }, [loadWorkflows]);
-
-  const loadWorkflows = async () => {
+  async function loadWorkflows() {
     try {
       setIsLoading(true);
       setError(null);
@@ -64,7 +60,12 @@ export function WorkflowManagementView({
     } finally {
       setIsLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    loadWorkflows();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadWorkflowContent = async (workflowId: string) => {
     try {

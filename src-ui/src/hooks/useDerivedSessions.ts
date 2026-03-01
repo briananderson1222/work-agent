@@ -58,7 +58,7 @@ export function useDerivedSessions(
         // Use optimistic messages during sending
         messages = chatState.messages.map((m) => ({
           ...m,
-          timestamp: m.timestamp || Date.now(),
+          timestamp: (m as any).timestamp || Date.now(),
           optimistic: true,
         }));
       } else {
@@ -68,7 +68,7 @@ export function useDerivedSessions(
           .slice(backendMessages.length) // Only messages after backend count
           .map((m) => ({
             ...m,
-            timestamp: m.timestamp || Date.now(),
+            timestamp: (m as any).timestamp || Date.now(),
             optimistic: true,
           }));
 

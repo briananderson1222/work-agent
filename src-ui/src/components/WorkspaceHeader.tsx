@@ -34,7 +34,7 @@ interface WorkspaceHeaderProps {
 }
 
 export function WorkspaceHeader({
-  workspaceName,
+  workspaceName: _workspaceName,
   tabs,
   activeTabId,
   onTabChange,

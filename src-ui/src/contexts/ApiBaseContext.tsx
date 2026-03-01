@@ -11,7 +11,7 @@ const DEFAULT_API_BASE =
 export function ApiBaseProvider({ children }: { children: ReactNode }) {
   return (
     <ConnectionsProvider defaultUrl={DEFAULT_API_BASE}>
-      {children}
+      {children as any}
     </ConnectionsProvider>
   );
 }

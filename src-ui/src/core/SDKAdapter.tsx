@@ -2,7 +2,6 @@ import {
   _setApiBase,
   _setProviderFunctions,
   _setWorkspaceContext,
-  type SDKContextValue,
   SDKProvider,
   useWorkspacesQuery,
 } from '@stallion-ai/sdk';
@@ -40,7 +39,6 @@ interface SDKAdapterProps {
  */
 export function SDKAdapter({
   children,
-  authToken,
   workspace,
 }: SDKAdapterProps) {
   // Get API base from the single source of truth
@@ -78,7 +76,7 @@ export function SDKAdapter({
   const auth = useAuth();
 
   // Create SDK context value with injected contexts
-  const sdkValue: SDKContextValue = {
+  const sdkValue = {
     apiBase,
     contexts: {
       agents: { useAgents: () => agents },
@@ -100,5 +98,5 @@ export function SDKAdapter({
     },
   };
 
-  return <SDKProvider value={sdkValue}>{children}</SDKProvider>;
+  return <SDKProvider value={sdkValue as any}>{children as any}</SDKProvider>;
 }

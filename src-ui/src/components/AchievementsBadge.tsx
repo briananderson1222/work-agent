@@ -3,13 +3,13 @@ import { useAnalytics } from '../contexts/AnalyticsContext';
 import './AchievementsBadge.css';
 
 export function AchievementsBadge({ compact = false }: { compact?: boolean }) {
-  const { achievements, loading, usageStats } = useAnalytics();
+  const { achievements, loading } = useAnalytics();
   const agents = useAgents();
-  const hasAcp = agents.some((a: any) => a.source === 'acp');
+  const hasAcp = agents.some((a) => a.source === 'acp');
 
   if (loading || !achievements.length) return null;
 
-  const unlockedCount = achievements.filter((a) => a.unlocked).length;
+  const unlockedCount = achievements.filter((a: any) => a.unlocked).length;
   const totalCount = achievements.length;
 
   if (compact) {
@@ -61,7 +61,7 @@ export function AchievementsBadge({ compact = false }: { compact?: boolean }) {
       </div>
 
       <div className="achievements-list">
-        {achievements.map((achievement) => (
+        {achievements.map((achievement: any) => (
           <AchievementCard key={achievement.id} achievement={achievement} />
         ))}
       </div>
@@ -69,7 +69,7 @@ export function AchievementsBadge({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function AchievementCard({ achievement }: { achievement: any }) {
+function AchievementCard({ achievement }: { achievement: Record<string, any> }) {
   const progress = achievement.threshold
     ? Math.min((achievement.progress || 0) / achievement.threshold, 1)
     : 0;

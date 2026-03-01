@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 interface FilterConfig {
   key: string;
-  type: 'agent' | 'conversation';
+  type: 'agent' | 'conversation' | 'tool' | 'trace';
   getOptions: () => string[];
 }
 

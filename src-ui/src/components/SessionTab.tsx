@@ -1,4 +1,5 @@
-import type { AgentSummary } from '../types';
+import type { AgentData } from '../contexts/AgentsContext';
+import type { ChatSession } from '../types';
 import { AgentBadge } from './AgentBadge';
 import { AgentIcon } from './AgentIcon';
 
@@ -7,23 +8,11 @@ interface Model {
   name: string;
 }
 
-interface Session {
-  id: string;
-  agentSlug: string;
-  agentName: string;
-  title: string;
-  model?: string;
-  status: string;
-  hasUnread: boolean;
-  messages: unknown[];
-  conversationId?: string;
-}
-
 interface SessionTabProps {
-  session: Session;
+  session: ChatSession;
   index: number;
   isActive: boolean;
-  agent: AgentSummary | undefined;
+  agent: AgentData | undefined;
   availableModels: Model[];
   closeTabShortcut: string;
   onFocus: () => void;
@@ -50,11 +39,7 @@ export function SessionTab({
   }
   const tooltip = tooltipParts.join('\n');
 
-  const agentModelId = agent
-    ? typeof agent.model === 'string'
-      ? agent.model
-      : agent.model?.modelId
-    : undefined;
+  const agentModelId = agent?.model;
   const isCustomModel = session.model && session.model !== agentModelId;
   const modelInfo = isCustomModel
     ? availableModels.find((m) => m.id === session.model)

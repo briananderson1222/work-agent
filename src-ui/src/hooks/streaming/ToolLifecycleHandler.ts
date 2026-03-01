@@ -9,7 +9,7 @@ import {
   createResult,
   getTextFromParts,
 } from './stateHelpers';
-import type { HandlerResult, StreamEvent, StreamState } from './types';
+import type { ContentPart, HandlerResult, StreamEvent, StreamState } from './types';
 
 export class ToolLifecycleHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {
@@ -93,10 +93,10 @@ export class ToolLifecycleHandler extends StreamEventHandler {
             error: error,
             state: error ? ('error' as const) : ('complete' as const),
           },
-        };
+        } as ContentPart;
       }
       return part;
-    });
+    }) as ContentPart[];
 
     const streamingMessage = this.createStreamingMessage(
       getTextFromParts(newContentParts),

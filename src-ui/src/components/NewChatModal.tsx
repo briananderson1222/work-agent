@@ -1,20 +1,20 @@
 import { useWorkspaceQuery } from '@stallion-ai/sdk';
 import React, { useMemo, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
+import type { AgentData } from '../contexts/AgentsContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import type { AgentSummary } from '../types';
 import { AgentIcon } from './AgentIcon';
 
 interface NewChatModalProps {
-  agents: AgentSummary[];
-  onSelect: (agent: AgentSummary) => void;
+  agents: AgentData[];
+  onSelect: (agent: AgentData) => void;
   onClose: () => void;
 }
 
 interface AgentGroup {
   label: string;
   icon?: string;
-  agents: AgentSummary[];
+  agents: AgentData[];
 }
 
 export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
@@ -38,7 +38,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
     );
 
     // Workspace agents: listed in workspace config OR slug prefix matches workspace plugin
-    const isWorkspaceAgent = (a: AgentSummary) => {
+    const isWorkspaceAgent = (a: AgentData) => {
       if (a.source === 'acp') return false;
       if (wsAgentSlugs.has(a.slug)) return true;
       // Fallback: if slug contains ':' it's a plugin agent, treat as workspace
@@ -53,7 +53,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
     const acpAgents = filtered.filter((a) => a.source === 'acp');
 
     // Group ACP agents by connectionName
-    const acpGroups = new Map<string, AgentSummary[]>();
+    const acpGroups = new Map<string, AgentData[]>();
     for (const a of acpAgents) {
       const conn = (a as any).connectionName || 'ACP';
       if (!acpGroups.has(conn)) acpGroups.set(conn, []);
@@ -76,7 +76,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
     }
     const recentAgents = recentSlugs
       .map((s) => filtered.find((a) => a.slug === s))
-      .filter(Boolean) as AgentSummary[];
+      .filter(Boolean) as AgentData[];
     const recentSet = new Set(recentSlugs);
 
     if (recentAgents.length > 0 && !search)
@@ -217,7 +217,7 @@ function AgentRow({
   onSelect,
   onHover,
 }: {
-  agent: AgentSummary;
+  agent: AgentData;
   isSelected: boolean;
   onSelect: () => void;
   onHover: () => void;

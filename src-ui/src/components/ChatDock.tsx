@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
   useActiveChatActions,
-  useActiveChatState,
   useRehydrateSessions,
 } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
@@ -38,7 +37,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setActiveChat,
   } = useNavigation();
   const agents = useAgents();
-  const availableModels = useModels(apiBase);
+  const availableModels = useModels();
   const appConfig = useConfig();
   const defaultFontSize =
     appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
@@ -81,11 +80,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const agentForHook = activeSessionForHook
     ? agents.find((a) => a.slug === activeSessionForHook.agentSlug)
     : null;
-  const agentDefaultModelId = agentForHook
-    ? typeof agentForHook.model === 'string'
-      ? agentForHook.model
-      : agentForHook.model?.modelId
-    : undefined;
+  const agentDefaultModelId = agentForHook?.model;
 
   // For ACP agents with their own model options, use those instead of Bedrock models
   const effectiveModels = agentForHook?.modelOptions || availableModels;
@@ -118,16 +113,13 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   }, [activeChat, sessions, setActiveSessionId]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
-  const activeChatState = useActiveChatState(activeSessionId);
 
   // Check if current model supports attachments
   const currentModelId =
     activeSession?.model ||
     agents.find((a) => a.slug === activeSession?.agentSlug)?.model;
   const bedrockModelSupportsAttachments = useModelSupportsAttachments(
-    typeof currentModelId === 'string'
-      ? currentModelId
-      : currentModelId?.modelId,
+    typeof currentModelId === 'string' ? currentModelId : undefined,
   );
   const activeAgent = activeSession
     ? agents.find((a) => a.slug === activeSession.agentSlug)
@@ -136,7 +128,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     bedrockModelSupportsAttachments ||
     (activeAgent?.supportsAttachments ?? false);
 
-  const _ephemeralMessages = activeChatState?.ephemeralMessages || [];
   const unreadCount = sessions.filter((s) => s.hasUnread).length;
 
   // Get updateChat from context
@@ -144,7 +135,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
 
   // Refs
   const chatSectionRef = useRef<HTMLDivElement>(null);
-  const _textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Session management actions
   const { focusSession, removeSession, openChatForAgent, openConversation } =

@@ -47,7 +47,7 @@ export function AgentEditorView({
   onBack,
   onSaved,
 }: AgentEditorViewProps) {
-  const _availableModels = useModels(apiBase);
+  useModels();
   const appConfig = useConfig();
   const [currentStep, setCurrentStep] = useState<FormStep>(
     initialTab || 'basic',
@@ -98,14 +98,7 @@ export function AgentEditorView({
 
   const isEditMode = !!slug;
 
-  useEffect(() => {
-    if (slug) {
-      loadAgent(slug);
-    }
-    loadTools();
-  }, [slug, loadAgent, loadTools]);
-
-  const loadAgent = async (agentSlug: string) => {
+  async function loadAgent(agentSlug: string) {
     try {
       setIsLoading(true);
       setError(null);
@@ -139,9 +132,9 @@ export function AgentEditorView({
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const loadTools = async () => {
+  async function loadTools() {
     try {
       const response = await fetch(`${apiBase}/tools`);
       if (!response.ok) throw new Error('Failed to load tools');
@@ -150,7 +143,15 @@ export function AgentEditorView({
     } catch (err: any) {
       log.api('Failed to load tools:', err);
     }
-  };
+  }
+
+  useEffect(() => {
+    if (slug) {
+      loadAgent(slug);
+    }
+    loadTools();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   const validateStep = (step: FormStep): boolean => {
     const errors: Record<string, string> = {};
@@ -172,23 +173,6 @@ export function AgentEditorView({
     return Object.keys(errors).length === 0;
   };
 
-  const _nextStep = () => {
-    if (!validateStep(currentStep)) return;
-
-    const steps: FormStep[] = ['basic', 'model', 'tools', 'commands'];
-    const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex < steps.length - 1) {
-      setCurrentStep(steps[currentIndex + 1]);
-    }
-  };
-
-  const _prevStep = () => {
-    const steps: FormStep[] = ['basic', 'model', 'tools', 'commands'];
-    const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex > 0) {
-      setCurrentStep(steps[currentIndex - 1]);
-    }
-  };
 
   const saveAgent = async () => {
     if (!validateStep(currentStep)) return;

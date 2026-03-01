@@ -21,7 +21,7 @@ export function setActiveSessions(sessions: PersistedSession[]): void {
   try {
     sessionStorage.setItem(ACTIVE_SESSIONS_KEY, JSON.stringify(sessions));
   } catch (error) {
-    log.debug('Failed to persist sessions:', error);
+    log.api('Failed to persist sessions:', error);
   }
 }
 

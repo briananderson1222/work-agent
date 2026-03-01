@@ -1,4 +1,4 @@
-import type { WorkspaceProps } from '@stallion-ai/sdk';
+import type { WorkspaceComponentProps } from '@stallion-ai/sdk';
 import { type ComponentType, lazy, Suspense } from 'react';
 
 interface PluginLoaderProps {
@@ -9,11 +9,11 @@ interface PluginLoaderProps {
 export function PluginLoader({ pluginPath, agentSlug }: PluginLoaderProps) {
   const Component = lazy(
     () => import(`../plugins/${pluginPath}/index.tsx`),
-  ) as ComponentType<WorkspaceProps>;
+  ) as ComponentType<WorkspaceComponentProps>;
 
   return (
     <Suspense fallback={<div>Loading plugin...</div>}>
-      <Component agentSlug={agentSlug} />
+      <Component {...{ agentSlug } as any} />
     </Suspense>
   );
 }

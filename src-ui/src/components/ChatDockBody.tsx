@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import type { ChatMessage, ChatSession, FileAttachment } from '../types';
+import type { SlashCommand } from '../hooks/useSlashCommands';
 import { useToast } from '../contexts/ToastContext';
 import { useMessageContext } from '../hooks/useMessageContext';
 import { useMobileSettings } from '../hooks/useMobileSettings';
@@ -23,28 +25,8 @@ import { StreamingMessage } from './StreamingMessage';
 import { SystemEventMessage } from './SystemEventMessage';
 import { ToolCallDisplay } from './ToolCallDisplay';
 
-interface Message {
-  id?: string;
-  role: string;
-  content?: string;
-  contentParts?: Array<{ type: string; content: string }>;
-  ephemeral?: boolean;
-  action?: { handler: () => void };
-}
-
-interface Session {
-  id: string;
-  agentSlug: string;
-  agentName: string;
-  conversationId?: string;
-  messages: Message[];
-  status: string;
-  abortController?: AbortController;
-  queuedMessages?: unknown[];
-}
-
 interface ChatDockBodyProps {
-  activeSession: Session;
+  activeSession: ChatSession;
   chatFontSize: number;
   dockHeight: number;
   showStatsPanel: boolean;
@@ -55,22 +37,22 @@ interface ChatDockBodyProps {
   availableModels: Array<{ id: string; name: string }>;
   chatInput: {
     input: string;
-    attachments: unknown[];
-    textareaRef: React.RefObject<HTMLTextAreaElement>;
-    currentModel: string;
-    modelQuery: string;
-    commandQuery: string;
-    slashCommands: unknown[];
+    attachments: FileAttachment[];
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+    currentModel: string | undefined;
+    modelQuery: string | null;
+    commandQuery: string | null;
+    slashCommands: SlashCommand[];
     handleInputChange: (value: string) => void;
     handleSend: () => void;
     handleCancel: () => void;
     handleClearInput: () => void;
-    handleAddAttachments: (files: File[]) => void;
-    handleRemoveAttachment: (index: number) => void;
-    handleModelSelect: (model: string) => void;
+    handleAddAttachments: (files: FileAttachment[]) => void;
+    handleRemoveAttachment: (id: string) => void;
+    handleModelSelect: (model: { id: string; name: string; originalId?: string }) => void;
     handleModelClose: () => void;
     handleModelOpen: () => void;
-    handleCommandSelect: (command: unknown) => void;
+    handleCommandSelect: (command: SlashCommand) => Promise<void>;
     handleCommandClose: () => void;
     handleHistoryUp: () => void;
     handleHistoryDown: () => void;
@@ -157,7 +139,7 @@ export function ChatDockBody({
   const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
 
   const agent = agents.find((a) => a.slug === activeSession.agentSlug);
-  const ephemeralMessages = activeSession.messages.filter((m) => m.ephemeral);
+  const ephemeralMessages = activeSession.messages.filter((m) => m.isEphemeral);
 
   useEffect(() => {
     if (!isUserScrolledUp && messagesContainerRef.current) {
@@ -182,7 +164,7 @@ export function ChatDockBody({
     setRemovingMessages((prev) => new Set(prev).add(messageId));
     setTimeout(() => {
       const updated = ephemeralMessages.filter(
-        (m) => (m.id || `ephemeral-${ephemeralMessages.indexOf(m)}`) !== messageId,
+        (m, i) => ((m as any).id || `ephemeral-${i}`) !== messageId,
       );
       if (updated.length === 0) {
         clearEphemeralMessages(activeSession.id);
@@ -197,14 +179,14 @@ export function ChatDockBody({
     }, 300);
   };
 
-  const renderMessage = (msg: Message, idx: number) => {
+  const renderMessage = (msg: ChatMessage, idx: number) => {
     const textContent =
-      msg.contentParts?.filter((p) => p.type === 'text').map((p) => p.content).join('\n') ||
+      msg.contentParts?.filter((p: any) => p.type === 'text').map((p: any) => p.content).join('\n') ||
       msg.content ||
       '';
 
-    if (msg.ephemeral) {
-      const messageId = msg.id || `ephemeral-${idx}`;
+    if (msg.isEphemeral) {
+      const messageId = (msg as any).id || `ephemeral-${idx}`;
       return (
         <EphemeralMessage
           key={messageId}
@@ -214,8 +196,8 @@ export function ChatDockBody({
           isRemoving={removingMessages.has(messageId)}
           onDismiss={() => handleDismissEphemeral(messageId)}
           onAction={
-            msg.action
-              ? () => { msg.action!.handler(); clearEphemeralMessages(activeSession.id); }
+            (msg as any).action
+              ? () => { (msg as any).action.handler(); clearEphemeralMessages(activeSession.id); }
               : undefined
           }
         />
@@ -236,15 +218,15 @@ export function ChatDockBody({
     return (
       <MessageBubble
         key={`${activeSession.id}-msg-${idx}`}
-        msg={msg}
+        msg={msg as any}
         idx={idx}
-        activeSession={activeSession}
-        agents={agents}
+        activeSession={activeSession as any}
+        agents={agents as any}
         chatFontSize={chatFontSize}
         showReasoning={showReasoning}
         showToolDetails={showToolDetails}
         onCopy={(text) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard'); }}
-        onToolApproval={handleToolApproval}
+        onToolApproval={handleToolApproval as any}
       />
     );
   };

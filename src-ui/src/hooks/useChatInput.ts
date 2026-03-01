@@ -33,7 +33,7 @@ export function useChatInput({
   sessionId,
   agentSlug,
   conversationId,
-  availableModels,
+  availableModels: _availableModels,
   agentDefaultModel,
   onSessionMigrate,
   onAuthError,
@@ -54,7 +54,7 @@ export function useChatInput({
   } = useAutocompleteState();
 
   // History navigation index
-  const [_historyIndex, setHistoryIndex] = useState<Map<string, number>>(
+  const [, setHistoryIndex] = useState<Map<string, number>>(
     new Map(),
   );
 
@@ -67,11 +67,11 @@ export function useChatInput({
     navigateHistoryUp,
     navigateHistoryDown,
   } = useActiveChatActions();
-  const activeChatState = useActiveChatState(sessionId);
+  const activeChatState = useActiveChatState(sessionId || '');
   const cancelMessage = useCancelMessage();
 
   // Slash commands
-  const { commands: slashCommands, fetchCommandOptions } =
+  const { commands: slashCommands } =
     useSlashCommands(agentSlug);
   const handleSlashCommand = useSlashCommandHandler();
 

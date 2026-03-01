@@ -38,13 +38,7 @@ export function SessionPickerModal({
   );
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadConversations();
-    }
-  }, [isOpen, loadConversations]);
-
-  const loadConversations = async () => {
+  async function loadConversations() {
     setLoading(true);
     try {
       const allConversations: ConversationMetadata[] = [];
@@ -79,7 +73,14 @@ export function SessionPickerModal({
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      loadConversations();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
