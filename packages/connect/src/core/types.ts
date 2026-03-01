@@ -12,3 +12,9 @@ export interface StorageAdapter {
 }
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'error';
+
+export interface DiscoveredServer {
+  url: string;
+  name: string;
+  latency: number; // ms
+}

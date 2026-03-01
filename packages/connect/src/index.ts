@@ -1,7 +1,7 @@
 // Core (framework-agnostic)
 export { ConnectionStore } from './core/ConnectionStore';
 export { LocalStorageAdapter, defaultStorage } from './core/storage';
-export type { SavedConnection, StorageAdapter, ConnectionStatus } from './core/types';
+export type { SavedConnection, StorageAdapter, ConnectionStatus, DiscoveredServer } from './core/types';
 
 // React
 export { ConnectionsProvider, useConnections } from './react/ConnectionsContext';
@@ -17,3 +17,5 @@ export { ConnectionManagerModal } from './react/ConnectionManagerModal';
 export type { ConnectionManagerModalProps } from './react/ConnectionManagerModal';
 export { ConnectionStatusDot } from './react/ConnectionStatusDot';
 export type { ConnectionStatusDotProps } from './react/ConnectionStatusDot';
+export { useNetworkDiscovery } from './react/useNetworkDiscovery';
+export type { UseNetworkDiscoveryOptions, UseNetworkDiscoveryResult } from './react/useNetworkDiscovery';

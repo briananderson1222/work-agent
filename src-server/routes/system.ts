@@ -175,5 +175,23 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
     }
   });
 
+  // Discovery beacon — open CORS so LAN clients can probe without credentials.
+  // Reveals nothing sensitive: just confirms this is a Stallion server.
+  app.use('/discover', async (c, next) => {
+    c.header('Access-Control-Allow-Origin', '*');
+    c.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    if (c.req.method === 'OPTIONS') return c.text('', 204);
+    return next();
+  });
+
+  app.get('/discover', (c) => {
+    const reqUrl = new URL(c.req.url);
+    return c.json({
+      stallion: true,
+      name: 'Project Stallion',
+      port: Number(reqUrl.port) || 3141,
+    });
+  });
+
   return app;
 }
