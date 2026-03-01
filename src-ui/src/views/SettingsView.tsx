@@ -1,3 +1,4 @@
+import { QRDisplay, useConnections, useHostUrl } from '@stallion-ai/connect';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -8,6 +9,65 @@ import { useConfig, useConfigActions } from '../contexts/ConfigContext';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import type { AppConfig, NavigationView } from '../types';
+
+function MobilePairingSection() {
+  const { activeConnection } = useConnections();
+  const serverPort = (() => {
+    try {
+      const url = new URL(activeConnection?.url || 'http://localhost:3141');
+      return Number(url.port) || 3141;
+    } catch {
+      return 3141;
+    }
+  })();
+  const { hostUrl, isDetecting } = useHostUrl({
+    port: serverPort,
+    fallback: activeConnection?.url || `http://localhost:${serverPort}`,
+  });
+  const isLocalhost =
+    hostUrl.includes('localhost') || hostUrl.includes('127.0.0.1');
+
+  return (
+    <div className="form-group">
+      <label>Mobile Pairing</label>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 12,
+        }}
+      >
+        {isDetecting ? (
+          <div
+            style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
+          >
+            Detecting local IP…
+          </div>
+        ) : (
+          <QRDisplay url={hostUrl} size={160} label={hostUrl} />
+        )}
+        {isLocalhost && !isDetecting && (
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--color-warning, #eab308)',
+              maxWidth: 320,
+            }}
+          >
+            Showing localhost — your Android device may not be able to reach
+            this address. Make sure both devices are on the same network and
+            use your computer's LAN IP.
+          </div>
+        )}
+        <span className="form-help">
+          Scan this QR code with the Android app to connect to this server
+          automatically.
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export interface SettingsViewProps {
   onBack: () => void;
@@ -880,6 +940,8 @@ export function SettingsView({
                         : 'Test Connection'}
                 </button>
               </div>
+
+              <MobilePairingSection />
 
               <div className="form-group">
                 <label htmlFor="region">AWS Region</label>

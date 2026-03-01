@@ -7,7 +7,8 @@
   "workspaces": [
     "packages/sdk",
     "packages/shared",
-    "packages/cli"
+    "packages/cli",
+    "packages/connect"
   ],
   "scripts": {
     "dev:server": "tsx watch ./src-server/index.ts",
