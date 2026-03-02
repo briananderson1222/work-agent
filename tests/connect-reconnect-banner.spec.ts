@@ -30,50 +30,40 @@ const SEED_STORAGE = `
 `;
 
 test.describe('Reconnect Banner', () => {
-  test('banner appears when server goes offline after a successful connection', async ({
+  test('status dot changes to error when server goes offline after a successful connection', async ({
     page,
   }) => {
     await page.addInitScript(SEED_STORAGE);
 
     // Phase 1: intercept status → server is UP
+    let healthy = true;
     await page.route('**/api/system/status', (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY });
+      if (healthy) {
+        route.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY });
+      } else {
+        route.abort();
+      }
     });
 
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    // Wait for connected state on the chip
+    await expect(page.getByRole('button', { name: /connected Dev Server/ })).toBeVisible({ timeout: 10000 });
 
-    // Verify app is in "ready" state (onboarding not showing)
-    await expect(page.locator('text=Can\'t reach server')).not.toBeVisible();
+    // Phase 2: server goes offline
+    healthy = false;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
-    // Phase 2: server goes offline — route returns 503
-    await page.unroute('**/api/system/status');
-    await page.route('**/api/system/status', (route) => route.abort());
-
-    // React Query will refetch — force it by reloading just the status query
-    // We wait for the next poll cycle (staleTime is 10s, so trigger a re-query)
-    await page.evaluate(() => {
-      // Dispatch a custom event that the app could listen to; or just wait
-      // for the query client's poll — for test speed, navigate away and back.
-      window.dispatchEvent(new Event('focus'));
-    });
-
-    // Wait a bit for the error state to propagate
-    await page.waitForTimeout(3000);
-
-    // The reconnect banner should be visible (since wasConnected=true)
-    const banner = page.locator('text=/Lost connection to/');
-    await expect(banner).toBeVisible({ timeout: 8000 });
+    // The status dot should change to error
+    await expect(page.getByRole('button', { name: /error Dev Server/ })).toBeVisible({ timeout: 15000 });
 
     // App content should still be rendered (non-blocking)
     const body = await page.evaluate(() => document.body.innerHTML);
     expect(body.length).toBeGreaterThan(500);
   });
 
-  test('banner "Manage" button opens the connection modal', async ({ page }) => {
+  test('clicking error-state chip opens the connection modal', async ({ page }) => {
     await page.addInitScript(SEED_STORAGE);
 
-    // Start with server up, then take it down
     let callCount = 0;
     await page.route('**/api/system/status', (route) => {
       callCount++;
@@ -85,20 +75,17 @@ test.describe('Reconnect Banner', () => {
     });
 
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    await expect(page.getByRole('button', { name: /Dev Server/ })).toBeVisible({ timeout: 10000 });
 
-    // Trigger another status check (React Query refetch on focus)
+    // Trigger refetch to get error state
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await page.waitForTimeout(3000);
 
-    const banner = page.locator('text=/Lost connection to/');
-    // If banner is visible, click Manage
-    if (await banner.isVisible()) {
-      await page.locator('button', { hasText: 'Manage' }).click();
-      await expect(page.locator('text=Connections').first()).toBeVisible();
-    } else {
-      test.skip(); // Server may have responded on retry — skip rather than fail
-    }
+    // Wait for error state on chip
+    await expect(page.getByRole('button', { name: /error Dev Server/ })).toBeVisible({ timeout: 15000 });
+
+    // Click the error-state chip — should open modal
+    await page.getByRole('button', { name: /error Dev Server/ }).click();
+    await expect(page.getByRole('heading', { name: 'Connections' })).toBeVisible();
   });
 
   test('banner disappears when server recovers', async ({ page }) => {
