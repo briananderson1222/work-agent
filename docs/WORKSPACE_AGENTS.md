@@ -8,7 +8,7 @@ Workspaces can bundle their own agent definitions, making them fully self-contai
 
 ### Traditional Model (Separate)
 ```
-.work-agent/
+~/.work-agent/
   agents/
     my-agent/
       agent.json
@@ -133,15 +133,15 @@ work-agent-plugins/
 ### 1. User Installs Plugin
 
 ```bash
-work-agent plugin install github:work-agent/plugins#work-workspace
+wa plugin install github:work-agent/plugins#work-workspace
 ```
 
 ### 2. Plugin Loader
 
-1. Clones repo to `.work-agent/plugins/work-workspace/`
+1. Clones repo to `~/.work-agent/plugins/work-workspace/`
 2. Reads `plugin.json`
-3. Installs agents to `.work-agent/agents/`
-4. Installs workspace to `.work-agent/workspaces/`
+3. Installs agents to `~/.work-agent/agents/`
+4. Installs workspace to `~/.work-agent/workspaces/`
 5. Copies UI components to `src-ui/src/workspaces/work-workspace/`
 
 ### 3. Agent Registration
@@ -199,7 +199,7 @@ export function Calendar() {
 
 **Before:**
 ```
-.work-agent/
+~/.work-agent/
   agents/sa-agent/
   workspaces/sa-workspace/
 ```
@@ -244,22 +244,22 @@ work-agent-plugins/
 
 ```bash
 # Install plugin from git
-work-agent plugin install github:work-agent/plugins#work-workspace
+wa plugin install github:work-agent/plugins#work-workspace
 
 # Install from local path
-work-agent plugin install ./work-agent-plugins/packages/work-workspace
+wa plugin install ./work-agent-plugins/packages/work-workspace
 
 # List installed plugins
-work-agent plugin list
+wa plugin list
 
 # Remove plugin
-work-agent plugin remove work-workspace
+wa plugin remove work-workspace
 
 # Update plugin
-work-agent plugin update work-workspace
+wa plugin update work-workspace
 
 # Show plugin info
-work-agent plugin info work-workspace
+wa plugin info work-workspace
 ```
 
 ## Security Considerations

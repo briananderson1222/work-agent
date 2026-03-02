@@ -122,7 +122,7 @@ await build({
   external: [],
   banner: {
     js: `
-const __shared = window.__work_agent_shared || {};
+const __shared = window.__stallion_ai_shared || {};
 const __require = (m) => {
   if (m === 'react' || m === 'react/jsx-runtime') return __shared['react'];
   if (m === '@stallion-ai/sdk') return __shared['@stallion-ai/sdk'];
@@ -152,7 +152,7 @@ Output: `dist/bundle.js` (and optionally `dist/bundle.css` for styles).
 
 ## Shared Modules
 
-These are provided by the host via `window.__work_agent_shared` and must be **externalized** (not bundled):
+These are provided by the host via `window.__stallion_ai_shared` and must be **externalized** (not bundled):
 
 | Module | What |
 |--------|------|

@@ -52,7 +52,7 @@ All runtime data lives in `~/.work-agent/`:
 └── analytics/            # Usage data
 ```
 
-Set `STALLION_DIR` to override the default location.
+Set `WORK_AGENT_DIR` to override the default location.
 
 ## Plugin System
 

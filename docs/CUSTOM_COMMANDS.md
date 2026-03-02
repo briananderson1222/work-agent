@@ -1,6 +1,6 @@
 # Custom Slash Commands
 
-Work Agent supports custom slash commands per agent, allowing you to define reusable prompts with parameters.
+Stallion supports custom slash commands per agent, allowing you to define reusable prompts with parameters.
 
 ## Overview
 
