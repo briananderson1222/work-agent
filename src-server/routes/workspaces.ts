@@ -48,7 +48,8 @@ export function createWorkspaceRoutes(workspaceService: WorkspaceService) {
       const updated = await workspaceService.updateWorkspace(slug, updates);
       return c.json({ success: true, data: updated });
     } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+      const status = /not found/i.test(error.message) ? 404 : 400;
+      return c.json({ success: false, error: error.message }, status);
     }
   });
 
@@ -59,7 +60,8 @@ export function createWorkspaceRoutes(workspaceService: WorkspaceService) {
       await workspaceService.deleteWorkspace(slug);
       return c.json({ success: true }, 200);
     } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+      const status = /not found/i.test(error.message) ? 404 : 400;
+      return c.json({ success: false, error: error.message }, status);
     }
   });
 
