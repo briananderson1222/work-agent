@@ -26,11 +26,11 @@ interface WorkspaceHeaderProps {
   // Tab-level (second header)
   title: string;
   description: string;
+  tabActions?: WorkspacePrompt[];
   tabPrompts?: WorkspacePrompt[];
   onTabPromptSelect?: (prompt: WorkspacePrompt) => void;
   onRefresh?: () => void;
   loading?: boolean;
-  onLeadershipInsight?: () => void;
 }
 
 export function WorkspaceHeader({
@@ -42,11 +42,11 @@ export function WorkspaceHeader({
   onWorkspacePromptSelect,
   title,
   description,
+  tabActions,
   tabPrompts,
   onTabPromptSelect,
   onRefresh,
   loading,
-  onLeadershipInsight,
 }: WorkspaceHeaderProps) {
   const [_showWorkspacePrompts, _setShowWorkspacePrompts] = useState(false);
   const [showTabPrompts, setShowTabPrompts] = useState(false);
@@ -117,16 +117,20 @@ export function WorkspaceHeader({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '1rem',
-          padding: '0.75rem 1rem',
+          padding: '0.5rem 1rem',
+          minHeight: 0,
         }}
       >
-        <p style={{ margin: '0', color: 'var(--color-text-secondary)' }}>
-          {description}
-        </p>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          {onLeadershipInsight && (
+        {description && (
+          <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: '0.8125rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+            {description}
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginLeft: 'auto', flexShrink: 0 }}>
+          {tabActions?.map((action) => (
             <button
-              onClick={onLeadershipInsight}
+              key={action.id}
+              onClick={() => onTabPromptSelect?.(action)}
               type="button"
               style={{
                 padding: '0.5rem 1rem',
@@ -139,9 +143,9 @@ export function WorkspaceHeader({
                 fontWeight: 500,
               }}
             >
-              Leadership Insight
+              {action.label}
             </button>
-          )}
+          ))}
           {tabPrompts && tabPrompts.length > 0 && (
             <div style={{ position: 'relative' }}>
               <button
