@@ -1,6 +1,6 @@
 {
   "name": "@stallion-ai/connect",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Standalone bidirectional pairing library for the Stallion AI ecosystem",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
