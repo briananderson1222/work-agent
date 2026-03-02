@@ -26,6 +26,9 @@ jobs:
       - name: Build SDK
         run: cd packages/sdk && npm run build
 
+      - name: Build Connect
+        run: cd packages/connect && npm run build
+
       - name: Typecheck
         run: npx tsc --noEmit --skipLibCheck
 
@@ -56,6 +59,9 @@ jobs:
 
       - name: Build SDK
         run: cd packages/sdk && npm run build
+
+      - name: Build Connect
+        run: cd packages/connect && npm run build
 
       - name: Build UI
         run: npm run build:ui

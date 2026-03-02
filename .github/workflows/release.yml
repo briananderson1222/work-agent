@@ -76,6 +76,9 @@ jobs:
       - name: Build SDK
         run: cd packages/sdk && npm run build
 
+      - name: Build Connect
+        run: cd packages/connect && npm run build
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

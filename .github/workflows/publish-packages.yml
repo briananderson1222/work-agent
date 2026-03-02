@@ -33,6 +33,9 @@ jobs:
       - name: Build SDK
         run: cd packages/sdk && npm run build
 
+      - name: Build Connect
+        run: cd packages/connect && npm run build
+
       - name: Build CLI
         run: cd packages/cli && npm run build --if-present
 
