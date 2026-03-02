@@ -47,7 +47,7 @@ export function createPluginRoutes(
     try {
       if (existsSync(join(pluginDir, 'package.json'))) {
         execSync(
-          'npm install --omit=dev --no-package-lock --legacy-peer-deps',
+          'npm install --no-package-lock --legacy-peer-deps',
           { cwd: pluginDir, timeout: 60000, stdio: 'pipe' },
         );
       }
