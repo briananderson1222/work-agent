@@ -1,4 +1,8 @@
 import { build } from 'esbuild';
+import { readFileSync } from 'fs';
+
+const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+const pluginName = pkg.name;
 
 const sharedModules = [
   'react', 'react/jsx-runtime', 'react/jsx-dev-runtime',
@@ -10,7 +14,8 @@ const sharedModules = [
 await build({
   entryPoints: ['src/index.tsx'],
   bundle: true,
-  format: 'esm',
+  format: 'iife',
+  globalName: '__plugin_exports',
   outfile: 'dist/bundle.js',
   jsx: 'automatic',
   external: [],
@@ -23,6 +28,15 @@ const __require = (m) => {
   console.warn('[Plugin] Unknown shared module:', m);
   return {};
 };
+`,
+  },
+  footer: {
+    js: `
+;(function() {
+  var e = typeof __plugin_exports !== 'undefined' ? __plugin_exports : {};
+  window.__work_agent_plugins = window.__work_agent_plugins || {};
+  window.__work_agent_plugins['${pluginName}'] = e;
+})();
 `,
   },
   define: {
