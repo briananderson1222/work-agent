@@ -23,6 +23,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Build SDK
+        run: npm run build --workspace=packages/sdk
+      - name: Build Connect
+        run: npm run build --workspace=packages/connect
       - name: Typecheck
         run: npx tsc --noEmit --skipLibCheck
       - name: Unit tests

@@ -9,7 +9,7 @@ import { ConfigLoader } from '../config-loader.js';
 import type { AgentSpec } from '../types.js';
 
 const createTempDir = () =>
-  mkdtempSync(join(tmpdir(), 'work-agent-mgmt-test-'));
+  mkdtempSync(join(tmpdir(), 'stallion-test-'));
 
 describe('Agent CRUD operations', () => {
   let tempDir: string;

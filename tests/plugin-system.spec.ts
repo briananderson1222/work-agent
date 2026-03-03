@@ -63,7 +63,7 @@ test.describe('Plugin System', () => {
 
     // Check if demo workspace components registered
     const hasPlugin = await page.evaluate(() => {
-      return !!(window as any).__work_agent_plugins?.['demo-workspace'];
+      return !!(window as any).__stallion_ai_plugins?.['demo-workspace'];
     });
     expect(hasPlugin).toBe(true);
   });

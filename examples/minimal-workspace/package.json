@@ -15,11 +15,11 @@
     "postinstall": "node scripts/install-plugin.js"
   },
   "peerDependencies": {
-    "@stallion-ai/sdk": "^0.3.0",
+    "@stallion-ai/sdk": "*",
     "react": "^19.0.0"
   },
   "devDependencies": {
-    "@stallion-ai/sdk": "^0.3.0",
+    "@stallion-ai/sdk": "*",
     "@types/react": "^19.0.0",
     "typescript": "^5.0.0"
   },

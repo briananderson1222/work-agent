@@ -49,10 +49,10 @@ export class PluginRegistry {
       // Load JS bundle
       const bundleUrl = `${this.apiBase}/api/plugins/${encodeURIComponent(name)}/bundle.js`;
 
-      // Load IIFE bundle via script tag — it registers on window.__work_agent_plugins
+      // Load IIFE bundle via script tag — it registers on window.__stallion_ai_plugins
       await this.loadScript(bundleUrl);
 
-      const pluginExports = (window as any).__work_agent_plugins?.[name];
+      const pluginExports = (window as any).__stallion_ai_plugins?.[name];
       if (!pluginExports) {
         log.api(`[PluginRegistry] Plugin ${name} did not register exports`);
         return;
@@ -85,11 +85,9 @@ export class PluginRegistry {
   private loadScript(url: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!(window as any).require) {
-        const shared = (window as any).__work_agent_shared || {};
+        const shared = (window as any).__stallion_ai_shared || {};
         (window as any).require = (m: string) => {
           // Alias old package names
-          if (m === '@work-agent/sdk') m = '@stallion-ai/sdk';
-          if (m === '@work-agent/components') m = '@stallion-ai/components';
           if (shared[m]) return shared[m];
           if (m.startsWith('react')) return shared.react;
           console.warn('[Plugin] Unknown shared module:', m);
@@ -157,9 +155,6 @@ export class PluginRegistry {
   }
   getComponentManifest(name: string) {
     return this.getWorkspaceManifest(name);
-  }
-  validateSDKVersion() {
-    return true;
   }
 }
 

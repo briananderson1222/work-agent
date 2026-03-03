@@ -2,12 +2,16 @@
   "name": "demo-workspace",
   "version": "1.0.0",
   "type": "workspace",
-  "sdkVersion": "^0.3.0",
   "displayName": "Demo Workspace",
-  "description": "A demo workspace showing Stallion capabilities — no external dependencies",
+  "description": "A demo workspace showing Stallion capabilities \u2014 no external dependencies",
   "entrypoint": "src/index.tsx",
-  "capabilities": ["chat", "navigation"],
-  "permissions": ["navigation.dock"],
+  "capabilities": [
+    "chat",
+    "navigation"
+  ],
+  "permissions": [
+    "navigation.dock"
+  ],
   "agents": [
     {
       "slug": "assistant",

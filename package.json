@@ -1,5 +1,5 @@
 {
-  "name": "@stallion-ai/work-agent",
+  "name": "@stallion-ai/core",
   "version": "0.1.0",
   "description": "Stallion AI — local-first AI agent system built with VoltAgent and Amazon Bedrock",
   "private": true,

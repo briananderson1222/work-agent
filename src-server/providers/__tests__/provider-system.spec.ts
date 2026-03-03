@@ -208,7 +208,7 @@ describe('Provider System', () => {
     let projectHomeDir: string;
 
     beforeEach(() => {
-      projectHomeDir = join(tempDir, 'work-agent');
+      projectHomeDir = join(tempDir, 'stallion');
       configLoader = new ConfigLoader({ projectHomeDir });
     });
 
