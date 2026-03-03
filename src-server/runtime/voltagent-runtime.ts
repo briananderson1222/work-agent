@@ -185,7 +185,7 @@ export class WorkAgentRuntime {
     });
 
     this.logger = createPinoLogger({
-      name: 'work-agent',
+      name: 'stallion',
       level: options.logLevel || 'info',
     });
 

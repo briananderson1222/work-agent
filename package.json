@@ -1,7 +1,7 @@
 {
   "name": "@stallion-ai/work-agent",
   "version": "0.1.0",
-  "description": "Local-first AI work agent system built with VoltAgent and Amazon Bedrock",
+  "description": "Stallion AI — local-first AI agent system built with VoltAgent and Amazon Bedrock",
   "private": true,
   "type": "module",
   "workspaces": [

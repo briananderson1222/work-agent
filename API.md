@@ -1,6 +1,6 @@
-# Work Agent API Documentation
+# Stallion API Documentation
 
-This document describes all REST API endpoints available in Work Agent, including both VoltAgent-provided and custom endpoints.
+This document describes all REST API endpoints available in Stallion, including both VoltAgent-provided and custom endpoints.
 
 **Base URL**: `http://localhost:3141`  
 **Swagger UI**: `http://localhost:3141/ui` (VoltAgent built-in endpoints)  
@@ -9,7 +9,7 @@ This document describes all REST API endpoints available in Work Agent, includin
 ## Endpoint Legend
 
 - 🔵 **VoltAgent Built-in** - Provided by `@voltagent/server-hono`
-- 🟢 **Custom** - Work Agent-specific extensions
+- 🟢 **Custom** - Stallion-specific extensions
 - ✅ **In Use** - Currently used by frontend
 - ⚪ **Available** - Implemented but not currently used
 
@@ -33,7 +33,7 @@ This document describes all REST API endpoints available in Work Agent, includin
 
 These endpoints are provided by VoltAgent's `@voltagent/server-hono` package. See the [VoltAgent API documentation](https://voltagent.dev/docs/api/endpoints/agents) for complete details.
 
-**Note**: Work Agent does not currently use any VoltAgent built-in endpoints. All functionality is provided through custom endpoints.
+**Note**: Stallion does not currently use any VoltAgent built-in endpoints. All functionality is provided through custom endpoints.
 
 ### 🔵 ⚪ List All Agents (VoltAgent)
 ```http
@@ -183,7 +183,7 @@ VoltAgent also provides workflow execution endpoints. See [VoltAgent Workflow AP
 
 ### 🟢 ✅ Default Agent
 
-Work Agent automatically creates a **system default agent** that is always available:
+Stallion automatically creates a **system default agent** that is always available:
 
 **Agent ID**: `default`  
 **Model**: Uses current `defaultModel` from `app.json`  
@@ -226,7 +226,7 @@ GET /api/agents
     {
       "id": "agent-id",
       "slug": "my-agent",
-      "name": "Work Agent",
+      "name": "Stallion Agent",
       "prompt": "System instructions...",
       "description": "Agent description",
       "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -1213,7 +1213,7 @@ GET /monitoring/stats
     "agents": [
       {
         "slug": "my-agent",
-        "name": "Work Agent",
+        "name": "Stallion Agent",
         "status": "idle",
         "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
         "conversationCount": 10,

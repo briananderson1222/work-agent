@@ -290,7 +290,7 @@ export class ACPConnection {
           fs: { readTextFile: true, writeTextFile: true },
           terminal: true,
         },
-        clientInfo: { name: 'work-agent', version: '1.0.0' },
+        clientInfo: { name: 'stallion', version: '1.0.0' },
       })) as InitializeResult;
 
       this.logger.info('[ACPBridge] Connected', {
