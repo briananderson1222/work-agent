@@ -270,7 +270,7 @@ function ensureShim(): void {
   if (!existsSync(shimPath)) {
     writeFileSync(
       shimPath,
-      `var __shared = (typeof window !== 'undefined' && window.__work_agent_shared) || {};\nvar require = globalThis.require = function(m) {\n  if (__shared[m]) return __shared[m];\n  if (m === 'react' || m === 'react/jsx-runtime' || m === 'react/jsx-dev-runtime') return __shared['react'];\n  console.warn('[Plugin] Unknown shared module:', m);\n  return {};\n};\n`,
+      `var __shared = (typeof window !== 'undefined' && window.__stallion_ai_shared) || {};\nvar require = globalThis.require = function(m) {\n  if (__shared[m]) return __shared[m];\n  if (m === 'react' || m === 'react/jsx-runtime' || m === 'react/jsx-dev-runtime') return __shared['react'];\n  console.warn('[Plugin] Unknown shared module:', m);\n  return {};\n};\n`,
     );
   }
 }
@@ -316,8 +316,8 @@ function build(mode: 'production' | 'dev' = 'production'): void {
         `  if (m === 'react/jsx-runtime') return window.__jsx;`,
         `  if (m === 'react/jsx-dev-runtime') return window.__jsxDev;`,
         `  if (m === 'react-dom' || m === 'react-dom/client') return window.ReactDOM;`,
-        `  if (m === '@tanstack/react-query') return window.__work_agent_rq;`,
-        `  var s = window.__work_agent_sdk_mock;`,
+        `  if (m === '@tanstack/react-query') return window.__stallion_ai_rq;`,
+        `  var s = window.__stallion_ai_sdk_mock;`,
         `  if (m === '@stallion-ai/sdk') return Object.assign({}, s, {default:s, __esModule:true});`,
         `  if (m === '@stallion-ai/components') return new Proxy({}, {get: function() { return function() { return null; }; }});`,
         `  throw new Error('Unknown external: ' + m);`,
@@ -342,7 +342,7 @@ function build(mode: 'production' | 'dev' = 'production'): void {
           `window.ReactDOM = {...ReactDOM, ...C};`,
           `window.__jsx = JSX;`,
           `window.__jsxDev = JSXD;`,
-          `window.__work_agent_rq = RQ;`,
+          `window.__stallion_ai_rq = RQ;`,
         ].join('\n'),
       );
       try {
@@ -388,7 +388,7 @@ function build(mode: 'production' | 'dev' = 'production'): void {
 
   const outFile = `dist/bundle${isDev ? '-dev' : ''}.js`;
   const bundle = join(CWD, outFile);
-  const reg = `\n;(function(){window.__work_agent_plugins=window.__work_agent_plugins||{};window.__work_agent_plugins["${name}"]=__plugin;})();\n`;
+  const reg = `\n;(function(){window.__stallion_ai_plugins=window.__stallion_ai_plugins||{};window.__stallion_ai_plugins["${name}"]=__plugin;})();\n`;
   writeFileSync(bundle, readFileSync(bundle, 'utf-8') + reg);
   const size = readFileSync(bundle).length;
   const cssPath = join(CWD, `dist/bundle${isDev ? '-dev' : ''}.css`);
@@ -847,7 +847,7 @@ function __invokeAgent(slug,prompt){window.__devToast&&window.__devToast('→ ag
 function __invoke(opts){window.__devToast&&window.__devToast('invoke: '+JSON.stringify(opts).slice(0,120));return Promise.resolve({})}
 function __serverFetch(url,opts){return fetch('/api/plugins/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,method:opts&&opts.method,headers:opts&&opts.headers,body:opts&&opts.body})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error);return d})}
 
-window.__work_agent_sdk_mock={
+window.__stallion_ai_sdk_mock={
   // Hooks
   useAgents:function(){return[]},
   useAuth:function(){return{status:'valid',provider:'none',user:{alias:'dev-user',name:'Dev User'},expiresAt:null,renew:function(){return Promise.resolve()},isRenewing:false}},
@@ -883,10 +883,10 @@ window.__work_agent_sdk_mock={
 <script src="/bundle.js"></script>
 <script>
 (function(){
-  var plugin=window.__work_agent_plugins&&window.__work_agent_plugins['${pluginName}'];
+  var plugin=window.__stallion_ai_plugins&&window.__stallion_ai_plugins['${pluginName}'];
   if(!plugin){document.getElementById('root').innerHTML='<div class="dev-error">Plugin failed to load. Check console.</div>';return}
   var React=window.React,ReactDOM=window.ReactDOM;
-  var RQ=window.__work_agent_rq;
+  var RQ=window.__stallion_ai_rq;
   var tabs=${tabsJson};
   function DevShell(){
     var ref=React.useState(tabs[0]?tabs[0].id:null),activeTab=ref[0],setActiveTab=ref[1];

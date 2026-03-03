@@ -17,7 +17,7 @@ vi.mock('@voltagent/logger', () => ({
   })),
 }));
 
-const createTempDir = () => mkdtempSync(join(tmpdir(), 'work-agent-test-'));
+const createTempDir = () => mkdtempSync(join(tmpdir(), 'stallion-test-'));
 
 describe('Agent schema validation', () => {
   it('accepts ui metadata with quick prompts and workflow shortcuts', () => {

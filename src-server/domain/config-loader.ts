@@ -50,7 +50,7 @@ export class ConfigLoader {
   }
 
   /**
-   * Get the work agent directory path
+   * Get the project home directory path
    */
   getProjectHomeDir(): string {
     return this.projectHomeDir;

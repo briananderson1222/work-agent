@@ -284,7 +284,7 @@ export function useWorkflowFiles(agentSlug: string) {
  *
  * @param agentSlug - The agent to send messages to (required). Can be short name (e.g., 'my-agent')
  *                    which will be resolved using current workspace context, or fully qualified
- *                    (e.g., 'stallion-workspace:work-agent').
+ *                    (e.g., 'sa-agent:stallion-agent').
  * @returns Function to send a message and open chat
  *
  * @example
