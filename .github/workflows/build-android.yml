@@ -83,6 +83,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Stallion AI ${{ github.ref_name }}'
