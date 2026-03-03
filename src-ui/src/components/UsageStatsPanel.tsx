@@ -35,8 +35,9 @@ export function UsageStatsPanel() {
       );
 
       if (!hasConversations) {
+        setHasAutoRescanned(true);
         log.api('Auto-rescanning to populate conversation counts...');
-        rescan().then(() => setHasAutoRescanned(true));
+        rescan();
       }
     }
   }, [usageStats, hasAutoRescanned, rescan]);
