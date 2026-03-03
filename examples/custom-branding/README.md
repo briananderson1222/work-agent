@@ -12,7 +12,7 @@ Registers a `branding` provider that replaces:
 ## Install
 
 ```bash
-cp -r examples/custom-branding .work-agent/plugins/custom-branding
+cp -r examples/custom-branding .stallion-ai/plugins/custom-branding
 ```
 
 Then restart the server or hit `POST /api/plugins/reload`.

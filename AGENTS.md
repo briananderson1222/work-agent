@@ -85,7 +85,7 @@ const accountId = params.get('selectedAccount');
 
 ### Agent Configuration
 
-Agents live in `.work-agent/agents/<slug>/agent.json`:
+Agents live in `.stallion-ai/agents/<slug>/agent.json`:
 - `tools.mcpServers`: MCP server IDs to load
 - `tools.available`: Tools agent can invoke (wildcards supported)
 - `tools.autoApprove`: Tools that skip user confirmation

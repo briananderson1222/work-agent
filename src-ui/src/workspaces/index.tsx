@@ -32,15 +32,27 @@ const DefaultWorkspace: AgentWorkspaceComponent = ({
   onShowChat,
 }) => (
   <div className="workspace-default">
-    <h2>{workspace?.name || 'Workspace'}</h2>
-    <p>This workspace does not define a custom component yet.</p>
-    <button
-      type="button"
-      className="workspace-dashboard__action"
-      onClick={() => onShowChat?.()}
-    >
-      Open Chat Dock
-    </button>
+    <div className="workspace-default__empty">
+      <svg className="workspace-default__icon" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="6" y="10" width="36" height="28" rx="4" />
+        <path d="M6 18h36" />
+        <circle cx="14" cy="14" r="1.5" fill="currentColor" stroke="none" />
+        <circle cx="20" cy="14" r="1.5" fill="currentColor" stroke="none" />
+        <circle cx="26" cy="14" r="1.5" fill="currentColor" stroke="none" />
+        <path d="M16 28l4-4 3 3 5-5 4 4" opacity="0.5" />
+      </svg>
+      <h3 className="workspace-default__title">{workspace?.name || 'Workspace'}</h3>
+      <p className="workspace-default__desc">Start a conversation or schedule an automated job to get things moving.</p>
+      <div className="workspace-default__actions">
+        <button
+          type="button"
+          className="workspace-default__btn"
+          onClick={() => onShowChat?.()}
+        >
+          Open Chat
+        </button>
+      </div>
+    </div>
   </div>
 );
 
@@ -104,7 +116,8 @@ export function WorkspaceRenderer({
             workspacePrompts={workspace.globalPrompts}
             onWorkspacePromptSelect={onLaunchPrompt}
             title={activeTab?.label || workspace.name}
-            description={workspace.description || ''}
+            description={activeTab?.description || workspace.description || ''}
+            tabActions={activeTab?.actions}
             tabPrompts={activeTab?.prompts}
             onTabPromptSelect={onLaunchPrompt}
             onRefresh={onRefresh}

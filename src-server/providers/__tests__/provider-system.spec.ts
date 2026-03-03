@@ -205,11 +205,11 @@ describe('Provider System', () => {
 
   describe('ConfigLoader override tests', () => {
     let configLoader: ConfigLoader;
-    let workAgentDir: string;
+    let projectHomeDir: string;
 
     beforeEach(() => {
-      workAgentDir = join(tempDir, 'work-agent');
-      configLoader = new ConfigLoader({ workAgentDir });
+      projectHomeDir = join(tempDir, 'work-agent');
+      configLoader = new ConfigLoader({ projectHomeDir });
     });
 
     it('loadPluginOverrides returns {} when file does not exist', async () => {

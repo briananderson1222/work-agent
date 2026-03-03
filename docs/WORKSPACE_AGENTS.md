@@ -8,7 +8,7 @@ Workspaces can bundle their own agent definitions, making them fully self-contai
 
 ### Traditional Model (Separate)
 ```
-~/.work-agent/
+~/.stallion-ai/
   agents/
     my-agent/
       agent.json
@@ -138,10 +138,10 @@ wa plugin install github:work-agent/plugins#work-workspace
 
 ### 2. Plugin Loader
 
-1. Clones repo to `~/.work-agent/plugins/work-workspace/`
+1. Clones repo to `~/.stallion-ai/plugins/work-workspace/`
 2. Reads `plugin.json`
-3. Installs agents to `~/.work-agent/agents/`
-4. Installs workspace to `~/.work-agent/workspaces/`
+3. Installs agents to `~/.stallion-ai/agents/`
+4. Installs workspace to `~/.stallion-ai/workspaces/`
 5. Copies UI components to `src-ui/src/workspaces/work-workspace/`
 
 ### 3. Agent Registration
@@ -199,7 +199,7 @@ export function Calendar() {
 
 **Before:**
 ```
-~/.work-agent/
+~/.stallion-ai/
   agents/sa-agent/
   workspaces/sa-workspace/
 ```

@@ -4,6 +4,7 @@ import { LoadingState } from '@stallion-ai/sdk';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { usePermissions } from '../core/PermissionManager';
 import './PluginManagementView.css';
+import './page-layout.css';
 
 interface Plugin {
   name: string;
@@ -36,6 +37,71 @@ interface RegistryItem {
   version?: string;
   status?: string;
   installed: boolean;
+}
+
+/* ── Folder Picker Modal ── */
+function FolderPickerModal({ apiBase, onSelect, onClose }: { apiBase: string; onSelect: (path: string) => void; onClose: () => void }) {
+  const [currentPath, setCurrentPath] = useState('');
+  const [entries, setEntries] = useState<Array<{ name: string; isDirectory: boolean }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const browse = useCallback(async (path?: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      const q = path ? `?path=${encodeURIComponent(path)}` : '';
+      const res = await fetch(`${apiBase}/api/fs/browse${q}`);
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to browse'); return; }
+      setCurrentPath(data.path);
+      setEntries(data.entries);
+    } catch { setError('Failed to connect'); }
+    finally { setLoading(false); }
+  }, [apiBase]);
+
+  useEffect(() => { browse(); }, [browse]);
+
+  const parentPath = currentPath ? currentPath.replace(/\/[^/]+\/?$/, '') || '/' : '';
+
+  return (
+    <div className="plugins__modal-overlay" onClick={onClose}>
+      <div className="plugins__modal plugins__folder-modal" onClick={e => e.stopPropagation()}>
+        <div className="plugins__modal-header">
+          <h3 className="plugins__modal-title">Select Folder</h3>
+          <button className="plugins__modal-close" onClick={onClose}>&times;</button>
+        </div>
+        <div className="plugins__folder-path">
+          <code>{currentPath}</code>
+          <button className="plugins__folder-select-btn" onClick={() => { onSelect(currentPath); onClose(); }}>
+            Select This Folder
+          </button>
+        </div>
+        <div className="plugins__modal-body">
+          {error && <div className="plugins__modal-message plugins__message--error">{error}</div>}
+          {loading ? (
+            <div className="plugins__empty">Loading...</div>
+          ) : (
+            <div className="plugins__folder-list">
+              {currentPath !== '/' && (
+                <div className="plugins__folder-entry" onClick={() => browse(parentPath)}>
+                  <span className="plugins__folder-icon">↑</span>
+                  <span className="plugins__folder-name">..</span>
+                </div>
+              )}
+              {entries.map(e => (
+                <div key={e.name} className="plugins__folder-entry" onClick={() => browse(`${currentPath}/${e.name}`)}>
+                  <span className="plugins__folder-icon">📁</span>
+                  <span className="plugins__folder-name">{e.name}</span>
+                </div>
+              ))}
+              {entries.length === 0 && <div className="plugins__empty">No subdirectories</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ── Tool Registry Modal ── */
@@ -151,6 +217,7 @@ export function PluginManagementView() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
   const [showRegistry, setShowRegistry] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [toolFilter, setToolFilter] = useState('');
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
 
@@ -267,11 +334,12 @@ export function PluginManagementView() {
 
   return (
     <>
-      <div className="plugins">
-        <div className="plugins__header">
-          <div>
-            <h2 className="plugins__title">Plugins</h2>
-            <div className="plugins__subtitle">Manage installed plugins and MCP tools</div>
+      <div className="plugins page">
+        <div className="page__header">
+          <div className="page__header-text">
+            <div className="page__label">sys / plugins</div>
+            <h1 className="page__title">Plugins</h1>
+            <p className="page__subtitle">Manage installed plugins and MCP tools</p>
           </div>
         </div>
 
@@ -287,6 +355,9 @@ export function PluginManagementView() {
             placeholder="git@github.com:org/plugin.git or /local/path"
             disabled={installing}
           />
+          <button className="plugins__browse-btn" onClick={() => setShowFolderPicker(true)} disabled={installing} title="Browse local folders">
+            📁
+          </button>
           <button className="plugins__install-btn" onClick={install} disabled={installing || !installSource.trim()}>
             {installing ? 'Installing...' : 'Install'}
           </button>
@@ -454,6 +525,9 @@ export function PluginManagementView() {
 
       {/* Tool Registry Modal */}
       {showRegistry && <ToolRegistryModal apiBase={apiBase} onClose={() => { setShowRegistry(false); fetchTools(); }} />}
+
+      {/* Folder Picker Modal */}
+      {showFolderPicker && <FolderPickerModal apiBase={apiBase} onSelect={setInstallSource} onClose={() => setShowFolderPicker(false)} />}
 
       {/* Remove confirmation */}
       {removeConfirm && (

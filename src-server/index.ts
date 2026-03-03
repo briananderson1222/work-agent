@@ -10,11 +10,11 @@ import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
 
 async function main() {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3141;
-  const workAgentDir =
-    process.env.WORK_AGENT_DIR || join(homedir(), '.work-agent');
+  const projectHomeDir =
+    process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai');
 
   const runtime = new WorkAgentRuntime({
-    workAgentDir,
+    projectHomeDir,
     port,
     logLevel: 'info',
   });

@@ -7,6 +7,7 @@ import type {
   WorkspaceTab,
 } from '../types';
 import { WorkspaceIcon } from '../components/WorkspaceIcon';
+import './editor-layout.css';
 
 export interface WorkspaceEditorViewProps {
   apiBase: string;
@@ -39,6 +40,9 @@ export function WorkspaceEditorView({
   const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(
     new Set(),
   );
+  const [isPluginLocked, setIsPluginLocked] = useState(true);
+
+  const isPlugin = !!formData?.plugin;
 
   async function loadAgents() {
     try {
@@ -224,54 +228,27 @@ export function WorkspaceEditorView({
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          color: 'var(--text-primary)',
-        }}
-      >
+      <div className="editor__loading">
         Loading...
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        background: 'var(--bg-primary)',
-      }}
-    >
+    <div className={`editor${isPlugin && isPluginLocked ? ' editor--locked' : ''}`}>
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '16px 24px',
-          borderBottom: '1px solid var(--border-primary)',
-          background: 'var(--bg-secondary)',
-        }}
-      >
-        <h2
-          style={{
-            margin: 0,
-            fontSize: '18px',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-          }}
-        >
-          {slug ? 'Edit Workspace' : 'New Workspace'}
-        </h2>
-        <div style={{ display: 'flex', gap: '8px' }}>
+      <div className="management-view__header editor__header">
+        <div className="editor__header-left">
+          <div className="management-view__header-label">{slug ? 'manage / edit workspace' : 'manage / new workspace'}</div>
+          <h2 className="editor__header-meta">
+            {slug ? 'Edit Workspace' : 'New Workspace'}
+            {isPlugin && <span className="editor__plugin-badge">{formData?.plugin}</span>}
+          </h2>
+        </div>
+        <div className="editor__header-actions">
           <button
             onClick={handleSave}
-            disabled={isSaving || !formData.name || !formData.slug}
+            disabled={isSaving || !formData.name || !formData.slug || (isPlugin && isPluginLocked)}
             style={{
               padding: '8px 16px',
               border: 'none',
@@ -280,30 +257,32 @@ export function WorkspaceEditorView({
               color: 'white',
               cursor: isSaving ? 'not-allowed' : 'pointer',
               fontSize: '14px',
-              opacity: isSaving || !formData.name || !formData.slug ? 0.5 : 1,
+              opacity: isSaving || !formData.name || !formData.slug || (isPlugin && isPluginLocked) ? 0.5 : 1,
             }}
           >
             {isSaving ? 'Saving...' : 'Save'}
           </button>
           <button
             onClick={onBack}
-            style={{
-              minWidth: '40px',
-              padding: '8px 12px',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '6px',
-              background: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              fontSize: '18px',
-              lineHeight: '1',
-            }}
+            className="editor__close-btn"
             title="Close (⌘X)"
           >
             ×
           </button>
         </div>
       </div>
+
+      {isPlugin && isPluginLocked && (
+        <div className="editor__lock-banner">
+          <div className="editor__lock-banner-text">
+            <span className="editor__lock-banner-icon">🔒</span>
+            <span>This workspace is managed by the <strong>{formData?.plugin}</strong> plugin. Editing is locked to prevent accidental changes.</span>
+          </div>
+          <button className="editor__unlock-btn" onClick={() => setIsPluginLocked(false)}>
+            Unlock Editing
+          </button>
+        </div>
+      )}
 
       {error && (
         <div
@@ -322,18 +301,11 @@ export function WorkspaceEditorView({
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+      <div className="editor__content">
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           {/* Basic Info */}
-          <section style={{ marginBottom: '32px' }}>
-            <h3
-              style={{
-                margin: '0 0 16px 0',
-                fontSize: '16px',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-              }}
-            >
+          <section className="editor__section" style={{ marginBottom: '32px' }}>
+            <h3 className="editor__section-header">
               Basic Information
             </h3>
             <div style={{ display: 'grid', gap: '16px' }}>
@@ -502,21 +474,11 @@ export function WorkspaceEditorView({
           </section>
 
           {/* Global Prompts */}
-          <section style={{ marginBottom: '32px' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '16px',
-              }}
-            >
+          <section className="editor__section" style={{ marginBottom: '32px' }}>
+            <div className="editor__section-header">
               <h3
                 style={{
                   margin: 0,
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
                 }}
               >
                 Global Prompts
@@ -748,21 +710,11 @@ export function WorkspaceEditorView({
           </section>
 
           {/* Tabs */}
-          <section>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '16px',
-              }}
-            >
+          <section className="editor__section">
+            <div className="editor__section-header">
               <h3
                 style={{
                   margin: 0,
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
                 }}
               >
                 Tabs

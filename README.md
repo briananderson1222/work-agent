@@ -39,10 +39,10 @@ npm run dev:ui       # Frontend on :5173
 
 ### Data Directory
 
-All runtime data lives in `~/.work-agent/`:
+All runtime data lives in `~/.stallion-ai/`:
 
 ```
-~/.work-agent/
+~/.stallion-ai/
 ├── config/
 │   ├── app.json          # Model settings, system prompt, template vars
 │   └── acp.json          # ACP connection configs
@@ -52,7 +52,7 @@ All runtime data lives in `~/.work-agent/`:
 └── analytics/            # Usage data
 ```
 
-Set `WORK_AGENT_DIR` to override the default location.
+Set `STALLION_AI_DIR` to override the default location.
 
 ## Plugin System
 
@@ -180,7 +180,7 @@ Providers are declared in `plugin.json` and loaded when the server starts. Each 
 
 ## Desktop App (Tauri)
 
-The Tauri app bundles the Node.js server and serves the UI. On first launch, it seeds `~/.work-agent/` with default configs from the bundled `seed/` directory.
+The Tauri app bundles the Node.js server and serves the UI. On first launch, it seeds `~/.stallion-ai/` with default configs from the bundled `seed/` directory.
 
 ```bash
 npm run build:desktop    # Build the .dmg / .exe

@@ -37,12 +37,12 @@ interface GrantsFile {
   [pluginName: string]: string[];
 }
 
-function grantsPath(workAgentDir: string): string {
-  return join(workAgentDir, 'plugin-grants.json');
+function grantsPath(projectHomeDir: string): string {
+  return join(projectHomeDir, 'plugin-grants.json');
 }
 
-function readGrants(workAgentDir: string): GrantsFile {
-  const p = grantsPath(workAgentDir);
+function readGrants(projectHomeDir: string): GrantsFile {
+  const p = grantsPath(projectHomeDir);
   if (!existsSync(p)) return {};
   try {
     return JSON.parse(readFileSync(p, 'utf-8'));
@@ -51,45 +51,45 @@ function readGrants(workAgentDir: string): GrantsFile {
   }
 }
 
-function writeGrants(workAgentDir: string, grants: GrantsFile): void {
-  mkdirSync(workAgentDir, { recursive: true });
-  writeFileSync(grantsPath(workAgentDir), JSON.stringify(grants, null, 2));
+function writeGrants(projectHomeDir: string, grants: GrantsFile): void {
+  mkdirSync(projectHomeDir, { recursive: true });
+  writeFileSync(grantsPath(projectHomeDir), JSON.stringify(grants, null, 2));
 }
 
 export function getPluginGrants(
-  workAgentDir: string,
+  projectHomeDir: string,
   pluginName: string,
 ): string[] {
-  return readGrants(workAgentDir)[pluginName] || [];
+  return readGrants(projectHomeDir)[pluginName] || [];
 }
 
 export function grantPermissions(
-  workAgentDir: string,
+  projectHomeDir: string,
   pluginName: string,
   permissions: string[],
 ): void {
-  const grants = readGrants(workAgentDir);
+  const grants = readGrants(projectHomeDir);
   const existing = new Set(grants[pluginName] || []);
   for (const p of permissions) existing.add(p);
   grants[pluginName] = [...existing];
-  writeGrants(workAgentDir, grants);
+  writeGrants(projectHomeDir, grants);
 }
 
 export function revokeAllGrants(
-  workAgentDir: string,
+  projectHomeDir: string,
   pluginName: string,
 ): void {
-  const grants = readGrants(workAgentDir);
+  const grants = readGrants(projectHomeDir);
   delete grants[pluginName];
-  writeGrants(workAgentDir, grants);
+  writeGrants(projectHomeDir, grants);
 }
 
 export function hasGrant(
-  workAgentDir: string,
+  projectHomeDir: string,
   pluginName: string,
   permission: string,
 ): boolean {
-  return getPluginGrants(workAgentDir, pluginName).includes(permission);
+  return getPluginGrants(projectHomeDir, pluginName).includes(permission);
 }
 
 // ── Install-time helpers ───────────────────────────────
@@ -104,7 +104,7 @@ export interface PermissionRequest {
  * and return the list that needs user consent.
  */
 export function processInstallPermissions(
-  workAgentDir: string,
+  projectHomeDir: string,
   pluginName: string,
   declaredPermissions: string[],
 ): { autoGranted: string[]; pendingConsent: PermissionRequest[] } {
@@ -121,7 +121,7 @@ export function processInstallPermissions(
 
   // Auto-grant passive permissions immediately
   if (autoGranted.length > 0) {
-    grantPermissions(workAgentDir, pluginName, autoGranted);
+    grantPermissions(projectHomeDir, pluginName, autoGranted);
   }
 
   return { autoGranted, pendingConsent };

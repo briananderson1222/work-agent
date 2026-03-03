@@ -160,6 +160,26 @@ export function useDeleteJob() {
   });
 }
 
+export function useEditJob() {
+  const qc = useQueryClient();
+  const { mutate } = useSchedulerFetch();
+  return useMutation({
+    mutationFn: ({ target, ...opts }: { target: string; [key: string]: any }) =>
+      mutate(`/jobs/${target}`, 'PUT', opts),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
+  });
+}
+
+export function usePreviewSchedule(cron: string | null) {
+  const { query } = useSchedulerFetch();
+  return useQuery({
+    queryKey: ['scheduler', 'preview', cron],
+    queryFn: () => query<any[]>(`/jobs/preview-schedule?cron=${encodeURIComponent(cron!)}`),
+    enabled: !!cron && cron.trim().length > 0,
+    staleTime: 60_000,
+  });
+}
+
 export function useAddJob() {
   const qc = useQueryClient();
   const { mutate } = useSchedulerFetch();
@@ -167,10 +187,13 @@ export function useAddJob() {
     mutationFn: (opts: {
       name: string;
       cron?: string;
-      prompt: string;
+      prompt?: string;
+      command?: string;
       agent?: string;
+      dir?: string;
       openArtifact?: string;
       notifyStart?: boolean;
+      trustAllTools?: boolean;
     }) => mutate('/jobs', 'POST', opts),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
   });

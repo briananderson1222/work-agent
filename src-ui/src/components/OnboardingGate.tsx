@@ -8,6 +8,7 @@ import { ConnectionManagerModal, useConnections } from '@stallion-ai/connect';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useSystemStatus, verifyBedrock } from '../hooks/useSystemStatus';
 import { useBranding } from '../hooks/useBranding';
+import './OnboardingGate.css';
 
 function checkServerHealth(url: string): Promise<boolean> {
   return fetch(`${url}/api/system/status`).then((r) => r.ok).catch(() => false);
@@ -40,23 +41,24 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   // Loading state
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          background: 'var(--bg-primary, #0a0a0a)',
-          color: 'var(--text-secondary, #999)',
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <img
-            src="/favicon.png"
-            alt=""
-            style={{ width: 48, height: 48, marginBottom: 16, opacity: 0.7 }}
-          />
-          <div style={{ fontSize: 14 }}>Checking system status…</div>
+      <div className="onboarding-loading">
+        <div className="onboarding-loading__content">
+          <div className="onboarding-loading__logo-wrap">
+            <div className="onboarding-loading__logo-glow" />
+            <div className="onboarding-loading__logo-ring" />
+            <img
+              src="/favicon.png"
+              alt=""
+              className="onboarding-loading__logo"
+            />
+          </div>
+          <div className="onboarding-loading__label">sys / status</div>
+          <div className="onboarding-loading__status">
+            Checking system status
+            <span className="onboarding-loading__dots">
+              <span>.</span><span>.</span><span>.</span>
+            </span>
+          </div>
         </div>
       </div>
     );

@@ -15,7 +15,7 @@ This document shows which API endpoints are actively used by the Work Agent fron
 Work Agent automatically creates a **system default agent** that is always available:
 
 - **Agent ID**: `default`
-- **Model**: Uses current `defaultModel` from `.work-agent/config/app.json`
+- **Model**: Uses current `defaultModel` from `.stallion-ai/config/app.json`
 - **Tools**: None (simple text generation only)
 - **Instructions**: "You are a helpful AI assistant. Provide clear, concise, and accurate responses."
 

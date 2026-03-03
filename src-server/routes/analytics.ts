@@ -111,8 +111,8 @@ export function createAnalyticsRoutes(
 import { join } from 'node:path';
 import { UsageAggregator as UA } from '../analytics/usage-aggregator.js';
 
-const workAgentDir =
-  process.env.WORK_AGENT_DIR || join(process.cwd(), '.work-agent');
-const aggregator = new UA(workAgentDir);
+const projectHomeDir =
+  process.env.STALLION_AI_DIR || join(process.cwd(), '.stallion-ai');
+const aggregator = new UA(projectHomeDir);
 
 export default createAnalyticsRoutes(aggregator);

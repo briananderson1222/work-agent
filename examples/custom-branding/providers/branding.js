@@ -6,7 +6,7 @@
  * branding response served at GET /api/branding.
  *
  * To install:
- *   cp -r examples/custom-branding .work-agent/plugins/custom-branding
+ *   cp -r examples/custom-branding .stallion-ai/plugins/custom-branding
  *
  * To revert to defaults, disable the branding provider in the UI
  * (Plugins → custom-branding → Providers → branding toggle)

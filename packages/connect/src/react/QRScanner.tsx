@@ -33,6 +33,9 @@ export function QRScanner({ onScan, onCancel }: QRScannerProps) {
 
     const startCamera = async () => {
       try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw Object.assign(new Error('Camera requires a secure context (HTTPS or localhost).'), { name: 'InsecureContext' });
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
         });

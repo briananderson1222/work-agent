@@ -706,7 +706,7 @@ GET /agents/:slug/workflows/files
   "data": [
     {
       "filename": "example-simple.ts",
-      "path": ".work-agent/agents/work-agent/workflows/example-simple.ts"
+      "path": ".stallion-ai/agents/work-agent/workflows/example-simple.ts"
     }
   ]
 }

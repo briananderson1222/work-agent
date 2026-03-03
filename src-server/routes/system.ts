@@ -3,6 +3,8 @@
  */
 
 import { execFile, execSync } from 'node:child_process';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
 import { getOnboardingProviders } from '../providers/registry.js';
@@ -84,6 +86,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   app.get('/core-update', async (c) => {
     try {
       const gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: process.cwd(),
         encoding: 'utf-8',
       }).trim();
 
@@ -164,6 +167,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   app.post('/core-update', async (c) => {
     try {
       const gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: process.cwd(),
         encoding: 'utf-8',
       }).trim();
 

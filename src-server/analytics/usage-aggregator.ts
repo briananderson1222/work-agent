@@ -91,22 +91,22 @@ const ACHIEVEMENTS = [
 ];
 
 export class UsageAggregator {
-  private workAgentDir: string;
+  private projectHomeDir: string;
   private statsPath: string;
   private achievementsPath: string;
 
-  constructor(workAgentDir: string) {
-    this.workAgentDir = workAgentDir;
-    this.statsPath = join(workAgentDir, 'analytics', 'stats.json');
+  constructor(projectHomeDir: string) {
+    this.projectHomeDir = projectHomeDir;
+    this.statsPath = join(projectHomeDir, 'analytics', 'stats.json');
     this.achievementsPath = join(
-      workAgentDir,
+      projectHomeDir,
       'analytics',
       'achievements.json',
     );
   }
 
   private async ensureAnalyticsDir(): Promise<void> {
-    await mkdir(join(this.workAgentDir, 'analytics'), { recursive: true });
+    await mkdir(join(this.projectHomeDir, 'analytics'), { recursive: true });
   }
 
   async loadStats(): Promise<UsageStats> {
@@ -268,7 +268,7 @@ export class UsageAggregator {
   async fullRescan(): Promise<UsageStats> {
     // Load existing stats instead of starting from zero
     const stats = await this.loadStats();
-    const agentsDir = join(this.workAgentDir, 'agents');
+    const agentsDir = join(this.projectHomeDir, 'agents');
 
     if (!existsSync(agentsDir)) {
       await this.saveStats(stats);
@@ -283,7 +283,7 @@ export class UsageAggregator {
     const sessionCounts = new Map<string, Set<string>>();
 
     // Load app config to get default model
-    const appConfigPath = join(this.workAgentDir, 'config', 'app.json');
+    const appConfigPath = join(this.projectHomeDir, 'config', 'app.json');
     let defaultModel = 'unknown';
     try {
       if (existsSync(appConfigPath)) {

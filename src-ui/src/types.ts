@@ -163,6 +163,7 @@ export interface TemplateVariable {
 export type NavigationView =
   | { type: 'workspace' }
   | { type: 'workspaces' }
+  | { type: 'manage' }
   | { type: 'agents' }
   | { type: 'prompts' }
   | { type: 'plugins' }
@@ -194,6 +195,8 @@ export interface WorkspaceTab {
   label: string;
   component: string;
   icon?: string;
+  description?: string;
+  actions?: WorkspacePrompt[];
   prompts?: WorkspacePrompt[];
 }
 

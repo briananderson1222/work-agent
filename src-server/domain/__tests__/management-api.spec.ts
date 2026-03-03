@@ -17,7 +17,7 @@ describe('Agent CRUD operations', () => {
 
   beforeEach(() => {
     tempDir = createTempDir();
-    loader = new ConfigLoader({ workAgentDir: tempDir });
+    loader = new ConfigLoader({ projectHomeDir: tempDir });
   });
 
   afterEach(() => {
@@ -105,7 +105,7 @@ describe('Workflow file operations', () => {
 
   beforeEach(async () => {
     tempDir = createTempDir();
-    loader = new ConfigLoader({ workAgentDir: tempDir });
+    loader = new ConfigLoader({ projectHomeDir: tempDir });
 
     const spec: AgentSpec = {
       name: 'Workflow Test Agent',
@@ -179,7 +179,7 @@ describe('App config operations', () => {
 
   beforeEach(() => {
     tempDir = createTempDir();
-    loader = new ConfigLoader({ workAgentDir: tempDir });
+    loader = new ConfigLoader({ projectHomeDir: tempDir });
   });
 
   afterEach(() => {

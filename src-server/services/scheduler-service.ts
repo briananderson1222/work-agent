@@ -157,4 +157,21 @@ export class SchedulerService {
   async removeJob(target: string): Promise<void> {
     await this.exec(['remove', target, '--keep-logs']);
   }
+
+  async editJob(target: string, opts: Record<string, string | boolean>): Promise<string> {
+    const args = ['edit', target];
+    for (const [key, val] of Object.entries(opts)) {
+      if (val === true) args.push(`--${key}`);
+      else if (val !== false && val !== '') args.push(`--${key}`, String(val));
+    }
+    return this.exec(args);
+  }
+
+  async previewSchedule(cron: string, count = 5): Promise<string[]> {
+    const stdout = await this.exec(['next', cron, '--count', String(count)]);
+    // Parse plain text: "  1: 2026-03-02 15:00:00 UTC"
+    return stdout.split('\n')
+      .map(line => line.match(/\d:\s+(.+)/)?.[1]?.trim())
+      .filter((s): s is string => !!s);
+  }
 }
