@@ -50,7 +50,7 @@ my-plugins/
   "name": "work-workspace",
   "version": "1.0.0",
   "type": "workspace",
-  "sdkVersion": "^0.3.0",
+  "sdkVersion": "^0.4.0",
   "displayName": "Work Workspace",
   "description": "Calendar and CRM workspace for daily work",
   "entrypoint": "./index.tsx",

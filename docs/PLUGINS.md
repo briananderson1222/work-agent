@@ -24,7 +24,7 @@ my-plugin/
   "name": "my-plugin",
   "version": "1.0.0",
   "type": "workspace",
-  "sdkVersion": "^0.3.0",
+  "sdkVersion": "^0.4.0",
   "displayName": "My Plugin",
   "description": "What this plugin does",
   "entrypoint": "src/index.tsx",
