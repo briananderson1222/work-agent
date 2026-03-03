@@ -3,7 +3,7 @@
  */
 
 import { execFile, execSync } from 'node:child_process';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
@@ -85,10 +85,22 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // Check for core app updates
   app.get('/core-update', async (c) => {
     try {
-      const gitRoot = execSync('git rev-parse --show-toplevel', {
-        cwd: process.cwd(),
-        encoding: 'utf-8',
-      }).trim();
+      const thisDir = dirname(fileURLToPath(import.meta.url));
+      let gitRoot: string;
+      try {
+        gitRoot = execSync('git rev-parse --show-toplevel', {
+          cwd: thisDir,
+          encoding: 'utf-8',
+        }).trim();
+      } catch {
+        // Fallback: tsx may mangle import.meta.url, walk up from process.argv
+        const serverEntry = process.argv.find(a => a.includes('src-server'));
+        const fallbackDir = serverEntry ? resolve(dirname(serverEntry)) : thisDir;
+        gitRoot = execSync('git rev-parse --show-toplevel', {
+          cwd: fallbackDir,
+          encoding: 'utf-8',
+        }).trim();
+      }
 
       const branch = execSync('git rev-parse --abbrev-ref HEAD', {
         cwd: gitRoot,
@@ -166,10 +178,21 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // Apply core app update
   app.post('/core-update', async (c) => {
     try {
-      const gitRoot = execSync('git rev-parse --show-toplevel', {
-        cwd: process.cwd(),
-        encoding: 'utf-8',
-      }).trim();
+      const thisDir = dirname(fileURLToPath(import.meta.url));
+      let gitRoot: string;
+      try {
+        gitRoot = execSync('git rev-parse --show-toplevel', {
+          cwd: thisDir,
+          encoding: 'utf-8',
+        }).trim();
+      } catch {
+        const serverEntry = process.argv.find(a => a.includes('src-server'));
+        const fallbackDir = serverEntry ? resolve(dirname(serverEntry)) : thisDir;
+        gitRoot = execSync('git rev-parse --show-toplevel', {
+          cwd: fallbackDir,
+          encoding: 'utf-8',
+        }).trim();
+      }
 
       // Pull updates
       execSync('git pull --ff-only', { cwd: gitRoot, timeout: 30000 });
