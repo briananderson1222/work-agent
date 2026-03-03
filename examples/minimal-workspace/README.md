@@ -127,7 +127,6 @@ minimal-workspace/
   "name": "minimal-workspace",
   "version": "1.0.0",
   "type": "workspace",
-  "sdkVersion": "^0.4.0",
   "displayName": "Minimal Workspace",
   "description": "A minimal workspace plugin example",
   "entrypoint": "./index.tsx",

@@ -156,9 +156,6 @@ export class PluginRegistry {
   getComponentManifest(name: string) {
     return this.getWorkspaceManifest(name);
   }
-  validateSDKVersion() {
-    return true;
-  }
 }
 
 export const pluginRegistry = new PluginRegistry();
