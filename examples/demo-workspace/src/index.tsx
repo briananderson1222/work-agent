@@ -48,12 +48,12 @@ function Welcome({ onShowChat }: WorkspaceComponentProps) {
 
 function Notes() {
   const [notes, setNotes] = useState(() => {
-    try { return localStorage.getItem('work-agent-demo-notes') || ''; } catch { return ''; }
+    try { return localStorage.getItem('stallion-demo-notes') || ''; } catch { return ''; }
   });
 
   const save = (value: string) => {
     setNotes(value);
-    try { localStorage.setItem('work-agent-demo-notes', value); } catch {}
+    try { localStorage.setItem('stallion-demo-notes', value); } catch {}
   };
 
   return (

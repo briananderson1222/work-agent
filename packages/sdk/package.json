@@ -12,7 +12,7 @@
     "test:watch": "vitest"
   },
   "keywords": [
-    "work-agent",
+    "stallion-ai",
     "plugin",
     "sdk"
   ],

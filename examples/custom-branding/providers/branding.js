@@ -1,7 +1,7 @@
 /**
  * Custom branding provider example
  *
- * This shows how a plugin can override the default Work Agent branding.
+ * This shows how a plugin can override the default Stallion branding.
  * The server loads this module and calls each method to build the
  * branding response served at GET /api/branding.
  *

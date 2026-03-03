@@ -282,14 +282,14 @@ export function useWorkflowFiles(agentSlug: string) {
  * Hook to send a message to chat and open the dock.
  * Plugins MUST specify the agent slug - there is no default.
  *
- * @param agentSlug - The agent to send messages to (required). Can be short name (e.g., 'work-agent')
+ * @param agentSlug - The agent to send messages to (required). Can be short name (e.g., 'my-agent')
  *                    which will be resolved using current workspace context, or fully qualified
  *                    (e.g., 'stallion-workspace:work-agent').
  * @returns Function to send a message and open chat
  *
  * @example
  * ```typescript
- * const sendToChat = useSendToChat('work-agent');
+ * const sendToChat = useSendToChat('my-agent');
  * sendToChat('Summarize this account');
  * ```
  */

@@ -1,6 +1,6 @@
 import { log } from '@/utils/logger';
 
-const ACTIVE_SESSIONS_KEY = 'work-agent:active-sessions';
+const ACTIVE_SESSIONS_KEY = 'stallion-ai:active-sessions';
 
 export interface PersistedSession {
   conversationId: string;

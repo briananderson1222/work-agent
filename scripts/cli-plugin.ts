@@ -336,8 +336,8 @@ Usage:
   stallion plugin info <name>         Show plugin information
 
 Examples:
-  stallion plugin install github:work-agent/plugins#work-workspace
-  stallion plugin install ./work-agent-plugins/packages/work-workspace
+  stallion plugin install github:org/my-plugin.git
+  stallion plugin install ./my-plugin
   stallion plugin list
   stallion plugin remove work-workspace
     `);
