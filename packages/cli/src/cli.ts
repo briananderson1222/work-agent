@@ -26,7 +26,6 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -88,7 +87,7 @@ function extractPluginName(source: string): string {
 function install(source: string): void {
   console.log(`📦 Installing plugin from ${source}...`);
   const pluginName = extractPluginName(source);
-  let pluginDir = join(PLUGINS_DIR, pluginName);
+  const pluginDir = join(PLUGINS_DIR, pluginName);
 
   if (existsSync(pluginDir)) rmSync(pluginDir, { recursive: true });
 
@@ -122,14 +121,6 @@ function install(source: string): void {
   }
 
   const manifest = readManifest(pluginDir);
-
-  // Rename folder to match manifest name if they differ
-  const manifestDir = join(PLUGINS_DIR, manifest.name);
-  if (pluginDir !== manifestDir) {
-    if (existsSync(manifestDir)) rmSync(manifestDir, { recursive: true });
-    renameSync(pluginDir, manifestDir);
-    pluginDir = manifestDir;
-  }
 
   // Build plugin if build script exists and no bundle yet
   const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));

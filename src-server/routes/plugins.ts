@@ -39,6 +39,26 @@ export function createPluginRoutes(
   const agentsDir = join(projectHomeDir, 'agents');
   const workspacesDir = join(projectHomeDir, 'workspaces');
 
+  /** Resolve a plugin bundle file by manifest name (not folder name) */
+  function resolvePluginBundle(name: string, file: string): string | null {
+    // Try direct folder match first
+    const direct = join(pluginsDir, name, 'dist', file);
+    if (existsSync(direct)) return direct;
+    // Scan folders for matching manifest name
+    if (!existsSync(pluginsDir)) return null;
+    for (const entry of readdirSync(pluginsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      try {
+        const manifest = JSON.parse(readFileSync(join(pluginsDir, entry.name, 'plugin.json'), 'utf-8'));
+        if (manifest.name === name) {
+          const path = join(pluginsDir, entry.name, 'dist', file);
+          return existsSync(path) ? path : null;
+        }
+      } catch {}
+    }
+    return null;
+  }
+
   /** Run plugin build if build.mjs or build.sh exists */
   function buildPlugin(pluginDir: string, name: string) {
     const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
@@ -462,13 +482,8 @@ export function createPluginRoutes(
   // ── Serve plugin bundle JS ───────────────────────────
 
   app.get('/:name/bundle.js', async (c) => {
-    const bundlePath = join(
-      pluginsDir,
-      c.req.param('name'),
-      'dist',
-      'bundle.js',
-    );
-    if (!existsSync(bundlePath)) return c.text('Bundle not found', 404);
+    const bundlePath = resolvePluginBundle(c.req.param('name'), 'bundle.js');
+    if (!bundlePath) return c.text('Bundle not found', 404);
     c.header('Content-Type', 'application/javascript');
     c.header('Cache-Control', 'no-cache');
     return c.text(await readFile(bundlePath, 'utf-8'));
@@ -477,8 +492,8 @@ export function createPluginRoutes(
   // ── Serve plugin bundle CSS ──────────────────────────
 
   app.get('/:name/bundle.css', async (c) => {
-    const cssPath = join(pluginsDir, c.req.param('name'), 'dist', 'bundle.css');
-    if (!existsSync(cssPath)) return c.text('', 200);
+    const cssPath = resolvePluginBundle(c.req.param('name'), 'bundle.css');
+    if (!cssPath) return c.text('', 200);
     c.header('Content-Type', 'text/css');
     c.header('Cache-Control', 'no-cache');
     c.header('Access-Control-Allow-Origin', '*');
