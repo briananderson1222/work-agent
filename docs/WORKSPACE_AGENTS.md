@@ -133,7 +133,7 @@ my-plugins/
 ### 1. User Installs Plugin
 
 ```bash
-wa install github:org/my-plugin.git
+stallion install github:org/my-plugin.git
 ```
 
 ### 2. Plugin Loader
@@ -244,16 +244,16 @@ my-plugins/
 
 ```bash
 # Install plugin from git
-wa install github:org/my-plugin.git
+stallion install github:org/my-plugin.git
 
 # Install from local path
-wa install ./my-plugins/packages/work-workspace
+stallion install ./my-plugins/packages/work-workspace
 
 # List installed plugins
-wa list
+stallion list
 
 # Remove plugin
-wa remove work-workspace
+stallion remove work-workspace
 ```
 
 ## Security Considerations

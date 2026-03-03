@@ -361,8 +361,8 @@ useApiMutation(mutationFn, options)
 ```bash
 # 1. Make changes in examples/my-workspace/
 # 2. Remove and reinstall
-npx tsx scripts/cli-plugin.ts remove my-workspace
-npx tsx scripts/cli-plugin.ts install ./examples/my-workspace
+stallion remove my-workspace
+stallion install ./examples/my-workspace
 
 # 3. Test
 npm run dev:ui

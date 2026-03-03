@@ -14,7 +14,7 @@ A minimal workspace plugin example for Stallion, demonstrating the plugin archit
 ### Using the CLI
 
 ```bash
-wa install ./examples/minimal-workspace
+stallion install ./examples/minimal-workspace
 ```
 
 ### Using the UI
@@ -46,8 +46,8 @@ npm run dev
 
 ```bash
 # Remove and reinstall during development
-wa remove minimal-workspace
-wa install ./examples/minimal-workspace
+stallion remove minimal-workspace
+stallion install ./examples/minimal-workspace
 npm run dev:ui
 ```
 

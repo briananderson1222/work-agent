@@ -85,16 +85,16 @@ From the CLI:
 
 ```bash
 # From a git repo
-wa install git@github.com:org/my-workspace.git
+stallion install git@github.com:org/my-workspace.git
 
 # From a local directory
-wa install ../my-workspace
+stallion install ../my-workspace
 
 # List installed plugins
-wa list
+stallion list
 
 # Remove a plugin
-wa remove my-workspace
+stallion remove my-workspace
 ```
 
 ### Plugin Bundles
@@ -106,9 +106,9 @@ Plugins ship pre-built IIFE bundles. The core loads them at runtime via `<script
 Use the CLI to scaffold a new workspace:
 
 ```bash
-wa init my-workspace
+stallion init my-workspace
 cd my-workspace
-wa build
+stallion build
 ```
 
 Or manually:
@@ -126,7 +126,7 @@ See `examples/demo-workspace/` for a minimal working example.
 | `@stallion-ai/sdk` | `packages/sdk/` | TypeScript SDK for plugin development — hooks, components, types |
 | `@stallion-ai/connect` | `packages/connect/` | Standalone bidirectional pairing library for the Stallion AI ecosystem |
 | `@stallion-ai/shared` | `packages/shared/` | Canonical types, config parsing, and MCP client factory |
-| `@stallion-ai/cli` | `packages/cli/` | Unified CLI (`wa`) for managing and developing plugins |
+| `@stallion-ai/cli` | `packages/cli/` | Unified CLI (`stallion`) for managing and developing plugins |
 
 ## Provider System
 
@@ -160,7 +160,7 @@ Providers are declared in `plugin.json` and loaded when the server starts. Each 
 │   ├── sdk/              # @stallion-ai/sdk
 │   ├── connect/          # @stallion-ai/connect
 │   ├── shared/           # @stallion-ai/shared
-│   └── cli/              # @stallion-ai/cli (wa)
+│   └── cli/              # @stallion-ai/cli (stallion)
 ├── examples/
 │   ├── demo-workspace/   # Full plugin example
 │   ├── minimal-workspace/# Minimal plugin example

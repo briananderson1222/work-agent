@@ -4,7 +4,7 @@
   "description": "CLI for managing and developing Stallion plugins",
   "type": "module",
   "bin": {
-    "wa": "./src/cli.ts"
+    "stallion": "./src/cli.ts"
   },
   "files": [
     "src/"

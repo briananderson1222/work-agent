@@ -4,16 +4,16 @@
  * @stallion-ai/cli — Unified CLI for Stallion
  *
  * Plugin Management:
- *   wa install <source>     Install from git URL or local path
- *   wa list                 List installed plugins
- *   wa remove <name>        Remove a plugin
- *   wa info <name>          Show plugin details
- *   wa update <name>        Update a plugin (git only)
+ *   stallion install <source>     Install from git URL or local path
+ *   stallion list                 List installed plugins
+ *   stallion remove <name>        Remove a plugin
+ *   stallion info <name>          Show plugin details
+ *   stallion update <name>        Update a plugin (git only)
  *
  * Plugin Development:
- *   wa init [name]          Scaffold a new plugin
- *   wa build                Build plugin bundle
- *   wa dev [port] [flags]   Dev preview server (default: 4200)
+ *   stallion init [name]          Scaffold a new plugin
+ *   stallion build                Build plugin bundle
+ *   stallion dev [port] [flags]   Dev preview server (default: 4200)
  *     --no-mcp              Disable MCP tool connections
  *     --tools-dir=<path>    Tool configs directory
  */
@@ -474,7 +474,7 @@ function init(name = 'my-workspace'): void {
         name,
         version: '1.0.0',
         type: 'module',
-        scripts: { build: 'wa build', dev: 'wa dev' },
+        scripts: { build: 'stallion build', dev: 'stallion dev' },
         peerDependencies: {
           '@stallion-ai/sdk': '^0.3.0',
           react: '^18.0.0 || ^19.0.0',
@@ -485,7 +485,7 @@ function init(name = 'my-workspace'): void {
     )}\n`,
   );
   console.log(
-    `\n✅ Created plugin: ${name}/\n\n   cd ${name}\n   wa build\n   wa dev\n`,
+    `\n✅ Created plugin: ${name}/\n\n   cd ${name}\n   stallion build\n   stallion dev\n`,
   );
 }
 
@@ -782,7 +782,7 @@ function dev(port = 4200, flags: DevFlags = {}): void {
         ? '   MCP: connecting...'
         : '   MCP: off',
     );
-    console.log(`   Run 'wa build' to rebuild after changes\n`);
+    console.log(`   Run 'stallion build' to rebuild after changes\n`);
   });
 
   const cleanup = async () => {
@@ -953,16 +953,16 @@ try {
 Stallion CLI (@stallion-ai/cli)
 
 Plugin Management:
-  wa install <source>     Install from git URL or local path
-  wa list                 List installed plugins
-  wa remove <name>        Remove a plugin
-  wa info <name>          Show plugin details
-  wa update <name>        Update a plugin (git only)
+  stallion install <source>     Install from git URL or local path
+  stallion list                 List installed plugins
+  stallion remove <name>        Remove a plugin
+  stallion info <name>          Show plugin details
+  stallion update <name>        Update a plugin (git only)
 
 Plugin Development:
-  wa init [name]          Scaffold a new plugin
-  wa build                Build plugin bundle
-  wa dev [port] [flags]   Dev preview server (default: 4200)
+  stallion init [name]          Scaffold a new plugin
+  stallion build                Build plugin bundle
+  stallion dev [port] [flags]   Dev preview server (default: 4200)
     --no-mcp              Disable MCP tool connections
     --tools-dir=<path>    Tool configs directory (default: ../.stallion-ai/tools)
 `);

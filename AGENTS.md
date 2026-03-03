@@ -178,7 +178,7 @@ Never hardcode ACP connection prefixes (e.g., `startsWith('kiro-')`). Use `agent
 ### Plugin Workflow
 
 ```bash
-npx tsx scripts/cli-plugin.ts remove my-workspace
-npx tsx scripts/cli-plugin.ts install ./examples/my-workspace
+stallion remove my-workspace
+stallion install ./examples/my-workspace
 npm run dev:ui
 ```
