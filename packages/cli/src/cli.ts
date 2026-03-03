@@ -26,6 +26,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -87,7 +88,7 @@ function extractPluginName(source: string): string {
 function install(source: string): void {
   console.log(`📦 Installing plugin from ${source}...`);
   const pluginName = extractPluginName(source);
-  const pluginDir = join(PLUGINS_DIR, pluginName);
+  let pluginDir = join(PLUGINS_DIR, pluginName);
 
   if (existsSync(pluginDir)) rmSync(pluginDir, { recursive: true });
 
@@ -121,6 +122,48 @@ function install(source: string): void {
   }
 
   const manifest = readManifest(pluginDir);
+
+  // Rename folder to match manifest name if they differ
+  const manifestDir = join(PLUGINS_DIR, manifest.name);
+  if (pluginDir !== manifestDir) {
+    if (existsSync(manifestDir)) rmSync(manifestDir, { recursive: true });
+    renameSync(pluginDir, manifestDir);
+    pluginDir = manifestDir;
+  }
+
+  // Build plugin if build script exists and no bundle yet
+  const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
+  const hasBuildSh = existsSync(join(pluginDir, 'build.sh'));
+  if ((hasBuildMjs || hasBuildSh) && !existsSync(join(pluginDir, 'dist', 'bundle.js'))) {
+    try {
+      if (existsSync(join(pluginDir, 'package.json'))) {
+        execSync('npm install --legacy-peer-deps --ignore-scripts', {
+          cwd: pluginDir,
+          stdio: 'pipe',
+        });
+      }
+      const cmd = hasBuildMjs ? 'node build.mjs' : 'bash build.sh';
+      execSync(cmd, { cwd: pluginDir, stdio: 'inherit' });
+      console.log('  ✓ Plugin built');
+    } catch (e: any) {
+      console.error(`  ⚠ Plugin build failed: ${e.message}`);
+    }
+  }
+
+  // Copy tool configs if plugin includes them
+  const pluginToolsDir = join(pluginDir, 'tools');
+  const toolsDir = join(PROJECT_HOME, 'tools');
+  if (existsSync(pluginToolsDir)) {
+    mkdirSync(toolsDir, { recursive: true });
+    for (const entry of readdirSync(pluginToolsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const targetToolDir = join(toolsDir, entry.name);
+      if (!existsSync(targetToolDir)) {
+        cpSync(join(pluginToolsDir, entry.name), targetToolDir, { recursive: true });
+        console.log(`  ✓ Tool: ${entry.name}`);
+      }
+    }
+  }
 
   if (manifest.agents) {
     mkdirSync(AGENTS_DIR, { recursive: true });
