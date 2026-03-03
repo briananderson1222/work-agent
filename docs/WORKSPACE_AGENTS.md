@@ -19,7 +19,7 @@ Workspaces can bundle their own agent definitions, making them fully self-contai
 
 ### Workspace-Owned Model (Bundled)
 ```
-work-agent-plugins/
+my-plugins/
   packages/
     work-workspace/
       plugin.json
@@ -50,7 +50,7 @@ work-agent-plugins/
   "name": "work-workspace",
   "version": "1.0.0",
   "type": "workspace",
-  "sdkVersion": "^0.4.0",
+  "sdkVersion": "^0.3.0",
   "displayName": "Work Workspace",
   "description": "Calendar and CRM workspace for daily work",
   "entrypoint": "./index.tsx",
@@ -133,7 +133,7 @@ work-agent-plugins/
 ### 1. User Installs Plugin
 
 ```bash
-wa plugin install github:work-agent/plugins#work-workspace
+wa install github:org/my-plugin.git
 ```
 
 ### 2. Plugin Loader
@@ -206,7 +206,7 @@ export function Calendar() {
 
 **After:**
 ```
-work-agent-plugins/
+my-plugins/
   packages/work-workspace/
     agents/calendar-agent/
     workspace.json
@@ -244,22 +244,16 @@ work-agent-plugins/
 
 ```bash
 # Install plugin from git
-wa plugin install github:work-agent/plugins#work-workspace
+wa install github:org/my-plugin.git
 
 # Install from local path
-wa plugin install ./work-agent-plugins/packages/work-workspace
+wa install ./my-plugins/packages/work-workspace
 
 # List installed plugins
-wa plugin list
+wa list
 
 # Remove plugin
-wa plugin remove work-workspace
-
-# Update plugin
-wa plugin update work-workspace
-
-# Show plugin info
-wa plugin info work-workspace
+wa remove work-workspace
 ```
 
 ## Security Considerations

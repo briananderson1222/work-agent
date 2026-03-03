@@ -24,7 +24,7 @@ Stallion is a desktop-ready platform for running multiple AI agents with MCP too
 
 ```bash
 git clone <repo-url>
-cd stallion
+cd work-agent
 npm install
 npm run build
 npm run start:server
@@ -124,6 +124,8 @@ See `examples/demo-workspace/` for a minimal working example.
 | Package | Path | Description |
 |---------|------|-------------|
 | `@stallion-ai/sdk` | `packages/sdk/` | TypeScript SDK for plugin development — hooks, components, types |
+| `@stallion-ai/connect` | `packages/connect/` | Standalone bidirectional pairing library for the Stallion AI ecosystem |
+| `@stallion-ai/shared` | `packages/shared/` | Canonical types, config parsing, and MCP client factory |
 | `@stallion-ai/cli` | `packages/cli/` | Unified CLI (`wa`) for managing and developing plugins |
 
 ## Provider System
@@ -156,9 +158,16 @@ Providers are declared in `plugin.json` and loaded when the server starts. Each 
 ├── src-desktop/          # Tauri desktop app (Rust)
 ├── packages/
 │   ├── sdk/              # @stallion-ai/sdk
+│   ├── connect/          # @stallion-ai/connect
+│   ├── shared/           # @stallion-ai/shared
 │   └── cli/              # @stallion-ai/cli (wa)
 ├── examples/
-│   └── demo-workspace/   # Minimal plugin example
+│   ├── demo-workspace/   # Full plugin example
+│   ├── minimal-workspace/# Minimal plugin example
+│   ├── custom-branding/  # Branding provider example
+│   ├── elevenlabs-voice/ # ElevenLabs voice plugin
+│   ├── nova-sonic-voice/ # Nova Sonic voice plugin
+│   └── meeting-transcription/ # Transcription toolbar plugin
 ├── schemas/              # JSON schemas for app/agent/tool configs
 ├── seed/                 # Default configs bundled in Tauri builds
 └── tests/                # Playwright integration tests

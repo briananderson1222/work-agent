@@ -234,7 +234,7 @@ Consider removing or documenting as "future use":
 | `ChatDock.tsx` | `/api/agents/:slug/chat` (SSE stream) |
 | `stallion-workspace/CRM.tsx` | `/agents/:slug/text`, `/agents/:slug/tools/:toolName`, `/agents/:slug/invoke/transform` |
 | `stallion-workspace/Calendar.tsx` | `/agents/:slug/invoke/transform` |
-| `AgentEditorView.tsx` | `/agents/work-agent/text` (test endpoint) |
+| `AgentEditorView.tsx` | `/agents/my-agent/text` (test endpoint) |
 | Agent selector | `/api/agents` |
 | Workspace views | `/api/agents`, `/workspaces` |
 | Settings view | `/config/app` |

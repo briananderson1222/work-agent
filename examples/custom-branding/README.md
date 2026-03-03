@@ -1,6 +1,6 @@
 # Custom Branding Example
 
-Shows how a plugin can override Work Agent's default branding using the provider system.
+Shows how a plugin can override Stallion's default branding using the provider system.
 
 ## What it does
 

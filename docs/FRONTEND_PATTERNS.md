@@ -154,14 +154,14 @@ import { useTransformTool, useAgents } from '@stallion-ai/sdk';
 export function useFilesViewModel() {
   // Use SDK query hooks
   const { data: fileList } = useTransformTool(
-    'work-agent',
+    'my-agent',
     'files_list_directory',
     { path: '/documents' },
     'data => data'
   );
   
   const { data: fileContents = [] } = useTransformTool(
-    'work-agent',
+    'my-agent',
     'files_read_file',
     { path: fileList?.selectedFile },
     'data => data',
