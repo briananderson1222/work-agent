@@ -4,20 +4,20 @@
  * Stallion Plugin CLI
  * 
  * Commands:
- *   work-agent plugin install <source>
- *   work-agent plugin list
- *   work-agent plugin remove <name>
- *   work-agent plugin update <name>
- *   work-agent plugin info <name>
+ *   stallion plugin install <source>
+ *   stallion plugin list
+ *   stallion plugin remove <name>
+ *   stallion plugin update <name>
+ *   stallion plugin info <name>
  */
 
 import { execSync } from 'child_process';
 import { existsSync, mkdirSync, rmSync, cpSync, readFileSync, writeFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-const PLUGINS_DIR = '.work-agent/plugins';
-const AGENTS_DIR = '.work-agent/agents';
-const WORKSPACES_DIR = '.work-agent/workspaces';
+const PLUGINS_DIR = '.stallion-ai/plugins';
+const AGENTS_DIR = '.stallion-ai/agents';
+const WORKSPACES_DIR = '.stallion-ai/workspaces';
 const UI_WORKSPACES_DIR = 'src-ui/src/workspaces';
 
 interface PluginManifest {
@@ -330,15 +330,15 @@ switch (command) {
 Stallion Plugin Manager
 
 Usage:
-  work-agent plugin install <source>   Install plugin from git or local path
-  work-agent plugin list                List installed plugins
-  work-agent plugin remove <name>       Remove plugin
-  work-agent plugin info <name>         Show plugin information
+  stallion plugin install <source>   Install plugin from git or local path
+  stallion plugin list                List installed plugins
+  stallion plugin remove <name>       Remove plugin
+  stallion plugin info <name>         Show plugin information
 
 Examples:
-  work-agent plugin install github:work-agent/plugins#work-workspace
-  work-agent plugin install ./work-agent-plugins/packages/work-workspace
-  work-agent plugin list
-  work-agent plugin remove work-workspace
+  stallion plugin install github:org/my-plugin.git
+  stallion plugin install ./my-plugin
+  stallion plugin list
+  stallion plugin remove work-workspace
     `);
 }

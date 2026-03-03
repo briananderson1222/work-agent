@@ -70,7 +70,8 @@ export function SortHeader({
   return (
     <th
       onClick={() => onClick(sortKey)}
-      style={{ ...style, cursor: 'pointer', userSelect: 'none' }}
+      className="schedule__th schedule__th--sortable"
+      style={style}
     >
       {label} {active ? (dir === 'asc' ? '↑' : '↓') : ''}
     </th>
@@ -92,17 +93,7 @@ export function TableFilter({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={{
-        padding: '0.35rem 0.6rem',
-        fontSize: '0.8rem',
-        borderRadius: '0.375rem',
-        border: '1px solid var(--border-primary, var(--color-border, #333))',
-        background: 'var(--bg-tertiary, var(--color-bg-hover, transparent))',
-        color: 'var(--text-primary, var(--color-text-primary, inherit))',
-        outline: 'none',
-        width: '100%',
-        maxWidth: '240px',
-      }}
+      className="schedule__filter-input"
     />
   );
 }

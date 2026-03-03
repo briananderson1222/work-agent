@@ -1,18 +1,18 @@
 # Custom Branding Example
 
-Shows how a plugin can override Work Agent's default branding using the provider system.
+Shows how a plugin can override Stallion's default branding using the provider system.
 
 ## What it does
 
 Registers a `branding` provider that replaces:
-- **App name**: "Work Agent" → "Project Stallion"
+- **App name**: "Stallion" → "Project Stallion"
 - **Logo**: adds a custom logo with alt text
 - **Welcome message**: custom onboarding text
 
 ## Install
 
 ```bash
-cp -r examples/custom-branding .work-agent/plugins/custom-branding
+cp -r examples/custom-branding .stallion-ai/plugins/custom-branding
 ```
 
 Then restart the server or hit `POST /api/plugins/reload`.

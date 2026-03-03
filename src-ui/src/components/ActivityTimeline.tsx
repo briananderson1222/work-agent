@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 interface DailyStats {
@@ -40,14 +40,14 @@ export function ActivityTimeline() {
   const [loading, setLoading] = useState(true);
   const [hoverDate, setHoverDate] = useState<string | null>(null);
 
-  const fetchData = (from: string, to: string) => {
+  const fetchData = useCallback((from: string, to: string) => {
     setLoading(true);
     fetch(`${apiBase}/api/analytics/usage?from=${from}&to=${to}`)
       .then((r) => r.json())
       .then((d) => setData(d.data))
       .catch(() => {})
       .finally(() => setLoading(false));
-  };
+  }, [apiBase]);
 
   useEffect(() => {
     fetchData(fromDate, toDate);

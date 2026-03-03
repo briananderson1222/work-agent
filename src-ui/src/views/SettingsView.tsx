@@ -1,5 +1,6 @@
 import { QRDisplay, useConnections, useHostUrl } from '@stallion-ai/connect';
 import './SettingsView.css';
+import './page-layout.css';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -385,21 +386,13 @@ function FeatureToggle({
   return (
     <label
       htmlFor={id}
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 12,
-        padding: '12px 0',
-        borderBottom: '1px solid var(--border-primary)',
-        cursor: 'pointer',
-      }}
+      className="settings__feature-toggle"
     >
       <input
         id={id}
         type="checkbox"
         checked={checked}
         onChange={() => onToggle(featureKey)}
-        style={{ marginTop: 3, flexShrink: 0 }}
       />
       <div>
         <div style={{ fontWeight: 500, marginBottom: 2 }}>{label}</div>
@@ -621,11 +614,14 @@ export function SettingsView({
 
   return (
     <>
-      <div className="settings">
+      <div className="settings page page--narrow">
         {/* ── Header ── */}
-        <div className="settings__header">
-          <h1 className="settings__title">Settings</h1>
-          <div className="settings__header-actions">
+        <div className="page__header">
+          <div className="page__header-text">
+            <div className="page__label">sys / settings</div>
+            <h1 className="page__title">Settings</h1>
+          </div>
+          <div className="page__actions">
             <button
               type="button"
               className="settings__secondary-btn"

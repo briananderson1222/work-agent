@@ -45,7 +45,7 @@ export async function connectMCP(
 ): Promise<MCPConnection> {
   const transport = createTransport(def);
   const client = new Client(
-    { name: 'work-agent-dev', version: '0.1.0' },
+    { name: 'stallion-dev', version: '0.1.0' },
     { capabilities: {} },
   );
 

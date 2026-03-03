@@ -1,0 +1,196 @@
+/* ═══ Shared Page Layout ═══
+ * Common classes for all core management views.
+ * Provides consistent header, typography, animation, and container styling
+ * matching the ManageView industrial-refined aesthetic.
+ */
+
+
+
+/* ── Page Container ── */
+.page {
+  padding: 2.5rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  animation: page-fade-in 0.4s ease-out;
+}
+
+.page--narrow { max-width: 860px; }
+
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Page Header ── */
+.page__header {
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.page__header-text { flex: 1; }
+
+.page__label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  margin-bottom: 0.5rem;
+}
+
+.page__title {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+
+.page__subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0.35rem 0 0;
+  font-weight: 400;
+}
+
+.page__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Section Headers ── */
+.page__section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* ── Card Grid ── */
+.page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1px;
+  background: var(--border-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.page__card {
+  background: var(--bg-secondary);
+  padding: 1.25rem 1.5rem;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s ease;
+}
+
+.page__card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: transparent;
+  transition: background 0.3s ease;
+}
+
+.page__card:hover { background: var(--bg-tertiary); }
+.page__card:hover::before { background: var(--accent-primary); }
+
+/* ── Loose Card Grid (separate cards with gaps) ── */
+.page__card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.page__card-loose {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.page__card-loose:hover {
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+}
+
+/* ── Empty State ── */
+.page__empty {
+  text-align: center;
+  padding: 3.5rem 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-primary);
+  border-radius: 12px;
+}
+
+.page__empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  opacity: 0.7;
+}
+
+.page__empty-title {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.25rem;
+}
+
+.page__empty-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+/* ── Utility: Tag/Badge ── */
+.page__tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-primary);
+}
+
+.page__tag--accent {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border-color: transparent;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Primary Action Button (consistent across views) ── */
+.page__btn-primary {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.5rem 1.25rem;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.page__btn-primary:hover { opacity: 0.85; }
+.page__btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -6,6 +6,7 @@ import { FilePartPreview } from './FilePartPreview';
 import { ReasoningSection } from './ReasoningSection';
 import { ToolCallDisplay } from './ToolCallDisplay';
 import { UserIcon } from './UserIcon';
+import './chat.css';
 
 interface Attachment {
   id: string;
@@ -98,48 +99,21 @@ export function MessageBubble({
   );
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: '8px',
-        alignItems: 'flex-start',
-        flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-        marginBottom: '12px',
-      }}
-    >
-      <div style={{ marginTop: '4px', flexShrink: 0 }}>{avatarContent}</div>
+    <div className={`message-row ${msg.role === 'user' ? 'message-row--user' : ''}`}>
+      <div className="message-row__avatar">{avatarContent}</div>
       <div
-        className={`message ${msg.role}`}
         style={{
           position: 'relative',
-          maxWidth: '70%',
-          ...(msg.role === 'user' && msg.fromPrompt
-            ? {
-                background: 'var(--bg-tertiary)',
-                borderLeft: '3px solid var(--accent-primary, #0066cc)',
-              }
-            : {}),
+          maxWidth: '70%'
         }}
+        className={`message ${msg.role}${msg.role === 'user' && msg.fromPrompt ? ' message--from-prompt' : ''}`}
       >
         {msg.traceId && (
           <a
             href={`/monitoring?filters=${encodeURIComponent(JSON.stringify({ trace: [msg.traceId] }))}`}
             target="_blank"
             rel="noopener noreferrer"
-            style={{
-              position: 'absolute',
-              top: '8px',
-              right: '8px',
-              fontSize: '0.65em',
-              color: 'var(--text-muted)',
-              textDecoration: 'none',
-              opacity: 0.4,
-              fontFamily: 'monospace',
-              letterSpacing: '0.5px',
-              transition: 'opacity 0.2s',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.opacity = '0.7')}
-            onMouseOut={(e) => (e.currentTarget.style.opacity = '0.4')}
+            className="message__trace"
             title={`Trace: ${msg.traceId}`}
           >
             {msg.traceId.slice(-8)}
@@ -149,23 +123,7 @@ export function MessageBubble({
         {msg.role === 'assistant' && textContent && (
           <button
             onClick={() => onCopy(textContent)}
-            style={{
-              position: 'absolute',
-              bottom: '5px',
-              right: '5px',
-              padding: '0.25rem',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              opacity: 0.6,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-secondary)',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseOut={(e) => (e.currentTarget.style.opacity = '0.6')}
+            className="message__copy-btn"
             title="Copy message"
           >
             <svg
@@ -185,15 +143,7 @@ export function MessageBubble({
         )}
 
         {msg.role === 'assistant' && msg.model && (
-          <div
-            style={{
-              fontSize: '0.64em',
-              color: 'var(--text-muted)',
-              marginBottom: '4px',
-              fontStyle: 'italic',
-              opacity: 0.6,
-            }}
-          >
+          <div className="message__model-badge">
             {getModelDisplayName(msg.model)}
           </div>
         )}
@@ -261,15 +211,7 @@ export function MessageBubble({
         {msg.role === 'assistant' && isLastMessage && (
           <>
             {activeSession.isThinking && textContent && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: 'var(--text-muted)',
-                  marginTop: '8px',
-                }}
-              >
+              <div className="message__thinking">
                 <span className="loading-dots">
                   <span style={{ animationDelay: '0s' }}>●</span>
                   <span style={{ animationDelay: '0.2s' }}>●</span>
@@ -279,19 +221,7 @@ export function MessageBubble({
             )}
             {activeSession.pendingApprovals &&
               activeSession.pendingApprovals.length > 0 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    color: 'var(--warning-primary, orange)',
-                    marginTop: '8px',
-                    padding: '8px',
-                    background: 'var(--warning-bg, rgba(255, 165, 0, 0.1))',
-                    borderRadius: '4px',
-                    fontSize: '0.9em',
-                  }}
-                >
+                <div className="message__pending-approval">
                   <span>⏸</span>
                   <span>
                     Awaiting tool approval (

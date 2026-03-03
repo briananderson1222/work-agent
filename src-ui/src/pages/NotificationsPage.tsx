@@ -1,4 +1,5 @@
 import { useNotificationHistory, useToast } from '../contexts/ToastContext';
+import './NotificationsPage.css';
 
 export function NotificationsPage() {
   const history = useNotificationHistory();
@@ -17,16 +18,9 @@ export function NotificationsPage() {
   };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '24px',
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>
+    <div className="notifications-page">
+      <div className="notifications-page__header">
+        <h1 className="notifications-page__title">
           Notifications
         </h1>
         {history.length > 0 && (
@@ -36,15 +30,7 @@ export function NotificationsPage() {
                 clearHistory();
               }
             }}
-            style={{
-              padding: '8px 16px',
-              background: 'var(--bg-tertiary)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              color: 'var(--text-primary)',
-            }}
+            className="notifications-page__clear-btn"
           >
             Clear All
           </button>
@@ -52,14 +38,7 @@ export function NotificationsPage() {
       </div>
 
       {history.length === 0 ? (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '80px 20px',
-            color: 'var(--text-muted)',
-            fontSize: '14px',
-          }}
-        >
+        <div className="notifications-page__empty">
           <svg
             width="48"
             height="48"
@@ -69,7 +48,7 @@ export function NotificationsPage() {
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            style={{ marginBottom: '16px', opacity: 0.5 }}
+            className="notifications-page__empty-icon"
           >
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
             <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
@@ -77,60 +56,29 @@ export function NotificationsPage() {
           <div>No notifications yet</div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="notifications-page__list">
           {history.map((notification) => (
             <div
               key={notification.id}
-              style={{
-                padding: '16px',
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '8px',
-                opacity: notification.dismissed ? 0.6 : 1,
-              }}
+              className={`notification-card ${notification.dismissed ? 'notification-card--dismissed' : ''}`}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'start',
-                  marginBottom: '8px',
-                }}
-              >
-                <div style={{ flex: 1 }}>
+              <div className="notification-card__header">
+                <div className="notification-card__content">
                   {notification.type === 'tool-approval' && (
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        color: 'var(--text-muted)',
-                        marginBottom: '6px',
-                        textTransform: 'uppercase',
-                        fontWeight: 600,
-                        letterSpacing: '0.5px',
-                      }}
-                    >
+                    <div className="notification-card__type">
                       Tool Approval Request
                     </div>
                   )}
-                  <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                  <div className="notification-card__message">
                     {notification.message}
                   </div>
                   {notification.sessionId && (
-                    <div
-                      style={{ fontSize: '12px', color: 'var(--text-muted)' }}
-                    >
+                    <div className="notification-card__detail">
                       Session: {notification.sessionId.slice(0, 8)}...
                     </div>
                   )}
                 </div>
-                <div
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--text-muted)',
-                    whiteSpace: 'nowrap',
-                    marginLeft: '16px',
-                  }}
-                >
+                <div className="notification-card__time">
                   {formatTime(notification.timestamp)}
                 </div>
               </div>

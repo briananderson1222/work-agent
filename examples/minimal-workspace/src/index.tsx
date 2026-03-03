@@ -29,7 +29,7 @@ export default function MinimalWorkspace({ workspace, onShowChat }: WorkspaceCom
       <div style={{ marginTop: '2rem' }}>
         <h2>Available Agents</h2>
         <ul>
-          {agents.map(agent => (
+          {agents.map((agent: { slug: string; name: string }) => (
             <li key={agent.slug}>
               {agent.name} ({agent.slug})
             </li>

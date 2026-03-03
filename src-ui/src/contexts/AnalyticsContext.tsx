@@ -4,7 +4,7 @@ import {
   useUsageQuery,
 } from '@stallion-ai/sdk';
 import React from 'react';
-import { createContext, useContext } from 'react';
+import { createContext, useCallback, useContext } from 'react';
 import { useApiBase } from './ApiBaseContext';
 
 const AnalyticsContext = createContext<{
@@ -16,15 +16,15 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   const invalidate = useInvalidateQuery();
   const { apiBase } = useApiBase();
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     invalidate(['analytics', 'usage']);
     invalidate(['analytics', 'achievements']);
-  };
+  }, [invalidate]);
 
-  const rescan = async () => {
+  const rescan = useCallback(async () => {
     await fetch(`${apiBase}/api/analytics/rescan`, { method: 'POST' });
     refresh();
-  };
+  }, [apiBase, refresh]);
 
   return (
     <AnalyticsContext.Provider value={{ refresh, rescan }}>

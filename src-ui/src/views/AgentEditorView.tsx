@@ -8,6 +8,7 @@ import { useModels } from '../contexts/ModelsContext';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import type { Tool } from '../types';
+import './editor-layout.css';
 
 export interface AgentEditorViewProps {
   apiBase: string;
@@ -95,8 +96,10 @@ export function AgentEditorView({
   >(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [isPluginLocked, setIsPluginLocked] = useState(true);
 
   const isEditMode = !!slug;
+  const isPlugin = slug?.includes(':') || false;
 
   async function loadAgent(agentSlug: string) {
     try {
@@ -396,7 +399,10 @@ export function AgentEditorView({
     return (
       <div className="management-view">
         <div className="management-view__header">
-          <h2>{isEditMode ? 'Edit Agent' : 'New Agent'}</h2>
+          <div>
+            <div className="management-view__header-label">{isEditMode ? 'manage / edit agent' : 'manage / new agent'}</div>
+            <h2>{isEditMode ? 'Edit Agent' : 'New Agent'}</h2>
+          </div>
           <button
             type="button"
             className="button button--secondary"
@@ -405,7 +411,7 @@ export function AgentEditorView({
             Back
           </button>
         </div>
-        <div className="management-view__loading">Loading agent...</div>
+        <div className="editor__loading">Loading agent...</div>
       </div>
     );
   }
@@ -417,29 +423,22 @@ export function AgentEditorView({
       ref={(el) => el?.focus()}
       style={{ outline: 'none' }}
     >
-      <div
-        className="management-view__header"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <h2>{isEditMode ? formData.name : 'New Agent'}</h2>
+      <div className="management-view__header editor__header">
+        <div className="editor__header-left">
+          <div>
+            <div className="management-view__header-label">{isEditMode ? 'manage / edit agent' : 'manage / new agent'}</div>
+            <h2>
+              {isEditMode ? formData.name : 'New Agent'}
+              {isPlugin && <span className="editor__plugin-badge">{slug?.split(':')[0]}</span>}
+            </h2>
+          </div>
           {isEditMode && updatedAt && (
-            <span
-              style={{
-                fontSize: '12px',
-                color: 'var(--text-muted)',
-                fontWeight: 'normal',
-              }}
-            >
+            <span className="editor__header-meta">
               Last updated: {new Date(updatedAt).toLocaleString()}
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="editor__header-actions">
           <button
             type="button"
             className="button button--secondary"
@@ -450,14 +449,8 @@ export function AgentEditorView({
           </button>
           <button
             type="button"
-            className="button button--secondary"
+            className="button button--secondary editor__close-btn"
             onClick={onBack}
-            style={{
-              minWidth: '40px',
-              padding: '8px 12px',
-              fontSize: '18px',
-              lineHeight: '1',
-            }}
             title="Close (⌘X)"
           >
             ×
@@ -465,9 +458,21 @@ export function AgentEditorView({
         </div>
       </div>
 
+      {isPlugin && isPluginLocked && (
+        <div className="editor__lock-banner">
+          <div className="editor__lock-banner-text">
+            <span className="editor__lock-banner-icon">🔒</span>
+            <span>This agent is managed by the <strong>{slug?.split(':')[0]}</strong> plugin. Editing is locked to prevent accidental changes.</span>
+          </div>
+          <button className="editor__unlock-btn" onClick={() => setIsPluginLocked(false)}>
+            Unlock Editing
+          </button>
+        </div>
+      )}
+
       {error && <div className="management-view__error">{error}</div>}
 
-      <div className="agent-editor">
+      <div className={`agent-editor editor${isPlugin && isPluginLocked ? ' editor--locked' : ''}`}>
         <div className="agent-editor__steps">
           <button
             type="button"
@@ -483,7 +488,7 @@ export function AgentEditorView({
             title="Basic Info (⌘1)"
           >
             Basic Info{' '}
-            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
+            <span className="editor__step-count">
               ⌘1
             </span>
           </button>
@@ -501,7 +506,7 @@ export function AgentEditorView({
             title="Model Config (⌘2)"
           >
             Model Config{' '}
-            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
+            <span className="editor__step-count">
               ⌘2
             </span>
           </button>
@@ -519,7 +524,7 @@ export function AgentEditorView({
             title="Tools (⌘3)"
           >
             Tools{' '}
-            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
+            <span className="editor__step-count">
               ⌘3
             </span>
           </button>
@@ -537,7 +542,7 @@ export function AgentEditorView({
             title="Slash Commands (⌘4)"
           >
             Slash Commands{' '}
-            <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '6px' }}>
+            <span className="editor__step-count">
               ⌘4
             </span>
           </button>
@@ -584,9 +589,7 @@ export function AgentEditorView({
 
               <div className="form-group">
                 <label>Icon</label>
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
-                >
+                <div className="editor__row">
                   <AgentIcon
                     agent={{
                       name: formData.name || 'Agent',
@@ -723,14 +726,7 @@ export function AgentEditorView({
 
           {currentStep === 'tools' && (
             <div className="form-panel">
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '16px',
-                }}
-              >
+              <div className="editor__section-header">
                 <h3>Available Tools</h3>
                 <button
                   type="button"
@@ -850,14 +846,7 @@ export function AgentEditorView({
                       </div>
                     </>
                   )}
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: '8px',
-                      marginTop: '12px',
-                      flexWrap: 'wrap',
-                    }}
-                  >
+                  <div className="editor__row">
                     {newTool.kind === 'mcp' && (
                       <button
                         type="button"
@@ -911,24 +900,9 @@ export function AgentEditorView({
                         onChange={() => toggleTool(tool.id)}
                       />
                       <div className="tool-info">
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                          }}
-                        >
+                        <div className="editor__row">
                           {tool.server && (
-                            <span
-                              style={{
-                                fontSize: '0.8em',
-                                padding: '2px 6px',
-                                background: 'var(--color-bg-tertiary)',
-                                color: 'var(--text-secondary)',
-                                borderRadius: '3px',
-                                fontFamily: 'monospace',
-                              }}
-                            >
+                            <span className="editor__tag">
                               {tool.server}
                             </span>
                           )}
@@ -952,14 +926,7 @@ export function AgentEditorView({
 
           {currentStep === 'commands' && (
             <div className="form-panel">
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  marginBottom: '16px',
-                }}
-              >
+              <div className="editor__section-header">
                 <div>
                   <h3>Slash Commands</h3>
                   <p
@@ -1028,14 +995,7 @@ export function AgentEditorView({
                   }}
                 >
                   <p>No slash commands defined yet.</p>
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: '8px',
-                      justifyContent: 'center',
-                      marginTop: '12px',
-                    }}
-                  >
+                  <div className="editor__row">
                     <button
                       type="button"
                       className="button button--secondary button--small"
@@ -1246,7 +1206,7 @@ export function AgentEditorView({
             type="button"
             className="button button--primary"
             onClick={saveAgent}
-            disabled={isSaving}
+            disabled={isSaving || (isPlugin && isPluginLocked)}
           >
             {isSaving
               ? 'Saving...'

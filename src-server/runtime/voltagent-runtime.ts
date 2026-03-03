@@ -84,6 +84,7 @@ import { createConversationRoutes } from '../routes/conversations.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createRegistryRoutes } from '../routes/registry.js';
+import { createFsRoutes } from '../routes/fs.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createSystemRoutes } from '../routes/system.js';
 import { createToolRoutes } from '../routes/tools.js';
@@ -101,7 +102,7 @@ import { isAuthError } from '../utils/auth-errors.js';
 import { InjectableStream } from './streaming/InjectableStream.js';
 
 export interface WorkAgentRuntimeOptions {
-  workAgentDir?: string;
+  projectHomeDir?: string;
   port?: number;
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 }
@@ -174,17 +175,17 @@ export class WorkAgentRuntime {
   public readonly eventBus = new EventBus();
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
-    const workAgentDir = options.workAgentDir || '.work-agent';
+    const projectHomeDir = options.projectHomeDir || '.stallion-ai';
     this.port = options.port || 3141;
-    this.eventLogPath = `${workAgentDir}/monitoring`;
+    this.eventLogPath = `${projectHomeDir}/monitoring`;
 
     this.configLoader = new ConfigLoader({
-      workAgentDir,
+      projectHomeDir,
       watchFiles: true,
     });
 
     this.logger = createPinoLogger({
-      name: 'work-agent',
+      name: 'stallion',
       level: options.logLevel || 'info',
     });
 
@@ -217,7 +218,7 @@ export class WorkAgentRuntime {
       this.memoryAdapters,
       (_slug: string) => {
         const adapter = new FileVoltAgentMemoryAdapter({
-          workAgentDir: this.configLoader.getWorkAgentDir(),
+          projectHomeDir: this.configLoader.getProjectHomeDir(),
           usageAggregator: this.usageAggregator,
         });
         return adapter;
@@ -314,7 +315,7 @@ export class WorkAgentRuntime {
     if (this.appConfig.registryUrl) {
       const registryProvider = new JsonManifestRegistryProvider(
         this.appConfig.registryUrl,
-        this.configLoader.getWorkAgentDir(),
+        this.configLoader.getProjectHomeDir(),
       );
       registerAgentRegistryProvider(registryProvider);
       registerToolRegistryProvider(registryProvider);
@@ -332,7 +333,7 @@ export class WorkAgentRuntime {
 
     // Initialize usage aggregator
     this.usageAggregator = new UsageAggregator(
-      this.configLoader.getWorkAgentDir(),
+      this.configLoader.getProjectHomeDir(),
     );
     this.logger.debug('Usage aggregator initialized');
 
@@ -486,11 +487,14 @@ export class WorkAgentRuntime {
           app.route(
             '/api/plugins',
             createPluginRoutes(
-              this.configLoader.getWorkAgentDir(),
+              this.configLoader.getProjectHomeDir(),
               this.logger,
               this.eventBus,
             ),
           );
+
+          // Filesystem browse (folder picker for plugin install)
+          app.route('/api/fs', createFsRoutes());
 
           // Package registry endpoints (browse/install agents and tools)
           app.route(
@@ -2458,7 +2462,7 @@ export class WorkAgentRuntime {
 
     // Create memory adapter
     const memoryAdapter = new FileVoltAgentMemoryAdapter({
-      workAgentDir: this.configLoader.getWorkAgentDir(),
+      projectHomeDir: this.configLoader.getProjectHomeDir(),
       usageAggregator: this.usageAggregator,
     });
     const memory = new Memory({
@@ -2634,7 +2638,7 @@ export class WorkAgentRuntime {
    * Replace template variables in prompts
    */
   private async loadPluginProviders(): Promise<void> {
-    const pluginsDir = join(this.configLoader.getWorkAgentDir(), 'plugins');
+    const pluginsDir = join(this.configLoader.getProjectHomeDir(), 'plugins');
     if (!existsSync(pluginsDir)) return;
 
     const { resolvePluginProviders } = await import('../providers/resolver.js');

@@ -87,10 +87,11 @@ export class PluginRegistry {
       if (!(window as any).require) {
         const shared = (window as any).__work_agent_shared || {};
         (window as any).require = (m: string) => {
+          // Alias old package names
+          if (m === '@work-agent/sdk') m = '@stallion-ai/sdk';
+          if (m === '@work-agent/components') m = '@stallion-ai/components';
           if (shared[m]) return shared[m];
-          if (m === 'react') return shared.react;
-          if (m === 'react/jsx-runtime' || m === 'react/jsx-dev-runtime')
-            return shared['react/jsx-runtime'] || shared.react;
+          if (m.startsWith('react')) return shared.react;
           console.warn('[Plugin] Unknown shared module:', m);
           return {};
         };

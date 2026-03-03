@@ -7,6 +7,7 @@ import { FileAttachmentInput } from './FileAttachmentInput';
 import { ModelSelectorAutocomplete } from './ModelSelector';
 import { SlashCommandSelector } from './SlashCommandSelector';
 import { VoiceOrb } from './VoiceOrb';
+import './chat.css';
 
 interface Model {
   id: string;
@@ -187,37 +188,24 @@ export function ChatInputArea({
         {input && (
           <button
             onClick={onClearInput}
-            style={{
-              position: 'absolute',
-              right: '20px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '18px',
-              color: 'var(--text-muted)',
-              padding: '4px',
-              lineHeight: '1',
-              zIndex: 1,
-            }}
+            className="chat-input__clear"
             title="Clear input"
           >
             ×
           </button>
         )}
       </div>
+      {voiceSupported && voiceState !== undefined && onVoiceStart && onVoiceStop && (
+        <VoiceOrb
+          state={voiceState}
+          supported={voiceSupported}
+          disabled={disabled || isSending}
+          onStart={onVoiceStart}
+          onStop={onVoiceStop}
+        />
+      )}
       <div className="chat-controls">
         <div className="chat-controls-row">
-          {voiceSupported && voiceState !== undefined && onVoiceStart && onVoiceStop && (
-            <VoiceOrb
-              state={voiceState}
-              supported={voiceSupported}
-              disabled={disabled || isSending}
-              onStart={onVoiceStart}
-              onStop={onVoiceStop}
-            />
-          )}
           <FileAttachmentInput
             attachments={attachments}
             onAdd={onAddAttachments}
@@ -230,20 +218,7 @@ export function ChatInputArea({
             <button
               onClick={onCancel}
               tabIndex={0}
-              className="send-button"
-              style={{
-                background: 'var(--error-bg)',
-                padding: 0,
-                border: '1px solid var(--error-border)',
-                color: 'var(--error-text)',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 500,
-                flex: '0 0 75%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className="send-button chat-input__cancel-btn"
             >
               Cancel
             </button>
@@ -253,40 +228,14 @@ export function ChatInputArea({
                 if (input.trim() || attachments.length > 0) await onSend();
               }}
               onKeyDown={(e) => {
-                if (
-                  e.key === 'Enter' &&
-                  (input.trim() || attachments.length > 0)
-                ) {
+                if (e.key === 'Enter' && (input.trim() || attachments.length > 0)) {
                   e.preventDefault();
                   onSend();
                 }
               }}
               disabled={!input.trim() && attachments.length === 0}
               tabIndex={0}
-              className="send-button"
-              style={{
-                padding: 0,
-                border: 'none',
-                background:
-                  input.trim() || attachments.length > 0
-                    ? 'var(--color-primary)'
-                    : 'var(--bg-tertiary)',
-                color:
-                  input.trim() || attachments.length > 0
-                    ? 'white'
-                    : 'var(--text-muted)',
-                cursor:
-                  input.trim() || attachments.length > 0
-                    ? 'pointer'
-                    : 'not-allowed',
-                fontSize: '13px',
-                fontWeight: 500,
-                opacity: input.trim() || attachments.length > 0 ? 1 : 0.25,
-                flex: '0 0 75%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className={`send-button ${input.trim() || attachments.length > 0 ? 'chat-input__send-btn--active' : 'chat-input__send-btn--inactive'}`}
             >
               Send
             </button>
@@ -294,35 +243,8 @@ export function ChatInputArea({
         </div>
         <button
           onClick={onModelOpen}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = isOverride
-              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.25)'
-              : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.2)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = isOverride
-              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)'
-              : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)';
-          }}
-          style={{
-            fontSize: '10px',
-            color: isOverride ? 'var(--accent-yellow)' : 'var(--text-muted)',
-            padding: '4px 8px',
-            textAlign: 'center',
-            cursor: 'pointer',
-            fontWeight: isOverride ? 600 : 400,
-            border: 'none',
-            width: '100%',
-            background: isOverride
-              ? 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.12)'
-              : 'rgba(var(--accent-primary-rgb, 0, 102, 204), 0.08)',
-            transition: 'background 0.2s',
-          }}
-          title={
-            isOverride
-              ? 'Model override active - click to change'
-              : 'Click to change model'
-          }
+          className={`chat-input__model-btn ${isOverride ? 'chat-input__model-btn--override' : 'chat-input__model-btn--default'}`}
+          title={isOverride ? 'Model override active - click to change' : 'Click to change model'}
         >
           {modelInfo?.name || 'Default Model'}
         </button>

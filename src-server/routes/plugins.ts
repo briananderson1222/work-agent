@@ -30,14 +30,14 @@ import {
 } from '../services/plugin-permissions.js';
 
 export function createPluginRoutes(
-  workAgentDir: string,
+  projectHomeDir: string,
   logger: any,
   eventBus?: EventBus,
 ) {
   const app = new Hono();
-  const pluginsDir = join(workAgentDir, 'plugins');
-  const agentsDir = join(workAgentDir, 'agents');
-  const workspacesDir = join(workAgentDir, 'workspaces');
+  const pluginsDir = join(projectHomeDir, 'plugins');
+  const agentsDir = join(projectHomeDir, 'agents');
+  const workspacesDir = join(projectHomeDir, 'workspaces');
 
   /** Run plugin build if build.mjs or build.sh exists */
   function buildPlugin(pluginDir: string, name: string) {
@@ -102,7 +102,7 @@ export function createPluginRoutes(
         }
 
         const declared = manifest.permissions || [];
-        const granted = getPluginGrants(workAgentDir, manifest.name);
+        const granted = getPluginGrants(projectHomeDir, manifest.name);
         const missing = declared
           .filter((p: string) => !granted.includes(p))
           .map((p: string) => ({ permission: p, tier: getPermissionTier(p) }));
@@ -227,7 +227,7 @@ export function createPluginRoutes(
       await loadProviders(pluginsDir, manifest.name, manifest, logger);
 
       // Resolve required tools
-      const toolsDir = join(workAgentDir, 'tools');
+      const toolsDir = join(projectHomeDir, 'tools');
       const requiredTools = manifest.tools?.required || [];
       const toolResults: Array<{
         id: string;
@@ -265,7 +265,7 @@ export function createPluginRoutes(
 
       // Process permissions
       const { autoGranted, pendingConsent } = processInstallPermissions(
-        workAgentDir,
+        projectHomeDir,
         pluginName,
         manifest.permissions || [],
       );
@@ -448,7 +448,7 @@ export function createPluginRoutes(
       }
 
       // Revoke permission grants
-      revokeAllGrants(workAgentDir, name);
+      revokeAllGrants(projectHomeDir, name);
 
       // Remove plugin
       rmSync(pluginDir, { recursive: true });
@@ -494,7 +494,7 @@ export function createPluginRoutes(
       return c.json({ success: false, error: 'Plugin not found' }, 404);
     const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
     const declared = manifest.permissions || [];
-    const granted = getPluginGrants(workAgentDir, name);
+    const granted = getPluginGrants(projectHomeDir, name);
     return c.json({ declared, granted });
   });
 
@@ -506,7 +506,7 @@ export function createPluginRoutes(
         { success: false, error: 'permissions array required' },
         400,
       );
-    grantPermissions(workAgentDir, name, permissions);
+    grantPermissions(projectHomeDir, name, permissions);
     return c.json({ success: true, granted: permissions });
   });
 
@@ -515,7 +515,7 @@ export function createPluginRoutes(
   // Scoped route: checks permission grants
   app.post('/:name/fetch', async (c) => {
     const name = c.req.param('name');
-    if (!hasGrant(workAgentDir, name, 'network.fetch')) {
+    if (!hasGrant(projectHomeDir, name, 'network.fetch')) {
       return c.json(
         {
           success: false,
@@ -540,7 +540,7 @@ export function createPluginRoutes(
       const { resolvePluginProviders } = await import('../providers/resolver.js');
       const { ConfigLoader } = await import('../domain/config-loader.js');
 
-      const configLoader = new ConfigLoader({ workAgentDir });
+      const configLoader = new ConfigLoader({ projectHomeDir });
       const overrides = await configLoader.loadPluginOverrides();
 
       clearAll();
@@ -573,7 +573,7 @@ export function createPluginRoutes(
 
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
     const { ConfigLoader } = await import('../domain/config-loader.js');
-    const configLoader = new ConfigLoader({ workAgentDir });
+    const configLoader = new ConfigLoader({ projectHomeDir });
     const overrides = await configLoader.loadPluginOverrides();
     const disabled = overrides[manifest.name || name]?.disabled ?? [];
 
@@ -590,7 +590,7 @@ export function createPluginRoutes(
   app.get('/:name/overrides', async (c) => {
     const name = decodeURIComponent(c.req.param('name'));
     const { ConfigLoader } = await import('../domain/config-loader.js');
-    const configLoader = new ConfigLoader({ workAgentDir });
+    const configLoader = new ConfigLoader({ projectHomeDir });
     const overrides = await configLoader.loadPluginOverrides();
     return c.json(overrides[name] ?? {});
   });
@@ -599,7 +599,7 @@ export function createPluginRoutes(
     const name = decodeURIComponent(c.req.param('name'));
     const body = await c.req.json();
     const { ConfigLoader } = await import('../domain/config-loader.js');
-    const configLoader = new ConfigLoader({ workAgentDir });
+    const configLoader = new ConfigLoader({ projectHomeDir });
     const overrides = await configLoader.loadPluginOverrides();
     overrides[name] = { disabled: body.disabled || [] };
     await configLoader.savePluginOverrides(overrides);

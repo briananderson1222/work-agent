@@ -11,38 +11,22 @@ A minimal workspace plugin example for Stallion, demonstrating the plugin archit
 
 ## Installation
 
-### From npm (when published)
+### Using the CLI
 
 ```bash
-cd work-agent
-npm install @stallion-ai/minimal-workspace
+stallion install ./examples/minimal-workspace
 ```
 
-### From local directory (development)
+### Using the UI
 
-```bash
-cd work-agent
-npm install ../examples/minimal-workspace
-```
-
-### Manual installation
-
-```bash
-# Build the plugin
-cd examples/minimal-workspace
-npm install
-npm run build
-
-# Copy to core app
-cp -r dist ../work-agent/src-ui/src/workspaces/minimal-workspace
-cp plugin.json ../work-agent/src-ui/src/workspaces/minimal-workspace/
-```
+Go to **Settings → Plugins**, enter the path `./examples/minimal-workspace`, and click Install.
 
 ## Development
 
 ### Setup
 
 ```bash
+cd examples/minimal-workspace
 npm install
 ```
 
@@ -58,16 +42,13 @@ npm run build
 npm run dev
 ```
 
-### Test in core app
+### Test in Stallion
 
 ```bash
-# Link for development
-cd work-agent
-npm link ../examples/minimal-workspace
-
-# Or use symlink
-ln -s $(pwd)/examples/minimal-workspace/dist \
-      work-agent/src-ui/src/workspaces/minimal-workspace
+# Remove and reinstall during development
+stallion remove minimal-workspace
+stallion install ./examples/minimal-workspace
+npm run dev:ui
 ```
 
 ## Usage
@@ -146,7 +127,7 @@ minimal-workspace/
   "name": "minimal-workspace",
   "version": "1.0.0",
   "type": "workspace",
-  "sdkVersion": "^0.4.0",
+  "sdkVersion": "^0.3.0",
   "displayName": "Minimal Workspace",
   "description": "A minimal workspace plugin example",
   "entrypoint": "./index.tsx",

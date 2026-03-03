@@ -1,6 +1,6 @@
 /* ═══ Settings View ═══ */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap');
+
 
 .settings {
   padding: 2rem 2rem 3rem;
@@ -422,4 +422,20 @@
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-muted); opacity: 0.4;
   margin-top: 1.5rem;
+}
+
+/* ── Feature Toggle fix: override .form-group global styles ── */
+.settings__feature-toggle {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-primary);
+  cursor: pointer;
+  margin-bottom: 0;
+}
+.settings__feature-toggle input[type="checkbox"] {
+  width: auto !important;
+  margin-top: 3px;
+  flex-shrink: 0;
 }

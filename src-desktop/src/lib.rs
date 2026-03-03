@@ -161,7 +161,7 @@ pub fn run() {
                 let server_path = resource_path.join("dist-server").join("index.js");
                 let log_dir = std::env::temp_dir();
                 let home = std::env::var("HOME").unwrap_or_default();
-                let data_dir = std::path::PathBuf::from(&home).join(".work-agent");
+                let data_dir = std::path::PathBuf::from(&home).join(".stallion-ai");
 
                 let bundled_seed = resource_path.join("seed");
                 if bundled_seed.exists() && !data_dir.exists() {
@@ -178,7 +178,7 @@ pub fn run() {
                 let child = Command::new(&node)
                     .arg(&server_path)
                     .current_dir(&resource_path)
-                    .env("WORK_AGENT_DIR", &data_dir)
+                    .env("STALLION_AI_DIR", &data_dir)
                     .env("PATH", &shell_path)
                     .env("HOME", &home)
                     .stdout(std::fs::File::create(log_dir.join("stallion-server.log")).map_or(

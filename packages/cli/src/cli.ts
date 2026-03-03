@@ -4,16 +4,16 @@
  * @stallion-ai/cli — Unified CLI for Stallion
  *
  * Plugin Management:
- *   wa install <source>     Install from git URL or local path
- *   wa list                 List installed plugins
- *   wa remove <name>        Remove a plugin
- *   wa info <name>          Show plugin details
- *   wa update <name>        Update a plugin (git only)
+ *   stallion install <source>     Install from git URL or local path
+ *   stallion list                 List installed plugins
+ *   stallion remove <name>        Remove a plugin
+ *   stallion info <name>          Show plugin details
+ *   stallion update <name>        Update a plugin (git only)
  *
  * Plugin Development:
- *   wa init [name]          Scaffold a new plugin
- *   wa build                Build plugin bundle
- *   wa dev [port] [flags]   Dev preview server (default: 4200)
+ *   stallion init [name]          Scaffold a new plugin
+ *   stallion build                Build plugin bundle
+ *   stallion dev [port] [flags]   Dev preview server (default: 4200)
  *     --no-mcp              Disable MCP tool connections
  *     --tools-dir=<path>    Tool configs directory
  */
@@ -45,10 +45,10 @@ import {
 } from '@stallion-ai/shared';
 import { MCPManager } from '@stallion-ai/shared/mcp';
 
-const HOME_WA = join(homedir(), '.work-agent');
-const PLUGINS_DIR = join(HOME_WA, 'plugins');
-const AGENTS_DIR = join(HOME_WA, 'agents');
-const WORKSPACES_DIR = join(HOME_WA, 'workspaces');
+const PROJECT_HOME = join(homedir(), '.stallion-ai');
+const PLUGINS_DIR = join(PROJECT_HOME, 'plugins');
+const AGENTS_DIR = join(PROJECT_HOME, 'agents');
+const WORKSPACES_DIR = join(PROJECT_HOME, 'workspaces');
 const CWD = process.cwd();
 
 // ── Shared helpers ─────────────────────────────────────
@@ -474,7 +474,7 @@ function init(name = 'my-workspace'): void {
         name,
         version: '1.0.0',
         type: 'module',
-        scripts: { build: 'wa build', dev: 'wa dev' },
+        scripts: { build: 'stallion build', dev: 'stallion dev' },
         peerDependencies: {
           '@stallion-ai/sdk': '^0.3.0',
           react: '^18.0.0 || ^19.0.0',
@@ -485,7 +485,7 @@ function init(name = 'my-workspace'): void {
     )}\n`,
   );
   console.log(
-    `\n✅ Created plugin: ${name}/\n\n   cd ${name}\n   wa build\n   wa dev\n`,
+    `\n✅ Created plugin: ${name}/\n\n   cd ${name}\n   stallion build\n   stallion dev\n`,
   );
 }
 
@@ -550,12 +550,13 @@ function dev(port = 4200, flags: DevFlags = {}): void {
     )
     .join(', ');
 
-  const html = devHTML(name!, pluginName!, tabsJson, agentInfo);
+  const wsSlug = workspace?.slug || pluginName;
+  const html = devHTML(name!, pluginName!, tabsJson, agentInfo, wsSlug);
 
   // ── MCP setup ──
   let mcpManager: MCPManager | null = null;
   const useMCP = flags.mcp !== false;
-  const toolsDir = flags.toolsDir || join(CWD, '..', '.work-agent', 'tools');
+  const toolsDir = flags.toolsDir || join(CWD, '..', '.stallion-ai', 'tools');
 
   if (useMCP && manifest.agents?.length) {
     (async () => {
@@ -781,7 +782,7 @@ function dev(port = 4200, flags: DevFlags = {}): void {
         ? '   MCP: connecting...'
         : '   MCP: off',
     );
-    console.log(`   Run 'wa build' to rebuild after changes\n`);
+    console.log(`   Run 'stallion build' to rebuild after changes\n`);
   });
 
   const cleanup = async () => {
@@ -799,6 +800,7 @@ function devHTML(
   pluginName: string,
   tabsJson: string,
   agentInfo: string,
+  wsSlug: string,
 ): string {
   // Self-contained: plugin bundle includes React, react-query, etc.
   // Only @stallion-ai/sdk is external (mocked below).
@@ -836,28 +838,45 @@ var noop=function(){};
 // Provider registry — plugin's own code registers here
 var __p={},__pc={};
 
-// SDK mock — ONLY what needs core server
+// SDK mock — matches @stallion-ai/sdk exports used by plugins
+// Standalone functions (not hooks) — also exposed on the mock object for the shim
+var __devApiBase='';
+function __callTool(slug,tool,args){return fetch('/agents/'+encodeURIComponent(slug)+'/tools/'+encodeURIComponent(tool),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args||{})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error||'Tool call failed');return d.response})}
+function __transformTool(slug,tool,args,transform){return fetch('/agents/'+encodeURIComponent(slug)+'/tool/'+encodeURIComponent(tool),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({toolArgs:args,transform:transform})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error||'Transform failed');return d.response})}
+function __invokeAgent(slug,prompt){window.__devToast&&window.__devToast('→ agent('+slug+'): '+prompt.slice(0,100));return Promise.resolve({text:'[mock]',toolCalls:[]})}
+function __invoke(opts){window.__devToast&&window.__devToast('invoke: '+JSON.stringify(opts).slice(0,120));return Promise.resolve({})}
+function __serverFetch(url,opts){return fetch('/api/plugins/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,method:opts&&opts.method,headers:opts&&opts.headers,body:opts&&opts.body})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error);return d})}
+
 window.__work_agent_sdk_mock={
+  // Hooks
   useAgents:function(){return[]},
-  useAuth:function(){return{status:'valid',provider:'none',user:{alias:'dev-user',name:'Dev User'}}},
-  useNavigation:function(){return{setDockState:noop,navigate:noop,setWorkspaceTab:noop}},
-  useToast:function(){return{showToast:noop}},
-  useWorkspaceQuery:function(){return{data:undefined}},
-  useWorkspaceNavigation:function(){var ws='stallion';return{navigateToTab:noop,currentTab:null,getTabState:function(t){return sessionStorage.getItem('ws-'+ws+'-'+t)||''},setTabState:function(t,s){sessionStorage.setItem('ws-'+ws+'-'+t,s);window.location.hash=s},clearTabState:function(t){sessionStorage.removeItem('ws-'+ws+'-'+t)}}},
-  useSendToChat:function(slug){return function(msg){window.__devToast&&window.__devToast('→ chat('+slug+'): '+(typeof msg==='string'?msg:JSON.stringify(msg).slice(0,120)))}},
-  useNotifications:function(){return{notifications:[],dismiss:noop}},
+  useAuth:function(){return{status:'valid',provider:'none',user:{alias:'dev-user',name:'Dev User'},expiresAt:null,renew:function(){return Promise.resolve()},isRenewing:false}},
+  useConversations:function(){return[]},
   useOpenConversation:function(){return noop},
-  useApiBase:function(){return''},
+  useNavigation:function(){return{pathname:window.location.pathname,selectedAgent:null,selectedWorkspace:'${wsSlug}',activeConversation:null,activeChat:null,activeTab:null,isDockOpen:false,isDockMaximized:false,fontSize:null,navigate:noop,updateParams:noop,setAgent:noop,setWorkspace:noop,setWorkspaceTab:function(ws,tab){if(window.__devSetTab)window.__devSetTab(tab)},setConversation:noop,setActiveChat:noop,setDockState:noop}},
+  useDockState:function(){return{isOpen:false,setOpen:noop,toggle:noop}},
+  useToast:function(){return{showToast:function(msg,opts){window.__devToast&&window.__devToast((opts&&opts.type?opts.type+': ':'')+msg)}}},
+  useNotifications:function(){var toast={showToast:function(msg){window.__devToast&&window.__devToast(msg)}};return{notify:function(msg,opts){toast.showToast((opts&&opts.type?opts.type+': ':'')+msg)},dismiss:noop}},
+  useWorkspaceQuery:function(){return{data:undefined}},
+  useWorkspaceNavigation:function(){var ws='${wsSlug}';return{getTabState:function(t){return sessionStorage.getItem('workspace-'+ws+'-tab-'+t)||''},setTabState:function(t,s){var key='workspace-'+ws+'-tab-'+t;sessionStorage.setItem(key,s)},clearTabState:function(t){sessionStorage.removeItem('workspace-'+ws+'-tab-'+t)}}},
+  useSendToChat:function(slug){return function(msg){window.__devToast&&window.__devToast('→ chat('+slug+'): '+(typeof msg==='string'?msg:JSON.stringify(msg).slice(0,120)))}},
+  useApiBase:function(){return __devApiBase},
+  useServerFetch:function(){return __serverFetch},
+  // Standalone functions
+  callTool:__callTool,
+  transformTool:__transformTool,
+  invokeAgent:__invokeAgent,
+  invoke:__invoke,
+  // Provider registry
   registerProvider:function(id,meta,factory){__p[id]={meta:meta,factory:factory,instance:null}},
   configureProvider:function(ws,type,pid){__pc[ws+'/'+type]=pid},
   hasProvider:function(ws,type){var pid=__pc[ws+'/'+type];return !!pid&&!!__p[pid]},
   getProvider:function(ws,type){var pid=__pc[ws+'/'+type];if(!pid||!__p[pid])return null;var e=__p[pid];if(!e.instance)e.instance=typeof e.factory==='function'?e.factory():e.factory;return e.instance},
   getActiveProviderId:function(ws,type){return __pc[ws+'/'+type]||null},
-  callTool:function(slug,tool,args){return fetch('/agents/'+encodeURIComponent(slug)+'/tools/'+encodeURIComponent(tool),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args||{})}).then(function(r){return r.json()}).then(function(d){if(!d.success){console.warn('[dev] tool error:',d.error);return null}return d.response}).catch(function(e){console.warn('[dev] callTool failed:',e);return null})},
-  invokeAgent:function(slug,prompt){window.__devToast&&window.__devToast('→ agent('+slug+'): '+prompt.slice(0,100));return Promise.resolve({text:'[mock]',toolCalls:[]})},
-  invoke:function(opts){window.__devToast&&window.__devToast('invoke: '+JSON.stringify(opts).slice(0,120));return Promise.resolve({})},
+  // Workspace context factory
   createWorkspaceContext:function(opts){var init=(opts&&opts.initialState)||{};var R=window.React;var Ctx=R.createContext({state:init,setState:noop});return{Provider:function(p){return R.createElement(Ctx.Provider,{value:{state:init,setState:noop}},p.children)},useWorkspaceContext:function(){return R.useContext(Ctx)}}},
-  useServerFetch:function(){return function(url,opts){return fetch('/api/plugins/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,method:opts&&opts.method,headers:opts&&opts.headers,body:opts&&opts.body})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error);return d})}},
+  // Components
+  Button:function(props){return window.React.createElement('button',{onClick:props.onClick,disabled:props.disabled,className:'workspace-dashboard__btn'+(props.variant?' workspace-dashboard__btn--'+props.variant:''),style:props.style},props.children)},
 };
 </script>
 <script src="/react-dev.js"></script>
@@ -871,6 +890,7 @@ window.__work_agent_sdk_mock={
   var tabs=${tabsJson};
   function DevShell(){
     var ref=React.useState(tabs[0]?tabs[0].id:null),activeTab=ref[0],setActiveTab=ref[1];
+    window.__devSetTab=setActiveTab;
     var comps=plugin.components||{};
     var td=tabs.find(function(t){return t.id===activeTab});
     var C=td?comps[td.component]:null;
@@ -933,18 +953,18 @@ try {
 Stallion CLI (@stallion-ai/cli)
 
 Plugin Management:
-  wa install <source>     Install from git URL or local path
-  wa list                 List installed plugins
-  wa remove <name>        Remove a plugin
-  wa info <name>          Show plugin details
-  wa update <name>        Update a plugin (git only)
+  stallion install <source>     Install from git URL or local path
+  stallion list                 List installed plugins
+  stallion remove <name>        Remove a plugin
+  stallion info <name>          Show plugin details
+  stallion update <name>        Update a plugin (git only)
 
 Plugin Development:
-  wa init [name]          Scaffold a new plugin
-  wa build                Build plugin bundle
-  wa dev [port] [flags]   Dev preview server (default: 4200)
+  stallion init [name]          Scaffold a new plugin
+  stallion build                Build plugin bundle
+  stallion dev [port] [flags]   Dev preview server (default: 4200)
     --no-mcp              Disable MCP tool connections
-    --tools-dir=<path>    Tool configs directory (default: ../.work-agent/tools)
+    --tools-dir=<path>    Tool configs directory (default: ../.stallion-ai/tools)
 `);
   }
 } catch (err: any) {

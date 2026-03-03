@@ -2305,7 +2305,7 @@ export function MonitoringView() {
         }
 
         .conversation-id {
-          font-family: 'Monaco', 'Menlo', monospace;
+          font-family: 'JetBrains Mono', monospace;
           font-size: 0.75rem;
           color: var(--text-primary);
         }
@@ -2532,7 +2532,7 @@ export function MonitoringView() {
           padding: 0.25rem 0.5rem;
           border-radius: 4px;
           font-size: 0.75rem;
-          font-family: 'Monaco', 'Menlo', monospace;
+          font-family: 'JetBrains Mono', monospace;
           color: var(--text-primary);
         }
 
@@ -2621,7 +2621,7 @@ export function MonitoringView() {
           flex: 1;
           overflow-y: auto;
           padding: 1rem;
-          font-family: 'Monaco', 'Menlo', monospace;
+          font-family: 'JetBrains Mono', monospace;
           font-size: 0.875rem;
           position: relative;
         }
@@ -2683,7 +2683,7 @@ export function MonitoringView() {
           border-radius: 12px;
           font-size: 0.7rem;
           font-weight: 600;
-          font-family: 'Monaco', 'Menlo', monospace;
+          font-family: 'JetBrains Mono', monospace;
           cursor: pointer;
           transition: all 0.2s;
           opacity: 0.7;
@@ -2726,7 +2726,7 @@ export function MonitoringView() {
           border-radius: 8px;
           font-size: 0.65rem;
           font-weight: 600;
-          font-family: 'Monaco', 'Menlo', monospace;
+          font-family: 'JetBrains Mono', monospace;
           cursor: pointer;
           transition: all 0.2s;
           white-space: nowrap;

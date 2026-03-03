@@ -10,7 +10,7 @@ services:
       - path: .env
         required: false
     volumes:
-      - work-agent-data:/root/.work-agent
+      - stallion-ai-data:/root/.stallion-ai
 
   ui:
     build:
@@ -38,7 +38,7 @@ services:
     volumes:
       - .:/app
       - dev-node-modules:/app/node_modules
-      - work-agent-data:/root/.work-agent
+      - stallion-ai-data:/root/.stallion-ai
 
   ui-dev:
     profiles: [dev]
@@ -55,4 +55,4 @@ services:
 
 volumes:
   dev-node-modules:
-  work-agent-data:
+  stallion-ai-data:

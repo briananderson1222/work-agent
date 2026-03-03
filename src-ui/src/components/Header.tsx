@@ -12,6 +12,7 @@ import type { NavigationView } from '../types';
 import { getInitials } from '../utils/workspace';
 import { NotificationHistory } from './NotificationHistory';
 import { WorkspaceIcon } from './WorkspaceIcon';
+import './chat.css';
 
 function checkServerHealth(url: string): Promise<boolean> {
   return fetch(`${url}/api/system/status`)
@@ -75,36 +76,16 @@ export function Header({
 
   return (
     <header className="app-toolbar">
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          cursor: 'pointer',
-        }}
-        onClick={() => onNavigate({ type: 'workspace' })}
-      >
-        <img
-          src="/favicon.png"
-          alt=""
-          style={{ width: '20px', height: '20px' }}
-        />
-        <div
-          style={{
-            fontSize: '14px',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-          }}
-        >
-          {appName}
-        </div>
+      <div className="app-toolbar__brand" onClick={() => onNavigate({ type: 'workspace' })}>
+        <img src="/favicon.png" alt="" className="app-toolbar__logo" />
+        <div className="app-toolbar__name">{appName}</div>
       </div>
 
       {/* Workspace indicator — always visible to prevent layout shift */}
       <div className="header-divider" />
       <button
         type="button"
-        className="button button--secondary"
+        className="app-toolbar__workspace-btn"
         onClick={handleWorkspaceIndicatorClick}
         disabled={!selectedWorkspace || workspaces.length <= 1}
         title={
@@ -114,15 +95,6 @@ export function Header({
               ? 'Switch workspace'
               : selectedWorkspace.name
         }
-        style={{
-          fontSize: '14px',
-          padding: '4px 10px',
-          fontWeight: 600,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          opacity: selectedWorkspace ? 1 : 0.4,
-        }}
       >
         {selectedWorkspace ? (
           <>
@@ -134,140 +106,58 @@ export function Header({
         )}
       </button>
 
-      <div style={{ flex: 1 }} />
+      <div className="app-toolbar__spacer" />
 
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      <div className="app-toolbar__actions">
         <nav
           style={{ display: 'flex', gap: '4px', alignItems: 'center' }}
           className="header-nav"
         >
           <button
             type="button"
-            className={`header-nav-btn ${currentView?.type === 'workspaces' ? 'is-active' : ''}`}
-            onClick={() => {
-              if (currentView?.type === 'workspaces') {
-                onNavigate({ type: 'workspace' });
-              } else {
-                onNavigate({ type: 'workspaces' });
-              }
-            }}
-            title="Workspaces"
-          >
-            Workspaces
-          </button>
-          <button
-            type="button"
-            className={`header-nav-btn ${currentView?.type === 'agents' ? 'is-active' : ''}`}
-            onClick={() => {
-              if (currentView?.type === 'agents') {
-                onNavigate({ type: 'workspace' });
-              } else {
-                onNavigate({ type: 'agents' });
-              }
-            }}
-            title="Agents"
-          >
-            Agents
-          </button>
-          <button
-            type="button"
-            className={`header-nav-btn ${currentView?.type === 'prompts' ? 'is-active' : ''}`}
-            onClick={() => {
-              if (currentView?.type === 'prompts') {
-                onNavigate({ type: 'workspace' });
-              } else {
-                onNavigate({ type: 'prompts' });
-              }
-            }}
-            title="Prompts"
-          >
-            Prompts
-          </button>
-          <button
-            type="button"
-            className={`header-nav-btn ${currentView?.type === 'plugins' ? 'is-active' : ''}`}
-            onClick={() => {
-              if (currentView?.type === 'plugins') {
-                onNavigate({ type: 'workspace' });
-              } else {
-                onNavigate({ type: 'plugins' });
-              }
-            }}
-            title="Plugins"
-          >
-            Plugins
-          </button>
-          <button
-            type="button"
             className={`header-nav-btn ${currentView?.type === 'schedule' ? 'is-active' : ''}`}
-            onClick={() => {
-              if (currentView?.type === 'schedule') {
-                onNavigate({ type: 'workspace' });
-              } else {
-                onNavigate({ type: 'schedule' });
-              }
-            }}
+            onClick={() => onNavigate(currentView?.type === 'schedule' ? { type: 'workspace' } : { type: 'schedule' })}
             title="Schedule"
           >
-            Schedule
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className={`header-nav-btn ${['manage', 'workspaces', 'agents', 'prompts', 'plugins'].includes(currentView?.type || '') ? 'is-active' : ''}`}
+            onClick={() => onNavigate(currentView?.type === 'manage' ? { type: 'workspace' } : { type: 'manage' })}
+            title="Manage"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+            </svg>
           </button>
         </nav>
-
-        <button
-          type="button"
-          className="header-hamburger"
-          style={{ display: 'none' }}
-          onClick={() => {
-            const nav = document.querySelector('.header-nav');
-            nav?.classList.toggle('header-nav--open');
-          }}
-        >
-          ☰
-        </button>
 
         <div className="header-divider" />
 
         {/* Connection status chip */}
         <button
           type="button"
-          className="button button--secondary"
+          className="app-toolbar__icon-btn"
           onClick={() => setShowConnectionModal(true)}
           title="Manage connections"
-          style={{
-            fontSize: '13px',
-            padding: '6px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
         >
           <ConnectionStatusDot status={connStatus} size={7} />
-          <span
-            style={{
-              maxWidth: 120,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {activeConnection?.name || activeConnection?.url || 'No connection'}
-          </span>
+          {activeConnection?.name && activeConnection.name !== 'Default' && (
+            <span className="app-toolbar__conn-name">
+              {activeConnection.name}
+            </span>
+          )}
         </button>
 
         <div style={{ position: 'relative' }}>
           <button
             type="button"
-            className="button button--secondary"
+            className="app-toolbar__icon-btn"
             onClick={() => setShowNotifications(!showNotifications)}
             title="Notifications"
-            style={{
-              fontSize: '14px',
-              padding: '6px 12px',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
           >
             <svg
               width="14"
@@ -292,7 +182,7 @@ export function Header({
 
         <button
           type="button"
-          className={`button button--secondary ${currentView?.type === 'profile' ? 'is-active' : ''}`}
+          className={`app-toolbar__icon-btn ${currentView?.type === 'profile' ? 'is-active' : ''}`}
           onClick={() => {
             if (currentView?.type === 'profile') {
               onNavigate({ type: 'workspace' });
@@ -301,17 +191,15 @@ export function Header({
             }
           }}
           title="Profile"
-          style={{ fontSize: '14px', padding: '6px 12px', fontWeight: 600 }}
         >
           {userInitials}
         </button>
 
         <button
           type="button"
-          className={`button button--secondary app-toolbar__settings ${currentView?.type === 'settings' ? 'is-active' : ''}`}
+          className={`app-toolbar__icon-btn ${currentView?.type === 'settings' ? 'is-active' : ''}`}
           onClick={onToggleSettings}
           title={`Settings (${settingsShortcut})`}
-          style={{ fontSize: '14px', padding: '6px 12px', fontWeight: 600 }}
         >
           ⚙
         </button>
@@ -327,18 +215,7 @@ export function Header({
       {/* Workspace autocomplete modal */}
       {showWorkspaceAutocomplete && (
         <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000,
-          }}
+          className="workspace-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowWorkspaceAutocomplete(false);
@@ -346,16 +223,7 @@ export function Header({
             }
           }}
         >
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              borderRadius: '8px',
-              padding: '16px',
-              minWidth: '400px',
-              maxWidth: '600px',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-            }}
-          >
+          <div className="workspace-modal">
             <input
               type="text"
               value={workspaceQuery}
@@ -368,17 +236,9 @@ export function Header({
               }}
               placeholder="Search workspaces..."
               autoFocus
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                marginBottom: '8px',
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '4px',
-                color: 'var(--text-primary)',
-              }}
+              className="workspace-modal__search"
             />
-            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            <div className="workspace-modal__list">
               {workspaces
                 .filter((w) => {
                   const q = (workspaceQuery || '').toLowerCase();
@@ -391,80 +251,25 @@ export function Header({
                   <div
                     key={ws.slug}
                     onClick={() => handleWorkspaceSelect(ws)}
-                    style={{
-                      padding: '10px 12px',
-                      cursor: 'pointer',
-                      borderRadius: '4px',
-                      marginBottom: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      background:
-                        selectedWorkspace?.slug === ws.slug
-                          ? 'var(--bg-hover)'
-                          : 'transparent',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'var(--bg-hover)')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background =
-                        selectedWorkspace?.slug === ws.slug
-                          ? 'var(--bg-hover)'
-                          : 'transparent')
-                    }
+                    className={`workspace-modal__item ${selectedWorkspace?.slug === ws.slug ? 'is-active' : ''}`}
                   >
                     <WorkspaceIcon workspace={ws} size={32} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                        }}
-                      >
+                    <div className="workspace-modal__item-info">
+                      <div className="workspace-modal__item-name">
                         <span>{ws.name}</span>
                         {ws.plugin && (
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              background: 'var(--bg-tertiary)',
-                              color: 'var(--text-secondary)',
-                              fontWeight: 500,
-                              border: '1px solid var(--border-primary)',
-                            }}
-                          >
+                          <span className="workspace-modal__pill workspace-modal__pill--plugin">
                             {ws.plugin}
                           </span>
                         )}
                         {selectedWorkspace?.slug === ws.slug && (
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              background: 'var(--accent-primary)',
-                              color: 'white',
-                              fontWeight: 500,
-                            }}
-                          >
+                          <span className="workspace-modal__pill workspace-modal__pill--active">
                             active
                           </span>
                         )}
                       </div>
                       {ws.description && (
-                        <div
-                          style={{
-                            fontSize: '12px',
-                            color: 'var(--text-secondary)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
+                        <div className="workspace-modal__item-desc">
                           {ws.description}
                         </div>
                       )}
@@ -478,14 +283,7 @@ export function Header({
                   w.slug.toLowerCase().includes(q)
                 );
               }).length === 0 && (
-                <div
-                  style={{
-                    padding: '12px',
-                    textAlign: 'center',
-                    color: 'var(--text-muted)',
-                    fontSize: '14px',
-                  }}
-                >
+                <div className="workspace-modal__empty">
                   No workspaces found
                 </div>
               )}

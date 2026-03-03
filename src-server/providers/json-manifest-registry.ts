@@ -47,7 +47,7 @@ export class JsonManifestRegistryProvider
 
   constructor(
     private readonly manifestUrl: string,
-    private readonly workAgentDir: string,
+    private readonly projectHomeDir: string,
   ) {}
 
   private async fetchManifest(): Promise<Manifest> {
@@ -69,7 +69,7 @@ export class JsonManifestRegistryProvider
   }
 
   private getPluginsDir(): string {
-    return join(this.workAgentDir, 'plugins');
+    return join(this.projectHomeDir, 'plugins');
   }
 
   private readInstalledPlugins(): RegistryItem[] {

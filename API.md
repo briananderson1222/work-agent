@@ -1,6 +1,6 @@
-# Work Agent API Documentation
+# Stallion API Documentation
 
-This document describes all REST API endpoints available in Work Agent, including both VoltAgent-provided and custom endpoints.
+This document describes all REST API endpoints available in Stallion, including both VoltAgent-provided and custom endpoints.
 
 **Base URL**: `http://localhost:3141`  
 **Swagger UI**: `http://localhost:3141/ui` (VoltAgent built-in endpoints)  
@@ -9,7 +9,7 @@ This document describes all REST API endpoints available in Work Agent, includin
 ## Endpoint Legend
 
 - 🔵 **VoltAgent Built-in** - Provided by `@voltagent/server-hono`
-- 🟢 **Custom** - Work Agent-specific extensions
+- 🟢 **Custom** - Stallion-specific extensions
 - ✅ **In Use** - Currently used by frontend
 - ⚪ **Available** - Implemented but not currently used
 
@@ -33,7 +33,7 @@ This document describes all REST API endpoints available in Work Agent, includin
 
 These endpoints are provided by VoltAgent's `@voltagent/server-hono` package. See the [VoltAgent API documentation](https://voltagent.dev/docs/api/endpoints/agents) for complete details.
 
-**Note**: Work Agent does not currently use any VoltAgent built-in endpoints. All functionality is provided through custom endpoints.
+**Note**: Stallion does not currently use any VoltAgent built-in endpoints. All functionality is provided through custom endpoints.
 
 ### 🔵 ⚪ List All Agents (VoltAgent)
 ```http
@@ -183,7 +183,7 @@ VoltAgent also provides workflow execution endpoints. See [VoltAgent Workflow AP
 
 ### 🟢 ✅ Default Agent
 
-Work Agent automatically creates a **system default agent** that is always available:
+Stallion automatically creates a **system default agent** that is always available:
 
 **Agent ID**: `default`  
 **Model**: Uses current `defaultModel` from `app.json`  
@@ -225,8 +225,8 @@ GET /api/agents
   "data": [
     {
       "id": "agent-id",
-      "slug": "work-agent",
-      "name": "Work Agent",
+      "slug": "my-agent",
+      "name": "Stallion Agent",
       "prompt": "System instructions...",
       "description": "Agent description",
       "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -329,7 +329,7 @@ DELETE /agents/:slug
 ```json
 {
   "success": false,
-  "error": "Cannot delete agent 'work-agent' - it is referenced by workspaces: my-workspace"
+  "error": "Cannot delete agent 'my-agent' - it is referenced by workspaces: my-workspace"
 }
 ```
 
@@ -585,7 +585,7 @@ GET /workspaces
         {
           "id": "main",
           "label": "Main",
-          "component": "work-agent-dashboard"
+          "component": "my-agent-dashboard"
         }
       ],
       "globalPrompts": []
@@ -631,13 +631,13 @@ POST /workspaces
     {
       "id": "main",
       "label": "Main",
-      "component": "work-agent-dashboard",
+      "component": "my-agent-dashboard",
       "prompts": [
         {
           "id": "daily-standup",
           "label": "Daily Standup",
           "prompt": "Generate my daily standup update",
-          "agent": "work-agent"
+          "agent": "my-agent"
         }
       ]
     }
@@ -706,7 +706,7 @@ GET /agents/:slug/workflows/files
   "data": [
     {
       "filename": "example-simple.ts",
-      "path": ".work-agent/agents/work-agent/workflows/example-simple.ts"
+      "path": ".stallion-ai/agents/my-agent/workflows/example-simple.ts"
     }
   ]
 }
@@ -815,7 +815,7 @@ GET /agents/:slug/conversations
   "data": [
     {
       "id": "conv-123",
-      "userId": "agent:work-agent:user:default",
+      "userId": "agent:my-agent:user:default",
       "title": "Conversation Title",
       "createdAt": "2025-12-08T12:00:00Z",
       "updatedAt": "2025-12-08T12:30:00Z",
@@ -1133,7 +1133,7 @@ GET /api/analytics/usage
     "totalTokens": 50000,
     "totalCost": 2.50,
     "byAgent": {
-      "work-agent": {
+      "my-agent": {
         "messages": 500,
         "tokens": 25000,
         "cost": 1.25
@@ -1212,8 +1212,8 @@ GET /monitoring/stats
   "data": {
     "agents": [
       {
-        "slug": "work-agent",
-        "name": "Work Agent",
+        "slug": "my-agent",
+        "name": "Stallion Agent",
         "status": "idle",
         "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
         "conversationCount": 10,
@@ -1253,7 +1253,7 @@ GET /monitoring/metrics?range=today
     "range": "today",
     "metrics": [
       {
-        "agentSlug": "work-agent",
+        "agentSlug": "my-agent",
         "messageCount": 50,
         "conversationCount": 5,
         "totalCost": 2.50
@@ -1285,7 +1285,7 @@ GET /monitoring/events?start=2025-12-08T00:00:00Z&end=2025-12-08T23:59:59Z&userI
     {
       "type": "message",
       "timestamp": "2025-12-08T12:00:00Z",
-      "agentSlug": "work-agent",
+      "agentSlug": "my-agent",
       "conversationId": "conv-123",
       "messageCount": 1
     }
@@ -1297,7 +1297,7 @@ GET /monitoring/events?start=2025-12-08T00:00:00Z&end=2025-12-08T23:59:59Z&userI
 ```
 data: {"type":"connected","timestamp":"2025-12-08T12:00:00Z"}
 
-data: {"type":"message","agentSlug":"work-agent","conversationId":"conv-123"}
+data: {"type":"message","agentSlug":"my-agent","conversationId":"conv-123"}
 
 data: {"type":"heartbeat","timestamp":"2025-12-08T12:00:30Z"}
 ```

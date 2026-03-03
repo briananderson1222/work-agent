@@ -290,7 +290,7 @@ export class ACPConnection {
           fs: { readTextFile: true, writeTextFile: true },
           terminal: true,
         },
-        clientInfo: { name: 'work-agent', version: '1.0.0' },
+        clientInfo: { name: 'stallion', version: '1.0.0' },
       })) as InitializeResult;
 
       this.logger.info('[ACPBridge] Connected', {
@@ -1385,7 +1385,7 @@ export class ACPConnection {
   private preCreateAdaptersFromDisk(): void {
     if (!this.memoryAdapters || !this.createMemoryAdapter) return;
     try {
-      const agentsDir = join(this.cwd, '.work-agent', 'agents');
+      const agentsDir = join(this.cwd, '.stallion-ai', 'agents');
       if (!existsSync(agentsDir)) return;
       for (const dir of readdirSync(agentsDir) as string[]) {
         if (

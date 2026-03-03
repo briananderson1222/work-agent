@@ -24,7 +24,7 @@ Stallion is a desktop-ready platform for running multiple AI agents with MCP too
 
 ```bash
 git clone <repo-url>
-cd stallion
+cd work-agent
 npm install
 npm run build
 npm run start:server
@@ -39,10 +39,10 @@ npm run dev:ui       # Frontend on :5173
 
 ### Data Directory
 
-All runtime data lives in `~/.work-agent/`:
+All runtime data lives in `~/.stallion-ai/`:
 
 ```
-~/.work-agent/
+~/.stallion-ai/
 ├── config/
 │   ├── app.json          # Model settings, system prompt, template vars
 │   └── acp.json          # ACP connection configs
@@ -52,7 +52,7 @@ All runtime data lives in `~/.work-agent/`:
 └── analytics/            # Usage data
 ```
 
-Set `WORK_AGENT_DIR` to override the default location.
+Set `STALLION_AI_DIR` to override the default location.
 
 ## Plugin System
 
@@ -85,16 +85,16 @@ From the CLI:
 
 ```bash
 # From a git repo
-wa install git@github.com:org/my-workspace.git
+stallion install git@github.com:org/my-workspace.git
 
 # From a local directory
-wa install ../my-workspace
+stallion install ../my-workspace
 
 # List installed plugins
-wa list
+stallion list
 
 # Remove a plugin
-wa remove my-workspace
+stallion remove my-workspace
 ```
 
 ### Plugin Bundles
@@ -106,9 +106,9 @@ Plugins ship pre-built IIFE bundles. The core loads them at runtime via `<script
 Use the CLI to scaffold a new workspace:
 
 ```bash
-wa init my-workspace
+stallion init my-workspace
 cd my-workspace
-wa build
+stallion build
 ```
 
 Or manually:
@@ -124,7 +124,9 @@ See `examples/demo-workspace/` for a minimal working example.
 | Package | Path | Description |
 |---------|------|-------------|
 | `@stallion-ai/sdk` | `packages/sdk/` | TypeScript SDK for plugin development — hooks, components, types |
-| `@stallion-ai/cli` | `packages/cli/` | Unified CLI (`wa`) for managing and developing plugins |
+| `@stallion-ai/connect` | `packages/connect/` | Standalone bidirectional pairing library for the Stallion AI ecosystem |
+| `@stallion-ai/shared` | `packages/shared/` | Canonical types, config parsing, and MCP client factory |
+| `@stallion-ai/cli` | `packages/cli/` | Unified CLI (`stallion`) for managing and developing plugins |
 
 ## Provider System
 
@@ -156,9 +158,16 @@ Providers are declared in `plugin.json` and loaded when the server starts. Each 
 ├── src-desktop/          # Tauri desktop app (Rust)
 ├── packages/
 │   ├── sdk/              # @stallion-ai/sdk
-│   └── cli/              # @stallion-ai/cli (wa)
+│   ├── connect/          # @stallion-ai/connect
+│   ├── shared/           # @stallion-ai/shared
+│   └── cli/              # @stallion-ai/cli (stallion)
 ├── examples/
-│   └── demo-workspace/   # Minimal plugin example
+│   ├── demo-workspace/   # Full plugin example
+│   ├── minimal-workspace/# Minimal plugin example
+│   ├── custom-branding/  # Branding provider example
+│   ├── elevenlabs-voice/ # ElevenLabs voice plugin
+│   ├── nova-sonic-voice/ # Nova Sonic voice plugin
+│   └── meeting-transcription/ # Transcription toolbar plugin
 ├── schemas/              # JSON schemas for app/agent/tool configs
 ├── seed/                 # Default configs bundled in Tauri builds
 └── tests/                # Playwright integration tests
@@ -180,7 +189,7 @@ Providers are declared in `plugin.json` and loaded when the server starts. Each 
 
 ## Desktop App (Tauri)
 
-The Tauri app bundles the Node.js server and serves the UI. On first launch, it seeds `~/.work-agent/` with default configs from the bundled `seed/` directory.
+The Tauri app bundles the Node.js server and serves the UI. On first launch, it seeds `~/.stallion-ai/` with default configs from the bundled `seed/` directory.
 
 ```bash
 npm run build:desktop    # Build the .dmg / .exe

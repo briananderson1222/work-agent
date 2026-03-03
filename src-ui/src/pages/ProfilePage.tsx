@@ -24,59 +24,28 @@ export function ProfilePage() {
   return (
     <div className="profile-page">
       <div className="profile-container">
-        <div className="profile-hero" style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', top: '16px', right: '16px' }}>
+        <div className="profile-card">
+          <div className="profile-card__edit-btn">
             <AuthStatusBadge expanded />
           </div>
           <div className="profile-hero-content">
             <UserIcon
               size={120}
-              style={{
-                fontSize: '3rem',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
-              }}
+              className="profile-card__avatar"
             />
             <div className="profile-hero-info">
               <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
-                    marginBottom: user?.title ? '12px' : '0',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: '12px',
-                    }}
-                  >
-                    <h1 className="profile-hero-title" style={{ margin: 0 }}>
+                <div className="profile-card__info">
+                  <div className="profile-card__name-row">
+                    <h1 className="profile-hero-title profile-card__name">
                       {user?.name ? (
                         <>
                           {user.name}{' '}
-                          <span
-                            style={{
-                              fontSize: '14px',
-                              fontWeight: 400,
-                              color: 'var(--text-secondary)',
-                            }}
-                          >
+                          <span className="profile-card__alias">
                             (
                             <button
                               onClick={() => setShowUserLookup(true)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: 'var(--text-secondary)',
-                                fontSize: 'inherit',
-                                padding: 0,
-                                textDecoration: 'underline',
-                                textDecorationStyle: 'dotted',
-                              }}
+                              className="profile-card__alias-btn"
                             >
                               {user.alias}
                             </button>
@@ -86,14 +55,7 @@ export function ProfilePage() {
                       ) : user?.alias ? (
                         <button
                           onClick={() => setShowUserLookup(true)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: 'inherit',
-                            fontSize: 'inherit',
-                            padding: 0,
-                          }}
+                          className="profile-card__copy-btn"
                         >
                           {userName}
                         </button>
@@ -102,9 +64,7 @@ export function ProfilePage() {
                       )}
                     </h1>
                     {usageStats?.lifetime.firstMessageDate && (
-                      <span
-                        style={{ fontSize: '12px', color: 'var(--text-muted)' }}
-                      >
+                      <span className="profile-card__title">
                         Joined{' '}
                         {new Date(
                           usageStats.lifetime.firstMessageDate,
@@ -113,19 +73,12 @@ export function ProfilePage() {
                     )}
                   </div>
                   {user?.title && (
-                    <span
-                      style={{
-                        fontSize: '14px',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
+                    <span className="profile-card__detail">
                       {user.title}
                     </span>
                   )}
                   {user?.email && (
-                    <span
-                      style={{ fontSize: '13px', color: 'var(--text-muted)' }}
-                    >
+                    <span className="profile-card__detail--muted">
                       {user.email}
                     </span>
                   )}
