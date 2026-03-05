@@ -1,0 +1,278 @@
+#!/bin/bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CLI="$SCRIPT_DIR/packages/cli/src/cli.ts"
+PIDFILE="$SCRIPT_DIR/.stallion.pids"
+
+# ── Colors ──────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+ok()   { echo -e "  ${GREEN}✓${NC} $1"; }
+warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
+fail() { echo -e "  ${RED}✗${NC} $1"; }
+step() { echo -e "\n${CYAN}$1${NC}"; }
+
+# ── Detection ───────────────────────────────────────────
+
+is_installed() {
+  [ -d "$HOME/.stallion-ai/plugins" ] && \
+  [ -d "$SCRIPT_DIR/dist-server" ] && \
+  [ -d "$SCRIPT_DIR/dist-ui" ]
+}
+
+is_running() {
+  [ -f "$PIDFILE" ] && read -r pid _ < "$PIDFILE" && kill -0 "$pid" 2>/dev/null
+}
+
+# ── Prereq checks ──────────────────────────────────────
+
+check_prereqs() {
+  step "Checking prerequisites..."
+  local missing=0
+
+  if command -v node &>/dev/null; then
+    local node_major=$(node -v | sed 's/v//' | cut -d. -f1)
+    if [ "$node_major" -ge 20 ]; then
+      ok "Node.js $(node -v | sed 's/v//')"
+    else
+      fail "Node.js $(node -v) (need >= 20)"
+      echo "    Install: https://nodejs.org/ or 'brew install node'"
+      missing=1
+    fi
+  else
+    fail "Node.js not found"
+    echo "    Install: https://nodejs.org/ or 'brew install node'"
+    missing=1
+  fi
+
+  command -v npm &>/dev/null && ok "npm $(npm -v)" || { fail "npm not found"; missing=1; }
+  command -v git &>/dev/null && ok "git $(git --version | awk '{print $3}')" || { fail "git not found"; missing=1; }
+
+  if command -v tsx &>/dev/null; then
+    ok "tsx"
+  else
+    warn "tsx not found — installing globally"
+    npm install -g tsx
+    ok "tsx installed"
+  fi
+
+  if command -v cargo &>/dev/null; then
+    ok "Rust $(rustc --version | awk '{print $2}') (desktop builds available)"
+    HAS_RUST=true
+  else
+    warn "Rust not installed (desktop builds unavailable, web mode only)"
+    HAS_RUST=false
+  fi
+
+  [ "$missing" -eq 1 ] && { echo ""; fail "Missing required prerequisites."; exit 1; }
+}
+
+# ── Install ─────────────────────────────────────────────
+
+do_install() {
+  local plugin_source="$1"
+  check_prereqs
+
+  step "Installing dependencies..."
+  if [ -d "$SCRIPT_DIR/node_modules" ]; then
+    ok "node_modules exists"
+  else
+    npm install --prefix "$SCRIPT_DIR"
+    ok "Dependencies installed"
+  fi
+
+  if [ -n "$plugin_source" ]; then
+    step "Installing plugin..."
+    echo "  Source: $plugin_source"
+    tsx "$CLI" install "$plugin_source"
+    ok "Plugin installed"
+  fi
+
+  step "Building application..."
+  cd "$SCRIPT_DIR"
+  npm run build:server
+  ok "Server built"
+  npm run build:ui
+  ok "UI built"
+}
+
+# ── Run / Stop ──────────────────────────────────────────
+
+do_start() {
+  cd "$SCRIPT_DIR"
+  do_stop 2>/dev/null
+
+  node dist-server/index.js > /dev/null 2>&1 &
+  local server_pid=$!
+  npx serve dist-ui -s -l 3000 > /dev/null 2>&1 &
+  local ui_pid=$!
+  echo "$server_pid $ui_pid" > "$PIDFILE"
+
+  sleep 1
+  if kill -0 $server_pid 2>/dev/null && kill -0 $ui_pid 2>/dev/null; then
+    echo ""
+    ok "Server: http://localhost:${PORT:-3141}"
+    ok "UI:     http://localhost:3000"
+    echo ""
+    echo "  Stop with: stallion --stop"
+  else
+    fail "Failed to start. Check that ports 3141 and 3000 are free."
+    do_stop 2>/dev/null
+    exit 1
+  fi
+}
+
+do_stop() {
+  if [ -f "$PIDFILE" ]; then
+    read -r server_pid ui_pid < "$PIDFILE"
+    kill $server_pid $ui_pid 2>/dev/null
+    rm -f "$PIDFILE"
+    ok "Stopped"
+  else
+    warn "No running instance found"
+  fi
+}
+
+# ── Desktop ─────────────────────────────────────────────
+
+do_desktop() {
+  check_prereqs
+  if [ "$HAS_RUST" = true ]; then
+    step "Building desktop app..."
+    cd "$SCRIPT_DIR"
+    npm run build:desktop
+    ok "Desktop app built → src-desktop/target/release/"
+  else
+    fail "Rust required for desktop builds. Install from https://rustup.rs/"
+    exit 1
+  fi
+}
+
+# ── Link ────────────────────────────────────────────────
+
+do_link() {
+  local target="/usr/local/bin/stallion"
+  local source="$SCRIPT_DIR/stallion"
+
+  if [ -L "$target" ] || [ -f "$target" ]; then
+    warn "$target already exists"
+    read -p "  Overwrite? [y/N] " -n 1 -r; echo ""
+    [[ ! $REPLY =~ ^[Yy]$ ]] && return
+  fi
+
+  ln -sf "$source" "$target" 2>/dev/null || sudo ln -sf "$source" "$target"
+  ok "Linked: stallion → $source"
+  echo "  You can now run 'stallion' from anywhere"
+}
+
+# ── Shortcut ────────────────────────────────────────────
+
+do_shortcut() {
+  local app_dir="$HOME/Applications/Stallion.app"
+  local contents="$app_dir/Contents"
+  local macos="$contents/MacOS"
+
+  mkdir -p "$macos"
+
+  cat > "$contents/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Stallion</string>
+  <key>CFBundleDisplayName</key><string>Stallion AI</string>
+  <key>CFBundleIdentifier</key><string>com.stallion-ai.launcher</string>
+  <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleExecutable</key><string>launch</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>LSUIElement</key><true/>
+</dict>
+</plist>
+PLIST
+
+  cat > "$macos/launch" << LAUNCHER
+#!/bin/bash
+"$SCRIPT_DIR/stallion" &
+sleep 2
+open "http://localhost:3000"
+LAUNCHER
+  chmod +x "$macos/launch"
+
+  ok "Created ~/Applications/Stallion.app"
+  echo "  Double-click to launch Stallion and open in browser"
+}
+
+# ── Main ────────────────────────────────────────────────
+
+echo ""
+echo "🐎 Stallion AI"
+echo ""
+
+case "${1:-}" in
+  --help|-h)
+    echo "Usage: stallion [command]"
+    echo ""
+    echo "Commands:"
+    echo "  (none)                  Start the app (installs on first run)"
+    echo "  --install <source>      Install plugin from git URL or local path, then build"
+    echo "  --stop                  Stop running application"
+    echo "  --desktop               Build desktop app (requires Rust)"
+    echo "  --fresh <source>        Wipe and reinstall everything"
+    echo "  --link                  Add 'stallion' to PATH (/usr/local/bin)"
+    echo "  --shortcut              Create macOS app in ~/Applications"
+    echo "  --check                 Check prerequisites only"
+    echo ""
+    echo "Examples:"
+    echo "  stallion --install git@gitlab.example.com:team/my-plugin.git"
+    echo "  stallion --install ./path/to/local/plugin"
+    echo "  stallion"
+    echo ""
+    exit 0
+    ;;
+  --install)
+    do_install "$2"
+    echo ""
+    ok "Installed! Run 'stallion' to start."
+    ;;
+  --stop)
+    do_stop
+    ;;
+  --desktop)
+    do_desktop
+    ;;
+  --fresh)
+    do_stop 2>/dev/null
+    rm -rf "$SCRIPT_DIR/node_modules" "$HOME/.stallion-ai"
+    do_install "$2"
+    do_start
+    ;;
+  --link)
+    do_link
+    ;;
+  --shortcut)
+    do_shortcut
+    ;;
+  --check)
+    check_prereqs
+    ;;
+  *)
+    if is_running; then
+      ok "Already running"
+      echo ""
+      echo "  UI:   http://localhost:3000"
+      echo "  Stop: stallion --stop"
+    elif is_installed; then
+      step "Starting..."
+      do_start
+    else
+      fail "Not installed yet. Run:"
+      echo "  stallion --install <plugin-source>"
+      exit 1
+    fi
+    ;;
+esac
