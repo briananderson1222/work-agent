@@ -5,10 +5,13 @@
  *
  * Plugin Management:
  *   stallion install <source>     Install from git URL or local path
+ *     --skip=<components>   Skip specific components (comma-separated)
+ *   stallion preview <source>     Validate and preview plugin contents
  *   stallion list                 List installed plugins
  *   stallion remove <name>        Remove a plugin
  *   stallion info <name>          Show plugin details
  *   stallion update <name>        Update a plugin (git only)
+ *   stallion registry [url]       Browse plugin registry (or set URL)
  *
  * Plugin Development:
  *   stallion init [name]          Scaffold a new plugin
@@ -40,6 +43,8 @@ import {
   type PluginManifest,
   readPluginManifest,
   resolvePluginTools,
+  buildPlugin as buildPluginBundle,
+  copyPluginTools,
   type ToolCallResponse,
   type WorkspaceConfig,
 } from '@stallion-ai/shared';
@@ -85,8 +90,94 @@ function extractPluginName(source: string): string {
 
 // ── Plugin Management ──────────────────────────────────
 
-function install(source: string): void {
+function preview(source: string): void {
+  console.log(`🔍 Previewing plugin from ${source}...`);
+
+  const pluginName = extractPluginName(source);
+  const tempDir = join(PLUGINS_DIR, `.preview-${pluginName}`);
+
+  try {
+    // Fetch source
+    if (existsSync(tempDir)) rmSync(tempDir, { recursive: true });
+    mkdirSync(tempDir, { recursive: true });
+
+    if (isGitUrl(source)) {
+      const { url, branch } = parseGitSource(source);
+      try {
+        execSync(`git clone --depth 1 --branch ${branch} ${url} ${tempDir}`, { stdio: 'pipe' });
+      } catch {
+        rmSync(tempDir, { recursive: true, force: true });
+        mkdirSync(tempDir, { recursive: true });
+        execSync(`git clone --depth 1 ${url} ${tempDir}`, { stdio: 'pipe' });
+      }
+    } else {
+      const sourcePath = resolve(source);
+      if (!existsSync(sourcePath)) throw new Error(`Source not found: ${sourcePath}`);
+      cpSync(sourcePath, tempDir, { recursive: true });
+    }
+
+    if (!existsSync(join(tempDir, 'plugin.json'))) {
+      throw new Error('Not a valid plugin: plugin.json not found');
+    }
+
+    const manifest = readManifest(tempDir);
+
+    // Detect conflicts
+    const conflicts: Array<{ type: string; id: string }> = [];
+    for (const agent of manifest.agents || []) {
+      const slug = `${manifest.name}:${agent.slug}`;
+      if (existsSync(join(AGENTS_DIR, slug, 'agent.json'))) {
+        conflicts.push({ type: 'agent', id: slug });
+      }
+    }
+    if (manifest.workspace && existsSync(join(WORKSPACES_DIR, manifest.workspace.slug, 'workspace.json'))) {
+      conflicts.push({ type: 'workspace', id: manifest.workspace.slug });
+    }
+
+    // Display preview
+    console.log(`\n✅ Valid plugin\n`);
+    console.log(`  Name:    ${manifest.displayName || manifest.name}`);
+    console.log(`  Package: ${manifest.name}@${manifest.version}`);
+    console.log(`  Type:    ${manifest.type}`);
+    if (manifest.description) console.log(`  Desc:    ${manifest.description}`);
+
+    console.log(`\n  Components:`);
+    if (manifest.agents?.length) {
+      for (const a of manifest.agents) {
+        const slug = `${manifest.name}:${a.slug}`;
+        const conflict = conflicts.find(c => c.type === 'agent' && c.id === slug);
+        console.log(`    agent:${slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`);
+      }
+    }
+    if (manifest.workspace) {
+      const conflict = conflicts.find(c => c.type === 'workspace' && c.id === manifest.workspace!.slug);
+      console.log(`    workspace:${manifest.workspace.slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`);
+    }
+    for (const p of manifest.providers || []) {
+      console.log(`    provider:${p.type}`);
+    }
+    for (const t of manifest.tools?.required || []) {
+      console.log(`    tool:${t}`);
+    }
+    if (manifest.permissions?.length) {
+      console.log(`\n  Permissions: ${manifest.permissions.join(', ')}`);
+    }
+    if (conflicts.length) {
+      console.log(`\n  ⚠ ${conflicts.length} conflict(s) detected — use --skip to exclude`);
+    }
+    console.log(`\n  Install with: stallion install ${source}`);
+    if (conflicts.length) {
+      const skipArgs = conflicts.map(c => `${c.type}:${c.id}`).join(',');
+      console.log(`  Skip conflicts: stallion install ${source} --skip=${skipArgs}`);
+    }
+  } finally {
+    if (existsSync(tempDir)) rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function install(source: string, skipList: string[] = []): void {
   console.log(`📦 Installing plugin from ${source}...`);
+  const skipSet = new Set(skipList);
   const pluginName = extractPluginName(source);
   const pluginDir = join(PLUGINS_DIR, pluginName);
 
@@ -124,43 +215,24 @@ function install(source: string): void {
   const manifest = readManifest(pluginDir);
 
   // Build plugin if build script exists and no bundle yet
-  const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
-  const hasBuildSh = existsSync(join(pluginDir, 'build.sh'));
-  if ((hasBuildMjs || hasBuildSh) && !existsSync(join(pluginDir, 'dist', 'bundle.js'))) {
-    try {
-      if (existsSync(join(pluginDir, 'package.json'))) {
-        execSync('npm install --legacy-peer-deps --ignore-scripts', {
-          cwd: pluginDir,
-          stdio: 'pipe',
-        });
-      }
-      const cmd = hasBuildMjs ? 'node build.mjs' : 'bash build.sh';
-      execSync(cmd, { cwd: pluginDir, stdio: 'inherit' });
-      console.log('  ✓ Plugin built');
-    } catch (e: any) {
-      console.error(`  ⚠ Plugin build failed: ${e.message}`);
-    }
+  if (buildPluginBundle(pluginDir)) {
+    console.log('  ✓ Plugin built');
   }
 
   // Copy tool configs if plugin includes them
-  const pluginToolsDir = join(pluginDir, 'tools');
-  const toolsDir = join(PROJECT_HOME, 'tools');
-  if (existsSync(pluginToolsDir)) {
-    mkdirSync(toolsDir, { recursive: true });
-    for (const entry of readdirSync(pluginToolsDir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const targetToolDir = join(toolsDir, entry.name);
-      if (!existsSync(targetToolDir)) {
-        cpSync(join(pluginToolsDir, entry.name), targetToolDir, { recursive: true });
-        console.log(`  ✓ Tool: ${entry.name}`);
-      }
-    }
+  const copied = copyPluginTools(pluginDir, join(PROJECT_HOME, 'tools'));
+  for (const id of copied) {
+    console.log(`  ✓ Tool: ${id}`);
   }
 
   if (manifest.agents) {
     mkdirSync(AGENTS_DIR, { recursive: true });
     for (const agent of manifest.agents) {
       const agentSlug = `${manifest.name}:${agent.slug}`;
+      if (skipSet.has(`agent:${agentSlug}`)) {
+        console.log(`  ⊘ Agent: ${agentSlug} (skipped)`);
+        continue;
+      }
       const sourceDir = join(pluginDir, 'agents', agent.slug);
       const targetDir = join(AGENTS_DIR, agentSlug);
       if (existsSync(sourceDir)) {
@@ -170,7 +242,7 @@ function install(source: string): void {
     }
   }
 
-  if (manifest.workspace) {
+  if (manifest.workspace && !skipSet.has(`workspace:${manifest.workspace.slug}`)) {
     mkdirSync(WORKSPACES_DIR, { recursive: true });
     const sourcePath = join(pluginDir, manifest.workspace.source);
     const targetDir = join(WORKSPACES_DIR, manifest.workspace.slug);
@@ -270,6 +342,70 @@ function update(name: string): void {
   }
   execSync('git pull --ff-only', { cwd: pluginDir, stdio: 'inherit' });
   console.log(`✅ Updated ${readManifest(pluginDir).displayName}`);
+}
+
+function registry(registryUrl?: string): void {
+  const configPath = join(PROJECT_HOME, 'config.json');
+  let url = registryUrl;
+
+  if (!url && existsSync(configPath)) {
+    try {
+      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+      url = config.registryUrl;
+    } catch {}
+  }
+
+  if (!url) {
+    console.error('No registry URL configured.');
+    console.log('  Set one: stallion registry <url>');
+    console.log('  Or add "registryUrl" to ~/.stallion-ai/config.json');
+    process.exit(1);
+  }
+
+  // If a URL was passed as arg, save it
+  if (registryUrl) {
+    mkdirSync(PROJECT_HOME, { recursive: true });
+    let config: Record<string, unknown> = {};
+    if (existsSync(configPath)) {
+      try { config = JSON.parse(readFileSync(configPath, 'utf-8')); } catch {}
+    }
+    config.registryUrl = registryUrl;
+    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    console.log(`  ✓ Registry URL saved: ${registryUrl}`);
+    return;
+  }
+
+  // Fetch and display available plugins
+  console.log(`📋 Fetching registry from ${url}...\n`);
+  try {
+    const result = execSync(`curl -sf "${url}"`, { encoding: 'utf-8', timeout: 15000 });
+    const manifest = JSON.parse(result);
+    const plugins = manifest.plugins || [];
+
+    if (!plugins.length) {
+      console.log('Registry is empty.');
+      return;
+    }
+
+    // Check what's installed
+    const installed = new Set<string>();
+    if (existsSync(PLUGINS_DIR)) {
+      for (const d of readdirSync(PLUGINS_DIR, { withFileTypes: true })) {
+        if (d.isDirectory()) installed.add(d.name);
+      }
+    }
+
+    console.log('Available Plugins:\n');
+    for (const p of plugins) {
+      const status = installed.has(p.id) ? ' [installed]' : '';
+      console.log(`  ${p.displayName || p.id} (${p.id}@${p.version || '?'})${status}`);
+      if (p.description) console.log(`    ${p.description}`);
+    }
+    console.log(`\n  Install with: stallion install <source>`);
+  } catch (e: any) {
+    console.error(`Failed to fetch registry: ${e.message}`);
+    process.exit(1);
+  }
 }
 
 // ── Plugin Development ─────────────────────────────────
@@ -1114,8 +1250,15 @@ const [, , command, ...args] = process.argv;
 
 try {
   switch (command) {
-    case 'install':
-      install(args[0]);
+    case 'install': {
+      const skipArg = args.find(a => a.startsWith('--skip='));
+      const skipList = skipArg ? skipArg.replace('--skip=', '').split(',') : [];
+      const source = args.find(a => !a.startsWith('--'));
+      install(source!, skipList);
+      break;
+    }
+    case 'preview':
+      preview(args[0]);
       break;
     case 'list':
       list();
@@ -1128,6 +1271,9 @@ try {
       break;
     case 'update':
       update(args[0]);
+      break;
+    case 'registry':
+      registry(args[0]);
       break;
     case 'init':
       init(args[0]);
@@ -1169,6 +1315,8 @@ Stallion CLI (@stallion-ai/cli)
 
 Usage:
   stallion install <source>     Install plugin + build app
+    --skip=<components>   Skip specific components (comma-separated)
+  stallion preview <source>     Validate and preview plugin contents
   stallion start                Start the application
   stallion stop                 Stop running application
 
@@ -1177,6 +1325,7 @@ Plugin Management:
   stallion remove <name>        Remove a plugin
   stallion info <name>          Show plugin details
   stallion update <name>        Update a plugin (git only)
+  stallion registry [url]       Browse plugin registry (or set URL)
 
 Setup:
   stallion doctor               Check prerequisites

@@ -9,7 +9,8 @@
  * DO NOT redefine these types elsewhere. Import from here.
  */
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ── Plugin Manifest ────────────────────────────────────────────────
@@ -282,6 +283,29 @@ export enum AgentSwitchState {
   READY = 'READY',
 }
 
+// ── Plugin Preview / Validation ────────────────────────────────────
+
+export interface ConflictInfo {
+  type: 'agent' | 'workspace' | 'provider' | 'tool';
+  id: string;
+  existingSource?: string;
+}
+
+export interface PluginComponent {
+  type: 'agent' | 'workspace' | 'provider' | 'tool';
+  id: string;
+  detail?: string;
+  conflict?: ConflictInfo;
+}
+
+export interface PluginPreview {
+  valid: boolean;
+  error?: string;
+  manifest?: PluginManifest;
+  components: PluginComponent[];
+  conflicts: ConflictInfo[];
+}
+
 // ── Config Parsing ─────────────────────────────────────────────────
 
 export function readPluginManifest(dir: string): PluginManifest {
@@ -334,4 +358,47 @@ export function listToolIds(toolsDir: string): string[] {
       (d) => d.isDirectory() && existsSync(join(toolsDir, d.name, 'tool.json')),
     )
     .map((d) => d.name);
+}
+
+/**
+ * Copy bundled tool configs from a plugin's tools/ directory to the project tools dir.
+ * Returns the list of tool IDs that were copied.
+ */
+export function copyPluginTools(
+  pluginDir: string,
+  projectToolsDir: string,
+): string[] {
+  const pluginToolsDir = join(pluginDir, 'tools');
+  if (!existsSync(pluginToolsDir)) return [];
+  mkdirSync(projectToolsDir, { recursive: true });
+  const copied: string[] = [];
+  for (const entry of readdirSync(pluginToolsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const target = join(projectToolsDir, entry.name);
+    if (!existsSync(target)) {
+      cpSync(join(pluginToolsDir, entry.name), target, { recursive: true });
+      copied.push(entry.name);
+    }
+  }
+  return copied;
+}
+
+/**
+ * Build a plugin if it has a build script and no existing bundle.
+ * Returns true if a build was executed.
+ */
+export function buildPlugin(pluginDir: string): boolean {
+  const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
+  const hasBuildSh = existsSync(join(pluginDir, 'build.sh'));
+  if (!hasBuildMjs && !hasBuildSh) return false;
+  if (existsSync(join(pluginDir, 'dist', 'bundle.js'))) return false;
+
+  if (existsSync(join(pluginDir, 'package.json'))) {
+    execSync('npm install --legacy-peer-deps --ignore-scripts', {
+      cwd: pluginDir, timeout: 60000, stdio: 'pipe',
+    });
+  }
+  const cmd = hasBuildMjs ? 'node build.mjs' : 'bash build.sh';
+  execSync(cmd, { cwd: pluginDir, timeout: 30000, stdio: 'inherit' });
+  return true;
 }

@@ -16,6 +16,10 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import {
+  buildPlugin as buildPluginBundle,
+  copyPluginTools,
+} from '@stallion-ai/shared';
+import {
   getAgentRegistryProvider,
   getToolRegistryProvider,
 } from '../providers/registry.js';
@@ -61,19 +65,10 @@ export function createPluginRoutes(
 
   /** Run plugin build if build.mjs or build.sh exists */
   function buildPlugin(pluginDir: string, name: string) {
-    const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
-    const hasBuildSh = existsSync(join(pluginDir, 'build.sh'));
-    if (!hasBuildMjs && !hasBuildSh) return;
     try {
-      if (existsSync(join(pluginDir, 'package.json'))) {
-        execSync(
-          'npm install --no-package-lock --legacy-peer-deps',
-          { cwd: pluginDir, timeout: 60000, stdio: 'pipe' },
-        );
+      if (buildPluginBundle(pluginDir)) {
+        logger.info(`Plugin ${name}: build complete`);
       }
-      const cmd = hasBuildMjs ? 'node build.mjs' : 'bash build.sh';
-      execSync(cmd, { cwd: pluginDir, timeout: 30000, stdio: 'pipe' });
-      logger.info(`Plugin ${name}: build complete`);
     } catch (e: any) {
       logger.error(`Plugin ${name}: build failed`, { error: e.message });
       throw new Error(`Build failed: ${e.message}`);
@@ -335,18 +330,9 @@ export function createPluginRoutes(
       buildPlugin(pluginDir, pluginName);
 
       // Copy bundled tool configs from plugin
-      const pluginToolsDir = join(pluginDir, 'tools');
-      const toolsDir = join(projectHomeDir, 'tools');
-      if (existsSync(pluginToolsDir)) {
-        mkdirSync(toolsDir, { recursive: true });
-        for (const entry of readdirSync(pluginToolsDir, { withFileTypes: true })) {
-          if (!entry.isDirectory()) continue;
-          const target = join(toolsDir, entry.name);
-          if (!existsSync(target)) {
-            cpSync(join(pluginToolsDir, entry.name), target, { recursive: true });
-            logger.info(`Copied tool config: ${entry.name}`);
-          }
-        }
+      const copied = copyPluginTools(pluginDir, join(projectHomeDir, 'tools'));
+      for (const id of copied) {
+        logger.info(`Copied tool config: ${id}`);
       }
 
       // Load providers (unless skipped)
@@ -360,7 +346,6 @@ export function createPluginRoutes(
       }
 
       // Resolve required tools (unless skipped)
-      const toolsDir = join(projectHomeDir, 'tools');
       const requiredTools = (manifest.tools?.required || []).filter(
         (id: string) => !skipSet.has(`tool:${id}`),
       );
@@ -532,6 +517,9 @@ export function createPluginRoutes(
 
       // Rebuild after update
       buildPlugin(pluginDir, name);
+
+      // Re-copy tool configs
+      copyPluginTools(pluginDir, join(projectHomeDir, 'tools'));
 
       // Emit SSE event
       eventBus?.emit('plugins:updated', { name, version: manifest.version });
