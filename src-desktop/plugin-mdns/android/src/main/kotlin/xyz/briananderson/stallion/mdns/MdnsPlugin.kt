@@ -75,8 +75,12 @@ class MdnsPlugin(private val activity: Activity) : Plugin(activity) {
         latch.await(DISCOVER_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         nsdManager.stopServiceDiscovery(discoveryListener)
 
-        val results = JSArray()
-        synchronized(found) { found.forEach { results.put(it) } }
-        invoke.resolve(results)
+        val arr = JSArray()
+        synchronized(found) { found.forEach { arr.put(it) } }
+        // Tauri's invoke.resolve() expects JSObject, not JSArray.
+        // Wrap the array in an object under a "servers" key.
+        val result = JSObject()
+        result.put("servers", arr)
+        invoke.resolve(result)
     }
 }
