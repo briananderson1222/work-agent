@@ -1273,15 +1273,14 @@ open "http://localhost:3000"
   console.log('  Double-click to launch Stallion and open in browser');
 }
 
-// ── Fresh (wipe + rebuild) ─────────────────────────────
+// ── Clean ──────────────────────────────────────────────
 
-function fresh(): void {
+function clean(): void {
   console.log('\n⚠️  This will delete ~/.stallion-ai which includes:');
   console.log('   - All installed plugins');
   console.log('   - Conversation history');
   console.log('   - Tool configurations\n');
 
-  // Sync prompt via execSync
   try {
     const answer = execSync('read -p "Continue? [y/N] " -n 1 -r ans && echo $ans', {
       stdio: ['inherit', 'pipe', 'inherit'], encoding: 'utf-8', shell: '/bin/bash',
@@ -1289,21 +1288,18 @@ function fresh(): void {
     console.log('');
     if (answer !== 'y') {
       console.log('Cancelled.');
-      return;
+      process.exit(0);
     }
   } catch {
     console.log('\nCancelled.');
-    return;
+    process.exit(0);
   }
 
   stop();
   rmSync(join(homedir(), '.stallion-ai'), { recursive: true, force: true });
   rmSync(join(CWD, 'dist-server'), { recursive: true, force: true });
   rmSync(join(CWD, 'dist-ui'), { recursive: true, force: true });
-  console.log('  ✓ Wiped\n');
-  console.log('Reinstall your plugin:');
-  console.log('  stallion install <plugin-source>');
-  console.log('  stallion start');
+  console.log('  ✓ Cleaned');
 }
 
 // ── Upgrade (git pull + rebuild) ───────────────────────
@@ -1334,6 +1330,7 @@ const [, , command, ...args] = process.argv;
 try {
   switch (command) {
     case 'install': {
+      if (args.includes('--clean')) clean();
       const skipArg = args.find(a => a.startsWith('--skip='));
       const skipList = skipArg ? skipArg.replace('--skip=', '').split(',') : [];
       const source = args.find(a => !a.startsWith('--'));
@@ -1365,13 +1362,14 @@ try {
       build();
       break;
     case 'start':
+      if (args.includes('--clean')) clean();
       start();
       break;
     case 'stop':
       stop();
       break;
     case 'fresh':
-      fresh();
+      clean();
       break;
     case 'upgrade':
       upgrade();
@@ -1405,11 +1403,12 @@ Stallion CLI (@stallion-ai/cli)
 Usage:
   stallion install <source>     Install plugin + build app
     --skip=<components>   Skip specific components (comma-separated)
+    --clean               Wipe ~/.stallion-ai before installing
   stallion preview <source>     Validate and preview plugin contents
-  stallion start                Start the application
+  stallion start                Start the application (auto-builds if needed)
+    --clean               Wipe and rebuild before starting
   stallion stop                 Stop running application
   stallion upgrade              Pull latest + rebuild (keeps plugins)
-  stallion fresh                Wipe everything and start over
 
 Plugin Management:
   stallion list                 List installed plugins
