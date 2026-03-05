@@ -18,7 +18,7 @@
  *     --tools-dir=<path>    Tool configs directory
  */
 
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import {
   cpSync,
   existsSync,
@@ -971,7 +971,6 @@ function start(): void {
 
   stop(); // clean up stale pids
 
-  const { spawn } = require('node:child_process');
   const serverProc = spawn('node', ['dist-server/index.js'], {
     cwd: CWD, stdio: 'ignore', detached: true,
   });
