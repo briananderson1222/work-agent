@@ -31,5 +31,8 @@ android {
 }
 
 dependencies {
-    implementation("app.tauri:plugin:0.1.0")
+    // tauri-android is a local project added to the generated Android project
+    // by `tauri android init`. Using project() reference avoids needing it
+    // in Maven Central.
+    implementation(project(":tauri-android"))
 }
