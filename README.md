@@ -73,28 +73,81 @@ Plugins extend Stallion with workspace UIs, agents, and providers. A plugin is a
   },
   "providers": [
     { "type": "auth", "module": "./providers/my-auth.js" }
+  ],
+  "dependencies": [
+    { "id": "shared-plugin", "source": "git@github.com:org/shared-plugin.git" }
   ]
 }
 ```
 
 ### Installing Plugins
 
-From the UI: go to **Settings → Plugins**, paste a git URL or local path, and click Install.
+From the UI: go to **Manage → Plugins**, paste a git URL or local path, and click Install. A preview modal shows what the plugin contains — components, conflicts, and dependencies — before anything is installed. Uncheck components you don't want.
 
 From the CLI:
 
 ```bash
-# From a git repo
+# Preview what a plugin contains before installing
+stallion preview git@github.com:org/my-workspace.git
+
+# Install (resolves dependencies automatically)
 stallion install git@github.com:org/my-workspace.git
 
-# From a local directory
-stallion install ../my-workspace
+# Skip specific components
+stallion install git@github.com:org/my-workspace.git --skip=workspace:my-ws
 
 # List installed plugins
 stallion list
 
 # Remove a plugin
 stallion remove my-workspace
+```
+
+### Plugin Dependencies
+
+Plugins can declare dependencies on other plugins. Dependencies are resolved recursively before the main plugin installs:
+
+```json
+{
+  "dependencies": [
+    { "id": "aws-internal", "source": "git@github.com:org/aws-internal.git" }
+  ]
+}
+```
+
+- `source` is optional — if omitted, the CLI scans installed plugins' `registry.json` files to find it
+- Already-installed dependencies are skipped
+- Cycle detection prevents infinite loops
+
+### Plugin Registry
+
+A plugin can provide a registry of available plugins by shipping a `registry.json` and declaring it as an `agentRegistry` provider:
+
+```json
+{
+  "providers": [
+    { "type": "agentRegistry", "module": "./registry.json" }
+  ]
+}
+```
+
+The registry manifest format:
+
+```json
+{
+  "version": 1,
+  "plugins": [
+    { "id": "my-plugin", "displayName": "My Plugin", "description": "...", "version": "1.0.0", "source": "git@..." }
+  ],
+  "tools": []
+}
+```
+
+Browse registries from the CLI:
+
+```bash
+stallion registry              # Browse configured registry
+stallion registry <url>        # Set a remote registry URL
 ```
 
 ### Plugin Bundles
@@ -130,15 +183,22 @@ See `examples/demo-workspace/` for a minimal working example.
 
 ## Provider System
 
-The core platform defines three provider interfaces that plugins can implement:
+The core platform defines provider interfaces that plugins can implement. Data types (`AuthStatus`, `RegistryItem`, `UserIdentity`, etc.) are exported from `@stallion-ai/shared` — plugins should import from there, not redefine them.
 
-| Provider | Interface | Default | Purpose |
-|----------|-----------|---------|---------|
-| Auth | `IAuthProvider` | Always valid | Session auth status, renewal, badge photos |
-| User Identity | `IUserIdentityProvider` | OS username | Current user's alias, name, email |
-| User Directory | `IUserDirectoryProvider` | Stub | People lookup and search |
+| Provider | Cardinality | Default | Purpose |
+|----------|-------------|---------|---------|
+| Auth | singleton | Always valid | Session auth status, renewal, badge photos |
+| User Identity | singleton | OS username | Current user's alias, name, email |
+| User Directory | singleton | Stub | People lookup and search |
+| Branding | singleton | Stallion defaults | App name, logo, theme, welcome message |
+| Settings | singleton | Built-in defaults | Default model, region, system prompt |
+| Agent Registry | additive | None | Browse and install agents/plugins |
+| Tool Registry | additive | None | Browse and install MCP tools |
+| Onboarding | additive | None | Prerequisite checks |
 
-Providers are declared in `plugin.json` and loaded when the server starts. Each provider type has exactly one active implementation — the last plugin to register wins.
+Singleton providers: last plugin to register wins. Additive providers: all registered instances are merged.
+
+Providers are declared in `plugin.json` and loaded when the server starts. For registry providers, you can use a static `.json` manifest file instead of JavaScript — the server auto-wraps it with `JsonManifestRegistryProvider`.
 
 ## Project Structure
 

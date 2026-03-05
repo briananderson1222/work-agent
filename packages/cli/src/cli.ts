@@ -30,6 +30,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -43,6 +44,7 @@ import {
   type PluginManifest,
   readPluginManifest,
   resolvePluginTools,
+  resolveGitInfo,
   buildPlugin as buildPluginBundle,
   copyPluginTools,
   type ToolCallResponse,
@@ -86,6 +88,30 @@ function extractPluginName(source: string): string {
     return match ? match[1] : url.split('/').pop()!.replace('.git', '');
   }
   return source.split('/').pop()!;
+}
+
+/** Scan installed plugins for registry.json files and look up a dep by id */
+function lookupDepInRegistries(id: string): string | null {
+  if (!existsSync(PLUGINS_DIR)) return null;
+  for (const entry of readdirSync(PLUGINS_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    // Check plugin.json for registry providers pointing at .json files
+    const manifestPath = join(PLUGINS_DIR, entry.name, 'plugin.json');
+    if (!existsSync(manifestPath)) continue;
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+      for (const p of manifest.providers || []) {
+        if (p.module?.endsWith('.json') && (p.type === 'agentRegistry' || p.type === 'toolRegistry')) {
+          const regPath = join(PLUGINS_DIR, entry.name, p.module);
+          if (!existsSync(regPath)) continue;
+          const reg = JSON.parse(readFileSync(regPath, 'utf-8'));
+          const found = (reg.plugins || []).find((pl: any) => pl.id === id);
+          if (found?.source) return found.source;
+        }
+      }
+    } catch {}
+  }
+  return null;
 }
 
 // ── Plugin Management ──────────────────────────────────
@@ -166,7 +192,8 @@ function preview(source: string): void {
       console.log(`\n  Dependencies:`);
       for (const dep of manifest.dependencies) {
         const installed = existsSync(join(PLUGINS_DIR, dep.id, 'plugin.json'));
-        console.log(`    ${dep.id}${installed ? ' ✓ installed' : dep.source ? ` → ${dep.source}` : ' (registry)'}`);
+        const source = dep.source || lookupDepInRegistries(dep.id);
+        console.log(`    ${dep.id}${installed ? ' ✓ installed' : source ? ` → ${source}` : ' ⚠ no source found'}`);
       }
     }
     if (conflicts.length) {
@@ -229,7 +256,8 @@ function install(source: string, skipList: string[] = []): void {
         console.log(`  ✓ Dep: ${dep.id} (already installed)`);
         continue;
       }
-      const depSource = dep.source;
+      // 1. Try explicit source
+      const depSource = dep.source || lookupDepInRegistries(dep.id);
       if (depSource) {
         try {
           install(depSource, []);
@@ -238,7 +266,7 @@ function install(source: string, skipList: string[] = []): void {
           console.error(`  ✗ Dep: ${dep.id} — ${e.message}`);
         }
       } else {
-        console.warn(`  ⚠ Dep: ${dep.id} — no source and no registry (skipped)`);
+        console.error(`  ✗ Dep: ${dep.id} — no source found (not in any installed plugin registry)`);
       }
     }
   }
@@ -526,8 +554,11 @@ function build(mode: 'production' | 'dev' = 'production'): void {
     );
 
     // Build react + react-query from plugin's own node_modules
+    // Rebuild if missing or if package.json is newer (deps may have changed)
     const reactBundle = join(CWD, 'dist/.react-dev.js');
-    if (!existsSync(reactBundle)) {
+    const pkgMtime = existsSync(join(CWD, 'package.json')) ? statSync(join(CWD, 'package.json')).mtimeMs : 0;
+    const bundleMtime = existsSync(reactBundle) ? statSync(reactBundle).mtimeMs : 0;
+    if (!existsSync(reactBundle) || pkgMtime > bundleMtime) {
       const reactEntry = join(CWD, 'dist/.react-entry.mjs');
       writeFileSync(
         reactEntry,
@@ -573,8 +604,8 @@ function build(mode: 'production' | 'dev' = 'production'): void {
       `--outfile=${join(CWD, `dist/bundle${isDev ? '-dev' : ''}.js`)}`,
       '--jsx=automatic',
       `--define:process.env.NODE_ENV=\\"${isDev ? 'development' : 'production'}\\"`,
-      isDev && devShimFile
-        ? `--inject:${devShimFile}`
+      isDev
+        ? ''
         : !isDev
           ? '--inject:shim.js'
           : '',
@@ -715,6 +746,21 @@ function dev(port = 4200, flags: DevFlags = {}): void {
   build('dev');
 
   const manifest = readManifest();
+
+  // Resolve dependencies (install if missing, same as `stallion install`)
+  if (manifest.dependencies?.length) {
+    for (const dep of manifest.dependencies) {
+      if (existsSync(join(PLUGINS_DIR, dep.id, 'plugin.json'))) continue;
+      const depSource = dep.source || lookupDepInRegistries(dep.id);
+      if (depSource) {
+        console.log(`📦 Installing dependency: ${dep.id}...`);
+        try { install(depSource, []); } catch (e: any) {
+          console.warn(`  ⚠ Dep ${dep.id} failed: ${e.message}`);
+        }
+      }
+    }
+  }
+
   const name = manifest.displayName || manifest.name;
   const pluginName = manifest.name;
   const bundleJs = join(CWD, 'dist/bundle-dev.js');
@@ -756,7 +802,7 @@ function dev(port = 4200, flags: DevFlags = {}): void {
   // ── MCP setup ──
   let mcpManager: MCPManager | null = null;
   const useMCP = flags.mcp !== false;
-  const toolsDir = flags.toolsDir || join(CWD, '..', '.stallion-ai', 'tools');
+  const toolsDir = flags.toolsDir || join(CWD, 'tools');
 
   if (useMCP && manifest.agents?.length) {
     (async () => {
@@ -945,7 +991,7 @@ function dev(port = 4200, flags: DevFlags = {}): void {
     if (url === '/react-dev.js' && existsSync(reactDev)) {
       res.writeHead(200, {
         'Content-Type': 'application/javascript',
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'no-cache',
       });
       res.end(readFileSync(reactDev));
       return;
@@ -1080,6 +1126,19 @@ window.__stallion_ai_sdk_mock={
 };
 </script>
 <script src="/react-dev.js"></script>
+<script>
+var require = globalThis.require = function(m) {
+  if (m === 'react') return window.React;
+  if (m === 'react/jsx-runtime') return window.__jsx;
+  if (m === 'react/jsx-dev-runtime') return window.__jsxDev;
+  if (m === 'react-dom' || m === 'react-dom/client') return window.ReactDOM;
+  if (m === '@tanstack/react-query') return window.__stallion_ai_rq;
+  var s = window.__stallion_ai_sdk_mock;
+  if (m === '@stallion-ai/sdk') return Object.assign({}, s, {default:s, __esModule:true});
+  if (m === '@stallion-ai/components') return new Proxy({}, {get: function() { return function() { return null; }; }});
+  throw new Error('Unknown external: ' + m);
+};
+</script>
 <script src="/bundle.js"></script>
 <script>
 (function(){
@@ -1128,7 +1187,8 @@ function start(): void {
   }
 
   // Build if needed
-  if (!isInstalled()) {
+  const firstBuild = !isInstalled();
+  if (firstBuild) {
     console.log('Building application...');
     execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
     execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
@@ -1156,6 +1216,23 @@ function start(): void {
     console.log(`\n  ✓ Server: http://localhost:${process.env.PORT || 3141}`);
     console.log('  ✓ UI:     http://localhost:3000');
     console.log('\n  Stop with: stallion stop');
+
+    // Save git remote to config for update checks (config now exists from server init)
+    if (firstBuild) {
+      try {
+        const configPath = join(PROJECT_HOME, 'config', 'app.json');
+        if (existsSync(configPath)) {
+          const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+          if (!config.gitRemote) {
+            const remote = execSync('git remote get-url origin', { cwd: CWD, encoding: 'utf-8' }).trim();
+            if (remote) {
+              config.gitRemote = remote;
+              writeFileSync(configPath, JSON.stringify(config, null, 2));
+            }
+          }
+        }
+      } catch {}
+    }
   } catch {
     console.error('Failed to start. Check that ports 3141 and 3000 are free.');
     stop();
@@ -1275,24 +1352,26 @@ open "http://localhost:3000"
 
 // ── Clean ──────────────────────────────────────────────
 
-function clean(): void {
-  console.log('\n⚠️  This will delete ~/.stallion-ai which includes:');
-  console.log('   - All installed plugins');
-  console.log('   - Conversation history');
-  console.log('   - Tool configurations\n');
+function clean(force = false): void {
+  if (!force) {
+    console.log('\n⚠️  This will delete ~/.stallion-ai which includes:');
+    console.log('   - All installed plugins');
+    console.log('   - Conversation history');
+    console.log('   - Tool configurations\n');
 
-  try {
-    const answer = execSync('read -p "Continue? [y/N] " -n 1 -r ans && echo $ans', {
-      stdio: ['inherit', 'pipe', 'inherit'], encoding: 'utf-8', shell: '/bin/bash',
-    }).trim().toLowerCase();
-    console.log('');
-    if (answer !== 'y') {
-      console.log('Cancelled.');
+    try {
+      const answer = execSync('read -p "Continue? [y/N] " -n 1 -r ans && echo $ans', {
+        stdio: ['inherit', 'pipe', 'inherit'], encoding: 'utf-8', shell: '/bin/bash',
+      }).trim().toLowerCase();
+      console.log('');
+      if (answer !== 'y') {
+        console.log('Cancelled.');
+        process.exit(0);
+      }
+    } catch {
+      console.log('\nCancelled.');
       process.exit(0);
     }
-  } catch {
-    console.log('\nCancelled.');
-    process.exit(0);
   }
 
   stop();
@@ -1309,15 +1388,17 @@ function upgrade(): void {
     stop();
   }
 
+  const { gitRoot } = resolveGitInfo(CWD);
+
   console.log('Pulling latest...');
-  execSync('git pull', { cwd: CWD, stdio: 'inherit' });
+  execSync('git pull', { cwd: gitRoot, stdio: 'inherit' });
 
   console.log('\nInstalling dependencies...');
-  execSync('npm install', { cwd: CWD, stdio: 'inherit' });
+  execSync('npm install', { cwd: gitRoot, stdio: 'inherit' });
 
   console.log('\nRebuilding...');
-  execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
-  execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
+  execSync('npm run build:server', { cwd: gitRoot, stdio: 'inherit' });
+  execSync('npm run build:ui', { cwd: gitRoot, stdio: 'inherit' });
 
   console.log('\n  ✓ Upgraded');
   console.log('  Plugins unchanged. Run "stallion start" to launch.');
@@ -1362,14 +1443,14 @@ try {
       build();
       break;
     case 'start':
-      if (args.includes('--clean')) clean();
+      if (args.includes('--clean')) clean(args.includes('--force'));
       start();
       break;
     case 'stop':
       stop();
       break;
     case 'fresh':
-      clean();
+      clean(args.includes('--force'));
       break;
     case 'upgrade':
       upgrade();
@@ -1407,6 +1488,7 @@ Usage:
   stallion preview <source>     Validate and preview plugin contents
   stallion start                Start the application (auto-builds if needed)
     --clean               Wipe and rebuild before starting
+    --force               Skip confirmation prompt (use with --clean)
   stallion stop                 Stop running application
   stallion upgrade              Pull latest + rebuild (keeps plugins)
 
