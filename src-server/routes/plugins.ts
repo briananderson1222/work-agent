@@ -150,56 +150,146 @@ export function createPluginRoutes(
     return c.json({ plugins });
   });
 
+  // ── Fetch source to temp dir (shared by preview + install) ──
+
+  async function fetchSource(source: string): Promise<{ tempDir: string; tempName: string } | { error: string }> {
+    const isGit =
+      source.startsWith('git@') ||
+      source.endsWith('.git') ||
+      (source.startsWith('https://') &&
+        (source.includes('.git') ||
+          source.includes('gitlab') ||
+          source.includes('github')));
+
+    const tempName = extractPluginName(source);
+    const tempDir = join(pluginsDir, `.preview-${tempName}`);
+
+    if (existsSync(tempDir)) rmSync(tempDir, { recursive: true });
+    mkdirSync(tempDir, { recursive: true });
+
+    if (isGit) {
+      const [url, branch] = source.split('#');
+      const cloneArgs = ['clone', '--depth', '1'];
+      if (branch) cloneArgs.push('--branch', branch);
+      cloneArgs.push(url, tempDir);
+      try {
+        execSync(['git', ...cloneArgs].map((a) => `"${a}"`).join(' '), { timeout: 30000 });
+      } catch {
+        rmSync(tempDir, { recursive: true, force: true });
+        mkdirSync(tempDir, { recursive: true });
+        try {
+          execSync(`git clone --depth 1 "${url}" "${tempDir}"`, { timeout: 30000 });
+        } catch (e: any) {
+          rmSync(tempDir, { recursive: true, force: true });
+          return { error: `Failed to clone: ${e.message}` };
+        }
+      }
+    } else {
+      if (!existsSync(source)) {
+        rmSync(tempDir, { recursive: true });
+        return { error: `Source not found: ${source}` };
+      }
+      cpSync(source, tempDir, { recursive: true });
+    }
+
+    if (!existsSync(join(tempDir, 'plugin.json'))) {
+      rmSync(tempDir, { recursive: true, force: true });
+      return { error: 'Not a valid plugin: plugin.json not found' };
+    }
+
+    return { tempDir, tempName };
+  }
+
+  /** Detect conflicts between a manifest and what's already installed */
+  function detectConflicts(manifest: any): Array<{ type: string; id: string; existingSource?: string }> {
+    const conflicts: Array<{ type: string; id: string; existingSource?: string }> = [];
+
+    for (const agent of manifest.agents || []) {
+      const slug = `${manifest.name}:${agent.slug}`;
+      if (existsSync(join(agentsDir, slug, 'agent.json'))) {
+        conflicts.push({ type: 'agent', id: slug, existingSource: 'installed' });
+      }
+    }
+
+    if (manifest.workspace) {
+      const wsDir = join(workspacesDir, manifest.workspace.slug, 'workspace.json');
+      if (existsSync(wsDir)) {
+        try {
+          const existing = JSON.parse(readFileSync(wsDir, 'utf-8'));
+          if (existing.plugin && existing.plugin !== manifest.name) {
+            conflicts.push({ type: 'workspace', id: manifest.workspace.slug, existingSource: existing.plugin });
+          }
+        } catch {
+          conflicts.push({ type: 'workspace', id: manifest.workspace.slug });
+        }
+      }
+    }
+
+    return conflicts;
+  }
+
+  // ── Preview / validate plugin before install ─────────
+
+  app.post('/preview', async (c) => {
+    try {
+      const { source } = await c.req.json();
+      if (!source) return c.json({ valid: false, error: 'source is required', components: [], conflicts: [] }, 400);
+
+      const result = await fetchSource(source);
+      if ('error' in result) return c.json({ valid: false, error: result.error, components: [], conflicts: [] });
+
+      const { tempDir } = result;
+      try {
+        const manifest = JSON.parse(await readFile(join(tempDir, 'plugin.json'), 'utf-8'));
+        const conflicts = detectConflicts(manifest);
+        const conflictIds = new Set(conflicts.map(c => `${c.type}:${c.id}`));
+
+        const components: Array<{ type: string; id: string; detail?: string; conflict?: typeof conflicts[0] }> = [];
+
+        for (const agent of manifest.agents || []) {
+          const slug = `${manifest.name}:${agent.slug}`;
+          const conflict = conflicts.find(c => c.type === 'agent' && c.id === slug);
+          components.push({ type: 'agent', id: slug, detail: agent.source, conflict });
+        }
+
+        if (manifest.workspace) {
+          const conflict = conflicts.find(c => c.type === 'workspace' && c.id === manifest.workspace.slug);
+          components.push({ type: 'workspace', id: manifest.workspace.slug, detail: manifest.workspace.source, conflict });
+        }
+
+        for (const p of manifest.providers || []) {
+          components.push({ type: 'provider', id: p.type, detail: p.module });
+        }
+
+        for (const toolId of manifest.tools?.required || []) {
+          const installed = existsSync(join(projectHomeDir, 'tools', toolId, 'tool.json'));
+          components.push({ type: 'tool', id: toolId, detail: installed ? 'already installed' : 'will install' });
+        }
+
+        return c.json({ valid: true, manifest, components, conflicts });
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    } catch (e: any) {
+      return c.json({ valid: false, error: e.message, components: [], conflicts: [] }, 500);
+    }
+  });
+
   // ── Install plugin from git URL or local path ───────
 
   app.post('/install', async (c) => {
     try {
-      const { source } = await c.req.json();
+      const { source, skip } = await c.req.json();
       if (!source)
         return c.json({ success: false, error: 'source is required' }, 400);
 
-      const isGit =
-        source.startsWith('git@') ||
-        source.endsWith('.git') ||
-        (source.startsWith('https://') &&
-          (source.includes('.git') ||
-            source.includes('gitlab') ||
-            source.includes('github')));
+      // skip: optional array of component ids to exclude, e.g. ["agent:myplugin:assistant", "workspace:my-ws"]
+      const skipSet = new Set<string>(skip || []);
 
-      // Clone/copy to temp dir first, read manifest, then move to canonical name
-      const tempName = extractPluginName(source);
-      const tempDir = join(pluginsDir, `.installing-${tempName}`);
+      const result = await fetchSource(source);
+      if ('error' in result) return c.json({ success: false, error: result.error }, 400);
 
-      if (existsSync(tempDir)) rmSync(tempDir, { recursive: true });
-      mkdirSync(tempDir, { recursive: true });
-
-      // Clone or copy
-      if (isGit) {
-        const [url, branch] = source.split('#');
-        const cloneArgs = ['clone', '--depth', '1'];
-        if (branch) cloneArgs.push('--branch', branch);
-        cloneArgs.push(url, tempDir);
-        try {
-          execSync(['git', ...cloneArgs].map((a) => `"${a}"`).join(' '), {
-            timeout: 30000,
-          });
-        } catch {
-          rmSync(tempDir, { recursive: true, force: true });
-          mkdirSync(tempDir, { recursive: true });
-          execSync(`git clone --depth 1 "${url}" "${tempDir}"`, {
-            timeout: 30000,
-          });
-        }
-      } else {
-        if (!existsSync(source)) {
-          rmSync(tempDir, { recursive: true });
-          return c.json(
-            { success: false, error: `Source not found: ${source}` },
-            400,
-          );
-        }
-        cpSync(source, tempDir, { recursive: true });
-      }
+      const { tempDir, tempName } = result;
 
       const manifest = JSON.parse(
         await readFile(join(tempDir, 'plugin.json'), 'utf-8'),
@@ -215,11 +305,12 @@ export function createPluginRoutes(
         rmSync(tempDir, { recursive: true });
       }
 
-      // Install agents
+      // Install agents (unless skipped)
       if (manifest.agents) {
         mkdirSync(agentsDir, { recursive: true });
         for (const agent of manifest.agents) {
           const slug = `${manifest.name}:${agent.slug}`;
+          if (skipSet.has(`agent:${slug}`)) continue;
           const src = join(pluginDir, 'agents', agent.slug);
           if (existsSync(src)) {
             cpSync(src, join(agentsDir, slug), { recursive: true });
@@ -227,8 +318,8 @@ export function createPluginRoutes(
         }
       }
 
-      // Install workspace config
-      if (manifest.workspace) {
+      // Install workspace config (unless skipped)
+      if (manifest.workspace && !skipSet.has(`workspace:${manifest.workspace.slug}`)) {
         mkdirSync(workspacesDir, { recursive: true });
         const src = join(pluginDir, manifest.workspace.source);
         if (existsSync(src)) {
@@ -243,12 +334,36 @@ export function createPluginRoutes(
       // Build plugin (if build script exists)
       buildPlugin(pluginDir, pluginName);
 
-      // Load providers
-      await loadProviders(pluginsDir, manifest.name, manifest, logger);
-
-      // Resolve required tools
+      // Copy bundled tool configs from plugin
+      const pluginToolsDir = join(pluginDir, 'tools');
       const toolsDir = join(projectHomeDir, 'tools');
-      const requiredTools = manifest.tools?.required || [];
+      if (existsSync(pluginToolsDir)) {
+        mkdirSync(toolsDir, { recursive: true });
+        for (const entry of readdirSync(pluginToolsDir, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const target = join(toolsDir, entry.name);
+          if (!existsSync(target)) {
+            cpSync(join(pluginToolsDir, entry.name), target, { recursive: true });
+            logger.info(`Copied tool config: ${entry.name}`);
+          }
+        }
+      }
+
+      // Load providers (unless skipped)
+      if (manifest.providers) {
+        const activeProviders = manifest.providers.filter(
+          (p: any) => !skipSet.has(`provider:${p.type}`),
+        );
+        if (activeProviders.length > 0) {
+          await loadProviders(pluginsDir, manifest.name, { ...manifest, providers: activeProviders }, logger);
+        }
+      }
+
+      // Resolve required tools (unless skipped)
+      const toolsDir = join(projectHomeDir, 'tools');
+      const requiredTools = (manifest.tools?.required || []).filter(
+        (id: string) => !skipSet.has(`tool:${id}`),
+      );
       const toolResults: Array<{
         id: string;
         status: 'installed' | 'missing' | 'installed-now';
@@ -258,7 +373,6 @@ export function createPluginRoutes(
         if (existsSync(join(toolsDir, toolId, 'tool.json'))) {
           toolResults.push({ id: toolId, status: 'installed' });
         } else {
-          // Try to install from registry
           try {
             const registry = getToolRegistryProvider();
             const result = await registry.install(toolId);
