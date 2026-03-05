@@ -1108,12 +1108,12 @@ function start(): void {
   stop(); // clean up stale pids
 
   const serverProc = spawn('node', ['dist-server/index.js'], {
-    cwd: CWD, stdio: 'ignore', detached: true,
+    cwd: CWD, stdio: 'ignore', detached: true, env: { ...process.env },
   });
   serverProc.unref();
 
   const uiProc = spawn('npx', ['serve', 'dist-ui', '-s', '-l', '3000'], {
-    cwd: CWD, stdio: 'ignore', detached: true,
+    cwd: CWD, stdio: 'ignore', detached: true, env: { ...process.env },
   });
   uiProc.unref();
 
