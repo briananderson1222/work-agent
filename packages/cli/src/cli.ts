@@ -162,6 +162,13 @@ function preview(source: string): void {
     if (manifest.permissions?.length) {
       console.log(`\n  Permissions: ${manifest.permissions.join(', ')}`);
     }
+    if (manifest.dependencies?.length) {
+      console.log(`\n  Dependencies:`);
+      for (const dep of manifest.dependencies) {
+        const installed = existsSync(join(PLUGINS_DIR, dep.id, 'plugin.json'));
+        console.log(`    ${dep.id}${installed ? ' ✓ installed' : dep.source ? ` → ${dep.source}` : ' (registry)'}`);
+      }
+    }
     if (conflicts.length) {
       console.log(`\n  ⚠ ${conflicts.length} conflict(s) detected — use --skip to exclude`);
     }
@@ -213,6 +220,28 @@ function install(source: string, skipList: string[] = []): void {
   }
 
   const manifest = readManifest(pluginDir);
+
+  // Resolve dependencies first
+  if (manifest.dependencies?.length) {
+    console.log('  Resolving dependencies...');
+    for (const dep of manifest.dependencies) {
+      if (existsSync(join(PLUGINS_DIR, dep.id, 'plugin.json'))) {
+        console.log(`  ✓ Dep: ${dep.id} (already installed)`);
+        continue;
+      }
+      const depSource = dep.source;
+      if (depSource) {
+        try {
+          install(depSource, []);
+          console.log(`  ✓ Dep: ${dep.id}`);
+        } catch (e: any) {
+          console.error(`  ✗ Dep: ${dep.id} — ${e.message}`);
+        }
+      } else {
+        console.warn(`  ⚠ Dep: ${dep.id} — no source and no registry (skipped)`);
+      }
+    }
+  }
 
   // Build plugin if build script exists and no bundle yet
   if (buildPluginBundle(pluginDir)) {
@@ -1244,6 +1273,60 @@ open "http://localhost:3000"
   console.log('  Double-click to launch Stallion and open in browser');
 }
 
+// ── Fresh (wipe + rebuild) ─────────────────────────────
+
+function fresh(): void {
+  console.log('\n⚠️  This will delete ~/.stallion-ai which includes:');
+  console.log('   - All installed plugins');
+  console.log('   - Conversation history');
+  console.log('   - Tool configurations\n');
+
+  // Sync prompt via execSync
+  try {
+    const answer = execSync('read -p "Continue? [y/N] " -n 1 -r ans && echo $ans', {
+      stdio: ['inherit', 'pipe', 'inherit'], encoding: 'utf-8', shell: '/bin/bash',
+    }).trim().toLowerCase();
+    console.log('');
+    if (answer !== 'y') {
+      console.log('Cancelled.');
+      return;
+    }
+  } catch {
+    console.log('\nCancelled.');
+    return;
+  }
+
+  stop();
+  rmSync(join(homedir(), '.stallion-ai'), { recursive: true, force: true });
+  rmSync(join(CWD, 'dist-server'), { recursive: true, force: true });
+  rmSync(join(CWD, 'dist-ui'), { recursive: true, force: true });
+  console.log('  ✓ Wiped\n');
+  console.log('Reinstall your plugin:');
+  console.log('  stallion install <plugin-source>');
+  console.log('  stallion start');
+}
+
+// ── Upgrade (git pull + rebuild) ───────────────────────
+
+function upgrade(): void {
+  if (isRunning()) {
+    stop();
+  }
+
+  console.log('Pulling latest...');
+  execSync('git pull', { cwd: CWD, stdio: 'inherit' });
+
+  console.log('\nInstalling dependencies...');
+  execSync('npm install', { cwd: CWD, stdio: 'inherit' });
+
+  console.log('\nRebuilding...');
+  execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
+  execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
+
+  console.log('\n  ✓ Upgraded');
+  console.log('  Plugins unchanged. Run "stallion start" to launch.');
+}
+
 // ── CLI entry point ────────────────────────────────────
 
 const [, , command, ...args] = process.argv;
@@ -1287,6 +1370,12 @@ try {
     case 'stop':
       stop();
       break;
+    case 'fresh':
+      fresh();
+      break;
+    case 'upgrade':
+      upgrade();
+      break;
     case 'doctor':
       doctor();
       break;
@@ -1319,6 +1408,8 @@ Usage:
   stallion preview <source>     Validate and preview plugin contents
   stallion start                Start the application
   stallion stop                 Stop running application
+  stallion upgrade              Pull latest + rebuild (keeps plugins)
+  stallion fresh                Wipe everything and start over
 
 Plugin Management:
   stallion list                 List installed plugins
