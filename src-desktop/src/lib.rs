@@ -147,6 +147,14 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_shell::init());
     }
 
+    // Mobile-only plugins
+    #[cfg(mobile)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_barcode_scanner::init())
+            .plugin(tauri_plugin_stallion_mdns::init());
+    }
+
     builder
         .invoke_handler(tauri::generate_handler![
             #[cfg(not(mobile))]

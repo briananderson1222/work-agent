@@ -88,6 +88,7 @@ import { createFsRoutes } from '../routes/fs.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createSystemRoutes } from '../routes/system.js';
 import { createToolRoutes } from '../routes/tools.js';
+import { startMdnsAdvertisement } from '../services/mdns.js';
 import {
   createWorkflowRoutes,
   createWorkspaceRoutes,
@@ -131,6 +132,7 @@ export class WorkAgentRuntime {
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private stopMdns: (() => void) | null = null;
   private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
   private agentFixedTokens: Map<
     string,
@@ -2179,6 +2181,9 @@ export class WorkAgentRuntime {
     // Start periodic health checks (every 60 seconds)
     this.startHealthChecks();
 
+    // Advertise on mDNS so LAN clients can find this server without subnet scanning
+    this.stopMdns = startMdnsAdvertisement("Project Stallion", this.port);
+
     // Start ACP bridge (non-blocking — no-op if kiro-cli not found)
     this.configLoader
       .loadACPConfig()
@@ -2852,6 +2857,9 @@ export class WorkAgentRuntime {
 
     // Shutdown ACP bridge
     await this.acpBridge.shutdown();
+
+    // Stop mDNS advertisement
+    this.stopMdns?.();
 
     // Dispose config loader
     await this.configLoader.dispose();

@@ -52,6 +52,7 @@
     "@stallion-ai/shared": "^0.1.0",
     "ai": "^5.0.76",
     "ajv": "^8.12.0",
+    "bonjour-service": "^1.3.0",
     "chokidar": "^3.6.0",
     "debug": "^4.4.3",
     "dompurify": "^3.3.0",

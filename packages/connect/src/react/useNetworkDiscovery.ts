@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { DiscoveredServer } from '../core/types';
+import type { DiscoveredServer, NativeDiscoverFn } from '../core/types';
 
 export interface UseNetworkDiscoveryOptions {
   /** Port to probe on each host (default: 3141) */
@@ -10,6 +10,17 @@ export interface UseNetworkDiscoveryOptions {
   timeout?: number;
   /** Number of parallel probes (default: 30) */
   batchSize?: number;
+  /**
+   * Native mDNS discovery (Tauri Android / NsdManager).
+   * When provided, results are merged with the subnet scan (or replace it when
+   * mdnsEnabled is true and the caller chooses to skip the subnet scan).
+   */
+  nativeDiscover?: NativeDiscoverFn;
+  /**
+   * When true and nativeDiscover is provided, native results are surfaced first
+   * and the subnet scan is skipped entirely (default: false).
+   */
+  nativeOnly?: boolean;
 }
 
 export interface UseNetworkDiscoveryResult {
@@ -23,6 +34,8 @@ export function useNetworkDiscovery({
   discoveryPath = '/api/system/discover',
   timeout = 500,
   batchSize = 30,
+  nativeDiscover,
+  nativeOnly = false,
 }: UseNetworkDiscoveryOptions = {}): UseNetworkDiscoveryResult {
   const [scanning, setScanning] = useState(false);
   const [discovered, setDiscovered] = useState<DiscoveredServer[]>([]);
@@ -38,10 +51,18 @@ export function useNetworkDiscovery({
     setDiscovered([]);
 
     try {
+      // Native mDNS path — run first, or exclusively when nativeOnly is set
+      if (nativeDiscover) {
+        const native = await nativeDiscover().catch(() => [] as DiscoveredServer[]);
+        if (ac.signal.aborted) return;
+        if (native.length > 0) {
+          setDiscovered((prev) => dedup([...prev, ...native]));
+        }
+        if (nativeOnly) return;
+      }
+
       const subnets = await detectSubnets();
       if (ac.signal.aborted) return;
-
-      const results: DiscoveredServer[] = [];
 
       for (const subnet of subnets) {
         // Build the 254 candidate IPs for this /24
@@ -56,8 +77,7 @@ export function useNetworkDiscovery({
           );
           const found = hits.filter((h): h is DiscoveredServer => h !== null);
           if (found.length > 0) {
-            results.push(...found);
-            // Surface discoveries incrementally
+            // Surface discoveries incrementally, merged with any native results
             setDiscovered((prev) => dedup([...prev, ...found]));
           }
         }
@@ -65,7 +85,7 @@ export function useNetworkDiscovery({
     } finally {
       if (!ac.signal.aborted) setScanning(false);
     }
-  }, [port, discoveryPath, timeout, batchSize]);
+  }, [port, discoveryPath, timeout, batchSize, nativeDiscover, nativeOnly]);
 
   return { scanning, discovered, scan };
 }

@@ -14,7 +14,6 @@ import { useApprovalNotifications } from '../hooks/useApprovalNotifications';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import type { MobileSettings } from '../hooks/useMobileSettings';
 import { useMobileSettings } from '../hooks/useMobileSettings';
-import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import type { AppConfig, NavigationView } from '../types';
 import './SettingsView.css';
 
@@ -364,6 +363,11 @@ const FEATURE_META: Array<{
     label: 'Tool-approval push notifications',
     description: 'Receive browser push notifications (with Allow/Deny buttons) when an agent needs your approval to run a tool.',
     privacyNote: 'Requires notification permission and HTTPS. See server docs to configure VAPID keys.',
+  },
+  {
+    key: 'mdnsDiscoveryEnabled',
+    label: 'Use mDNS discovery (Android)',
+    description: 'On Android, use NsdManager (_stallion._tcp) to find the server in ~1 second instead of scanning all 254 LAN addresses. Disable if mDNS is blocked on your network.',
   },
 ];
 

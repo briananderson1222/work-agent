@@ -1,7 +1,7 @@
 // Core (framework-agnostic)
 export { ConnectionStore } from './core/ConnectionStore';
 export { LocalStorageAdapter, defaultStorage } from './core/storage';
-export type { SavedConnection, StorageAdapter, ConnectionStatus, DiscoveredServer } from './core/types';
+export type { SavedConnection, StorageAdapter, ConnectionStatus, DiscoveredServer, NativeScanFn, NativeDiscoverFn } from './core/types';
 
 // React
 export { ConnectionsProvider, useConnections } from './react/ConnectionsContext';

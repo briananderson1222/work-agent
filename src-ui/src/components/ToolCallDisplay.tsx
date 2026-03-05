@@ -61,7 +61,7 @@ export function ToolCallDisplay({
   const cancelled = tool.cancelled || toolCall.cancelled;
   const approvalStatus = tool.approvalStatus || toolCall.approvalStatus;
 
-  const argsPreview = args
+  const smartSummary = args
     ? Object.keys(args).length > 0
       ? Object.keys(args)
           .map((k) => `${k}: ${JSON.stringify(args[k])}`)

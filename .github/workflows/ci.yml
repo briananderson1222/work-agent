@@ -29,8 +29,14 @@ jobs:
       - name: Build Connect
         run: cd packages/connect && npm run build
 
-      - name: Typecheck
+      - name: Typecheck (server)
         run: npx tsc --noEmit --skipLibCheck
+
+      - name: Typecheck (UI)
+        run: npx tsc --project src-ui/tsconfig.json --noEmit
+
+      - name: Format
+        run: npx biome format --check src-server/ src-ui/ packages/
 
       - name: Lint
         run: npm run lint
@@ -41,8 +47,11 @@ jobs:
       - name: Build UI
         run: npm run build:ui
 
-      - name: Unit tests
+      - name: Unit tests (root)
         run: npm test -- --run
+
+      - name: Unit tests (connect)
+        run: cd packages/connect && npx vitest run --config vitest.config.ts
 
   mobile-playwright:
     name: Mobile Playwright (Android viewport)

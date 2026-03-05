@@ -1,19 +1,30 @@
 /**
  * ApiBaseContext — thin backward-compat wrapper over @stallion-ai/connect.
  * Consumers continue to call useApiBase() / <ApiBaseProvider> with the same API shape.
+ * On Tauri Android, TauriConnectBridge injects native scan + mDNS discovery.
  */
 import { type ReactNode } from 'react';
-import { ConnectionsProvider, useConnections } from '@stallion-ai/connect';
+import { useConnections } from '@stallion-ai/connect';
+import { TauriConnectBridge } from '../components/TauriConnectBridge';
+import { useMobileSettings } from '../hooks/useMobileSettings';
 
 const DEFAULT_API_BASE =
   import.meta.env.VITE_API_BASE || 'http://localhost:3141';
 
-export function ApiBaseProvider({ children }: { children: ReactNode }) {
+function ApiBaseProviderInner({ children }: { children: ReactNode }) {
+  const { settings } = useMobileSettings();
   return (
-    <ConnectionsProvider defaultUrl={DEFAULT_API_BASE}>
+    <TauriConnectBridge
+      defaultUrl={DEFAULT_API_BASE}
+      mdnsEnabled={settings.mdnsDiscoveryEnabled}
+    >
       {children as any}
-    </ConnectionsProvider>
+    </TauriConnectBridge>
   );
+}
+
+export function ApiBaseProvider({ children }: { children: ReactNode }) {
+  return <ApiBaseProviderInner>{children}</ApiBaseProviderInner>;
 }
 
 export function useApiBase() {

@@ -9,6 +9,11 @@ export function isTauriApp(): boolean {
   return typeof window !== 'undefined' && '__TAURI__' in window;
 }
 
+// Check if we're running in the Tauri app on an Android device
+export function isAndroidApp(): boolean {
+  return isTauriApp() && /android/i.test(navigator.userAgent);
+}
+
 // Open a URL in a new Tauri WebView window (bypasses X-Frame-Options)
 export async function openResearchUrl(
   url: string,

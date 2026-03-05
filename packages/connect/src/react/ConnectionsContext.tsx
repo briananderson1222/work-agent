@@ -7,7 +7,7 @@ import React, {
 } from 'react';
 import { ConnectionStore } from '../core/ConnectionStore';
 import { defaultStorage } from '../core/storage';
-import type { SavedConnection } from '../core/types';
+import type { NativeDiscoverFn, NativeScanFn, SavedConnection } from '../core/types';
 
 const FALLBACK_URL = 'http://localhost:3141';
 const LEGACY_KEY = 'project-stallion-api-base';
@@ -28,6 +28,12 @@ interface ConnectionsContextType {
   setApiBase: (url: string) => void;
   resetToDefault: () => void;
   isCustom: boolean;
+  /** Native QR scan implementation (Tauri Android). Undefined in browser. */
+  nativeScan?: NativeScanFn;
+  /** Native mDNS discovery implementation (Tauri Android). Undefined in browser. */
+  nativeDiscover?: NativeDiscoverFn;
+  /** Whether mDNS client discovery is enabled (default: true). */
+  mdnsEnabled: boolean;
 }
 
 const ConnectionsContext = createContext<ConnectionsContextType | undefined>(
@@ -59,11 +65,20 @@ export function ConnectionsProvider({
   children,
   store,
   defaultUrl = FALLBACK_URL,
+  nativeScan,
+  nativeDiscover,
+  mdnsEnabled = true,
 }: {
   children: React.ReactNode;
   store?: ConnectionStore;
   /** Default URL for the initial connection when no persisted data exists */
   defaultUrl?: string;
+  /** Native QR scan implementation (Tauri Android). Undefined in browser. */
+  nativeScan?: NativeScanFn;
+  /** Native mDNS discovery implementation (Tauri Android). Undefined in browser. */
+  nativeDiscover?: NativeDiscoverFn;
+  /** Whether mDNS client discovery is enabled (default: true). */
+  mdnsEnabled?: boolean;
 }) {
   if (!store) {
     if (!_sharedStore) {
@@ -110,8 +125,11 @@ export function ConnectionsProvider({
         }
       },
       isCustom: (activeConnection?.url ?? defaultUrl) !== defaultUrl,
+      nativeScan,
+      nativeDiscover,
+      mdnsEnabled,
     }),
-    [connections, activeConnection, resolvedStore, defaultUrl],
+    [connections, activeConnection, resolvedStore, defaultUrl, nativeScan, nativeDiscover, mdnsEnabled],
   );
 
   return (

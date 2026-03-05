@@ -29,6 +29,8 @@ export function ConnectionManagerModal({
     removeConnection,
     updateConnection,
     setActiveConnection,
+    nativeDiscover,
+    mdnsEnabled,
   } = useConnections();
 
   const [panel, setPanel] = useState<Panel>('list');
@@ -38,7 +40,11 @@ export function ConnectionManagerModal({
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [healthMap, setHealthMap] = useState<Record<string, boolean | null>>({});
-  const { scanning, discovered, scan } = useNetworkDiscovery();
+  const { scanning, discovered, scan } = useNetworkDiscovery({
+    nativeDiscover: mdnsEnabled ? nativeDiscover : undefined,
+    // On Android with mDNS, skip the slow subnet scan; browser keeps both
+    nativeOnly: mdnsEnabled && nativeDiscover !== undefined,
+  });
 
   const checkOne = useCallback(
     async (conn: SavedConnection) => {

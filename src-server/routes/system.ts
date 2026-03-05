@@ -277,6 +277,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
       stallion: true,
       name: 'Project Stallion',
       port: Number(reqUrl.port) || 3141,
+      mdns: process.env.STALLION_MDNS !== 'false',
     });
   });
 
