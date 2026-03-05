@@ -961,9 +961,12 @@ function start(): void {
     console.log('✓ Already running\n  UI:   http://localhost:3000\n  Stop: stallion stop');
     return;
   }
+
+  // Build if needed
   if (!isInstalled()) {
-    console.error('Not installed yet. Run: stallion install <plugin-source>');
-    process.exit(1);
+    console.log('Building application...');
+    execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
+    execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
   }
 
   stop(); // clean up stale pids
