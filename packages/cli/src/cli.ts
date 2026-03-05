@@ -952,8 +952,7 @@ function isRunning(): boolean {
 }
 
 function isInstalled(): boolean {
-  return existsSync(PLUGINS_DIR) &&
-    existsSync(join(CWD, 'dist-server')) &&
+  return existsSync(join(CWD, 'dist-server')) &&
     existsSync(join(CWD, 'dist-ui'));
 }
 
