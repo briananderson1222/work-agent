@@ -50,6 +50,7 @@ const PLUGINS_DIR = join(PROJECT_HOME, 'plugins');
 const AGENTS_DIR = join(PROJECT_HOME, 'agents');
 const WORKSPACES_DIR = join(PROJECT_HOME, 'workspaces');
 const CWD = process.cwd();
+const PIDFILE = join(CWD, '.stallion.pids');
 
 // ── Shared helpers ─────────────────────────────────────
 
@@ -942,6 +943,170 @@ window.__stallion_ai_sdk_mock={
 </body></html>`;
 }
 
+// ── Start / Stop ───────────────────────────────────────
+
+function isRunning(): boolean {
+  if (!existsSync(PIDFILE)) return false;
+  const [pid] = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
+  try { process.kill(parseInt(pid), 0); return true; } catch { return false; }
+}
+
+function isInstalled(): boolean {
+  return existsSync(PLUGINS_DIR) &&
+    existsSync(join(CWD, 'dist-server')) &&
+    existsSync(join(CWD, 'dist-ui'));
+}
+
+function start(): void {
+  if (isRunning()) {
+    console.log('✓ Already running\n  UI:   http://localhost:3000\n  Stop: stallion stop');
+    return;
+  }
+  if (!isInstalled()) {
+    console.error('Not installed yet. Run: stallion install <plugin-source>');
+    process.exit(1);
+  }
+
+  stop(); // clean up stale pids
+
+  const { spawn } = require('node:child_process');
+  const serverProc = spawn('node', ['dist-server/index.js'], {
+    cwd: CWD, stdio: 'ignore', detached: true,
+  });
+  serverProc.unref();
+
+  const uiProc = spawn('npx', ['serve', 'dist-ui', '-s', '-l', '3000'], {
+    cwd: CWD, stdio: 'ignore', detached: true,
+  });
+  uiProc.unref();
+
+  writeFileSync(PIDFILE, `${serverProc.pid} ${uiProc.pid}`);
+
+  // Wait briefly and verify
+  execSync('sleep 1');
+  try {
+    process.kill(serverProc.pid!, 0);
+    process.kill(uiProc.pid!, 0);
+    console.log(`\n  ✓ Server: http://localhost:${process.env.PORT || 3141}`);
+    console.log('  ✓ UI:     http://localhost:3000');
+    console.log('\n  Stop with: stallion stop');
+  } catch {
+    console.error('Failed to start. Check that ports 3141 and 3000 are free.');
+    stop();
+    process.exit(1);
+  }
+}
+
+function stop(): void {
+  if (!existsSync(PIDFILE)) return;
+  const pids = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
+  for (const pid of pids) {
+    try { process.kill(parseInt(pid)); } catch {}
+  }
+  rmSync(PIDFILE, { force: true });
+  console.log('  ✓ Stopped');
+}
+
+// ── Doctor (prereq check) ──────────────────────────────
+
+function doctor(): void {
+  console.log('Checking prerequisites...\n');
+  let ok = true;
+
+  const check = (name: string, cmd: string, versionCmd?: string) => {
+    try {
+      const ver = versionCmd
+        ? execSync(versionCmd, { encoding: 'utf-8' }).trim()
+        : '';
+      console.log(`  ✓ ${name}${ver ? ' ' + ver : ''}`);
+    } catch {
+      console.log(`  ✗ ${name} — not found`);
+      ok = false;
+    }
+  };
+
+  check('Node.js', 'node', 'node -v');
+  check('npm', 'npm', 'npm -v');
+  check('git', 'git', 'git --version');
+  check('tsx', 'tsx', 'tsx --version');
+
+  try {
+    execSync('rustc --version', { stdio: 'pipe' });
+    const ver = execSync('rustc --version', { encoding: 'utf-8' }).trim();
+    console.log(`  ✓ Rust ${ver.split(' ')[1]} (desktop builds available)`);
+  } catch {
+    console.log('  ⚠ Rust — not installed (desktop builds unavailable)');
+  }
+
+  // Check Node version
+  const major = parseInt(process.version.slice(1));
+  if (major < 20) {
+    console.log(`\n  ✗ Node.js ${process.version} is too old (need >= 20)`);
+    ok = false;
+  }
+
+  if (!ok) {
+    console.log('\nMissing required prerequisites.');
+    process.exit(1);
+  }
+  console.log('\n  All good!');
+}
+
+// ── Link ───────────────────────────────────────────────
+
+function link(): void {
+  const target = '/usr/local/bin/stallion';
+  const source = join(CWD, 'stallion');
+
+  if (!existsSync(source)) {
+    console.error('No stallion script found in current directory.');
+    process.exit(1);
+  }
+
+  try {
+    execSync(`ln -sf "${source}" "${target}"`, { stdio: 'pipe' });
+  } catch {
+    execSync(`sudo ln -sf "${source}" "${target}"`, { stdio: 'inherit' });
+  }
+  console.log(`  ✓ Linked: stallion → ${source}`);
+  console.log("  You can now run 'stallion' from anywhere");
+}
+
+// ── Shortcut (macOS .app) ──────────────────────────────
+
+function shortcut(): void {
+  const appDir = join(homedir(), 'Applications', 'Stallion.app');
+  const macosDir = join(appDir, 'Contents', 'MacOS');
+  mkdirSync(macosDir, { recursive: true });
+
+  writeFileSync(join(appDir, 'Contents', 'Info.plist'),
+`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Stallion</string>
+  <key>CFBundleDisplayName</key><string>Stallion AI</string>
+  <key>CFBundleIdentifier</key><string>com.stallion-ai.launcher</string>
+  <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleExecutable</key><string>launch</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>LSUIElement</key><true/>
+</dict>
+</plist>`);
+
+  const stallionPath = join(CWD, 'stallion');
+  writeFileSync(join(macosDir, 'launch'),
+`#!/bin/bash
+"${stallionPath}" start &
+sleep 2
+open "http://localhost:3000"
+`);
+  execSync(`chmod +x "${join(macosDir, 'launch')}"`);
+
+  console.log('  ✓ Created ~/Applications/Stallion.app');
+  console.log('  Double-click to launch Stallion and open in browser');
+}
+
 // ── CLI entry point ────────────────────────────────────
 
 const [, , command, ...args] = process.argv;
@@ -969,6 +1134,21 @@ try {
     case 'build':
       build();
       break;
+    case 'start':
+      start();
+      break;
+    case 'stop':
+      stop();
+      break;
+    case 'doctor':
+      doctor();
+      break;
+    case 'link':
+      link();
+      break;
+    case 'shortcut':
+      shortcut();
+      break;
     case 'dev': {
       const flags: DevFlags = {};
       let devPort = 4200;
@@ -986,19 +1166,28 @@ try {
       console.log(`
 Stallion CLI (@stallion-ai/cli)
 
+Usage:
+  stallion install <source>     Install plugin + build app
+  stallion start                Start the application
+  stallion stop                 Stop running application
+
 Plugin Management:
-  stallion install <source>     Install from git URL or local path
   stallion list                 List installed plugins
   stallion remove <name>        Remove a plugin
   stallion info <name>          Show plugin details
   stallion update <name>        Update a plugin (git only)
+
+Setup:
+  stallion doctor               Check prerequisites
+  stallion link                 Add 'stallion' to PATH (/usr/local/bin)
+  stallion shortcut             Create macOS app in ~/Applications
 
 Plugin Development:
   stallion init [name]          Scaffold a new plugin
   stallion build                Build plugin bundle
   stallion dev [port] [flags]   Dev preview server (default: 4200)
     --no-mcp              Disable MCP tool connections
-    --tools-dir=<path>    Tool configs directory (default: ../.stallion-ai/tools)
+    --tools-dir=<path>    Tool configs directory
 `);
   }
 } catch (err: any) {
