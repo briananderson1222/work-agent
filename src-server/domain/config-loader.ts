@@ -1,5 +1,5 @@
 /**
- * Configuration loader for reading and watching .work-agent/ files
+ * Configuration loader for reading and watching .stallion-ai/ files
  */
 
 import { existsSync } from 'node:fs';
@@ -31,17 +31,17 @@ import { validator } from './validator.js';
 const logger = createPinoLogger({ name: 'config-loader' });
 
 export interface ConfigLoaderOptions {
-  workAgentDir?: string;
+  projectHomeDir?: string;
   watchFiles?: boolean;
 }
 
 export class ConfigLoader {
-  private workAgentDir: string;
+  private projectHomeDir: string;
   private watcher?: FSWatcher;
   private listeners: Map<string, Set<(data: unknown) => void>>;
 
   constructor(options: ConfigLoaderOptions = {}) {
-    this.workAgentDir = resolve(options.workAgentDir || '.work-agent');
+    this.projectHomeDir = resolve(options.projectHomeDir || '.stallion-ai');
     this.listeners = new Map();
 
     if (options.watchFiles) {
@@ -50,17 +50,17 @@ export class ConfigLoader {
   }
 
   /**
-   * Get the work agent directory path
+   * Get the project home directory path
    */
-  getWorkAgentDir(): string {
-    return this.workAgentDir;
+  getProjectHomeDir(): string {
+    return this.projectHomeDir;
   }
 
   /**
    * Load application configuration
    */
   async loadAppConfig(): Promise<AppConfig> {
-    const path = join(this.workAgentDir, 'config', 'app.json');
+    const path = join(this.projectHomeDir, 'config', 'app.json');
 
     if (!existsSync(path)) {
       // Create default config on first run
@@ -92,8 +92,8 @@ export class ConfigLoader {
   async saveAppConfig(config: AppConfig): Promise<void> {
     validator.validateAppConfig(config);
 
-    const path = join(this.workAgentDir, 'config', 'app.json');
-    await mkdir(join(this.workAgentDir, 'config'), { recursive: true });
+    const path = join(this.projectHomeDir, 'config', 'app.json');
+    await mkdir(join(this.projectHomeDir, 'config'), { recursive: true });
     await writeFile(path, JSON.stringify(config, null, 2), 'utf-8');
   }
 
@@ -101,7 +101,7 @@ export class ConfigLoader {
    * Load plugin provider overrides
    */
   async loadPluginOverrides(): Promise<PluginOverrides> {
-    const path = join(this.workAgentDir, 'config', 'plugin-overrides.json');
+    const path = join(this.projectHomeDir, 'config', 'plugin-overrides.json');
     if (!existsSync(path)) return {};
     const content = await readFile(path, 'utf-8');
     return JSON.parse(content);
@@ -111,7 +111,7 @@ export class ConfigLoader {
    * Save plugin provider overrides
    */
   async savePluginOverrides(overrides: PluginOverrides): Promise<void> {
-    const configDir = join(this.workAgentDir, 'config');
+    const configDir = join(this.projectHomeDir, 'config');
     await mkdir(configDir, { recursive: true });
     await writeFile(
       join(configDir, 'plugin-overrides.json'),
@@ -134,7 +134,7 @@ export class ConfigLoader {
    * Load agent specification
    */
   async loadAgent(slug: string): Promise<AgentSpec> {
-    const path = join(this.workAgentDir, 'agents', slug, 'agent.json');
+    const path = join(this.projectHomeDir, 'agents', slug, 'agent.json');
 
     if (!existsSync(path)) {
       throw new Error(`Agent '${slug}' not found at ${path}`);
@@ -219,7 +219,7 @@ export class ConfigLoader {
    * Delete an agent and all its data
    */
   async deleteAgent(slug: string): Promise<void> {
-    const agentDir = join(this.workAgentDir, 'agents', slug);
+    const agentDir = join(this.projectHomeDir, 'agents', slug);
 
     if (!existsSync(agentDir)) {
       throw new Error(`Agent '${slug}' not found`);
@@ -235,7 +235,7 @@ export class ConfigLoader {
   async saveAgent(slug: string, spec: AgentSpec): Promise<void> {
     validator.validateAgentSpec(spec);
 
-    const agentDir = join(this.workAgentDir, 'agents', slug);
+    const agentDir = join(this.projectHomeDir, 'agents', slug);
     await mkdir(agentDir, { recursive: true });
 
     // Also create memory and workflows directories
@@ -250,7 +250,7 @@ export class ConfigLoader {
    * List all agents
    */
   async listAgents(): Promise<AgentMetadata[]> {
-    const agentsDir = join(this.workAgentDir, 'agents');
+    const agentsDir = join(this.projectHomeDir, 'agents');
 
     if (!existsSync(agentsDir)) {
       return [];
@@ -274,12 +274,16 @@ export class ConfigLoader {
           spec.ui?.workflowShortcuts,
         );
 
+        // Plugin agents use 'pluginName:agentSlug' format
+        const pluginName = entry.name.includes(':') ? entry.name.split(':')[0] : undefined;
+
         agents.push({
           slug: entry.name,
           name: spec.name,
           model: spec.model,
           updatedAt: stats.mtime.toISOString(),
           description: spec.prompt,
+          plugin: pluginName,
           ui: spec.ui,
           workflowWarnings:
             workflowWarnings.length > 0 ? workflowWarnings : undefined,
@@ -299,7 +303,7 @@ export class ConfigLoader {
   }
 
   async listAgentWorkflows(slug: string): Promise<WorkflowMetadata[]> {
-    const workflowsDir = join(this.workAgentDir, 'agents', slug, 'workflows');
+    const workflowsDir = join(this.projectHomeDir, 'agents', slug, 'workflows');
 
     if (!existsSync(workflowsDir)) {
       return [];
@@ -345,7 +349,7 @@ export class ConfigLoader {
       );
     }
 
-    const workflowsDir = join(this.workAgentDir, 'agents', slug, 'workflows');
+    const workflowsDir = join(this.projectHomeDir, 'agents', slug, 'workflows');
     await mkdir(workflowsDir, { recursive: true });
 
     const path = join(workflowsDir, filename);
@@ -362,7 +366,7 @@ export class ConfigLoader {
    */
   async readWorkflow(slug: string, workflowId: string): Promise<string> {
     const path = join(
-      this.workAgentDir,
+      this.projectHomeDir,
       'agents',
       slug,
       'workflows',
@@ -385,7 +389,7 @@ export class ConfigLoader {
     content: string,
   ): Promise<void> {
     const path = join(
-      this.workAgentDir,
+      this.projectHomeDir,
       'agents',
       slug,
       'workflows',
@@ -404,7 +408,7 @@ export class ConfigLoader {
    */
   async deleteWorkflow(slug: string, workflowId: string): Promise<void> {
     const path = join(
-      this.workAgentDir,
+      this.projectHomeDir,
       'agents',
       slug,
       'workflows',
@@ -462,7 +466,7 @@ export class ConfigLoader {
    * Load tool definition
    */
   async loadTool(id: string): Promise<ToolDef> {
-    const path = join(this.workAgentDir, 'tools', id, 'tool.json');
+    const path = join(this.projectHomeDir, 'tools', id, 'tool.json');
 
     if (!existsSync(path)) {
       throw new Error(`Tool '${id}' not found at ${path}`);
@@ -480,7 +484,7 @@ export class ConfigLoader {
   async saveTool(id: string, def: ToolDef): Promise<void> {
     validator.validateToolDef(def);
 
-    const toolDir = join(this.workAgentDir, 'tools', id);
+    const toolDir = join(this.projectHomeDir, 'tools', id);
     await mkdir(toolDir, { recursive: true });
 
     const path = join(toolDir, 'tool.json');
@@ -491,7 +495,7 @@ export class ConfigLoader {
    * List all tools in catalog
    */
   async listTools(): Promise<ToolMetadata[]> {
-    const toolsDir = join(this.workAgentDir, 'tools');
+    const toolsDir = join(this.projectHomeDir, 'tools');
 
     if (!existsSync(toolsDir)) {
       return [];
@@ -528,7 +532,7 @@ export class ConfigLoader {
    * Build a map of tool ID → agent slugs that use it
    */
   async getToolAgentMap(): Promise<Record<string, string[]>> {
-    const agentsDir = join(this.workAgentDir, 'agents');
+    const agentsDir = join(this.projectHomeDir, 'agents');
     const map: Record<string, string[]> = {};
     if (!existsSync(agentsDir)) return map;
 
@@ -549,7 +553,7 @@ export class ConfigLoader {
    * Load workspace configuration
    */
   async loadWorkspace(slug: string): Promise<WorkspaceConfig> {
-    const path = join(this.workAgentDir, 'workspaces', slug, 'workspace.json');
+    const path = join(this.projectHomeDir, 'workspaces', slug, 'workspace.json');
 
     if (!existsSync(path)) {
       throw new Error(`Workspace '${slug}' not found at ${path}`);
@@ -584,7 +588,7 @@ export class ConfigLoader {
    * List all workspaces
    */
   async listWorkspaces(): Promise<WorkspaceMetadata[]> {
-    const workspacesDir = join(this.workAgentDir, 'workspaces');
+    const workspacesDir = join(this.projectHomeDir, 'workspaces');
 
     if (!existsSync(workspacesDir)) {
       return [];
@@ -650,7 +654,7 @@ export class ConfigLoader {
    * Delete a workspace
    */
   async deleteWorkspace(slug: string): Promise<void> {
-    const workspaceDir = join(this.workAgentDir, 'workspaces', slug);
+    const workspaceDir = join(this.projectHomeDir, 'workspaces', slug);
 
     if (!existsSync(workspaceDir)) {
       throw new Error(`Workspace '${slug}' not found`);
@@ -665,7 +669,7 @@ export class ConfigLoader {
   async saveWorkspace(slug: string, config: WorkspaceConfig): Promise<void> {
     validator.validateWorkspaceConfig(config);
 
-    const workspaceDir = join(this.workAgentDir, 'workspaces', slug);
+    const workspaceDir = join(this.projectHomeDir, 'workspaces', slug);
     await mkdir(workspaceDir, { recursive: true });
 
     const path = join(workspaceDir, 'workspace.json');
@@ -708,7 +712,7 @@ export class ConfigLoader {
    * Check if agent exists
    */
   async agentExists(slug: string): Promise<boolean> {
-    const path = join(this.workAgentDir, 'agents', slug, 'agent.json');
+    const path = join(this.projectHomeDir, 'agents', slug, 'agent.json');
     return existsSync(path);
   }
 
@@ -716,7 +720,7 @@ export class ConfigLoader {
    * Check if workspace exists
    */
   async workspaceExists(slug: string): Promise<boolean> {
-    const path = join(this.workAgentDir, 'workspaces', slug, 'workspace.json');
+    const path = join(this.projectHomeDir, 'workspaces', slug, 'workspace.json');
     return existsSync(path);
   }
 
@@ -724,7 +728,7 @@ export class ConfigLoader {
    * Check if tool exists
    */
   async toolExists(id: string): Promise<boolean> {
-    const path = join(this.workAgentDir, 'tools', id, 'tool.json');
+    const path = join(this.projectHomeDir, 'tools', id, 'tool.json');
     return existsSync(path);
   }
 
@@ -733,9 +737,9 @@ export class ConfigLoader {
    */
   private setupFileWatcher(): void {
     const patterns = [
-      join(this.workAgentDir, 'config', '*.json'),
-      join(this.workAgentDir, 'agents', '*', 'agent.json'),
-      join(this.workAgentDir, 'tools', '*', 'tool.json'),
+      join(this.projectHomeDir, 'config', '*.json'),
+      join(this.projectHomeDir, 'agents', '*', 'agent.json'),
+      join(this.projectHomeDir, 'tools', '*', 'tool.json'),
     ];
 
     this.watcher = watch(patterns, {
@@ -793,7 +797,7 @@ export class ConfigLoader {
    * Load ACP configuration (connections to external agents)
    */
   async loadACPConfig(): Promise<ACPConfig> {
-    const path = join(this.workAgentDir, 'config', 'acp.json');
+    const path = join(this.projectHomeDir, 'config', 'acp.json');
     if (!existsSync(path)) {
       const defaultConfig: ACPConfig = {
         connections: [
@@ -807,7 +811,7 @@ export class ConfigLoader {
           },
         ],
       };
-      await mkdir(join(this.workAgentDir, 'config'), { recursive: true });
+      await mkdir(join(this.projectHomeDir, 'config'), { recursive: true });
       await writeFile(path, JSON.stringify(defaultConfig, null, 2), 'utf-8');
       return defaultConfig;
     }
@@ -818,8 +822,8 @@ export class ConfigLoader {
    * Save ACP configuration
    */
   async saveACPConfig(config: ACPConfig): Promise<void> {
-    const path = join(this.workAgentDir, 'config', 'acp.json');
-    await mkdir(join(this.workAgentDir, 'config'), { recursive: true });
+    const path = join(this.projectHomeDir, 'config', 'acp.json');
+    await mkdir(join(this.projectHomeDir, 'config'), { recursive: true });
     await writeFile(path, JSON.stringify(config, null, 2), 'utf-8');
   }
 

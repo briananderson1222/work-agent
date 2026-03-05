@@ -1,12 +1,12 @@
 [package]
-name = "work-agent"
+name = "stallion-ai"
 version = "0.1.0"
-description = "VoltAgent-native local-first AI work agent system"
+description = "Stallion AI — local-first AI agent system"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "work_agent_lib"
+name = "stallion_ai_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

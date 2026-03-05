@@ -10,15 +10,20 @@
   --vo-error-color: var(--health-error, #ef4444);
 
   position: relative;
-  width: var(--vo-size);
-  height: var(--vo-size);
-  border-radius: 50%;
-  border: none;
+  box-sizing: border-box !important;
+  width: var(--vo-size) !important;
+  height: var(--vo-size) !important;
+  min-width: var(--vo-size) !important;
+  max-width: var(--vo-size) !important;
+  min-height: var(--vo-size) !important;
+  max-height: var(--vo-size) !important;
+  border-radius: 50% !important;
+  border: none !important;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  flex: 0 0 auto !important;
   font-size: 16px;
   touch-action: none;
   user-select: none;

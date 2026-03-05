@@ -9,7 +9,7 @@ import * as zod from 'zod';
 import { UserDetailModal } from './components/UserDetailModal';
 
 // Expose shared modules globally for dynamically loaded plugin bundles
-(window as any).__work_agent_shared = {
+(window as any).__stallion_ai_shared = {
   react: ReactAll,
   'react/jsx-runtime': jsxRuntime,
   'react/jsx-dev-runtime': jsxRuntime,

@@ -3,7 +3,7 @@ dist-server
 dist-ui
 dist-desktop
 .git
-.work-agent
+.stallion-ai
 .env
 .env.local
 .DS_Store

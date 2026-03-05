@@ -92,6 +92,19 @@ export function createSchedulerRoutes(
     }
   });
 
+  app.get('/jobs/preview-schedule', async (c) => {
+    try {
+      const cron = c.req.query('cron');
+      if (!cron) return c.json({ success: false, error: 'cron is required' }, 400);
+      const count = parseInt(c.req.query('count') || '5', 10);
+      const data = await schedulerService.previewSchedule(cron, count);
+      return c.json({ success: true, data });
+    } catch (error: any) {
+      logger.error('Failed to preview schedule', { error });
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
   app.get('/jobs/:target/logs', async (c) => {
     try {
       const count = parseInt(c.req.query('count') || '20', 10);
@@ -125,6 +138,17 @@ export function createSchedulerRoutes(
       return c.json({ success: true, data: { output } });
     } catch (error: any) {
       logger.error('Failed to add job', { error });
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
+  app.put('/jobs/:target', async (c) => {
+    try {
+      const opts = await c.req.json();
+      const output = await schedulerService.editJob(c.req.param('target'), opts);
+      return c.json({ success: true, data: { output } });
+    } catch (error: any) {
+      logger.error('Failed to edit job', { error });
       return c.json({ success: false, error: error.message }, 500);
     }
   });

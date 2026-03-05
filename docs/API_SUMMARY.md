@@ -1,4 +1,4 @@
-# Work Agent API Summary
+# Stallion API Summary
 
 ## Endpoint Overview
 
@@ -21,8 +21,8 @@ Provided by `@voltagent/server-hono` package:
 
 ---
 
-### Custom Work Agent Endpoints (🟢)
-Work Agent-specific extensions (54 endpoints):
+### Custom Stallion Endpoints (🟢)
+Stallion-specific extensions (54 endpoints):
 
 #### Agent Management (5)
 - `GET /api/agents` - Enriched agent list

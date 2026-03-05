@@ -8,7 +8,7 @@ Workspaces can bundle their own agent definitions, making them fully self-contai
 
 ### Traditional Model (Separate)
 ```
-~/.work-agent/
+~/.stallion-ai/
   agents/
     my-agent/
       agent.json
@@ -19,7 +19,7 @@ Workspaces can bundle their own agent definitions, making them fully self-contai
 
 ### Workspace-Owned Model (Bundled)
 ```
-work-agent-plugins/
+my-plugins/
   packages/
     work-workspace/
       plugin.json
@@ -50,7 +50,6 @@ work-agent-plugins/
   "name": "work-workspace",
   "version": "1.0.0",
   "type": "workspace",
-  "sdkVersion": "^0.4.0",
   "displayName": "Work Workspace",
   "description": "Calendar and CRM workspace for daily work",
   "entrypoint": "./index.tsx",
@@ -133,15 +132,15 @@ work-agent-plugins/
 ### 1. User Installs Plugin
 
 ```bash
-wa plugin install github:work-agent/plugins#work-workspace
+stallion install github:org/my-plugin.git
 ```
 
 ### 2. Plugin Loader
 
-1. Clones repo to `~/.work-agent/plugins/work-workspace/`
+1. Clones repo to `~/.stallion-ai/plugins/work-workspace/`
 2. Reads `plugin.json`
-3. Installs agents to `~/.work-agent/agents/`
-4. Installs workspace to `~/.work-agent/workspaces/`
+3. Installs agents to `~/.stallion-ai/agents/`
+4. Installs workspace to `~/.stallion-ai/workspaces/`
 5. Copies UI components to `src-ui/src/workspaces/work-workspace/`
 
 ### 3. Agent Registration
@@ -199,14 +198,14 @@ export function Calendar() {
 
 **Before:**
 ```
-~/.work-agent/
+~/.stallion-ai/
   agents/sa-agent/
   workspaces/sa-workspace/
 ```
 
 **After:**
 ```
-work-agent-plugins/
+my-plugins/
   packages/work-workspace/
     agents/calendar-agent/
     workspace.json
@@ -244,22 +243,16 @@ work-agent-plugins/
 
 ```bash
 # Install plugin from git
-wa plugin install github:work-agent/plugins#work-workspace
+stallion install github:org/my-plugin.git
 
 # Install from local path
-wa plugin install ./work-agent-plugins/packages/work-workspace
+stallion install ./my-plugins/packages/work-workspace
 
 # List installed plugins
-wa plugin list
+stallion list
 
 # Remove plugin
-wa plugin remove work-workspace
-
-# Update plugin
-wa plugin update work-workspace
-
-# Show plugin info
-wa plugin info work-workspace
+stallion remove work-workspace
 ```
 
 ## Security Considerations

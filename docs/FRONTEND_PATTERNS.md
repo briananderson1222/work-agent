@@ -154,14 +154,14 @@ import { useTransformTool, useAgents } from '@stallion-ai/sdk';
 export function useFilesViewModel() {
   // Use SDK query hooks
   const { data: fileList } = useTransformTool(
-    'work-agent',
+    'my-agent',
     'files_list_directory',
     { path: '/documents' },
     'data => data'
   );
   
   const { data: fileContents = [] } = useTransformTool(
-    'work-agent',
+    'my-agent',
     'files_read_file',
     { path: fileList?.selectedFile },
     'data => data',
@@ -361,8 +361,8 @@ useApiMutation(mutationFn, options)
 ```bash
 # 1. Make changes in examples/my-workspace/
 # 2. Remove and reinstall
-npx tsx scripts/cli-plugin.ts remove my-workspace
-npx tsx scripts/cli-plugin.ts install ./examples/my-workspace
+stallion remove my-workspace
+stallion install ./examples/my-workspace
 
 # 3. Test
 npm run dev:ui

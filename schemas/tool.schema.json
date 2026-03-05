@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://work-agent.dev/schemas/tool.schema.json",
+  "$id": "https://stallion-ai.dev/schemas/tool.schema.json",
   "title": "Tool Definition",
   "description": "Tool definition for MCP or built-in tools",
   "type": "object",

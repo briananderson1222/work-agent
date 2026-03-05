@@ -1,6 +1,6 @@
 # Endpoints Currently In Use
 
-This document shows which API endpoints are actively used by the Work Agent frontend.
+This document shows which API endpoints are actively used by the Stallion frontend.
 
 ## Summary
 
@@ -12,10 +12,10 @@ This document shows which API endpoints are actively used by the Work Agent fron
 
 ## Default Agent
 
-Work Agent automatically creates a **system default agent** that is always available:
+Stallion automatically creates a **system default agent** that is always available:
 
 - **Agent ID**: `default`
-- **Model**: Uses current `defaultModel` from `.work-agent/config/app.json`
+- **Model**: Uses current `defaultModel` from `.stallion-ai/config/app.json`
 - **Tools**: None (simple text generation only)
 - **Instructions**: "You are a helpful AI assistant. Provide clear, concise, and accurate responses."
 
@@ -44,7 +44,7 @@ POST /api/agents/default/chat
 
 ## VoltAgent Built-in Endpoints (0 in use)
 
-**Note**: VoltAgent only provides the core **generation endpoints** (`/agents/:id/text`, `/agents/:id/stream`, `/agents/:id/chat`, `/agents/:id/object`, etc.). All other `/agents/*` endpoints for CRUD operations, health checks, tools, conversations, etc. are **custom Work Agent extensions**.
+**Note**: VoltAgent only provides the core **generation endpoints** (`/agents/:id/text`, `/agents/:id/stream`, `/agents/:id/chat`, `/agents/:id/object`, etc.). All other `/agents/*` endpoints for CRUD operations, health checks, tools, conversations, etc. are **custom Stallion extensions**.
 
 We've replaced all VoltAgent generation endpoints with custom alternatives that better fit our needs.
 
@@ -234,7 +234,7 @@ Consider removing or documenting as "future use":
 | `ChatDock.tsx` | `/api/agents/:slug/chat` (SSE stream) |
 | `stallion-workspace/CRM.tsx` | `/agents/:slug/text`, `/agents/:slug/tools/:toolName`, `/agents/:slug/invoke/transform` |
 | `stallion-workspace/Calendar.tsx` | `/agents/:slug/invoke/transform` |
-| `AgentEditorView.tsx` | `/agents/work-agent/text` (test endpoint) |
+| `AgentEditorView.tsx` | `/agents/my-agent/text` (test endpoint) |
 | Agent selector | `/api/agents` |
 | Workspace views | `/api/agents`, `/workspaces` |
 | Settings view | `/config/app` |

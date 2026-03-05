@@ -10,7 +10,7 @@ import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
 
 async function main() {
   const runtime = new WorkAgentRuntime({
-    workAgentDir: process.env.WORK_AGENT_DIR || join(homedir(), '.work-agent'),
+    projectHomeDir: process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai'),
     logLevel: 'warn', // Less verbose for CLI
   });
 
@@ -20,7 +20,7 @@ async function main() {
 
   if (agents.length === 0) {
     console.log(
-      'No agents found. Please create an agent in .work-agent/agents/',
+      'No agents found. Please create an agent in .stallion-ai/agents/',
     );
     process.exit(1);
   }

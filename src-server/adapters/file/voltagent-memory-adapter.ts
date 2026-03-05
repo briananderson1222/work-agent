@@ -36,7 +36,7 @@ interface UIMessageWithMetadata extends UIMessage {
 const logger = createPinoLogger({ name: 'voltagent-memory-adapter' });
 
 export interface FileVoltAgentMemoryAdapterOptions {
-  workAgentDir: string;
+  projectHomeDir: string;
   usageAggregator?: any;
 }
 
@@ -61,13 +61,13 @@ type WorkflowStateJson = Omit<
  * Implements the StorageAdapter interface for conversation storage.
  */
 export class FileVoltAgentMemoryAdapter implements StorageAdapter {
-  private workAgentDir: string;
+  private projectHomeDir: string;
   private usageAggregator?: any;
   private conversationCache = new Map<string, Conversation>();
   private conversationResourceCache = new Map<string, string>();
 
   constructor(options: FileVoltAgentMemoryAdapterOptions) {
-    this.workAgentDir = options.workAgentDir;
+    this.projectHomeDir = options.projectHomeDir;
     this.usageAggregator = options.usageAggregator;
   }
 
@@ -75,7 +75,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
    * Directory that contains all agent data.
    */
   private getAgentsDir(): string {
-    return join(this.workAgentDir, 'agents');
+    return join(this.projectHomeDir, 'agents');
   }
 
   /**
@@ -153,7 +153,7 @@ export class FileVoltAgentMemoryAdapter implements StorageAdapter {
    * Path to the workflow state directory.
    */
   private getWorkflowStatesDir(): string {
-    return join(this.workAgentDir, 'workflows', 'states');
+    return join(this.projectHomeDir, 'workflows', 'states');
   }
 
   /**

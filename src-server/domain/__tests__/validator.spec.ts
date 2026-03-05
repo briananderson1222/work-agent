@@ -17,7 +17,7 @@ vi.mock('@voltagent/logger', () => ({
   })),
 }));
 
-const createTempDir = () => mkdtempSync(join(tmpdir(), 'work-agent-test-'));
+const createTempDir = () => mkdtempSync(join(tmpdir(), 'stallion-test-'));
 
 describe('Agent schema validation', () => {
   it('accepts ui metadata with quick prompts and workflow shortcuts', () => {
@@ -96,7 +96,7 @@ describe('ConfigLoader workflow metadata', () => {
   });
 
   it('lists workflow metadata with derived labels', async () => {
-    const loader = new ConfigLoader({ workAgentDir: workDir });
+    const loader = new ConfigLoader({ projectHomeDir: workDir });
     const workflows = await loader.listAgentWorkflows('example');
 
     expect(workflows).toEqual([
@@ -114,7 +114,7 @@ describe('ConfigLoader workflow metadata', () => {
   });
 
   it('reports missing workflow shortcuts during agent listing', async () => {
-    const loader = new ConfigLoader({ workAgentDir: workDir });
+    const loader = new ConfigLoader({ projectHomeDir: workDir });
     const agents = await loader.listAgents();
 
     expect(agents[0].workflowWarnings).toEqual(['missing.ts']);

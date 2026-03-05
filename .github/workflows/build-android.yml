@@ -80,13 +80,11 @@ jobs:
 
       - name: Upload release APK to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: tauri-apps/tauri-action@v0
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 'Stallion AI ${{ github.ref_name }}'
+          draft: true
+          files: src-desktop/gen/android/app/build/outputs/apk/universal/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Stallion AI ${{ github.ref_name }}'
-          releaseBody: 'See the assets to download and install.'
-          releaseDraft: true
-          prerelease: false
-          args: --target aarch64-linux-android

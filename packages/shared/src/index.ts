@@ -112,6 +112,7 @@ export interface AgentMetadata {
   model?: string;
   updatedAt: string;
   description?: string;
+  plugin?: string;
   ui?: AgentUIConfig;
   workflowWarnings?: string[];
 }
@@ -178,6 +179,8 @@ export interface WorkspaceTab {
   label: string;
   component: string;
   icon?: string;
+  description?: string;
+  actions?: WorkspacePrompt[];
   prompts?: WorkspacePrompt[];
 }
 
