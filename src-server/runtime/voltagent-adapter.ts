@@ -10,6 +10,7 @@ import {
   type MCPConfiguration,
   Memory,
   type Tool,
+  createHooks,
 } from '@voltagent/core';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
@@ -18,7 +19,6 @@ import { createBedrockProvider } from '../providers/bedrock.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import * as MCPManager from './mcp-manager.js';
-import * as ToolExecutor from './tool-executor.js';
 import type {
   AgentCreationConfig,
   IAgent,
@@ -132,16 +132,42 @@ export class VoltAgentFramework {
     const mcpServerTokens = Math.ceil(toolsJson.length / 4);
     const fixedTokens = { systemPromptTokens, mcpServerTokens };
 
-    // Create hooks
-    const hooks = ToolExecutor.createToolApprovalHooks(
-      spec,
-      config.appConfig,
-      opts.configLoader,
-      config.modelCatalog,
-      opts.agentFixedTokens,
-      opts.memoryAdapters,
-      opts.logger,
-    );
+    // Create VoltAgent-native hooks that delegate to shared agent-hooks logic.
+    // VoltAgent needs createHooks() for its internal lifecycle, but the
+    // afterInvocation business logic (stats, cost, enrichment) comes from
+    // the shared hooks passed via config.hooks.
+    const sharedHooks = config.hooks;
+    const autoApprove = spec.tools?.autoApprove || [];
+    const hooks = createHooks({
+      onToolStart: async ({ tool, context }) => {
+        const currentCount = (context.context.get('toolCallCount') as number) || 0;
+        context.context.set('toolCallCount', currentCount + 1);
+        sharedHooks?.afterToolCall?.(
+          { toolName: tool.name, toolCallId: '', toolArgs: {} },
+          {},
+          { agentSlug: slug },
+        );
+      },
+      onEnd: async ({ context, output, agent: voltAgent }) => {
+        if (!context.conversationId || !output) return;
+        const usage = 'usage' in output ? output.usage : undefined;
+        const toolCallCount = (context.context.get('toolCallCount') as number) || 0;
+        await sharedHooks?.afterInvocation?.({
+          invocation: {
+            agentSlug: slug,
+            conversationId: context.conversationId,
+            userId: context.userId,
+            traceId: (context as any).traceId,
+          },
+          usage: usage ? {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+          } : undefined,
+          toolCallCount,
+        });
+      },
+    });
 
     // Build agent
     const agent = new Agent({
