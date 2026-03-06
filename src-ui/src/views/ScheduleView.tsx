@@ -286,7 +286,7 @@ function JobDetail({ name, autoOpenRun }: { name: string; autoOpenRun?: string |
             <div className="schedule__modal-footer">
               <button
                 className="schedule__modal-cancel"
-                onClick={() => openArtifact.mutate(logs[viewIdx].output)}
+                onClick={() => openArtifact.mutate(reversedLogs[viewIdx].output)}
               >
                 Open File
               </button>
@@ -750,16 +750,19 @@ export function ScheduleView() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [prefill, setPrefill] = useState<any>(null);
   const deepLinked = useRef(false);
+  const [autoOpenRun, setAutoOpenRun] = useState<string | null>(null);
 
-  // Deep link: ?job=X auto-expands that job
+  // Deep link: ?job=X&run=Y auto-expands that job and opens run output
   useEffect(() => {
     if (deepLinked.current || isLoading || !jobs.length) return;
     const params = new URLSearchParams(window.location.search);
     const jobParam = params.get('job');
+    const runParam = params.get('run');
     if (jobParam && jobs.some((j: any) => j.name === jobParam)) {
       setExpanded(jobParam);
+      if (runParam) setAutoOpenRun(runParam);
       deepLinked.current = true;
-      updateParams({ job: null }); // clean up URL
+      updateParams({ job: null, run: null });
     }
   }, [jobs, isLoading, updateParams]);
 
@@ -1137,7 +1140,7 @@ export function ScheduleView() {
                                       {job.command && <div className="schedule__detail-field"><span className="schedule__detail-label">Command</span><code className="schedule__detail-code">{job.command}</code></div>}
                                     </div>
                                   )}
-                                  <JobDetail name={job.name} />
+                                  <JobDetail name={job.name} autoOpenRun={expanded === job.name ? autoOpenRun : null} />
                                 </div>
                               </td>
                             </tr>
