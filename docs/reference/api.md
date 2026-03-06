@@ -4,7 +4,7 @@ This document describes all REST API endpoints available in Stallion, including 
 
 **Base URL**: `http://localhost:3141`  
 **Swagger UI**: `http://localhost:3141/ui` (VoltAgent built-in endpoints)  
-**In-Use Endpoints**: See [ENDPOINTS_IN_USE.md](./ENDPOINTS_IN_USE.md) for which endpoints are actively used by the frontend
+**In-Use Endpoints**: See [endpoints.md](./endpoints.md) for which endpoints are actively used by the frontend
 
 ## Endpoint Legend
 

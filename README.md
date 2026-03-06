@@ -346,17 +346,34 @@ npx playwright test tests/plugin-system.spec.ts
 
 ## Documentation
 
+### Guides
 | Doc | Description |
 |-----|-------------|
-| [Agent Development](docs/guides/agents.md) | Agent dev guide, patterns, AI assistant reference |
-| [Workspace Agents](docs/guides/workspace-agents.md) | Agent configuration and management |
+| [Architecture](docs/architecture.md) | System overview, diagrams, component map, data flows |
+| [Agent Development](docs/guides/agents.md) | Agent config, MCP tools, guardrails, approval flow |
+| [Workspace Agents](docs/guides/workspace-agents.md) | Plugin-based agent and workspace setup |
 | [Plugins](docs/guides/plugins.md) | Plugin architecture and development |
 | [Custom Commands](docs/guides/commands.md) | Slash command system |
-| [API Reference](docs/reference/api.md) | Detailed endpoint documentation |
-| [API Summary](docs/reference/api-summary.md) | Quick reference for all endpoints |
+| [ACP](docs/guides/acp.md) | Agent Communication Protocol — connecting external runtimes |
+| [Monitoring](docs/guides/monitoring.md) | OTel setup, metrics, Grafana, Jaeger |
+| [Theming](docs/guides/theming.md) | CSS variables, branding API, custom themes |
+
+### Reference
+| Doc | Description |
+|-----|-------------|
+| [SDK](docs/reference/sdk.md) | @stallion-ai/sdk — hooks, components, types |
+| [API](docs/reference/api.md) | All endpoints (~97) with request/response shapes |
+| [API Summary](docs/reference/api-summary.md) | Quick endpoint reference by category |
 | [Endpoints in Use](docs/reference/endpoints.md) | Which endpoints the frontend calls |
-| [Backend Patterns](docs/patterns/backend.md) | Server architecture, routes, telemetry |
-| [Frontend Patterns](docs/patterns/frontend.md) | React, hooks, styling, SDK |
+| [Config Schemas](docs/reference/config.md) | app.json and agent.json field reference |
+| [Connect](docs/reference/connect.md) | @stallion-ai/connect — multi-device connectivity |
+| [Shared](docs/reference/shared.md) | @stallion-ai/shared — types and utilities |
+
+### Patterns
+| Doc | Description |
+|-----|-------------|
+| [Backend](docs/patterns/backend.md) | Server architecture, routes, services, telemetry |
+| [Frontend](docs/patterns/frontend.md) | React, hooks, styling, SDK, packages |
 
 ## License
 
