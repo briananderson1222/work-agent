@@ -23,6 +23,15 @@ const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
   },
   'system:status-changed': (qc) =>
     qc.invalidateQueries({ queryKey: ['system-status'] }),
+  'plugins:installed': (qc) => {
+    qc.invalidateQueries({ queryKey: ['plugins'] });
+    qc.invalidateQueries({ queryKey: ['workspaces'] });
+    qc.invalidateQueries({ queryKey: ['agents'] });
+    // Hot-reload plugin bundles
+    import('../core/PluginRegistry')
+      .then(({ pluginRegistry }) => pluginRegistry.reload())
+      .catch(() => {});
+  },
   'plugins:updated': (qc) => {
     qc.invalidateQueries({ queryKey: ['plugins'] });
     qc.invalidateQueries({ queryKey: ['workspaces'] });

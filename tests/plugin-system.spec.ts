@@ -14,7 +14,7 @@ const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-workspace');
 test.describe('Plugin System', () => {
   test.beforeAll(async () => {
     // Build the demo workspace bundle using centralized build
-    execSync('npx tsx ../packages/cli/src/cli.ts build', { cwd: DEMO_DIR, timeout: 30000 });
+    execSync('npx tsx ../../packages/cli/src/cli.ts build', { cwd: DEMO_DIR, timeout: 30000 });
     // Ensure it's not installed
     try { await fetch('http://localhost:3141/api/plugins/demo-workspace', { method: 'DELETE' }); } catch {}
   });

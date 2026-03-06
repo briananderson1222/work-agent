@@ -1,15 +1,5 @@
 /* ═══ Plugins View ═══ */
 
-
-
-.plugins {
-  padding: 2rem 2rem 3rem;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  font-family: 'DM Sans', system-ui, sans-serif;
-}
-
 /* ── Page Header ── */
 .plugins__header {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -37,7 +27,7 @@
   display: flex; align-items: center;
 }
 .plugins__install-input {
-  flex: 1; padding: 0.5rem 0; font-size: 0.85rem;
+  flex: 1; width: 100%; padding: 0.5rem 0; font-size: 0.85rem;
   font-family: 'JetBrains Mono', monospace;
   background: transparent; color: var(--text-primary);
   border: none; outline: none;

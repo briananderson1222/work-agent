@@ -18,7 +18,7 @@ const API = 'http://localhost:3141';
 test.describe('Plugin Preview', () => {
   test.beforeAll(() => {
     // Ensure demo-workspace is built
-    execSync('node build.mjs', { cwd: DEMO_DIR, timeout: 15000 });
+    execSync('npx tsx ../../packages/cli/src/cli.ts build', { cwd: DEMO_DIR, timeout: 15000 });
   });
 
   test('preview API validates a valid plugin', async () => {

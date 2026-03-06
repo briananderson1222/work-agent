@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { LoadingState } from '@stallion-ai/sdk';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -116,19 +116,21 @@ function PathAutocomplete({ value, onChange, onSubmit, placeholder, disabled, ap
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(-1);
   const [show, setShow] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pickingRef = useRef(false);
 
   useEffect(() => {
     if (!value.startsWith('/') && !value.startsWith('~')) { setSuggestions([]); return; }
-    const lastSlash = value.lastIndexOf('/');
-    const dir = lastSlash <= 0 ? '/' : value.substring(0, lastSlash);
-    const prefix = value.substring(lastSlash + 1).toLowerCase();
+    const endsWithSlash = value.endsWith('/');
+    const dir = endsWithSlash ? value.replace(/\/$/, '') : (value.lastIndexOf('/') <= 0 ? '/' : value.substring(0, value.lastIndexOf('/')));
+    const prefix = endsWithSlash ? '' : value.substring(value.lastIndexOf('/') + 1).toLowerCase();
     const controller = new AbortController();
     fetch(`${apiBase}/api/fs/browse?path=${encodeURIComponent(dir)}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         if (!data.entries) return;
         const matches = data.entries
-          .filter((e: any) => e.name.toLowerCase().startsWith(prefix))
+          .filter((e: any) => !prefix || e.name.toLowerCase().includes(prefix))
           .map((e: any) => `${data.path}/${e.name}`);
         setSuggestions(matches);
         setSelectedIdx(-1);
@@ -138,28 +140,40 @@ function PathAutocomplete({ value, onChange, onSubmit, placeholder, disabled, ap
     return () => controller.abort();
   }, [value, apiBase]);
 
-  const pick = (path: string) => { onChange(path); setShow(false); };
+  const pick = (path: string) => {
+    pickingRef.current = true;
+    onChange(path + '/');
+    setShow(true);
+    inputRef.current?.focus();
+    setTimeout(() => { pickingRef.current = false; }, 300);
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (!show || suggestions.length === 0) { if (e.key === 'Enter') onSubmit(); return; }
+    if (!show || suggestions.length === 0) { if (e.key === 'Enter') { setShow(false); onSubmit(); } return; }
     if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIdx(i => Math.min(i + 1, suggestions.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
-    else if (e.key === 'Tab' || e.key === 'Enter') {
+    else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (selectedIdx >= 0) pick(suggestions[selectedIdx]);
+      else if (suggestions.length === 1) pick(suggestions[0]);
+    }
+    else if (e.key === 'Enter') {
       if (selectedIdx >= 0) { e.preventDefault(); pick(suggestions[selectedIdx]); }
-      else if (e.key === 'Enter') onSubmit();
+      else { setShow(false); onSubmit(); }
     }
     else if (e.key === 'Escape') setShow(false);
   };
 
   return (
-    <div style={{ position: 'relative', flex: 1 }}>
+    <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
       <input
+        ref={inputRef}
         className="plugins__install-input"
         type="text"
         value={value}
         onChange={e => { onChange(e.target.value); setShow(true); }}
         onKeyDown={onKeyDown}
-        onBlur={() => setTimeout(() => setShow(false), 150)}
+        onBlur={() => setTimeout(() => { if (!pickingRef.current) setShow(false); }, 200)}
         onFocus={() => suggestions.length > 0 && setShow(true)}
         placeholder={placeholder}
         disabled={disabled}
@@ -288,18 +302,33 @@ export function PluginManagementView() {
       });
       const data = await res.json();
       if (data.success) {
+        const pluginName = data.plugin.displayName || data.plugin.name;
         const pending = data.permissions?.pendingConsent;
         if (pending?.length > 0) {
-          const approved = await requestConsent(data.plugin.name, data.plugin.displayName || data.plugin.name, pending);
-          setMessage({ type: 'success', text: `Installed ${data.plugin.displayName || data.plugin.name}${approved ? '' : ' (some permissions denied)'}.` });
-        } else {
-          setMessage({ type: 'success', text: `Installed ${data.plugin.displayName || data.plugin.name}.` });
+          await requestConsent(data.plugin.name, pluginName, pending);
         }
         setInstallSource('');
+        setMessage({ type: 'success', text: `Installed ${pluginName}. Setting up tools...` });
         fetchPlugins();
         fetch(`${apiBase}/api/plugins/reload`, { method: 'POST' }).catch(() => {});
         queryClient.invalidateQueries({ queryKey: ['workspaces'] });
         try { const { pluginRegistry } = await import('../core/PluginRegistry'); await pluginRegistry.reload(); } catch {}
+
+        // Poll agent health until tools are connected (max 30s)
+        const agents = data.plugin.agents || [];
+        if (agents.length > 0) {
+          const slug = agents[0].slug;
+          let ready = false;
+          for (let i = 0; i < 15 && !ready; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+              const h = await (await fetch(`${apiBase}/agents/${encodeURIComponent(slug)}/health`)).json();
+              ready = h.healthy;
+            } catch {}
+          }
+        }
+        queryClient.invalidateQueries({ queryKey: ['agents'] });
+        setMessage({ type: 'success', text: `${pluginName} is ready.` });
       } else {
         setMessage({ type: 'error', text: data.error || 'Install failed' });
       }
@@ -395,7 +424,7 @@ export function PluginManagementView() {
                         <div className="plugins__card-name">
                           {p.displayName || p.name}
                           <span className="plugins__card-version">v{p.version}</span>
-                          {upd && <span className="plugins__card-update-hint">&rarr; v{upd.latestVersion}</span>}
+                          {upd && <span className="plugins__card-update-hint">&rarr; {/^\d/.test(upd.latestVersion) ? `v${upd.latestVersion}` : upd.latestVersion}</span>}
                         </div>
                         {p.description && <div className="plugins__card-desc">{p.description}</div>}
                         <div className="plugins__provides">
