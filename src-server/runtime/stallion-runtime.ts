@@ -578,24 +578,15 @@ export class StallionRuntime {
     // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
     app.get('/api/agents', async (c) => {
       try {
-        if (!this.voltAgent) {
-          return c.json(
-            { success: false, error: 'VoltAgent not initialized' },
-            500,
-          );
-        }
         await this.reloadAgents();
-        const coreAgents = await this.voltAgent.getAgents();
+
+        // Build enriched list from metadata map (framework-agnostic)
         const enrichedAgents = (
           await Promise.all(
-            coreAgents.map(async (agent: any) => {
-              const metadata = this.agentMetadataMap.get(agent.id);
-              if (!metadata) return null;
-
+            Array.from(this.agentMetadataMap.entries()).map(async ([slug, metadata]) => {
+              if (!this.activeAgents.has(slug)) return null;
               try {
-                const spec = await this.configLoader.loadAgent(
-                  metadata.slug,
-                );
+                const spec = await this.configLoader.loadAgent(slug);
 
                 this.logger.debug('[Agent Enrichment] Loading spec', {
                   agent: metadata.slug,
@@ -604,8 +595,7 @@ export class StallionRuntime {
                 });
 
                 return {
-                  ...agent,
-                  slug: metadata.slug,
+                  slug,
                   name: metadata.name,
                   prompt: spec.prompt,
                   description: spec.description,
