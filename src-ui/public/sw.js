@@ -45,7 +45,7 @@ self.addEventListener('push', (event) => {
     data: { approvalId, agentSlug, apiBase },
     actions: [
       { action: 'allow', title: 'Allow' },
-      { action: 'deny',  title: 'Deny'  },
+      { action: 'deny', title: 'Deny' },
     ],
   });
 
@@ -70,7 +70,9 @@ self.addEventListener('notificationclick', (event) => {
         agentSlug,
         action: action === 'allow' ? 'allow' : 'deny',
       }),
-    }).catch(() => {/* best-effort */});
+    }).catch(() => {
+      /* best-effort */
+    });
 
     event.waitUntil(respondPromise);
   } else {

@@ -99,12 +99,14 @@ export function MessageBubble({
   );
 
   return (
-    <div className={`message-row ${msg.role === 'user' ? 'message-row--user' : ''}`}>
+    <div
+      className={`message-row ${msg.role === 'user' ? 'message-row--user' : ''}`}
+    >
       <div className="message-row__avatar">{avatarContent}</div>
       <div
         style={{
           position: 'relative',
-          maxWidth: '70%'
+          maxWidth: '70%',
         }}
         className={`message ${msg.role}${msg.role === 'user' && msg.fromPrompt ? ' message--from-prompt' : ''}`}
       >

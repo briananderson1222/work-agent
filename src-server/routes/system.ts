@@ -3,6 +3,7 @@
  */
 
 import { execFile, execSync } from 'node:child_process';
+import { networkInterfaces } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
@@ -45,7 +46,8 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
     const providers = getOnboardingProviders();
     const prerequisiteArrays = await Promise.all(
       providers.map(({ provider, source }) =>
-        provider.getPrerequisites()
+        provider
+          .getPrerequisites()
           .then((items) => items.map((p) => ({ ...p, source })))
           .catch(() => []),
       ),
@@ -94,8 +96,10 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         }).trim();
       } catch {
         // Fallback: tsx may mangle import.meta.url, walk up from process.argv
-        const serverEntry = process.argv.find(a => a.includes('src-server'));
-        const fallbackDir = serverEntry ? resolve(dirname(serverEntry)) : thisDir;
+        const serverEntry = process.argv.find((a) => a.includes('src-server'));
+        const fallbackDir = serverEntry
+          ? resolve(dirname(serverEntry))
+          : thisDir;
         gitRoot = execSync('git rev-parse --show-toplevel', {
           cwd: fallbackDir,
           encoding: 'utf-8',
@@ -186,8 +190,10 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
           encoding: 'utf-8',
         }).trim();
       } catch {
-        const serverEntry = process.argv.find(a => a.includes('src-server'));
-        const fallbackDir = serverEntry ? resolve(dirname(serverEntry)) : thisDir;
+        const serverEntry = process.argv.find((a) => a.includes('src-server'));
+        const fallbackDir = serverEntry
+          ? resolve(dirname(serverEntry))
+          : thisDir;
         gitRoot = execSync('git rev-parse --show-toplevel', {
           cwd: fallbackDir,
           encoding: 'utf-8',
@@ -273,10 +279,24 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
 
   app.get('/discover', (c) => {
     const reqUrl = new URL(c.req.url);
+    const port = Number(reqUrl.port) || 3141;
+
+    // Collect LAN IPv4 addresses so clients can build a reachable QR URL
+    const localIps: string[] = [];
+    for (const ifaces of Object.values(networkInterfaces())) {
+      for (const iface of ifaces ?? []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          localIps.push(iface.address);
+        }
+      }
+    }
+
     return c.json({
       stallion: true,
       name: 'Project Stallion',
-      port: Number(reqUrl.port) || 3141,
+      port,
+      mdns: process.env.STALLION_MDNS !== 'false',
+      localIps,
     });
   });
 

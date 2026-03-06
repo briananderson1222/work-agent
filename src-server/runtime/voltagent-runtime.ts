@@ -88,6 +88,7 @@ import { createFsRoutes } from '../routes/fs.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createSystemRoutes } from '../routes/system.js';
 import { createToolRoutes } from '../routes/tools.js';
+import { startMdnsAdvertisement } from '../services/mdns.js';
 import {
   createWorkflowRoutes,
   createWorkspaceRoutes,
@@ -131,6 +132,7 @@ export class WorkAgentRuntime {
   private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private stopMdns: (() => void) | null = null;
   private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
   private agentFixedTokens: Map<
     string,
@@ -2179,6 +2181,9 @@ export class WorkAgentRuntime {
     // Start periodic health checks (every 60 seconds)
     this.startHealthChecks();
 
+    // Advertise on mDNS so LAN clients can find this server without subnet scanning
+    this.stopMdns = startMdnsAdvertisement('Project Stallion', this.port);
+
     // Start ACP bridge (non-blocking — no-op if kiro-cli not found)
     this.configLoader
       .loadACPConfig()
@@ -2657,20 +2662,29 @@ export class WorkAgentRuntime {
 
     clearAll();
     const overrides = await this.configLoader.loadPluginOverrides();
-    const { resolved, conflicts } = resolvePluginProviders(pluginsDir, overrides);
+    const { resolved, conflicts } = resolvePluginProviders(
+      pluginsDir,
+      overrides,
+    );
 
     for (const conflict of conflicts) {
-      this.logger.warn('Provider conflict — multiple plugins provide singleton type', {
-        type: conflict.type,
-        workspace: conflict.workspace,
-        candidates: conflict.candidates,
-      });
+      this.logger.warn(
+        'Provider conflict — multiple plugins provide singleton type',
+        {
+          type: conflict.type,
+          workspace: conflict.workspace,
+          candidates: conflict.candidates,
+        },
+      );
     }
 
     for (const entry of resolved) {
       const modulePath = join(pluginsDir, entry.pluginName, entry.module);
       if (!existsSync(modulePath)) {
-        this.logger.warn('Plugin provider module not found', { plugin: entry.pluginName, module: entry.module });
+        this.logger.warn('Plugin provider module not found', {
+          plugin: entry.pluginName,
+          module: entry.module,
+        });
         continue;
       }
       try {
@@ -2679,18 +2693,34 @@ export class WorkAgentRuntime {
         const instance = typeof factory === 'function' ? factory() : factory;
 
         if (entry.type === 'auth') registerAuthProvider(instance);
-        else if (entry.type === 'userIdentity') registerUserIdentityProvider(instance);
-        else if (entry.type === 'userDirectory') registerUserDirectoryProvider(instance);
-        else if (entry.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-        else if (entry.type === 'toolRegistry') registerToolRegistryProvider(instance);
-        else if (entry.type === 'onboarding') registerOnboardingProvider(instance, entry.pluginName);
+        else if (entry.type === 'userIdentity')
+          registerUserIdentityProvider(instance);
+        else if (entry.type === 'userDirectory')
+          registerUserDirectoryProvider(instance);
+        else if (entry.type === 'agentRegistry')
+          registerAgentRegistryProvider(instance);
+        else if (entry.type === 'toolRegistry')
+          registerToolRegistryProvider(instance);
+        else if (entry.type === 'onboarding')
+          registerOnboardingProvider(instance, entry.pluginName);
         else if (entry.type === 'branding') registerBrandingProvider(instance);
         else if (entry.type === 'settings') registerSettingsProvider(instance);
-        else registerProvider(entry.type, instance, { workspace: entry.workspace, source: entry.pluginName });
+        else
+          registerProvider(entry.type, instance, {
+            workspace: entry.workspace,
+            source: entry.pluginName,
+          });
 
-        this.logger.info('Registered plugin provider', { plugin: entry.pluginName, type: entry.type });
+        this.logger.info('Registered plugin provider', {
+          plugin: entry.pluginName,
+          type: entry.type,
+        });
       } catch (e: any) {
-        this.logger.error('Failed to load plugin provider', { plugin: entry.pluginName, type: entry.type, error: e.message });
+        this.logger.error('Failed to load plugin provider', {
+          plugin: entry.pluginName,
+          type: entry.type,
+          error: e.message,
+        });
       }
     }
   }
@@ -2852,6 +2882,9 @@ export class WorkAgentRuntime {
 
     // Shutdown ACP bridge
     await this.acpBridge.shutdown();
+
+    // Stop mDNS advertisement
+    this.stopMdns?.();
 
     // Dispose config loader
     await this.configLoader.dispose();

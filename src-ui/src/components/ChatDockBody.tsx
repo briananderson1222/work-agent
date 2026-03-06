@@ -49,7 +49,11 @@ interface ChatDockBodyProps {
     handleClearInput: () => void;
     handleAddAttachments: (files: FileAttachment[]) => void;
     handleRemoveAttachment: (id: string) => void;
-    handleModelSelect: (model: { id: string; name: string; originalId?: string }) => void;
+    handleModelSelect: (model: {
+      id: string;
+      name: string;
+      originalId?: string;
+    }) => void;
     handleModelClose: () => void;
     handleModelOpen: () => void;
     handleCommandSelect: (command: SlashCommand) => Promise<void>;
@@ -93,7 +97,9 @@ export function ChatDockBody({
   useEffect(() => {
     if (stt.state === 'idle' && stt.transcript) {
       chatInput.handleInputChange(
-        chatInput.input ? chatInput.input + ' ' + stt.transcript : stt.transcript,
+        chatInput.input
+          ? chatInput.input + ' ' + stt.transcript
+          : stt.transcript,
       );
     }
   }, [stt.state, stt.transcript]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -124,38 +130,47 @@ export function ChatDockBody({
     prevStatusRef.current = activeSession.status;
     if (!wasStreaming || activeSession.status === 'sending') return;
     if (!settings.ttsReadbackEnabled) return;
-    const lastMsg = [...activeSession.messages].reverse().find((m) => m.role === 'assistant');
+    const lastMsg = [...activeSession.messages]
+      .reverse()
+      .find((m) => m.role === 'assistant');
     if (!lastMsg) return;
     const text =
       lastMsg.contentParts
         ?.filter((p) => p.type === 'text')
         .map((p) => p.content)
-        .join(' ') ?? lastMsg.content ?? '';
+        .join(' ') ??
+      lastMsg.content ??
+      '';
     if (text.trim()) tts.speak(text.slice(0, 800));
   }, [activeSession.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
-  const [removingMessages, setRemovingMessages] = useState<Set<string>>(new Set());
+  const [removingMessages, setRemovingMessages] = useState<Set<string>>(
+    new Set(),
+  );
 
   const agent = agents.find((a) => a.slug === activeSession.agentSlug);
   const ephemeralMessages = activeSession.messages.filter((m) => m.isEphemeral);
 
   useEffect(() => {
     if (!isUserScrolledUp && messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
     }
   }, [isUserScrolledUp]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
-    const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 10;
+    const isAtBottom =
+      target.scrollHeight - target.scrollTop - target.clientHeight < 10;
     setIsUserScrolledUp(!isAtBottom);
   };
 
   const handleScrollToBottom = () => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
       setIsUserScrolledUp(false);
     }
   };
@@ -181,7 +196,10 @@ export function ChatDockBody({
 
   const renderMessage = (msg: ChatMessage, idx: number) => {
     const textContent =
-      msg.contentParts?.filter((p: any) => p.type === 'text').map((p: any) => p.content).join('\n') ||
+      msg.contentParts
+        ?.filter((p: any) => p.type === 'text')
+        .map((p: any) => p.content)
+        .join('\n') ||
       msg.content ||
       '';
 
@@ -197,14 +215,18 @@ export function ChatDockBody({
           onDismiss={() => handleDismissEphemeral(messageId)}
           onAction={
             (msg as any).action
-              ? () => { (msg as any).action.handler(); clearEphemeralMessages(activeSession.id); }
+              ? () => {
+                  (msg as any).action.handler();
+                  clearEphemeralMessages(activeSession.id);
+                }
               : undefined
           }
         />
       );
     }
 
-    const isSystemEvent = msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
+    const isSystemEvent =
+      msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
     if (isSystemEvent) {
       return (
         <SystemEventMessage
@@ -225,7 +247,10 @@ export function ChatDockBody({
         chatFontSize={chatFontSize}
         showReasoning={showReasoning}
         showToolDetails={showToolDetails}
-        onCopy={(text) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard'); }}
+        onCopy={(text) => {
+          navigator.clipboard.writeText(text);
+          showToast('Copied to clipboard');
+        }}
         onToolApproval={handleToolApproval as any}
       />
     );
@@ -258,12 +283,19 @@ export function ChatDockBody({
             {activeSession.status === 'sending' && (
               <StreamingMessage
                 sessionId={activeSession.id}
-                agentIcon={<AgentIcon agent={agent || { name: 'AI' }} size={20} />}
+                agentIcon={
+                  <AgentIcon agent={agent || { name: 'AI' }} size={20} />
+                }
                 agentIconStyle={{}}
                 fontSize={chatFontSize}
                 showReasoning={showReasoning}
                 renderReasoning={(content, i) => (
-                  <ReasoningSection key={i} content={content} fontSize={chatFontSize} show={showReasoning} />
+                  <ReasoningSection
+                    key={i}
+                    content={content}
+                    fontSize={chatFontSize}
+                    show={showReasoning}
+                  />
                 )}
                 renderToolCall={(part, i) => (
                   <ToolCallDisplay
@@ -289,8 +321,13 @@ export function ChatDockBody({
           </>
         )}
       </div>
-      {isUserScrolledUp && <ScrollToBottomButton onClick={handleScrollToBottom} />}
-      <QueuedMessages sessionId={activeSession.id} messages={activeSession.queuedMessages} />
+      {isUserScrolledUp && (
+        <ScrollToBottomButton onClick={handleScrollToBottom} />
+      )}
+      <QueuedMessages
+        sessionId={activeSession.id}
+        messages={activeSession.queuedMessages}
+      />
       <ChatInputArea
         agentSlug={activeSession.agentSlug}
         conversationId={activeSession.conversationId}

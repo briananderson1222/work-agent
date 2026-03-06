@@ -48,7 +48,7 @@ export class ConnectionStore {
     this._cachedAll = connections;
     this._cachedActive =
       (activeId
-        ? connections.find((c) => c.id === activeId) ?? connections[0]
+        ? (connections.find((c) => c.id === activeId) ?? connections[0])
         : connections[0]) ?? null;
     this._cacheValid = true;
   }
@@ -96,8 +96,7 @@ export class ConnectionStore {
   remove(id: string): void {
     const { connections, activeId } = this.read();
     const updated = connections.filter((c) => c.id !== id);
-    const newActive =
-      activeId === id ? (updated[0]?.id ?? null) : activeId;
+    const newActive = activeId === id ? (updated[0]?.id ?? null) : activeId;
     this.write(updated, newActive);
   }
 

@@ -69,7 +69,11 @@ export function AchievementsBadge({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function AchievementCard({ achievement }: { achievement: Record<string, any> }) {
+function AchievementCard({
+  achievement,
+}: {
+  achievement: Record<string, any>;
+}) {
   const progress = achievement.threshold
     ? Math.min((achievement.progress || 0) / achievement.threshold, 1)
     : 0;

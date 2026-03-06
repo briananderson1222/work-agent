@@ -14,6 +14,8 @@ export interface MobileSettings {
   offlineQueueEnabled: boolean;
   /** Subscribe to Web Push notifications for tool-approval requests. */
   approvalNotificationsEnabled: boolean;
+  /** Use mDNS (NsdManager on Android) for server discovery instead of subnet scan. */
+  mdnsDiscoveryEnabled: boolean;
 }
 
 const STORAGE_KEY = 'stallion-feature-settings';
@@ -22,6 +24,7 @@ const DEFAULTS: MobileSettings = {
   ttsReadbackEnabled: false,
   offlineQueueEnabled: true,
   approvalNotificationsEnabled: false,
+  mdnsDiscoveryEnabled: true,
 };
 
 function load(): MobileSettings {
@@ -52,16 +55,13 @@ export function useMobileSettings() {
     });
   }, []);
 
-  const toggle = useCallback(
-    (key: keyof MobileSettings) => {
-      setSettings((prev) => {
-        const next = { ...prev, [key]: !prev[key] };
-        save(next);
-        return next;
-      });
-    },
-    [],
-  );
+  const toggle = useCallback((key: keyof MobileSettings) => {
+    setSettings((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      save(next);
+      return next;
+    });
+  }, []);
 
   return { settings, update, toggle };
 }

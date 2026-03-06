@@ -17,8 +17,8 @@ export function resolveAgentName(
 
   // Try to find in workspace's available agents
   if ((workspace as any)?.availableAgents) {
-    const match = ((workspace as any).availableAgents as string[]).find((a: string) =>
-      a.endsWith(`:${agentName}`),
+    const match = ((workspace as any).availableAgents as string[]).find(
+      (a: string) => a.endsWith(`:${agentName}`),
     );
     if (match) return match;
   }

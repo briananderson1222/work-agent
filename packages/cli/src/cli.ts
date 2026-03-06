@@ -126,7 +126,10 @@ function install(source: string): void {
   // Build plugin if build script exists and no bundle yet
   const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
   const hasBuildSh = existsSync(join(pluginDir, 'build.sh'));
-  if ((hasBuildMjs || hasBuildSh) && !existsSync(join(pluginDir, 'dist', 'bundle.js'))) {
+  if (
+    (hasBuildMjs || hasBuildSh) &&
+    !existsSync(join(pluginDir, 'dist', 'bundle.js'))
+  ) {
     try {
       if (existsSync(join(pluginDir, 'package.json'))) {
         execSync('npm install --legacy-peer-deps --ignore-scripts', {
@@ -151,7 +154,9 @@ function install(source: string): void {
       if (!entry.isDirectory()) continue;
       const targetToolDir = join(toolsDir, entry.name);
       if (!existsSync(targetToolDir)) {
-        cpSync(join(pluginToolsDir, entry.name), targetToolDir, { recursive: true });
+        cpSync(join(pluginToolsDir, entry.name), targetToolDir, {
+          recursive: true,
+        });
         console.log(`  ✓ Tool: ${entry.name}`);
       }
     }
@@ -178,7 +183,10 @@ function install(source: string): void {
       mkdirSync(targetDir, { recursive: true });
       const wsConfig = JSON.parse(readFileSync(sourcePath, 'utf-8'));
       wsConfig.plugin = manifest.name;
-      writeFileSync(join(targetDir, 'workspace.json'), JSON.stringify(wsConfig, null, 2));
+      writeFileSync(
+        join(targetDir, 'workspace.json'),
+        JSON.stringify(wsConfig, null, 2),
+      );
       console.log(`  ✓ Workspace: ${manifest.workspace.slug}`);
     }
   }
@@ -948,17 +956,25 @@ window.__stallion_ai_sdk_mock={
 function isRunning(): boolean {
   if (!existsSync(PIDFILE)) return false;
   const [pid] = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
-  try { process.kill(parseInt(pid), 0); return true; } catch { return false; }
+  try {
+    process.kill(parseInt(pid), 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isInstalled(): boolean {
-  return existsSync(join(CWD, 'dist-server')) &&
-    existsSync(join(CWD, 'dist-ui'));
+  return (
+    existsSync(join(CWD, 'dist-server')) && existsSync(join(CWD, 'dist-ui'))
+  );
 }
 
 function start(): void {
   if (isRunning()) {
-    console.log('✓ Already running\n  UI:   http://localhost:3000\n  Stop: stallion stop');
+    console.log(
+      '✓ Already running\n  UI:   http://localhost:3000\n  Stop: stallion stop',
+    );
     return;
   }
 
@@ -972,12 +988,16 @@ function start(): void {
   stop(); // clean up stale pids
 
   const serverProc = spawn('node', ['dist-server/index.js'], {
-    cwd: CWD, stdio: 'ignore', detached: true,
+    cwd: CWD,
+    stdio: 'ignore',
+    detached: true,
   });
   serverProc.unref();
 
   const uiProc = spawn('npx', ['serve', 'dist-ui', '-s', '-l', '3000'], {
-    cwd: CWD, stdio: 'ignore', detached: true,
+    cwd: CWD,
+    stdio: 'ignore',
+    detached: true,
   });
   uiProc.unref();
 
@@ -1002,7 +1022,9 @@ function stop(): void {
   if (!existsSync(PIDFILE)) return;
   const pids = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
   for (const pid of pids) {
-    try { process.kill(parseInt(pid)); } catch {}
+    try {
+      process.kill(parseInt(pid));
+    } catch {}
   }
   rmSync(PIDFILE, { force: true });
   console.log('  ✓ Stopped');
@@ -1080,8 +1102,9 @@ function shortcut(): void {
   const macosDir = join(appDir, 'Contents', 'MacOS');
   mkdirSync(macosDir, { recursive: true });
 
-  writeFileSync(join(appDir, 'Contents', 'Info.plist'),
-`<?xml version="1.0" encoding="UTF-8"?>
+  writeFileSync(
+    join(appDir, 'Contents', 'Info.plist'),
+    `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -1093,15 +1116,18 @@ function shortcut(): void {
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSUIElement</key><true/>
 </dict>
-</plist>`);
+</plist>`,
+  );
 
   const stallionPath = join(CWD, 'stallion');
-  writeFileSync(join(macosDir, 'launch'),
-`#!/bin/bash
+  writeFileSync(
+    join(macosDir, 'launch'),
+    `#!/bin/bash
 "${stallionPath}" start &
 sleep 2
 open "http://localhost:3000"
-`);
+`,
+  );
   execSync(`chmod +x "${join(macosDir, 'launch')}"`);
 
   console.log('  ✓ Created ~/Applications/Stallion.app');

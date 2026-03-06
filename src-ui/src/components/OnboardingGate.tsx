@@ -11,7 +11,9 @@ import { useBranding } from '../hooks/useBranding';
 import './OnboardingGate.css';
 
 function checkServerHealth(url: string): Promise<boolean> {
-  return fetch(`${url}/api/system/status`).then((r) => r.ok).catch(() => false);
+  return fetch(`${url}/api/system/status`)
+    .then((r) => r.ok)
+    .catch(() => false);
 }
 
 export function OnboardingGate({ children }: { children: ReactNode }) {
@@ -56,7 +58,9 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
           <div className="onboarding-loading__status">
             Checking system status
             <span className="onboarding-loading__dots">
-              <span>.</span><span>.</span><span>.</span>
+              <span>.</span>
+              <span>.</span>
+              <span>.</span>
             </span>
           </div>
         </div>
@@ -140,10 +144,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
               />
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button
-                onClick={() => setShowModal(true)}
-                style={buttonStyle}
-              >
+              <button onClick={() => setShowModal(true)} style={buttonStyle}>
                 Manage Connections
               </button>
             </div>

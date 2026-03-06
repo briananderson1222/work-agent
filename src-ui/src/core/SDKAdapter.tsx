@@ -37,10 +37,7 @@ interface SDKAdapterProps {
  * SDKAdapter - Provides SDK context to plugin components
  * Injects core app contexts into the SDK for plugin consumption
  */
-export function SDKAdapter({
-  children,
-  workspace,
-}: SDKAdapterProps) {
+export function SDKAdapter({ children, workspace }: SDKAdapterProps) {
   // Get API base from the single source of truth
   const { apiBase } = useApiBase();
 

@@ -143,7 +143,14 @@ const IconSpinner = () => (
   </svg>
 );
 const IconEdit = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M11.5 2.5l2 2-8 8H3.5v-2z" />
   </svg>
 );
@@ -258,13 +265,27 @@ function JobDetail({ name }: { name: string }) {
 function CronPreview({ cron }: { cron: string }) {
   const { data, isLoading } = usePreviewSchedule(cron || null);
   if (!cron) return null;
-  if (isLoading) return <div className="schedule__cron-preview">Checking schedule...</div>;
-  if (!data || !Array.isArray(data) || data.length === 0) return <div className="schedule__cron-preview schedule__cron-preview--error">Invalid cron expression</div>;
+  if (isLoading)
+    return <div className="schedule__cron-preview">Checking schedule...</div>;
+  if (!data || !Array.isArray(data) || data.length === 0)
+    return (
+      <div className="schedule__cron-preview schedule__cron-preview--error">
+        Invalid cron expression
+      </div>
+    );
   return (
     <div className="schedule__cron-preview">
       <span className="schedule__cron-label">Next fires:</span>
       {data.slice(0, 3).map((d: any, i: number) => (
-        <span key={i} className="schedule__cron-time">{new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+        <span key={i} className="schedule__cron-time">
+          {new Date(d).toLocaleString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })}
+        </span>
       ))}
     </div>
   );
@@ -282,7 +303,8 @@ function JobFormModal({ job, onClose }: { job?: any; onClose: () => void }) {
     command: job?.command || '',
     agent: job?.agent || '',
     dir: job?.working_dir || '',
-    openArtifact: job?.artifact?.replace('-', '') === '' ? '' : (job?.artifact || ''),
+    openArtifact:
+      job?.artifact?.replace('-', '') === '' ? '' : job?.artifact || '',
     description: job?.description || '',
   });
   const [cronInput, setCronInput] = useState(form.cron);
@@ -293,31 +315,39 @@ function JobFormModal({ job, onClose }: { job?: any; onClose: () => void }) {
     return () => clearTimeout(t);
   }, [form.cron]);
 
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm(f => ({ ...f, [field]: e.target.value }));
+  const set =
+    (field: string) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [field]: e.target.value }));
 
   const handleSubmit = () => {
     if (isEdit) {
       const opts: Record<string, string> = {};
-      if (form.cron && form.cron !== job.schedule?.replace(/^cron\s+/, '')) opts.cron = form.cron;
+      if (form.cron && form.cron !== job.schedule?.replace(/^cron\s+/, ''))
+        opts.cron = form.cron;
       if (form.prompt !== (job.prompt || '')) opts.prompt = form.prompt;
       if (form.command !== (job.command || '')) opts.command = form.command;
       if (form.agent !== (job.agent || '')) opts.agent = form.agent;
       if (form.dir !== (job.working_dir || '')) opts.dir = form.dir;
-      if (form.description !== (job.description || '')) opts.description = form.description;
-      if (form.openArtifact !== (job.artifact || '')) opts['open-artifact'] = form.openArtifact;
+      if (form.description !== (job.description || ''))
+        opts.description = form.description;
+      if (form.openArtifact !== (job.artifact || ''))
+        opts['open-artifact'] = form.openArtifact;
       editJob.mutate({ target: job.name, ...opts }, { onSuccess: onClose });
     } else {
       if (!form.name.trim()) return;
-      addJob.mutate({
-        name: form.name,
-        cron: form.cron || undefined,
-        prompt: form.prompt || undefined,
-        command: form.command || undefined,
-        agent: form.agent || undefined,
-        dir: form.dir || undefined,
-        openArtifact: form.openArtifact || undefined,
-      }, { onSuccess: onClose });
+      addJob.mutate(
+        {
+          name: form.name,
+          cron: form.cron || undefined,
+          prompt: form.prompt || undefined,
+          command: form.command || undefined,
+          agent: form.agent || undefined,
+          dir: form.dir || undefined,
+          openArtifact: form.openArtifact || undefined,
+        },
+        { onSuccess: onClose },
+      );
     }
   };
 
@@ -325,51 +355,97 @@ function JobFormModal({ job, onClose }: { job?: any; onClose: () => void }) {
 
   return (
     <div className="schedule__modal-overlay" onClick={onClose}>
-      <div className="schedule__modal" onClick={e => e.stopPropagation()}>
+      <div className="schedule__modal" onClick={(e) => e.stopPropagation()}>
         <div className="schedule__modal-header">
           <h3>{isEdit ? `Edit: ${job.name}` : 'Add Job'}</h3>
-          <button className="schedule__modal-close" onClick={onClose}>&times;</button>
+          <button className="schedule__modal-close" onClick={onClose}>
+            &times;
+          </button>
         </div>
         <div className="schedule__modal-body">
           {!isEdit && (
             <label className="schedule__field">
               <span className="schedule__field-label">Name</span>
-              <input value={form.name} onChange={set('name')} placeholder="my-job" />
+              <input
+                value={form.name}
+                onChange={set('name')}
+                placeholder="my-job"
+              />
             </label>
           )}
           <label className="schedule__field">
             <span className="schedule__field-label">Cron Schedule</span>
-            <input value={form.cron} onChange={set('cron')} placeholder="0 15 * * 1-5" />
+            <input
+              value={form.cron}
+              onChange={set('cron')}
+              placeholder="0 15 * * 1-5"
+            />
             <CronPreview cron={cronInput} />
           </label>
           <label className="schedule__field">
             <span className="schedule__field-label">Prompt</span>
-            <textarea value={form.prompt} onChange={set('prompt')} rows={3} placeholder="What should the agent do?" />
+            <textarea
+              value={form.prompt}
+              onChange={set('prompt')}
+              rows={3}
+              placeholder="What should the agent do?"
+            />
           </label>
           <label className="schedule__field">
-            <span className="schedule__field-label">Command <span className="schedule__field-hint">(alternative to prompt)</span></span>
-            <input value={form.command} onChange={set('command')} placeholder="/path/to/script.sh" />
+            <span className="schedule__field-label">
+              Command{' '}
+              <span className="schedule__field-hint">
+                (alternative to prompt)
+              </span>
+            </span>
+            <input
+              value={form.command}
+              onChange={set('command')}
+              placeholder="/path/to/script.sh"
+            />
           </label>
           <label className="schedule__field">
             <span className="schedule__field-label">Agent</span>
-            <input value={form.agent} onChange={set('agent')} placeholder="default agent" />
+            <input
+              value={form.agent}
+              onChange={set('agent')}
+              placeholder="default agent"
+            />
           </label>
           <label className="schedule__field">
             <span className="schedule__field-label">Working Directory</span>
-            <input value={form.dir} onChange={set('dir')} placeholder="~/.boo/workspace/job-name" />
+            <input
+              value={form.dir}
+              onChange={set('dir')}
+              placeholder="~/.boo/workspace/job-name"
+            />
           </label>
           <label className="schedule__field">
             <span className="schedule__field-label">Open Artifact</span>
-            <input value={form.openArtifact} onChange={set('openArtifact')} placeholder="daily-*.html" />
+            <input
+              value={form.openArtifact}
+              onChange={set('openArtifact')}
+              placeholder="daily-*.html"
+            />
           </label>
           <label className="schedule__field">
             <span className="schedule__field-label">Description</span>
-            <input value={form.description} onChange={set('description')} placeholder="Optional description" />
+            <input
+              value={form.description}
+              onChange={set('description')}
+              placeholder="Optional description"
+            />
           </label>
         </div>
         <div className="schedule__modal-footer">
-          <button className="schedule__modal-cancel" onClick={onClose}>Cancel</button>
-          <button className="schedule__modal-submit" onClick={handleSubmit} disabled={pending || (!isEdit && !form.name.trim())}>
+          <button className="schedule__modal-cancel" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="schedule__modal-submit"
+            onClick={handleSubmit}
+            disabled={pending || (!isEdit && !form.name.trim())}
+          >
             {pending ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Job'}
           </button>
         </div>
@@ -516,7 +592,12 @@ export function ScheduleView() {
           <p className="page__subtitle">Manage scheduled jobs and automation</p>
         </div>
         <div className="page__actions">
-          <button className="page__btn-primary" onClick={() => setShowAddForm(true)}>+ Add Job</button>
+          <button
+            className="page__btn-primary"
+            onClick={() => setShowAddForm(true)}
+          >
+            + Add Job
+          </button>
         </div>
       </div>
 
@@ -713,7 +794,7 @@ export function ScheduleView() {
                       const running = isRunning(job.name);
                       return (
                         <Fragment key={job.id}>
-                        <tr
+                          <tr
                             data-testid={`job-row-${job.name}`}
                             className={`schedule__row ${isExpanded ? 'schedule__row--expanded' : ''}`}
                             onClick={() =>
@@ -845,10 +926,15 @@ export function ScheduleView() {
                                       {job.artifact_file && (
                                         <button
                                           onClick={() =>
-                                            openArtifact.mutate(job.artifact_file)
+                                            openArtifact.mutate(
+                                              job.artifact_file,
+                                            )
                                           }
                                           className="page__btn-primary"
-                                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                                          style={{
+                                            fontSize: '0.75rem',
+                                            padding: '0.35rem 0.75rem',
+                                          }}
                                         >
                                           Open Latest Artifact
                                         </button>
@@ -857,7 +943,10 @@ export function ScheduleView() {
                                         <button
                                           onClick={() => {
                                             const resumePrompt = `Follow up on the last run of ${job.name}`;
-                                            window.open(`boo://resume/${job.name}?prompt=${encodeURIComponent(resumePrompt)}`, '_self');
+                                            window.open(
+                                              `boo://resume/${job.name}?prompt=${encodeURIComponent(resumePrompt)}`,
+                                              '_self',
+                                            );
                                           }}
                                           className="button button--secondary button--small"
                                         >
@@ -866,12 +955,46 @@ export function ScheduleView() {
                                       )}
                                     </div>
                                   </div>
-                                  {(job.description || job.prompt || job.command || job.agent) && (
+                                  {(job.description ||
+                                    job.prompt ||
+                                    job.command ||
+                                    job.agent) && (
                                     <div className="schedule__detail-meta">
-                                      {job.description && <div className="schedule__detail-desc">{job.description}</div>}
-                                      {job.agent && <div className="schedule__detail-field"><span className="schedule__detail-label">Agent</span><span className="schedule__detail-value">{job.agent}</span></div>}
-                                      {job.prompt && <div className="schedule__detail-field"><span className="schedule__detail-label">Prompt</span><span className="schedule__detail-value">{job.prompt}</span></div>}
-                                      {job.command && <div className="schedule__detail-field"><span className="schedule__detail-label">Command</span><code className="schedule__detail-code">{job.command}</code></div>}
+                                      {job.description && (
+                                        <div className="schedule__detail-desc">
+                                          {job.description}
+                                        </div>
+                                      )}
+                                      {job.agent && (
+                                        <div className="schedule__detail-field">
+                                          <span className="schedule__detail-label">
+                                            Agent
+                                          </span>
+                                          <span className="schedule__detail-value">
+                                            {job.agent}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {job.prompt && (
+                                        <div className="schedule__detail-field">
+                                          <span className="schedule__detail-label">
+                                            Prompt
+                                          </span>
+                                          <span className="schedule__detail-value">
+                                            {job.prompt}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {job.command && (
+                                        <div className="schedule__detail-field">
+                                          <span className="schedule__detail-label">
+                                            Command
+                                          </span>
+                                          <code className="schedule__detail-code">
+                                            {job.command}
+                                          </code>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   <JobDetail name={job.name} />
@@ -889,7 +1012,9 @@ export function ScheduleView() {
           </div>
         </>
       )}
-      {editingJob && <JobFormModal job={editingJob} onClose={() => setEditingJob(null)} />}
+      {editingJob && (
+        <JobFormModal job={editingJob} onClose={() => setEditingJob(null)} />
+      )}
       {showAddForm && <JobFormModal onClose={() => setShowAddForm(false)} />}
     </div>
   );

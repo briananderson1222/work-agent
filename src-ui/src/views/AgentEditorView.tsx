@@ -153,7 +153,7 @@ export function AgentEditorView({
       loadAgent(slug);
     }
     loadTools();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const validateStep = (step: FormStep): boolean => {
@@ -175,7 +175,6 @@ export function AgentEditorView({
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
-
 
   const saveAgent = async () => {
     if (!validateStep(currentStep)) return;
@@ -400,7 +399,9 @@ export function AgentEditorView({
       <div className="management-view">
         <div className="management-view__header">
           <div>
-            <div className="management-view__header-label">{isEditMode ? 'manage / edit agent' : 'manage / new agent'}</div>
+            <div className="management-view__header-label">
+              {isEditMode ? 'manage / edit agent' : 'manage / new agent'}
+            </div>
             <h2>{isEditMode ? 'Edit Agent' : 'New Agent'}</h2>
           </div>
           <button
@@ -426,10 +427,16 @@ export function AgentEditorView({
       <div className="management-view__header editor__header">
         <div className="editor__header-left">
           <div>
-            <div className="management-view__header-label">{isEditMode ? 'manage / edit agent' : 'manage / new agent'}</div>
+            <div className="management-view__header-label">
+              {isEditMode ? 'manage / edit agent' : 'manage / new agent'}
+            </div>
             <h2>
               {isEditMode ? formData.name : 'New Agent'}
-              {isPlugin && <span className="editor__plugin-badge">{slug?.split(':')[0]}</span>}
+              {isPlugin && (
+                <span className="editor__plugin-badge">
+                  {slug?.split(':')[0]}
+                </span>
+              )}
             </h2>
           </div>
           {isEditMode && updatedAt && (
@@ -462,9 +469,16 @@ export function AgentEditorView({
         <div className="editor__lock-banner">
           <div className="editor__lock-banner-text">
             <span className="editor__lock-banner-icon">🔒</span>
-            <span>This agent is managed by the <strong>{slug?.split(':')[0]}</strong> plugin. Editing is locked to prevent accidental changes.</span>
+            <span>
+              This agent is managed by the{' '}
+              <strong>{slug?.split(':')[0]}</strong> plugin. Editing is locked
+              to prevent accidental changes.
+            </span>
           </div>
-          <button className="editor__unlock-btn" onClick={() => setIsPluginLocked(false)}>
+          <button
+            className="editor__unlock-btn"
+            onClick={() => setIsPluginLocked(false)}
+          >
             Unlock Editing
           </button>
         </div>
@@ -472,7 +486,9 @@ export function AgentEditorView({
 
       {error && <div className="management-view__error">{error}</div>}
 
-      <div className={`agent-editor editor${isPlugin && isPluginLocked ? ' editor--locked' : ''}`}>
+      <div
+        className={`agent-editor editor${isPlugin && isPluginLocked ? ' editor--locked' : ''}`}
+      >
         <div className="agent-editor__steps">
           <button
             type="button"
@@ -487,10 +503,7 @@ export function AgentEditorView({
             }}
             title="Basic Info (⌘1)"
           >
-            Basic Info{' '}
-            <span className="editor__step-count">
-              ⌘1
-            </span>
+            Basic Info <span className="editor__step-count">⌘1</span>
           </button>
           <button
             type="button"
@@ -505,10 +518,7 @@ export function AgentEditorView({
             }}
             title="Model Config (⌘2)"
           >
-            Model Config{' '}
-            <span className="editor__step-count">
-              ⌘2
-            </span>
+            Model Config <span className="editor__step-count">⌘2</span>
           </button>
           <button
             type="button"
@@ -523,10 +533,7 @@ export function AgentEditorView({
             }}
             title="Tools (⌘3)"
           >
-            Tools{' '}
-            <span className="editor__step-count">
-              ⌘3
-            </span>
+            Tools <span className="editor__step-count">⌘3</span>
           </button>
           <button
             type="button"
@@ -541,10 +548,7 @@ export function AgentEditorView({
             }}
             title="Slash Commands (⌘4)"
           >
-            Slash Commands{' '}
-            <span className="editor__step-count">
-              ⌘4
-            </span>
+            Slash Commands <span className="editor__step-count">⌘4</span>
           </button>
         </div>
 
@@ -902,9 +906,7 @@ export function AgentEditorView({
                       <div className="tool-info">
                         <div className="editor__row">
                           {tool.server && (
-                            <span className="editor__tag">
-                              {tool.server}
-                            </span>
+                            <span className="editor__tag">{tool.server}</span>
                           )}
                           <span className="tool-name">
                             {tool.toolName || tool.name}

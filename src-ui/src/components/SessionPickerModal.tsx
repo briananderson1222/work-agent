@@ -79,7 +79,7 @@ export function SessionPickerModal({
     if (isOpen) {
       loadConversations();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const formatDate = (dateStr: string) => {

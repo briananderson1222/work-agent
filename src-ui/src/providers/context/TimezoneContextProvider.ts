@@ -7,7 +7,10 @@
 import type { MessageContextProvider } from '@stallion-ai/sdk';
 import { ListenerManager } from '@stallion-ai/sdk';
 
-class TimezoneContextProvider extends ListenerManager implements MessageContextProvider {
+class TimezoneContextProvider
+  extends ListenerManager
+  implements MessageContextProvider
+{
   readonly id = 'timezone';
   readonly name = 'Timezone';
 

@@ -18,7 +18,7 @@ export function createToolRoutes(
         mcpService.listTools(),
         mcpService.getToolAgentMap(),
       ]);
-      const data = tools.map(t => ({ ...t, usedBy: agentMap[t.id] || [] }));
+      const data = tools.map((t) => ({ ...t, usedBy: agentMap[t.id] || [] }));
       return c.json({ success: true, data });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);

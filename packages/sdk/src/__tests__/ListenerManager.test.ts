@@ -3,8 +3,12 @@ import { ListenerManager } from '../core/ListenerManager.js';
 
 // Concrete subclass that exposes protected methods for testing
 class TestManager extends ListenerManager {
-  notify() { this._notify(); }
-  clearListeners() { this._clearListeners(); }
+  notify() {
+    this._notify();
+  }
+  clearListeners() {
+    this._clearListeners();
+  }
 }
 
 describe('ListenerManager', () => {

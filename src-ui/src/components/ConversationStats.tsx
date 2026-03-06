@@ -437,75 +437,73 @@ export function ConversationStats({
                 >
                   Per-Model Breakdown
                 </div>
-                {Object.entries(stats.modelStats as Record<string, ModelStats>).map(
-                  ([modelId, modelStat]) => (
+                {Object.entries(
+                  stats.modelStats as Record<string, ModelStats>,
+                ).map(([modelId, modelStat]) => (
+                  <div
+                    key={modelId}
+                    style={{
+                      marginBottom: '12px',
+                      padding: '8px',
+                      background: 'var(--bg-primary)',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                    }}
+                  >
                     <div
-                      key={modelId}
                       style={{
-                        marginBottom: '12px',
-                        padding: '8px',
-                        background: 'var(--bg-primary)',
-                        borderRadius: '6px',
-                        fontSize: '12px',
+                        fontWeight: 600,
+                        marginBottom: '6px',
+                        fontSize: '11px',
+                        opacity: 0.8,
                       }}
                     >
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          marginBottom: '6px',
-                          fontSize: '11px',
-                          opacity: 0.8,
-                        }}
-                      >
-                        {modelId}
-                      </div>
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr',
-                          gap: '8px',
-                        }}
-                      >
+                      {modelId}
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '8px',
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: '10px',
+                            color: 'var(--text-muted)',
+                            marginBottom: '2px',
+                          }}
+                        >
+                          Consumed
+                        </div>
+                        <div>In: {modelStat.inputTokens.toLocaleString()}</div>
                         <div>
-                          <div
-                            style={{
-                              fontSize: '10px',
-                              color: 'var(--text-muted)',
-                              marginBottom: '2px',
-                            }}
-                          >
-                            Consumed
-                          </div>
-                          <div>
-                            In: {modelStat.inputTokens.toLocaleString()}
-                          </div>
-                          <div>
-                            Out: {modelStat.outputTokens.toLocaleString()}
-                          </div>
-                          <div>
-                            Total: {modelStat.totalTokens.toLocaleString()}
-                          </div>
+                          Out: {modelStat.outputTokens.toLocaleString()}
                         </div>
                         <div>
-                          <div
-                            style={{
-                              fontSize: '10px',
-                              color: 'var(--text-muted)',
-                              marginBottom: '2px',
-                            }}
-                          >
-                            Stats
-                          </div>
-                          <div>Turns: {modelStat.turns}</div>
-                          <div>Tool Calls: {modelStat.toolCalls}</div>
-                          <div style={{ marginTop: '4px' }}>
-                            Cost: ${modelStat.estimatedCost.toFixed(4)}
-                          </div>
+                          Total: {modelStat.totalTokens.toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <div
+                          style={{
+                            fontSize: '10px',
+                            color: 'var(--text-muted)',
+                            marginBottom: '2px',
+                          }}
+                        >
+                          Stats
+                        </div>
+                        <div>Turns: {modelStat.turns}</div>
+                        <div>Tool Calls: {modelStat.toolCalls}</div>
+                        <div style={{ marginTop: '4px' }}>
+                          Cost: ${modelStat.estimatedCost.toFixed(4)}
                         </div>
                       </div>
                     </div>
-                  ),
-                )}
+                  </div>
+                ))}
               </div>
             )}
           </div>

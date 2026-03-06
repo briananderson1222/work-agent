@@ -30,4 +30,6 @@ export class ListenerManager {
  * No-op subscribe for useSyncExternalStore when there is no active provider.
  * Shared across hooks to avoid creating new function references per render.
  */
-export const noopSubscribe = (_fn: () => void): (() => void) => () => {};
+export const noopSubscribe =
+  (_fn: () => void): (() => void) =>
+  () => {};

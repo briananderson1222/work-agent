@@ -55,7 +55,9 @@ export function UsageStatsPanel() {
     return (
       <div className="usage-stats-error">
         <div className="usage-stats-error-icon">⚠️</div>
-        <div className="usage-stats-error-message">Error: {(error as Error)?.message ?? String(error)}</div>
+        <div className="usage-stats-error-message">
+          Error: {(error as Error)?.message ?? String(error)}
+        </div>
         <button onClick={refresh} className="usage-stats-error-button">
           Retry
         </button>

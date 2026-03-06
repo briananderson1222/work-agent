@@ -174,7 +174,8 @@ export function usePreviewSchedule(cron: string | null) {
   const { query } = useSchedulerFetch();
   return useQuery({
     queryKey: ['scheduler', 'preview', cron],
-    queryFn: () => query<any[]>(`/jobs/preview-schedule?cron=${encodeURIComponent(cron!)}`),
+    queryFn: () =>
+      query<any[]>(`/jobs/preview-schedule?cron=${encodeURIComponent(cron!)}`),
     enabled: !!cron && cron.trim().length > 0,
     staleTime: 60_000,
   });

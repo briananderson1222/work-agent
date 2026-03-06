@@ -94,7 +94,7 @@ export function ToolManagementView({
 
   useEffect(() => {
     loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addTool = async (toolId: string) => {

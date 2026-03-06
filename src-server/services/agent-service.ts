@@ -91,18 +91,10 @@ export class AgentService {
     slug: string,
     updates: Record<string, any>,
   ): Promise<AgentSpec> {
-    // Remove null values to allow unsetting optional fields
-    const filtered = Object.entries(updates).reduce(
-      (acc, [key, value]) => {
-        if (value !== null) {
-          acc[key] = value;
-        }
-        return acc;
-      },
-      {} as Record<string, any>,
-    );
-
-    return this.configLoader.updateAgent(slug, filtered);
+    // Pass null values through — null means "clear this optional field".
+    // configLoader.updateAgent merges the updates, and null is valid per schema
+    // for optional fields (model, region, icon, guardrails, tools, etc.).
+    return this.configLoader.updateAgent(slug, updates);
   }
 
   async deleteAgent(

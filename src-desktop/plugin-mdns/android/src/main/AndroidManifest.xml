@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- NsdManager works without special permissions on API 24+.
+         CHANGE_WIFI_MULTICAST_STATE is required on some older devices/ROMs
+         to allow multicast packet reception for mDNS discovery. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+</manifest>

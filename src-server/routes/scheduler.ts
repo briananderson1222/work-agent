@@ -95,7 +95,8 @@ export function createSchedulerRoutes(
   app.get('/jobs/preview-schedule', async (c) => {
     try {
       const cron = c.req.query('cron');
-      if (!cron) return c.json({ success: false, error: 'cron is required' }, 400);
+      if (!cron)
+        return c.json({ success: false, error: 'cron is required' }, 400);
       const count = parseInt(c.req.query('count') || '5', 10);
       const data = await schedulerService.previewSchedule(cron, count);
       return c.json({ success: true, data });
@@ -145,7 +146,10 @@ export function createSchedulerRoutes(
   app.put('/jobs/:target', async (c) => {
     try {
       const opts = await c.req.json();
-      const output = await schedulerService.editJob(c.req.param('target'), opts);
+      const output = await schedulerService.editJob(
+        c.req.param('target'),
+        opts,
+      );
       return c.json({ success: true, data: { output } });
     } catch (error: any) {
       logger.error('Failed to edit job', { error });

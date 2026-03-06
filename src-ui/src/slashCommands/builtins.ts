@@ -12,16 +12,18 @@ registerCommand(
 
       const tools = data?.tools || [];
 
-      const mcpServers = ([
-        ...new Set(
-          tools
-            .map((t: any): string | null => {
-              const name = typeof t === 'string' ? t : t.name || t.id || '';
-              return name.includes('_') ? name.split('_')[0] : null;
-            })
-            .filter((s: any): s is string => s !== null),
-        ),
-      ] as string[]).sort();
+      const mcpServers = (
+        [
+          ...new Set(
+            tools
+              .map((t: any): string | null => {
+                const name = typeof t === 'string' ? t : t.name || t.id || '';
+                return name.includes('_') ? name.split('_')[0] : null;
+              })
+              .filter((s: any): s is string => s !== null),
+          ),
+        ] as string[]
+      ).sort();
 
       const content =
         mcpServers.length > 0

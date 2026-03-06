@@ -17,7 +17,10 @@ export type {
   VisibleOn,
 } from './voice/types.js';
 export { voiceRegistry } from './voice/registry.js';
-export type { ContextCapability, MessageContextProvider } from './context/types.js';
+export type {
+  ContextCapability,
+  MessageContextProvider,
+} from './context/types.js';
 export { contextRegistry } from './context/registry.js';
 
 // Re-export useQueryClient for contexts that need access to cache
@@ -43,7 +46,14 @@ export {
 } from './api';
 export type { AutoSelectItem } from './components';
 // Re-export components
-export { AutoSelectModal, Button, FullScreenLoader, LoadingState, Pill, Spinner } from './components';
+export {
+  AutoSelectModal,
+  Button,
+  FullScreenLoader,
+  LoadingState,
+  Pill,
+  Spinner,
+} from './components';
 
 // Re-export context hooks
 export {

@@ -6,7 +6,13 @@
  *   toggleProvider(id) — enable/disable a provider
  *   getComposedContext() — compose all enabled providers into one string
  */
-import React, { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 import { contextRegistry } from '@stallion-ai/sdk';
 import type { MessageContextProvider } from '@stallion-ai/sdk';
 
@@ -16,13 +22,19 @@ interface MessageContextContextValue {
   getComposedContext: () => string | null;
 }
 
-const MessageContextCtx = createContext<MessageContextContextValue | null>(null);
+const MessageContextCtx = createContext<MessageContextContextValue | null>(
+  null,
+);
 
 function getSnapshot() {
   return contextRegistry.getAll();
 }
 
-export function MessageContextContext({ children }: { children: React.ReactNode }) {
+export function MessageContextContext({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const providers = useSyncExternalStore(
     contextRegistry.subscribe,
     getSnapshot,
@@ -47,12 +59,17 @@ export function MessageContextContext({ children }: { children: React.ReactNode 
   );
 
   return (
-    <MessageContextCtx.Provider value={value}>{children}</MessageContextCtx.Provider>
+    <MessageContextCtx.Provider value={value}>
+      {children}
+    </MessageContextCtx.Provider>
   );
 }
 
 export function useMessageContextContext(): MessageContextContextValue {
   const ctx = useContext(MessageContextCtx);
-  if (!ctx) throw new Error('useMessageContextContext must be used within MessageContextContext');
+  if (!ctx)
+    throw new Error(
+      'useMessageContextContext must be used within MessageContextContext',
+    );
   return ctx;
 }

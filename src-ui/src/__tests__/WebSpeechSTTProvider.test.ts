@@ -41,14 +41,20 @@ function makeMockRec(): MockRec {
     start: vi.fn(),
     stop: vi.fn(),
     abort: vi.fn(),
-    _fireStart() { rec.onstart?.(); },
+    _fireStart() {
+      rec.onstart?.();
+    },
     _fireResult(transcript: string) {
       rec.onresult?.({
         results: [{ 0: { transcript }, length: 1 }],
       });
     },
-    _fireError() { rec.onerror?.(); },
-    _fireEnd() { rec.onend?.(); },
+    _fireError() {
+      rec.onerror?.();
+    },
+    _fireEnd() {
+      rec.onend?.();
+    },
   };
   return rec;
 }

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useConnections } from './ConnectionsContext';
 
 export interface QRScannerProps {
   onScan: (url: string) => void;
@@ -6,10 +7,13 @@ export interface QRScannerProps {
 }
 
 /**
- * Opens the device camera and scans QR codes using jsqr.
+ * Scans QR codes for a server URL.
+ * On Tauri Android: uses the native barcode-scanner plugin via nativeScan from context.
+ * In browser: opens the device camera and scans with jsqr.
  * Calls onScan(url) when a valid http/https URL is decoded.
  */
 export function QRScanner({ onScan, onCancel }: QRScannerProps) {
+  const { nativeScan } = useConnections();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -28,13 +32,49 @@ export function QRScanner({ onScan, onCancel }: QRScannerProps) {
     onCancel();
   }, [stopStream, onCancel]);
 
+  // Native scan path (Tauri Android)
   useEffect(() => {
+    if (!nativeScan) return;
+    let cancelled = false;
+    nativeScan()
+      .then((result) => {
+        if (cancelled) return;
+        if (
+          result &&
+          (result.startsWith('http://') || result.startsWith('https://'))
+        ) {
+          onScan(result);
+        } else if (result !== null) {
+          setError('QR code does not contain a valid server URL.');
+          setScanning(false);
+        } else {
+          // User cancelled native scanner
+          onCancel();
+        }
+      })
+      .catch((err: any) => {
+        if (!cancelled) {
+          setError(`Scanner error: ${err?.message ?? String(err)}`);
+          setScanning(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeScan, onScan, onCancel]);
+
+  // Web camera path — only runs when nativeScan is not available
+  useEffect(() => {
+    if (nativeScan) return;
     let cancelled = false;
 
     const startCamera = async () => {
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
-          throw Object.assign(new Error('Camera requires a secure context (HTTPS or localhost).'), { name: 'InsecureContext' });
+          throw Object.assign(
+            new Error('Camera requires a secure context (HTTPS or localhost).'),
+            { name: 'InsecureContext' },
+          );
         }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
@@ -99,7 +139,7 @@ export function QRScanner({ onScan, onCancel }: QRScannerProps) {
       cancelled = true;
       stopStream();
     };
-  }, [onScan, stopStream]);
+  }, [nativeScan, onScan, stopStream]);
 
   return (
     <div
@@ -113,10 +153,28 @@ export function QRScanner({ onScan, onCancel }: QRScannerProps) {
     >
       {error ? (
         <div
-          style={{ color: 'var(--error-text, #ef4444)', fontSize: 13, textAlign: 'center' }}
+          style={{
+            color: 'var(--error-text, #ef4444)',
+            fontSize: 13,
+            textAlign: 'center',
+          }}
         >
           {error}
         </div>
+      ) : nativeScan ? (
+        /* Native scanner is active — no web video UI needed */
+        scanning && (
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              color: 'var(--text-secondary, #999)',
+              textAlign: 'center',
+            }}
+          >
+            Opening camera scanner…
+          </p>
+        )
       ) : (
         <>
           <div style={{ position: 'relative', width: '100%', maxWidth: 320 }}>

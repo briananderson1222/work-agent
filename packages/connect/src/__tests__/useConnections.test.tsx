@@ -7,15 +7,22 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ConnectionStore } from '../core/ConnectionStore';
-import { ConnectionsProvider, useConnections } from '../react/ConnectionsContext';
+import {
+  ConnectionsProvider,
+  useConnections,
+} from '../react/ConnectionsContext';
 import type { StorageAdapter } from '../core/types';
 
 function memoryAdapter(): StorageAdapter {
   const s: Record<string, string> = {};
   return {
     get: (k) => s[k] ?? null,
-    set: (k, v) => { s[k] = v; },
-    remove: (k) => { delete s[k]; },
+    set: (k, v) => {
+      s[k] = v;
+    },
+    remove: (k) => {
+      delete s[k];
+    },
   };
 }
 
@@ -53,7 +60,9 @@ describe('useConnections', () => {
     });
 
     expect(result.current.connections).toHaveLength(1);
-    expect(result.current.activeConnection?.url).toBe('http://192.168.1.10:3141');
+    expect(result.current.activeConnection?.url).toBe(
+      'http://192.168.1.10:3141',
+    );
     expect(result.current.apiBase).toBe('http://192.168.1.10:3141');
   });
 
@@ -159,7 +168,9 @@ describe('useConnections — isCustom', () => {
     const { result } = renderHook(() => useConnections(), {
       wrapper: wrapper(store),
     });
-    act(() => { result.current.addConnection('Default', 'http://localhost:3141'); });
+    act(() => {
+      result.current.addConnection('Default', 'http://localhost:3141');
+    });
     expect(result.current.isCustom).toBe(false);
   });
 
@@ -168,7 +179,9 @@ describe('useConnections — isCustom', () => {
     const { result } = renderHook(() => useConnections(), {
       wrapper: wrapper(store),
     });
-    act(() => { result.current.addConnection('Remote', 'http://192.168.1.5:3141'); });
+    act(() => {
+      result.current.addConnection('Remote', 'http://192.168.1.5:3141');
+    });
     expect(result.current.isCustom).toBe(true);
   });
 });

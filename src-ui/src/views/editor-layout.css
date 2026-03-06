@@ -4,8 +4,14 @@
  */
 
 @keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Main Container ── */
@@ -14,7 +20,7 @@
   flex-direction: column;
   height: 100vh;
   background: var(--bg-primary);
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   animation: page-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -33,20 +39,29 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 100%
+  );
   border-bottom: 1px solid var(--border-primary);
   box-shadow: var(--shadow-sm);
   position: relative;
 }
 
 .editor__header::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border-primary), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--border-primary),
+    transparent
+  );
 }
 
 .editor__header-left {
@@ -56,7 +71,7 @@
 }
 
 .editor__header-meta {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 500;
@@ -132,7 +147,7 @@
 }
 
 .editor__section-title {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
@@ -140,7 +155,7 @@
 }
 
 .editor__section-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.15em;
@@ -175,7 +190,7 @@
 }
 
 .editor__tag {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   font-weight: 500;
   padding: 6px 12px;
@@ -264,7 +279,7 @@
 }
 
 .editor__expandable-header::after {
-  content: '›';
+  content: "›";
   font-size: 16px;
   color: var(--text-muted);
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -282,13 +297,19 @@
 }
 
 @keyframes slide-down {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Step Count Badge ── */
 .editor__step-count {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   font-weight: 600;
   color: var(--text-muted);
@@ -303,7 +324,7 @@
 .step-indicator {
   display: inline-flex;
   align-items: center;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
@@ -323,7 +344,7 @@
 .editor input[type="password"],
 .editor input[type="url"],
 .editor select {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   padding: 12px 16px;
   border: 1px solid var(--border-primary);
@@ -343,7 +364,7 @@
 }
 
 .editor textarea {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 13px;
   line-height: 1.5;
   padding: 16px;
@@ -365,7 +386,7 @@
 
 /* ── Button Variants ── */
 .editor__btn-save {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
   padding: 12px 24px;
@@ -385,7 +406,7 @@
 }
 
 .editor__btn-delete {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 500;
   padding: 12px 24px;
@@ -405,7 +426,7 @@
 }
 
 .editor__btn-add {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 500;
   padding: 12px 16px;
@@ -421,7 +442,7 @@
 }
 
 .editor__btn-add::before {
-  content: '+';
+  content: "+";
   font-size: 16px;
   font-weight: 300;
 }
@@ -437,7 +458,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -451,7 +472,7 @@
 }
 
 .editor__plugin-badge::before {
-  content: '🔌';
+  content: "🔌";
   font-size: 0.7rem;
 }
 
@@ -469,7 +490,8 @@
   gap: 1rem;
   padding: 0.75rem 1.5rem;
   background: color-mix(in srgb, var(--accent-yellow) 8%, var(--bg-secondary));
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-yellow) 25%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--accent-yellow) 25%, transparent);
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
@@ -485,7 +507,7 @@
 }
 
 .editor__unlock-btn {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 0.75rem;
   font-weight: 600;
   padding: 0.3rem 0.75rem;
@@ -507,7 +529,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.6rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -520,6 +542,6 @@
 }
 
 .page__card-plugin-badge::before {
-  content: '🔒';
+  content: "🔒";
   font-size: 0.6rem;
 }
