@@ -28,7 +28,7 @@ function makeMockGeolocation(): MockGeolocation {
       successCb = success as PositionCallback;
       errorCb = error as ErrorCallback;
       return watchIdCounter++;
-    }),
+    }) as ReturnType<typeof vi.fn>,
     clearWatch: vi.fn(),
     _firePosition(lat: number, lng: number) {
       successCb?.({ coords: { latitude: lat, longitude: lng } });
