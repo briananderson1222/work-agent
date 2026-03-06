@@ -3,10 +3,10 @@ import {
   ListFoundationModelsCommand,
 } from '@aws-sdk/client-bedrock';
 import { GetProductsCommand, PricingClient } from '@aws-sdk/client-pricing';
-import { createPinoLogger } from '@voltagent/logger';
+import { createLogger } from '../utils/logger.js';
 import { Hono } from 'hono';
 
-const logger = createPinoLogger({ name: 'models' });
+const logger = createLogger({ name: 'models' });
 
 const app = new Hono();
 

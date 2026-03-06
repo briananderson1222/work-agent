@@ -1,4 +1,4 @@
-import { createPinoLogger } from '@voltagent/logger';
+import { createLogger } from '../utils/logger.js';
 import { Hono } from 'hono';
 import {
   getAuthProvider,
@@ -7,7 +7,7 @@ import {
 } from '../providers/registry.js';
 import type { UserIdentity } from '../providers/types.js';
 
-const logger = createPinoLogger({ name: 'auth' });
+const logger = createLogger({ name: 'auth' });
 
 // ── Cached User Identity ───────────────────────────────
 

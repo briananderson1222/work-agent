@@ -2,9 +2,9 @@ import { createReadStream, existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
-import { createPinoLogger } from '@voltagent/logger';
+import { createLogger } from '../utils/logger.js';
 
-const logger = createPinoLogger({ name: 'usage-aggregator' });
+const logger = createLogger({ name: 'usage-aggregator' });
 
 export interface DailyStats {
   messages: number;

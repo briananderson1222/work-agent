@@ -3,7 +3,7 @@
  */
 
 import type { EventEmitter } from 'node:events';
-import type { Agent } from '@voltagent/core';
+type Agent = any;
 import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
 import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';

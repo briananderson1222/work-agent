@@ -24,7 +24,7 @@ import type {
   WorkflowStateEntry,
   WorkingMemoryScope,
 } from '@voltagent/core';
-import { createPinoLogger } from '@voltagent/logger';
+import { createLogger } from '../../utils/logger.js';
 import type { UIMessage } from 'ai';
 import { parseReasoningFromMessage } from '../../utils/reasoning-parser.js';
 
@@ -33,7 +33,7 @@ interface UIMessageWithMetadata extends UIMessage {
   metadata?: Record<string, any>;
 }
 
-const logger = createPinoLogger({ name: 'voltagent-memory-adapter' });
+const logger = createLogger({ name: 'voltagent-memory-adapter' });
 
 export interface FileVoltAgentMemoryAdapterOptions {
   projectHomeDir: string;

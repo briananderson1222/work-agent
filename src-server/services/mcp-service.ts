@@ -2,7 +2,8 @@
  * MCP Service - handles MCP tool management and connection status
  */
 
-import type { MCPConfiguration, Tool } from '@voltagent/core';
+type MCPConfiguration = any;
+type Tool<T = any> = any;
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, ToolDef, ToolMetadata } from '../domain/types.js';

@@ -15,8 +15,8 @@ import {
   type Tool,
   VoltAgent,
 } from '@voltagent/core';
-import { createPinoLogger } from '@voltagent/logger';
-import { honoServer } from '@voltagent/server-hono';
+import { createLogger } from '../utils/logger.js';
+import { honoServer, type HonoServerConfig } from '@voltagent/server-hono';
 import { jsonSchema } from 'ai';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
@@ -100,6 +100,7 @@ import { SchedulerService } from '../services/scheduler-service.js';
 import { WorkspaceService } from '../services/workspace-service.js';
 import { isAuthError } from '../utils/auth-errors.js';
 import { InjectableStream } from './streaming/InjectableStream.js';
+import modelsRoute from '../routes/models.js';
 
 export interface WorkAgentRuntimeOptions {
   projectHomeDir?: string;
@@ -114,7 +115,7 @@ export interface WorkAgentRuntimeOptions {
 export class WorkAgentRuntime {
   private configLoader: ConfigLoader;
   private appConfig!: AppConfig;
-  private logger: ReturnType<typeof createPinoLogger>;
+  private logger: ReturnType<typeof createLogger>;
   private voltAgent?: VoltAgent;
   private mcpConfigs: Map<string, MCPConfiguration> = new Map();
   private mcpConnectionStatus: Map<
@@ -184,7 +185,7 @@ export class WorkAgentRuntime {
       watchFiles: true,
     });
 
-    this.logger = createPinoLogger({
+    this.logger = createLogger({
       name: 'stallion',
       level: options.logLevel || 'info',
     });
@@ -399,1775 +400,13 @@ export class WorkAgentRuntime {
       sample: this.agentMetadataMap.get(agentMetadataList[0]?.slug),
     });
 
-    // Import routes before configuring app
-    const modelsRoute = await import('../routes/models.js');
-
     // Initialize VoltAgent with all agents and server
     this.voltAgent = new VoltAgent({
       agents,
       logger: this.logger,
       server: honoServer({
         port: this.port,
-        configureApp: (app) => {
-          // Global error handler middleware
-          app.onError((err, c) => {
-            if (isAuthError(err)) {
-              return c.json({ success: false, error: err.message }, 401);
-            }
-            return c.json({ success: false, error: err.message }, 500);
-          });
-
-          // Request logger for debugging Tauri connectivity
-          app.use('*', async (c, next) => {
-            const start = Date.now();
-            await next();
-            const origin = c.req.header('origin') || '-';
-            this.logger.info(
-              `${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms origin=${origin}`,
-            );
-          });
-
-          app.use(
-            '*',
-            cors({
-              origin: (origin) => {
-                if (!origin) return origin;
-                if (
-                  origin.startsWith('http://localhost:') ||
-                  origin.startsWith('https://localhost:') ||
-                  origin === 'tauri://localhost' ||
-                  origin === 'https://tauri.localhost'
-                ) {
-                  return origin;
-                }
-                const allowed = process.env.ALLOWED_ORIGINS?.split(',') || [];
-                return allowed.includes(origin) ? origin : null;
-              },
-              credentials: true,
-            }),
-          );
-
-          // Models capabilities and pricing endpoints
-          app.route('/api/models', modelsRoute.default);
-
-          // System status (onboarding readiness)
-          app.route(
-            '/api/system',
-            createSystemRoutes(
-              {
-                getACPStatus: () => {
-                  const s = this.acpBridge.getStatus();
-                  return {
-                    connected: s.connections.some(
-                      (c: any) => c.status === 'connected',
-                    ),
-                    connections: s.connections,
-                  };
-                },
-                getAppConfig: () => this.appConfig,
-                eventBus: this.eventBus,
-              },
-              this.logger,
-            ),
-          );
-
-          // Analytics endpoints
-          app.route(
-            '/api/analytics',
-            createAnalyticsRoutes(this.usageAggregator),
-          );
-
-          // Auth endpoints
-          app.route('/api/auth', createAuthRoutes());
-
-          // User directory endpoints
-          app.route('/api/users', createUserRoutes());
-
-          // Plugin endpoints (list, serve bundles, reload providers)
-          app.route(
-            '/api/plugins',
-            createPluginRoutes(
-              this.configLoader.getProjectHomeDir(),
-              this.logger,
-              this.eventBus,
-            ),
-          );
-
-          // Filesystem browse (folder picker for plugin install)
-          app.route('/api/fs', createFsRoutes());
-
-          // Package registry endpoints (browse/install agents and tools)
-          app.route(
-            '/api/registry',
-            createRegistryRoutes(this.configLoader, async () => {
-              // Restart ACP connections to pick up newly installed agents as modes
-              const acpConfig = await this.configLoader.loadACPConfig();
-              await this.acpBridge.startAll(acpConfig.connections);
-            }),
-          );
-
-          // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
-          app.get('/api/agents', async (c) => {
-            try {
-              if (!this.voltAgent) {
-                return c.json(
-                  { success: false, error: 'VoltAgent not initialized' },
-                  500,
-                );
-              }
-              await this.reloadAgents();
-              const coreAgents = await this.voltAgent.getAgents();
-              const enrichedAgents = (
-                await Promise.all(
-                  coreAgents.map(async (agent: any) => {
-                    const metadata = this.agentMetadataMap.get(agent.id);
-                    if (!metadata) return null;
-
-                    try {
-                      const spec = await this.configLoader.loadAgent(
-                        metadata.slug,
-                      );
-
-                      this.logger.debug('[Agent Enrichment] Loading spec', {
-                        agent: metadata.slug,
-                        hasSpec: !!spec,
-                        hasTools: !!spec.tools,
-                      });
-
-                      return {
-                        ...agent,
-                        slug: metadata.slug,
-                        name: metadata.name,
-                        prompt: spec.prompt,
-                        description: spec.description,
-                        model: spec.model,
-                        region: spec.region,
-                        guardrails: spec.guardrails,
-                        maxTurns: spec.maxTurns,
-                        icon: spec.icon,
-                        commands: spec.commands,
-                        toolsConfig: spec.tools,
-                        updatedAt: metadata.updatedAt,
-                      };
-                    } catch (_error) {
-                      this.logger.warn('Agent spec not found, skipping', {
-                        agent: metadata.slug,
-                      });
-                      return null;
-                    }
-                  }),
-                )
-              ).filter((a) => a !== null);
-
-              this.logger.debug('[Agent Enrichment] Enriched agents', {
-                count: enrichedAgents.length,
-                agents: enrichedAgents.map((a) => ({
-                  slug: a.slug,
-                  hasToolsConfig: !!a.toolsConfig,
-                })),
-              });
-
-              // Append ACP virtual agents (kiro-cli modes)
-              if (this.acpBridge.isConnected()) {
-                enrichedAgents.push(...this.acpBridge.getVirtualAgents());
-              }
-
-              return c.json({ success: true, data: enrichedAgents });
-            } catch (error: any) {
-              this.logger.error('Failed to fetch agents', {
-                error: error.message,
-                stack: error.stack,
-              });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // === Agent CRUD Endpoints ===
-          // Mount agent routes for CRUD operations
-          const agentRoutes = createAgentRoutes(
-            this.agentService,
-            () => this.initialize(),
-            () => this.voltAgent,
-          );
-          app.route('/agents', agentRoutes);
-
-          // === Tool Management Endpoints ===
-
-          // Get Q Developer agents
-          app.get('/q-agents', async (c) => {
-            try {
-              const { readFileSync, existsSync } = await import('node:fs');
-              const { join } = await import('node:path');
-              const { homedir } = await import('node:os');
-
-              const qAgentsPath = join(
-                homedir(),
-                '.aws',
-                'amazonq',
-                'cli-agents.json',
-              );
-
-              if (!existsSync(qAgentsPath)) {
-                return c.json({
-                  success: false,
-                  error: 'Q Developer agents file not found',
-                  agents: [],
-                });
-              }
-
-              const agents = JSON.parse(readFileSync(qAgentsPath, 'utf-8'));
-              return c.json({ success: true, agents });
-            } catch (error: any) {
-              this.logger.error('Failed to load Q agents', { error });
-              return c.json({
-                success: false,
-                error: error.message,
-                agents: [],
-              });
-            }
-          });
-
-          // List all tools
-          app.route(
-            '/tools',
-            createToolRoutes(this.mcpService, () => this.initialize()),
-          );
-
-          // SSE event stream
-          app.route(
-            '/events',
-            createEventRoutes({
-              eventBus: this.eventBus,
-              getACPStatus: () => {
-                const s = this.acpBridge.getStatus();
-                return {
-                  connected: s.connections.some(
-                    (c) => c.status === 'connected',
-                  ),
-                  connections: s.connections,
-                };
-              },
-              logger: this.logger,
-            }),
-          );
-
-          // ACP connection status (all connections)
-          app.get('/acp/status', async (c) => {
-            return c.json({ success: true, data: this.acpBridge.getStatus() });
-          });
-
-          // ACP slash commands for a given agent
-          app.get('/acp/commands/:slug', async (c) => {
-            const slug = c.req.param('slug');
-            return c.json({
-              success: true,
-              data: this.acpBridge.getSlashCommands(slug),
-            });
-          });
-
-          // ACP command autocomplete options
-          app.get('/acp/commands/:slug/options', async (c) => {
-            const slug = c.req.param('slug');
-            const partial = c.req.query('q') || '';
-            const options = await this.acpBridge.getCommandOptions(
-              slug,
-              partial,
-            );
-            return c.json({ success: true, data: options });
-          });
-
-          // ACP connection CRUD
-          app.get('/acp/connections', async (c) => {
-            const config = await this.configLoader.loadACPConfig();
-            const status = this.acpBridge.getStatus();
-            const connections = config.connections.map((cfg) => ({
-              ...cfg,
-              ...(status.connections.find((s) => s.id === cfg.id) || {
-                status: 'disconnected',
-                modes: [],
-                sessionId: null,
-                mcpServers: [],
-              }),
-            }));
-            return c.json({ success: true, data: connections });
-          });
-
-          app.post('/acp/connections', async (c) => {
-            const body = await c.req.json();
-            if (!body.id || !body.command) {
-              return c.json(
-                { success: false, error: 'id and command are required' },
-                400,
-              );
-            }
-            const config = await this.configLoader.loadACPConfig();
-            if (config.connections.some((conn) => conn.id === body.id)) {
-              return c.json(
-                {
-                  success: false,
-                  error: `Connection '${body.id}' already exists`,
-                },
-                409,
-              );
-            }
-            const newConn = {
-              id: body.id,
-              name: body.name || body.id,
-              command: body.command,
-              args: body.args || [],
-              icon: body.icon || '🔌',
-              enabled: body.enabled !== false,
-            };
-            config.connections.push(newConn);
-            await this.configLoader.saveACPConfig(config);
-            if (newConn.enabled) await this.acpBridge.addConnection(newConn);
-            return c.json({ success: true, data: newConn });
-          });
-
-          app.put('/acp/connections/:id', async (c) => {
-            const id = c.req.param('id');
-            const body = await c.req.json();
-            const config = await this.configLoader.loadACPConfig();
-            const idx = config.connections.findIndex((conn) => conn.id === id);
-            if (idx === -1)
-              return c.json(
-                { success: false, error: 'Connection not found' },
-                404,
-              );
-            config.connections[idx] = {
-              ...config.connections[idx],
-              ...body,
-              id,
-            };
-            await this.configLoader.saveACPConfig(config);
-            // Restart connection with new config
-            await this.acpBridge.removeConnection(id);
-            if (config.connections[idx].enabled)
-              await this.acpBridge.addConnection(config.connections[idx]);
-            return c.json({ success: true, data: config.connections[idx] });
-          });
-
-          app.delete('/acp/connections/:id', async (c) => {
-            const id = c.req.param('id');
-            const config = await this.configLoader.loadACPConfig();
-            config.connections = config.connections.filter(
-              (conn) => conn.id !== id,
-            );
-            await this.configLoader.saveACPConfig(config);
-            await this.acpBridge.removeConnection(id);
-            return c.json({ success: true });
-          });
-
-          // Get agent tools with full schemas
-          // Get agent tools with full schemas
-          app.get('/agents/:slug/tools', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const agent = this.activeAgents.get(slug);
-
-              if (!agent) {
-                return c.json(
-                  { success: false, error: 'Agent not found or not active' },
-                  404,
-                );
-              }
-
-              const tools = this.agentTools.get(slug) || [];
-              const toolsData = tools.map((tool: any) => {
-                const mapping = this.toolNameMapping.get(tool.name);
-
-                // Convert Zod schema to JSON schema if parameters is a Zod object
-                let parameters = tool.parameters;
-                if (
-                  parameters &&
-                  typeof parameters === 'object' &&
-                  '_def' in parameters
-                ) {
-                  try {
-                    parameters = zodToJsonSchema(parameters);
-                  } catch (error) {
-                    this.logger.warn(
-                      'Failed to convert Zod schema to JSON schema',
-                      { tool: tool.name, error },
-                    );
-                  }
-                }
-
-                return {
-                  id: tool.id || tool.name,
-                  name: tool.name,
-                  originalName: mapping?.original || tool.name,
-                  server: mapping?.server || null,
-                  toolName: mapping?.tool || tool.name,
-                  description: tool.description,
-                  parameters,
-                };
-              });
-
-              return c.json({ success: true, data: toolsData });
-            } catch (error: any) {
-              this.logger.error('Failed to get agent tools', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Add tool to agent
-          app.post('/agents/:slug/tools', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const { toolId } = await c.req.json();
-
-              const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { mcpServers: [], available: ['*'] };
-
-              if (!tools.mcpServers.includes(toolId)) {
-                tools.mcpServers.push(toolId);
-              }
-
-              await this.configLoader.updateAgent(slug, { tools });
-              await this.initialize();
-
-              return c.json({ success: true, data: tools.mcpServers });
-            } catch (error: any) {
-              this.logger.error('Failed to add tool', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Remove tool from agent
-          app.delete('/agents/:slug/tools/:toolId', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const toolId = c.req.param('toolId');
-
-              const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { mcpServers: [] };
-
-              tools.mcpServers = tools.mcpServers.filter(
-                (id: string) => id !== toolId,
-              );
-
-              await this.configLoader.updateAgent(slug, { tools });
-              await this.initialize();
-
-              return c.json({ success: true }, 200);
-            } catch (error: any) {
-              this.logger.error('Failed to remove tool', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Update tool allow-list
-          app.put('/agents/:slug/tools/allowed', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const { allowed } = await c.req.json();
-
-              const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { mcpServers: [] };
-
-              tools.available = allowed;
-
-              await this.configLoader.updateAgent(slug, { tools });
-              await this.initialize();
-
-              return c.json({ success: true, data: tools });
-            } catch (error: any) {
-              this.logger.error('Failed to update allow-list', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // Update tool aliases
-          app.put('/agents/:slug/tools/aliases', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const { aliases } = await c.req.json();
-
-              const agent = await this.configLoader.loadAgent(slug);
-              const tools = agent.tools || { mcpServers: [] };
-
-              tools.aliases = aliases;
-
-              await this.configLoader.updateAgent(slug, { tools });
-              await this.initialize();
-
-              return c.json({ success: true, data: tools });
-            } catch (error: any) {
-              this.logger.error('Failed to update aliases', { error });
-              return c.json({ success: false, error: error.message }, 400);
-            }
-          });
-
-          // === Workspace Management Endpoints ===
-          app.route(
-            '/workspaces',
-            createWorkspaceRoutes(this.workspaceService),
-          );
-
-          // === Workspace & Workflow Management ===
-          app.route(
-            '/workspaces',
-            createWorkspaceRoutes(this.workspaceService),
-          );
-          app.route('/agents', createWorkflowRoutes(this.workspaceService));
-
-          // === Route Modules ===
-          app.route(
-            '/config',
-            createConfigRoutes(this.configLoader, this.logger, this.eventBus),
-          );
-          app.route(
-            '/bedrock',
-            createBedrockRoutes(
-              () => this.modelCatalog,
-              this.appConfig,
-              this.logger,
-            ),
-          );
-          app.route('/api/branding', createBrandingRoutes());
-          app.route(
-            '/monitoring',
-            createMonitoringRoutes({
-              activeAgents: this.activeAgents,
-              agentStats: this.agentStats,
-              agentStatus: this.agentStatus,
-              memoryAdapters: this.memoryAdapters,
-              metricsLog: this.metricsLog,
-              monitoringEvents: this.monitoringEvents,
-              queryEventsFromDisk: (start, end, userId) =>
-                this.queryEventsFromDisk(start, end, userId),
-            }),
-          );
-          app.route(
-            '/agents',
-            createConversationRoutes(this.memoryAdapters, this.logger),
-          );
-          app.route(
-            '/scheduler',
-            createSchedulerRoutes(
-              new SchedulerService(this.logger),
-              this.logger,
-            ),
-          );
-
-          // Agent health check (agent-specific, not in monitoring routes)
-          app.get('/agents/:slug/health', async (c) => {
-            const slug = c.req.param('slug');
-            const agent = this.activeAgents.get(slug);
-
-            if (!agent) {
-              return c.json(
-                {
-                  success: false,
-                  healthy: false,
-                  error: 'Agent not found',
-                  checks: { loaded: false },
-                },
-                404,
-              );
-            }
-
-            const checks: Record<string, boolean> = {
-              loaded: true,
-              hasModel: !!agent.model,
-              hasMemory: this.memoryAdapters.has(slug),
-            };
-
-            // Check integrations (MCP tools)
-            const spec = this.agentSpecs.get(slug);
-            const integrations: Array<{
-              id: string;
-              type: string;
-              connected: boolean;
-              error?: string;
-              metadata?: any;
-            }> = [];
-
-            if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
-              checks.integrationsConfigured = true;
-
-              for (const id of spec.tools.mcpServers) {
-                const key = `${slug}:${id}`;
-                const status = this.mcpConnectionStatus.get(key);
-                const metadata = this.integrationMetadata.get(key);
-
-                // Get tools for this MCP server with original names
-                const agentTools = this.agentTools.get(slug) || [];
-                const serverTools = agentTools
-                  .filter((t) => t.name.startsWith(id.replace(/-/g, ''))) // Match by server prefix
-                  .map((t) => {
-                    const mapping = this.toolNameMapping.get(t.name);
-
-                    return {
-                      name: t.name,
-                      originalName: mapping?.original || t.name,
-                      server: mapping?.server || null,
-                      toolName: mapping?.tool || t.name,
-                      description: (t as ToolWithDescription).description,
-                    };
-                  });
-
-                integrations.push({
-                  id,
-                  type: metadata?.type || 'mcp',
-                  connected: status?.connected === true,
-                  error: status?.error,
-                  metadata: metadata
-                    ? {
-                        transport: metadata.transport,
-                        toolCount: metadata.toolCount,
-                        tools: serverTools,
-                      }
-                    : undefined,
-                });
-              }
-
-              checks.integrationsConnected = integrations.every(
-                (i) => i.connected,
-              );
-            }
-
-            const healthy = Object.values(checks).every((v) => v);
-
-            return c.json({
-              success: true,
-              healthy,
-              checks,
-              integrations,
-              status: this.agentStatus.get(slug) || 'idle',
-            });
-          });
-
-          // === Conversation Context & Stats (not in route module) ===
-
-          // Conversation context management
-          app.post(
-            '/api/agents/:slug/conversations/:conversationId/context',
-            async (c) => {
-              try {
-                const slug = c.req.param('slug');
-                const conversationId = c.req.param('conversationId');
-                const { action, content } = await c.req.json();
-
-                const result =
-                  await ConversationManager.manageConversationContext(
-                    slug,
-                    conversationId,
-                    action,
-                    content,
-                    this.memoryAdapters,
-                  );
-
-                return c.json(result);
-              } catch (error: any) {
-                this.logger.error('Failed to manage conversation context', {
-                  error,
-                });
-                return c.json({ success: false, error: error.message }, 500);
-              }
-            },
-          );
-
-          // Get conversation statistics
-          app.get(
-            '/agents/:slug/conversations/:conversationId/stats',
-            async (c) => {
-              try {
-                const slug = c.req.param('slug');
-                const conversationId = c.req.param('conversationId');
-
-                const data = await ConversationManager.getConversationStats(
-                  slug,
-                  conversationId,
-                  this.memoryAdapters,
-                  this.agentFixedTokens,
-                  this.agentTools,
-                  this.configLoader,
-                  this.appConfig,
-                  this.modelCatalog,
-                  this.logger,
-                );
-
-                return c.json({ success: true, data });
-              } catch (error: any) {
-                this.logger.error('Failed to load conversation stats', {
-                  error,
-                });
-                return c.json({ success: false, error: error.message }, 500);
-              }
-            },
-          );
-
-          // Silent agent invocation for dashboard data fetching
-          app.post('/agents/:slug/invoke', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const {
-                input,
-                silent = true,
-                model,
-                tools: toolNames,
-                schema,
-              } = await c.req.json();
-
-              const agent = this.activeAgents.get(slug);
-              if (!agent) {
-                return c.json(
-                  { success: false, error: 'Agent not found' },
-                  404,
-                );
-              }
-
-              // Build prompt with schema instruction if provided
-              let prompt = input;
-              if (schema) {
-                prompt = `${input}\n\nYou must return your response as valid JSON matching this exact schema:\n${JSON.stringify(schema, null, 2)}\n\nReturn ONLY the JSON object, no markdown formatting, no explanations.`;
-              }
-
-              const options: any = {};
-              if (model && this.modelCatalog) {
-                const resolvedModel =
-                  await this.modelCatalog.resolveModelId(model);
-                options.model = createBedrockProvider({
-                  appConfig: this.appConfig,
-                  agentSpec: { model: resolvedModel } as unknown as AgentSpec,
-                });
-              }
-
-              // Override tools if specified - get from our cached tools
-              if (toolNames && Array.isArray(toolNames)) {
-                const slug = c.req.param('slug');
-                const agentTools = this.agentTools.get(slug) || [];
-                options.tools = agentTools.filter((t: any) =>
-                  toolNames.includes(t.name),
-                );
-              }
-
-              // Use generateText to support multi-turn tool calling
-              const result = await agent.generateText(prompt, options);
-
-              // Parse response if schema provided
-              let response = result.text;
-              if (schema && typeof result.text === 'string') {
-                try {
-                  // Extract JSON from markdown code blocks if present
-                  let jsonText = result.text.trim();
-                  const jsonMatch = jsonText.match(
-                    /```(?:json)?\s*([\s\S]*?)\s*```/,
-                  );
-                  if (jsonMatch) {
-                    jsonText = jsonMatch[1].trim();
-                  }
-                  response = JSON.parse(jsonText);
-                } catch (e) {
-                  this.logger.warn('Failed to parse JSON response', {
-                    error: e,
-                    text: result.text,
-                  });
-                  // Return raw text if parsing fails
-                }
-              }
-
-              return c.json({
-                success: true,
-                response,
-                usage: result.usage,
-                steps: result.steps,
-                toolCalls: result.toolCalls,
-                toolResults: result.toolResults,
-                reasoning: result.reasoning,
-              });
-            } catch (error: any) {
-              this.logger.error('Failed to invoke agent', { error });
-              return c.json(
-                { success: false, error: error.message },
-                isAuthError(error) ? 401 : 500,
-              );
-            }
-          });
-
-          // Raw MCP tool call (no transformation, no LLM)
-          app.post('/agents/:slug/tools/:toolName', async (c) => {
-            const startTime = performance.now();
-            try {
-              const slug = c.req.param('slug');
-              const toolName = c.req.param('toolName');
-              const toolArgs = await c.req.json();
-
-              const agent = this.activeAgents.get(slug);
-              if (!agent) {
-                return c.json(
-                  { success: false, error: 'Agent not found' },
-                  404,
-                );
-              }
-
-              const allTools = this.agentTools.get(slug) || [];
-
-              // Try to find tool by normalized name first, then by original name
-              let tool = allTools.find((t) => t.name === toolName);
-              if (!tool) {
-                const normalized = this.getNormalizedToolName(toolName);
-                tool = allTools.find((t) => t.name === normalized);
-              }
-
-              if (!tool) {
-                return c.json(
-                  { success: false, error: `Tool ${toolName} not found` },
-                  404,
-                );
-              }
-
-              const toolStart = performance.now();
-              const toolResult = await (
-                tool as ToolWithDescription & {
-                  execute: (args: any) => Promise<any>;
-                }
-              ).execute(toolArgs);
-              const toolDuration = performance.now() - toolStart;
-
-              // Unwrap MCP result
-              let unwrappedResult: any = toolResult;
-              if ((toolResult as ToolResult)?.content?.[0]?.text) {
-                try {
-                  const parsed = JSON.parse(
-                    (toolResult as ToolResult).content![0].text,
-                  );
-                  if (parsed?.content?.[0]?.text) {
-                    unwrappedResult = JSON.parse(parsed.content[0].text);
-                  } else {
-                    unwrappedResult = parsed;
-                  }
-                } catch {
-                  unwrappedResult = (toolResult as ToolResult).content![0].text;
-                }
-              }
-
-              return c.json({
-                success: true,
-                response: unwrappedResult,
-                metadata: {
-                  toolDuration: Math.round(toolDuration),
-                  totalDuration: Math.round(performance.now() - startTime),
-                },
-              });
-            } catch (error: any) {
-              this.logger.error('Failed to call tool', { error });
-              return c.json(
-                { success: false, error: error.message },
-                isAuthError(error) ? 401 : 500,
-              );
-            }
-          });
-
-          // Pure transformation endpoint (no LLM, just data mapping)
-          app.post('/agents/:slug/tool/:toolName', async (c) => {
-            const startTime = performance.now();
-            try {
-              const slug = c.req.param('slug');
-              const toolName = c.req.param('toolName');
-              const { toolArgs, transform } = await c.req.json();
-
-              const agent = this.activeAgents.get(slug);
-              if (!agent) {
-                return c.json(
-                  { success: false, error: 'Agent not found' },
-                  404,
-                );
-              }
-
-              const allTools = this.agentTools.get(slug) || [];
-
-              // Try to find tool by normalized name first, then by original name
-              let tool = allTools.find((t) => t.name === toolName);
-              if (!tool) {
-                const normalized = this.getNormalizedToolName(toolName);
-                tool = allTools.find((t) => t.name === normalized);
-              }
-
-              if (!tool) {
-                return c.json(
-                  { success: false, error: `Tool ${toolName} not found` },
-                  404,
-                );
-              }
-
-              // Execute tool
-              const toolStart = performance.now();
-              const toolResult = await (
-                tool as ToolWithDescription & {
-                  execute: (args: any) => Promise<any>;
-                }
-              ).execute(toolArgs);
-              const toolDuration = performance.now() - toolStart;
-
-              // Unwrap MCP result
-              let unwrappedResult: any = toolResult;
-              let parseError: string | undefined;
-
-              if ((toolResult as ToolResult)?.content?.[0]?.text) {
-                try {
-                  const parsed = JSON.parse(
-                    (toolResult as ToolResult).content![0].text,
-                  );
-                  if (parsed?.content?.[0]?.text) {
-                    unwrappedResult = JSON.parse(parsed.content[0].text);
-                  } else {
-                    unwrappedResult = parsed;
-                  }
-                } catch {
-                  unwrappedResult = (toolResult as ToolResult).content![0].text;
-                }
-              }
-
-              // Generic handling: if result is a string with error text followed by JSON, extract the JSON
-              if (typeof unwrappedResult === 'string') {
-                const lastBrace = unwrappedResult.lastIndexOf(', {');
-                if (lastBrace > 0) {
-                  try {
-                    parseError = unwrappedResult.substring(0, lastBrace);
-                    const jsonStr = unwrappedResult.substring(lastBrace + 2);
-                    unwrappedResult = JSON.parse(jsonStr);
-                  } catch {
-                    parseError = undefined;
-                  }
-                }
-              }
-
-              // Same for response field if it's a string with embedded JSON
-              if (
-                unwrappedResult?.response &&
-                typeof unwrappedResult.response === 'string'
-              ) {
-                const lastBrace = unwrappedResult.response.lastIndexOf(', {');
-                if (lastBrace > 0) {
-                  try {
-                    parseError = unwrappedResult.response.substring(
-                      0,
-                      lastBrace,
-                    );
-                    const jsonStr = unwrappedResult.response.substring(
-                      lastBrace + 2,
-                    );
-                    unwrappedResult = JSON.parse(jsonStr);
-                  } catch {
-                    parseError = undefined;
-                  }
-                }
-              }
-
-              // Check if the MCP tool returned an error
-              if (
-                unwrappedResult?.success === false &&
-                unwrappedResult?.error
-              ) {
-                const errorObj = unwrappedResult.error;
-                const errorMessage =
-                  typeof errorObj === 'string'
-                    ? errorObj
-                    : errorObj?.message?.message ||
-                      errorObj?.message ||
-                      errorObj;
-                if (isAuthError(errorMessage)) {
-                  return c.json({ success: false, error: errorMessage }, 401);
-                }
-                return c.json({ success: false, error: errorMessage }, 500);
-              }
-
-              // Apply transformation
-              const transformStart = performance.now();
-              const transformFn = new Function(
-                'data',
-                `return (${transform})(data);`,
-              );
-              const transformed = transformFn(unwrappedResult);
-              const transformDuration = performance.now() - transformStart;
-
-              return c.json({
-                success: true,
-                response: transformed,
-                metadata: {
-                  toolDuration: Math.round(toolDuration),
-                  transformDuration: Math.round(transformDuration),
-                  totalDuration: Math.round(performance.now() - startTime),
-                  ...(parseError && { parseError }),
-                },
-              });
-            } catch (error: any) {
-              this.logger.error('Failed to transform invoke', { error });
-              return c.json(
-                { success: false, error: error.message },
-                isAuthError(error) ? 401 : 500,
-              );
-            }
-          });
-
-          app.post('/agents/:slug/invoke/stream', async (c) => {
-            try {
-              const slug = c.req.param('slug');
-              const {
-                prompt,
-                silent = true,
-                model,
-                tools: toolNames,
-                maxSteps = 10,
-                schema: schemaJson,
-              } = await c.req.json();
-
-              const agent = this.activeAgents.get(slug);
-              if (!agent) {
-                return c.json(
-                  { success: false, error: 'Agent not found' },
-                  404,
-                );
-              }
-
-              const options: any = { maxSteps, maxOutputTokens: 2000 };
-              if (model && this.modelCatalog) {
-                const resolvedModel =
-                  await this.modelCatalog.resolveModelId(model);
-                options.model = createBedrockProvider({
-                  appConfig: this.appConfig,
-                  agentSpec: { model: resolvedModel } as unknown as AgentSpec,
-                });
-              }
-
-              // Override tools if specified - create temp agent with only filtered tools
-              if (toolNames && Array.isArray(toolNames)) {
-                const allTools = this.agentTools.get(slug) || [];
-                const filteredTools = allTools.filter((t) =>
-                  toolNames.includes(t.name),
-                );
-
-                // Create temporary agent with ONLY the filtered tools
-                const tempAgent = new Agent({
-                  name: `${slug}-temp`,
-                  instructions: agent.instructions,
-                  model: options.model || agent.model,
-                  tools: filteredTools,
-                  maxSteps,
-                  hooks: agent.hooks,
-                });
-
-                // generateObject cannot use tools, so use generateText with JSON mode
-                if (schemaJson) {
-                  const textResult = await tempAgent.generateText(
-                    `${prompt}\n\nReturn ONLY valid JSON matching this schema (no markdown, no explanation):\n${JSON.stringify(schemaJson, null, 2)}`,
-                  );
-
-                  // Extract JSON from response (handles markdown code blocks)
-                  let parsed;
-                  try {
-                    const cleaned = textResult.text
-                      .replace(/```json\n?/g, '')
-                      .replace(/```\n?/g, '')
-                      .trim();
-                    parsed = JSON.parse(cleaned);
-                  } catch {
-                    const jsonMatch = textResult.text.match(/\{[\s\S]*\}/);
-                    parsed = jsonMatch
-                      ? JSON.parse(jsonMatch[0])
-                      : { error: 'Failed to parse JSON' };
-                  }
-
-                  return c.json({
-                    success: true,
-                    response: parsed,
-                    usage: textResult.usage,
-                  });
-                }
-
-                const result = await tempAgent.generateText(prompt);
-
-                return c.json({
-                  success: true,
-                  response: result.text,
-                  usage: result.usage,
-                });
-              }
-
-              // For multi-turn, use generateText/generateObject and return result
-              const result = schemaJson
-                ? await agent.generateObject(
-                    prompt,
-                    jsonSchema(schemaJson) as unknown as any,
-                    options,
-                  )
-                : await agent.generateText(prompt, options);
-
-              return c.json({
-                success: true,
-                response: schemaJson
-                  ? (result as GenerateResult).object
-                  : (result as GenerateResult).text,
-                usage: result.usage,
-              });
-            } catch (error: any) {
-              this.logger.error('Failed to stream invoke', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Tool approval response endpoint
-          app.post('/tool-approval/:approvalId', async (c) => {
-            try {
-              const approvalId = c.req.param('approvalId');
-              const { approved } = await c.req.json();
-
-              this.logger.info(
-                '[Approval Endpoint] Received approval response',
-                { approvalId, approved },
-              );
-
-              if (this.approvalRegistry.resolve(approvalId, approved)) {
-                return c.json({ success: true });
-              }
-
-              this.logger.warn(
-                '[Approval Endpoint] Approval request not found',
-                { approvalId },
-              );
-              return c.json(
-                { success: false, error: 'Approval request not found' },
-                404,
-              );
-            } catch (error: any) {
-              this.logger.error('Approval response error', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // New lightweight invoke endpoint - uses global tool registry
-          app.post('/invoke', async (c) => {
-            try {
-              const {
-                prompt,
-                schema,
-                tools: toolIds = [],
-                maxSteps = 10,
-                model,
-                structureModel,
-                system,
-              } = await c.req.json();
-
-              // Get tools from global registry
-              const filteredTools =
-                toolIds.length > 0
-                  ? toolIds
-                      .map((id: string) => this.globalToolRegistry.get(id))
-                      .filter(Boolean)
-                  : [];
-
-              // Resolve models from config - invokeModel for tool calling, structureModel for output formatting
-              const invokeModelId = model || this.appConfig.invokeModel;
-              const structureModelId =
-                structureModel || this.appConfig.structureModel;
-
-              const mainModel = createBedrockProvider({
-                appConfig: this.appConfig,
-                agentSpec: {
-                  model: this.modelCatalog
-                    ? await this.modelCatalog.resolveModelId(invokeModelId)
-                    : invokeModelId,
-                } as unknown as AgentSpec,
-              });
-
-              const fastModel = createBedrockProvider({
-                appConfig: this.appConfig,
-                agentSpec: {
-                  model: this.modelCatalog
-                    ? await this.modelCatalog.resolveModelId(structureModelId)
-                    : structureModelId,
-                } as unknown as AgentSpec,
-              });
-
-              const defaultSystem =
-                "You are a helpful assistant. Use the available tools to answer the user's request accurately and concisely.";
-
-              // Create temp agent for tool execution
-              const tempAgent = new Agent({
-                name: `invoke-${Date.now()}`,
-                instructions: system || defaultSystem,
-                model: mainModel,
-                tools: filteredTools,
-                maxSteps,
-              });
-
-              const tempConvId = `invoke-${Date.now()}`;
-
-              // Phase 1: Tool execution
-              const textResult = await tempAgent.generateText(prompt, {
-                conversationId: tempConvId,
-                userId: 'invoke-user',
-              });
-
-              if (!schema) {
-                return c.json({
-                  success: true,
-                  response: textResult.text,
-                  usage: textResult.usage,
-                  steps: textResult.steps?.length || 0,
-                });
-              }
-
-              // Phase 2: Structure output (no tools needed)
-              const { jsonSchema } = await import('ai');
-
-              // Create new agent without tools for structuring
-              const structureAgent = new Agent({
-                name: `invoke-structure-${Date.now()}`,
-                instructions:
-                  'Format the provided information as structured JSON.',
-                model: fastModel || mainModel,
-                tools: [], // No tools for structuring
-                maxSteps: 1,
-              });
-
-              const objectResult = await structureAgent.generateObject(
-                `${textResult.text}\n\nFormat the above information as structured JSON.`,
-                jsonSchema(schema) as unknown as any,
-                {
-                  conversationId: tempConvId,
-                  userId: 'invoke-user',
-                },
-              );
-
-              return c.json({
-                success: true,
-                response: objectResult.object,
-                usage: {
-                  promptTokens:
-                    (textResult.usage.inputTokens || 0) +
-                    (objectResult.usage.inputTokens || 0),
-                  completionTokens:
-                    (textResult.usage.outputTokens || 0) +
-                    (objectResult.usage.outputTokens || 0),
-                  totalTokens:
-                    (textResult.usage.totalTokens || 0) +
-                    (objectResult.usage.totalTokens || 0),
-                },
-                steps: textResult.steps?.length || 0,
-              });
-            } catch (error: any) {
-              this.logger.error('Failed to invoke', { error });
-              return c.json({ success: false, error: error.message }, 500);
-            }
-          });
-
-          // Custom chat endpoint with elicitation - use different path to avoid VoltAgent conflicts
-          app.post('/api/agents/:slug/chat', async (c) => {
-            const slug = c.req.param('slug');
-
-            try {
-              const { input, options = {} } = await c.req.json();
-
-              // ACP routing — delegate to kiro-cli if this is an ACP agent
-              if (this.acpBridge.hasAgent(slug)) {
-                return this.acpBridge.handleChat(c, slug, input, options);
-              }
-
-              // DEBUG: Log image data to trace truncation
-              if (Array.isArray(input)) {
-                for (const msg of input) {
-                  if (msg.parts) {
-                    for (const part of msg.parts) {
-                      if (part.type === 'file' && part.url) {
-                        const dataUrl = part.url as string;
-                        this.logger.info('[DEBUG Image] Received file part', {
-                          mediaType: part.mediaType,
-                          urlLength: dataUrl.length,
-                          urlStart: dataUrl.substring(0, 50),
-                          urlEnd: dataUrl.substring(dataUrl.length - 50),
-                        });
-                      }
-                    }
-                  }
-                }
-              }
-
-              const { model: modelOverride, ...restOptions } = options;
-
-              let agent = this.activeAgents.get(slug);
-              if (!agent) {
-                return c.json(
-                  { success: false, error: 'Agent not found' },
-                  404,
-                );
-              }
-
-              // If model override, get or create cached agent with that model
-              if (modelOverride) {
-                // Validate model ID before creating agent
-                if (this.modelCatalog) {
-                  try {
-                    const isValid =
-                      await this.modelCatalog.validateModelId(modelOverride);
-                    if (!isValid) {
-                      return c.json(
-                        {
-                          success: false,
-                          error: `Invalid model ID: ${modelOverride}. Please select a valid model from the list.`,
-                        },
-                        400,
-                      );
-                    }
-                  } catch (validationError: any) {
-                    this.logger.warn('Model validation failed', {
-                      modelOverride,
-                      error: validationError,
-                    });
-                    // Continue anyway - validation might fail due to API issues
-                  }
-                }
-
-                const cacheKey = `${slug}:${modelOverride}`;
-                let cachedAgent = this.activeAgents.get(cacheKey);
-
-                if (!cachedAgent) {
-                  try {
-                    // Get the original agent spec and tools
-                    const originalSpec = this.agentSpecs.get(slug);
-                    const originalTools = this.agentTools.get(slug);
-                    const originalMemory = agent.getMemory();
-                    const originalHooks = agent.hooks;
-
-                    const resolvedModel = this.modelCatalog
-                      ? await this.modelCatalog.resolveModelId(modelOverride)
-                      : modelOverride;
-                    const newModel = createBedrockProvider({
-                      appConfig: this.appConfig,
-                      agentSpec: {
-                        model: resolvedModel,
-                        region: originalSpec?.region || this.appConfig.region,
-                      } as unknown as AgentSpec,
-                    });
-
-                    cachedAgent = new Agent({
-                      ...agent,
-                      name: cacheKey,
-                      model: newModel,
-                      tools: originalTools,
-                      memory: originalMemory,
-                      hooks: originalHooks,
-                    });
-
-                    this.activeAgents.set(cacheKey, cachedAgent);
-                    this.logger.info('Created agent with model override', {
-                      slug,
-                      modelOverride,
-                    });
-                  } catch (modelError: any) {
-                    this.logger.error(
-                      'Failed to create agent with model override',
-                      {
-                        slug,
-                        modelOverride,
-                        error: modelError,
-                      },
-                    );
-                    return c.json(
-                      {
-                        success: false,
-                        error: `Failed to switch to model ${modelOverride}: ${modelError.message}`,
-                      },
-                      500,
-                    );
-                  }
-                }
-
-                agent = cachedAgent;
-              }
-
-              // Set SSE headers
-              c.header('Content-Type', 'text/event-stream');
-              c.header('Cache-Control', 'no-cache');
-              c.header('Connection', 'keep-alive');
-              c.header('X-Accel-Buffering', 'no'); // Disable nginx buffering
-
-              return stream(c, async (streamWriter) => {
-                let conversationId: string | undefined;
-                let operationContext: any = {};
-                let completionReason = 'completed';
-                let hasOutput = false;
-                let accumulatedText = '';
-                let reasoningText = '';
-                let toolCallCount = 0;
-                let currentStep = 0;
-                let requestTraceId = '';
-                let isNewConversation = false;
-                let result: any;
-                const artifacts: Array<{
-                  type: string;
-                  name?: string;
-                  content?: any;
-                }> = [];
-
-                try {
-                  // Create injectable stream for elicitation
-                  const injectableStream = new InjectableStream();
-
-                  // Get auto-approve list from agent spec
-                  const agentSpec = this.agentSpecs.get(slug);
-
-                  // Elicitation callback that injects events instead of writing directly
-                  const elicitation =
-                    StreamOrchestrator.createElicitationCallback(
-                      agentSpec!,
-                      this.toolNameMapping,
-                      this.approvalRegistry,
-                      injectableStream,
-                      this.logger,
-                    );
-
-                  operationContext = {
-                    ...restOptions,
-                    elicitation,
-                  };
-
-                  // Resolve userId from auth (override frontend default)
-                  if (
-                    !operationContext.userId ||
-                    operationContext.userId === 'default-user'
-                  ) {
-                    try {
-                      const { getCachedUser } = await import(
-                        '../routes/auth.js'
-                      );
-                      operationContext.userId =
-                        getCachedUser().alias || 'default-user';
-                    } catch {
-                      operationContext.userId =
-                        operationContext.userId || 'default-user';
-                    }
-                  }
-
-                  // Generate conversationId if not provided (new conversation)
-                  isNewConversation = !operationContext.conversationId;
-                  if (isNewConversation && operationContext.userId) {
-                    operationContext.conversationId = `${operationContext.userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
-                  }
-
-                  // Create AbortController tied to client connection
-                  const abortController = new AbortController();
-                  conversationId = operationContext.conversationId;
-
-                  // Listen for client disconnect and abort operation
-                  c.req.raw.signal?.addEventListener('abort', () => {
-                    this.logger.debug(
-                      'Client disconnected, aborting operation',
-                      { conversationId },
-                    );
-                    abortController.abort('Client disconnected');
-                  });
-
-                  // Pass abort signal to VoltAgent (it will create its own controller that listens to this)
-                  operationContext.abortSignal = abortController.signal;
-                  this.logger.debug('Abort signal configured', {
-                    conversationId,
-                  });
-
-                  // Ensure conversation exists before streaming
-                  const memory = agent.getMemory();
-                  if (
-                    memory &&
-                    operationContext.conversationId &&
-                    operationContext.userId
-                  ) {
-                    const existing = await memory.getConversation(
-                      operationContext.conversationId,
-                    );
-                    if (!existing) {
-                      // Use provided title or generate from first 50 chars of user message
-                      const title =
-                        operationContext.title ||
-                        (input.length > 50
-                          ? `${input.substring(0, 50)}...`
-                          : input);
-                      await memory.createConversation({
-                        id: operationContext.conversationId,
-                        resourceId: slug,
-                        userId: operationContext.userId,
-                        title,
-                        metadata: {},
-                      });
-                    }
-                  }
-
-                  // Generate trace ID for this request (before streamText so it's available in message metadata)
-                  const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
-                  operationContext.traceId = traceId;
-
-                  result = await agent.streamText(input, operationContext);
-
-                  // Set agent status to running
-                  this.agentStatus.set(slug, 'running');
-
-                  // Emit monitoring event
-                  const agentStartEvent = {
-                    type: 'agent-start',
-                    timestamp: new Date().toISOString(),
-                    timestampMs: Date.now(),
-                    agentSlug: slug,
-                    conversationId: operationContext.conversationId,
-                    userId: operationContext.userId,
-                    traceId,
-                    input:
-                      typeof input === 'string'
-                        ? input
-                        : input?.text || '[complex input]',
-                  };
-                  this.monitoringEvents.emit('event', agentStartEvent);
-                  await this.persistEvent(agentStartEvent);
-
-                  // Initialize stats if needed
-                  if (!this.agentStats.has(slug)) {
-                    const adapter = this.memoryAdapters.get(slug);
-                    if (adapter) {
-                      const conversations =
-                        await adapter.getConversations(slug);
-                      let totalMessages = 0;
-                      for (const conv of conversations) {
-                        const messages = await adapter.getMessages(
-                          conv.userId,
-                          conv.id,
-                        );
-                        totalMessages += messages.length;
-                      }
-                      this.agentStats.set(slug, {
-                        conversationCount: conversations.length,
-                        messageCount: totalMessages,
-                        lastUpdated: Date.now(),
-                      });
-                    }
-                  }
-
-                  // Prevent unhandled rejections when stream is aborted mid-flight
-                  const suppressAbortError = (err: any) =>
-                    abortController.signal.aborted
-                      ? undefined
-                      : Promise.reject(err);
-
-                  result.text?.catch(suppressAbortError);
-                  result.usage?.catch(suppressAbortError);
-                  result.finishReason?.catch(suppressAbortError);
-
-                  // Helper to save standalone cancellation message
-                  const saveCancellationMessage = async () => {
-                    await StreamOrchestrator.saveCancellationMessage(
-                      agent,
-                      operationContext,
-                    );
-                  };
-
-                  this.logger.info('Agent stream started', {
-                    conversationId: operationContext.conversationId,
-                    isNewConversation,
-                  });
-
-                  // Send conversationId as first event for new conversations
-                  if (isNewConversation && operationContext.conversationId) {
-                    const mem = agent.getMemory();
-                    const conversation = mem
-                      ? await mem.getConversation(
-                          operationContext.conversationId,
-                        )
-                      : null;
-                    await streamWriter.write(
-                      `data: ${JSON.stringify({
-                        type: 'conversation-started',
-                        conversationId: operationContext.conversationId,
-                        title: conversation?.title || 'New Conversation',
-                      })}\n\n`,
-                    );
-                  }
-
-                  // Initialize streaming state variables
-                  completionReason = 'completed';
-                  hasOutput = false;
-                  accumulatedText = '';
-                  const _currentTextSegment = '';
-                  reasoningText = '';
-                  const _lastChunkWasToolResult = false;
-                  const _hasEmittedReasoningForCurrentSegment = false;
-                  toolCallCount = 0;
-                  currentStep = 0;
-                  requestTraceId = traceId; // Capture traceId for use in events
-                  const _thinkingBuffer = ''; // Buffer for incomplete thinking tags
-                  const _inThinkingBlock = false; // Track if we're currently in a <thinking> block
-                  const _currentReasoningContent = ''; // Accumulate reasoning for monitoring event
-                  const _recentChunks: any[] = []; // Track last 10 chunks for debugging
-                  const _suppressTextStart = false; // Suppress text-start if response begins with <thinking>
-
-                  // Use DEBUG_STREAMING env var for debug logging
-                  const debugStreaming = process.env.DEBUG_STREAMING === 'true';
-
-                  // Initialize StreamPipeline
-                  const pipeline = StreamOrchestrator.createStreamingPipeline(
-                    abortController.signal,
-                    this.monitoringEvents,
-                    {
-                      slug,
-                      conversationId: operationContext.conversationId,
-                      userId: operationContext.userId,
-                      traceId,
-                    },
-                  );
-
-                  // Log model and tool configuration for debugging
-                  const agentTools = this.agentTools.get(slug) || [];
-                  const agentModel = agent.model as
-                    | {
-                        modelId?: string;
-                        settings?: { maxTokens?: number; temperature?: number };
-                      }
-                    | undefined;
-                  this.logger.debug('Stream starting', {
-                    conversationId,
-                    model: agentModel?.modelId,
-                    toolCount: agentTools.length,
-                    toolNames: agentTools.map((t) => t.name).slice(0, 5),
-                    maxTokens: agentModel?.settings?.maxTokens,
-                    temperature: agentModel?.settings?.temperature,
-                    debugStreaming,
-                  });
-
-                  // Wrap fullStream with injectable stream
-                  // ReasoningHandler buffers all chunks during thinking, so approval-request
-                  // will be held until reasoning-end is emitted
-                  const wrappedStream = injectableStream.wrap(
-                    result.fullStream,
-                  );
-
-                  // Run pipeline and write chunks to stream
-                  for await (const chunk of pipeline.run(wrappedStream)) {
-                    await StreamOrchestrator.writeSSEChunk(streamWriter, chunk);
-                  }
-
-                  // Write [DONE] marker
-                  await StreamOrchestrator.writeSSEDone(streamWriter);
-
-                  // Get completion state from handlers
-                  const results = await pipeline.finalize();
-
-                  // Extract completion state for finally block
-                  if (results.completion) {
-                    hasOutput = results.completion.hasOutput;
-                    completionReason = results.completion.completionReason;
-                    accumulatedText = results.completion.accumulatedText;
-                  }
-
-                  // Check if aborted
-                  if (abortController.signal.aborted) {
-                    completionReason = 'aborted';
-                    if (!hasOutput) await saveCancellationMessage();
-                  }
-                } catch (error: any) {
-                  const agentModelForError = agent.model as
-                    | { modelId?: string }
-                    | undefined;
-                  this.logger.error('Stream error occurred', {
-                    agentId: slug,
-                    modelName: agentModelForError?.modelId,
-                    conversationId: conversationId,
-                    agentName: slug,
-                    error,
-                  });
-                  await StreamOrchestrator.writeSSEError(streamWriter, error);
-                  await StreamOrchestrator.writeSSEDone(streamWriter);
-                } finally {
-                  // Agent stream completed
-                  this.logger.info('Agent stream completed', {
-                    conversationId: operationContext.conversationId,
-                    reason: completionReason,
-                  });
-
-                  // Set agent status to idle
-                  this.agentStatus.set(slug, 'idle');
-
-                  // Add final text output to artifacts (excluding reasoning text)
-                  const finalOutput = accumulatedText
-                    .replace(reasoningText, '')
-                    .trim();
-                  if (finalOutput) {
-                    artifacts.push({
-                      type: 'text',
-                      content: finalOutput,
-                    });
-                  }
-
-                  // Collect usage stats
-                  let usage;
-                  try {
-                    usage = await result.usage;
-                  } catch (_e) {
-                    // Usage might not be available
-                  }
-
-                  // Emit monitoring event
-                  const agentCompleteEvent = {
-                    type: 'agent-complete',
-                    timestamp: new Date().toISOString(),
-                    timestampMs: Date.now(), // High-precision timestamp
-                    agentSlug: slug,
-                    conversationId: operationContext.conversationId,
-                    userId: operationContext.userId,
-                    traceId: requestTraceId,
-                    reason: completionReason,
-                    artifacts,
-                    steps: currentStep,
-                    toolCallCount,
-                    maxSteps: this.agentSpecs.get(slug)?.guardrails?.maxSteps,
-                    inputChars:
-                      typeof input === 'string'
-                        ? input.length
-                        : input?.text?.length || 0,
-                    outputChars: finalOutput.length,
-                    usage: usage
-                      ? {
-                          promptTokens: usage.promptTokens,
-                          completionTokens: usage.completionTokens,
-                          totalTokens: usage.totalTokens,
-                        }
-                      : undefined,
-                  };
-                  this.monitoringEvents.emit('event', agentCompleteEvent);
-                  await this.persistEvent(agentCompleteEvent);
-
-                  // Update cached stats (increment by 2: user message + assistant response)
-                  const stats = this.agentStats.get(slug);
-                  if (stats) {
-                    stats.messageCount += 2;
-                    stats.lastUpdated = Date.now();
-                    if (isNewConversation) {
-                      stats.conversationCount += 1;
-                    }
-                  }
-
-                  // Log metrics for historical tracking
-                  this.metricsLog.push({
-                    timestamp: Date.now(),
-                    agentSlug: slug,
-                    event: 'completion',
-                    conversationId: operationContext.conversationId,
-                    messageCount: 2,
-                    cost: 0, // TODO: Calculate from usage
-                  });
-                }
-              });
-            } catch (error: any) {
-              this.logger.error('Chat error', { error });
-              const isCredentialError =
-                error.message?.includes('credential') ||
-                error.message?.includes('accessKeyId') ||
-                error.message?.includes('secretAccessKey');
-              return c.json(
-                { success: false, error: error.message },
-                isCredentialError ? 401 : 500,
-              );
-            }
-          });
-        },
+        configureApp: (app) => this.configureRoutes(app),
       }),
     });
 
@@ -2219,6 +458,1771 @@ export class WorkAgentRuntime {
         });
       }
     }, 5000);
+  }
+
+  /**
+   * Configure all HTTP routes on the Hono app instance.
+   * Extracted from the configureApp callback for readability.
+   */
+  private configureRoutes(app: Parameters<NonNullable<HonoServerConfig['configureApp']>>[0]): void {
+    // Global error handler middleware
+    app.onError((err, c) => {
+      if (isAuthError(err)) {
+        return c.json({ success: false, error: err.message }, 401);
+      }
+      return c.json({ success: false, error: err.message }, 500);
+    });
+
+    // Request logger for debugging Tauri connectivity
+    app.use('*', async (c, next) => {
+      const start = Date.now();
+      await next();
+      const origin = c.req.header('origin') || '-';
+      this.logger.info(
+        `${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms origin=${origin}`,
+      );
+    });
+
+    app.use(
+      '*',
+      cors({
+        origin: (origin) => {
+          if (!origin) return origin;
+          if (
+            origin.startsWith('http://localhost:') ||
+            origin.startsWith('https://localhost:') ||
+            origin === 'tauri://localhost' ||
+            origin === 'https://tauri.localhost'
+          ) {
+            return origin;
+          }
+          const allowed = process.env.ALLOWED_ORIGINS?.split(',') || [];
+          return allowed.includes(origin) ? origin : null;
+        },
+        credentials: true,
+      }),
+    );
+
+    // Models capabilities and pricing endpoints
+    app.route('/api/models', modelsRoute);
+
+    // System status (onboarding readiness)
+    app.route(
+      '/api/system',
+      createSystemRoutes(
+        {
+          getACPStatus: () => {
+            const s = this.acpBridge.getStatus();
+            return {
+              connected: s.connections.some(
+                (c: any) => c.status === 'connected',
+              ),
+              connections: s.connections,
+            };
+          },
+          getAppConfig: () => this.appConfig,
+          eventBus: this.eventBus,
+        },
+        this.logger,
+      ),
+    );
+
+    // Analytics endpoints
+    app.route(
+      '/api/analytics',
+      createAnalyticsRoutes(this.usageAggregator),
+    );
+
+    // Auth endpoints
+    app.route('/api/auth', createAuthRoutes());
+
+    // User directory endpoints
+    app.route('/api/users', createUserRoutes());
+
+    // Plugin endpoints (list, serve bundles, reload providers)
+    app.route(
+      '/api/plugins',
+      createPluginRoutes(
+        this.configLoader.getProjectHomeDir(),
+        this.logger,
+        this.eventBus,
+      ),
+    );
+
+    // Filesystem browse (folder picker for plugin install)
+    app.route('/api/fs', createFsRoutes());
+
+    // Package registry endpoints (browse/install agents and tools)
+    app.route(
+      '/api/registry',
+      createRegistryRoutes(this.configLoader, async () => {
+        // Restart ACP connections to pick up newly installed agents as modes
+        const acpConfig = await this.configLoader.loadACPConfig();
+        await this.acpBridge.startAll(acpConfig.connections);
+      }),
+    );
+
+    // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
+    app.get('/api/agents', async (c) => {
+      try {
+        if (!this.voltAgent) {
+          return c.json(
+            { success: false, error: 'VoltAgent not initialized' },
+            500,
+          );
+        }
+        await this.reloadAgents();
+        const coreAgents = await this.voltAgent.getAgents();
+        const enrichedAgents = (
+          await Promise.all(
+            coreAgents.map(async (agent: any) => {
+              const metadata = this.agentMetadataMap.get(agent.id);
+              if (!metadata) return null;
+
+              try {
+                const spec = await this.configLoader.loadAgent(
+                  metadata.slug,
+                );
+
+                this.logger.debug('[Agent Enrichment] Loading spec', {
+                  agent: metadata.slug,
+                  hasSpec: !!spec,
+                  hasTools: !!spec.tools,
+                });
+
+                return {
+                  ...agent,
+                  slug: metadata.slug,
+                  name: metadata.name,
+                  prompt: spec.prompt,
+                  description: spec.description,
+                  model: spec.model,
+                  region: spec.region,
+                  guardrails: spec.guardrails,
+                  maxTurns: spec.maxTurns,
+                  icon: spec.icon,
+                  commands: spec.commands,
+                  toolsConfig: spec.tools,
+                  updatedAt: metadata.updatedAt,
+                };
+              } catch (_error) {
+                this.logger.warn('Agent spec not found, skipping', {
+                  agent: metadata.slug,
+                });
+                return null;
+              }
+            }),
+          )
+        ).filter((a) => a !== null);
+
+        this.logger.debug('[Agent Enrichment] Enriched agents', {
+          count: enrichedAgents.length,
+          agents: enrichedAgents.map((a) => ({
+            slug: a.slug,
+            hasToolsConfig: !!a.toolsConfig,
+          })),
+        });
+
+        // Append ACP virtual agents (kiro-cli modes)
+        if (this.acpBridge.isConnected()) {
+          enrichedAgents.push(...this.acpBridge.getVirtualAgents());
+        }
+
+        return c.json({ success: true, data: enrichedAgents });
+      } catch (error: any) {
+        this.logger.error('Failed to fetch agents', {
+          error: error.message,
+          stack: error.stack,
+        });
+        return c.json({ success: false, error: error.message }, 500);
+      }
+    });
+
+    // === Agent CRUD Endpoints ===
+    // Mount agent routes for CRUD operations
+    const agentRoutes = createAgentRoutes(
+      this.agentService,
+      () => this.initialize(),
+      () => this.voltAgent,
+    );
+    app.route('/agents', agentRoutes);
+
+    // === Tool Management Endpoints ===
+
+    // Get Q Developer agents
+    app.get('/q-agents', async (c) => {
+      try {
+        const { readFileSync, existsSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const { homedir } = await import('node:os');
+
+        const qAgentsPath = join(
+          homedir(),
+          '.aws',
+          'amazonq',
+          'cli-agents.json',
+        );
+
+        if (!existsSync(qAgentsPath)) {
+          return c.json({
+            success: false,
+            error: 'Q Developer agents file not found',
+            agents: [],
+          });
+        }
+
+        const agents = JSON.parse(readFileSync(qAgentsPath, 'utf-8'));
+        return c.json({ success: true, agents });
+      } catch (error: any) {
+        this.logger.error('Failed to load Q agents', { error });
+        return c.json({
+          success: false,
+          error: error.message,
+          agents: [],
+        });
+      }
+    });
+
+    // List all tools
+    app.route(
+      '/tools',
+      createToolRoutes(this.mcpService, () => this.initialize()),
+    );
+
+    // SSE event stream
+    app.route(
+      '/events',
+      createEventRoutes({
+        eventBus: this.eventBus,
+        getACPStatus: () => {
+          const s = this.acpBridge.getStatus();
+          return {
+            connected: s.connections.some(
+              (c) => c.status === 'connected',
+            ),
+            connections: s.connections,
+          };
+        },
+        logger: this.logger,
+      }),
+    );
+
+    // ACP connection status (all connections)
+    app.get('/acp/status', async (c) => {
+      return c.json({ success: true, data: this.acpBridge.getStatus() });
+    });
+
+    // ACP slash commands for a given agent
+    app.get('/acp/commands/:slug', async (c) => {
+      const slug = c.req.param('slug');
+      return c.json({
+        success: true,
+        data: this.acpBridge.getSlashCommands(slug),
+      });
+    });
+
+    // ACP command autocomplete options
+    app.get('/acp/commands/:slug/options', async (c) => {
+      const slug = c.req.param('slug');
+      const partial = c.req.query('q') || '';
+      const options = await this.acpBridge.getCommandOptions(
+        slug,
+        partial,
+      );
+      return c.json({ success: true, data: options });
+    });
+
+    // ACP connection CRUD
+    app.get('/acp/connections', async (c) => {
+      const config = await this.configLoader.loadACPConfig();
+      const status = this.acpBridge.getStatus();
+      const connections = config.connections.map((cfg) => ({
+        ...cfg,
+        ...(status.connections.find((s) => s.id === cfg.id) || {
+          status: 'disconnected',
+          modes: [],
+          sessionId: null,
+          mcpServers: [],
+        }),
+      }));
+      return c.json({ success: true, data: connections });
+    });
+
+    app.post('/acp/connections', async (c) => {
+      const body = await c.req.json();
+      if (!body.id || !body.command) {
+        return c.json(
+          { success: false, error: 'id and command are required' },
+          400,
+        );
+      }
+      const config = await this.configLoader.loadACPConfig();
+      if (config.connections.some((conn) => conn.id === body.id)) {
+        return c.json(
+          {
+            success: false,
+            error: `Connection '${body.id}' already exists`,
+          },
+          409,
+        );
+      }
+      const newConn = {
+        id: body.id,
+        name: body.name || body.id,
+        command: body.command,
+        args: body.args || [],
+        icon: body.icon || '🔌',
+        enabled: body.enabled !== false,
+      };
+      config.connections.push(newConn);
+      await this.configLoader.saveACPConfig(config);
+      if (newConn.enabled) await this.acpBridge.addConnection(newConn);
+      return c.json({ success: true, data: newConn });
+    });
+
+    app.put('/acp/connections/:id', async (c) => {
+      const id = c.req.param('id');
+      const body = await c.req.json();
+      const config = await this.configLoader.loadACPConfig();
+      const idx = config.connections.findIndex((conn) => conn.id === id);
+      if (idx === -1)
+        return c.json(
+          { success: false, error: 'Connection not found' },
+          404,
+        );
+      config.connections[idx] = {
+        ...config.connections[idx],
+        ...body,
+        id,
+      };
+      await this.configLoader.saveACPConfig(config);
+      // Restart connection with new config
+      await this.acpBridge.removeConnection(id);
+      if (config.connections[idx].enabled)
+        await this.acpBridge.addConnection(config.connections[idx]);
+      return c.json({ success: true, data: config.connections[idx] });
+    });
+
+    app.delete('/acp/connections/:id', async (c) => {
+      const id = c.req.param('id');
+      const config = await this.configLoader.loadACPConfig();
+      config.connections = config.connections.filter(
+        (conn) => conn.id !== id,
+      );
+      await this.configLoader.saveACPConfig(config);
+      await this.acpBridge.removeConnection(id);
+      return c.json({ success: true });
+    });
+
+    // Get agent tools with full schemas
+    // Get agent tools with full schemas
+    app.get('/agents/:slug/tools', async (c) => {
+      try {
+        const slug = c.req.param('slug');
+        const agent = this.activeAgents.get(slug);
+
+        if (!agent) {
+          return c.json(
+            { success: false, error: 'Agent not found or not active' },
+            404,
+          );
+        }
+
+        const tools = this.agentTools.get(slug) || [];
+        const toolsData = tools.map((tool: any) => {
+          const mapping = this.toolNameMapping.get(tool.name);
+
+          // Convert Zod schema to JSON schema if parameters is a Zod object
+          let parameters = tool.parameters;
+          if (
+            parameters &&
+            typeof parameters === 'object' &&
+            '_def' in parameters
+          ) {
+            try {
+              parameters = zodToJsonSchema(parameters);
+            } catch (error) {
+              this.logger.warn(
+                'Failed to convert Zod schema to JSON schema',
+                { tool: tool.name, error },
+              );
+            }
+          }
+
+          return {
+            id: tool.id || tool.name,
+            name: tool.name,
+            originalName: mapping?.original || tool.name,
+            server: mapping?.server || null,
+            toolName: mapping?.tool || tool.name,
+            description: tool.description,
+            parameters,
+          };
+        });
+
+        return c.json({ success: true, data: toolsData });
+      } catch (error: any) {
+        this.logger.error('Failed to get agent tools', { error });
+        return c.json({ success: false, error: error.message }, 500);
+      }
+    });
+
+    // Add tool to agent
+    app.post('/agents/:slug/tools', async (c) => {
+      try {
+        const slug = c.req.param('slug');
+        const { toolId } = await c.req.json();
+
+        const agent = await this.configLoader.loadAgent(slug);
+        const tools = agent.tools || { mcpServers: [], available: ['*'] };
+
+        if (!tools.mcpServers.includes(toolId)) {
+          tools.mcpServers.push(toolId);
+        }
+
+        await this.configLoader.updateAgent(slug, { tools });
+        await this.initialize();
+
+        return c.json({ success: true, data: tools.mcpServers });
+      } catch (error: any) {
+        this.logger.error('Failed to add tool', { error });
+        return c.json({ success: false, error: error.message }, 400);
+      }
+    });
+
+    // Remove tool from agent
+    app.delete('/agents/:slug/tools/:toolId', async (c) => {
+      try {
+        const slug = c.req.param('slug');
+        const toolId = c.req.param('toolId');
+
+        const agent = await this.configLoader.loadAgent(slug);
+        const tools = agent.tools || { mcpServers: [] };
+
+        tools.mcpServers = tools.mcpServers.filter(
+          (id: string) => id !== toolId,
+        );
+
+        await this.configLoader.updateAgent(slug, { tools });
+        await this.initialize();
+
+        return c.json({ success: true }, 200);
+      } catch (error: any) {
+        this.logger.error('Failed to remove tool', { error });
+        return c.json({ success: false, error: error.message }, 400);
+      }
+    });
+
+    // Update tool allow-list
+    app.put('/agents/:slug/tools/allowed', async (c) => {
+      try {
+        const slug = c.req.param('slug');
+        const { allowed } = await c.req.json();
+
+        const agent = await this.configLoader.loadAgent(slug);
+        const tools = agent.tools || { mcpServers: [] };
+
+        tools.available = allowed;
+
+        await this.configLoader.updateAgent(slug, { tools });
+        await this.initialize();
+
+        return c.json({ success: true, data: tools });
+      } catch (error: any) {
+        this.logger.error('Failed to update allow-list', { error });
+        return c.json({ success: false, error: error.message }, 400);
+      }
+    });
+
+    // Update tool aliases
+    app.put('/agents/:slug/tools/aliases', async (c) => {
+      try {
+        const slug = c.req.param('slug');
+        const { aliases } = await c.req.json();
+
+        const agent = await this.configLoader.loadAgent(slug);
+        const tools = agent.tools || { mcpServers: [] };
+
+        tools.aliases = aliases;
+
+        await this.configLoader.updateAgent(slug, { tools });
+        await this.initialize();
+
+        return c.json({ success: true, data: tools });
+      } catch (error: any) {
+        this.logger.error('Failed to update aliases', { error });
+        return c.json({ success: false, error: error.message }, 400);
+      }
+    });
+
+    // === Workspace Management Endpoints ===
+    app.route(
+      '/workspaces',
+      createWorkspaceRoutes(this.workspaceService),
+    );
+
+    // === Workspace & Workflow Management ===
+    app.route(
+      '/workspaces',
+      createWorkspaceRoutes(this.workspaceService),
+    );
+    app.route('/agents', createWorkflowRoutes(this.workspaceService));
+
+    // === Route Modules ===
+    app.route(
+      '/config',
+      createConfigRoutes(this.configLoader, this.logger, this.eventBus),
+    );
+    app.route(
+      '/bedrock',
+      createBedrockRoutes(
+        () => this.modelCatalog,
+        this.appConfig,
+        this.logger,
+      ),
+    );
+    app.route('/api/branding', createBrandingRoutes());
+    app.route(
+      '/monitoring',
+      createMonitoringRoutes({
+        activeAgents: this.activeAgents,
+        agentStats: this.agentStats,
+        agentStatus: this.agentStatus,
+        memoryAdapters: this.memoryAdapters,
+        metricsLog: this.metricsLog,
+        monitoringEvents: this.monitoringEvents,
+        queryEventsFromDisk: (start, end, userId) =>
+          this.queryEventsFromDisk(start, end, userId),
+      }),
+    );
+    app.route(
+      '/agents',
+      createConversationRoutes(this.memoryAdapters, this.logger),
+    );
+    app.route(
+      '/scheduler',
+      createSchedulerRoutes(
+        new SchedulerService(this.logger),
+        this.logger,
+      ),
+    );
+
+    // Agent health check (agent-specific, not in monitoring routes)
+    app.get('/agents/:slug/health', async (c) => {
+      const slug = c.req.param('slug');
+      const agent = this.activeAgents.get(slug);
+
+      if (!agent) {
+        return c.json(
+          {
+            success: false,
+            healthy: false,
+            error: 'Agent not found',
+            checks: { loaded: false },
+          },
+          404,
+        );
+      }
+
+      const checks: Record<string, boolean> = {
+        loaded: true,
+        hasModel: !!agent.model,
+        hasMemory: this.memoryAdapters.has(slug),
+      };
+
+      // Check integrations (MCP tools)
+      const spec = this.agentSpecs.get(slug);
+      const integrations: Array<{
+        id: string;
+        type: string;
+        connected: boolean;
+        error?: string;
+        metadata?: any;
+      }> = [];
+
+      if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
+        checks.integrationsConfigured = true;
+
+        for (const id of spec.tools.mcpServers) {
+          const key = `${slug}:${id}`;
+          const status = this.mcpConnectionStatus.get(key);
+          const metadata = this.integrationMetadata.get(key);
+
+          // Get tools for this MCP server with original names
+          const agentTools = this.agentTools.get(slug) || [];
+          const serverTools = agentTools
+            .filter((t) => t.name.startsWith(id.replace(/-/g, ''))) // Match by server prefix
+            .map((t) => {
+              const mapping = this.toolNameMapping.get(t.name);
+
+              return {
+                name: t.name,
+                originalName: mapping?.original || t.name,
+                server: mapping?.server || null,
+                toolName: mapping?.tool || t.name,
+                description: (t as ToolWithDescription).description,
+              };
+            });
+
+          integrations.push({
+            id,
+            type: metadata?.type || 'mcp',
+            connected: status?.connected === true,
+            error: status?.error,
+            metadata: metadata
+              ? {
+                  transport: metadata.transport,
+                  toolCount: metadata.toolCount,
+                  tools: serverTools,
+                }
+              : undefined,
+          });
+        }
+
+        checks.integrationsConnected = integrations.every(
+          (i) => i.connected,
+        );
+      }
+
+      const healthy = Object.values(checks).every((v) => v);
+
+      return c.json({
+        success: true,
+        healthy,
+        checks,
+        integrations,
+        status: this.agentStatus.get(slug) || 'idle',
+      });
+    });
+
+    // === Conversation Context & Stats (not in route module) ===
+
+    // Conversation context management
+    app.post(
+      '/api/agents/:slug/conversations/:conversationId/context',
+      async (c) => {
+        try {
+          const slug = c.req.param('slug');
+          const conversationId = c.req.param('conversationId');
+          const { action, content } = await c.req.json();
+
+          const result =
+            await ConversationManager.manageConversationContext(
+              slug,
+              conversationId,
+              action,
+              content,
+              this.memoryAdapters,
+            );
+
+          return c.json(result);
+        } catch (error: any) {
+          this.logger.error('Failed to manage conversation context', {
+            error,
+          });
+          return c.json({ success: false, error: error.message }, 500);
+        }
+      },
+    );
+
+    // Get conversation statistics
+    app.get(
+      '/agents/:slug/conversations/:conversationId/stats',
+      async (c) => {
+        try {
+          const slug = c.req.param('slug');
+          const conversationId = c.req.param('conversationId');
+
+          const data = await ConversationManager.getConversationStats(
+            slug,
+            conversationId,
+            this.memoryAdapters,
+            this.agentFixedTokens,
+            this.agentTools,
+            this.configLoader,
+            this.appConfig,
+            this.modelCatalog,
+            this.logger,
+          );
+
+          return c.json({ success: true, data });
+        } catch (error: any) {
+          this.logger.error('Failed to load conversation stats', {
+            error,
+          });
+          return c.json({ success: false, error: error.message }, 500);
+        }
+      },
+    );
+
+    // Silent agent invocation for dashboard data fetching
+    app.post('/agents/:slug/invoke', async (c) => {
+      try {
+        const slug = c.req.param('slug');
+        const {
+          input,
+          silent = true,
+          model,
+          tools: toolNames,
+          schema,
+        } = await c.req.json();
+
+        const agent = this.activeAgents.get(slug);
+        if (!agent) {
+          return c.json(
+            { success: false, error: 'Agent not found' },
+            404,
+          );
+        }
+
+        // Build prompt with schema instruction if provided
+        let prompt = input;
+        if (schema) {
+          prompt = `${input}\n\nYou must return your response as valid JSON matching this exact schema:\n${JSON.stringify(schema, null, 2)}\n\nReturn ONLY the JSON object, no markdown formatting, no explanations.`;
+        }
+
+        const options: any = {};
+        if (model && this.modelCatalog) {
+          const resolvedModel =
+            await this.modelCatalog.resolveModelId(model);
+          options.model = createBedrockProvider({
+            appConfig: this.appConfig,
+            agentSpec: { model: resolvedModel } as unknown as AgentSpec,
+          });
+        }
+
+        // Override tools if specified - get from our cached tools
+        if (toolNames && Array.isArray(toolNames)) {
+          const slug = c.req.param('slug');
+          const agentTools = this.agentTools.get(slug) || [];
+          options.tools = agentTools.filter((t: any) =>
+            toolNames.includes(t.name),
+          );
+        }
+
+        // Use generateText to support multi-turn tool calling
+        const result = await agent.generateText(prompt, options);
+
+        // Parse response if schema provided
+        let response = result.text;
+        if (schema && typeof result.text === 'string') {
+          try {
+            // Extract JSON from markdown code blocks if present
+            let jsonText = result.text.trim();
+            const jsonMatch = jsonText.match(
+              /```(?:json)?\s*([\s\S]*?)\s*```/,
+            );
+            if (jsonMatch) {
+              jsonText = jsonMatch[1].trim();
+            }
+            response = JSON.parse(jsonText);
+          } catch (e) {
+            this.logger.warn('Failed to parse JSON response', {
+              error: e,
+              text: result.text,
+            });
+            // Return raw text if parsing fails
+          }
+        }
+
+        return c.json({
+          success: true,
+          response,
+          usage: result.usage,
+          steps: result.steps,
+          toolCalls: result.toolCalls,
+          toolResults: result.toolResults,
+          reasoning: result.reasoning,
+        });
+      } catch (error: any) {
+        this.logger.error('Failed to invoke agent', { error });
+        return c.json(
+          { success: false, error: error.message },
+          isAuthError(error) ? 401 : 500,
+        );
+      }
+    });
+
+    // Raw MCP tool call (no transformation, no LLM)
+    app.post('/agents/:slug/tools/:toolName', async (c) => {
+      const startTime = performance.now();
+      try {
+        const slug = c.req.param('slug');
+        const toolName = c.req.param('toolName');
+        const toolArgs = await c.req.json();
+
+        const agent = this.activeAgents.get(slug);
+        if (!agent) {
+          return c.json(
+            { success: false, error: 'Agent not found' },
+            404,
+          );
+        }
+
+        const allTools = this.agentTools.get(slug) || [];
+
+        // Try to find tool by normalized name first, then by original name
+        let tool = allTools.find((t) => t.name === toolName);
+        if (!tool) {
+          const normalized = this.getNormalizedToolName(toolName);
+          tool = allTools.find((t) => t.name === normalized);
+        }
+
+        if (!tool) {
+          return c.json(
+            { success: false, error: `Tool ${toolName} not found` },
+            404,
+          );
+        }
+
+        const toolStart = performance.now();
+        const toolResult = await (
+          tool as ToolWithDescription & {
+            execute: (args: any) => Promise<any>;
+          }
+        ).execute(toolArgs);
+        const toolDuration = performance.now() - toolStart;
+
+        // Unwrap MCP result
+        let unwrappedResult: any = toolResult;
+        if ((toolResult as ToolResult)?.content?.[0]?.text) {
+          try {
+            const parsed = JSON.parse(
+              (toolResult as ToolResult).content![0].text,
+            );
+            if (parsed?.content?.[0]?.text) {
+              unwrappedResult = JSON.parse(parsed.content[0].text);
+            } else {
+              unwrappedResult = parsed;
+            }
+          } catch {
+            unwrappedResult = (toolResult as ToolResult).content![0].text;
+          }
+        }
+
+        return c.json({
+          success: true,
+          response: unwrappedResult,
+          metadata: {
+            toolDuration: Math.round(toolDuration),
+            totalDuration: Math.round(performance.now() - startTime),
+          },
+        });
+      } catch (error: any) {
+        this.logger.error('Failed to call tool', { error });
+        return c.json(
+          { success: false, error: error.message },
+          isAuthError(error) ? 401 : 500,
+        );
+      }
+    });
+
+    // Pure transformation endpoint (no LLM, just data mapping)
+    app.post('/agents/:slug/tool/:toolName', async (c) => {
+      const startTime = performance.now();
+      try {
+        const slug = c.req.param('slug');
+        const toolName = c.req.param('toolName');
+        const { toolArgs, transform } = await c.req.json();
+
+        const agent = this.activeAgents.get(slug);
+        if (!agent) {
+          return c.json(
+            { success: false, error: 'Agent not found' },
+            404,
+          );
+        }
+
+        const allTools = this.agentTools.get(slug) || [];
+
+        // Try to find tool by normalized name first, then by original name
+        let tool = allTools.find((t) => t.name === toolName);
+        if (!tool) {
+          const normalized = this.getNormalizedToolName(toolName);
+          tool = allTools.find((t) => t.name === normalized);
+        }
+
+        if (!tool) {
+          return c.json(
+            { success: false, error: `Tool ${toolName} not found` },
+            404,
+          );
+        }
+
+        // Execute tool
+        const toolStart = performance.now();
+        const toolResult = await (
+          tool as ToolWithDescription & {
+            execute: (args: any) => Promise<any>;
+          }
+        ).execute(toolArgs);
+        const toolDuration = performance.now() - toolStart;
+
+        // Unwrap MCP result
+        let unwrappedResult: any = toolResult;
+        let parseError: string | undefined;
+
+        if ((toolResult as ToolResult)?.content?.[0]?.text) {
+          try {
+            const parsed = JSON.parse(
+              (toolResult as ToolResult).content![0].text,
+            );
+            if (parsed?.content?.[0]?.text) {
+              unwrappedResult = JSON.parse(parsed.content[0].text);
+            } else {
+              unwrappedResult = parsed;
+            }
+          } catch {
+            unwrappedResult = (toolResult as ToolResult).content![0].text;
+          }
+        }
+
+        // Generic handling: if result is a string with error text followed by JSON, extract the JSON
+        if (typeof unwrappedResult === 'string') {
+          const lastBrace = unwrappedResult.lastIndexOf(', {');
+          if (lastBrace > 0) {
+            try {
+              parseError = unwrappedResult.substring(0, lastBrace);
+              const jsonStr = unwrappedResult.substring(lastBrace + 2);
+              unwrappedResult = JSON.parse(jsonStr);
+            } catch {
+              parseError = undefined;
+            }
+          }
+        }
+
+        // Same for response field if it's a string with embedded JSON
+        if (
+          unwrappedResult?.response &&
+          typeof unwrappedResult.response === 'string'
+        ) {
+          const lastBrace = unwrappedResult.response.lastIndexOf(', {');
+          if (lastBrace > 0) {
+            try {
+              parseError = unwrappedResult.response.substring(
+                0,
+                lastBrace,
+              );
+              const jsonStr = unwrappedResult.response.substring(
+                lastBrace + 2,
+              );
+              unwrappedResult = JSON.parse(jsonStr);
+            } catch {
+              parseError = undefined;
+            }
+          }
+        }
+
+        // Check if the MCP tool returned an error
+        if (
+          unwrappedResult?.success === false &&
+          unwrappedResult?.error
+        ) {
+          const errorObj = unwrappedResult.error;
+          const errorMessage =
+            typeof errorObj === 'string'
+              ? errorObj
+              : errorObj?.message?.message ||
+                errorObj?.message ||
+                errorObj;
+          if (isAuthError(errorMessage)) {
+            return c.json({ success: false, error: errorMessage }, 401);
+          }
+          return c.json({ success: false, error: errorMessage }, 500);
+        }
+
+        // Apply transformation
+        const transformStart = performance.now();
+        const transformFn = new Function(
+          'data',
+          `return (${transform})(data);`,
+        );
+        const transformed = transformFn(unwrappedResult);
+        const transformDuration = performance.now() - transformStart;
+
+        return c.json({
+          success: true,
+          response: transformed,
+          metadata: {
+            toolDuration: Math.round(toolDuration),
+            transformDuration: Math.round(transformDuration),
+            totalDuration: Math.round(performance.now() - startTime),
+            ...(parseError && { parseError }),
+          },
+        });
+      } catch (error: any) {
+        this.logger.error('Failed to transform invoke', { error });
+        return c.json(
+          { success: false, error: error.message },
+          isAuthError(error) ? 401 : 500,
+        );
+      }
+    });
+
+    app.post('/agents/:slug/invoke/stream', async (c) => {
+      try {
+        const slug = c.req.param('slug');
+        const {
+          prompt,
+          silent = true,
+          model,
+          tools: toolNames,
+          maxSteps = 10,
+          schema: schemaJson,
+        } = await c.req.json();
+
+        const agent = this.activeAgents.get(slug);
+        if (!agent) {
+          return c.json(
+            { success: false, error: 'Agent not found' },
+            404,
+          );
+        }
+
+        const options: any = { maxSteps, maxOutputTokens: 2000 };
+        if (model && this.modelCatalog) {
+          const resolvedModel =
+            await this.modelCatalog.resolveModelId(model);
+          options.model = createBedrockProvider({
+            appConfig: this.appConfig,
+            agentSpec: { model: resolvedModel } as unknown as AgentSpec,
+          });
+        }
+
+        // Override tools if specified - create temp agent with only filtered tools
+        if (toolNames && Array.isArray(toolNames)) {
+          const allTools = this.agentTools.get(slug) || [];
+          const filteredTools = allTools.filter((t) =>
+            toolNames.includes(t.name),
+          );
+
+          // Create temporary agent with ONLY the filtered tools
+          const tempAgent = new Agent({
+            name: `${slug}-temp`,
+            instructions: agent.instructions,
+            model: options.model || agent.model,
+            tools: filteredTools,
+            maxSteps,
+            hooks: agent.hooks,
+          });
+
+          // generateObject cannot use tools, so use generateText with JSON mode
+          if (schemaJson) {
+            const textResult = await tempAgent.generateText(
+              `${prompt}\n\nReturn ONLY valid JSON matching this schema (no markdown, no explanation):\n${JSON.stringify(schemaJson, null, 2)}`,
+            );
+
+            // Extract JSON from response (handles markdown code blocks)
+            let parsed;
+            try {
+              const cleaned = textResult.text
+                .replace(/```json\n?/g, '')
+                .replace(/```\n?/g, '')
+                .trim();
+              parsed = JSON.parse(cleaned);
+            } catch {
+              const jsonMatch = textResult.text.match(/\{[\s\S]*\}/);
+              parsed = jsonMatch
+                ? JSON.parse(jsonMatch[0])
+                : { error: 'Failed to parse JSON' };
+            }
+
+            return c.json({
+              success: true,
+              response: parsed,
+              usage: textResult.usage,
+            });
+          }
+
+          const result = await tempAgent.generateText(prompt);
+
+          return c.json({
+            success: true,
+            response: result.text,
+            usage: result.usage,
+          });
+        }
+
+        // For multi-turn, use generateText/generateObject and return result
+        const result = schemaJson
+          ? await agent.generateObject(
+              prompt,
+              jsonSchema(schemaJson) as unknown as any,
+              options,
+            )
+          : await agent.generateText(prompt, options);
+
+        return c.json({
+          success: true,
+          response: schemaJson
+            ? (result as GenerateResult).object
+            : (result as GenerateResult).text,
+          usage: result.usage,
+        });
+      } catch (error: any) {
+        this.logger.error('Failed to stream invoke', { error });
+        return c.json({ success: false, error: error.message }, 500);
+      }
+    });
+
+    // Tool approval response endpoint
+    app.post('/tool-approval/:approvalId', async (c) => {
+      try {
+        const approvalId = c.req.param('approvalId');
+        const { approved } = await c.req.json();
+
+        this.logger.info(
+          '[Approval Endpoint] Received approval response',
+          { approvalId, approved },
+        );
+
+        if (this.approvalRegistry.resolve(approvalId, approved)) {
+          return c.json({ success: true });
+        }
+
+        this.logger.warn(
+          '[Approval Endpoint] Approval request not found',
+          { approvalId },
+        );
+        return c.json(
+          { success: false, error: 'Approval request not found' },
+          404,
+        );
+      } catch (error: any) {
+        this.logger.error('Approval response error', { error });
+        return c.json({ success: false, error: error.message }, 500);
+      }
+    });
+
+    // New lightweight invoke endpoint - uses global tool registry
+    app.post('/invoke', async (c) => {
+      try {
+        const {
+          prompt,
+          schema,
+          tools: toolIds = [],
+          maxSteps = 10,
+          model,
+          structureModel,
+          system,
+        } = await c.req.json();
+
+        // Get tools from global registry
+        const filteredTools =
+          toolIds.length > 0
+            ? toolIds
+                .map((id: string) => this.globalToolRegistry.get(id))
+                .filter(Boolean)
+            : [];
+
+        // Resolve models from config - invokeModel for tool calling, structureModel for output formatting
+        const invokeModelId = model || this.appConfig.invokeModel;
+        const structureModelId =
+          structureModel || this.appConfig.structureModel;
+
+        const mainModel = createBedrockProvider({
+          appConfig: this.appConfig,
+          agentSpec: {
+            model: this.modelCatalog
+              ? await this.modelCatalog.resolveModelId(invokeModelId)
+              : invokeModelId,
+          } as unknown as AgentSpec,
+        });
+
+        const fastModel = createBedrockProvider({
+          appConfig: this.appConfig,
+          agentSpec: {
+            model: this.modelCatalog
+              ? await this.modelCatalog.resolveModelId(structureModelId)
+              : structureModelId,
+          } as unknown as AgentSpec,
+        });
+
+        const defaultSystem =
+          "You are a helpful assistant. Use the available tools to answer the user's request accurately and concisely.";
+
+        // Create temp agent for tool execution
+        const tempAgent = new Agent({
+          name: `invoke-${Date.now()}`,
+          instructions: system || defaultSystem,
+          model: mainModel,
+          tools: filteredTools,
+          maxSteps,
+        });
+
+        const tempConvId = `invoke-${Date.now()}`;
+
+        // Phase 1: Tool execution
+        const textResult = await tempAgent.generateText(prompt, {
+          conversationId: tempConvId,
+          userId: 'invoke-user',
+        });
+
+        if (!schema) {
+          return c.json({
+            success: true,
+            response: textResult.text,
+            usage: textResult.usage,
+            steps: textResult.steps?.length || 0,
+          });
+        }
+
+        // Phase 2: Structure output (no tools needed)
+        const { jsonSchema } = await import('ai');
+
+        // Create new agent without tools for structuring
+        const structureAgent = new Agent({
+          name: `invoke-structure-${Date.now()}`,
+          instructions:
+            'Format the provided information as structured JSON.',
+          model: fastModel || mainModel,
+          tools: [], // No tools for structuring
+          maxSteps: 1,
+        });
+
+        const objectResult = await structureAgent.generateObject(
+          `${textResult.text}\n\nFormat the above information as structured JSON.`,
+          jsonSchema(schema) as unknown as any,
+          {
+            conversationId: tempConvId,
+            userId: 'invoke-user',
+          },
+        );
+
+        return c.json({
+          success: true,
+          response: objectResult.object,
+          usage: {
+            promptTokens:
+              (textResult.usage.inputTokens || 0) +
+              (objectResult.usage.inputTokens || 0),
+            completionTokens:
+              (textResult.usage.outputTokens || 0) +
+              (objectResult.usage.outputTokens || 0),
+            totalTokens:
+              (textResult.usage.totalTokens || 0) +
+              (objectResult.usage.totalTokens || 0),
+          },
+          steps: textResult.steps?.length || 0,
+        });
+      } catch (error: any) {
+        this.logger.error('Failed to invoke', { error });
+        return c.json({ success: false, error: error.message }, 500);
+      }
+    });
+
+    // Custom chat endpoint with elicitation - use different path to avoid VoltAgent conflicts
+    app.post('/api/agents/:slug/chat', async (c) => {
+      const slug = c.req.param('slug');
+
+      try {
+        const { input, options = {} } = await c.req.json();
+
+        // ACP routing — delegate to kiro-cli if this is an ACP agent
+        if (this.acpBridge.hasAgent(slug)) {
+          return this.acpBridge.handleChat(c, slug, input, options);
+        }
+
+        // DEBUG: Log image data to trace truncation
+        if (Array.isArray(input)) {
+          for (const msg of input) {
+            if (msg.parts) {
+              for (const part of msg.parts) {
+                if (part.type === 'file' && part.url) {
+                  const dataUrl = part.url as string;
+                  this.logger.info('[DEBUG Image] Received file part', {
+                    mediaType: part.mediaType,
+                    urlLength: dataUrl.length,
+                    urlStart: dataUrl.substring(0, 50),
+                    urlEnd: dataUrl.substring(dataUrl.length - 50),
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        const { model: modelOverride, ...restOptions } = options;
+
+        let agent = this.activeAgents.get(slug);
+        if (!agent) {
+          return c.json(
+            { success: false, error: 'Agent not found' },
+            404,
+          );
+        }
+
+        // If model override, get or create cached agent with that model
+        if (modelOverride) {
+          // Validate model ID before creating agent
+          if (this.modelCatalog) {
+            try {
+              const isValid =
+                await this.modelCatalog.validateModelId(modelOverride);
+              if (!isValid) {
+                return c.json(
+                  {
+                    success: false,
+                    error: `Invalid model ID: ${modelOverride}. Please select a valid model from the list.`,
+                  },
+                  400,
+                );
+              }
+            } catch (validationError: any) {
+              this.logger.warn('Model validation failed', {
+                modelOverride,
+                error: validationError,
+              });
+              // Continue anyway - validation might fail due to API issues
+            }
+          }
+
+          const cacheKey = `${slug}:${modelOverride}`;
+          let cachedAgent = this.activeAgents.get(cacheKey);
+
+          if (!cachedAgent) {
+            try {
+              // Get the original agent spec and tools
+              const originalSpec = this.agentSpecs.get(slug);
+              const originalTools = this.agentTools.get(slug);
+              const originalMemory = agent.getMemory();
+              const originalHooks = agent.hooks;
+
+              const resolvedModel = this.modelCatalog
+                ? await this.modelCatalog.resolveModelId(modelOverride)
+                : modelOverride;
+              const newModel = createBedrockProvider({
+                appConfig: this.appConfig,
+                agentSpec: {
+                  model: resolvedModel,
+                  region: originalSpec?.region || this.appConfig.region,
+                } as unknown as AgentSpec,
+              });
+
+              cachedAgent = new Agent({
+                ...agent,
+                name: cacheKey,
+                model: newModel,
+                tools: originalTools,
+                memory: originalMemory,
+                hooks: originalHooks,
+              });
+
+              this.activeAgents.set(cacheKey, cachedAgent);
+              this.logger.info('Created agent with model override', {
+                slug,
+                modelOverride,
+              });
+            } catch (modelError: any) {
+              this.logger.error(
+                'Failed to create agent with model override',
+                {
+                  slug,
+                  modelOverride,
+                  error: modelError,
+                },
+              );
+              return c.json(
+                {
+                  success: false,
+                  error: `Failed to switch to model ${modelOverride}: ${modelError.message}`,
+                },
+                500,
+              );
+            }
+          }
+
+          agent = cachedAgent;
+        }
+
+        // Set SSE headers
+        c.header('Content-Type', 'text/event-stream');
+        c.header('Cache-Control', 'no-cache');
+        c.header('Connection', 'keep-alive');
+        c.header('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+        return stream(c, async (streamWriter) => {
+          let conversationId: string | undefined;
+          let operationContext: any = {};
+          let completionReason = 'completed';
+          let hasOutput = false;
+          let accumulatedText = '';
+          let reasoningText = '';
+          let toolCallCount = 0;
+          let currentStep = 0;
+          let requestTraceId = '';
+          let isNewConversation = false;
+          let result: any;
+          const artifacts: Array<{
+            type: string;
+            name?: string;
+            content?: any;
+          }> = [];
+
+          try {
+            // Create injectable stream for elicitation
+            const injectableStream = new InjectableStream();
+
+            // Get auto-approve list from agent spec
+            const agentSpec = this.agentSpecs.get(slug);
+
+            // Elicitation callback that injects events instead of writing directly
+            const elicitation =
+              StreamOrchestrator.createElicitationCallback(
+                agentSpec!,
+                this.toolNameMapping,
+                this.approvalRegistry,
+                injectableStream,
+                this.logger,
+              );
+
+            operationContext = {
+              ...restOptions,
+              elicitation,
+            };
+
+            // Resolve userId from auth (override frontend default)
+            if (
+              !operationContext.userId ||
+              operationContext.userId === 'default-user'
+            ) {
+              try {
+                const { getCachedUser } = await import(
+                  '../routes/auth.js'
+                );
+                operationContext.userId =
+                  getCachedUser().alias || 'default-user';
+              } catch {
+                operationContext.userId =
+                  operationContext.userId || 'default-user';
+              }
+            }
+
+            // Generate conversationId if not provided (new conversation)
+            isNewConversation = !operationContext.conversationId;
+            if (isNewConversation && operationContext.userId) {
+              operationContext.conversationId = `${operationContext.userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+            }
+
+            // Create AbortController tied to client connection
+            const abortController = new AbortController();
+            conversationId = operationContext.conversationId;
+
+            // Listen for client disconnect and abort operation
+            c.req.raw.signal?.addEventListener('abort', () => {
+              this.logger.debug(
+                'Client disconnected, aborting operation',
+                { conversationId },
+              );
+              abortController.abort('Client disconnected');
+            });
+
+            // Pass abort signal to VoltAgent (it will create its own controller that listens to this)
+            operationContext.abortSignal = abortController.signal;
+            this.logger.debug('Abort signal configured', {
+              conversationId,
+            });
+
+            // Ensure conversation exists before streaming
+            const memory = agent.getMemory();
+            if (
+              memory &&
+              operationContext.conversationId &&
+              operationContext.userId
+            ) {
+              const existing = await memory.getConversation(
+                operationContext.conversationId,
+              );
+              if (!existing) {
+                // Use provided title or generate from first 50 chars of user message
+                const title =
+                  operationContext.title ||
+                  (input.length > 50
+                    ? `${input.substring(0, 50)}...`
+                    : input);
+                await memory.createConversation({
+                  id: operationContext.conversationId,
+                  resourceId: slug,
+                  userId: operationContext.userId,
+                  title,
+                  metadata: {},
+                });
+              }
+            }
+
+            // Generate trace ID for this request (before streamText so it's available in message metadata)
+            const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+            operationContext.traceId = traceId;
+
+            result = await agent.streamText(input, operationContext);
+
+            // Set agent status to running
+            this.agentStatus.set(slug, 'running');
+
+            // Emit monitoring event
+            const agentStartEvent = {
+              type: 'agent-start',
+              timestamp: new Date().toISOString(),
+              timestampMs: Date.now(),
+              agentSlug: slug,
+              conversationId: operationContext.conversationId,
+              userId: operationContext.userId,
+              traceId,
+              input:
+                typeof input === 'string'
+                  ? input
+                  : input?.text || '[complex input]',
+            };
+            this.monitoringEvents.emit('event', agentStartEvent);
+            await this.persistEvent(agentStartEvent);
+
+            // Initialize stats if needed
+            if (!this.agentStats.has(slug)) {
+              const adapter = this.memoryAdapters.get(slug);
+              if (adapter) {
+                const conversations =
+                  await adapter.getConversations(slug);
+                let totalMessages = 0;
+                for (const conv of conversations) {
+                  const messages = await adapter.getMessages(
+                    conv.userId,
+                    conv.id,
+                  );
+                  totalMessages += messages.length;
+                }
+                this.agentStats.set(slug, {
+                  conversationCount: conversations.length,
+                  messageCount: totalMessages,
+                  lastUpdated: Date.now(),
+                });
+              }
+            }
+
+            // Prevent unhandled rejections when stream is aborted mid-flight
+            const suppressAbortError = (err: any) =>
+              abortController.signal.aborted
+                ? undefined
+                : Promise.reject(err);
+
+            result.text?.catch(suppressAbortError);
+            result.usage?.catch(suppressAbortError);
+            result.finishReason?.catch(suppressAbortError);
+
+            // Helper to save standalone cancellation message
+            const saveCancellationMessage = async () => {
+              await StreamOrchestrator.saveCancellationMessage(
+                agent,
+                operationContext,
+              );
+            };
+
+            this.logger.info('Agent stream started', {
+              conversationId: operationContext.conversationId,
+              isNewConversation,
+            });
+
+            // Send conversationId as first event for new conversations
+            if (isNewConversation && operationContext.conversationId) {
+              const mem = agent.getMemory();
+              const conversation = mem
+                ? await mem.getConversation(
+                    operationContext.conversationId,
+                  )
+                : null;
+              await streamWriter.write(
+                `data: ${JSON.stringify({
+                  type: 'conversation-started',
+                  conversationId: operationContext.conversationId,
+                  title: conversation?.title || 'New Conversation',
+                })}\n\n`,
+              );
+            }
+
+            // Initialize streaming state variables
+            completionReason = 'completed';
+            hasOutput = false;
+            accumulatedText = '';
+            const _currentTextSegment = '';
+            reasoningText = '';
+            const _lastChunkWasToolResult = false;
+            const _hasEmittedReasoningForCurrentSegment = false;
+            toolCallCount = 0;
+            currentStep = 0;
+            requestTraceId = traceId; // Capture traceId for use in events
+            const _thinkingBuffer = ''; // Buffer for incomplete thinking tags
+            const _inThinkingBlock = false; // Track if we're currently in a <thinking> block
+            const _currentReasoningContent = ''; // Accumulate reasoning for monitoring event
+            const _recentChunks: any[] = []; // Track last 10 chunks for debugging
+            const _suppressTextStart = false; // Suppress text-start if response begins with <thinking>
+
+            // Use DEBUG_STREAMING env var for debug logging
+            const debugStreaming = process.env.DEBUG_STREAMING === 'true';
+
+            // Initialize StreamPipeline
+            const pipeline = StreamOrchestrator.createStreamingPipeline(
+              abortController.signal,
+              this.monitoringEvents,
+              {
+                slug,
+                conversationId: operationContext.conversationId,
+                userId: operationContext.userId,
+                traceId,
+              },
+            );
+
+            // Log model and tool configuration for debugging
+            const agentTools = this.agentTools.get(slug) || [];
+            const agentModel = agent.model as
+              | {
+                  modelId?: string;
+                  settings?: { maxTokens?: number; temperature?: number };
+                }
+              | undefined;
+            this.logger.debug('Stream starting', {
+              conversationId,
+              model: agentModel?.modelId,
+              toolCount: agentTools.length,
+              toolNames: agentTools.map((t) => t.name).slice(0, 5),
+              maxTokens: agentModel?.settings?.maxTokens,
+              temperature: agentModel?.settings?.temperature,
+              debugStreaming,
+            });
+
+            // Wrap fullStream with injectable stream
+            // ReasoningHandler buffers all chunks during thinking, so approval-request
+            // will be held until reasoning-end is emitted
+            const wrappedStream = injectableStream.wrap(
+              result.fullStream,
+            );
+
+            // Run pipeline and write chunks to stream
+            for await (const chunk of pipeline.run(wrappedStream)) {
+              await StreamOrchestrator.writeSSEChunk(streamWriter, chunk);
+            }
+
+            // Write [DONE] marker
+            await StreamOrchestrator.writeSSEDone(streamWriter);
+
+            // Get completion state from handlers
+            const results = await pipeline.finalize();
+
+            // Extract completion state for finally block
+            if (results.completion) {
+              hasOutput = results.completion.hasOutput;
+              completionReason = results.completion.completionReason;
+              accumulatedText = results.completion.accumulatedText;
+            }
+
+            // Check if aborted
+            if (abortController.signal.aborted) {
+              completionReason = 'aborted';
+              if (!hasOutput) await saveCancellationMessage();
+            }
+          } catch (error: any) {
+            const agentModelForError = agent.model as
+              | { modelId?: string }
+              | undefined;
+            this.logger.error('Stream error occurred', {
+              agentId: slug,
+              modelName: agentModelForError?.modelId,
+              conversationId: conversationId,
+              agentName: slug,
+              error,
+            });
+            await StreamOrchestrator.writeSSEError(streamWriter, error);
+            await StreamOrchestrator.writeSSEDone(streamWriter);
+          } finally {
+            // Agent stream completed
+            this.logger.info('Agent stream completed', {
+              conversationId: operationContext.conversationId,
+              reason: completionReason,
+            });
+
+            // Set agent status to idle
+            this.agentStatus.set(slug, 'idle');
+
+            // Add final text output to artifacts (excluding reasoning text)
+            const finalOutput = accumulatedText
+              .replace(reasoningText, '')
+              .trim();
+            if (finalOutput) {
+              artifacts.push({
+                type: 'text',
+                content: finalOutput,
+              });
+            }
+
+            // Collect usage stats
+            let usage;
+            try {
+              usage = await result.usage;
+            } catch (_e) {
+              // Usage might not be available
+            }
+
+            // Emit monitoring event
+            const agentCompleteEvent = {
+              type: 'agent-complete',
+              timestamp: new Date().toISOString(),
+              timestampMs: Date.now(), // High-precision timestamp
+              agentSlug: slug,
+              conversationId: operationContext.conversationId,
+              userId: operationContext.userId,
+              traceId: requestTraceId,
+              reason: completionReason,
+              artifacts,
+              steps: currentStep,
+              toolCallCount,
+              maxSteps: this.agentSpecs.get(slug)?.guardrails?.maxSteps,
+              inputChars:
+                typeof input === 'string'
+                  ? input.length
+                  : input?.text?.length || 0,
+              outputChars: finalOutput.length,
+              usage: usage
+                ? {
+                    promptTokens: usage.promptTokens,
+                    completionTokens: usage.completionTokens,
+                    totalTokens: usage.totalTokens,
+                  }
+                : undefined,
+            };
+            this.monitoringEvents.emit('event', agentCompleteEvent);
+            await this.persistEvent(agentCompleteEvent);
+
+            // Update cached stats (increment by 2: user message + assistant response)
+            const stats = this.agentStats.get(slug);
+            if (stats) {
+              stats.messageCount += 2;
+              stats.lastUpdated = Date.now();
+              if (isNewConversation) {
+                stats.conversationCount += 1;
+              }
+            }
+
+            // Log metrics for historical tracking
+            this.metricsLog.push({
+              timestamp: Date.now(),
+              agentSlug: slug,
+              event: 'completion',
+              conversationId: operationContext.conversationId,
+              messageCount: 2,
+              cost: 0, // TODO: Calculate from usage
+            });
+          }
+        });
+      } catch (error: any) {
+        this.logger.error('Chat error', { error });
+        const isCredentialError =
+          error.message?.includes('credential') ||
+          error.message?.includes('accessKeyId') ||
+          error.message?.includes('secretAccessKey');
+        return c.json(
+          { success: false, error: error.message },
+          isCredentialError ? 401 : 500,
+        );
+      }
+    });
   }
 
   /**

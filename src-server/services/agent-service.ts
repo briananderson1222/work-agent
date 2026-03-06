@@ -2,7 +2,7 @@
  * Agent Service - handles agent CRUD and lifecycle operations
  */
 
-import type { Agent } from '@voltagent/core';
+type Agent = any;
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec } from '../domain/types.js';
 

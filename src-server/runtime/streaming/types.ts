@@ -2,13 +2,13 @@
  * Core types for streaming pipeline architecture (Generator-based)
  */
 
-import type { TextStreamPart } from 'ai';
+import type { IStreamChunk } from '../types.js';
 
 /**
- * Raw chunk from VoltAgent's fullStream
- * This is already AI SDK compliant
+ * Stream chunk flowing through the pipeline.
+ * Alias for the framework-agnostic IStreamChunk interface.
  */
-export type StreamChunk = TextStreamPart<any>;
+export type StreamChunk = IStreamChunk;
 
 /**
  * Handler configuration options

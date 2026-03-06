@@ -12,7 +12,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
-import { createPinoLogger } from '@voltagent/logger';
+import { createLogger } from '../utils/logger.js';
 import { type FSWatcher, watch } from 'chokidar';
 import type { PluginOverrides } from '@stallion-ai/shared';
 import type {
@@ -28,7 +28,7 @@ import type {
 } from './types.js';
 import { validator } from './validator.js';
 
-const logger = createPinoLogger({ name: 'config-loader' });
+const logger = createLogger({ name: 'config-loader' });
 
 export interface ConfigLoaderOptions {
   projectHomeDir?: string;
