@@ -1,7 +1,6 @@
 {
   "name": "minimal-workspace",
   "version": "1.0.0",
-  "type": "workspace",
   "displayName": "Minimal Workspace",
   "description": "A minimal workspace plugin example",
   "entrypoint": "./index.tsx",

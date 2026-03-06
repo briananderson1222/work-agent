@@ -13,6 +13,7 @@ import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, unlinkSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build as esbuild } from 'esbuild';
 
 const __shared_dir = dirname(fileURLToPath(import.meta.url));
 
@@ -32,7 +33,6 @@ export interface PluginDependency {
 export interface PluginManifest {
   name: string;
   version: string;
-  type: 'workspace' | 'agent' | 'tool';
   sdkVersion?: string;
   displayName?: string;
   description?: string;
@@ -505,35 +505,135 @@ export function resolveGitInfo(hint?: string): {
   return { gitRoot, branch, hash, remote };
 }
 
+// ── Plugin Build ───────────────────────────────────────────────────
+
+/** Modules provided by the host app at runtime via window.__stallion_ai_shared */
+export const SHARED_EXTERNALS = [
+  'react',
+  'react/jsx-runtime',
+  'react/jsx-dev-runtime',
+  '@stallion-ai/sdk',
+  '@stallion-ai/components',
+  '@tanstack/react-query',
+  'dompurify',
+  'debug',
+  'zod',
+];
+
+/** esbuild filter regex matching all shared externals */
+export const SHARED_EXTERNALS_REGEX = /^react$|^react\/|^@stallion-ai\/sdk$|^@stallion-ai\/components$|^@tanstack\/react-query$|^dompurify$|^debug$|^zod$/;
+
+/** Runtime require() shim — maps externals to window.__stallion_ai_shared at runtime */
+export const RUNTIME_SHIM = [
+  'var __shared = (typeof window !== "undefined" && window.__stallion_ai_shared) || {};',
+  'var require = globalThis.require = function(m) {',
+  '  if (__shared[m]) return __shared[m];',
+  '  if (m === "react" || m === "react/jsx-runtime" || m === "react/jsx-dev-runtime") return __shared["react"];',
+  '  console.warn("[Plugin] Unknown shared module:", m);',
+  '  return {};',
+  '};',
+].join('\n');
+
+/** Registration footer — exposes plugin exports on window.__stallion_ai_plugins */
+export function registrationFooter(pluginName: string): string {
+  return `window.__stallion_ai_plugins = window.__stallion_ai_plugins || {}; window.__stallion_ai_plugins[${JSON.stringify(pluginName)}] = __plugin;`;
+}
+
+export interface BuildResult {
+  built: boolean;
+  bundlePath?: string;
+  cssPath?: string;
+}
+
 /**
- * Build a plugin if it has a build script and no existing bundle.
- * Returns true if a build was executed.
+ * Build a plugin. Workspace plugins (with entrypoint) use esbuild JS API directly.
+ * Provider-only plugins fall back to build.mjs / build.sh / npm run build.
  */
-export function buildPlugin(pluginDir: string): boolean {
+export async function buildPlugin(pluginDir: string, mode: 'production' | 'dev' = 'production'): Promise<BuildResult> {
+  const manifest = readPluginManifest(pluginDir);
+
+  // Workspace plugins: centralized esbuild build
+  if (manifest.entrypoint) {
+    return buildWorkspacePlugin(pluginDir, manifest, mode);
+  }
+
+  // Provider-only / custom plugins: fall back to existing scripts
+  return buildCustomPlugin(pluginDir);
+}
+
+async function buildWorkspacePlugin(pluginDir: string, manifest: PluginManifest, mode: 'production' | 'dev'): Promise<BuildResult> {
+  const isDev = mode === 'dev';
+  const outfile = join(pluginDir, 'dist', `bundle${isDev ? '-dev' : ''}.js`);
+
+  // Install deps + symlink shared
+  ensurePluginDeps(pluginDir);
+
+  mkdirSync(join(pluginDir, 'dist'), { recursive: true });
+
+  await esbuild({
+    entryPoints: [join(pluginDir, manifest.entrypoint!)],
+    bundle: true,
+    format: 'iife',
+    globalName: '__plugin',
+    outfile,
+    jsx: 'automatic',
+    sourcemap: isDev ? 'inline' : false,
+    banner: { js: RUNTIME_SHIM },
+    footer: { js: registrationFooter(manifest.name) },
+    define: { 'process.env.NODE_ENV': isDev ? '"development"' : '"production"' },
+    plugins: [{
+      name: 'externalize-shared',
+      setup(build) {
+        build.onResolve({ filter: SHARED_EXTERNALS_REGEX }, args => ({
+          path: args.path,
+          namespace: 'shared-external',
+        }));
+        build.onLoad({ filter: /.*/, namespace: 'shared-external' }, args => ({
+          contents: `module.exports = require('${args.path}')`,
+          loader: 'js',
+        }));
+      },
+    }],
+    logLevel: 'info',
+  });
+
+  const cssPath = outfile.replace(/\.js$/, '.css');
+  return {
+    built: true,
+    bundlePath: outfile,
+    cssPath: existsSync(cssPath) ? cssPath : undefined,
+  };
+}
+
+function buildCustomPlugin(pluginDir: string): BuildResult {
   const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
   const hasBuildSh = existsSync(join(pluginDir, 'build.sh'));
-  if (!hasBuildMjs && !hasBuildSh) return false;
-  if (existsSync(join(pluginDir, 'dist', 'bundle.js'))) return false;
+  if (!hasBuildMjs && !hasBuildSh) return { built: false };
+  if (existsSync(join(pluginDir, 'dist', 'bundle.js'))) return { built: false };
 
-  if (existsSync(join(pluginDir, 'package.json'))) {
-    execSync('npm install --legacy-peer-deps --ignore-scripts', {
-      cwd: pluginDir, timeout: 60000, stdio: 'pipe',
-    });
-    // Provide @stallion-ai/shared to plugins as a peer dependency at build time
-    const sharedLink = join(pluginDir, 'node_modules', '@stallion-ai', 'shared');
-    if (!existsSync(sharedLink)) {
-      mkdirSync(join(pluginDir, 'node_modules', '@stallion-ai'), { recursive: true });
-      try { unlinkSync(sharedLink); } catch {}
-      // __shared_dir is packages/shared/src in dev, but dist-server in bundle.
-      // Detect by checking for the shared package's own index.ts
-      const devRoot = resolve(__shared_dir, '..');
-      const sharedRoot = existsSync(join(devRoot, 'src', 'index.ts'))
-        ? devRoot
-        : resolve(__shared_dir, '..', 'packages', 'shared');
-      symlinkSync(sharedRoot, sharedLink);
-    }
-  }
+  ensurePluginDeps(pluginDir);
+
   const cmd = hasBuildMjs ? 'node build.mjs' : 'bash build.sh';
   execSync(cmd, { cwd: pluginDir, timeout: 30000, stdio: 'inherit' });
-  return true;
+  return { built: true };
+}
+
+/** Install plugin npm deps and symlink @stallion-ai/shared */
+function ensurePluginDeps(pluginDir: string): void {
+  if (!existsSync(join(pluginDir, 'package.json'))) return;
+
+  execSync('npm install --legacy-peer-deps --ignore-scripts', {
+    cwd: pluginDir, timeout: 60000, stdio: 'pipe',
+  });
+
+  const sharedLink = join(pluginDir, 'node_modules', '@stallion-ai', 'shared');
+  if (!existsSync(sharedLink)) {
+    mkdirSync(join(pluginDir, 'node_modules', '@stallion-ai'), { recursive: true });
+    try { unlinkSync(sharedLink); } catch {}
+    const devRoot = resolve(__shared_dir, '..');
+    const sharedRoot = existsSync(join(devRoot, 'src', 'index.ts'))
+      ? devRoot
+      : resolve(__shared_dir, '..', 'packages', 'shared');
+    symlinkSync(sharedRoot, sharedLink);
+  }
 }

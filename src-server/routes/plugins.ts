@@ -63,10 +63,11 @@ export function createPluginRoutes(
     return null;
   }
 
-  /** Run plugin build if build.mjs or build.sh exists */
-  function buildPlugin(pluginDir: string, name: string) {
+  /** Run plugin build if build script or entrypoint exists */
+  async function buildPlugin(pluginDir: string, name: string) {
     try {
-      if (buildPluginBundle(pluginDir)) {
+      const result = await buildPluginBundle(pluginDir);
+      if (result.built) {
         logger.info(`Plugin ${name}: build complete`);
       }
     } catch (e: any) {
@@ -295,7 +296,7 @@ export function createPluginRoutes(
       if (existsSync(targetDir)) rmSync(targetDir, { recursive: true });
       cpSync(tempDir, targetDir, { recursive: true });
       rmSync(tempDir, { recursive: true, force: true });
-      buildPlugin(targetDir, dep.id);
+      await buildPlugin(targetDir, dep.id);
       // Recurse into transitive deps
       try {
         const depManifest = JSON.parse(readFileSync(join(targetDir, 'plugin.json'), 'utf-8'));
@@ -455,7 +456,7 @@ export function createPluginRoutes(
       }
 
       // Build plugin (if build script exists)
-      buildPlugin(pluginDir, pluginName);
+      await buildPlugin(pluginDir, pluginName);
 
       // Copy bundled tool configs from plugin
       const copied = copyPluginTools(pluginDir, join(projectHomeDir, 'tools'));
@@ -646,7 +647,7 @@ export function createPluginRoutes(
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
 
       // Rebuild after update
-      buildPlugin(pluginDir, name);
+      await buildPlugin(pluginDir, name);
 
       // Re-copy tool configs
       copyPluginTools(pluginDir, join(projectHomeDir, 'tools'));
