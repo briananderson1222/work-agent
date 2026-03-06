@@ -3,7 +3,7 @@
  *
  * Pure Node environment — uses Intl.DateTimeFormat.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 async function getProvider() {
   vi.resetModules();

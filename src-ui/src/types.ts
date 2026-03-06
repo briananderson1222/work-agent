@@ -32,9 +32,10 @@ export interface AgentSummary {
   slug: string;
   name: string;
   model?: string;
-  updatedAt: string;
+  updatedAt?: string;
   description?: string;
   icon?: string;
+  plugin?: string;
   source?: 'local' | 'acp';
   ui?: AgentUIConfig;
   commands?: AgentCommands;

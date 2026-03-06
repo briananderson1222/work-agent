@@ -6,7 +6,7 @@
  * requires heavy context mocking), we test the routing logic directly
  * using the slash command registry functions that the hook delegates to.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // Import registry functions directly to test routing contracts
 // We re-import fresh each test to avoid state bleeding from builtins
@@ -46,7 +46,6 @@ async function routeCommand(
 
   // Fake context state
   const addEphemeralMessage = vi.fn();
-  const updateChat = vi.fn();
   const cleanup = () => {};
 
   // ACP agents: pass all slash commands through as prompt text
@@ -145,7 +144,7 @@ describe('slash command routing', () => {
   });
 
   it('registered handler found → returns true', async () => {
-    const { registerCommand, getCommand } = await getRegistry();
+    const { registerCommand } = await getRegistry();
     registerCommand('test-cmd', vi.fn());
 
     const result = await routeCommand('/test-cmd', {});

@@ -6,7 +6,7 @@
  * We test the underlying voiceRegistry directly since useTTS is a thin
  * wrapper over useVoiceProviderContext which subscribes to the registry.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // ── voiceRegistry tests (pure module, no React) ───────────────────────────────
 

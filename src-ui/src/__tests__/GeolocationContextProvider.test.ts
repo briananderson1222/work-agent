@@ -24,9 +24,9 @@ function makeMockGeolocation(): MockGeolocation {
   let watchIdCounter = 1;
 
   const geo: MockGeolocation = {
-    watchPosition: vi.fn((success: PositionCallback, error: ErrorCallback) => {
-      successCb = success;
-      errorCb = error;
+    watchPosition: vi.fn((success, error) => {
+      successCb = success as PositionCallback;
+      errorCb = error as ErrorCallback;
       return watchIdCounter++;
     }),
     clearWatch: vi.fn(),
