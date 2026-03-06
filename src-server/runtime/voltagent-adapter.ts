@@ -221,6 +221,17 @@ export class VoltAgentFramework {
     // MCP cleanup handled by runtime (it owns the maps)
   }
 
+  async createModel(spec: AgentSpec, config: AgentCreationConfig): Promise<any> {
+    const modelId = spec.model || config.appConfig.defaultModel;
+    const resolvedModel = config.modelCatalog
+      ? await config.modelCatalog.resolveModelId(modelId)
+      : modelId;
+    return createBedrockProvider({
+      appConfig: config.appConfig,
+      agentSpec: { ...spec, model: resolvedModel },
+    });
+  }
+
   async shutdown(): Promise<void> {
     // No-op — runtime handles MCP disconnection and agent map cleanup
   }

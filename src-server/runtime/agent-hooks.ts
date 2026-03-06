@@ -69,11 +69,13 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & { requestA
 
     afterInvocation: async (ctx) => {
       const { invocation, usage, toolCallCount } = ctx;
-      if (!invocation.conversationId || !usage) return;
+      if (!invocation.conversationId) return;
 
       try {
         const adapter = deps.memoryAdapters.get(invocation.agentSlug);
         if (!adapter) return;
+
+        if (!usage) return;
 
         const conversation = await adapter.getConversation(invocation.conversationId);
         if (!conversation) return;

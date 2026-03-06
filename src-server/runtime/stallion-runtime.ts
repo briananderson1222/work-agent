@@ -25,7 +25,6 @@ import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { UsageAggregator } from '../analytics/usage-aggregator.js';
 import { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
-import { createBedrockProvider } from '../providers/bedrock.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { createEventRoutes } from '../routes/events.js';
 import { EventBus } from '../services/event-bus.js';
@@ -372,12 +371,7 @@ export class StallionRuntime {
       name: 'default',
       instructions:
         'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
-      model: createBedrockProvider({
-        appConfig: this.appConfig,
-        agentSpec: {
-          model: this.appConfig.defaultModel,
-        } as unknown as AgentSpec,
-      }),
+      model: await this.createBedrockModel({ model: this.appConfig.defaultModel } as AgentSpec),
       tools: [], // No tools
     });
     agents.default = defaultAgent;
@@ -1195,10 +1189,7 @@ export class StallionRuntime {
         if (model && this.modelCatalog) {
           const resolvedModel =
             await this.modelCatalog.resolveModelId(model);
-          options.model = createBedrockProvider({
-            appConfig: this.appConfig,
-            agentSpec: { model: resolvedModel } as unknown as AgentSpec,
-          });
+          options.model = await this.createBedrockModel({ model: resolvedModel } as AgentSpec);
         }
 
         // Override tools if specified - get from our cached tools
@@ -1493,10 +1484,7 @@ export class StallionRuntime {
         if (model && this.modelCatalog) {
           const resolvedModel =
             await this.modelCatalog.resolveModelId(model);
-          options.model = createBedrockProvider({
-            appConfig: this.appConfig,
-            agentSpec: { model: resolvedModel } as unknown as AgentSpec,
-          });
+          options.model = await this.createBedrockModel({ model: resolvedModel } as AgentSpec);
         }
 
         // Override tools if specified - create temp agent with only filtered tools
@@ -1630,23 +1618,17 @@ export class StallionRuntime {
         const structureModelId =
           structureModel || this.appConfig.structureModel;
 
-        const mainModel = createBedrockProvider({
-          appConfig: this.appConfig,
-          agentSpec: {
-            model: this.modelCatalog
-              ? await this.modelCatalog.resolveModelId(invokeModelId)
-              : invokeModelId,
-          } as unknown as AgentSpec,
-        });
+        const mainModel = await this.createBedrockModel({
+          model: this.modelCatalog
+            ? await this.modelCatalog.resolveModelId(invokeModelId)
+            : invokeModelId,
+        } as AgentSpec);
 
-        const fastModel = createBedrockProvider({
-          appConfig: this.appConfig,
-          agentSpec: {
-            model: this.modelCatalog
-              ? await this.modelCatalog.resolveModelId(structureModelId)
-              : structureModelId,
-          } as unknown as AgentSpec,
-        });
+        const fastModel = await this.createBedrockModel({
+          model: this.modelCatalog
+            ? await this.modelCatalog.resolveModelId(structureModelId)
+            : structureModelId,
+        } as AgentSpec);
 
         const defaultSystem =
           "You are a helpful assistant. Use the available tools to answer the user's request accurately and concisely.";
@@ -1801,13 +1783,10 @@ export class StallionRuntime {
               const resolvedModel = this.modelCatalog
                 ? await this.modelCatalog.resolveModelId(modelOverride)
                 : modelOverride;
-              const newModel = createBedrockProvider({
-                appConfig: this.appConfig,
-                agentSpec: {
-                  model: resolvedModel,
-                  region: originalSpec?.region || this.appConfig.region,
-                } as unknown as AgentSpec,
-              });
+              const newModel = await this.createBedrockModel({
+                model: resolvedModel,
+                region: originalSpec?.region || this.appConfig.region,
+              } as AgentSpec);
 
               cachedAgent = new Agent({
                 ...agent,
@@ -2562,13 +2541,10 @@ export class StallionRuntime {
    * Create Bedrock model instance (used by inline routes for model overrides)
    */
   private async createBedrockModel(spec: AgentSpec) {
-    const modelId = spec.model || this.appConfig.defaultModel;
-    const resolvedModel = this.modelCatalog
-      ? await this.modelCatalog.resolveModelId(modelId)
-      : modelId;
-    return createBedrockProvider({
+    return this.framework.createModel(spec, {
       appConfig: this.appConfig,
-      agentSpec: { ...spec, model: resolvedModel },
+      projectHomeDir: this.configLoader.getProjectHomeDir(),
+      modelCatalog: this.modelCatalog,
     });
   }
 

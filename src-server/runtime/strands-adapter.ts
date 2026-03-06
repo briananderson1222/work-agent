@@ -37,6 +37,7 @@ import type {
   IStreamChunk,
   IStreamResult,
   ITool,
+  InvocationContext,
   TokenUsage,
 } from './types.js';
 import type { CreateAgentOptions } from './voltagent-adapter.js';
@@ -270,7 +271,7 @@ export class StrandsFramework {
 
     // Wire runtime-provided hooks into Strands' native hook system
     const hooks = config.hooks;
-    const invocationCtx = { agentSlug: slug };
+    const invocationCtx: InvocationContext = { agentSlug: slug };
     let toolCallCount = 0;
 
     if (hooks?.beforeToolCall) {
@@ -302,15 +303,47 @@ export class StrandsFramework {
       });
     }
 
-    if (hooks?.afterInvocation) {
+    {
+      const memoryAdapter = opts.memoryAdapter;
       strandsAgent.hooks.addCallback(AfterInvocationEvent, async (event) => {
-        await hooks.afterInvocation!({
-          invocation: invocationCtx,
-          usage: (event as any).metrics?.usage,
-          toolCallCount,
-          messages: (event as any).agent?.messages,
-        });
-        toolCallCount = 0; // Reset for next invocation
+        const agentMessages = (event as any).agent?.messages || [];
+        const ctx: InvocationContext = { ...invocationCtx };
+
+        // Sync Strands messages to persistent storage
+        if (agentMessages.length && ctx.conversationId) {
+          try {
+            const existing = await memoryAdapter.getMessages(
+              ctx.userId || '',
+              ctx.conversationId,
+            );
+            const delta = agentMessages.slice(existing?.length || 0);
+            for (const msg of delta) {
+              const role = msg.role || 'assistant';
+              const textParts = (msg.content || [])
+                .filter((b: any) => b.type === 'text')
+                .map((b: any) => ({ type: 'text' as const, text: b.text || '' }));
+              if (textParts.length) {
+                await memoryAdapter.addMessage(
+                  { id: crypto.randomUUID(), role, parts: textParts },
+                  ctx.userId || '',
+                  ctx.conversationId,
+                );
+              }
+            }
+          } catch (e) {
+            opts.logger.error('Failed to sync Strands messages', { error: e });
+          }
+        }
+
+        // Then shared stats/cost/enrichment
+        if (hooks?.afterInvocation) {
+          await hooks.afterInvocation({
+            invocation: invocationCtx,
+            usage: (event as any).metrics?.usage,
+            toolCallCount,
+          });
+        }
+        toolCallCount = 0;
       });
     }
 
@@ -426,6 +459,20 @@ export class StrandsFramework {
   }
 
   async destroyAgent(_slug: string): Promise<void> {}
+
+  async createModel(spec: AgentSpec, config: AgentCreationConfig): Promise<any> {
+    const modelId = spec.model || config.appConfig.defaultModel;
+    const resolvedModel = config.modelCatalog
+      ? await config.modelCatalog.resolveModelId(modelId)
+      : modelId;
+    return new BedrockModel({
+      modelId: resolvedModel,
+      region: spec.region || config.appConfig.region,
+      maxTokens: spec.guardrails?.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
+      temperature: spec.guardrails?.temperature,
+      topP: spec.guardrails?.topP,
+    });
+  }
 
   async shutdown(): Promise<void> {
     for (const [, client] of this.mcpClients) {

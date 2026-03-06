@@ -151,13 +151,15 @@ export interface IAgentHooks {
   /**
    * Called after the full agent invocation completes.
    * Used for: usage tracking, cost calculation, message enrichment,
-   * conversation stats update, persistence sync.
+   * conversation stats update.
+   *
+   * Does NOT handle message persistence — that's the adapter's job,
+   * since each framework has its own message format.
    */
   afterInvocation?(context: {
     invocation: InvocationContext;
     usage?: TokenUsage;
     toolCallCount: number;
-    messages?: any[];
     error?: Error;
   }): Promise<void>;
 }
@@ -191,4 +193,7 @@ export interface IAgentFramework {
   destroyAgent(slug: string): Promise<void>;
   loadTools(slug: string, spec: AgentSpec, opts: any): Promise<ITool[]>;
   shutdown(): Promise<void>;
+
+  /** Create a model provider instance for the given spec (used by temp agents and model overrides) */
+  createModel(spec: AgentSpec, config: AgentCreationConfig): Promise<any>;
 }
