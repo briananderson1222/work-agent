@@ -99,7 +99,13 @@
       "default": 14,
       "minimum": 10,
       "maximum": 24
+    },
+    "runtime": {
+      "type": "string",
+      "enum": ["voltagent", "strands"],
+      "description": "Agent framework runtime. Default: voltagent",
+      "default": "voltagent"
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }

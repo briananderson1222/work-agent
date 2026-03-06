@@ -33,6 +33,9 @@ import * as ConversationManager from './conversation-manager.js';
 import * as MCPManager from './mcp-manager.js';
 import * as StreamOrchestrator from './stream-orchestrator.js';
 import * as ToolExecutor from './tool-executor.js';
+import { VoltAgentFramework } from './voltagent-adapter.js';
+import type { CreateAgentOptions } from './voltagent-adapter.js';
+import { StrandsFramework } from './strands-adapter.js';
 
 // Type extensions for VoltAgent SDK
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
@@ -174,6 +177,7 @@ export class WorkAgentRuntime {
   private workspaceService!: WorkspaceService;
   private acpBridge: ACPManager;
   public readonly eventBus = new EventBus();
+  private framework!: VoltAgentFramework | StrandsFramework;
 
   constructor(options: WorkAgentRuntimeOptions = {}) {
     const projectHomeDir = options.projectHomeDir || '.stallion-ai';
@@ -296,9 +300,16 @@ export class WorkAgentRuntime {
 
     // Load app configuration
     this.appConfig = await this.configLoader.loadAppConfig();
+
+    // Select agent framework based on config
+    const runtime = this.appConfig.runtime || 'voltagent';
+    this.framework = runtime === 'strands'
+      ? new StrandsFramework()
+      : new VoltAgentFramework();
     this.logger.info('App config loaded', {
       region: this.appConfig.region,
       model: this.appConfig.defaultModel,
+      runtime,
     });
 
     // Registry providers are registered by plugins via loadProviders()
@@ -706,6 +717,13 @@ export class WorkAgentRuntime {
         logger: this.logger,
       }),
     );
+
+    // Runtime info — verify which agent framework is active
+    app.get('/runtime', (c) => {
+      return c.json({
+        runtime: this.appConfig.runtime || 'voltagent',
+      });
+    });
 
     // ACP connection status (all connections)
     app.get('/acp/status', async (c) => {
@@ -2455,111 +2473,74 @@ export class WorkAgentRuntime {
    * Create a VoltAgent Agent instance from agent spec
    */
   private async createVoltAgentInstance(agentSlug: string): Promise<Agent> {
-    // Load agent spec
     const spec = await this.configLoader.loadAgent(agentSlug);
-
-    // Cache spec for later use
     this.agentSpecs.set(agentSlug, spec);
-
-    // Create Bedrock provider
-    const model = await this.createBedrockModel(spec);
-
-    // Create memory adapter
-    const memoryAdapter = new FileVoltAgentMemoryAdapter({
-      projectHomeDir: this.configLoader.getProjectHomeDir(),
-      usageAggregator: this.usageAggregator,
-    });
-    const memory = new Memory({
-      storage: memoryAdapter,
-    });
-
-    // Store adapter for later access
-    this.memoryAdapters.set(agentSlug, memoryAdapter);
-
-    // Load and configure tools (including MCP)
-    const tools = await this.loadAgentTools(agentSlug, spec);
-
-    // Cache tools for runtime filtering
-    this.agentTools.set(agentSlug, tools);
-
-    // Add to global tool registry (deduplicated by name)
-    for (const tool of tools) {
-      if (!this.globalToolRegistry.has(tool.name)) {
-        this.globalToolRegistry.set(tool.name, tool);
-      }
-    }
-
-    // Calculate and cache fixed token counts (system prompt + tools)
-    // These don't change unless the agent is reloaded
-    const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
-    const toolsJson = JSON.stringify(
-      tools.map((t: any) => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters,
-      })),
-    );
-    const mcpServerTokens = Math.ceil(toolsJson.length / 4);
-
-    this.agentFixedTokens.set(agentSlug, {
-      systemPromptTokens,
-      mcpServerTokens,
-    });
-
-    this.logger.info('[Agent Initialized]', {
-      agent: agentSlug,
-      systemPromptTokens,
-      mcpServerTokens,
-      totalFixedTokens: systemPromptTokens + mcpServerTokens,
-    });
-
-    // Create hooks for tool approval (if autoApprove is configured)
-    const hooks = this.createToolApprovalHooks(spec);
 
     // Replace template variables in prompts
     const processedPrompt = this.replaceTemplateVariables(spec.prompt);
     const processedSystemPrompt = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : '';
-
-    // Combine global system prompt with agent-specific instructions
     const instructions = processedSystemPrompt
       ? `${processedSystemPrompt}\n\n${processedPrompt}`
       : processedPrompt;
 
-    // Create Agent instance
-    const agent = new Agent({
-      name: agentSlug, // Use slug for routing
-      instructions,
-      model,
-      memory,
-      tools,
-      hooks,
-      ...(spec.maxTurns !== undefined ||
-      this.appConfig.defaultMaxTurns !== undefined
-        ? {
-            maxTurns: spec.maxTurns ?? this.appConfig.defaultMaxTurns,
-          }
-        : {}),
-      ...(spec.guardrails && {
-        temperature: spec.guardrails.temperature,
-        maxOutputTokens:
-          spec.guardrails.maxTokens ?? this.appConfig.defaultMaxOutputTokens,
-        topP: spec.guardrails.topP,
-        maxSteps: spec.guardrails.maxSteps,
-      }),
-      ...(!spec.guardrails && this.appConfig.defaultMaxOutputTokens
-        ? {
-            maxOutputTokens: this.appConfig.defaultMaxOutputTokens,
-          }
-        : {}),
+    const memoryAdapter = new FileVoltAgentMemoryAdapter({
+      projectHomeDir: this.configLoader.getProjectHomeDir(),
+      usageAggregator: this.usageAggregator,
     });
 
-    return agent;
+    // Delegate to whichever framework adapter is active
+    const bundle = await this.framework.createAgent(
+      agentSlug,
+      spec,
+      {
+        appConfig: this.appConfig,
+        projectHomeDir: this.configLoader.getProjectHomeDir(),
+        usageAggregator: this.usageAggregator,
+        modelCatalog: this.modelCatalog,
+        approvalRegistry: this.approvalRegistry,
+      },
+      {
+        processedPrompt: instructions,
+        memoryAdapter,
+        configLoader: this.configLoader,
+        mcpConfigs: this.mcpConfigs,
+        mcpConnectionStatus: this.mcpConnectionStatus,
+        integrationMetadata: this.integrationMetadata,
+        toolNameMapping: this.toolNameMapping,
+        toolNameReverseMapping: this.toolNameReverseMapping,
+        approvalRegistry: this.approvalRegistry,
+        agentFixedTokens: this.agentFixedTokens,
+        memoryAdapters: this.memoryAdapters,
+        logger: this.logger,
+      },
+    );
+
+    // Unpack bundle into runtime state
+    this.memoryAdapters.set(agentSlug, bundle.memoryAdapter);
+    this.agentTools.set(agentSlug, bundle.tools as Tool<any>[]);
+    this.agentFixedTokens.set(agentSlug, bundle.fixedTokens);
+
+    for (const tool of bundle.tools) {
+      if (!this.globalToolRegistry.has(tool.name)) {
+        this.globalToolRegistry.set(tool.name, tool as Tool<any>);
+      }
+    }
+
+    this.logger.info('[Agent Initialized]', {
+      agent: agentSlug,
+      runtime: this.appConfig.runtime || 'voltagent',
+      ...bundle.fixedTokens,
+      totalFixedTokens: bundle.fixedTokens.systemPromptTokens + bundle.fixedTokens.mcpServerTokens,
+    });
+
+    // Return raw VoltAgent Agent for backward compat, or the IAgent wrapper for Strands
+    return (bundle.agent as any).raw || bundle.agent;
   }
 
   /**
-   * Create Bedrock model instance
+   * Create Bedrock model instance (used by inline routes for model overrides)
    */
   private async createBedrockModel(spec: AgentSpec) {
     const modelId = spec.model || this.appConfig.defaultModel;
@@ -2570,42 +2551,6 @@ export class WorkAgentRuntime {
       appConfig: this.appConfig,
       agentSpec: { ...spec, model: resolvedModel },
     });
-  }
-
-  /**
-   * Load tools for an agent (regular tools + MCP tools)
-   */
-  private async loadAgentTools(
-    agentSlug: string,
-    spec: AgentSpec,
-  ): Promise<Tool<any>[]> {
-    return MCPManager.loadAgentTools(
-      agentSlug,
-      spec,
-      this.configLoader,
-      this.mcpConfigs,
-      this.mcpConnectionStatus,
-      this.integrationMetadata,
-      this.toolNameMapping,
-      this.toolNameReverseMapping,
-      this.logger,
-    );
-  }
-
-  /**
-   * Create tool approval hooks based on agent configuration
-   * Tools in autoApprove list execute automatically, others require user confirmation
-   */
-  private createToolApprovalHooks(spec: AgentSpec) {
-    return ToolExecutor.createToolApprovalHooks(
-      spec,
-      this.appConfig,
-      this.configLoader,
-      this.modelCatalog,
-      this.agentFixedTokens,
-      this.memoryAdapters,
-      this.logger,
-    );
   }
 
   /**

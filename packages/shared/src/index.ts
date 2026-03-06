@@ -208,6 +208,7 @@ export interface AppConfig {
   defaultModel: string;
   invokeModel: string;
   structureModel: string;
+  runtime?: 'voltagent' | 'strands';
   defaultMaxTurns?: number;
   defaultMaxOutputTokens?: number;
   systemPrompt?: string;
