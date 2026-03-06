@@ -9,18 +9,34 @@ src-server/
 ├── runtime/             # VoltAgent runtime integration
 │   ├── streaming/       # Streaming handlers
 │   └── stallion-runtime.ts  # Core runtime (should be minimal)
-├── routes/              # HTTP route handlers
+├── routes/              # HTTP route handlers (18 files)
 │   ├── agents.ts
-│   ├── tools.ts
-│   ├── workspaces.ts
 │   ├── analytics.ts
-│   ├── monitoring.ts
+│   ├── auth.ts
 │   ├── bedrock.ts
+│   ├── branding.ts
 │   ├── config.ts
-│   └── conversations.ts
+│   ├── conversations.ts
+│   ├── events.ts
+│   ├── fs.ts
+│   ├── insights.ts
+│   ├── models.ts
+│   ├── monitoring.ts
+│   ├── plugins.ts
+│   ├── registry.ts
+│   ├── scheduler.ts
+│   ├── system.ts
+│   ├── tools.ts
+│   └── workspaces.ts
 ├── services/            # Business logic services
+│   ├── acp-bridge.ts
 │   ├── agent-service.ts
+│   ├── approval-registry.ts
+│   ├── builtin-scheduler.ts
+│   ├── event-bus.ts
 │   ├── mcp-service.ts
+│   ├── plugin-permissions.ts
+│   ├── scheduler-service.ts
 │   └── workspace-service.ts
 ├── adapters/            # Storage adapters
 ├── providers/           # LLM providers (Bedrock)
@@ -509,3 +525,158 @@ This pattern is used in `stallion-runtime.ts` (OTel recording + monitoring event
 ### Dashboard
 
 The Grafana dashboard JSON lives at `monitoring/grafana/dashboards/stallion.json` and is bind-mounted into the container. Edits to the file are reflected immediately. The datasource uses a stable UID (`stallion-prometheus`) set in `monitoring/runtime/grafana-provisioning/datasources/prometheus.yml`.
+
+## Additional Services
+
+### ACP Bridge (`services/acp-bridge.ts`)
+
+Connects Stallion to external AI agents via the [Agent Client Protocol](https://agentclientprotocol.dev). Spawns a subprocess (e.g. `kiro-cli acp`), communicates over stdin/stdout using ndjson, and translates ACP session events into the same SSE streaming format the UI already consumes — so the UI works unchanged.
+
+See [docs/guides/acp.md](../guides/acp.md) for full setup and configuration details.
+
+**Key classes:**
+- `ACPConnection` — manages one subprocess connection: lifecycle (start/stop/reconnect), mode switching, model switching, chat handling, session persistence, and terminal management.
+- `ACPManager` — manages multiple `ACPConnection` instances from config; exposes the same interface as the old single bridge.
+
+**Public API:**
+```typescript
+// ACPManager
+manager.startAll(configs)           // start all enabled connections
+manager.addConnection(config)       // add/replace a single connection
+manager.removeConnection(id)        // shutdown and remove
+manager.hasAgent(slug)              // check if slug belongs to any connection
+manager.getVirtualAgents()          // list all ACP-backed agent descriptors
+manager.getSlashCommands(slug)      // slash commands advertised by the agent
+manager.getCommandOptions(slug, partial) // autocomplete for slash commands
+manager.handleChat(c, slug, input, options) // stream a chat turn as SSE
+manager.getStatus()                 // connection health for all connections
+manager.shutdown()                  // stop everything
+```
+
+**When to use:** When you need to expose an external CLI-based AI agent (e.g. kiro-cli) as a first-class Stallion agent without rewriting its logic. The bridge handles reconnection, session resumption, tool approval, terminal management, and MCP OAuth prompts automatically.
+
+---
+
+### Approval Registry (`services/approval-registry.ts`)
+
+Shared registry for pending tool-approval requests. Both VoltAgent elicitation hooks and ACP permission requests use this to pause execution and wait for the user to approve or reject a tool call via the UI.
+
+**Public API:**
+```typescript
+registry.register(approvalId, timeoutMs?)  // returns Promise<boolean> — resolves when user responds
+registry.resolve(approvalId, approved)     // called by the tool-approval route; returns false if not found
+registry.has(approvalId)                   // check if an approval is pending
+ApprovalRegistry.generateId(prefix?)       // generate a unique approval ID
+```
+
+**Flow:**
+1. Service calls `register(id)` and awaits the promise (blocks the tool call).
+2. SSE stream emits a `tool-approval-request` event to the UI.
+3. User approves/rejects via `POST /tool-approval/:id`.
+4. Route calls `resolve(id, approved)`, unblocking the awaiting service.
+5. Unanswered requests auto-resolve to `false` after `timeoutMs` (default 60 s).
+
+**When to use:** Any time a tool call requires explicit user consent before proceeding. Do not implement ad-hoc approval flows — use this registry so all approvals share the same UI surface.
+
+---
+
+### Event Bus (`services/event-bus.ts`)
+
+Typed pub/sub for server-side state changes. Services emit named events; the SSE `/events` endpoint subscribes and pushes them to connected browser clients.
+
+**Public API:**
+```typescript
+bus.emit(event, data?)          // broadcast to all subscribers
+bus.subscribe(fn)               // returns an unsubscribe function
+```
+
+**Built-in events (by convention):**
+| Event | Emitted by | Meaning |
+|---|---|---|
+| `agents:changed` | ACP bridge, agent service | Agent list changed |
+| `acp:status` | ACP bridge | Connection status changed |
+
+**When to use:** Emit an event whenever server-side state changes that the UI should react to in real time (e.g. agent list updated, connection status changed). Subscribe in the `/events` SSE route — do not poll from the UI.
+
+---
+
+### Plugin Permissions (`services/plugin-permissions.ts`)
+
+Three-tier permission model for installed plugins. Grants are persisted in `plugin-grants.json` keyed by plugin name.
+
+**Tiers:**
+
+| Tier | Permissions | Behavior |
+|---|---|---|
+| `passive` | `navigation.dock`, `storage.read` | Auto-granted at install time |
+| `active` | `network.fetch`, `storage.write`, `agents.invoke`, `tools.invoke` | Requires user consent |
+| `trusted` | `providers.register`, `system.config` | Requires consent + warning |
+
+**Public API:**
+```typescript
+getPermissionTier(permission)                          // → PermissionTier
+needsConsent(permission)                               // → boolean
+getPluginGrants(projectHomeDir, pluginName)            // → string[]
+grantPermissions(projectHomeDir, pluginName, perms)    // persist grants
+revokeAllGrants(projectHomeDir, pluginName)            // remove all grants
+hasGrant(projectHomeDir, pluginName, permission)       // check single grant
+processInstallPermissions(projectHomeDir, pluginName, declared)
+  // → { autoGranted, pendingConsent }  — call at install time
+```
+
+**When to use:** Call `processInstallPermissions` during plugin install to auto-grant passive permissions and surface the consent list to the user. Call `hasGrant` at runtime before executing any privileged plugin action.
+
+---
+
+### Built-in Scheduler (`services/builtin-scheduler.ts`)
+
+In-process cron engine with no external dependencies. Persists jobs and logs as JSON files under `~/.stallion-ai/scheduler/`. Executes jobs by spawning `kiro-cli chat --prompt <prompt>` as a subprocess.
+
+**Public API** (implements `ISchedulerProvider`):
+```typescript
+scheduler.start()                          // begin ticking every 60 s
+scheduler.stop()                           // stop the tick interval
+scheduler.listJobs()                       // → SchedulerJob[] (with lastRun/nextRun)
+scheduler.addJob(opts)                     // create a new cron job
+scheduler.editJob(target, opts)            // update job fields
+scheduler.removeJob(target)               // delete a job
+scheduler.runJob(target)                  // trigger immediately
+scheduler.enableJob(target) / disableJob(target)
+scheduler.getJobLogs(target, count?)      // last N log entries
+scheduler.getRunOutput(target)            // stdout of last run
+scheduler.previewSchedule(cron, count?)  // next N fire times as ISO strings
+scheduler.subscribe(send)                 // SSE subscription; returns unsubscribe fn
+nextCronTimes(cron, count, after?)        // exported helper — next N fire times
+```
+
+**Cron format:** Standard 5-field UTC (`min hour dom month dow`). Supports `*`, ranges (`1-5`), steps (`*/15`), and lists (`1,15`).
+
+**When to use:** Use `BuiltinScheduler` directly only if you need the raw engine. In practice, always go through `SchedulerService` which routes to the correct provider.
+
+---
+
+### Scheduler Service (`services/scheduler-service.ts`)
+
+Multi-provider router that aggregates jobs and stats from all registered `ISchedulerProvider` implementations. The built-in scheduler is always registered; plugins can register additional providers (e.g. cloud schedulers).
+
+**Public API:**
+```typescript
+service.addProvider(provider)              // register a plugin-supplied provider
+service.listProviders()                    // → [{ id, displayName, capabilities, formFields }]
+service.listJobs()                         // aggregated from all providers
+service.addJob(opts)                       // routes to opts.provider (default: built-in)
+service.editJob(target, opts)             // auto-routes to owning provider
+service.removeJob(target)
+service.runJob(target)
+service.enableJob(target) / disableJob(target)
+service.getJobLogs(target, count?)
+service.getRunOutput(target)
+service.readRunFile(path)                  // read a log output file (path-validated)
+service.previewSchedule(cron, count?)
+service.getStats()                         // → { providers, summary }
+service.getStatus()                        // → { providers }
+service.subscribe(send)                    // fan-out SSE to all providers; returns unsubscribe fn
+service.broadcast(event)                   // push an event to all SSE clients
+```
+
+**When to use:** Always use `SchedulerService` (injected via routes) rather than `BuiltinScheduler` directly. This ensures plugin-provided schedulers are included in all operations.

@@ -392,3 +392,127 @@ Enable in browser: `localStorage.debug = 'app:*'`
 6. **Inline styles** - Extract to CSS classes
 7. **Large components** - Extract when > 300 lines
 8. **console.log** - Use structured logging
+
+## packages/connect
+
+Connection management for multi-device and remote Stallion instances. Handles saving/loading server URLs, tracking connection status, QR-based pairing, and local network discovery.
+
+### When to use
+
+Use `packages/connect` when building UI that needs to:
+- Let users add, switch, or remove Stallion server connections
+- Show live connection status (connected / disconnected / error)
+- Generate or scan QR codes for pairing a mobile device to a desktop server
+- Discover Stallion instances on the local network
+
+### Exports
+
+```typescript
+// Core (framework-agnostic)
+import {
+  ConnectionStore,          // manages saved connections in storage
+  LocalStorageAdapter,      // default browser storage adapter
+  defaultStorage,           // pre-built LocalStorageAdapter instance
+} from '@stallion-ai/connect';
+
+// Types
+import type {
+  SavedConnection,          // { id, name, url, ... }
+  StorageAdapter,           // interface for custom storage backends
+  ConnectionStatus,         // 'connected' | 'disconnected' | 'error' | 'checking'
+  DiscoveredServer,         // server found via network discovery
+} from '@stallion-ai/connect';
+
+// React
+import {
+  ConnectionsProvider,      // context provider — wrap app root
+  useConnections,           // access saved connections + CRUD
+  useConnectionStatus,      // live status for a given connection URL
+  useHostUrl,               // resolve the active host URL
+  useNetworkDiscovery,      // scan local network for Stallion instances
+  QRDisplay,                // render a QR code for a URL
+  QRScanner,                // scan a QR code from camera
+  ConnectionManagerModal,   // full connection management UI
+  ConnectionStatusDot,      // small status indicator dot
+} from '@stallion-ai/connect';
+```
+
+### Usage pattern
+
+```typescript
+// 1. Wrap your app
+<ConnectionsProvider>
+  <App />
+</ConnectionsProvider>
+
+// 2. Use in components
+const { connections, addConnection, removeConnection, activeConnection } = useConnections();
+const { status } = useConnectionStatus({ url: activeConnection?.url });
+const { url } = useHostUrl();
+```
+
+### What belongs here vs SDK
+
+- `packages/connect` — connection lifecycle, pairing, discovery, status
+- `packages/sdk` — data fetching against a known connected server
+
+---
+
+## packages/shared
+
+Single source of truth for all types, config parsers, and API contracts shared across the monorepo. Consumed by `src-server`, `packages/sdk`, and `packages/cli`.
+
+### When to import from shared vs SDK
+
+| Need | Import from |
+|---|---|
+| TypeScript types (AgentSpec, PluginManifest, WorkspaceConfig, etc.) | `@stallion-ai/shared` |
+| API response shapes (ToolCallResponse, AgentInvokeResponse) | `@stallion-ai/shared` |
+| Config file parsers (readPluginManifest, readAgentSpec, etc.) | `@stallion-ai/shared` |
+| Plugin install helpers (copyPluginTools, buildPlugin) | `@stallion-ai/shared` |
+| React Query hooks for fetching data | `@stallion-ai/sdk` |
+| Context hooks (useAgents, useWorkspaces, etc.) | `@stallion-ai/sdk` |
+
+**Rule:** If it's a type or a pure function that works in Node and the browser, it belongs in `shared`. If it requires React or browser APIs, it belongs in `sdk`.
+
+### Key exports
+
+```typescript
+// Types
+import type {
+  AgentSpec, AgentMetadata, AgentGuardrails, AgentTools,
+  PluginManifest, PluginManifest, PluginComponent, PluginPreview,
+  WorkspaceConfig, WorkspaceTab, WorkspaceMetadata,
+  ToolDef, ToolMetadata,
+  AppConfig, TemplateVariable,
+  ConversationStats, MemoryEvent, SessionMetadata,
+  UserIdentity, UserDetailVM,
+  AuthStatus, RegistryItem, InstallResult,
+  Prerequisite, ConflictInfo,
+  // API contracts
+  ToolCallResponse, AgentInvokeResponse,
+} from '@stallion-ai/shared';
+
+// Config parsers
+import {
+  readPluginManifest,     // parse plugin.json
+  readAgentSpec,          // parse agent JSON
+  readWorkspaceConfig,    // parse workspace JSON
+  readToolDef,            // parse tool.json
+  listToolIds,            // list tool IDs from a tools/ dir
+  resolvePluginTools,     // resolve all tools declared by a plugin
+  copyPluginTools,        // copy plugin tools/ to project tools dir
+  buildPlugin,            // build a plugin if it has a build script
+  resolveGitInfo,         // get git root, branch, hash, remote
+} from '@stallion-ai/shared';
+
+// Permission helpers (re-exported from plugin-permissions)
+import {
+  getPermissionTier, needsConsent,
+  processInstallPermissions,
+} from '@stallion-ai/shared';
+```
+
+### Do not redefine shared types
+
+If you need a type that describes an agent, workspace, tool, or plugin — check `@stallion-ai/shared` first. Adding duplicate type definitions in `src-server`, `packages/sdk`, or plugins causes drift and breaks the contract between layers.
