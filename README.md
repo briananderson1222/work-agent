@@ -273,10 +273,10 @@ Plugin management:
 
 ## Monitoring
 
-Stallion includes OpenTelemetry instrumentation for traces, metrics, and logs. The monitoring stack runs as a Docker Compose profile:
+Stallion includes OpenTelemetry instrumentation for traces, metrics, and logs. The monitoring stack has its own compose file:
 
 ```bash
-docker compose --profile monitoring up -d
+cd monitoring && docker compose up -d
 ```
 
 This starts:
@@ -343,6 +343,18 @@ npm run build:server
 npm run dev:ui &
 npx playwright test tests/plugin-system.spec.ts
 ```
+
+## Documentation
+
+| Doc | Description |
+|-----|-------------|
+| [API Summary](docs/API_SUMMARY.md) | Quick reference for all endpoints |
+| [API Reference](docs/API.md) | Detailed endpoint documentation |
+| [Backend Patterns](docs/BACKEND_PATTERNS.md) | Server architecture, routes, telemetry |
+| [Frontend Patterns](docs/FRONTEND_PATTERNS.md) | React, hooks, styling, SDK |
+| [Plugins](docs/PLUGINS.md) | Plugin architecture and development |
+| [Workspace Agents](docs/WORKSPACE_AGENTS.md) | Agent configuration and management |
+| [Custom Commands](docs/CUSTOM_COMMANDS.md) | Slash command system |
 
 ## License
 
