@@ -314,13 +314,13 @@ export class StrandsFramework {
       });
     }
 
-    // Wrap in IAgent
+    // Wrap in IAgent — pass memory adapter so conversations persist
     const agent = new StrandsAgentWrapper(
       strandsAgent,
       slug,
       slug,
       model,
-      null, // Memory handled by runtime's existing adapter
+      opts.memoryAdapter as unknown as IMemory,
     );
 
     return {

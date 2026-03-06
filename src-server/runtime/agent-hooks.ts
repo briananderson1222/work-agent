@@ -33,8 +33,6 @@ export interface AgentHooksDeps {
   memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>;
   approvalRegistry: ApprovalRegistry;
   logger: any;
-  /** Callback to request approval via the streaming pipeline */
-  requestApproval?: (tool: ToolCallContext) => Promise<boolean>;
 }
 
 // ── Factory ────────────────────────────────────────────
@@ -42,20 +40,23 @@ export interface AgentHooksDeps {
 /**
  * Create framework-agnostic hook implementations.
  * Pass the returned hooks to the adapter via config.hooks.
+ *
+ * The returned object has a mutable `requestApproval` slot that the
+ * chat handler sets per-request (it needs the InjectableStream which
+ * only exists during streaming).
  */
-export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks {
+export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & { requestApproval?: (tool: ToolCallContext) => Promise<boolean> } {
   const autoApprove = deps.spec.tools?.autoApprove || [];
 
-  return {
+  const hooks: IAgentHooks & { requestApproval?: (tool: ToolCallContext) => Promise<boolean> } = {
     beforeToolCall: async (tool, _invocation) => {
       if (isAutoApproved(tool.toolName, autoApprove)) {
         return true;
       }
-      // Delegate to the streaming pipeline's approval flow
-      if (deps.requestApproval) {
-        return deps.requestApproval(tool);
+      if (hooks.requestApproval) {
+        return hooks.requestApproval(tool);
       }
-      // No approval mechanism available — auto-approve
+      // No approval mechanism (e.g. silent invocation) — auto-approve
       return true;
     },
 
@@ -149,6 +150,8 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks {
       }
     },
   };
+
+  return hooks;
 }
 
 // ── Helpers ────────────────────────────────────────────

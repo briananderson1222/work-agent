@@ -141,6 +141,7 @@ export class WorkAgentRuntime {
     string,
     { systemPromptTokens: number; mcpServerTokens: number }
   > = new Map(); // Cache fixed token counts per agent
+  private agentHooksMap: Map<string, ReturnType<typeof createAgentHooks>> = new Map();
   private toolNameMapping: Map<
     string,
     {
@@ -1900,6 +1901,20 @@ export class WorkAgentRuntime {
               elicitation,
             };
 
+            // Wire approval flow into framework-agnostic hooks (for Strands adapter)
+            const agentHooks = this.agentHooksMap.get(slug);
+            if (agentHooks) {
+              agentHooks.requestApproval = async (tool) => {
+                const result = await elicitation({
+                  type: 'tool-approval',
+                  toolName: tool.toolName,
+                  toolDescription: tool.toolDescription || '',
+                  toolArgs: tool.toolArgs,
+                });
+                return !!result;
+              };
+            }
+
             // Resolve userId from auth (override frontend default)
             if (
               !operationContext.userId ||
@@ -2534,6 +2549,7 @@ export class WorkAgentRuntime {
     this.memoryAdapters.set(agentSlug, bundle.memoryAdapter);
     this.agentTools.set(agentSlug, bundle.tools as Tool<any>[]);
     this.agentFixedTokens.set(agentSlug, bundle.fixedTokens);
+    this.agentHooksMap.set(agentSlug, hooks);
 
     for (const tool of bundle.tools) {
       if (!this.globalToolRegistry.has(tool.name)) {
