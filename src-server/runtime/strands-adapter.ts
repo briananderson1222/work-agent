@@ -119,6 +119,10 @@ function mapStreamEvent(event: AgentStreamEvent): IStreamChunk | null {
 class StrandsAgentWrapper implements IAgent {
   private strandsAgent: StrandsAgent;
   private memory: IMemory | null;
+  /** Accumulated usage from the last stream — read by AfterInvocationEvent hook */
+  _lastStreamUsage: { promptTokens?: number; completionTokens?: number } | null = null;
+  /** Mutable invocation context — updated per-request so hooks see conversationId/userId */
+  _invocationCtx: InvocationContext;
 
   constructor(
     strandsAgent: StrandsAgent,
@@ -126,24 +130,46 @@ class StrandsAgentWrapper implements IAgent {
     public readonly name: string,
     public readonly model: any,
     memory: IMemory | null,
+    invocationCtx: InvocationContext,
   ) {
     this.strandsAgent = strandsAgent;
     this.memory = memory;
+    this._invocationCtx = invocationCtx;
   }
 
   async generateText(prompt: string, _options?: any): Promise<IGenerateResult> {
-    const result = await this.strandsAgent.invoke(prompt);
-    const msg = result.lastMessage;
-    const reasoningBlocks = msg?.content?.filter((b: any) => b.type === 'reasoningBlock') || [];
-    const reasoning = reasoningBlocks.map((b: any) => b.reasoningText || b.text || '').join('\n') || undefined;
-    return {
-      text: result.toString(),
-      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      reasoning,
-    };
+    // Use stream() internally to capture usage from modelMetadataEvent
+    let fullText = '';
+    let reasoning = '';
+    const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+    for await (const event of this.strandsAgent.stream(prompt)) {
+      if (event.type === 'agentResultEvent') {
+        const agentResult = (event as any).result as AgentResult;
+        fullText = agentResult.toString();
+        const msg = agentResult.lastMessage;
+        const reasoningBlocks = msg?.content?.filter((b: any) => b.type === 'reasoningBlock') || [];
+        reasoning = reasoningBlocks.map((b: any) => b.reasoningText || b.text || '').join('\n');
+        continue;
+      }
+      // Capture usage from metadata events
+      const mapped = mapStreamEvent(event);
+      if (mapped && mapped.type === 'usage') {
+        usage.promptTokens += (mapped as any).promptTokens || 0;
+        usage.completionTokens += (mapped as any).completionTokens || 0;
+        usage.totalTokens = usage.promptTokens + usage.completionTokens;
+      }
+    }
+
+    return { text: fullText, usage, reasoning: reasoning || undefined };
   }
 
   async streamText(input: string, _options?: any): Promise<IStreamResult> {
+    // Merge per-request context (conversationId, userId) into shared invocationCtx
+    if (_options) {
+      if (_options.conversationId) this._invocationCtx.conversationId = _options.conversationId;
+      if (_options.userId) this._invocationCtx.userId = _options.userId;
+    }
     const agent = this.strandsAgent;
     let resolveUsage: (u: any) => void;
     let resolveFinish: (r: string) => void;
@@ -160,6 +186,8 @@ class StrandsAgentWrapper implements IAgent {
       let emittedStart = false;
       let emittedTextStart = false;
       const stream = agent.stream(input);
+      const accUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+      self._lastStreamUsage = null;
 
       // Emit synthetic start events (VoltAgent emits these, UI expects them)
       yield { type: 'start', id: '0' };
@@ -170,16 +198,19 @@ class StrandsAgentWrapper implements IAgent {
           const agentResult = (event as any).result as AgentResult;
           resolveText(agentResult.toString());
           resolveFinish(agentResult.stopReason || 'end_turn');
-          const metrics = (event as any).metrics;
-          const usage: TokenUsage = metrics?.usage
-            ? { promptTokens: metrics.usage.inputTokens, completionTokens: metrics.usage.outputTokens, totalTokens: (metrics.usage.inputTokens || 0) + (metrics.usage.outputTokens || 0) }
-            : { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-          resolveUsage(usage);
+          resolveUsage(accUsage);
           continue;
         }
 
         const mapped = mapStreamEvent(event);
         if (mapped) {
+          // Accumulate usage from metadata events
+          if (mapped.type === 'usage') {
+            accUsage.promptTokens += (mapped as any).promptTokens || 0;
+            accUsage.completionTokens += (mapped as any).completionTokens || 0;
+            accUsage.totalTokens = accUsage.promptTokens + accUsage.completionTokens;
+            self._lastStreamUsage = { promptTokens: accUsage.promptTokens, completionTokens: accUsage.completionTokens };
+          }
           // Emit synthetic text-start before first text-delta
           if (mapped.type === 'text-delta' && !emittedTextStart) {
             yield { type: 'text-start', id: '0' };
@@ -196,7 +227,7 @@ class StrandsAgentWrapper implements IAgent {
 
       resolveText(fullText);
       resolveFinish('end_turn');
-      resolveUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+      resolveUsage(accUsage);
     }
 
     return {
@@ -262,11 +293,13 @@ export class StrandsFramework {
     );
     const mcpServerTokens = Math.ceil(toolsJson.length / 4);
 
-    // Create Strands Agent
+    // Create Strands Agent — pass McpClient instances directly so the SDK
+    // registers tools with proper toolSpec and handles execution natively
+    const mcpClients = Array.from(this.mcpClients.values());
     const strandsAgent = new StrandsAgent({
       model,
       systemPrompt: opts.processedPrompt,
-      tools: tools as any[],
+      tools: mcpClients,
     });
 
     // Wire runtime-provided hooks into Strands' native hook system
@@ -303,9 +336,27 @@ export class StrandsFramework {
       });
     }
 
+    // Wrap in IAgent — pass memory adapter so conversations persist
+    const wrapper = new StrandsAgentWrapper(
+      strandsAgent,
+      slug,
+      slug,
+      model,
+      opts.memoryAdapter as unknown as IMemory,
+      invocationCtx,
+    );
+
     {
       const memoryAdapter = opts.memoryAdapter;
       strandsAgent.hooks.addCallback(AfterInvocationEvent, async (event) => {
+        opts.logger.info('[Strands] AfterInvocationEvent fired', {
+          hasMessages: !!((event as any).agent?.messages?.length),
+          messageCount: (event as any).agent?.messages?.length || 0,
+          lastStreamUsage: wrapper._lastStreamUsage,
+          conversationId: invocationCtx.conversationId,
+          userId: invocationCtx.userId,
+          agentSlug: invocationCtx.agentSlug,
+        });
         const agentMessages = (event as any).agent?.messages || [];
         const ctx: InvocationContext = { ...invocationCtx };
 
@@ -317,10 +368,16 @@ export class StrandsFramework {
               ctx.conversationId,
             );
             const delta = agentMessages.slice(existing?.length || 0);
+            opts.logger.info('[Strands] Syncing messages', {
+              total: agentMessages.length,
+              existing: existing?.length || 0,
+              delta: delta.length,
+              conversationId: ctx.conversationId,
+            });
             for (const msg of delta) {
               const role = msg.role || 'assistant';
               const textParts = (msg.content || [])
-                .filter((b: any) => b.type === 'text')
+                .filter((b: any) => b.text !== undefined)
                 .map((b: any) => ({ type: 'text' as const, text: b.text || '' }));
               if (textParts.length) {
                 await memoryAdapter.addMessage(
@@ -339,7 +396,7 @@ export class StrandsFramework {
         if (hooks?.afterInvocation) {
           await hooks.afterInvocation({
             invocation: invocationCtx,
-            usage: (event as any).metrics?.usage,
+            usage: wrapper._lastStreamUsage || (event as any).metrics?.usage,
             toolCallCount,
           });
         }
@@ -347,17 +404,8 @@ export class StrandsFramework {
       });
     }
 
-    // Wrap in IAgent — pass memory adapter so conversations persist
-    const agent = new StrandsAgentWrapper(
-      strandsAgent,
-      slug,
-      slug,
-      model,
-      opts.memoryAdapter as unknown as IMemory,
-    );
-
     return {
-      agent,
+      agent: wrapper,
       tools,
       memoryAdapter: opts.memoryAdapter,
       fixedTokens: { systemPromptTokens, mcpServerTokens },

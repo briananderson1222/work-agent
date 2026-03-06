@@ -32,6 +32,7 @@ import * as ConversationManager from './conversation-manager.js';
 import * as MCPManager from './mcp-manager.js';
 import * as StreamOrchestrator from './stream-orchestrator.js';
 import * as ToolExecutor from './tool-executor.js';
+import { SpanStatusCode } from '@opentelemetry/api';
 import {
   chatRequests,
   chatDuration,
@@ -39,6 +40,7 @@ import {
   tokensInput,
   tokensOutput,
   registerObservableGauges,
+  tracer,
 } from '../telemetry/metrics.js';
 import { createAgentHooks } from './agent-hooks.js';
 import { VoltAgentFramework } from './voltagent-adapter.js';
@@ -1853,6 +1855,9 @@ export class StallionRuntime {
           let isNewConversation = false;
           let result: any;
           const chatStartMs = Date.now();
+          const chatSpan = tracer.startSpan('stallion.chat', {
+            attributes: { 'stallion.agent': slug },
+          });
           const artifacts: Array<{
             type: string;
             name?: string;
@@ -2136,6 +2141,8 @@ export class StallionRuntime {
               if (!hasOutput) await saveCancellationMessage();
             }
           } catch (error: any) {
+            chatSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+            chatSpan.recordException(error);
             const agentModelForError = agent.model as
               | { modelId?: string }
               | undefined;
@@ -2234,6 +2241,12 @@ export class StallionRuntime {
               tokensInput.add(usage.promptTokens || usage.inputTokens || 0, { agent: slug });
               tokensOutput.add(usage.completionTokens || usage.outputTokens || 0, { agent: slug });
             }
+
+            // Close OTel span
+            chatSpan.setAttribute('stallion.conversation_id', operationContext.conversationId || '');
+            chatSpan.setAttribute('stallion.tokens.input', usage?.promptTokens || usage?.inputTokens || 0);
+            chatSpan.setAttribute('stallion.tokens.output', usage?.completionTokens || usage?.outputTokens || 0);
+            chatSpan.end();
           }
         });
       } catch (error: any) {

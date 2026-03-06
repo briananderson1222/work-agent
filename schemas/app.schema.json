@@ -103,7 +103,13 @@
     "gitRemote": {
       "type": "string",
       "description": "Git remote URL resolved on first build, used for update checks"
+    },
+    "runtime": {
+      "type": "string",
+      "enum": ["voltagent", "strands"],
+      "description": "Agent framework runtime. Default: voltagent",
+      "default": "voltagent"
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }
