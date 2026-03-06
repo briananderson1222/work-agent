@@ -63,13 +63,13 @@ function MobilePairingSection() {
               maxWidth: 320,
             }}
           >
-            Showing localhost — your Android device may not be able to reach
+            Showing localhost — your device may not be able to reach
             this address. Make sure both devices are on the same network and
             use your computer's LAN IP.
           </div>
         )}
         <span className="form-help">
-          Scan this QR code with the Android app to connect to this server
+          Scan this QR code with the mobile app to connect to this server
           automatically.
         </span>
       </div>

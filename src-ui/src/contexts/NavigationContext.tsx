@@ -23,12 +23,19 @@ type NavigationState = {
   fontSize: number | null;
 };
 
+const LAST_WORKSPACE_KEY = 'stallion-last-workspace';
+
 class NavigationStore {
   private state: NavigationState;
   private listeners = new Set<() => void>();
   private isNavigating = false;
+  /** Persisted workspace — survives navigation to non-workspace pages */
+  lastWorkspace: string | null;
 
   constructor() {
+    this.lastWorkspace = typeof window !== 'undefined'
+      ? localStorage.getItem(LAST_WORKSPACE_KEY)
+      : null;
     this.state = this.parseUrl();
 
     // Listen for browser navigation
@@ -195,6 +202,8 @@ class NavigationStore {
 
   setWorkspace(slug: string | null) {
     if (slug) {
+      this.lastWorkspace = slug;
+      try { localStorage.setItem(LAST_WORKSPACE_KEY, slug); } catch {}
       this.navigate(`/workspaces/${slug}`);
     } else {
       this.navigate('/');
@@ -315,6 +324,7 @@ export function useNavigation() {
 
   return {
     ...state,
+    lastWorkspace: navigationStore.lastWorkspace,
     ...context,
   };
 }

@@ -6,6 +6,7 @@ import {
 } from '@stallion-ai/connect';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import { useBranding } from '../hooks/useBranding';
 import type { NavigationView } from '../types';
@@ -42,8 +43,13 @@ export function Header({
   const settingsShortcut = useShortcutDisplay('app.settings');
   const { user: authUser } = useAuth();
   const { appName } = useBranding();
+  const { lastWorkspace } = useNavigation();
   const userName = authUser?.name || authUser?.alias || 'User';
   const userInitials = getInitials(userName);
+  // When on a non-workspace page, show the last-selected workspace (disabled)
+  const displayWorkspace = !selectedWorkspace && lastWorkspace
+    ? workspaces.find((w: any) => w.slug === lastWorkspace) || null
+    : null;
   const [showWorkspaceAutocomplete, setShowWorkspaceAutocomplete] =
     useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -90,16 +96,16 @@ export function Header({
         disabled={!selectedWorkspace || workspaces.length <= 1}
         title={
           !selectedWorkspace
-            ? 'No workspace selected'
+            ? displayWorkspace?.name || 'No workspace selected'
             : workspaces.length > 1
               ? 'Switch workspace'
               : selectedWorkspace.name
         }
       >
-        {selectedWorkspace ? (
+        {(selectedWorkspace || displayWorkspace) ? (
           <>
-            <WorkspaceIcon workspace={selectedWorkspace} size={20} />
-            <span>{selectedWorkspace.name}</span>
+            <WorkspaceIcon workspace={selectedWorkspace || displayWorkspace} size={20} />
+            <span>{(selectedWorkspace || displayWorkspace).name}</span>
           </>
         ) : (
           <span>No Workspace</span>

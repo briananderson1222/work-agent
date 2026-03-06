@@ -1,5 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  FullScreenError,
+  FullScreenLoader,
   useWorkspaceQuery,
   useWorkspacesQuery,
   WorkspaceNavigationProvider,
@@ -178,23 +180,12 @@ export function WorkspaceView() {
   // Backend unreachable
   if (!backendChecking && !backendReady) {
     return (
-      <div
-        style={{
-          padding: '2rem',
-          textAlign: 'center',
-          color: 'var(--text-secondary)',
-        }}
-      >
-        <p style={{ marginBottom: '0.75rem' }}>
-          Unable to connect to backend server
-        </p>
-        <p style={{ fontSize: '0.85rem', marginBottom: '1rem', opacity: 0.7 }}>
-          The server at {apiBase} is not responding
-        </p>
-        <button className="button button--secondary" onClick={retryBackend}>
-          Retry Connection
-        </button>
-      </div>
+      <FullScreenError
+        title="Unable to connect"
+        description={`The server at <code>${apiBase}</code> is not responding`}
+        onRetry={retryBackend}
+        retryLabel="Retry Connection"
+      />
     );
   }
 
@@ -207,27 +198,16 @@ export function WorkspaceView() {
       return <EmptyWorkspaceOnboarding />;
     }
     return (
-      <div
-        style={{
-          padding: '2rem',
-          textAlign: 'center',
-          color: 'var(--text-secondary)',
-        }}
-      >
-        <p style={{ marginBottom: '0.75rem' }}>Failed to load workspace</p>
-        <button className="button button--secondary" onClick={() => refetch()}>
-          Retry
-        </button>
-      </div>
+      <FullScreenError
+        title="Failed to load workspace"
+        description="Something went wrong loading this workspace. It might be a temporary issue."
+        onRetry={() => refetch()}
+      />
     );
   }
 
   if (isLoading || backendChecking || !workspace) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>Loading workspace...</p>
-      </div>
-    );
+    return <FullScreenLoader label="workspace" />;
   }
 
   return (

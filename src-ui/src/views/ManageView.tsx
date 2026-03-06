@@ -1,4 +1,5 @@
 import type { NavigationView } from '../types';
+import './page-layout.css';
 import './ManageView.css';
 
 /* ── SVG Icons ── */
@@ -36,7 +37,7 @@ export function ManageView({ workspaceCount, agentCount, onNavigate }: ManageVie
   };
 
   return (
-    <div className="manage">
+    <div className="manage page page--narrow">
       <div className="manage__header">
         <div className="manage__label">sys / manage</div>
         <h1 className="manage__title">Configuration</h1>

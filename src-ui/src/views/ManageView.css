@@ -1,18 +1,6 @@
-/* ManageView — industrial-refined admin hub */
+/* ManageView — admin hub cards */
 
 
-
-.manage {
-  padding: 2.5rem 2rem;
-  max-width: 960px;
-  margin: 0 auto;
-  animation: manage-fade-in 0.4s ease-out;
-}
-
-@keyframes manage-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 
 .manage__header {
   margin-bottom: 2.5rem;

@@ -46,6 +46,7 @@ function App() {
   const {
     selectedAgent,
     selectedWorkspace,
+    lastWorkspace,
     setWorkspace,
     setWorkspaceTab,
     navigate,
@@ -124,8 +125,9 @@ function App() {
 
     // Update URL based on view type
     if (view.type === 'workspace') {
-      if (selectedWorkspace && selectedWorkspace !== 'new') {
-        navigate(`/workspaces/${selectedWorkspace}`);
+      const target = selectedWorkspace || lastWorkspace;
+      if (target && target !== 'new') {
+        navigate(`/workspaces/${target}`);
       } else {
         navigate('/');
       }
@@ -164,7 +166,7 @@ function App() {
     } else if (view.type === 'workspace-edit' && 'slug' in view) {
       navigate(`/workspaces/${view.slug}/edit`);
     }
-  }, [selectedWorkspace, navigate]);
+  }, [selectedWorkspace, lastWorkspace, navigate]);
 
   const navigateToWorkspace = useCallback(() => {
     setCurrentView({ type: 'workspace' });
@@ -344,7 +346,7 @@ function App() {
 
   // Drag handling - handled by ChatDock
 
-  // Auto-select first workspace if none selected
+  // Auto-select workspace if none selected — prefer last-used, fall back to first
   useEffect(() => {
     if (
       workspaces.length > 0 &&
@@ -352,7 +354,10 @@ function App() {
       !selectedAgent &&
       currentView.type === 'workspace'
     ) {
-      setWorkspace(workspaces[0].slug);
+      const target = lastWorkspace && workspaces.find((w: any) => w.slug === lastWorkspace)
+        ? lastWorkspace
+        : workspaces[0].slug;
+      setWorkspace(target);
     }
   }, [
     workspaces,
@@ -360,6 +365,7 @@ function App() {
     selectedAgent,
     currentView.type,
     setWorkspace,
+    lastWorkspace,
   ]);
 
 

@@ -1,15 +1,5 @@
 /* ═══ Settings View ═══ */
 
-
-
-.settings {
-  padding: 2rem 2rem 3rem;
-  width: 100%;
-  max-width: 860px;
-  margin: 0 auto;
-  font-family: 'DM Sans', system-ui, sans-serif;
-}
-
 /* ── Page Header ── */
 .settings__header {
   display: flex; align-items: baseline; justify-content: space-between;

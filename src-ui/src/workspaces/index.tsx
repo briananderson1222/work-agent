@@ -1,4 +1,5 @@
 import { log } from '@/utils/logger';
+import { FullScreenError } from '@stallion-ai/sdk';
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
 import { pluginRegistry } from '../core/PluginRegistry';
 import type {
@@ -159,6 +160,6 @@ export function WorkspaceRenderer({
     );
   } catch (error) {
     log.api('Error rendering workspace:', error);
-    return <div>Error loading workspace navigation</div>;
+    return <FullScreenError title="Error loading workspace" description="Something unexpected happened while rendering this workspace." onRetry={() => window.location.reload()} />;
   }
 }

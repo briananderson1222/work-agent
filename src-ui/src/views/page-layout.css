@@ -1,25 +1,29 @@
 /* ═══ Shared Page Layout ═══
  * Common classes for all core management views.
- * Provides consistent header, typography, animation, and container styling
- * matching the ManageView industrial-refined aesthetic.
+ * Provides consistent header, typography, animation, and container styling.
+ * All management views MUST use .page as their root container class.
  */
 
 
 
 /* ── Page Container ── */
 .page {
-  padding: 2.5rem 2rem;
-  max-width: 1200px;
+  padding: 2rem 1.5rem;
+  max-width: 1600px;
   margin: 0 auto;
   font-family: 'DM Sans', system-ui, sans-serif;
   animation: page-fade-in 0.4s ease-out;
 }
 
-.page--narrow { max-width: 860px; }
+.page--narrow { max-width: 960px; }
 
 @keyframes page-fade-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .page { padding: 1.5rem 1rem; }
 }
 
 /* ── Page Header ── */

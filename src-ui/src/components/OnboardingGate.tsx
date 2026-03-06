@@ -5,10 +5,10 @@
  */
 
 import { ConnectionManagerModal, useConnections } from '@stallion-ai/connect';
+import { FullScreenError, FullScreenLoader } from '@stallion-ai/sdk';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useSystemStatus, verifyBedrock } from '../hooks/useSystemStatus';
 import { useBranding } from '../hooks/useBranding';
-import './OnboardingGate.css';
 
 function checkServerHealth(url: string): Promise<boolean> {
   return fetch(`${url}/api/system/status`).then((r) => r.ok).catch(() => false);
@@ -19,7 +19,6 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   const { apiBase, activeConnection } = useConnections();
   const { appName, welcomeMessage } = useBranding();
   const [path, setPath] = useState<'bedrock' | 'acp' | null>(null);
-  const [serverUrl, setServerUrl] = useState(apiBase);
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{
     verified: boolean;
@@ -33,35 +32,9 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     if (status?.ready) wasConnected.current = true;
   }, [status?.ready]);
 
-  // Keep manual server URL input in sync with active connection
-  useEffect(() => {
-    setServerUrl(apiBase);
-  }, [apiBase]);
-
   // Loading state
   if (isLoading) {
-    return (
-      <div className="onboarding-loading">
-        <div className="onboarding-loading__content">
-          <div className="onboarding-loading__logo-wrap">
-            <div className="onboarding-loading__logo-glow" />
-            <div className="onboarding-loading__logo-ring" />
-            <img
-              src="/favicon.png"
-              alt=""
-              className="onboarding-loading__logo"
-            />
-          </div>
-          <div className="onboarding-loading__label">sys / status</div>
-          <div className="onboarding-loading__status">
-            Checking system status
-            <span className="onboarding-loading__dots">
-              <span>.</span><span>.</span><span>.</span>
-            </span>
-          </div>
-        </div>
-      </div>
-    );
+    return <FullScreenLoader label="sys / status" />;
   }
 
   // Can't reach server
@@ -87,78 +60,12 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     // First-time connection failure — full blocking screen
     return (
       <>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100vh',
-            background: 'var(--bg-primary, #0a0a0a)',
-            color: 'var(--text-primary, #e5e5e5)',
-            padding: 24,
-          }}
-        >
-          <div style={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
-            <img
-              src="/favicon.png"
-              alt=""
-              style={{ width: 48, height: 48, marginBottom: 16, opacity: 0.7 }}
-            />
-            <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 600 }}>
-              Can't reach server
-            </h2>
-            <p
-              style={{
-                margin: '0 0 24px',
-                fontSize: 13,
-                color: 'var(--text-secondary, #999)',
-                lineHeight: 1.5,
-              }}
-            >
-              Could not connect to <code style={codeStyle}>{apiBase}</code>. On
-              Android, enter your server's IP address instead of localhost.
-            </p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                type="text"
-                value={serverUrl}
-                onChange={(e) => setServerUrl(e.target.value)}
-                placeholder="http://192.168.1.x:3141"
-                style={{
-                  flex: 1,
-                  padding: '10px 12px',
-                  fontSize: 13,
-                  background: 'var(--bg-secondary, #1a1a1a)',
-                  border: '1px solid var(--border-primary, #333)',
-                  borderRadius: 8,
-                  color: 'var(--text-primary, #e5e5e5)',
-                  outline: 'none',
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') setShowModal(true);
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button
-                onClick={() => setShowModal(true)}
-                style={buttonStyle}
-              >
-                Manage Connections
-              </button>
-            </div>
-            <p
-              style={{
-                margin: '12px 0 0',
-                fontSize: 12,
-                color: 'var(--text-muted, #666)',
-              }}
-            >
-              Run the server on your computer and enter its local IP (e.g.{' '}
-              <code style={codeStyle}>http://192.168.1.50:3141</code>)
-            </p>
-          </div>
-        </div>
+        <FullScreenError
+          title="Can't reach server"
+          description={`Could not connect to <code>${apiBase}</code>. If connecting from another device, use your server's IP address instead of localhost.`}
+          onRetry={() => setShowModal(true)}
+          retryLabel="Manage Connections"
+        />
         <ConnectionManagerModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
