@@ -1180,9 +1180,9 @@ function isInstalled(): boolean {
     existsSync(join(CWD, 'dist-ui'));
 }
 
-function start(): void {
+function start(serverPort = 3141, uiPort = 3000): void {
   if (isRunning()) {
-    console.log('✓ Already running\n  UI:   http://localhost:3000\n  Stop: stallion stop');
+    console.log(`✓ Already running\n  UI:   http://localhost:${uiPort}\n  Stop: stallion stop`);
     return;
   }
 
@@ -1197,11 +1197,12 @@ function start(): void {
   stop(); // clean up stale pids
 
   const serverProc = spawn('node', ['dist-server/index.js'], {
-    cwd: CWD, stdio: 'ignore', detached: true, env: { ...process.env },
+    cwd: CWD, stdio: 'ignore', detached: true,
+    env: { ...process.env, PORT: String(serverPort) },
   });
   serverProc.unref();
 
-  const uiProc = spawn('npx', ['serve', 'dist-ui', '-s', '-l', '3000'], {
+  const uiProc = spawn('npx', ['serve', 'dist-ui', '-s', '-l', String(uiPort)], {
     cwd: CWD, stdio: 'ignore', detached: true, env: { ...process.env },
   });
   uiProc.unref();
@@ -1213,28 +1214,11 @@ function start(): void {
   try {
     process.kill(serverProc.pid!, 0);
     process.kill(uiProc.pid!, 0);
-    console.log(`\n  ✓ Server: http://localhost:${process.env.PORT || 3141}`);
-    console.log('  ✓ UI:     http://localhost:3000');
+    console.log(`\n  ✓ Server: http://localhost:${serverPort}`);
+    console.log(`  ✓ UI:     http://localhost:${uiPort}`);
     console.log('\n  Stop with: stallion stop');
-
-    // Save git remote to config for update checks (config now exists from server init)
-    if (firstBuild) {
-      try {
-        const configPath = join(PROJECT_HOME, 'config', 'app.json');
-        if (existsSync(configPath)) {
-          const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-          if (!config.gitRemote) {
-            const remote = execSync('git remote get-url origin', { cwd: CWD, encoding: 'utf-8' }).trim();
-            if (remote) {
-              config.gitRemote = remote;
-              writeFileSync(configPath, JSON.stringify(config, null, 2));
-            }
-          }
-        }
-      } catch {}
-    }
   } catch {
-    console.error('Failed to start. Check that ports 3141 and 3000 are free.');
+    console.error(`Failed to start. Check that ports ${serverPort} and ${uiPort} are free.`);
     stop();
     process.exit(1);
   }
@@ -1442,10 +1426,17 @@ try {
     case 'build':
       build();
       break;
-    case 'start':
+    case 'start': {
       if (args.includes('--clean')) clean(args.includes('--force'));
-      start();
+      let serverPort = 3141;
+      let uiPort = 3000;
+      for (const arg of args) {
+        if (arg.startsWith('--port=')) serverPort = parseInt(arg.split('=')[1], 10);
+        else if (arg.startsWith('--ui-port=')) uiPort = parseInt(arg.split('=')[1], 10);
+      }
+      start(serverPort, uiPort);
       break;
+    }
     case 'stop':
       stop();
       break;
@@ -1489,6 +1480,8 @@ Usage:
   stallion start                Start the application (auto-builds if needed)
     --clean               Wipe and rebuild before starting
     --force               Skip confirmation prompt (use with --clean)
+    --port=<n>            Server port (default: 3141)
+    --ui-port=<n>         UI port (default: 3000)
   stallion stop                 Stop running application
   stallion upgrade              Pull latest + rebuild (keeps plugins)
 

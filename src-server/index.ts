@@ -3,6 +3,7 @@
  * Main entry point
  */
 
+import './telemetry.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 // import 'dotenv/config';

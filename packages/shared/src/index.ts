@@ -387,6 +387,17 @@ export function copyPluginTools(
  * Build a plugin if it has a build script and no existing bundle.
  * Returns true if a build was executed.
  */
+/**
+ * Resolve the git root directory from a given path.
+ */
+export function resolveGitInfo(cwd: string): { gitRoot: string } {
+  const gitRoot = execSync('git rev-parse --show-toplevel', {
+    cwd,
+    encoding: 'utf-8',
+  }).trim();
+  return { gitRoot };
+}
+
 export function buildPlugin(pluginDir: string): boolean {
   const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
   const hasBuildSh = existsSync(join(pluginDir, 'build.sh'));

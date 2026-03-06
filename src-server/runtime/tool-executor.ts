@@ -9,6 +9,7 @@ import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
+import { contextTokens as otelContextTokens, costEstimated as otelCost } from '../telemetry/metrics.js';
 
 // Type extensions for tool executor
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
@@ -264,9 +265,9 @@ export function createToolApprovalHooks(
         // Calculate context tokens: accumulated outputs + latest input
         // Context represents what's in memory (grows with conversation)
         const newOutputTokens =
-          existingStats.outputTokens + (usage.completionTokens || 0);
+          existingStats.outputTokens + (usage.completionTokens || usage.outputTokens || 0);
         const newInputTokens =
-          existingStats.inputTokens + (usage.promptTokens || 0);
+          existingStats.inputTokens + (usage.promptTokens || usage.inputTokens || 0);
 
         // Get fixed token counts from cache (calculated once at agent initialization)
         const fixedTokens = agentFixedTokens.get(agentSlug);
@@ -373,9 +374,9 @@ export function createToolApprovalHooks(
         };
 
         const newModelOutputTokens =
-          currentModelStats.outputTokens + (usage.completionTokens || 0);
+          currentModelStats.outputTokens + (usage.completionTokens || usage.outputTokens || 0);
         const newModelInputTokens =
-          currentModelStats.inputTokens + (usage.promptTokens || 0);
+          currentModelStats.inputTokens + (usage.promptTokens || usage.inputTokens || 0);
 
         // Per-model context is harder to track accurately, use accumulated outputs as approximation
         const modelContextTokens =
@@ -402,6 +403,10 @@ export function createToolApprovalHooks(
             modelStats,
           },
         });
+
+        // Record OTel context and cost metrics
+        otelContextTokens.add(systemPromptTokens + mcpServerTokens, { agent: agentSlug });
+        otelCost.add(cost, { agent: agentSlug });
 
         // Enrich the last assistant message with model metadata and usage
         try {
@@ -461,8 +466,8 @@ export function createToolApprovalHooks(
                     }
                   : undefined,
                 usage: {
-                  inputTokens: usage.promptTokens || 0,
-                  outputTokens: usage.completionTokens || 0,
+                  inputTokens: usage.promptTokens || usage.inputTokens || 0,
+                  outputTokens: usage.completionTokens || usage.outputTokens || 0,
                   totalTokens: usage.totalTokens || 0,
                   estimatedCost: cost,
                 },
@@ -492,8 +497,8 @@ export async function calculateCost(
   appConfig: AppConfig,
   logger: any,
 ): Promise<number> {
-  const inputTokens = usage.promptTokens || 0;
-  const outputTokens = usage.completionTokens || 0;
+  const inputTokens = usage.promptTokens || usage.inputTokens || 0;
+  const outputTokens = usage.completionTokens || usage.outputTokens || 0;
 
   if (!modelCatalog) {
     return 0;

@@ -33,6 +33,14 @@ import * as ConversationManager from './conversation-manager.js';
 import * as MCPManager from './mcp-manager.js';
 import * as StreamOrchestrator from './stream-orchestrator.js';
 import * as ToolExecutor from './tool-executor.js';
+import {
+  chatRequests,
+  chatDuration,
+  chatErrors,
+  tokensInput,
+  tokensOutput,
+  registerObservableGauges,
+} from '../telemetry/metrics.js';
 
 // Type extensions for VoltAgent SDK
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
@@ -411,6 +419,12 @@ export class WorkAgentRuntime {
     });
 
     this.logger.debug('Stallion Runtime initialized', { port: this.port });
+
+    // Register OTel observable gauges
+    registerObservableGauges({
+      activeAgents: () => this.activeAgents.size,
+      mcpConnections: () => this.mcpConnectionStatus.size,
+    });
 
     // Load persisted events from disk
     await this.loadEventsFromDisk();
@@ -1853,6 +1867,7 @@ export class WorkAgentRuntime {
           let requestTraceId = '';
           let isNewConversation = false;
           let result: any;
+          const chatStartMs = Date.now();
           const artifacts: Array<{
             type: string;
             name?: string;
@@ -2112,6 +2127,9 @@ export class WorkAgentRuntime {
               completionReason = results.completion.completionReason;
               accumulatedText = results.completion.accumulatedText;
             }
+            if (results.metadata) {
+              toolCallCount = results.metadata.toolCalls || 0;
+            }
 
             // Check if aborted
             if (abortController.signal.aborted) {
@@ -2181,9 +2199,9 @@ export class WorkAgentRuntime {
               outputChars: finalOutput.length,
               usage: usage
                 ? {
-                    promptTokens: usage.promptTokens,
-                    completionTokens: usage.completionTokens,
-                    totalTokens: usage.totalTokens,
+                    promptTokens: usage.promptTokens || usage.inputTokens || 0,
+                    completionTokens: usage.completionTokens || usage.outputTokens || 0,
+                    totalTokens: usage.totalTokens || 0,
                   }
                 : undefined,
             };
@@ -2209,10 +2227,19 @@ export class WorkAgentRuntime {
               messageCount: 2,
               cost: 0, // TODO: Calculate from usage
             });
+
+            // Record OTel metrics
+            chatRequests.add(1, { agent: slug });
+            chatDuration.record(Date.now() - chatStartMs, { agent: slug });
+            if (usage) {
+              tokensInput.add(usage.promptTokens || usage.inputTokens || 0, { agent: slug });
+              tokensOutput.add(usage.completionTokens || usage.outputTokens || 0, { agent: slug });
+            }
           }
         });
       } catch (error: any) {
         this.logger.error('Chat error', { error });
+        chatErrors.add(1, { agent: slug });
         const isCredentialError =
           error.message?.includes('credential') ||
           error.message?.includes('accessKeyId') ||

@@ -1,4 +1,5 @@
 import type { EventEmitter } from 'node:events';
+import { toolCalls as otelToolCalls, toolDuration as otelToolDuration } from '../../../telemetry/metrics.js';
 import type { StreamChunk, StreamHandler } from '../types.js';
 
 /**
@@ -7,7 +8,7 @@ import type { StreamChunk, StreamHandler } from '../types.js';
  * Tracks:
  * - Text chunks
  * - Reasoning blocks
- * - Tool calls
+ * - Tool calls + duration
  * - Step count
  *
  * Emits monitoring events for observability
@@ -21,6 +22,8 @@ export class MetadataHandler implements StreamHandler {
     toolCalls: 0,
     steps: 0,
   };
+
+  private toolStartTimes = new Map<string, { start: number; tool: string }>();
 
   constructor(
     private monitoringEvents?: EventEmitter,
@@ -57,6 +60,22 @@ export class MetadataHandler implements StreamHandler {
         break;
       case 'tool-call':
         this.stats.toolCalls++;
+        otelToolCalls.add(1, { tool: chunk.toolName || 'unknown' });
+        if (chunk.toolCallId) {
+          this.toolStartTimes.set(chunk.toolCallId, {
+            start: performance.now(),
+            tool: chunk.toolName || 'unknown',
+          });
+        }
+        break;
+      case 'tool-result':
+        if (chunk.toolCallId) {
+          const entry = this.toolStartTimes.get(chunk.toolCallId);
+          if (entry) {
+            otelToolDuration.record(performance.now() - entry.start, { tool: entry.tool });
+            this.toolStartTimes.delete(chunk.toolCallId);
+          }
+        }
         break;
       case 'start-step':
         this.stats.steps++;
