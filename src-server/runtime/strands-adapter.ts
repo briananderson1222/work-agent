@@ -474,6 +474,17 @@ export class StrandsFramework {
     });
   }
 
+  async createTempAgent(opts: {
+    name: string; instructions: string; model: any; tools?: ITool[]; maxSteps?: number;
+  }): Promise<IAgent> {
+    const agent = new StrandsAgent({
+      model: opts.model,
+      systemPrompt: opts.instructions,
+      tools: (opts.tools || []) as any[],
+    });
+    return new StrandsAgentWrapper(agent, opts.name, opts.name, opts.model, null);
+  }
+
   async shutdown(): Promise<void> {
     for (const [, client] of this.mcpClients) {
       await client.disconnect().catch(() => {});

@@ -194,6 +194,15 @@ export interface IAgentFramework {
   loadTools(slug: string, spec: AgentSpec, opts: any): Promise<ITool[]>;
   shutdown(): Promise<void>;
 
-  /** Create a model provider instance for the given spec (used by temp agents and model overrides) */
+  /** Create a model provider instance for the given spec */
   createModel(spec: AgentSpec, config: AgentCreationConfig): Promise<any>;
+
+  /** Create a lightweight agent for one-shot invocations (no persistence, no hooks) */
+  createTempAgent(opts: {
+    name: string;
+    instructions: string;
+    model: any;
+    tools?: ITool[];
+    maxSteps?: number;
+  }): Promise<IAgent>;
 }

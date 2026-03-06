@@ -129,7 +129,7 @@ export class StallionRuntime {
     string,
     { type: string; transport?: string; toolCount?: number }
   > = new Map();
-  private activeAgents: Map<string, Agent> = new Map();
+  private activeAgents: Map<string, any> = new Map();
   private agentMetadataMap: Map<string, any> = new Map();
   private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
   private memoryAdapters: Map<string, FileMemoryAdapter> = new Map();
@@ -367,15 +367,14 @@ export class StallionRuntime {
     const agents: Record<string, Agent> = {};
 
     // Create default agent (always available, uses defaultModel, no tools)
-    const defaultAgent = new Agent({
+    const defaultModel = await this.createBedrockModel({ model: this.appConfig.defaultModel } as AgentSpec);
+    const defaultAgent = await this.framework.createTempAgent({
       name: 'default',
-      instructions:
-        'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
-      model: await this.createBedrockModel({ model: this.appConfig.defaultModel } as AgentSpec),
-      tools: [], // No tools
+      instructions: 'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
+      model: defaultModel,
     });
-    agents.default = defaultAgent;
-    this.activeAgents.set('default', defaultAgent);
+    agents.default = defaultAgent as any;
+    this.activeAgents.set('default', defaultAgent as any);
     this.agentMetadataMap.set('default', {
       slug: 'default',
       name: 'Default Agent',
@@ -1495,13 +1494,12 @@ export class StallionRuntime {
           );
 
           // Create temporary agent with ONLY the filtered tools
-          const tempAgent = new Agent({
+          const tempAgent = await this.framework.createTempAgent({
             name: `${slug}-temp`,
-            instructions: agent.instructions,
+            instructions: (agent as any).instructions || '',
             model: options.model || agent.model,
-            tools: filteredTools,
+            tools: filteredTools as any[],
             maxSteps,
-            hooks: agent.hooks,
           });
 
           // generateObject cannot use tools, so use generateText with JSON mode
@@ -1513,13 +1511,13 @@ export class StallionRuntime {
             // Extract JSON from response (handles markdown code blocks)
             let parsed;
             try {
-              const cleaned = textResult.text
+              const cleaned = textResult.text!
                 .replace(/```json\n?/g, '')
                 .replace(/```\n?/g, '')
                 .trim();
               parsed = JSON.parse(cleaned);
             } catch {
-              const jsonMatch = textResult.text.match(/\{[\s\S]*\}/);
+              const jsonMatch = textResult.text!.match(/\{[\s\S]*\}/);
               parsed = jsonMatch
                 ? JSON.parse(jsonMatch[0])
                 : { error: 'Failed to parse JSON' };
@@ -1634,7 +1632,7 @@ export class StallionRuntime {
           "You are a helpful assistant. Use the available tools to answer the user's request accurately and concisely.";
 
         // Create temp agent for tool execution
-        const tempAgent = new Agent({
+        const tempAgent = await this.framework.createTempAgent({
           name: `invoke-${Date.now()}`,
           instructions: system || defaultSystem,
           model: mainModel,
@@ -1663,16 +1661,15 @@ export class StallionRuntime {
         const { jsonSchema } = await import('ai');
 
         // Create new agent without tools for structuring
-        const structureAgent = new Agent({
+        const structureAgent = await this.framework.createTempAgent({
           name: `invoke-structure-${Date.now()}`,
-          instructions:
-            'Format the provided information as structured JSON.',
+          instructions: 'Format the provided information as structured JSON.',
           model: fastModel || mainModel,
-          tools: [], // No tools for structuring
+          tools: [],
           maxSteps: 1,
         });
 
-        const objectResult = await structureAgent.generateObject(
+        const objectResult = await (structureAgent as any).generateObject(
           `${textResult.text}\n\nFormat the above information as structured JSON.`,
           jsonSchema(schema) as unknown as any,
           {
@@ -1686,14 +1683,14 @@ export class StallionRuntime {
           response: objectResult.object,
           usage: {
             promptTokens:
-              (textResult.usage.inputTokens || 0) +
-              (objectResult.usage.inputTokens || 0),
+              (textResult.usage?.promptTokens || 0) +
+              (objectResult.usage?.promptTokens || 0),
             completionTokens:
-              (textResult.usage.outputTokens || 0) +
-              (objectResult.usage.outputTokens || 0),
+              (textResult.usage?.completionTokens || 0) +
+              (objectResult.usage?.completionTokens || 0),
             totalTokens:
-              (textResult.usage.totalTokens || 0) +
-              (objectResult.usage.totalTokens || 0),
+              (textResult.usage?.totalTokens || 0) +
+              (objectResult.usage?.totalTokens || 0),
           },
           steps: textResult.steps?.length || 0,
         });
@@ -1736,7 +1733,7 @@ export class StallionRuntime {
 
         const { model: modelOverride, ...restOptions } = options;
 
-        let agent = this.activeAgents.get(slug);
+        let agent: any = this.activeAgents.get(slug);
         if (!agent) {
           return c.json(
             { success: false, error: 'Agent not found' },
@@ -1788,14 +1785,13 @@ export class StallionRuntime {
                 region: originalSpec?.region || this.appConfig.region,
               } as AgentSpec);
 
-              cachedAgent = new Agent({
-                ...agent,
+              const tempWrapper = await this.framework.createTempAgent({
                 name: cacheKey,
+                instructions: (agent as any).instructions || '',
                 model: newModel,
-                tools: originalTools,
-                memory: originalMemory,
-                hooks: originalHooks,
+                tools: originalTools as any[],
               });
+              cachedAgent = (tempWrapper as any).raw || tempWrapper;
 
               this.activeAgents.set(cacheKey, cachedAgent);
               this.logger.info('Created agent with model override', {

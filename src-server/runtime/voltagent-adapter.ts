@@ -232,6 +232,19 @@ export class VoltAgentFramework {
     });
   }
 
+  async createTempAgent(opts: {
+    name: string; instructions: string; model: any; tools?: ITool[]; maxSteps?: number;
+  }): Promise<IAgent> {
+    const agent = new Agent({
+      name: opts.name,
+      instructions: opts.instructions,
+      model: opts.model,
+      tools: (opts.tools || []) as Tool<any>[],
+      maxSteps: opts.maxSteps,
+    });
+    return new VoltAgentWrapper(agent);
+  }
+
   async shutdown(): Promise<void> {
     // No-op — runtime handles MCP disconnection and agent map cleanup
   }
