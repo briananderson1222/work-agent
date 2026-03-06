@@ -36,7 +36,7 @@ jobs:
         run: npx tsc --project src-ui/tsconfig.json --noEmit
 
       - name: Format
-        run: npx biome check --formatter-only src-server/ src-ui/ packages/
+        run: npx biome format src-server/ src-ui/ packages/
 
       - name: Lint
         run: npm run lint
