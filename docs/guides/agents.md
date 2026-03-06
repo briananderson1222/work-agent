@@ -16,8 +16,8 @@ When working on this codebase:
 
 | Area | File | When to Read |
 |------|------|--------------|
-| Frontend | [docs/FRONTEND_PATTERNS.md](./docs/FRONTEND_PATTERNS.md) | React, hooks, styling, SDK, plugins |
-| Backend | [docs/BACKEND_PATTERNS.md](./docs/BACKEND_PATTERNS.md) | Routes, services, VoltAgent types |
+| Frontend | [Frontend Patterns](../patterns/frontend.md) | React, hooks, styling, SDK, plugins |
+| Backend | [Backend Patterns](../patterns/backend.md) | Routes, services, Stallion runtime, routes |
 
 **Update these docs when:**
 - You implement a reusable pattern not yet documented
@@ -135,7 +135,7 @@ log.api('message');  // Enable: localStorage.debug = 'app:*'
 
 ### Theming & Colors
 
-Never use hardcoded hex colors. Use CSS variables from `src-ui/src/index.css` (`--text-primary`, `--bg-secondary`, `--border-primary`, `--accent-primary`, `--accent-acp`, etc). For status colors use the Tailwind palette: green `#22c55e`, amber `#f59e0b`, red `#ef4444`. Buttons use `className="button button--secondary"`. See [FRONTEND_PATTERNS.md](./docs/FRONTEND_PATTERNS.md) for details.
+Never use hardcoded hex colors. Use CSS variables from `src-ui/src/index.css` (`--text-primary`, `--bg-secondary`, `--border-primary`, `--accent-primary`, `--accent-acp`, etc). For status colors use the Tailwind palette: green `#22c55e`, amber `#f59e0b`, red `#ef4444`. Buttons use `className="button button--secondary"`. See [frontend.md](../patterns/frontend.md) for details.
 
 ### Styling
 

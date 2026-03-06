@@ -8,7 +8,7 @@
 src-server/
 ├── runtime/             # VoltAgent runtime integration
 │   ├── streaming/       # Streaming handlers
-│   └── voltagent-runtime.ts  # Core runtime (should be minimal)
+│   └── stallion-runtime.ts  # Core runtime (should be minimal)
 ├── routes/              # HTTP route handlers
 │   ├── agents.ts
 │   ├── tools.ts
@@ -31,7 +31,7 @@ src-server/
 
 ## Refactoring Principles
 
-The backend is being refactored from a monolithic `voltagent-runtime.ts` (~3,800 lines) to a layered architecture. Follow these principles:
+The backend is being refactored from a monolithic `stallion-runtime.ts` (~3,800 lines) to a layered architecture. Follow these principles:
 
 ### 1. Routes Handle HTTP Only
 
@@ -56,7 +56,7 @@ Services should:
 
 ### 3. Runtime Stays Minimal
 
-`voltagent-runtime.ts` should only contain:
+`stallion-runtime.ts` should only contain:
 - VoltAgent initialization
 - Service instantiation
 - Route mounting
@@ -109,7 +109,7 @@ export function createAgentRoutes(deps: AgentRouteDeps) {
 
 ### Route Mounting
 
-Mount routes in `voltagent-runtime.ts`:
+Mount routes in `stallion-runtime.ts`:
 
 ```typescript
 // In setupRoutes() or configureApp()
@@ -440,7 +440,7 @@ this.logger.info('[Chat Endpoint] Processing request', {
 
 ## Migration Checklist
 
-When extracting code from `voltagent-runtime.ts`:
+When extracting code from `stallion-runtime.ts`:
 
 1. **Identify the domain** - agents, tools, workspaces, monitoring, etc.
 2. **Create route file** - `routes/<domain>.ts`

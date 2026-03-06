@@ -348,15 +348,15 @@ npx playwright test tests/plugin-system.spec.ts
 
 | Doc | Description |
 |-----|-------------|
-| [Agent Development](docs/AGENTS.md) | Agent dev guide, patterns, AI assistant reference |
-| [API Summary](docs/API_SUMMARY.md) | Quick reference for all endpoints |
-| [API Reference](docs/API.md) | Detailed endpoint documentation |
-| [Endpoints in Use](docs/ENDPOINTS_IN_USE.md) | Which endpoints the frontend actually calls |
-| [Backend Patterns](docs/BACKEND_PATTERNS.md) | Server architecture, routes, telemetry |
-| [Frontend Patterns](docs/FRONTEND_PATTERNS.md) | React, hooks, styling, SDK |
-| [Plugins](docs/PLUGINS.md) | Plugin architecture and development |
-| [Workspace Agents](docs/WORKSPACE_AGENTS.md) | Agent configuration and management |
-| [Custom Commands](docs/CUSTOM_COMMANDS.md) | Slash command system |
+| [Agent Development](docs/guides/agents.md) | Agent dev guide, patterns, AI assistant reference |
+| [Workspace Agents](docs/guides/workspace-agents.md) | Agent configuration and management |
+| [Plugins](docs/guides/plugins.md) | Plugin architecture and development |
+| [Custom Commands](docs/guides/commands.md) | Slash command system |
+| [API Reference](docs/reference/api.md) | Detailed endpoint documentation |
+| [API Summary](docs/reference/api-summary.md) | Quick reference for all endpoints |
+| [Endpoints in Use](docs/reference/endpoints.md) | Which endpoints the frontend calls |
+| [Backend Patterns](docs/patterns/backend.md) | Server architecture, routes, telemetry |
+| [Frontend Patterns](docs/patterns/frontend.md) | React, hooks, styling, SDK |
 
 ## License
 
