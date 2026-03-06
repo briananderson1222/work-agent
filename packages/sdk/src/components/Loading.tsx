@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import './FullScreen.css';
+import { errorQuips, loadingPhrases, loadingTips } from './phrases';
 
-/* ── Spinner ── */
+/* ── Spinner (unchanged) ── */
 const spinnerKeyframes = `@keyframes wa-spin { to { transform: rotate(360deg) } }`;
 let styleInjected = false;
 function injectStyles() {
@@ -33,7 +35,7 @@ export function Spinner({ size = 'md', color }: { size?: 'sm' | 'md' | 'lg'; col
   );
 }
 
-/* ── LoadingState (inline) ── */
+/* ── LoadingState (inline, unchanged) ── */
 export function LoadingState({ message = 'Loading...', size = 'md' }: { message?: string; size?: 'sm' | 'md' }) {
   return (
     <div style={{
@@ -49,62 +51,129 @@ export function LoadingState({ message = 'Loading...', size = 'md' }: { message?
   );
 }
 
+function shuffled<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /* ── FullScreenLoader ── */
-const defaultPhrases = [
-  'Warming up the engines...',
-  'Reticulating splines...',
-  'Consulting the oracle...',
-  'Aligning the flux capacitors...',
-  'Brewing some coffee...',
-  'Counting backwards from infinity...',
-  'Convincing electrons to cooperate...',
-  'Calibrating the vibes...',
-  'Herding photons...',
-  'Negotiating with the cloud...',
-  'Untangling the spaghetti...',
-  'Polishing the pixels...',
-  'Waking up the hamsters...',
-  'Charging the lasers...',
-  'Shuffling the deck...',
-];
 
 export function FullScreenLoader({
   message,
-  phrases = defaultPhrases,
-  interval = 3000,
+  phrases = loadingPhrases,
+  tipMessages = loadingTips,
+  interval = 2500,
   showLogo = true,
+  label,
 }: {
   message?: string;
   phrases?: string[];
+  tipMessages?: string[];
   interval?: number;
   showLogo?: boolean;
+  label?: string;
 }) {
-  injectStyles();
-  const [phraseIndex, setPhraseIndex] = useState(() => Math.floor(Math.random() * phrases.length));
+  const [shuffledPhrases] = useState(() => shuffled(phrases));
+  const [shuffledTips] = useState(() => shuffled(tipMessages));
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const [tipIdx, setTipIdx] = useState(0);
+  const [fading, setFading] = useState(false);
+
+  const cycle = useCallback(() => {
+    setFading(true);
+    setTimeout(() => {
+      setPhraseIdx(i => (i + 1) % shuffledPhrases.length);
+      setTipIdx(i => (i + 1) % shuffledTips.length);
+      setFading(false);
+    }, 350);
+  }, [shuffledPhrases.length, shuffledTips.length]);
 
   useEffect(() => {
-    if (message || phrases.length === 0) return;
-    const id = setInterval(() => setPhraseIndex(i => (i + 1) % phrases.length), interval);
+    if (message) return;
+    const id = setInterval(cycle, interval);
     return () => clearInterval(id);
-  }, [message, phrases.length, interval]);
+  }, [message, interval, cycle]);
 
-  const displayText = message || phrases[phraseIndex];
+  const displayText = message || shuffledPhrases[phraseIdx];
+  const displayTip = shuffledTips[tipIdx];
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', width: '100%',
-      background: 'var(--bg-primary, #0a0a0a)',
-      color: 'var(--text-secondary, #999)',
-    }}>
-      <div style={{ textAlign: 'center' }}>
+    <div className="fs-screen">
+      <div className="fs-screen__inner">
         {showLogo && (
-          <img src="/favicon.png" alt="" style={{ width: 48, height: 48, marginBottom: 20, opacity: 0.7, animation: 'wa-pulse 2s ease-in-out infinite' }} />
+          <div className="fs-logo-wrap">
+            <div className="fs-logo-glow" />
+            <div className="fs-logo-ring" />
+            <img src="/favicon.png" alt="" className="fs-logo" />
+          </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-          <Spinner size="md" />
-          <span style={{ fontSize: '0.9rem', transition: 'opacity 0.3s' }}>{displayText}</span>
+        {label && <div className="fs-label">{label}</div>}
+        <div className="fs-messages">
+          <div className="fs-message-primary" data-fading={fading}>
+            {displayText}
+          </div>
+          {!message && tipMessages.length > 0 && (
+            <div className="fs-message-tip" data-fading={fading}>
+              {displayTip}
+            </div>
+          )}
         </div>
+        <div className="fs-progress-track">
+          <div className="fs-progress-bar" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── FullScreenError ── */
+
+export function FullScreenError({
+  title = 'Something went wrong',
+  description,
+  onRetry,
+  retryLabel = 'Try Again',
+  secondaryAction,
+  showLogo = true,
+}: {
+  title?: string;
+  description?: string;
+  onRetry?: () => void;
+  retryLabel?: string;
+  secondaryAction?: { label: string; onClick: () => void };
+  showLogo?: boolean;
+}) {
+  const [quip] = useState(() => errorQuips[Math.floor(Math.random() * errorQuips.length)]);
+
+  return (
+    <div className="fs-screen fs-screen--error">
+      <div className="fs-screen__inner">
+        {showLogo && (
+          <div className="fs-logo-wrap">
+            <div className="fs-logo-glow" />
+            <div className="fs-logo-ring" />
+            <img src="/favicon.png" alt="" className="fs-logo" />
+          </div>
+        )}
+        <h2 className="fs-error-title">{title}</h2>
+        {description && <p className="fs-error-desc" dangerouslySetInnerHTML={{ __html: description }} />}
+        <div className="fs-error-actions">
+          {onRetry && (
+            <button className="fs-btn fs-btn--primary" onClick={onRetry}>
+              {retryLabel}
+            </button>
+          )}
+          {secondaryAction && (
+            <button className="fs-btn fs-btn--secondary" onClick={secondaryAction.onClick}>
+              {secondaryAction.label}
+            </button>
+          )}
+        </div>
+        <div className="fs-error-quip">{quip}</div>
       </div>
     </div>
   );
