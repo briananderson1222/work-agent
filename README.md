@@ -348,8 +348,10 @@ npx playwright test tests/plugin-system.spec.ts
 
 | Doc | Description |
 |-----|-------------|
+| [Agent Development](docs/AGENTS.md) | Agent dev guide, patterns, AI assistant reference |
 | [API Summary](docs/API_SUMMARY.md) | Quick reference for all endpoints |
 | [API Reference](docs/API.md) | Detailed endpoint documentation |
+| [Endpoints in Use](docs/ENDPOINTS_IN_USE.md) | Which endpoints the frontend actually calls |
 | [Backend Patterns](docs/BACKEND_PATTERNS.md) | Server architecture, routes, telemetry |
 | [Frontend Patterns](docs/FRONTEND_PATTERNS.md) | React, hooks, styling, SDK |
 | [Plugins](docs/PLUGINS.md) | Plugin architecture and development |
