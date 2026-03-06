@@ -7,6 +7,11 @@
  *
  * The adapter pattern: one file implements IAgentFramework per framework.
  * Everything else imports from here.
+ *
+ * Key design: the runtime defines WHAT should happen (approve tools, track
+ * usage, persist messages) via IAgentHooks. The adapter defines HOW to wire
+ * those hooks into its native lifecycle system. Adding a new framework means
+ * implementing the hook wiring, not reimplementing business logic.
  */
 
 import type { AgentSpec, AppConfig } from '../domain/types.js';
@@ -69,14 +74,16 @@ export interface IMemory {
 
 // ── Agent ──────────────────────────────────────────────
 
+export interface TokenUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
 export interface IGenerateResult {
   text?: string;
   object?: any;
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  };
+  usage?: TokenUsage;
   toolCalls?: any[];
   toolResults?: any[];
   reasoning?: string;
@@ -86,11 +93,7 @@ export interface IGenerateResult {
 export interface IStreamResult {
   fullStream: AsyncIterable<IStreamChunk>;
   text?: Promise<string>;
-  usage?: Promise<{
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  }>;
+  usage?: Promise<TokenUsage>;
   finishReason?: Promise<string>;
 }
 
@@ -104,6 +107,63 @@ export interface IAgent {
   getMemory(): IMemory | null;
 }
 
+// ── Lifecycle Hooks ────────────────────────────────────
+//
+// The runtime provides these implementations. The adapter wires them
+// into the framework's native hook system. This means approval logic,
+// usage tracking, and persistence sync are written ONCE and work
+// across all frameworks.
+
+export interface ToolCallContext {
+  toolName: string;
+  toolCallId: string;
+  toolArgs: any;
+  toolDescription?: string;
+}
+
+export interface InvocationContext {
+  agentSlug: string;
+  conversationId?: string;
+  userId?: string;
+  traceId?: string;
+}
+
+export interface IAgentHooks {
+  /**
+   * Called before a tool executes. Return false to block execution.
+   * Used for: tool approval/elicitation flow.
+   */
+  beforeToolCall?(
+    tool: ToolCallContext,
+    invocation: InvocationContext,
+  ): Promise<boolean>;
+
+  /**
+   * Called after a tool executes.
+   * Used for: tool call counting, monitoring events.
+   */
+  afterToolCall?(
+    tool: ToolCallContext,
+    result: { output?: any; error?: Error },
+    invocation: InvocationContext,
+  ): void;
+
+  /**
+   * Called after the full agent invocation completes.
+   * Used for: usage tracking, cost calculation, message enrichment,
+   * conversation stats update.
+   *
+   * Does NOT handle message persistence — that's the adapter's job,
+   * since each framework has its own message format.
+   */
+  afterInvocation?(context: {
+    invocation: InvocationContext;
+    usage?: TokenUsage;
+    toolCallCount: number;
+    error?: Error;
+  }): Promise<void>;
+}
+
 // ── Framework Adapter ──────────────────────────────────
 
 export interface AgentCreationConfig {
@@ -112,6 +172,15 @@ export interface AgentCreationConfig {
   usageAggregator?: any;
   modelCatalog?: any;
   approvalRegistry?: any;
+  /** Runtime-provided hooks — adapter wires these into native lifecycle */
+  hooks?: IAgentHooks;
+}
+
+export interface AgentBundle {
+  agent: IAgent;
+  tools: ITool[];
+  memoryAdapter: any; // FileMemoryAdapter
+  fixedTokens: { systemPromptTokens: number; mcpServerTokens: number };
 }
 
 export interface IAgentFramework {
@@ -119,8 +188,21 @@ export interface IAgentFramework {
     slug: string,
     spec: AgentSpec,
     config: AgentCreationConfig,
-  ): Promise<IAgent>;
+    opts: any, // Framework-specific options
+  ): Promise<AgentBundle>;
   destroyAgent(slug: string): Promise<void>;
-  loadTools(slug: string, spec: AgentSpec): Promise<ITool[]>;
+  loadTools(slug: string, spec: AgentSpec, opts: any): Promise<ITool[]>;
   shutdown(): Promise<void>;
+
+  /** Create a model provider instance for the given spec */
+  createModel(spec: AgentSpec, config: AgentCreationConfig): Promise<any>;
+
+  /** Create a lightweight agent for one-shot invocations (no persistence, no hooks) */
+  createTempAgent(opts: {
+    name: string;
+    instructions: string;
+    model: any;
+    tools?: ITool[];
+    maxSteps?: number;
+  }): Promise<IAgent>;
 }

@@ -4,7 +4,7 @@
  */
 
 import { createHooks, type Tool } from '@voltagent/core';
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
@@ -23,7 +23,7 @@ interface ConversationStats {
   contextTokens: number;
   turns: number;
   toolCalls: number;
-  estimatedCost: number;
+  estimatedCost: number | null;
   tokenBreakdown?: {
     systemPromptTokens?: number;
     mcpServerTokens?: number;
@@ -163,7 +163,7 @@ export function createToolApprovalHooks(
     string,
     { systemPromptTokens: number; mcpServerTokens: number }
   >,
-  memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>,
+  memoryAdapters: Map<string, FileMemoryAdapter>,
   logger: any,
 ) {
   const autoApprove = spec.tools?.autoApprove || [];
@@ -247,7 +247,7 @@ export function createToolApprovalHooks(
           contextTokens: 0,
           turns: 0,
           toolCalls: 0,
-          estimatedCost: 0,
+          estimatedCost: null,
         };
 
         // Get agent spec for model info
@@ -354,7 +354,7 @@ export function createToolApprovalHooks(
           contextTokens, // Current memory size
           turns: existingStats.turns + 1,
           toolCalls: existingStats.toolCalls + toolCallCount,
-          estimatedCost: existingStats.estimatedCost + cost,
+          estimatedCost: cost !== null && existingStats.estimatedCost !== null ? existingStats.estimatedCost + cost : null,
           tokenBreakdown,
         };
 
@@ -370,7 +370,7 @@ export function createToolApprovalHooks(
           contextTokens: 0,
           turns: 0,
           toolCalls: 0,
-          estimatedCost: 0,
+          estimatedCost: null,
         };
 
         const newModelOutputTokens =
@@ -392,7 +392,7 @@ export function createToolApprovalHooks(
           contextTokens: modelContextTokens,
           turns: currentModelStats.turns + 1,
           toolCalls: currentModelStats.toolCalls + toolCallCount,
-          estimatedCost: currentModelStats.estimatedCost + cost,
+          estimatedCost: cost !== null && currentModelStats.estimatedCost !== null ? currentModelStats.estimatedCost + cost : null,
         };
 
         // Update conversation metadata
@@ -496,12 +496,13 @@ export async function calculateCost(
   modelCatalog: BedrockModelCatalog | undefined,
   appConfig: AppConfig,
   logger: any,
-): Promise<number> {
-  const inputTokens = usage.promptTokens || usage.inputTokens || 0;
-  const outputTokens = usage.completionTokens || usage.outputTokens || 0;
+): Promise<number | null> {
+  const inputTokens = usage.promptTokens || (usage as any).inputTokens || 0;
+  const outputTokens = usage.completionTokens || (usage as any).outputTokens || 0;
 
   if (!modelCatalog) {
-    return 0;
+    logger.warn('No model catalog available, cost unavailable', { modelId });
+    return null;
   }
 
   try {
@@ -519,12 +520,12 @@ export async function calculateCost(
         (outputTokens / 1000) * (modelPricing.outputTokenPrice || 0);
       return inputCost + outputCost;
     }
+    logger.warn('No pricing found for model, cost unavailable', { modelId });
+    return null;
   } catch (error) {
-    logger.warn('Failed to fetch pricing, using default', { error });
+    logger.warn('Failed to fetch pricing, cost unavailable', { modelId, error });
+    return null;
   }
-
-  // Fallback to default pricing
-  return (inputTokens / 1000) * 0.003 + (outputTokens / 1000) * 0.015;
 }
 
 /**

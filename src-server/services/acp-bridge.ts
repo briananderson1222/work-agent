@@ -31,7 +31,7 @@ import {
 } from '@agentclientprotocol/sdk';
 import type { Context } from 'hono';
 import { stream as honoStream } from 'hono/streaming';
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ACPConnectionConfig } from '../domain/types.js';
 import { ApprovalRegistry } from './approval-registry.js';
 
@@ -226,8 +226,8 @@ export class ACPConnection {
     private approvalRegistry: ApprovalRegistry,
     private logger: any,
     private cwd: string,
-    private memoryAdapters?: Map<string, FileVoltAgentMemoryAdapter>,
-    private createMemoryAdapter?: (slug: string) => FileVoltAgentMemoryAdapter,
+    private memoryAdapters?: Map<string, FileMemoryAdapter>,
+    private createMemoryAdapter?: (slug: string) => FileMemoryAdapter,
     private usageAggregatorRef?: { get: () => any },
     private eventBus?: {
       emit: (event: string, data?: Record<string, unknown>) => void;
@@ -1336,7 +1336,7 @@ export class ACPConnection {
   }
 
   /** Get or create a memory adapter for an ACP agent slug */
-  private getOrCreateAdapter(slug: string): FileVoltAgentMemoryAdapter | null {
+  private getOrCreateAdapter(slug: string): FileMemoryAdapter | null {
     if (!this.memoryAdapters || !this.createMemoryAdapter) return null;
     let adapter = this.memoryAdapters.get(slug);
     if (!adapter) {
@@ -1507,8 +1507,8 @@ export class ACPManager {
     private approvalRegistry: ApprovalRegistry,
     private logger: any,
     private cwd: string,
-    private memoryAdapters?: Map<string, FileVoltAgentMemoryAdapter>,
-    private createMemoryAdapter?: (slug: string) => FileVoltAgentMemoryAdapter,
+    private memoryAdapters?: Map<string, FileMemoryAdapter>,
+    private createMemoryAdapter?: (slug: string) => FileMemoryAdapter,
     private usageAggregatorRef?: { get: () => any },
     private eventBus?: {
       emit: (event: string, data?: Record<string, unknown>) => void;

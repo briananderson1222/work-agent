@@ -3,7 +3,7 @@
  * Handles conversation CRUD, stats, and message history
  */
 
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
@@ -55,7 +55,7 @@ export function extractUserId(conversationId: string): string | null {
 export async function getConversationStats(
   slug: string,
   conversationId: string | undefined,
-  memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>,
+  memoryAdapters: Map<string, FileMemoryAdapter>,
   _agentFixedTokens: Map<
     string,
     { systemPromptTokens: number; mcpServerTokens: number }
@@ -258,7 +258,7 @@ export async function manageConversationContext(
   conversationId: string,
   action: string,
   content: string | undefined,
-  memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>,
+  memoryAdapters: Map<string, FileMemoryAdapter>,
 ) {
   const adapter = memoryAdapters.get(slug);
 

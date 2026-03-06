@@ -6,7 +6,7 @@ import type { EventEmitter } from 'node:events';
 type Agent = any;
 import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 
 // Type extensions for monitoring routes
 interface ModelWithId {
@@ -20,7 +20,7 @@ export interface MonitoringDeps {
     { conversationCount: number; messageCount: number; lastUpdated: number }
   >;
   agentStatus: Map<string, 'idle' | 'running'>;
-  memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>;
+  memoryAdapters: Map<string, FileMemoryAdapter>;
   metricsLog: Array<{
     timestamp: number;
     agentSlug: string;

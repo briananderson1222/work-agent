@@ -10,15 +10,15 @@ import {
   type MCPConfiguration,
   Memory,
   type Tool,
+  createHooks,
 } from '@voltagent/core';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import * as MCPManager from './mcp-manager.js';
-import * as ToolExecutor from './tool-executor.js';
 import type {
   AgentCreationConfig,
   IAgent,
@@ -34,7 +34,7 @@ import type {
 export interface AgentBundle {
   agent: IAgent;
   tools: ITool[];
-  memoryAdapter: FileVoltAgentMemoryAdapter;
+  memoryAdapter: FileMemoryAdapter;
   fixedTokens: { systemPromptTokens: number; mcpServerTokens: number };
 }
 
@@ -42,7 +42,7 @@ export interface AgentBundle {
 
 export interface CreateAgentOptions {
   processedPrompt: string;
-  memoryAdapter: FileVoltAgentMemoryAdapter;
+  memoryAdapter: FileMemoryAdapter;
   configLoader: ConfigLoader;
   mcpConfigs: Map<string, MCPConfiguration>;
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>;
@@ -51,7 +51,7 @@ export interface CreateAgentOptions {
   toolNameReverseMapping: Map<string, string>;
   approvalRegistry: ApprovalRegistry;
   agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }>;
-  memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>;
+  memoryAdapters: Map<string, FileMemoryAdapter>;
   logger: any;
 }
 
@@ -132,16 +132,42 @@ export class VoltAgentFramework {
     const mcpServerTokens = Math.ceil(toolsJson.length / 4);
     const fixedTokens = { systemPromptTokens, mcpServerTokens };
 
-    // Create hooks
-    const hooks = ToolExecutor.createToolApprovalHooks(
-      spec,
-      config.appConfig,
-      opts.configLoader,
-      config.modelCatalog,
-      opts.agentFixedTokens,
-      opts.memoryAdapters,
-      opts.logger,
-    );
+    // Create VoltAgent-native hooks that delegate to shared agent-hooks logic.
+    // VoltAgent needs createHooks() for its internal lifecycle, but the
+    // afterInvocation business logic (stats, cost, enrichment) comes from
+    // the shared hooks passed via config.hooks.
+    const sharedHooks = config.hooks;
+    const autoApprove = spec.tools?.autoApprove || [];
+    const hooks = createHooks({
+      onToolStart: async ({ tool, context }) => {
+        const currentCount = (context.context.get('toolCallCount') as number) || 0;
+        context.context.set('toolCallCount', currentCount + 1);
+        sharedHooks?.afterToolCall?.(
+          { toolName: tool.name, toolCallId: '', toolArgs: {} },
+          {},
+          { agentSlug: slug },
+        );
+      },
+      onEnd: async ({ context, output, agent: voltAgent }) => {
+        if (!context.conversationId || !output) return;
+        const usage = 'usage' in output ? output.usage : undefined;
+        const toolCallCount = (context.context.get('toolCallCount') as number) || 0;
+        await sharedHooks?.afterInvocation?.({
+          invocation: {
+            agentSlug: slug,
+            conversationId: context.conversationId,
+            userId: context.userId,
+            traceId: (context as any).traceId,
+          },
+          usage: usage ? {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+          } : undefined,
+          toolCallCount,
+        });
+      },
+    });
 
     // Build agent
     const agent = new Agent({
@@ -193,6 +219,30 @@ export class VoltAgentFramework {
 
   async destroyAgent(_slug: string): Promise<void> {
     // MCP cleanup handled by runtime (it owns the maps)
+  }
+
+  async createModel(spec: AgentSpec, config: AgentCreationConfig): Promise<any> {
+    const modelId = spec.model || config.appConfig.defaultModel;
+    const resolvedModel = config.modelCatalog
+      ? await config.modelCatalog.resolveModelId(modelId)
+      : modelId;
+    return createBedrockProvider({
+      appConfig: config.appConfig,
+      agentSpec: { ...spec, model: resolvedModel },
+    });
+  }
+
+  async createTempAgent(opts: {
+    name: string; instructions: string; model: any; tools?: ITool[]; maxSteps?: number;
+  }): Promise<IAgent> {
+    const agent = new Agent({
+      name: opts.name,
+      instructions: opts.instructions,
+      model: opts.model,
+      tools: (opts.tools || []) as Tool<any>[],
+      maxSteps: opts.maxSteps,
+    });
+    return new VoltAgentWrapper(agent);
   }
 
   async shutdown(): Promise<void> {

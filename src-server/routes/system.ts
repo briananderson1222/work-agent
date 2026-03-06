@@ -14,7 +14,7 @@ interface SystemStatusDeps {
     connected: boolean;
     connections: Array<{ id: string; status: string }>;
   };
-  getAppConfig: () => { region: string; defaultModel: string };
+  getAppConfig: () => { region: string; defaultModel: string; runtime?: string };
   eventBus?: { emit: (event: string, data?: Record<string, unknown>) => void };
 }
 
@@ -222,7 +222,9 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // available and configured on this server.  clientOnly providers are always
   // advertised; server-backed providers require credentials or API keys.
   app.get('/capabilities', (c) => {
+    const appConfig = deps.getAppConfig();
     return c.json({
+      runtime: appConfig.runtime || 'voltagent',
       voice: {
         stt: [
           {

@@ -21,11 +21,10 @@ import { jsonSchema } from 'ai';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { UsageAggregator } from '../analytics/usage-aggregator.js';
 import { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
-import { createBedrockProvider } from '../providers/bedrock.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { createEventRoutes } from '../routes/events.js';
 import { EventBus } from '../services/event-bus.js';
@@ -41,6 +40,10 @@ import {
   tokensOutput,
   registerObservableGauges,
 } from '../telemetry/metrics.js';
+import { createAgentHooks } from './agent-hooks.js';
+import { VoltAgentFramework } from './voltagent-adapter.js';
+import type { CreateAgentOptions } from './voltagent-adapter.js';
+import { StrandsFramework } from './strands-adapter.js';
 
 // Type extensions for VoltAgent SDK
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
@@ -110,7 +113,7 @@ import { isAuthError } from '../utils/auth-errors.js';
 import { InjectableStream } from './streaming/InjectableStream.js';
 import modelsRoute from '../routes/models.js';
 
-export interface WorkAgentRuntimeOptions {
+export interface StallionRuntimeOptions {
   projectHomeDir?: string;
   port?: number;
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
@@ -120,7 +123,7 @@ export interface WorkAgentRuntimeOptions {
  * Main runtime for Stallion system
  * Manages VoltAgent instances with dynamic agent loading
  */
-export class WorkAgentRuntime {
+export class StallionRuntime {
   private configLoader: ConfigLoader;
   private appConfig!: AppConfig;
   private logger: ReturnType<typeof createLogger>;
@@ -134,10 +137,10 @@ export class WorkAgentRuntime {
     string,
     { type: string; transport?: string; toolCount?: number }
   > = new Map();
-  private activeAgents: Map<string, Agent> = new Map();
+  private activeAgents: Map<string, any> = new Map();
   private agentMetadataMap: Map<string, any> = new Map();
   private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
-  private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
+  private memoryAdapters: Map<string, FileMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
@@ -145,6 +148,7 @@ export class WorkAgentRuntime {
     string,
     { systemPromptTokens: number; mcpServerTokens: number }
   > = new Map(); // Cache fixed token counts per agent
+  private agentHooksMap: Map<string, ReturnType<typeof createAgentHooks>> = new Map();
   private toolNameMapping: Map<
     string,
     {
@@ -182,8 +186,9 @@ export class WorkAgentRuntime {
   private workspaceService!: WorkspaceService;
   private acpBridge: ACPManager;
   public readonly eventBus = new EventBus();
+  private framework!: VoltAgentFramework | StrandsFramework;
 
-  constructor(options: WorkAgentRuntimeOptions = {}) {
+  constructor(options: StallionRuntimeOptions = {}) {
     const projectHomeDir = options.projectHomeDir || '.stallion-ai';
     this.port = options.port || 3141;
     this.eventLogPath = `${projectHomeDir}/monitoring`;
@@ -226,7 +231,7 @@ export class WorkAgentRuntime {
       process.cwd(),
       this.memoryAdapters,
       (_slug: string) => {
-        const adapter = new FileVoltAgentMemoryAdapter({
+        const adapter = new FileMemoryAdapter({
           projectHomeDir: this.configLoader.getProjectHomeDir(),
           usageAggregator: this.usageAggregator,
         });
@@ -304,9 +309,16 @@ export class WorkAgentRuntime {
 
     // Load app configuration
     this.appConfig = await this.configLoader.loadAppConfig();
+
+    // Select agent framework based on config
+    const runtime = this.appConfig.runtime || 'voltagent';
+    this.framework = runtime === 'strands'
+      ? new StrandsFramework()
+      : new VoltAgentFramework();
     this.logger.info('App config loaded', {
       region: this.appConfig.region,
       model: this.appConfig.defaultModel,
+      runtime,
     });
 
     // Registry providers are registered by plugins via loadProviders()
@@ -363,20 +375,14 @@ export class WorkAgentRuntime {
     const agents: Record<string, Agent> = {};
 
     // Create default agent (always available, uses defaultModel, no tools)
-    const defaultAgent = new Agent({
+    const defaultModel = await this.createBedrockModel({ model: this.appConfig.defaultModel } as AgentSpec);
+    const defaultAgent = await this.framework.createTempAgent({
       name: 'default',
-      instructions:
-        'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
-      model: createBedrockProvider({
-        appConfig: this.appConfig,
-        agentSpec: {
-          model: this.appConfig.defaultModel,
-        } as unknown as AgentSpec,
-      }),
-      tools: [], // No tools
+      instructions: 'You are a helpful AI assistant. Provide clear, concise, and accurate responses.',
+      model: defaultModel,
     });
-    agents.default = defaultAgent;
-    this.activeAgents.set('default', defaultAgent);
+    agents.default = defaultAgent as any;
+    this.activeAgents.set('default', defaultAgent as any);
     this.agentMetadataMap.set('default', {
       slug: 'default',
       name: 'Default Agent',
@@ -579,24 +585,15 @@ export class WorkAgentRuntime {
     // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
     app.get('/api/agents', async (c) => {
       try {
-        if (!this.voltAgent) {
-          return c.json(
-            { success: false, error: 'VoltAgent not initialized' },
-            500,
-          );
-        }
         await this.reloadAgents();
-        const coreAgents = await this.voltAgent.getAgents();
+
+        // Build enriched list from metadata map (framework-agnostic)
         const enrichedAgents = (
           await Promise.all(
-            coreAgents.map(async (agent: any) => {
-              const metadata = this.agentMetadataMap.get(agent.id);
-              if (!metadata) return null;
-
+            Array.from(this.agentMetadataMap.entries()).map(async ([slug, metadata]) => {
+              if (!this.activeAgents.has(slug)) return null;
               try {
-                const spec = await this.configLoader.loadAgent(
-                  metadata.slug,
-                );
+                const spec = await this.configLoader.loadAgent(slug);
 
                 this.logger.debug('[Agent Enrichment] Loading spec', {
                   agent: metadata.slug,
@@ -605,8 +602,7 @@ export class WorkAgentRuntime {
                 });
 
                 return {
-                  ...agent,
-                  slug: metadata.slug,
+                  slug,
                   name: metadata.name,
                   prompt: spec.prompt,
                   description: spec.description,
@@ -720,6 +716,13 @@ export class WorkAgentRuntime {
         logger: this.logger,
       }),
     );
+
+    // Runtime info — verify which agent framework is active
+    app.get('/runtime', (c) => {
+      return c.json({
+        runtime: this.appConfig.runtime || 'voltagent',
+      });
+    });
 
     // ACP connection status (all connections)
     app.get('/acp/status', async (c) => {
@@ -1199,10 +1202,7 @@ export class WorkAgentRuntime {
         if (model && this.modelCatalog) {
           const resolvedModel =
             await this.modelCatalog.resolveModelId(model);
-          options.model = createBedrockProvider({
-            appConfig: this.appConfig,
-            agentSpec: { model: resolvedModel } as unknown as AgentSpec,
-          });
+          options.model = await this.createBedrockModel({ model: resolvedModel } as AgentSpec);
         }
 
         // Override tools if specified - get from our cached tools
@@ -1497,10 +1497,7 @@ export class WorkAgentRuntime {
         if (model && this.modelCatalog) {
           const resolvedModel =
             await this.modelCatalog.resolveModelId(model);
-          options.model = createBedrockProvider({
-            appConfig: this.appConfig,
-            agentSpec: { model: resolvedModel } as unknown as AgentSpec,
-          });
+          options.model = await this.createBedrockModel({ model: resolvedModel } as AgentSpec);
         }
 
         // Override tools if specified - create temp agent with only filtered tools
@@ -1511,13 +1508,12 @@ export class WorkAgentRuntime {
           );
 
           // Create temporary agent with ONLY the filtered tools
-          const tempAgent = new Agent({
+          const tempAgent = await this.framework.createTempAgent({
             name: `${slug}-temp`,
-            instructions: agent.instructions,
+            instructions: (agent as any).instructions || '',
             model: options.model || agent.model,
-            tools: filteredTools,
+            tools: filteredTools as any[],
             maxSteps,
-            hooks: agent.hooks,
           });
 
           // generateObject cannot use tools, so use generateText with JSON mode
@@ -1529,13 +1525,13 @@ export class WorkAgentRuntime {
             // Extract JSON from response (handles markdown code blocks)
             let parsed;
             try {
-              const cleaned = textResult.text
+              const cleaned = textResult.text!
                 .replace(/```json\n?/g, '')
                 .replace(/```\n?/g, '')
                 .trim();
               parsed = JSON.parse(cleaned);
             } catch {
-              const jsonMatch = textResult.text.match(/\{[\s\S]*\}/);
+              const jsonMatch = textResult.text!.match(/\{[\s\S]*\}/);
               parsed = jsonMatch
                 ? JSON.parse(jsonMatch[0])
                 : { error: 'Failed to parse JSON' };
@@ -1634,29 +1630,23 @@ export class WorkAgentRuntime {
         const structureModelId =
           structureModel || this.appConfig.structureModel;
 
-        const mainModel = createBedrockProvider({
-          appConfig: this.appConfig,
-          agentSpec: {
-            model: this.modelCatalog
-              ? await this.modelCatalog.resolveModelId(invokeModelId)
-              : invokeModelId,
-          } as unknown as AgentSpec,
-        });
+        const mainModel = await this.createBedrockModel({
+          model: this.modelCatalog
+            ? await this.modelCatalog.resolveModelId(invokeModelId)
+            : invokeModelId,
+        } as AgentSpec);
 
-        const fastModel = createBedrockProvider({
-          appConfig: this.appConfig,
-          agentSpec: {
-            model: this.modelCatalog
-              ? await this.modelCatalog.resolveModelId(structureModelId)
-              : structureModelId,
-          } as unknown as AgentSpec,
-        });
+        const fastModel = await this.createBedrockModel({
+          model: this.modelCatalog
+            ? await this.modelCatalog.resolveModelId(structureModelId)
+            : structureModelId,
+        } as AgentSpec);
 
         const defaultSystem =
           "You are a helpful assistant. Use the available tools to answer the user's request accurately and concisely.";
 
         // Create temp agent for tool execution
-        const tempAgent = new Agent({
+        const tempAgent = await this.framework.createTempAgent({
           name: `invoke-${Date.now()}`,
           instructions: system || defaultSystem,
           model: mainModel,
@@ -1685,16 +1675,15 @@ export class WorkAgentRuntime {
         const { jsonSchema } = await import('ai');
 
         // Create new agent without tools for structuring
-        const structureAgent = new Agent({
+        const structureAgent = await this.framework.createTempAgent({
           name: `invoke-structure-${Date.now()}`,
-          instructions:
-            'Format the provided information as structured JSON.',
+          instructions: 'Format the provided information as structured JSON.',
           model: fastModel || mainModel,
-          tools: [], // No tools for structuring
+          tools: [],
           maxSteps: 1,
         });
 
-        const objectResult = await structureAgent.generateObject(
+        const objectResult = await (structureAgent as any).generateObject(
           `${textResult.text}\n\nFormat the above information as structured JSON.`,
           jsonSchema(schema) as unknown as any,
           {
@@ -1708,14 +1697,14 @@ export class WorkAgentRuntime {
           response: objectResult.object,
           usage: {
             promptTokens:
-              (textResult.usage.inputTokens || 0) +
-              (objectResult.usage.inputTokens || 0),
+              (textResult.usage?.promptTokens || 0) +
+              (objectResult.usage?.promptTokens || 0),
             completionTokens:
-              (textResult.usage.outputTokens || 0) +
-              (objectResult.usage.outputTokens || 0),
+              (textResult.usage?.completionTokens || 0) +
+              (objectResult.usage?.completionTokens || 0),
             totalTokens:
-              (textResult.usage.totalTokens || 0) +
-              (objectResult.usage.totalTokens || 0),
+              (textResult.usage?.totalTokens || 0) +
+              (objectResult.usage?.totalTokens || 0),
           },
           steps: textResult.steps?.length || 0,
         });
@@ -1758,7 +1747,7 @@ export class WorkAgentRuntime {
 
         const { model: modelOverride, ...restOptions } = options;
 
-        let agent = this.activeAgents.get(slug);
+        let agent: any = this.activeAgents.get(slug);
         if (!agent) {
           return c.json(
             { success: false, error: 'Agent not found' },
@@ -1805,22 +1794,18 @@ export class WorkAgentRuntime {
               const resolvedModel = this.modelCatalog
                 ? await this.modelCatalog.resolveModelId(modelOverride)
                 : modelOverride;
-              const newModel = createBedrockProvider({
-                appConfig: this.appConfig,
-                agentSpec: {
-                  model: resolvedModel,
-                  region: originalSpec?.region || this.appConfig.region,
-                } as unknown as AgentSpec,
-              });
+              const newModel = await this.createBedrockModel({
+                model: resolvedModel,
+                region: originalSpec?.region || this.appConfig.region,
+              } as AgentSpec);
 
-              cachedAgent = new Agent({
-                ...agent,
+              const tempWrapper = await this.framework.createTempAgent({
                 name: cacheKey,
+                instructions: (agent as any).instructions || '',
                 model: newModel,
-                tools: originalTools,
-                memory: originalMemory,
-                hooks: originalHooks,
+                tools: originalTools as any[],
               });
+              cachedAgent = (tempWrapper as any).raw || tempWrapper;
 
               this.activeAgents.set(cacheKey, cachedAgent);
               this.logger.info('Created agent with model override', {
@@ -1895,6 +1880,20 @@ export class WorkAgentRuntime {
               ...restOptions,
               elicitation,
             };
+
+            // Wire approval flow into framework-agnostic hooks (for Strands adapter)
+            const agentHooks = this.agentHooksMap.get(slug);
+            if (agentHooks) {
+              agentHooks.requestApproval = async (tool) => {
+                const result = await elicitation({
+                  type: 'tool-approval',
+                  toolName: tool.toolName,
+                  toolDescription: tool.toolDescription || '',
+                  toolArgs: tool.toolArgs,
+                });
+                return !!result;
+              };
+            }
 
             // Resolve userId from auth (override frontend default)
             if (
@@ -2482,157 +2481,94 @@ export class WorkAgentRuntime {
    * Create a VoltAgent Agent instance from agent spec
    */
   private async createVoltAgentInstance(agentSlug: string): Promise<Agent> {
-    // Load agent spec
     const spec = await this.configLoader.loadAgent(agentSlug);
-
-    // Cache spec for later use
     this.agentSpecs.set(agentSlug, spec);
-
-    // Create Bedrock provider
-    const model = await this.createBedrockModel(spec);
-
-    // Create memory adapter
-    const memoryAdapter = new FileVoltAgentMemoryAdapter({
-      projectHomeDir: this.configLoader.getProjectHomeDir(),
-      usageAggregator: this.usageAggregator,
-    });
-    const memory = new Memory({
-      storage: memoryAdapter,
-    });
-
-    // Store adapter for later access
-    this.memoryAdapters.set(agentSlug, memoryAdapter);
-
-    // Load and configure tools (including MCP)
-    const tools = await this.loadAgentTools(agentSlug, spec);
-
-    // Cache tools for runtime filtering
-    this.agentTools.set(agentSlug, tools);
-
-    // Add to global tool registry (deduplicated by name)
-    for (const tool of tools) {
-      if (!this.globalToolRegistry.has(tool.name)) {
-        this.globalToolRegistry.set(tool.name, tool);
-      }
-    }
-
-    // Calculate and cache fixed token counts (system prompt + tools)
-    // These don't change unless the agent is reloaded
-    const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
-    const toolsJson = JSON.stringify(
-      tools.map((t: any) => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters,
-      })),
-    );
-    const mcpServerTokens = Math.ceil(toolsJson.length / 4);
-
-    this.agentFixedTokens.set(agentSlug, {
-      systemPromptTokens,
-      mcpServerTokens,
-    });
-
-    this.logger.info('[Agent Initialized]', {
-      agent: agentSlug,
-      systemPromptTokens,
-      mcpServerTokens,
-      totalFixedTokens: systemPromptTokens + mcpServerTokens,
-    });
-
-    // Create hooks for tool approval (if autoApprove is configured)
-    const hooks = this.createToolApprovalHooks(spec);
 
     // Replace template variables in prompts
     const processedPrompt = this.replaceTemplateVariables(spec.prompt);
     const processedSystemPrompt = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : '';
-
-    // Combine global system prompt with agent-specific instructions
     const instructions = processedSystemPrompt
       ? `${processedSystemPrompt}\n\n${processedPrompt}`
       : processedPrompt;
 
-    // Create Agent instance
-    const agent = new Agent({
-      name: agentSlug, // Use slug for routing
-      instructions,
-      model,
-      memory,
-      tools,
-      hooks,
-      ...(spec.maxTurns !== undefined ||
-      this.appConfig.defaultMaxTurns !== undefined
-        ? {
-            maxTurns: spec.maxTurns ?? this.appConfig.defaultMaxTurns,
-          }
-        : {}),
-      ...(spec.guardrails && {
-        temperature: spec.guardrails.temperature,
-        maxOutputTokens:
-          spec.guardrails.maxTokens ?? this.appConfig.defaultMaxOutputTokens,
-        topP: spec.guardrails.topP,
-        maxSteps: spec.guardrails.maxSteps,
-      }),
-      ...(!spec.guardrails && this.appConfig.defaultMaxOutputTokens
-        ? {
-            maxOutputTokens: this.appConfig.defaultMaxOutputTokens,
-          }
-        : {}),
+    const memoryAdapter = new FileMemoryAdapter({
+      projectHomeDir: this.configLoader.getProjectHomeDir(),
+      usageAggregator: this.usageAggregator,
     });
 
-    return agent;
-  }
-
-  /**
-   * Create Bedrock model instance
-   */
-  private async createBedrockModel(spec: AgentSpec) {
-    const modelId = spec.model || this.appConfig.defaultModel;
-    const resolvedModel = this.modelCatalog
-      ? await this.modelCatalog.resolveModelId(modelId)
-      : modelId;
-    return createBedrockProvider({
+    // Delegate to whichever framework adapter is active
+    const hooks = createAgentHooks({
+      spec,
       appConfig: this.appConfig,
-      agentSpec: { ...spec, model: resolvedModel },
+      configLoader: this.configLoader,
+      modelCatalog: this.modelCatalog,
+      agentFixedTokens: this.agentFixedTokens,
+      memoryAdapters: this.memoryAdapters,
+      approvalRegistry: this.approvalRegistry,
+      logger: this.logger,
     });
-  }
 
-  /**
-   * Load tools for an agent (regular tools + MCP tools)
-   */
-  private async loadAgentTools(
-    agentSlug: string,
-    spec: AgentSpec,
-  ): Promise<Tool<any>[]> {
-    return MCPManager.loadAgentTools(
+    const bundle = await this.framework.createAgent(
       agentSlug,
       spec,
-      this.configLoader,
-      this.mcpConfigs,
-      this.mcpConnectionStatus,
-      this.integrationMetadata,
-      this.toolNameMapping,
-      this.toolNameReverseMapping,
-      this.logger,
+      {
+        appConfig: this.appConfig,
+        projectHomeDir: this.configLoader.getProjectHomeDir(),
+        usageAggregator: this.usageAggregator,
+        modelCatalog: this.modelCatalog,
+        approvalRegistry: this.approvalRegistry,
+        hooks,
+      },
+      {
+        processedPrompt: instructions,
+        memoryAdapter,
+        configLoader: this.configLoader,
+        mcpConfigs: this.mcpConfigs,
+        mcpConnectionStatus: this.mcpConnectionStatus,
+        integrationMetadata: this.integrationMetadata,
+        toolNameMapping: this.toolNameMapping,
+        toolNameReverseMapping: this.toolNameReverseMapping,
+        approvalRegistry: this.approvalRegistry,
+        agentFixedTokens: this.agentFixedTokens,
+        memoryAdapters: this.memoryAdapters,
+        logger: this.logger,
+      },
     );
+
+    // Unpack bundle into runtime state
+    this.memoryAdapters.set(agentSlug, bundle.memoryAdapter);
+    this.agentTools.set(agentSlug, bundle.tools as Tool<any>[]);
+    this.agentFixedTokens.set(agentSlug, bundle.fixedTokens);
+    this.agentHooksMap.set(agentSlug, hooks);
+
+    for (const tool of bundle.tools) {
+      if (!this.globalToolRegistry.has(tool.name)) {
+        this.globalToolRegistry.set(tool.name, tool as Tool<any>);
+      }
+    }
+
+    this.logger.info('[Agent Initialized]', {
+      agent: agentSlug,
+      runtime: this.appConfig.runtime || 'voltagent',
+      ...bundle.fixedTokens,
+      totalFixedTokens: bundle.fixedTokens.systemPromptTokens + bundle.fixedTokens.mcpServerTokens,
+    });
+
+    // Return raw VoltAgent Agent for backward compat, or the IAgent wrapper for Strands
+    return (bundle.agent as any).raw || bundle.agent;
   }
 
   /**
-   * Create tool approval hooks based on agent configuration
-   * Tools in autoApprove list execute automatically, others require user confirmation
+   * Create Bedrock model instance (used by inline routes for model overrides)
    */
-  private createToolApprovalHooks(spec: AgentSpec) {
-    return ToolExecutor.createToolApprovalHooks(
-      spec,
-      this.appConfig,
-      this.configLoader,
-      this.modelCatalog,
-      this.agentFixedTokens,
-      this.memoryAdapters,
-      this.logger,
-    );
+  private async createBedrockModel(spec: AgentSpec) {
+    return this.framework.createModel(spec, {
+      appConfig: this.appConfig,
+      projectHomeDir: this.configLoader.getProjectHomeDir(),
+      modelCatalog: this.modelCatalog,
+    });
   }
 
   /**

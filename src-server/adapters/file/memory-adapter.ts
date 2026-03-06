@@ -33,9 +33,9 @@ interface UIMessageWithMetadata extends UIMessage {
   metadata?: Record<string, any>;
 }
 
-const logger = createLogger({ name: 'voltagent-memory-adapter' });
+const logger = createLogger({ name: 'memory-adapter' });
 
-export interface FileVoltAgentMemoryAdapterOptions {
+export interface FileMemoryAdapterOptions {
   projectHomeDir: string;
   usageAggregator?: any;
 }
@@ -60,13 +60,13 @@ type WorkflowStateJson = Omit<
  * File-based storage adapter for VoltAgent memory.
  * Implements the StorageAdapter interface for conversation storage.
  */
-export class FileVoltAgentMemoryAdapter implements StorageAdapter {
+export class FileMemoryAdapter implements StorageAdapter {
   private projectHomeDir: string;
   private usageAggregator?: any;
   private conversationCache = new Map<string, Conversation>();
   private conversationResourceCache = new Map<string, string>();
 
-  constructor(options: FileVoltAgentMemoryAdapterOptions) {
+  constructor(options: FileMemoryAdapterOptions) {
     this.projectHomeDir = options.projectHomeDir;
     this.usageAggregator = options.usageAggregator;
   }

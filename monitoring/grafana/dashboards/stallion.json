@@ -4,17 +4,36 @@
   "schemaVersion": 38,
   "version": 2,
   "refresh": "30s",
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "panels": [
     {
       "id": 1,
       "type": "stat",
       "title": "Chat Requests",
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus" },
-      "options": { "colorMode": "background", "graphMode": "none" },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } }
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        }
       },
       "targets": [
         {
@@ -27,11 +46,27 @@
       "id": 2,
       "type": "stat",
       "title": "Active Agents",
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus" },
-      "options": { "colorMode": "background", "graphMode": "none" },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } }
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        }
       },
       "targets": [
         {
@@ -44,11 +79,27 @@
       "id": 9,
       "type": "stat",
       "title": "MCP Connections",
-      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus" },
-      "options": { "colorMode": "background", "graphMode": "none" },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } }
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        }
       },
       "targets": [
         {
@@ -61,11 +112,27 @@
       "id": 10,
       "type": "stat",
       "title": "Errors",
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus" },
-      "options": { "colorMode": "background", "graphMode": "none" },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } }
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          }
+        }
       },
       "targets": [
         {
@@ -78,13 +145,27 @@
       "id": 3,
       "type": "stat",
       "title": "Chat Duration (p95)",
-      "gridPos": { "x": 0, "y": 4, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus" },
-      "options": { "colorMode": "background", "graphMode": "none" },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
-          "color": { "mode": "fixed", "fixedColor": "orange" }
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
         }
       },
       "targets": [
@@ -98,11 +179,26 @@
       "id": 4,
       "type": "stat",
       "title": "Token Usage",
-      "gridPos": { "x": 6, "y": 4, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus" },
-      "options": { "colorMode": "background", "graphMode": "none" },
+      "gridPos": {
+        "x": 6,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" } }
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
       },
       "targets": [
         {
@@ -119,15 +215,31 @@
       "id": 11,
       "type": "bargauge",
       "title": "Requests by Agent",
-      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 4 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "options": {
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" } }
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
       },
       "targets": [
         {
@@ -140,10 +252,22 @@
       "id": 5,
       "type": "timeseries",
       "title": "Requests Over Time",
-      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" } }
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
       },
       "targets": [
         {
@@ -156,10 +280,22 @@
       "id": 6,
       "type": "timeseries",
       "title": "Token Consumption Over Time",
-      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" } }
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
       },
       "targets": [
         {
@@ -176,15 +312,31 @@
       "id": 7,
       "type": "bargauge",
       "title": "Tool Calls",
-      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "options": {
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" } }
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
       },
       "targets": [
         {
@@ -197,13 +349,25 @@
       "id": 12,
       "type": "timeseries",
       "title": "Tool Duration (p95)",
-      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
-          "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 10 }
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 10
+          }
         }
       },
       "targets": [
@@ -218,12 +382,24 @@
       "type": "timeseries",
       "title": "Context Overhead vs Input Tokens",
       "description": "Fixed context (system prompt + MCP tools) vs total input tokens per agent",
-      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 15 }
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 15
+          }
         }
       },
       "targets": [
@@ -241,13 +417,27 @@
       "id": 15,
       "type": "stat",
       "title": "Estimated Cost",
-      "gridPos": { "x": 12, "y": 24, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus" },
-      "options": { "colorMode": "background", "graphMode": "area" },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area"
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "color": { "mode": "fixed", "fixedColor": "yellow" },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "yellow"
+          },
           "decimals": 4
         }
       },
@@ -262,17 +452,31 @@
       "id": 16,
       "type": "bargauge",
       "title": "Cost by Agent",
-      "gridPos": { "x": 18, "y": 24, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 18,
+        "y": 24,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "options": {
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "decimals": 4
         }
       },
@@ -287,12 +491,25 @@
       "id": 8,
       "type": "timeseries",
       "title": "Error Rate",
-      "gridPos": { "x": 12, "y": 28, "w": 12, "h": 6 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "fixed", "fixedColor": "red" },
-          "custom": { "fillOpacity": 20 }
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "custom": {
+            "fillOpacity": 20
+          }
         }
       },
       "targets": [
@@ -306,11 +523,21 @@
       "id": 13,
       "type": "timeseries",
       "title": "Chat Duration Distribution",
-      "gridPos": { "x": 0, "y": 32, "w": 12, "h": 6 },
-      "datasource": { "type": "prometheus" },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "stallion-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "ms"
         }
       },

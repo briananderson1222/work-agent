@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: Stallion
+    folder: Stallion
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
