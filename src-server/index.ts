@@ -6,14 +6,14 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 // import 'dotenv/config';
-import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
+import { StallionRuntime } from './runtime/stallion-runtime.js';
 
 async function main() {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3141;
   const projectHomeDir =
     process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai');
 
-  const runtime = new WorkAgentRuntime({
+  const runtime = new StallionRuntime({
     projectHomeDir,
     port,
     logLevel: 'info',

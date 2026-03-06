@@ -4,7 +4,7 @@
  */
 
 import { createHooks, type Tool } from '@voltagent/core';
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
@@ -162,7 +162,7 @@ export function createToolApprovalHooks(
     string,
     { systemPromptTokens: number; mcpServerTokens: number }
   >,
-  memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>,
+  memoryAdapters: Map<string, FileMemoryAdapter>,
   logger: any,
 ) {
   const autoApprove = spec.tools?.autoApprove || [];

@@ -177,7 +177,7 @@ export interface AgentCreationConfig {
 export interface AgentBundle {
   agent: IAgent;
   tools: ITool[];
-  memoryAdapter: any; // FileVoltAgentMemoryAdapter
+  memoryAdapter: any; // FileMemoryAdapter
   fixedTokens: { systemPromptTokens: number; mcpServerTokens: number };
 }
 

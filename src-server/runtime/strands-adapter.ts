@@ -19,7 +19,6 @@ import {
   McpClient,
   type AgentStreamEvent,
   type AgentResult,
-  type Usage,
   BeforeToolCallEvent,
   AfterToolCallEvent,
   AfterInvocationEvent,
@@ -27,7 +26,7 @@ import {
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type {
   AgentBundle,
   AgentCreationConfig,
@@ -119,7 +118,6 @@ function mapStreamEvent(event: AgentStreamEvent): IStreamChunk | null {
 class StrandsAgentWrapper implements IAgent {
   private strandsAgent: StrandsAgent;
   private memory: IMemory | null;
-  private _lastUsage: Usage | undefined;
 
   constructor(
     strandsAgent: StrandsAgent,
@@ -134,10 +132,13 @@ class StrandsAgentWrapper implements IAgent {
 
   async generateText(prompt: string, _options?: any): Promise<IGenerateResult> {
     const result = await this.strandsAgent.invoke(prompt);
+    const msg = result.lastMessage;
+    const reasoningBlocks = msg?.content?.filter((b: any) => b.type === 'reasoningBlock') || [];
+    const reasoning = reasoningBlocks.map((b: any) => b.reasoningText || b.text || '').join('\n') || undefined;
     return {
       text: result.toString(),
-      usage: this._extractUsage(result),
-      reasoning: this._extractReasoning(result),
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      reasoning,
     };
   }
 
@@ -205,24 +206,11 @@ class StrandsAgentWrapper implements IAgent {
     } catch {
       object = { raw: text };
     }
-    return { object, text, usage: this._extractUsage(result) };
+    return { object, text, usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } };
   }
 
   getMemory(): IMemory | null {
     return this.memory;
-  }
-
-  private _extractUsage(result: AgentResult): any {
-    // Strands tracks usage on the agent's metrics, not on the result directly
-    // For now return empty — will be enriched via hooks
-    return { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-  }
-
-  private _extractReasoning(result: AgentResult): string | undefined {
-    const msg = result.lastMessage;
-    if (!msg) return undefined;
-    const reasoningBlocks = msg.content?.filter((b: any) => b.type === 'reasoningBlock') || [];
-    return reasoningBlocks.map((b: any) => b.reasoningText || b.text || '').join('\n') || undefined;
   }
 }
 

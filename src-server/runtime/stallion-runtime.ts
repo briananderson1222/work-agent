@@ -21,7 +21,7 @@ import { jsonSchema } from 'ai';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { UsageAggregator } from '../analytics/usage-aggregator.js';
 import { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
@@ -106,7 +106,7 @@ import { isAuthError } from '../utils/auth-errors.js';
 import { InjectableStream } from './streaming/InjectableStream.js';
 import modelsRoute from '../routes/models.js';
 
-export interface WorkAgentRuntimeOptions {
+export interface StallionRuntimeOptions {
   projectHomeDir?: string;
   port?: number;
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
@@ -116,7 +116,7 @@ export interface WorkAgentRuntimeOptions {
  * Main runtime for Stallion system
  * Manages VoltAgent instances with dynamic agent loading
  */
-export class WorkAgentRuntime {
+export class StallionRuntime {
   private configLoader: ConfigLoader;
   private appConfig!: AppConfig;
   private logger: ReturnType<typeof createLogger>;
@@ -133,7 +133,7 @@ export class WorkAgentRuntime {
   private activeAgents: Map<string, Agent> = new Map();
   private agentMetadataMap: Map<string, any> = new Map();
   private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
-  private memoryAdapters: Map<string, FileVoltAgentMemoryAdapter> = new Map();
+  private memoryAdapters: Map<string, FileMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
@@ -181,7 +181,7 @@ export class WorkAgentRuntime {
   public readonly eventBus = new EventBus();
   private framework!: VoltAgentFramework | StrandsFramework;
 
-  constructor(options: WorkAgentRuntimeOptions = {}) {
+  constructor(options: StallionRuntimeOptions = {}) {
     const projectHomeDir = options.projectHomeDir || '.stallion-ai';
     this.port = options.port || 3141;
     this.eventLogPath = `${projectHomeDir}/monitoring`;
@@ -224,7 +224,7 @@ export class WorkAgentRuntime {
       process.cwd(),
       this.memoryAdapters,
       (_slug: string) => {
-        const adapter = new FileVoltAgentMemoryAdapter({
+        const adapter = new FileMemoryAdapter({
           projectHomeDir: this.configLoader.getProjectHomeDir(),
           usageAggregator: this.usageAggregator,
         });
@@ -2501,7 +2501,7 @@ export class WorkAgentRuntime {
       ? `${processedSystemPrompt}\n\n${processedPrompt}`
       : processedPrompt;
 
-    const memoryAdapter = new FileVoltAgentMemoryAdapter({
+    const memoryAdapter = new FileMemoryAdapter({
       projectHomeDir: this.configLoader.getProjectHomeDir(),
       usageAggregator: this.usageAggregator,
     });

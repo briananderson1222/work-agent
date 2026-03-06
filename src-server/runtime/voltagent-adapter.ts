@@ -13,7 +13,7 @@ import {
 } from '@voltagent/core';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
@@ -34,7 +34,7 @@ import type {
 export interface AgentBundle {
   agent: IAgent;
   tools: ITool[];
-  memoryAdapter: FileVoltAgentMemoryAdapter;
+  memoryAdapter: FileMemoryAdapter;
   fixedTokens: { systemPromptTokens: number; mcpServerTokens: number };
 }
 
@@ -42,7 +42,7 @@ export interface AgentBundle {
 
 export interface CreateAgentOptions {
   processedPrompt: string;
-  memoryAdapter: FileVoltAgentMemoryAdapter;
+  memoryAdapter: FileMemoryAdapter;
   configLoader: ConfigLoader;
   mcpConfigs: Map<string, MCPConfiguration>;
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>;
@@ -51,7 +51,7 @@ export interface CreateAgentOptions {
   toolNameReverseMapping: Map<string, string>;
   approvalRegistry: ApprovalRegistry;
   agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }>;
-  memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>;
+  memoryAdapters: Map<string, FileMemoryAdapter>;
   logger: any;
 }
 

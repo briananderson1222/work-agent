@@ -3,10 +3,10 @@
  */
 
 import { Hono } from 'hono';
-import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 
 export function createConversationRoutes(
-  memoryAdapters: Map<string, FileVoltAgentMemoryAdapter>,
+  memoryAdapters: Map<string, FileMemoryAdapter>,
   logger: any,
 ) {
   const app = new Hono();
