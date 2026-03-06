@@ -35,3 +35,4 @@ archive/
 !src-desktop/icons/*.png
 examples/demo-workspace/package-lock.json
 .stallion.pids
+test-results/
