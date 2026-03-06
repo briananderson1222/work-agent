@@ -33,6 +33,7 @@ import * as ConversationManager from './conversation-manager.js';
 import * as MCPManager from './mcp-manager.js';
 import * as StreamOrchestrator from './stream-orchestrator.js';
 import * as ToolExecutor from './tool-executor.js';
+import { createAgentHooks } from './agent-hooks.js';
 import { VoltAgentFramework } from './voltagent-adapter.js';
 import type { CreateAgentOptions } from './voltagent-adapter.js';
 import { StrandsFramework } from './strands-adapter.js';
@@ -2491,6 +2492,17 @@ export class WorkAgentRuntime {
     });
 
     // Delegate to whichever framework adapter is active
+    const hooks = createAgentHooks({
+      spec,
+      appConfig: this.appConfig,
+      configLoader: this.configLoader,
+      modelCatalog: this.modelCatalog,
+      agentFixedTokens: this.agentFixedTokens,
+      memoryAdapters: this.memoryAdapters,
+      approvalRegistry: this.approvalRegistry,
+      logger: this.logger,
+    });
+
     const bundle = await this.framework.createAgent(
       agentSlug,
       spec,
@@ -2500,6 +2512,7 @@ export class WorkAgentRuntime {
         usageAggregator: this.usageAggregator,
         modelCatalog: this.modelCatalog,
         approvalRegistry: this.approvalRegistry,
+        hooks,
       },
       {
         processedPrompt: instructions,
