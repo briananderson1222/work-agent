@@ -1,12 +1,11 @@
 /**
  * Built-in lightweight scheduler — no external dependencies.
- * In-process cron matching, JSON file persistence, spawns kiro-cli for runs.
+ * In-process cron matching, JSON file persistence, calls local agent chat API for runs.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { spawn } from 'node:child_process';
 import type {
   ISchedulerProvider,
   SchedulerJob,
@@ -106,6 +105,9 @@ function appendLog(jobName: string, entry: SchedulerLogEntry) {
 
 // ── Provider ──
 
+/** Function that invokes an agent and returns the response text */
+export type ChatFn = (agentSlug: string, prompt: string) => Promise<string>;
+
 export class BuiltinScheduler implements ISchedulerProvider {
   readonly id = 'built-in';
   readonly displayName = 'Built-in Scheduler';
@@ -113,7 +115,12 @@ export class BuiltinScheduler implements ISchedulerProvider {
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = new Set<string>();
+  private missed = new Map<string, number>();
   private sseClients = new Set<(data: string) => void>();
+  private chatFn: ChatFn | null = null;
+
+  /** Provide the chat function once the runtime is ready */
+  setChatFn(fn: ChatFn) { this.chatFn = fn; }
 
   start() {
     if (this.timer) return;
@@ -128,8 +135,13 @@ export class BuiltinScheduler implements ISchedulerProvider {
   private tick() {
     const now = new Date();
     for (const job of readJobs()) {
-      if (!job.enabled || !job.cron || this.running.has(job.name)) continue;
-      if (cronMatches(job.cron, now)) this.executeJob(job);
+      if (!job.enabled || !job.cron) continue;
+      if (!cronMatches(job.cron, now)) continue;
+      if (this.running.has(job.name)) {
+        this.missed.set(job.name, (this.missed.get(job.name) || 0) + 1);
+        continue;
+      }
+      this.executeJob(job);
     }
   }
 
@@ -143,29 +155,24 @@ export class BuiltinScheduler implements ISchedulerProvider {
     ensureDirs();
 
     try {
-      const args = ['chat', '--prompt', job.prompt];
-      if (job.agent) args.push('--agent', job.agent);
+      if (!this.chatFn) throw new Error('Scheduler not connected to agent runtime');
+      const agent = (job.agent && job.agent !== 'default') ? job.agent : 'default';
+      const output = await this.chatFn(agent, job.prompt);
 
-      const result = await new Promise<{ code: number; output: string }>((resolve) => {
-        let output = '';
-        const child = spawn('kiro-cli', args, { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NO_COLOR: '1' } });
-        child.stdout?.on('data', (d: Buffer) => { output += d.toString(); });
-        child.stderr?.on('data', (d: Buffer) => { output += d.toString(); });
-        child.on('close', (code) => resolve({ code: code ?? 1, output }));
-        child.on('error', (e) => resolve({ code: 1, output: e.message }));
-      });
-
-      writeFileSync(outFile, result.output);
+      writeFileSync(outFile, output);
       const completedAt = new Date().toISOString();
       const durationSecs = (Date.parse(completedAt) - Date.parse(startedAt)) / 1000;
-      const success = result.code === 0;
 
-      appendLog(job.name, { id, job: job.name, startedAt, completedAt, success, durationSecs, output: outFile });
-      this.broadcast({ event: success ? 'job.completed' : 'job.failed', job: job.name, id, success, duration_secs: durationSecs, ...(success ? {} : { error: `exit code ${result.code}` }) });
+      appendLog(job.name, { id, job: job.name, startedAt, completedAt, success: true, durationSecs, missedCount: this.missed.get(job.name) || 0, output: outFile });
+      this.broadcast({ event: 'job.completed', job: job.name, id, success: true, duration_secs: durationSecs });
     } catch (e: any) {
-      appendLog(job.name, { id, job: job.name, startedAt, success: false, error: e.message });
+      writeFileSync(outFile, e.message);
+      const completedAt = new Date().toISOString();
+      const durationSecs = (Date.parse(completedAt) - Date.parse(startedAt)) / 1000;
+      appendLog(job.name, { id, job: job.name, startedAt, completedAt, success: false, durationSecs, missedCount: this.missed.get(job.name) || 0, output: outFile, error: e.message });
       this.broadcast({ event: 'job.failed', job: job.name, id, error: e.message });
     } finally {
+      this.missed.delete(job.name);
       this.running.delete(job.name);
     }
   }
@@ -189,6 +196,8 @@ export class BuiltinScheduler implements ISchedulerProvider {
   }
 
   async addJob(opts: AddJobOpts): Promise<string> {
+    if (!opts.name?.trim()) throw new Error('Job name is required');
+    if (!opts.prompt?.trim()) throw new Error('Job prompt is required');
     const jobs = readJobs();
     if (jobs.some((j) => j.name === opts.name)) throw new Error(`Job '${opts.name}' already exists`);
     jobs.push({ name: opts.name, cron: opts.cron, prompt: opts.prompt, agent: opts.agent, openArtifact: opts.openArtifact, notifyStart: opts.notifyStart, enabled: true, createdAt: new Date().toISOString() });
@@ -200,12 +209,20 @@ export class BuiltinScheduler implements ISchedulerProvider {
     const jobs = readJobs();
     const job = jobs.find((j) => j.name === target);
     if (!job) throw new Error(`Job '${target}' not found`);
-    for (const [k, v] of Object.entries(opts)) (job as any)[k] = v;
+    const PROTECTED = new Set(['name', 'createdAt']);
+    for (const [k, v] of Object.entries(opts)) {
+      if (PROTECTED.has(k)) continue;
+      (job as any)[k] = v;
+    }
     writeJobs(jobs);
     return `Job '${target}' updated`;
   }
 
-  async removeJob(target: string): Promise<void> { writeJobs(readJobs().filter((j) => j.name !== target)); }
+  async removeJob(target: string): Promise<void> {
+    const jobs = readJobs();
+    if (!jobs.some((j) => j.name === target)) throw new Error(`Job '${target}' not found`);
+    writeJobs(jobs.filter((j) => j.name !== target));
+  }
   async runJob(target: string): Promise<string> {
     const job = readJobs().find((j) => j.name === target);
     if (!job) throw new Error(`Job '${target}' not found`);

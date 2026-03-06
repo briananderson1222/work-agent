@@ -12,7 +12,7 @@ import type {
   SchedulerProviderStatus,
   AddJobOpts,
 } from '../providers/types.js';
-import { BuiltinScheduler, nextCronTimes } from './builtin-scheduler.js';
+import { BuiltinScheduler, nextCronTimes, type ChatFn } from './builtin-scheduler.js';
 
 export class SchedulerService {
   private providers = new Map<string, ISchedulerProvider>();
@@ -24,6 +24,9 @@ export class SchedulerService {
     this.builtin.start();
     this.providers.set(this.builtin.id, this.builtin);
   }
+
+  /** Wire the chat function once the runtime is ready */
+  setChatFn(fn: ChatFn) { this.builtin.setChatFn(fn); }
 
   /** Register an additional scheduler provider (from plugin) */
   addProvider(provider: ISchedulerProvider) {
@@ -75,7 +78,7 @@ export class SchedulerService {
         }
       } catch { /* provider unavailable */ }
     }
-    return { providers, summary: { totalJobs, totalRuns, successRate: totalRuns ? Math.round((totalSuccesses / totalRuns) * 100) : -1 } };
+    return { providers, summary: { totalJobs, totalRuns, successRate: totalRuns ? Math.round((totalSuccesses / totalRuns) * 100) : 0 } };
   }
 
   async getStatus(): Promise<{ providers: Record<string, SchedulerProviderStatus & { id: string; displayName: string }> }> {

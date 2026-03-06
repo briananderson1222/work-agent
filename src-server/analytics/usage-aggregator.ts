@@ -112,7 +112,10 @@ export class UsageAggregator {
   async loadStats(): Promise<UsageStats> {
     if (existsSync(this.statsPath)) {
       const content = await readFile(this.statsPath, 'utf-8');
-      return JSON.parse(content);
+      const stats = JSON.parse(content);
+      // Clean up legacy "unknown" model bucket
+      delete stats.byModel?.['unknown'];
+      return stats;
     }
     return this.getEmptyStats();
   }
@@ -204,7 +207,7 @@ export class UsageAggregator {
   ): Promise<void> {
     const stats = await this.loadStats();
     const usage = message.metadata?.usage;
-    const modelId = message.metadata?.model || 'unknown';
+    const modelId = message.metadata?.model;
 
     // Update lifetime stats
     stats.lifetime.totalMessages++;
@@ -236,20 +239,22 @@ export class UsageAggregator {
       stats.lifetime.uniqueAgents.push(agentSlug);
     }
 
-    // Update by-model stats
-    if (!stats.byModel[modelId]) {
-      stats.byModel[modelId] = {
-        messages: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        cost: 0,
-      };
-    }
-    stats.byModel[modelId].messages++;
-    if (usage) {
-      stats.byModel[modelId].inputTokens += usage.inputTokens || 0;
-      stats.byModel[modelId].outputTokens += usage.outputTokens || 0;
-      stats.byModel[modelId].cost += usage.estimatedCost || 0;
+    // Update by-model stats (skip if no model ID)
+    if (modelId) {
+      if (!stats.byModel[modelId]) {
+        stats.byModel[modelId] = {
+          messages: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          cost: 0,
+        };
+      }
+      stats.byModel[modelId].messages++;
+      if (usage) {
+        stats.byModel[modelId].inputTokens += usage.inputTokens || 0;
+        stats.byModel[modelId].outputTokens += usage.outputTokens || 0;
+        stats.byModel[modelId].cost += usage.estimatedCost || 0;
+      }
     }
 
     // Update by-agent stats
@@ -284,11 +289,11 @@ export class UsageAggregator {
 
     // Load app config to get default model
     const appConfigPath = join(this.projectHomeDir, 'config', 'app.json');
-    let defaultModel = 'unknown';
+    let defaultModel = '';
     try {
       if (existsSync(appConfigPath)) {
         const appConfig = JSON.parse(await readFile(appConfigPath, 'utf-8'));
-        defaultModel = appConfig.defaultModel || 'unknown';
+        defaultModel = appConfig.defaultModel || '';
       }
     } catch (error) {
       logger.error('Failed to load app config', { error });
@@ -361,21 +366,23 @@ export class UsageAggregator {
               this.updateDaily(currentStats, date, agentSlug, usage);
             }
 
-            if (!currentStats.byModel[modelId]) {
-              currentStats.byModel[modelId] = {
-                messages: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                cost: 0,
-              };
-            }
-            currentStats.byModel[modelId].messages++;
-            if (usage) {
-              currentStats.byModel[modelId].inputTokens +=
-                usage.inputTokens || 0;
-              currentStats.byModel[modelId].outputTokens +=
-                usage.outputTokens || 0;
-              currentStats.byModel[modelId].cost += usage.estimatedCost || 0;
+            if (modelId) {
+              if (!currentStats.byModel[modelId]) {
+                currentStats.byModel[modelId] = {
+                  messages: 0,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  cost: 0,
+                };
+              }
+              currentStats.byModel[modelId].messages++;
+              if (usage) {
+                currentStats.byModel[modelId].inputTokens +=
+                  usage.inputTokens || 0;
+                currentStats.byModel[modelId].outputTokens +=
+                  usage.outputTokens || 0;
+                currentStats.byModel[modelId].cost += usage.estimatedCost || 0;
+              }
             }
 
             if (!currentStats.byAgent[agentSlug]) {
@@ -544,7 +551,7 @@ export class UsageAggregator {
         return Object.keys(stats.byModel).length >= def.threshold!;
       case 'cost-conscious':
         return (
-          stats.lifetime.totalMessages > 0 &&
+          stats.lifetime.totalMessages >= 50 &&
           stats.lifetime.totalCost / stats.lifetime.totalMessages <=
             def.threshold!
         );

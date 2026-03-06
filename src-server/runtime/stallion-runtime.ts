@@ -1018,12 +1018,17 @@ export class StallionRuntime {
       '/agents',
       createConversationRoutes(this.memoryAdapters, this.logger),
     );
+    const schedulerService = new SchedulerService(this.logger);
+    schedulerService.setChatFn(async (agentSlug, prompt) => {
+      const slug = agentSlug === 'default' ? (this.activeAgents.keys().next().value || agentSlug) : agentSlug;
+      const agent = this.activeAgents.get(slug);
+      if (!agent) throw new Error(`Agent '${slug}' not found`);
+      const result = await agent.generateText(prompt);
+      return result.text;
+    });
     app.route(
       '/scheduler',
-      createSchedulerRoutes(
-        new SchedulerService(this.logger),
-        this.logger,
-      ),
+      createSchedulerRoutes(schedulerService, this.logger),
     );
 
     // Agent health check (agent-specific, not in monitoring routes)

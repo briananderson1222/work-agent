@@ -112,6 +112,7 @@ export interface SchedulerLogEntry {
   completedAt?: string;
   success: boolean;
   durationSecs?: number;
+  missedCount?: number;
   output?: string;
   error?: string;
 }

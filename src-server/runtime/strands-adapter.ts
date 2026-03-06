@@ -384,6 +384,7 @@ export class StrandsFramework {
                   { id: crypto.randomUUID(), role, parts: textParts },
                   ctx.userId || '',
                   ctx.conversationId,
+                  { model: resolvedModel },
                 );
               }
             }
