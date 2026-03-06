@@ -30,7 +30,7 @@ test('network audit - detect duplicate tool calls', async ({ page }) => {
   });
 
   // Navigate and wait for initial load
-  await page.goto('http://localhost:5173/');
+  await page.goto('/');
   await page.waitForTimeout(3000);
 
   // Try to click stallion workspace tab

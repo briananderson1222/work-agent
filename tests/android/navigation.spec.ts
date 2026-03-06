@@ -20,7 +20,12 @@ test.describe('Android — Navigation', () => {
 
   test('no elements overflow viewport horizontally', async ({ page }) => {
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    // Wait for loading spinners to resolve (MCP tool init can be slow)
+    await page.waitForFunction(() =>
+      !document.body.innerText.includes('Loading accounts...'),
+      { timeout: 15000 },
+    ).catch(() => {});
+    await page.waitForTimeout(500);
 
     const offscreen = await page.evaluate(() => {
       const vw = window.innerWidth;

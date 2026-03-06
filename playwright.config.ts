@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './tests',
   timeout: 30_000,
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: process.env.PW_BASE_URL || 'http://localhost:3000',
     headless: true,
   },
   projects: [

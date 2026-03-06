@@ -12,15 +12,15 @@ const PROJECT_DIR = join(dirname(__filename), '..');
 const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-workspace');
 
 test.describe('Plugin System', () => {
-  test.beforeAll(() => {
-    // Build the demo workspace bundle
-    execSync('node build.mjs', { cwd: DEMO_DIR, timeout: 15000 });
+  test.beforeAll(async () => {
+    // Build the demo workspace bundle using centralized build
+    execSync('npx tsx ../packages/cli/src/cli.ts build', { cwd: DEMO_DIR, timeout: 30000 });
     // Ensure it's not installed
-    try { execSync(`npx tsx packages/cli/src/cli.ts remove demo-workspace`, { cwd: PROJECT_DIR, timeout: 5000 }); } catch {}
+    try { await fetch('http://localhost:3141/api/plugins/demo-workspace', { method: 'DELETE' }); } catch {}
   });
 
-  test.afterAll(() => {
-    try { execSync(`npx tsx packages/cli/src/cli.ts remove demo-workspace`, { cwd: PROJECT_DIR, timeout: 5000 }); } catch {}
+  test.afterAll(async () => {
+    try { await fetch('http://localhost:3141/api/plugins/demo-workspace', { method: 'DELETE' }); } catch {}
   });
 
   test('plugin API lists no plugins when none installed', async () => {
@@ -57,9 +57,16 @@ test.describe('Plugin System', () => {
   });
 
   test('demo workspace loads in browser after install', async ({ page }) => {
-    // Navigate to the app — the demo workspace should be available
+    // Ensure plugin is installed
+    await fetch('http://localhost:3141/api/plugins/install', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: DEMO_DIR }),
+    });
+
+    // Navigate — PluginRegistry fetches /api/plugins on init and loads bundles
     await page.goto('/');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(5000);
 
     // Check if demo workspace components registered
     const hasPlugin = await page.evaluate(() => {
@@ -69,6 +76,13 @@ test.describe('Plugin System', () => {
   });
 
   test('remove plugin via API', async () => {
+    // Ensure plugin is installed first
+    await fetch('http://localhost:3141/api/plugins/install', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: DEMO_DIR }),
+    });
+
     const res = await (await fetch('http://localhost:3141/api/plugins/demo-workspace', {
       method: 'DELETE',
     })).json();
