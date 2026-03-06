@@ -249,6 +249,66 @@ Providers are declared in `plugin.json` and loaded when the server starts. For r
 └── tests/                # Playwright integration tests
 ```
 
+## CLI
+
+The `./stallion` script is the unified CLI for managing the application:
+
+```bash
+./stallion start                    # Build (if needed) and start server + UI
+./stallion start --port=3142        # Custom server port (default: 3141)
+./stallion start --ui-port=3001     # Custom UI port (default: 3000)
+./stallion stop                     # Stop running processes
+./stallion upgrade                  # Pull latest, rebuild
+./stallion doctor                   # Check prerequisites
+```
+
+Plugin management:
+
+```bash
+./stallion install <git-url|path>   # Install a plugin
+./stallion list                     # List installed plugins
+./stallion remove <name>            # Remove a plugin
+./stallion dev [port]               # Plugin dev server (default: 4200)
+```
+
+## Monitoring
+
+Stallion includes OpenTelemetry instrumentation for traces, metrics, and logs. The monitoring stack runs as a Docker Compose profile:
+
+```bash
+docker compose --profile monitoring up -d
+```
+
+This starts:
+- **OTel Collector** (`:4318`) — receives OTLP from the app
+- **Prometheus** (`:9090`) — scrapes metrics from the collector
+- **Grafana** (`:3333`) — dashboards (admin/stallion)
+- **Jaeger** (`:16686`) — distributed traces
+
+To enable telemetry in the app, set the endpoint:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 ./stallion start
+```
+
+### Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `stallion.chat.requests` | Counter | Total chat requests (by agent) |
+| `stallion.chat.duration` | Histogram | Request duration in ms (by agent) |
+| `stallion.chat.errors` | Counter | Failed requests (by agent) |
+| `stallion.tokens.input` | Counter | Input tokens consumed (by agent) |
+| `stallion.tokens.output` | Counter | Output tokens generated (by agent) |
+| `stallion.tokens.context` | Counter | Fixed context tokens per request (by agent) |
+| `stallion.tool.calls` | Counter | Tool invocations (by tool) |
+| `stallion.tool.duration` | Histogram | Tool execution time in ms (by tool) |
+| `stallion.cost.estimated` | Counter | Estimated cost in USD (by agent) |
+| `stallion.agents.active` | Gauge | Number of loaded agents |
+| `stallion.mcp.connections` | Gauge | Number of MCP connections |
+
+The Grafana dashboard at `http://localhost:3333/d/stallion-overview` provides 16 panels covering requests, tokens, costs, tool usage, errors, and latency distributions.
+
 ## Scripts
 
 | Script | Description |

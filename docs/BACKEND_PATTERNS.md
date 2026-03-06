@@ -461,3 +461,51 @@ When extracting code from `voltagent-runtime.ts`:
 6. **Missing metadata in CreateConversationInput** - Required field
 7. **Accessing agent.tools directly** - Use cached tools map
 8. **Not narrowing union types** - Use type assertions after conditionals
+
+## Telemetry & Metrics
+
+### Architecture
+
+```
+App (OTel SDK) → Collector (:4318) → Prometheus (:8889) → Grafana (:3333)
+                                   → Jaeger (:4317)
+```
+
+The OTel SDK bootstraps in `src-server/telemetry.ts` (must be imported before all other modules). Metric instruments are defined in `src-server/telemetry/metrics.ts`. Both are no-ops when `OTEL_EXPORTER_OTLP_ENDPOINT` is not set.
+
+### Recording Metrics
+
+Import instruments from `telemetry/metrics.js` and call `.add()` or `.record()`:
+
+```typescript
+import { chatRequests, tokensInput } from '../telemetry/metrics.js';
+
+chatRequests.add(1, { agent: slug });
+tokensInput.add(usage.promptTokens || usage.inputTokens || 0, { agent: slug });
+```
+
+### Token Field Fallback Pattern
+
+The AI SDK returns different field names depending on the provider. Bedrock uses `inputTokens`/`outputTokens`, while the AI SDK public API uses `promptTokens`/`completionTokens`. Always use the fallback chain:
+
+```typescript
+usage.promptTokens || usage.inputTokens || 0    // input tokens
+usage.completionTokens || usage.outputTokens || 0  // output tokens
+```
+
+This pattern is used in `stallion-runtime.ts` (OTel recording + monitoring events) and `tool-executor.ts` (conversation stats).
+
+### Where Metrics Are Recorded
+
+| Metric | Location | Trigger |
+|--------|----------|---------|
+| `chat.requests`, `chat.duration`, `tokens.*` | `stallion-runtime.ts` completion handler | After stream finishes |
+| `chat.errors` | `stallion-runtime.ts` catch block | On chat endpoint error |
+| `tool.calls` | `MetadataHandler.collectStats()` | On `tool-call` stream chunk |
+| `tool.duration` | `MetadataHandler.collectStats()` | Between `tool-call` and `tool-result` chunks |
+| `tokens.context`, `cost.estimated` | `tool-executor.ts` stats update | After VoltAgent hook fires |
+| `agents.active`, `mcp.connections` | `stallion-runtime.ts` init | Observable gauges, polled by SDK |
+
+### Dashboard
+
+The Grafana dashboard JSON lives at `monitoring/grafana/dashboards/stallion.json` and is bind-mounted into the container. Edits to the file are reflected immediately. The datasource uses a stable UID (`stallion-prometheus`) set in `monitoring/runtime/grafana-provisioning/datasources/prometheus.yml`.
