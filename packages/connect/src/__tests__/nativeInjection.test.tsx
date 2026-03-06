@@ -204,7 +204,10 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
     };
 
     // Stub fetch so probe batches (192.168.1.x) reject immediately
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('fetch failed')),
+    );
 
     const { result } = renderHook(() =>
       useNetworkDiscovery({ nativeDiscover, nativeOnly: false }),
