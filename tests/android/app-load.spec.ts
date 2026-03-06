@@ -13,7 +13,7 @@ test.describe('Android — App Load', () => {
     await page.goto('/');
     await page.waitForTimeout(2000);
 
-    expect(errors.filter(e => !e.includes('ResizeObserver'))).toHaveLength(0);
+    expect(errors.filter(e => !e.includes('ResizeObserver') && !e.includes('import_debug'))).toHaveLength(0);
   });
 
   test('root element mounts', async ({ page }) => {

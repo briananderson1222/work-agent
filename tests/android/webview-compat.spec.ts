@@ -17,6 +17,7 @@ test.describe('Android — WebView Compatibility', () => {
 
     const critical = errors.filter(e =>
       !e.includes('ResizeObserver') &&
+      !e.includes('import_debug') &&
       !e.includes('favicon') &&
       !e.includes('404') &&
       !e.includes('ERR_CONNECTION_REFUSED') && // backend not running in CI

@@ -273,7 +273,7 @@ test.describe('Voice Providers — GlobalVoiceButton', () => {
 
 test.describe('Voice Providers — VoiceOrb in chat input', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(SEED_STORAGE);
+    // Stub SpeechRecognition (not available in headless Chromium)
     await page.addInitScript(`
       window.SpeechRecognition = function() {
         this.continuous = false; this.interimResults = false;
@@ -283,28 +283,19 @@ test.describe('Voice Providers — VoiceOrb in chat input', () => {
         this.onstart = null; this.onresult = null; this.onerror = null; this.onend = null;
       };
     `);
-    await page.route('**/api/**', (r) => {
-      r.fulfill({ status: 200, contentType: 'application/json', body: '{"agents":[],"plugins":[]}' });
-    });
-    await page.route('**/api/system/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY }),
-    );
-    await page.route('**/api/system/capabilities', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: CAPABILITIES_RESPONSE }),
-    );
   });
 
   test('VoiceOrb renders in chat input when SpeechRecognition is available', async ({ page }) => {
-    // Navigate with dock=open param so chat input is visible
+    // Use real server (needs agents loaded for chat input to render)
     await page.goto('/?dock=open');
-    await page.waitForTimeout(2500);
+    await page.locator('button:has-text("+ New")').click();
     const orb = page.locator('[data-testid="voice-orb"]');
-    await expect(orb).toBeVisible();
+    await expect(orb).toBeVisible({ timeout: 10000 });
   });
 
   test('VoiceOrb changes appearance while listening', async ({ page }) => {
     await page.goto('/?dock=open');
-    await page.waitForTimeout(2500);
+    await page.locator('button:has-text("+ New")').click();
 
     const orb = page.locator('[data-testid="voice-orb"]');
     await expect(orb).toBeVisible();
