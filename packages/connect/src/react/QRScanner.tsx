@@ -147,6 +147,20 @@ export function QRScanner({ onScan, onCancel }: QRScannerProps) {
         >
           {error}
         </div>
+      ) : nativeScan ? (
+        /* Native scanner is active — no web video UI needed */
+        scanning && (
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              color: 'var(--text-secondary, #999)',
+              textAlign: 'center',
+            }}
+          >
+            Opening camera scanner…
+          </p>
+        )
       ) : (
         <>
           <div style={{ position: 'relative', width: '100%', maxWidth: 320 }}>

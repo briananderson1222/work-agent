@@ -45,8 +45,10 @@ export function TauriConnectBridge({
         const { invoke } = await import('@tauri-apps/api/core');
         // Kotlin resolves with { servers: DiscoveredServer[] }
         const result = await invoke<{ servers: DiscoveredServer[] }>('plugin:stallion-mdns|discover');
+        console.log('[mDNS] discover result:', result);
         return result?.servers ?? [];
-      } catch {
+      } catch (err) {
+        console.error('[mDNS] discover error:', err);
         return [];
       }
     };
