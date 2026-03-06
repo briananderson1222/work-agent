@@ -84,7 +84,7 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks {
         // Get existing stats
         const existingStats = (conversation.metadata?.stats as any) || {
           inputTokens: 0, outputTokens: 0, totalTokens: 0,
-          contextTokens: 0, turns: 0, toolCalls: 0, estimatedCost: 0,
+          contextTokens: 0, turns: 0, toolCalls: 0, estimatedCost: null,
         };
 
         const fixedTokens = deps.agentFixedTokens.get(invocation.agentSlug);
@@ -121,27 +121,28 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks {
           contextTokens,
           turns: existingStats.turns + 1,
           toolCalls: existingStats.toolCalls + toolCallCount,
-          estimatedCost: existingStats.estimatedCost + cost,
+          estimatedCost: cost !== null && existingStats.estimatedCost !== null
+            ? existingStats.estimatedCost + cost
+            : null,
           tokenBreakdown: { systemPromptTokens, mcpServerTokens, userMessageTokens, assistantMessageTokens: newOutputTokens },
         };
 
         // Per-model stats
         const modelStats = { ...(conversation.metadata?.modelStats || {}) } as Record<string, any>;
-        const ms = modelStats[modelId] || { inputTokens: 0, outputTokens: 0, totalTokens: 0, turns: 0, toolCalls: 0, estimatedCost: 0 };
+        const ms = modelStats[modelId] || { inputTokens: 0, outputTokens: 0, totalTokens: 0, turns: 0, toolCalls: 0, estimatedCost: null };
         modelStats[modelId] = {
           inputTokens: ms.inputTokens + (usage.promptTokens || 0),
           outputTokens: ms.outputTokens + (usage.completionTokens || 0),
           totalTokens: ms.totalTokens + (usage.promptTokens || 0) + (usage.completionTokens || 0),
           turns: ms.turns + 1,
           toolCalls: ms.toolCalls + toolCallCount,
-          estimatedCost: ms.estimatedCost + cost,
+          estimatedCost: cost !== null && ms.estimatedCost !== null ? ms.estimatedCost + cost : null,
         };
 
         await adapter.updateConversation(invocation.conversationId, {
           metadata: { ...conversation.metadata, stats: updatedStats, modelStats },
         });
 
-        // Enrich last assistant message with usage metadata
         await enrichLastMessage(adapter, invocation, modelId, usage, cost, deps);
       } catch (error) {
         deps.logger.error('Failed to update conversation stats', { error });
@@ -157,7 +158,7 @@ async function enrichLastMessage(
   invocation: InvocationContext,
   modelId: string,
   usage: TokenUsage,
-  cost: number,
+  cost: number | null,
   deps: AgentHooksDeps,
 ) {
   try {
@@ -209,10 +210,13 @@ async function calculateCost(
   modelCatalog: BedrockModelCatalog | undefined,
   appConfig: AppConfig,
   logger: any,
-): Promise<number> {
+): Promise<number | null> {
   const inputTokens = usage.promptTokens || 0;
   const outputTokens = usage.completionTokens || 0;
-  if (!modelCatalog) return 0;
+  if (!modelCatalog) {
+    logger.warn('No model catalog available, cost unavailable', { modelId });
+    return null;
+  }
 
   try {
     const pricing = await modelCatalog.getModelPricing(appConfig.region);
@@ -223,8 +227,10 @@ async function calculateCost(
       return (inputTokens / 1000) * (match.inputTokenPrice || 0) +
              (outputTokens / 1000) * (match.outputTokenPrice || 0);
     }
+    logger.warn('No pricing found for model, cost unavailable', { modelId });
+    return null;
   } catch (error) {
-    logger.warn('Failed to fetch pricing, using default', { error });
+    logger.warn('Failed to fetch pricing, cost unavailable', { modelId, error });
+    return null;
   }
-  return (inputTokens / 1000) * 0.003 + (outputTokens / 1000) * 0.015;
 }
