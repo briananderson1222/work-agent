@@ -20,34 +20,31 @@ import {
   type AgentStreamEvent,
   type AgentResult,
   type Usage,
+  BeforeToolCallEvent,
+  AfterToolCallEvent,
+  AfterInvocationEvent,
 } from '@strands-agents/sdk';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { FileVoltAgentMemoryAdapter } from '../adapters/file/voltagent-memory-adapter.js';
 import type {
+  AgentBundle,
   AgentCreationConfig,
   IAgent,
+  IAgentHooks,
   IGenerateResult,
   IMemory,
   IStreamChunk,
   IStreamResult,
   ITool,
+  TokenUsage,
 } from './types.js';
 import type { CreateAgentOptions } from './voltagent-adapter.js';
 import {
   normalizeToolName,
   parseToolName,
 } from '../utils/tool-name-normalizer.js';
-
-// ── Result bundle (same shape as VoltAgent adapter) ────
-
-export interface AgentBundle {
-  agent: IAgent;
-  tools: ITool[];
-  memoryAdapter: FileVoltAgentMemoryAdapter;
-  fixedTokens: { systemPromptTokens: number; mcpServerTokens: number };
-}
 
 // ── Stream event mapper: Strands → IStreamChunk ────────
 
@@ -88,6 +85,16 @@ function mapStreamEvent(event: AgentStreamEvent): IStreamChunk | null {
 
       case 'modelMessageStopEvent':
         return { type: 'finish', finishReason: inner.stopReason || 'end_turn' };
+
+      case 'modelMetadataEvent':
+        if (inner.usage) {
+          return {
+            type: 'usage',
+            promptTokens: inner.usage.inputTokens || 0,
+            completionTokens: inner.usage.outputTokens || 0,
+          };
+        }
+        return null;
 
       default:
         return null;
@@ -156,7 +163,11 @@ class StrandsAgentWrapper implements IAgent {
           const agentResult = (event as any).result as AgentResult;
           resolveText(agentResult.toString());
           resolveFinish(agentResult.stopReason || 'end_turn');
-          const usage = self._extractUsage(agentResult);
+          // Extract usage from metrics if available
+          const metrics = (event as any).metrics;
+          const usage: TokenUsage = metrics?.usage
+            ? { promptTokens: metrics.usage.inputTokens, completionTokens: metrics.usage.outputTokens, totalTokens: (metrics.usage.inputTokens || 0) + (metrics.usage.outputTokens || 0) }
+            : { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
           resolveUsage(usage);
           continue;
         }
@@ -256,6 +267,52 @@ export class StrandsFramework {
       systemPrompt: opts.processedPrompt,
       tools: tools as any[],
     });
+
+    // Wire runtime-provided hooks into Strands' native hook system
+    const hooks = config.hooks;
+    const invocationCtx = { agentSlug: slug };
+    let toolCallCount = 0;
+
+    if (hooks?.beforeToolCall) {
+      strandsAgent.hooks.addCallback(BeforeToolCallEvent, async (event) => {
+        const approved = await hooks.beforeToolCall!({
+          toolName: event.toolUse.name,
+          toolCallId: event.toolUse.toolUseId,
+          toolArgs: event.toolUse.input,
+        }, invocationCtx);
+        if (!approved) {
+          // Strands doesn't have a built-in deny mechanism on BeforeToolCallEvent,
+          // so we override the tool input to signal denial
+          (event as any)._denied = true;
+        }
+      });
+    }
+
+    if (hooks?.afterToolCall) {
+      strandsAgent.hooks.addCallback(AfterToolCallEvent, (event) => {
+        toolCallCount++;
+        hooks.afterToolCall!({
+          toolName: event.toolUse.name,
+          toolCallId: event.toolUse.toolUseId,
+          toolArgs: event.toolUse.input,
+        }, {
+          output: event.result?.content,
+          error: event.error,
+        }, invocationCtx);
+      });
+    }
+
+    if (hooks?.afterInvocation) {
+      strandsAgent.hooks.addCallback(AfterInvocationEvent, async (event) => {
+        await hooks.afterInvocation!({
+          invocation: invocationCtx,
+          usage: (event as any).metrics?.usage,
+          toolCallCount,
+          messages: (event as any).agent?.messages,
+        });
+        toolCallCount = 0; // Reset for next invocation
+      });
+    }
 
     // Wrap in IAgent
     const agent = new StrandsAgentWrapper(
