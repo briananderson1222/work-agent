@@ -177,8 +177,9 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
   });
 
   it('merges native results with subnet scan when nativeOnly is false', async () => {
-    // Patch RTCPeerConnection so subnet detection resolves immediately with no subnets,
-    // meaning the subnet loop runs 0 times. Native results still appear.
+    // Patch RTCPeerConnection so subnet detection resolves immediately with no subnets.
+    // detectSubnets falls back to ['192.168.1.'], so stub fetch to reject immediately
+    // so probe batches complete instantly without network delays.
     const nativeDiscover: NativeDiscoverFn = vi
       .fn()
       .mockResolvedValue([
@@ -202,6 +203,9 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
       close() {}
     };
 
+    // Stub fetch so probe batches (192.168.1.x) reject immediately
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+
     const { result } = renderHook(() =>
       useNetworkDiscovery({ nativeDiscover, nativeOnly: false }),
     );
@@ -215,10 +219,11 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
     });
 
     expect(nativeDiscover).toHaveBeenCalledOnce();
-    // Native result must be present (subnet scan may add nothing in test env)
+    // Native result must be present (subnet scan adds nothing since fetch is stubbed)
     const urls = result.current.discovered.map((s) => s.url);
     expect(urls).toContain('http://10.0.0.5:3141');
 
     (globalThis as any).RTCPeerConnection = origRTC;
+    vi.unstubAllGlobals();
   });
 });
