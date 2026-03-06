@@ -71,10 +71,10 @@ test.describe('Plugin Preview', () => {
     if (res.valid) {
       expect(res.dependencies).toBeDefined();
       expect(Array.isArray(res.dependencies)).toBe(true);
-      // sa-agent depends on aws-internal
-      const awsDep = res.dependencies.find((d: any) => d.id === 'aws-internal');
-      expect(awsDep).toBeTruthy();
-      expect(['installed', 'will-install']).toContain(awsDep.status);
+      // sa-agent depends on shared-tools
+      const dep = res.dependencies.find((d: any) => d.id === 'shared-tools');
+      expect(dep).toBeTruthy();
+      expect(['installed', 'will-install']).toContain(dep.status);
     }
   });
 

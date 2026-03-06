@@ -110,7 +110,7 @@ Plugins can declare dependencies on other plugins. Dependencies are resolved rec
 ```json
 {
   "dependencies": [
-    { "id": "aws-internal", "source": "git@github.com:org/aws-internal.git" }
+    { "id": "shared-tools", "source": "git@github.com:org/shared-tools.git" }
   ]
 }
 ```
