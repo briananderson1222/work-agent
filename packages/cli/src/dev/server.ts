@@ -1,0 +1,331 @@
+import {
+  existsSync,
+  watch as fsWatch,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
+import { execSync } from 'node:child_process';
+import { extname, join } from 'node:path';
+import {
+  buildPlugin,
+  readPluginManifest,
+  resolvePluginTools,
+  type WorkspaceConfig,
+  type ToolCallResponse,
+} from '@stallion-ai/shared';
+import { MCPManager } from '@stallion-ai/shared/mcp';
+import { serializeSDKMock } from './sdk-mock.js';
+import { generateDevHTML } from './template.js';
+import { CWD, PLUGINS_DIR, readManifest, lookupDepInRegistries } from '../commands/helpers.js';
+import { install } from '../commands/install.js';
+
+export interface DevFlags {
+  mcp?: boolean;
+  toolsDir?: string;
+}
+
+function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve) => {
+    let data = '';
+    req.on('data', (chunk: string) => (data += chunk));
+    req.on('end', () => {
+      try { resolve(JSON.parse(data)); } catch { resolve({}); }
+    });
+    req.on('error', () => resolve({}));
+  });
+}
+
+export async function startDevServer(port: number, flags: DevFlags = {}): Promise<void> {
+  await buildPlugin(CWD, 'dev');
+
+  const manifest = readManifest();
+
+  // Resolve dependencies (install if missing, same as `stallion install`)
+  if (manifest.dependencies?.length) {
+    for (const dep of manifest.dependencies) {
+      if (existsSync(join(PLUGINS_DIR, dep.id, 'plugin.json'))) continue;
+      const depSource = dep.source || lookupDepInRegistries(dep.id);
+      if (depSource) {
+        console.log(`📦 Installing dependency: ${dep.id}...`);
+        try { install(depSource, []); } catch (e: any) {
+          console.warn(`  ⚠ Dep ${dep.id} failed: ${e.message}`);
+        }
+      }
+    }
+  }
+
+  const name = manifest.displayName || manifest.name;
+  const pluginName = manifest.name;
+  const bundleJs = join(CWD, 'dist/bundle-dev.js');
+  const bundleCss = join(CWD, 'dist/bundle-dev.css');
+  const bundleCssFallback = join(CWD, 'dist/bundle.css');
+
+  const wsPath = manifest.workspace?.source
+    ? join(CWD, manifest.workspace.source)
+    : null;
+  const workspace: WorkspaceConfig | null =
+    wsPath && existsSync(wsPath)
+      ? JSON.parse(readFileSync(wsPath, 'utf-8'))
+      : null;
+  const tabs = workspace?.tabs || [];
+  const tabsJson = JSON.stringify(tabs);
+
+  // Read agent info for dev header
+  const agents = (manifest.agents || []).map((a) => {
+    try {
+      const agentPath = join(CWD, a.source);
+      if (!existsSync(agentPath)) return { slug: a.slug, name: a.slug };
+      const agentSpec = JSON.parse(readFileSync(agentPath, 'utf-8'));
+      return { slug: a.slug, name: agentSpec.name, model: agentSpec.model };
+    } catch {
+      return { slug: a.slug, name: a.slug };
+    }
+  });
+  const agentInfo = agents
+    .map((a) => `${a.name}${a.model ? ` (${a.model.split(':')[0].split('.').pop()})` : ''}`)
+    .join(', ');
+
+  const wsSlug = workspace?.slug || pluginName;
+
+  // Build react + react-query from plugin's own node_modules
+  const reactBundle = join(CWD, 'dist/.react-dev.js');
+  const pkgMtime = existsSync(join(CWD, 'package.json')) ? statSync(join(CWD, 'package.json')).mtimeMs : 0;
+  const bundleMtime = existsSync(reactBundle) ? statSync(reactBundle).mtimeMs : 0;
+  if (!existsSync(reactBundle) || pkgMtime > bundleMtime) {
+    const esbuildBin = existsSync(join(CWD, 'node_modules/.bin/esbuild'))
+      ? join(CWD, 'node_modules/.bin/esbuild')
+      : existsSync(join(CWD, '../../node_modules/.bin/esbuild'))
+        ? join(CWD, '../../node_modules/.bin/esbuild')
+        : 'esbuild';
+    const reactEntry = join(CWD, 'dist/.react-entry.mjs');
+    writeFileSync(
+      reactEntry,
+      [
+        `import React from 'react';`,
+        `import ReactDOM from 'react-dom';`,
+        `import * as C from 'react-dom/client';`,
+        `import * as JSX from 'react/jsx-runtime';`,
+        `import * as JSXD from 'react/jsx-dev-runtime';`,
+        `import * as RQ from '@tanstack/react-query';`,
+        `window.React = React;`,
+        `window.ReactDOM = {...ReactDOM, ...C};`,
+        `window.__jsx = JSX;`,
+        `window.__jsxDev = JSXD;`,
+        `window.__stallion_ai_rq = RQ;`,
+      ].join('\n'),
+    );
+    try {
+      execSync(
+        `${esbuildBin} ${reactEntry} --bundle --format=iife --outfile=${reactBundle} --define:process.env.NODE_ENV=\\"development\\"`,
+        { stdio: 'pipe', cwd: CWD },
+      );
+    } catch (e: any) {
+      console.warn('  ⚠ Could not build react bundle:', e.message);
+    } finally {
+      try { rmSync(reactEntry); } catch {}
+    }
+  }
+
+  const html = generateDevHTML({
+    name: name!,
+    pluginName: pluginName!,
+    tabsJson,
+    agentInfo,
+    wsSlug,
+    sdkMockJs: serializeSDKMock({ wsSlug }),
+  });
+
+  // ── MCP setup ──
+  let mcpManager: MCPManager | null = null;
+  const useMCP = flags.mcp !== false;
+  const toolsDir = flags.toolsDir || join(CWD, 'tools');
+
+  if (useMCP && manifest.agents?.length) {
+    (async () => {
+      try {
+        const toolDefs = resolvePluginTools(CWD, toolsDir);
+        if (toolDefs.size > 0) {
+          mcpManager = new MCPManager({
+            onStatus: (id, status, err) => {
+              console.log(
+                status === 'connected'
+                  ? `   ✓ MCP: ${id}`
+                  : `   ✗ MCP: ${id} — ${err}`,
+              );
+            },
+          });
+          await mcpManager.connectAll(Array.from(toolDefs.values()));
+          console.log(`   🔌 ${mcpManager.listTools().length} tools from ${toolDefs.size} MCP servers`);
+        }
+      } catch (err: any) {
+        console.warn(`   ⚠ MCP setup failed: ${err.message}`);
+      }
+    })();
+  }
+
+  // ── Hot reload ──
+  const reloadClients = new Set<ServerResponse>();
+  let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const srcDir = join(CWD, 'src');
+  if (existsSync(srcDir)) {
+    fsWatch(srcDir, { recursive: true }, (_event, filename) => {
+      if (!filename || filename.startsWith('.')) return;
+      if (!['.ts', '.tsx', '.js', '.jsx', '.css'].includes(extname(filename))) return;
+      if (rebuildTimer) clearTimeout(rebuildTimer);
+      rebuildTimer = setTimeout(async () => {
+        try {
+          console.log(`\n♻️  ${filename} changed — rebuilding...`);
+          await buildPlugin(CWD, 'dev');
+          for (const res of reloadClients) res.write('data: reload\n\n');
+        } catch (err: any) {
+          console.error(`   Build failed: ${err.message}`);
+        }
+      }, 200);
+    });
+  }
+
+  // ── HTTP Server ──
+  const server = createServer(async (req, res) => {
+    const url = (req.url || '/').split('?')[0];
+
+    // SSE reload
+    if (url === '/api/reload') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      res.write('data: connected\n\n');
+      reloadClients.add(res);
+      req.on('close', () => reloadClients.delete(res));
+      return;
+    }
+
+    // Tool list — matches core: GET /agents/:slug/tools
+    if (/^\/agents\/[^/]+\/tools$/.test(url) && req.method === 'GET') {
+      const tools = mcpManager?.listTools().map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema,
+      })) || [];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(tools));
+      return;
+    }
+
+    // Tool call — matches core: POST /agents/:slug/tools/:toolName
+    const toolMatch = url.match(/^\/agents\/[^/]+\/tools\/(.+)$/);
+    if (toolMatch && req.method === 'POST') {
+      const toolName = decodeURIComponent(toolMatch[1]);
+      const toolArgs = await readBody(req);
+      res.setHeader('Content-Type', 'application/json');
+
+      if (!mcpManager) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ success: false, error: 'MCP not connected' } satisfies ToolCallResponse));
+        return;
+      }
+
+      try {
+        const raw = await mcpManager.callTool(toolName, toolArgs as Record<string, unknown>);
+        let response: unknown = raw;
+        if (raw?.content?.[0]?.text) {
+          try {
+            const parsed = JSON.parse(raw.content[0].text);
+            response = parsed?.content?.[0]?.text
+              ? JSON.parse(parsed.content[0].text)
+              : parsed;
+          } catch {
+            response = raw.content[0].text;
+          }
+        }
+        res.writeHead(200);
+        res.end(JSON.stringify({ success: true, response } satisfies ToolCallResponse));
+      } catch (err: any) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ success: false, error: err.message } satisfies ToolCallResponse));
+      }
+      return;
+    }
+
+    // CORS preflight
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,POST',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      });
+      res.end();
+      return;
+    }
+
+    // Server-side fetch proxy for plugins (mirrors /api/plugins/fetch in core)
+    if (url === '/api/plugins/fetch' && req.method === 'POST') {
+      const body = await readBody(req);
+      const targetUrl = body.url as string;
+      if (!targetUrl) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'url is required' }));
+        return;
+      }
+      try {
+        const resp = await globalThis.fetch(targetUrl, {
+          method: (body.method as string) || 'GET',
+          headers: (body.headers as Record<string, string>) || {},
+          ...(body.body ? { body: typeof body.body === 'string' ? body.body : JSON.stringify(body.body) } : {}),
+        });
+        const text = await resp.text();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, status: resp.status, contentType: resp.headers.get('content-type') || '', body: text }));
+      } catch (e: any) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+      return;
+    }
+
+    // Static files
+    const reactDev = join(CWD, 'dist/.react-dev.js');
+    if (url === '/react-dev.js' && existsSync(reactDev)) {
+      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' });
+      res.end(readFileSync(reactDev));
+      return;
+    }
+    if (url === '/bundle.js' && existsSync(bundleJs)) {
+      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' });
+      res.end(readFileSync(bundleJs));
+    } else if (
+      (url === '/bundle.css' || url === '/bundle-dev.css') &&
+      (existsSync(bundleCss) || existsSync(bundleCssFallback))
+    ) {
+      res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' });
+      res.end(readFileSync(existsSync(bundleCss) ? bundleCss : bundleCssFallback));
+    } else {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    }
+  });
+
+  server.listen(port, () => {
+    console.log(`\n🔧 Plugin dev server running at http://localhost:${port}`);
+    console.log(`   Plugin: ${name}`);
+    console.log(`   Tabs: ${tabs.map((t) => t.label).join(', ') || 'none'}`);
+    console.log(useMCP && manifest.agents?.length ? '   MCP: connecting...' : '   MCP: off');
+    console.log(`   Run 'stallion build' to rebuild after changes\n`);
+  });
+
+  const cleanup = async () => {
+    if (mcpManager) await mcpManager.closeAll();
+    process.exit(0);
+  };
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+}
