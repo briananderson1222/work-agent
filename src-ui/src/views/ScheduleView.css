@@ -1,18 +1,5 @@
 /* ═══ Schedule View ═══ */
 
-.schedule {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  font-family: 'DM Sans', system-ui, sans-serif;
-  animation: page-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 .schedule__title {
   margin: 0 0 1.5rem;
   font-size: 1.75rem;
@@ -284,6 +271,11 @@
   align-items: center;
   gap: 4px;
 }
+.schedule__status--clickable { cursor: pointer; }
+.schedule__status--clickable:hover { opacity: 0.7; }
+.schedule__cron-human-inline {
+  font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;
+}
 .schedule__status-dot {
   width: 7px;
   height: 7px;
@@ -314,6 +306,8 @@
   50% {
     opacity: 0.3;
   }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 }
 
 /* ── Success Rate Bar ── */
@@ -754,7 +748,7 @@
 }
 .cron-editor__label:hover { color: var(--text-secondary); background: rgba(255,255,255,0.04); }
 .cron-editor__label--active {
-  background: rgba(255, 150, 130, 0.15); color: rgb(255, 170, 150);
+  color: var(--text-primary);
 }
 .cron-editor__label--focused {
   background: rgba(74, 158, 255, 0.15); color: var(--accent-primary);

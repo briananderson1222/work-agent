@@ -5,6 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 
 export type SchedulerEvent = {
@@ -22,6 +23,7 @@ export function useSchedulerEvents(enabled = true) {
   const { apiBase } = useApiBase();
   const qc = useQueryClient();
   const { showToast } = useToast();
+  const { navigate } = useNavigation();
   const runningRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -39,11 +41,15 @@ export function useSchedulerEvents(enabled = true) {
           const dur = evt.duration_secs
             ? ` (${evt.duration_secs.toFixed(1)}s)`
             : '';
-          showToast(`✓ Job '${evt.job}' completed${dur}`);
+          showToast(`✓ Job '${evt.job}' completed${dur}`, undefined, 8000, [
+            { label: 'View Output', onClick: () => navigate('/schedule', { job: evt.job }), variant: 'primary' },
+          ]);
         } else if (evt.event === 'job.failed') {
           runningRef.current.delete(evt.job);
           showToast(
-            `✗ Job '${evt.job}' failed: ${evt.error || 'unknown error'}`,
+            `✗ Job '${evt.job}' failed: ${evt.error || 'unknown error'}`, undefined, 8000, [
+              { label: 'View Output', onClick: () => navigate('/schedule', { job: evt.job }), variant: 'secondary' },
+            ],
           );
         }
         qc.invalidateQueries({ queryKey: ['scheduler'] });
@@ -52,7 +58,7 @@ export function useSchedulerEvents(enabled = true) {
       }
     };
     return () => es.close();
-  }, [apiBase, qc, showToast]);
+  }, [apiBase, qc, showToast, navigate]);
 
   const isRunning = useCallback(
     (jobName: string) => runningRef.current.has(jobName),

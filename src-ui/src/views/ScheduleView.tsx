@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigation } from '../contexts/NavigationContext';
 import {
   useAddJob,
   useDeleteJob,
@@ -47,11 +48,12 @@ function localTime(iso: string | null) {
   });
 }
 
-function localizeSchedule(human: string | undefined, schedule: string): string {
+function localizeSchedule(human: string | undefined, schedule: string, nextFire?: string): string {
   if (!human) return schedule;
+  const ref = nextFire ? new Date(nextFire) : new Date();
   const m = schedule.match(/^cron\s+(\d+)\s+(\d+)\s/);
   if (m) {
-    const d = new Date();
+    const d = new Date(ref);
     d.setUTCHours(parseInt(m[2], 10), parseInt(m[1], 10), 0, 0);
     const local = d.toLocaleTimeString(undefined, {
       hour: 'numeric',
@@ -62,7 +64,7 @@ function localizeSchedule(human: string | undefined, schedule: string): string {
   const r = schedule.match(/^cron\s+\S+\s+(\d+)-(\d+)\s/);
   if (r) {
     const fmt = (h: number) => {
-      const d = new Date();
+      const d = new Date(ref);
       d.setUTCHours(h, 0);
       return d.toLocaleTimeString(undefined, { hour: 'numeric' });
     };
@@ -171,23 +173,36 @@ function RateCell({ rate }: { rate: number | undefined }) {
 }
 
 /* ── Job Detail (inline) ── */
-function JobDetail({ name }: { name: string }) {
+function JobDetail({ name, autoOpenRun }: { name: string; autoOpenRun?: string | null }) {
   const { data: logs = [] } = useJobLogs(name);
   const fetchOutput = useFetchRunOutput();
   const openArtifact = useOpenArtifact();
   const [viewIdx, setViewIdx] = useState<number | null>(null);
   const [outputContent, setOutputContent] = useState<string | null>(null);
+  const autoOpened = useRef(false);
+
+  const reversedLogs = useMemo(() => [...logs].reverse(), [logs]);
 
   const handleViewOutput = async (i: number) => {
     setViewIdx(i);
     setOutputContent(null);
     try {
-      const data = await fetchOutput.mutateAsync(logs[i].output_path);
+      const data = await fetchOutput.mutateAsync(reversedLogs[i].output);
       setOutputContent(data.content);
     } catch {
       setOutputContent('Failed to load output');
     }
   };
+
+  // Auto-open a specific run's output when deep-linked
+  useEffect(() => {
+    if (autoOpened.current || !autoOpenRun || !reversedLogs.length) return;
+    const idx = reversedLogs.findIndex((r: any) => r.id === autoOpenRun);
+    if (idx >= 0) {
+      autoOpened.current = true;
+      handleViewOutput(idx);
+    }
+  }, [autoOpenRun, reversedLogs]);
 
   const handleDownload = () => {
     if (!outputContent || viewIdx === null) return;
@@ -195,12 +210,12 @@ function JobDetail({ name }: { name: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = logs[viewIdx].output_path.split('/').pop() || 'output.txt';
+    a.download = (reversedLogs[viewIdx].output || 'output.txt').split('/').pop() || 'output.txt';
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  if (!logs.length)
+  if (!reversedLogs.length)
     return (
       <div style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
         No run history
@@ -212,7 +227,7 @@ function JobDetail({ name }: { name: string }) {
       <table className="schedule__logs">
         <thead>
           <tr>
-            <th>Fired At</th>
+            <th>Started At</th>
             <th>Status</th>
             <th>Duration</th>
             <th>Missed</th>
@@ -221,10 +236,10 @@ function JobDetail({ name }: { name: string }) {
           </tr>
         </thead>
         <tbody>
-          {logs.map((r: any, i: number) => (
-            <tr key={r.fired_at}>
+          {reversedLogs.map((r: any, i: number) => (
+            <tr key={r.startedAt}>
               <td>
-                {new Date(r.fired_at).toLocaleString(undefined, {
+                {new Date(r.startedAt).toLocaleString(undefined, {
                   month: 'short',
                   day: 'numeric',
                   hour: '2-digit',
@@ -240,8 +255,8 @@ function JobDetail({ name }: { name: string }) {
               >
                 {r.success ? '✓' : '✗'}
               </td>
-              <td>{r.duration_secs.toFixed(1)}s</td>
-              <td>{r.missed_count || '-'}</td>
+              <td>{r.durationSecs != null ? `${r.durationSecs.toFixed(1)}s` : '-'}</td>
+              <td>{r.missedCount || '-'}</td>
               <td>{r.manual ? 'manual' : 'cron'}</td>
               <td>
                 <button
@@ -271,7 +286,7 @@ function JobDetail({ name }: { name: string }) {
             <div className="schedule__modal-footer">
               <button
                 className="schedule__modal-cancel"
-                onClick={() => openArtifact.mutate(logs[viewIdx].output_path)}
+                onClick={() => openArtifact.mutate(logs[viewIdx].output)}
               >
                 Open File
               </button>
@@ -369,7 +384,7 @@ function CronEditor({ value, onChange }: { value: string; onChange: (cron: strin
           </span>
         ))}
       </div>
-      {active !== null && (
+      {active !== null ? (
         <div className="cron-editor__help">
           <table className="cron-editor__syntax">
             <tbody>
@@ -386,13 +401,26 @@ function CronEditor({ value, onChange }: { value: string; onChange: (cron: strin
             </tbody>
           </table>
         </div>
+      ) : (
+        <div className="cron-editor__help">
+          <table className="cron-editor__syntax">
+            <tbody>
+              {CRON_SYNTAX.map(s => (
+                <tr key={s.sym}>
+                  <td className="cron-editor__sym">{s.sym}</td>
+                  <td>{s.desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
 }
 
 /* ── Cron → Human Description ── */
-function cronToHuman(cron: string): string | null {
+function cronToHuman(cron: string, referenceDate?: Date): string | null {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return null;
   const [min, hour, dom, mon, dow] = parts;
@@ -400,11 +428,13 @@ function cronToHuman(cron: string): string | null {
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  // Format time in local timezone
+  // Format time in local timezone, using referenceDate to get correct DST offset
   const fmtTime = (h: string, m: string) => {
-    const d = new Date();
+    const d = referenceDate ? new Date(referenceDate) : new Date();
     d.setUTCHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
-    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const tz = d.toLocaleTimeString(undefined, { timeZoneName: 'short' }).split(' ').pop();
+    return `${time} ${tz}`;
   };
 
   const fmtDow = (d: string) => {
@@ -451,8 +481,8 @@ function CronPreview({ cron }: { cron: string }) {
   const { data, isLoading } = usePreviewSchedule(cron || null);
   if (!cron) return null;
 
-  const human = cronToHuman(cron);
   const valid = data && Array.isArray(data) && data.length > 0;
+  const human = cronToHuman(cron, valid ? new Date(data[0]) : undefined);
 
   if (isLoading) return (
     <div className="schedule__cron-preview">
@@ -468,7 +498,7 @@ function CronPreview({ cron }: { cron: string }) {
       <span className="schedule__cron-label">Next fires:</span>
       {valid
         ? data.slice(0, 3).map((d: any, i: number) => (
-            <span key={i} className="schedule__cron-time">{new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+            <span key={i} className="schedule__cron-time">{new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}</span>
           ))
         : <span className="schedule__cron-time">--</span>
       }
@@ -714,10 +744,24 @@ export function ScheduleView() {
   const deleteJob = useDeleteJob();
   const openArtifact = useOpenArtifact();
   const addJob = useAddJob();
+  const { updateParams } = useNavigation();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingJob, setEditingJob] = useState<any | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [prefill, setPrefill] = useState<any>(null);
+  const deepLinked = useRef(false);
+
+  // Deep link: ?job=X auto-expands that job
+  useEffect(() => {
+    if (deepLinked.current || isLoading || !jobs.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const jobParam = params.get('job');
+    if (jobParam && jobs.some((j: any) => j.name === jobParam)) {
+      setExpanded(jobParam);
+      deepLinked.current = true;
+      updateParams({ job: null }); // clean up URL
+    }
+  }, [jobs, isLoading, updateParams]);
 
   const statsMap = new Map<string, any>();
   if (stats?.providers) {
@@ -728,7 +772,7 @@ export function ScheduleView() {
 
   const enrichedJobs = jobs.map((job: any) => {
     const js = statsMap.get(job.name);
-    return { ...job, success_rate: js ? (js.total > 0 ? js.success_rate : -1) : -1 };
+    return { ...job, successRate: js ? (js.total > 0 ? js.success_rate : -1) : -1 };
   });
 
   const {
@@ -738,7 +782,7 @@ export function ScheduleView() {
     toggle,
     filterText,
     setFilterText,
-  } = useSortableTable(enrichedJobs, 'last_run', 'desc', ['name']);
+  } = useSortableTable(enrichedJobs, 'lastRun', 'desc', ['name']);
 
   const handleRun = useCallback(
     (name: string) => {
@@ -926,22 +970,22 @@ export function ScheduleView() {
                       <th className="schedule__th">Status</th>
                       <SortHeader
                         label="Last Run"
-                        sortKey="last_run"
-                        active={sortKey === 'last_run'}
+                        sortKey="lastRun"
+                        active={sortKey === 'lastRun'}
                         dir={sortDir}
                         onClick={toggle}
                       />
                       <SortHeader
                         label="Next Fire"
-                        sortKey="next_fire"
-                        active={sortKey === 'next_fire'}
+                        sortKey="nextRun"
+                        active={sortKey === 'nextRun'}
                         dir={sortDir}
                         onClick={toggle}
                       />
                       <SortHeader
                         label="Success%"
-                        sortKey="success_rate"
-                        active={sortKey === 'success_rate'}
+                        sortKey="successRate"
+                        active={sortKey === 'successRate'}
                         dir={sortDir}
                         onClick={toggle}
                       />
@@ -971,13 +1015,19 @@ export function ScheduleView() {
                               {job.name}
                             </td>
                             <td className="schedule__td schedule__td--schedule">
-                              {localizeSchedule(
-                                job.schedule_human,
-                                job.schedule,
-                              )}
+                              <div>{job.cron || '-'}</div>
+                              {job.cron && <div className="schedule__cron-human-inline">{cronToHuman(job.cron, job.nextRun ? new Date(job.nextRun) : undefined) || ''}</div>}
                             </td>
-                            <td className="schedule__td">
-                              <span className="schedule__status">
+                            <td className="schedule__td" onClick={(e) => {
+                              e.stopPropagation();
+                              if (running) {
+                                if (confirm(`Disabling '${job.name}' will cancel the running job. Continue?`))
+                                  toggleJob.mutate({ target: job.name, enabled: false });
+                              } else {
+                                toggleJob.mutate({ target: job.name, enabled: !job.enabled });
+                              }
+                            }}>
+                              <span className={`schedule__status schedule__status--clickable`}>
                                 <span
                                   className={`schedule__status-dot ${
                                     running
@@ -999,13 +1049,13 @@ export function ScheduleView() {
                               </span>
                             </td>
                             <td className="schedule__td schedule__td--muted">
-                              {relTime(job.last_run)}
+                              {relTime(job.lastRun)}
                             </td>
                             <td className="schedule__td schedule__td--muted">
-                              {localTime(job.next_fire)}
+                              {localTime(job.nextRun)}
                             </td>
                             <td className="schedule__td">
-                              <RateCell rate={job.success_rate} />
+                              <RateCell rate={job.successRate} />
                             </td>
                             <td
                               className="schedule__td schedule__td--actions"
@@ -1030,36 +1080,18 @@ export function ScheduleView() {
                                 </button>
                                 <button
                                   title={
-                                    job.artifact_file
+                                    job.openArtifact
                                       ? 'Open artifact'
                                       : 'No artifact'
                                   }
-                                  disabled={!job.artifact_file}
+                                  disabled={!job.openArtifact}
                                   onClick={() =>
-                                    job.artifact_file &&
-                                    openArtifact.mutate(job.artifact_file)
+                                    job.openArtifact &&
+                                    openArtifact.mutate(job.openArtifact)
                                   }
                                   className="schedule__action-btn"
                                 >
                                   <IconFile />
-                                </button>
-                                <button
-                                  title={
-                                    job.enabled ? 'Disable' : 'Enable'
-                                  }
-                                  onClick={() =>
-                                    toggleJob.mutate({
-                                      target: job.name,
-                                      enabled: !job.enabled,
-                                    })
-                                  }
-                                  className="schedule__action-btn"
-                                >
-                                  {job.enabled ? (
-                                    <IconPause />
-                                  ) : (
-                                    <IconResume />
-                                  )}
                                 </button>
                                 <button
                                   title="Delete"
@@ -1084,10 +1116,10 @@ export function ScheduleView() {
                                   <div className="schedule__detail-header">
                                     <span>{job.name} — Run History</span>
                                     <div className="schedule__detail-actions">
-                                      {job.artifact_file && (
+                                      {job.openArtifact && (
                                         <button
                                           onClick={() =>
-                                            openArtifact.mutate(job.artifact_file)
+                                            openArtifact.mutate(job.openArtifact)
                                           }
                                           className="page__btn-primary"
                                           style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
