@@ -156,15 +156,19 @@ class StrandsAgentWrapper implements IAgent {
 
     async function* streamGenerator(): AsyncIterable<IStreamChunk> {
       let fullText = '';
+      let emittedStart = false;
+      let emittedTextStart = false;
       const stream = agent.stream(input);
 
+      // Emit synthetic start events (VoltAgent emits these, UI expects them)
+      yield { type: 'start', id: '0' };
+      yield { type: 'start-step', id: '0' };
+
       for await (const event of stream) {
-        // Capture final result
         if (event.type === 'agentResultEvent') {
           const agentResult = (event as any).result as AgentResult;
           resolveText(agentResult.toString());
           resolveFinish(agentResult.stopReason || 'end_turn');
-          // Extract usage from metrics if available
           const metrics = (event as any).metrics;
           const usage: TokenUsage = metrics?.usage
             ? { promptTokens: metrics.usage.inputTokens, completionTokens: metrics.usage.outputTokens, totalTokens: (metrics.usage.inputTokens || 0) + (metrics.usage.outputTokens || 0) }
@@ -175,12 +179,20 @@ class StrandsAgentWrapper implements IAgent {
 
         const mapped = mapStreamEvent(event);
         if (mapped) {
+          // Emit synthetic text-start before first text-delta
+          if (mapped.type === 'text-delta' && !emittedTextStart) {
+            yield { type: 'text-start', id: '0' };
+            emittedTextStart = true;
+          }
           if (mapped.type === 'text-delta') fullText += mapped.text || '';
           yield mapped;
         }
       }
 
-      // Safety: resolve promises if stream ends without agentResultEvent
+      // Emit synthetic boundary events
+      if (emittedTextStart) yield { type: 'text-end', id: '0' };
+      yield { type: 'finish-step', id: '0' };
+
       resolveText(fullText);
       resolveFinish('end_turn');
       resolveUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
