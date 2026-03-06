@@ -28,7 +28,7 @@ export function startMdnsAdvertisement(
         port,
       });
       stopFn = () => {
-        service.stop();
+        service.stop?.();
         bonjour.destroy();
       };
     })

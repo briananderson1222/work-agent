@@ -11,7 +11,7 @@ export function makeTempDir() {
 }
 
 export function makeConfigLoader(dir: string) {
-  return new ConfigLoader({ workAgentDir: dir });
+  return new ConfigLoader({ projectHomeDir: dir });
 }
 
 export function mockLogger() {

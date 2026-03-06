@@ -360,7 +360,6 @@ export function createPluginRoutes(
       }
 
       // Resolve required tools (unless skipped)
-      const toolsDir = join(projectHomeDir, 'tools');
       const requiredTools = (manifest.tools?.required || []).filter(
         (id: string) => !skipSet.has(`tool:${id}`),
       );
