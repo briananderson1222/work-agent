@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Bootstrap: ensure deps are installed, then delegate to CLI
+if [ ! -d "$SCRIPT_DIR/node_modules" ]; then
+  echo "🐎 First run — installing dependencies..."
+  npm install --prefix "$SCRIPT_DIR"
+fi
+
+exec tsx "$SCRIPT_DIR/packages/cli/src/cli.ts" "$@"
