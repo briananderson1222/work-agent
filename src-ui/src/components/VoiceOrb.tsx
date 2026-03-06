@@ -1,10 +1,7 @@
 /**
- * VoiceOrb — press-and-hold mic button for voice input.
+ * VoiceOrb — toggle mic button for voice input.
  *
- * Press/tap to start recording; release to send the transcript.
- * Uses pointer events so it works on both desktop (mouse) and mobile (touch).
- * Returns null when SpeechRecognition isn't supported so callers don't
- * need to guard the render.
+ * Click to start recording; click again to stop and send the transcript.
  */
 import type { STTState } from '@stallion-ai/sdk';
 import './VoiceOrb.css';
@@ -42,25 +39,17 @@ export function VoiceOrb({
       type="button"
       className={className}
       data-testid="voice-orb"
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        onStart();
-      }}
-      onPointerUp={onStop}
-      onPointerCancel={onStop}
-      onPointerLeave={onStop}
+      onClick={() => (isListening ? onStop() : onStart())}
       disabled={disabled}
       title={
         isListening
-          ? 'Release to send'
+          ? 'Click to stop'
           : isError
             ? 'Mic error — try again'
-            : 'Hold to speak'
+            : 'Click to speak'
       }
     >
-      {/* Pulse ring when listening */}
       {isListening && <span className="voice-orb__pulse" aria-hidden />}
-      {/* Mic SVG icon */}
       <svg
         width="16"
         height="16"
