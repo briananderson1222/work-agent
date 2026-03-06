@@ -76,7 +76,10 @@ export function Header({
 
   return (
     <header className="app-toolbar">
-      <div className="app-toolbar__brand" onClick={() => onNavigate({ type: 'workspace' })}>
+      <div
+        className="app-toolbar__brand"
+        onClick={() => onNavigate({ type: 'workspace' })}
+      >
         <img src="/favicon.png" alt="" className="app-toolbar__logo" />
         <div className="app-toolbar__name">{appName}</div>
       </div>
@@ -116,20 +119,51 @@ export function Header({
           <button
             type="button"
             className={`header-nav-btn ${currentView?.type === 'schedule' ? 'is-active' : ''}`}
-            onClick={() => onNavigate(currentView?.type === 'schedule' ? { type: 'workspace' } : { type: 'schedule' })}
+            onClick={() =>
+              onNavigate(
+                currentView?.type === 'schedule'
+                  ? { type: 'workspace' }
+                  : { type: 'schedule' },
+              )
+            }
             title="Schedule"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
             </svg>
           </button>
           <button
             type="button"
             className={`header-nav-btn ${['manage', 'workspaces', 'agents', 'prompts', 'plugins'].includes(currentView?.type || '') ? 'is-active' : ''}`}
-            onClick={() => onNavigate(currentView?.type === 'manage' ? { type: 'workspace' } : { type: 'manage' })}
+            onClick={() =>
+              onNavigate(
+                currentView?.type === 'manage'
+                  ? { type: 'workspace' }
+                  : { type: 'manage' },
+              )
+            }
             title="Manage"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
             </svg>
           </button>

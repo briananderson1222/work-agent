@@ -8,11 +8,17 @@
  */
 
 import { ConnectionsProvider } from '@stallion-ai/connect';
-import type { DiscoveredServer, NativeDiscoverFn, NativeScanFn } from '@stallion-ai/connect';
+import type {
+  DiscoveredServer,
+  NativeDiscoverFn,
+  NativeScanFn,
+} from '@stallion-ai/connect';
 import React, { useMemo } from 'react';
 import { isAndroidApp } from '../lib/tauri';
 
-type ConnectionsProviderProps = React.ComponentProps<typeof ConnectionsProvider>;
+type ConnectionsProviderProps = React.ComponentProps<
+  typeof ConnectionsProvider
+>;
 
 export function TauriConnectBridge({
   children,
@@ -44,7 +50,9 @@ export function TauriConnectBridge({
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         // Kotlin resolves with { servers: DiscoveredServer[] }
-        const result = await invoke<{ servers: DiscoveredServer[] }>('plugin:stallion-mdns|discover');
+        const result = await invoke<{ servers: DiscoveredServer[] }>(
+          'plugin:stallion-mdns|discover',
+        );
         console.log('[mDNS] discover result:', result);
         return result?.servers ?? [];
       } catch (err) {

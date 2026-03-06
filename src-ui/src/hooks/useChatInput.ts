@@ -54,9 +54,7 @@ export function useChatInput({
   } = useAutocompleteState();
 
   // History navigation index
-  const [, setHistoryIndex] = useState<Map<string, number>>(
-    new Map(),
-  );
+  const [, setHistoryIndex] = useState<Map<string, number>>(new Map());
 
   // Get actions from context
   const {
@@ -71,8 +69,7 @@ export function useChatInput({
   const cancelMessage = useCancelMessage();
 
   // Slash commands
-  const { commands: slashCommands } =
-    useSlashCommands(agentSlug);
+  const { commands: slashCommands } = useSlashCommands(agentSlug);
   const handleSlashCommand = useSlashCommandHandler();
 
   // Wrap slash command handler

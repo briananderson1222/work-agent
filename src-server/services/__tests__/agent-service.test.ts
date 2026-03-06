@@ -20,8 +20,22 @@ function makeService(dir: string) {
   const activeAgents = new Map<string, any>();
   const agentMetadataMap = new Map<string, any>();
   const agentSpecs = new Map<string, any>();
-  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { service: new AgentService(configLoader, activeAgents, agentMetadataMap, agentSpecs, logger), logger };
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  };
+  return {
+    service: new AgentService(
+      configLoader,
+      activeAgents,
+      agentMetadataMap,
+      agentSpecs,
+      logger,
+    ),
+    logger,
+  };
 }
 
 const validSpec = { name: 'My Agent', prompt: 'You are helpful.' };
@@ -54,39 +68,54 @@ describe('AgentService', () => {
   });
 
   it('createAgent — slug format: "My Agent" → "my-agent"', async () => {
-    const { slug } = await service.createAgent({ name: 'My Agent', prompt: 'p' });
+    const { slug } = await service.createAgent({
+      name: 'My Agent',
+      prompt: 'p',
+    });
     expect(slug).toBe('my-agent');
   });
 
   it('createAgent — duplicate → throws with "already exists"', async () => {
     await service.createAgent(validSpec);
-    await expect(service.createAgent(validSpec)).rejects.toThrow(/already exists/i);
+    await expect(service.createAgent(validSpec)).rejects.toThrow(
+      /already exists/i,
+    );
   });
 
   it('createAgent — missing name → throws validation error', async () => {
-    await expect(service.createAgent({ prompt: 'No name.' } as any)).rejects.toThrow();
+    await expect(
+      service.createAgent({ prompt: 'No name.' } as any),
+    ).rejects.toThrow();
   });
 
   // ── updateAgent ────────────────────────────────────────────────────────────
 
   it('updateAgent — existing → returns updated spec', async () => {
     await service.createAgent(validSpec);
-    const updated = await service.updateAgent('my-agent', { prompt: 'New prompt.' });
+    const updated = await service.updateAgent('my-agent', {
+      prompt: 'New prompt.',
+    });
     expect(updated.prompt).toBe('New prompt.');
   });
 
   it('updateAgent — unknown slug → throws with slug in error', async () => {
-    await expect(service.updateAgent('nonexistent', { prompt: 'x' })).rejects.toThrow(
-      /nonexistent/i,
-    );
+    await expect(
+      service.updateAgent('nonexistent', { prompt: 'x' }),
+    ).rejects.toThrow(/nonexistent/i);
   });
 
   it('updateAgent — null fields → field cleared (null passes through)', async () => {
     // model is a nullable field in AgentSpec (type: ["string", "null"])
-    await service.createAgent({ name: 'Nullish', prompt: 'p', model: 'some-model' });
+    await service.createAgent({
+      name: 'Nullish',
+      prompt: 'p',
+      model: 'some-model',
+    });
 
     // null passes through to configLoader which merges it in, clearing the field
-    const updated = await service.updateAgent('nullish', { model: null as any });
+    const updated = await service.updateAgent('nullish', {
+      model: null as any,
+    });
     expect(updated.model).toBeNull();
   });
 
@@ -121,7 +150,13 @@ describe('AgentService', () => {
     const agentMetadataMap = new Map<string, any>();
     agentMetadataMap.set('agent:my-agent', { slug, name: 'My Agent' });
     const agentSpecs = new Map<string, any>();
-    const enrichService = new AgentService(configLoader, activeAgents, agentMetadataMap, agentSpecs, logger);
+    const enrichService = new AgentService(
+      configLoader,
+      activeAgents,
+      agentMetadataMap,
+      agentSpecs,
+      logger,
+    );
 
     const enriched = await enrichService.getEnrichedAgents(coreAgents);
     expect(enriched.length).toBe(1);
@@ -145,8 +180,19 @@ describe('AgentService', () => {
     const agentMetadataMap = new Map<string, any>();
     agentMetadataMap.set('agent:ghost', { slug: 'ghost', name: 'Ghost' });
     const agentSpecs = new Map<string, any>();
-    const warnLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-    const enrichService = new AgentService(configLoader, activeAgents, agentMetadataMap, agentSpecs, warnLogger);
+    const warnLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+    const enrichService = new AgentService(
+      configLoader,
+      activeAgents,
+      agentMetadataMap,
+      agentSpecs,
+      warnLogger,
+    );
 
     const result = await enrichService.getEnrichedAgents(coreAgents);
     expect(result).toEqual([]);

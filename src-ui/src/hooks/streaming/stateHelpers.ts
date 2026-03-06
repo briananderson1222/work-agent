@@ -27,11 +27,24 @@ export function createResult(
 ): HandlerResult {
   return {
     updated: updates.updated ?? true,
-    currentTextChunk: 'currentTextChunk' in updates ? updates.currentTextChunk! : state.currentTextChunk,
-    contentParts: 'contentParts' in updates ? updates.contentParts! : state.contentParts,
-    pendingApprovals: 'pendingApprovals' in updates ? updates.pendingApprovals : state.pendingApprovals,
-    reasoningChunks: 'reasoningChunks' in updates ? updates.reasoningChunks : state.reasoningChunks,
-    currentReasoningChunk: 'currentReasoningChunk' in updates ? updates.currentReasoningChunk : state.currentReasoningChunk,
+    currentTextChunk:
+      'currentTextChunk' in updates
+        ? updates.currentTextChunk!
+        : state.currentTextChunk,
+    contentParts:
+      'contentParts' in updates ? updates.contentParts! : state.contentParts,
+    pendingApprovals:
+      'pendingApprovals' in updates
+        ? updates.pendingApprovals
+        : state.pendingApprovals,
+    reasoningChunks:
+      'reasoningChunks' in updates
+        ? updates.reasoningChunks
+        : state.reasoningChunks,
+    currentReasoningChunk:
+      'currentReasoningChunk' in updates
+        ? updates.currentReasoningChunk
+        : state.currentReasoningChunk,
     streamingMessage: updates.streamingMessage,
   };
 }

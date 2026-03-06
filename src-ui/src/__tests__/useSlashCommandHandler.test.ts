@@ -25,7 +25,10 @@ async function routeCommand(
   command: string,
   options: {
     agentSource?: 'acp' | 'local';
-    customCommands?: Record<string, { prompt: string; params?: Array<{ name: string; default?: string }> }>;
+    customCommands?: Record<
+      string,
+      { prompt: string; params?: Array<{ name: string; default?: string }> }
+    >;
     agents?: any[];
     agentSlug?: string;
   } = {},
@@ -80,7 +83,9 @@ async function routeCommand(
   // 3. Unknown command
   addEphemeralMessage('sess', {
     role: 'system',
-    content: `Unknown command: ${command}\n\nAvailable:\n${getAllCommands().map((c: string) => `• /${c}`).join('\n')}`,
+    content: `Unknown command: ${command}\n\nAvailable:\n${getAllCommands()
+      .map((c: string) => `• /${c}`)
+      .join('\n')}`,
   });
   cleanup();
   return true;
@@ -135,7 +140,11 @@ describe('slash command routing', () => {
       customCommands: {
         send: {
           prompt: 'Message from {{sender}} to {{recipient}}: {{text}}',
-          params: [{ name: 'sender', default: 'me' }, { name: 'recipient' }, { name: 'text', default: '...' }],
+          params: [
+            { name: 'sender', default: 'me' },
+            { name: 'recipient' },
+            { name: 'text', default: '...' },
+          ],
         },
       },
     });

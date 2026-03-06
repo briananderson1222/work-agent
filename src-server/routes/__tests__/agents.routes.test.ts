@@ -134,12 +134,9 @@ describe('agents routes', () => {
     });
     reinitialize.mockClear();
 
-    const { status, body } = await req(
-      makeApp(),
-      'PUT',
-      '/updatable',
-      { prompt: 'Updated prompt.' },
-    );
+    const { status, body } = await req(makeApp(), 'PUT', '/updatable', {
+      prompt: 'Updated prompt.',
+    });
     expect(status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.data.prompt).toBe('Updated prompt.');

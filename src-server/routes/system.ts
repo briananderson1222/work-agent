@@ -46,7 +46,8 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
     const providers = getOnboardingProviders();
     const prerequisiteArrays = await Promise.all(
       providers.map(({ provider, source }) =>
-        provider.getPrerequisites()
+        provider
+          .getPrerequisites()
           .then((items) => items.map((p) => ({ ...p, source })))
           .catch(() => []),
       ),
@@ -95,8 +96,10 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         }).trim();
       } catch {
         // Fallback: tsx may mangle import.meta.url, walk up from process.argv
-        const serverEntry = process.argv.find(a => a.includes('src-server'));
-        const fallbackDir = serverEntry ? resolve(dirname(serverEntry)) : thisDir;
+        const serverEntry = process.argv.find((a) => a.includes('src-server'));
+        const fallbackDir = serverEntry
+          ? resolve(dirname(serverEntry))
+          : thisDir;
         gitRoot = execSync('git rev-parse --show-toplevel', {
           cwd: fallbackDir,
           encoding: 'utf-8',
@@ -187,8 +190,10 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
           encoding: 'utf-8',
         }).trim();
       } catch {
-        const serverEntry = process.argv.find(a => a.includes('src-server'));
-        const fallbackDir = serverEntry ? resolve(dirname(serverEntry)) : thisDir;
+        const serverEntry = process.argv.find((a) => a.includes('src-server'));
+        const fallbackDir = serverEntry
+          ? resolve(dirname(serverEntry))
+          : thisDir;
         gitRoot = execSync('git rev-parse --show-toplevel', {
           cwd: fallbackDir,
           encoding: 'utf-8',

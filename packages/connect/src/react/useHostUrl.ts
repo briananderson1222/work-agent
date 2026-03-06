@@ -16,7 +16,10 @@ export interface UseHostUrlResult {
  * Tries to detect the local LAN IP via RTCPeerConnection ICE candidates
  * (works inside WebView without server-side help). Falls back to localhost.
  */
-export function useHostUrl({ port, fallback }: UseHostUrlOptions): UseHostUrlResult {
+export function useHostUrl({
+  port,
+  fallback,
+}: UseHostUrlOptions): UseHostUrlResult {
   const defaultFallback = fallback ?? `http://localhost:${port}`;
   const [hostUrl, setHostUrl] = useState(defaultFallback);
   const [isDetecting, setIsDetecting] = useState(true);
@@ -57,9 +60,7 @@ async function detectLocalIp(): Promise<string | null> {
 
       pc.onicecandidate = (e) => {
         if (!e.candidate) return;
-        const match = /([0-9]{1,3}\.){3}[0-9]{1,3}/.exec(
-          e.candidate.candidate,
-        );
+        const match = /([0-9]{1,3}\.){3}[0-9]{1,3}/.exec(e.candidate.candidate);
         if (match) {
           const ip = match[0];
           // Skip link-local and loopback

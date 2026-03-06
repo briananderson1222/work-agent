@@ -73,54 +73,56 @@ export class ToolApprovalHandler extends StreamEventHandler {
     const conversationTitle =
       chatState?.title || chatState?.conversationId || 'Conversation';
 
-    return this.context.showToolApproval({
-      sessionId: this.context.sessionId,
-      toolName: event.toolName,
-      server: event.server,
-      tool: event.tool,
-      agentName,
-      conversationTitle,
-      onNavigate: this.context.onNavigateToChat
-        ? () => this.context.onNavigateToChat!(this.context.sessionId)
-        : undefined,
-      actions: [
-        {
-          label: 'Deny',
-          variant: 'danger',
-          onClick: () =>
-            this.context.handleToolApproval!(
-              this.context.sessionId,
-              agentSlug,
-              event.approvalId,
-              event.toolName,
-              'deny',
-            ),
-        },
-        {
-          label: 'Allow Once',
-          variant: 'secondary',
-          onClick: () =>
-            this.context.handleToolApproval!(
-              this.context.sessionId,
-              agentSlug,
-              event.approvalId,
-              event.toolName,
-              'once',
-            ),
-        },
-        {
-          label: 'Always Allow',
-          variant: 'primary',
-          onClick: () =>
-            this.context.handleToolApproval!(
-              this.context.sessionId,
-              agentSlug,
-              event.approvalId,
-              event.toolName,
-              'trust',
-            ),
-        },
-      ],
-    }) || '';
+    return (
+      this.context.showToolApproval({
+        sessionId: this.context.sessionId,
+        toolName: event.toolName,
+        server: event.server,
+        tool: event.tool,
+        agentName,
+        conversationTitle,
+        onNavigate: this.context.onNavigateToChat
+          ? () => this.context.onNavigateToChat!(this.context.sessionId)
+          : undefined,
+        actions: [
+          {
+            label: 'Deny',
+            variant: 'danger',
+            onClick: () =>
+              this.context.handleToolApproval!(
+                this.context.sessionId,
+                agentSlug,
+                event.approvalId,
+                event.toolName,
+                'deny',
+              ),
+          },
+          {
+            label: 'Allow Once',
+            variant: 'secondary',
+            onClick: () =>
+              this.context.handleToolApproval!(
+                this.context.sessionId,
+                agentSlug,
+                event.approvalId,
+                event.toolName,
+                'once',
+              ),
+          },
+          {
+            label: 'Always Allow',
+            variant: 'primary',
+            onClick: () =>
+              this.context.handleToolApproval!(
+                this.context.sessionId,
+                agentSlug,
+                event.approvalId,
+                event.toolName,
+                'trust',
+              ),
+          },
+        ],
+      }) || ''
+    );
   }
 }

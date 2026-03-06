@@ -2,7 +2,11 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { contextRegistry } from '../context/registry.js';
 import type { MessageContextProvider } from '../context/types.js';
 
-function makeProvider(id: string, context: string | null = null, enabled = false): MessageContextProvider {
+function makeProvider(
+  id: string,
+  context: string | null = null,
+  enabled = false,
+): MessageContextProvider {
   return {
     id,
     name: `Provider ${id}`,

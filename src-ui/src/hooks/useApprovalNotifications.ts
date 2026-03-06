@@ -52,8 +52,8 @@ export function useApprovalNotifications({
   const [supported] = useState(
     () => 'serviceWorker' in navigator && 'PushManager' in window,
   );
-  const [permission, setPermission] = useState<NotificationPermission>(
-    () => (typeof Notification !== 'undefined' ? Notification.permission : 'default'),
+  const [permission, setPermission] = useState<NotificationPermission>(() =>
+    typeof Notification !== 'undefined' ? Notification.permission : 'default',
   );
   const [subscribed, setSubscribed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +89,8 @@ export function useApprovalNotifications({
 
       // Get VAPID public key from server
       const keyRes = await fetch(`${apiBase}/api/system/vapid-public-key`);
-      if (!keyRes.ok) throw new Error('Server does not support push notifications');
+      if (!keyRes.ok)
+        throw new Error('Server does not support push notifications');
       const { publicKey } = await keyRes.json();
 
       // Register SW if not yet done
@@ -127,7 +128,9 @@ export function useApprovalNotifications({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ endpoint: sub.endpoint }),
-        }).catch(() => {/* best-effort */});
+        }).catch(() => {
+          /* best-effort */
+        });
       }
       setSubscribed(false);
     } catch (err: any) {

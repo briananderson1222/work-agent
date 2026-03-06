@@ -11,8 +11,12 @@ function memoryAdapter(): StorageAdapter {
   const store: Record<string, string> = {};
   return {
     get: (k) => store[k] ?? null,
-    set: (k, v) => { store[k] = v; },
-    remove: (k) => { delete store[k]; },
+    set: (k, v) => {
+      store[k] = v;
+    },
+    remove: (k) => {
+      delete store[k];
+    },
   };
 }
 

@@ -17,7 +17,12 @@ function makeTempDir() {
 
 function makeService(dir: string) {
   const configLoader = new ConfigLoader({ workAgentDir: dir });
-  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  };
   return new WorkspaceService(configLoader, logger);
 }
 
@@ -116,7 +121,9 @@ describe('WorkspaceService', () => {
 
   it('updateWorkspace — partial → merged result returned', async () => {
     await service.createWorkspace(validConfig);
-    const updated = await service.updateWorkspace('test-ws', { name: 'Renamed WS' });
+    const updated = await service.updateWorkspace('test-ws', {
+      name: 'Renamed WS',
+    });
     expect(updated.name).toBe('Renamed WS');
     expect(updated.slug).toBe('test-ws');
     expect(updated.tabs.length).toBe(1);
@@ -160,7 +167,11 @@ describe('WorkspaceService', () => {
     expect(content).toBe('export default {}');
 
     // Update
-    await service.updateWorkflow(agentSlug, 'flow.ts', 'export default { v: 2 }');
+    await service.updateWorkflow(
+      agentSlug,
+      'flow.ts',
+      'export default { v: 2 }',
+    );
     const updated = await service.getWorkflow(agentSlug, 'flow.ts');
     expect(updated).toBe('export default { v: 2 }');
 

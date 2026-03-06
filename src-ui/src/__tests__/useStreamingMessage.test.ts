@@ -41,7 +41,10 @@ describe('TextDeltaHandler', () => {
   it('text delta event → appends to currentTextChunk and returns streamingMessage', () => {
     const ctx = makeContext();
     const h = new TextDeltaHandler(ctx);
-    const result = h.handle({ type: 'text-delta', delta: 'Hello' }, makeState());
+    const result = h.handle(
+      { type: 'text-delta', delta: 'Hello' },
+      makeState(),
+    );
 
     expect(result.currentTextChunk).toBe('Hello');
     expect(result.streamingMessage?.content).toContain('Hello');
@@ -53,7 +56,10 @@ describe('TextDeltaHandler', () => {
     const h = new TextDeltaHandler(ctx);
     const state1 = makeState();
     const r1 = h.handle({ type: 'text-delta', delta: 'Hello ' }, state1);
-    const r2 = h.handle({ type: 'text-delta', delta: 'World' }, makeState({ currentTextChunk: r1.currentTextChunk }));
+    const r2 = h.handle(
+      { type: 'text-delta', delta: 'World' },
+      makeState({ currentTextChunk: r1.currentTextChunk }),
+    );
 
     expect(r2.currentTextChunk).toBe('Hello World');
   });
@@ -98,7 +104,10 @@ describe('ToolLifecycleHandler', () => {
 
     const stateWithTool = makeState({
       contentParts: [
-        { type: 'tool', tool: { id: 'tc-1', name: 'search', state: 'pending' } },
+        {
+          type: 'tool',
+          tool: { id: 'tc-1', name: 'search', state: 'pending' },
+        },
       ],
     });
 
@@ -118,7 +127,12 @@ describe('ToolLifecycleHandler', () => {
 describe('ReasoningHandler', () => {
   it('handles reasoning events', () => {
     const h = new ReasoningHandler(makeContext());
-    for (const type of ['reasoning-start', 'reasoning-delta', 'reasoning-end', 'reasoning']) {
+    for (const type of [
+      'reasoning-start',
+      'reasoning-delta',
+      'reasoning-end',
+      'reasoning',
+    ]) {
       expect(h.canHandle({ type })).toBe(true);
     }
     expect(h.canHandle({ type: 'text-delta' })).toBe(false);
@@ -129,7 +143,9 @@ describe('ReasoningHandler', () => {
     const h = new ReasoningHandler(ctx);
     const result = h.handle({ type: 'reasoning-start' }, makeState());
 
-    const reasoningPart = result.contentParts.find((p) => p.type === 'reasoning');
+    const reasoningPart = result.contentParts.find(
+      (p) => p.type === 'reasoning',
+    );
     expect(reasoningPart).toBeDefined();
     expect(result.currentReasoningChunk).toBe('');
   });
@@ -147,7 +163,9 @@ describe('ReasoningHandler', () => {
       stateWithReasoning,
     );
 
-    const reasoningPart = result.contentParts.find((p) => p.type === 'reasoning');
+    const reasoningPart = result.contentParts.find(
+      (p) => p.type === 'reasoning',
+    );
     expect(reasoningPart?.content).toBe('thinking...');
   });
 
@@ -178,7 +196,9 @@ describe('StepHandler', () => {
     const h = new StepHandler(ctx);
     h.handle({ type: 'start-step' }, makeState());
 
-    expect(ctx.updateChat).toHaveBeenCalledWith('sess-1', { isProcessingStep: true });
+    expect(ctx.updateChat).toHaveBeenCalledWith('sess-1', {
+      isProcessingStep: true,
+    });
   });
 
   it('finish-step → calls updateChat with isProcessingStep:false', () => {
@@ -186,7 +206,9 @@ describe('StepHandler', () => {
     const h = new StepHandler(ctx);
     h.handle({ type: 'finish-step' }, makeState());
 
-    expect(ctx.updateChat).toHaveBeenCalledWith('sess-1', { isProcessingStep: false });
+    expect(ctx.updateChat).toHaveBeenCalledWith('sess-1', {
+      isProcessingStep: false,
+    });
   });
 });
 

@@ -148,16 +148,25 @@ describe('workflow routes', () => {
   }
 
   it('GET /:slug/workflows/files — existing agent → 200 with empty list initially', async () => {
-    const { status, body } = await req(makeApp(), 'GET', '/agent-one/workflows/files');
+    const { status, body } = await req(
+      makeApp(),
+      'GET',
+      '/agent-one/workflows/files',
+    );
     expect(status).toBe(200);
     expect(body.data).toEqual([]);
   });
 
   it('POST /:slug/workflows — creates workflow → 201 with filename', async () => {
-    const { status, body } = await req(makeApp(), 'POST', '/agent-one/workflows', {
-      filename: 'my-workflow.ts',
-      content: 'export default {}',
-    });
+    const { status, body } = await req(
+      makeApp(),
+      'POST',
+      '/agent-one/workflows',
+      {
+        filename: 'my-workflow.ts',
+        content: 'export default {}',
+      },
+    );
     expect(status).toBe(201);
     expect(body.data.filename).toBe('my-workflow.ts');
   });

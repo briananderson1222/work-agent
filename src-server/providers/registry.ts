@@ -43,7 +43,11 @@ export function registerProvider(
   const ws = opts?.workspace ?? '*';
   const source = opts?.source ?? 'unknown';
   // For additive types, push to array
-  if (type === 'onboarding' || type === 'agentRegistry' || type === 'toolRegistry') {
+  if (
+    type === 'onboarding' ||
+    type === 'agentRegistry' ||
+    type === 'toolRegistry'
+  ) {
     if (!additiveStore.has(type)) additiveStore.set(type, []);
     additiveStore.get(type)!.push({ provider, source });
     return;
@@ -96,28 +100,40 @@ export function registerUserIdentityProvider(provider: IUserIdentityProvider) {
 }
 
 export function getUserIdentityProvider(): IUserIdentityProvider {
-  return getProvider<IUserIdentityProvider>('userIdentity') ?? new DefaultUserIdentityProvider();
+  return (
+    getProvider<IUserIdentityProvider>('userIdentity') ??
+    new DefaultUserIdentityProvider()
+  );
 }
 
 // ── User Directory ─────────────────────────────────────
 
-export function registerUserDirectoryProvider(provider: IUserDirectoryProvider) {
+export function registerUserDirectoryProvider(
+  provider: IUserDirectoryProvider,
+) {
   registerProvider('userDirectory', provider);
 }
 
 export function getUserDirectoryProvider(): IUserDirectoryProvider {
-  return getProvider<IUserDirectoryProvider>('userDirectory') ?? new DefaultUserDirectoryProvider();
+  return (
+    getProvider<IUserDirectoryProvider>('userDirectory') ??
+    new DefaultUserDirectoryProvider()
+  );
 }
 
 // ── Agent Registry ─────────────────────────────────────
 
-export function registerAgentRegistryProvider(provider: IAgentRegistryProvider) {
+export function registerAgentRegistryProvider(
+  provider: IAgentRegistryProvider,
+) {
   registerProvider('agentRegistry', provider);
 }
 
 export function getAgentRegistryProvider(): IAgentRegistryProvider {
   const entries = listProviders('agentRegistry');
-  return entries.length > 0 ? (entries[0].provider as IAgentRegistryProvider) : new DefaultAgentRegistryProvider();
+  return entries.length > 0
+    ? (entries[0].provider as IAgentRegistryProvider)
+    : new DefaultAgentRegistryProvider();
 }
 
 // ── Tool Registry ──────────────────────────────────────
@@ -128,7 +144,9 @@ export function registerToolRegistryProvider(provider: IToolRegistryProvider) {
 
 export function getToolRegistryProvider(): IToolRegistryProvider {
   const entries = listProviders('toolRegistry');
-  return entries.length > 0 ? (entries[0].provider as IToolRegistryProvider) : new DefaultToolRegistryProvider();
+  return entries.length > 0
+    ? (entries[0].provider as IToolRegistryProvider)
+    : new DefaultToolRegistryProvider();
 }
 
 // ── Onboarding ─────────────────────────────────────────
@@ -140,8 +158,14 @@ export function registerOnboardingProvider(
   registerProvider('onboarding', provider, { source });
 }
 
-export function getOnboardingProviders(): { provider: IOnboardingProvider; source: string }[] {
-  return listProviders('onboarding') as { provider: IOnboardingProvider; source: string }[];
+export function getOnboardingProviders(): {
+  provider: IOnboardingProvider;
+  source: string;
+}[] {
+  return listProviders('onboarding') as {
+    provider: IOnboardingProvider;
+    source: string;
+  }[];
 }
 
 // ── Branding ───────────────────────────────────────────
@@ -151,7 +175,9 @@ export function registerBrandingProvider(provider: IBrandingProvider) {
 }
 
 export function getBrandingProvider(): IBrandingProvider {
-  return getProvider<IBrandingProvider>('branding') ?? new DefaultBrandingProvider();
+  return (
+    getProvider<IBrandingProvider>('branding') ?? new DefaultBrandingProvider()
+  );
 }
 
 // ── Settings ───────────────────────────────────────────
@@ -161,5 +187,7 @@ export function registerSettingsProvider(provider: ISettingsProvider) {
 }
 
 export function getSettingsProvider(): ISettingsProvider {
-  return getProvider<ISettingsProvider>('settings') ?? new DefaultSettingsProvider();
+  return (
+    getProvider<ISettingsProvider>('settings') ?? new DefaultSettingsProvider()
+  );
 }

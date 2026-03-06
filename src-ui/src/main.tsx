@@ -15,11 +15,14 @@ import { UserDetailModal } from './components/UserDetailModal';
   'react/jsx-dev-runtime': jsxRuntime,
   '@stallion-ai/sdk': SDK,
   '@tanstack/react-query': ReactQuery,
-  dompurify: Object.assign((dirty: string, cfg?: any) => DOMPurify.sanitize(dirty, cfg), {
-    ...DOMPurify,
-    default: DOMPurify,
-    __esModule: true,
-  }),
+  dompurify: Object.assign(
+    (dirty: string, cfg?: any) => DOMPurify.sanitize(dirty, cfg),
+    {
+      ...DOMPurify,
+      default: DOMPurify,
+      __esModule: true,
+    },
+  ),
   debug: Object.assign(debug, { default: debug, __esModule: true }),
   zod: zod,
   '@stallion-ai/components': { UserDetailModal },

@@ -93,69 +93,72 @@ function App() {
 
     return { type: 'workspace' };
   });
-  const handleWorkspaceSelect = useCallback(async (
-    slug: string,
-    preferredTabId?: string,
-  ) => {
-    const workspace = workspaces.find((w: any) => w.slug === slug);
-    if (workspace) {
-      const tabs = workspace.tabs || [];
-      const validTabId =
-        preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
-          ? preferredTabId
-          : tabs[0]?.id || '';
+  const handleWorkspaceSelect = useCallback(
+    async (slug: string, preferredTabId?: string) => {
+      const workspace = workspaces.find((w: any) => w.slug === slug);
+      if (workspace) {
+        const tabs = workspace.tabs || [];
+        const validTabId =
+          preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
+            ? preferredTabId
+            : tabs[0]?.id || '';
 
-      setWorkspace(slug);
-      setActiveTabId(validTabId);
-      setWorkspaceTab(slug, validTabId);
-      setCurrentView({ type: 'workspace' });
-      navigate(`/workspaces/${slug}`);
-    }
-  }, [workspaces, setWorkspace, setWorkspaceTab, navigate]);
+        setWorkspace(slug);
+        setActiveTabId(validTabId);
+        setWorkspaceTab(slug, validTabId);
+        setCurrentView({ type: 'workspace' });
+        navigate(`/workspaces/${slug}`);
+      }
+    },
+    [workspaces, setWorkspace, setWorkspaceTab, navigate],
+  );
 
   // Navigation functions (declared early so useEffect closures can reference them)
-  const navigateToView = useCallback((view: NavigationView) => {
-    setCurrentView(view);
+  const navigateToView = useCallback(
+    (view: NavigationView) => {
+      setCurrentView(view);
 
-    // Update URL based on view type
-    if (view.type === 'workspace') {
-      if (selectedWorkspace && selectedWorkspace !== 'new') {
-        navigate(`/workspaces/${selectedWorkspace}`);
-      } else {
-        navigate('/');
+      // Update URL based on view type
+      if (view.type === 'workspace') {
+        if (selectedWorkspace && selectedWorkspace !== 'new') {
+          navigate(`/workspaces/${selectedWorkspace}`);
+        } else {
+          navigate('/');
+        }
+      } else if (view.type === 'workspaces') {
+        navigate('/workspaces');
+      } else if (view.type === 'agents') {
+        navigate('/agents');
+      } else if (view.type === 'prompts') {
+        navigate('/prompts');
+      } else if (view.type === 'plugins') {
+        navigate('/plugins');
+      } else if (view.type === 'profile') {
+        navigate('/profile');
+      } else if (view.type === 'notifications') {
+        navigate('/notifications');
+      } else if (view.type === 'settings') {
+        navigate('/settings');
+      } else if (view.type === 'monitoring') {
+        navigate('/monitoring');
+      } else if (view.type === 'schedule') {
+        navigate('/schedule');
+      } else if (view.type === 'agent-new') {
+        navigate('/agents/new');
+      } else if (view.type === 'agent-edit' && 'slug' in view) {
+        navigate(`/agents/${view.slug}/edit`);
+      } else if (view.type === 'tools' && 'slug' in view) {
+        navigate(`/agents/${view.slug}/tools`);
+      } else if (view.type === 'workflows' && 'slug' in view) {
+        navigate(`/agents/${view.slug}/workflows`);
+      } else if (view.type === 'workspace-new') {
+        navigate('/workspaces/new');
+      } else if (view.type === 'workspace-edit' && 'slug' in view) {
+        navigate(`/workspaces/${view.slug}/edit`);
       }
-    } else if (view.type === 'workspaces') {
-      navigate('/workspaces');
-    } else if (view.type === 'agents') {
-      navigate('/agents');
-    } else if (view.type === 'prompts') {
-      navigate('/prompts');
-    } else if (view.type === 'plugins') {
-      navigate('/plugins');
-    } else if (view.type === 'profile') {
-      navigate('/profile');
-    } else if (view.type === 'notifications') {
-      navigate('/notifications');
-    } else if (view.type === 'settings') {
-      navigate('/settings');
-    } else if (view.type === 'monitoring') {
-      navigate('/monitoring');
-    } else if (view.type === 'schedule') {
-      navigate('/schedule');
-    } else if (view.type === 'agent-new') {
-      navigate('/agents/new');
-    } else if (view.type === 'agent-edit' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/edit`);
-    } else if (view.type === 'tools' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/tools`);
-    } else if (view.type === 'workflows' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/workflows`);
-    } else if (view.type === 'workspace-new') {
-      navigate('/workspaces/new');
-    } else if (view.type === 'workspace-edit' && 'slug' in view) {
-      navigate(`/workspaces/${view.slug}/edit`);
-    }
-  }, [selectedWorkspace, navigate]);
+    },
+    [selectedWorkspace, navigate],
+  );
 
   const navigateToWorkspace = useCallback(() => {
     setCurrentView({ type: 'workspace' });
@@ -256,7 +259,6 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   const currentAgent = useMemo(
     () => agents.find((agent) => agent.slug === selectedAgent) ?? null,
     [agents, selectedAgent],
@@ -346,8 +348,6 @@ function App() {
     currentView.type,
     setWorkspace,
   ]);
-
-
 
   const handleSettingsSaved = () => {
     showToast('Settings saved successfully');

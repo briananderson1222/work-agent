@@ -9,7 +9,10 @@
 import type { MessageContextProvider } from '@stallion-ai/sdk';
 import { ListenerManager } from '@stallion-ai/sdk';
 
-class GeolocationContextProvider extends ListenerManager implements MessageContextProvider {
+class GeolocationContextProvider
+  extends ListenerManager
+  implements MessageContextProvider
+{
   readonly id = 'geolocation';
   readonly name = 'Geolocation';
 

@@ -6,10 +6,7 @@
  * Set STALLION_MDNS=false to disable.
  */
 
-export function startMdnsAdvertisement(
-  name: string,
-  port: number,
-): () => void {
+export function startMdnsAdvertisement(name: string, port: number): () => void {
   if (process.env.STALLION_MDNS === 'false') {
     return () => {};
   }

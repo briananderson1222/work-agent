@@ -27,7 +27,11 @@ describe('config routes', () => {
   function makeApp(withEventBus = true) {
     const configLoader = makeConfigLoader(dir);
     const logger = mockLogger();
-    return createConfigRoutes(configLoader, logger, withEventBus ? eventBus : undefined);
+    return createConfigRoutes(
+      configLoader,
+      logger,
+      withEventBus ? eventBus : undefined,
+    );
   }
 
   // ── GET /app ──────────────────────────────────────────────────────────────

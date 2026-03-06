@@ -8,7 +8,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ── Navigator mock ────────────────────────────────────────────────────────────
 
-type PositionCallback = (pos: { coords: { latitude: number; longitude: number } }) => void;
+type PositionCallback = (pos: {
+  coords: { latitude: number; longitude: number };
+}) => void;
 type ErrorCallback = () => void;
 
 interface MockGeolocation {

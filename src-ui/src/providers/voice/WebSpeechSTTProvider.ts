@@ -20,8 +20,12 @@ class WebSpeechSTTProvider extends ListenerManager implements STTProvider {
     return !!(win.SpeechRecognition ?? win.webkitSpeechRecognition);
   }
 
-  get state(): STTState { return this._state; }
-  get transcript(): string { return this._transcript; }
+  get state(): STTState {
+    return this._state;
+  }
+  get transcript(): string {
+    return this._transcript;
+  }
 
   startListening(opts?: STTOptions): void {
     const win = window as any;

@@ -72,7 +72,7 @@ export function WorkspaceEditorView({
   useEffect(() => {
     loadAgents();
     if (slug) loadWorkspace(slug);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   // Keyboard shortcuts
@@ -227,28 +227,35 @@ export function WorkspaceEditorView({
   };
 
   if (isLoading) {
-    return (
-      <div className="editor__loading">
-        Loading...
-      </div>
-    );
+    return <div className="editor__loading">Loading...</div>;
   }
 
   return (
-    <div className={`editor${isPlugin && isPluginLocked ? ' editor--locked' : ''}`}>
+    <div
+      className={`editor${isPlugin && isPluginLocked ? ' editor--locked' : ''}`}
+    >
       {/* Header */}
       <div className="management-view__header editor__header">
         <div className="editor__header-left">
-          <div className="management-view__header-label">{slug ? 'manage / edit workspace' : 'manage / new workspace'}</div>
+          <div className="management-view__header-label">
+            {slug ? 'manage / edit workspace' : 'manage / new workspace'}
+          </div>
           <h2 className="editor__header-meta">
             {slug ? 'Edit Workspace' : 'New Workspace'}
-            {isPlugin && <span className="editor__plugin-badge">{formData?.plugin}</span>}
+            {isPlugin && (
+              <span className="editor__plugin-badge">{formData?.plugin}</span>
+            )}
           </h2>
         </div>
         <div className="editor__header-actions">
           <button
             onClick={handleSave}
-            disabled={isSaving || !formData.name || !formData.slug || (isPlugin && isPluginLocked)}
+            disabled={
+              isSaving ||
+              !formData.name ||
+              !formData.slug ||
+              (isPlugin && isPluginLocked)
+            }
             style={{
               padding: '8px 16px',
               border: 'none',
@@ -257,7 +264,13 @@ export function WorkspaceEditorView({
               color: 'white',
               cursor: isSaving ? 'not-allowed' : 'pointer',
               fontSize: '14px',
-              opacity: isSaving || !formData.name || !formData.slug || (isPlugin && isPluginLocked) ? 0.5 : 1,
+              opacity:
+                isSaving ||
+                !formData.name ||
+                !formData.slug ||
+                (isPlugin && isPluginLocked)
+                  ? 0.5
+                  : 1,
             }}
           >
             {isSaving ? 'Saving...' : 'Save'}
@@ -276,9 +289,16 @@ export function WorkspaceEditorView({
         <div className="editor__lock-banner">
           <div className="editor__lock-banner-text">
             <span className="editor__lock-banner-icon">🔒</span>
-            <span>This workspace is managed by the <strong>{formData?.plugin}</strong> plugin. Editing is locked to prevent accidental changes.</span>
+            <span>
+              This workspace is managed by the{' '}
+              <strong>{formData?.plugin}</strong> plugin. Editing is locked to
+              prevent accidental changes.
+            </span>
           </div>
-          <button className="editor__unlock-btn" onClick={() => setIsPluginLocked(false)}>
+          <button
+            className="editor__unlock-btn"
+            onClick={() => setIsPluginLocked(false)}
+          >
             Unlock Editing
           </button>
         </div>
@@ -305,9 +325,7 @@ export function WorkspaceEditorView({
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           {/* Basic Info */}
           <section className="editor__section" style={{ marginBottom: '32px' }}>
-            <h3 className="editor__section-header">
-              Basic Information
-            </h3>
+            <h3 className="editor__section-header">Basic Information</h3>
             <div style={{ display: 'grid', gap: '16px' }}>
               <div>
                 <label
@@ -403,7 +421,10 @@ export function WorkspaceEditorView({
                   style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
                 >
                   <WorkspaceIcon
-                    workspace={{ name: formData.name || 'Workspace', icon: formData.icon }}
+                    workspace={{
+                      name: formData.name || 'Workspace',
+                      icon: formData.icon,
+                    }}
                     size={48}
                   />
                   <div style={{ flex: 1 }}>

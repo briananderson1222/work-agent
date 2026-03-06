@@ -132,8 +132,8 @@ export function AgentSelector({
                         {agent.name}
                       </span>
                       <span className="agent-selector__option-meta">
-                        {agent.model || 'Default model'}{' '}
-                        · {formatRelativeTime(agent.updatedAt)}
+                        {agent.model || 'Default model'} ·{' '}
+                        {formatRelativeTime(agent.updatedAt)}
                       </span>
                     </button>
                   </li>

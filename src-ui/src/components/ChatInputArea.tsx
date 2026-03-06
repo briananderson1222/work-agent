@@ -118,7 +118,10 @@ export function ChatInputArea({
         {modelQuery !== null && (
           <ModelSelectorAutocomplete
             query={modelQuery}
-            models={availableModels.map((m) => ({ ...m, originalId: m.originalId || m.id }))}
+            models={availableModels.map((m) => ({
+              ...m,
+              originalId: m.originalId || m.id,
+            }))}
             currentModel={currentModel}
             agentDefaultModel={agentDefaultModel}
             maxHeight={`calc(${dockHeight}px - 200px)`}
@@ -195,15 +198,18 @@ export function ChatInputArea({
           </button>
         )}
       </div>
-      {voiceSupported && voiceState !== undefined && onVoiceStart && onVoiceStop && (
-        <VoiceOrb
-          state={voiceState}
-          supported={voiceSupported}
-          disabled={disabled || isSending}
-          onStart={onVoiceStart}
-          onStop={onVoiceStop}
-        />
-      )}
+      {voiceSupported &&
+        voiceState !== undefined &&
+        onVoiceStart &&
+        onVoiceStop && (
+          <VoiceOrb
+            state={voiceState}
+            supported={voiceSupported}
+            disabled={disabled || isSending}
+            onStart={onVoiceStart}
+            onStop={onVoiceStop}
+          />
+        )}
       <div className="chat-controls">
         <div className="chat-controls-row">
           <FileAttachmentInput
@@ -228,7 +234,10 @@ export function ChatInputArea({
                 if (input.trim() || attachments.length > 0) await onSend();
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (input.trim() || attachments.length > 0)) {
+                if (
+                  e.key === 'Enter' &&
+                  (input.trim() || attachments.length > 0)
+                ) {
                   e.preventDefault();
                   onSend();
                 }
@@ -244,7 +253,11 @@ export function ChatInputArea({
         <button
           onClick={onModelOpen}
           className={`chat-input__model-btn ${isOverride ? 'chat-input__model-btn--override' : 'chat-input__model-btn--default'}`}
-          title={isOverride ? 'Model override active - click to change' : 'Click to change model'}
+          title={
+            isOverride
+              ? 'Model override active - click to change'
+              : 'Click to change model'
+          }
         >
           {modelInfo?.name || 'Default Model'}
         </button>

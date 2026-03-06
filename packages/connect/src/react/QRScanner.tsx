@@ -36,24 +36,31 @@ export function QRScanner({ onScan, onCancel }: QRScannerProps) {
   useEffect(() => {
     if (!nativeScan) return;
     let cancelled = false;
-    nativeScan().then((result) => {
-      if (cancelled) return;
-      if (result && (result.startsWith('http://') || result.startsWith('https://'))) {
-        onScan(result);
-      } else if (result !== null) {
-        setError('QR code does not contain a valid server URL.');
-        setScanning(false);
-      } else {
-        // User cancelled native scanner
-        onCancel();
-      }
-    }).catch((err: any) => {
-      if (!cancelled) {
-        setError(`Scanner error: ${err?.message ?? String(err)}`);
-        setScanning(false);
-      }
-    });
-    return () => { cancelled = true; };
+    nativeScan()
+      .then((result) => {
+        if (cancelled) return;
+        if (
+          result &&
+          (result.startsWith('http://') || result.startsWith('https://'))
+        ) {
+          onScan(result);
+        } else if (result !== null) {
+          setError('QR code does not contain a valid server URL.');
+          setScanning(false);
+        } else {
+          // User cancelled native scanner
+          onCancel();
+        }
+      })
+      .catch((err: any) => {
+        if (!cancelled) {
+          setError(`Scanner error: ${err?.message ?? String(err)}`);
+          setScanning(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [nativeScan, onScan, onCancel]);
 
   // Web camera path — only runs when nativeScan is not available
@@ -64,7 +71,10 @@ export function QRScanner({ onScan, onCancel }: QRScannerProps) {
     const startCamera = async () => {
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
-          throw Object.assign(new Error('Camera requires a secure context (HTTPS or localhost).'), { name: 'InsecureContext' });
+          throw Object.assign(
+            new Error('Camera requires a secure context (HTTPS or localhost).'),
+            { name: 'InsecureContext' },
+          );
         }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
@@ -143,7 +153,11 @@ export function QRScanner({ onScan, onCancel }: QRScannerProps) {
     >
       {error ? (
         <div
-          style={{ color: 'var(--error-text, #ef4444)', fontSize: 13, textAlign: 'center' }}
+          style={{
+            color: 'var(--error-text, #ef4444)',
+            fontSize: 13,
+            textAlign: 'center',
+          }}
         >
           {error}
         </div>

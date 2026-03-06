@@ -34,16 +34,24 @@ function makeMockUtterance(text: string): MockUtterance {
     onstart: null,
     onend: null,
     onerror: null,
-    _fireStart() { utt.onstart?.(); },
-    _fireEnd() { utt.onend?.(); },
-    _fireError() { utt.onerror?.(); },
+    _fireStart() {
+      utt.onstart?.();
+    },
+    _fireEnd() {
+      utt.onend?.();
+    },
+    _fireError() {
+      utt.onerror?.();
+    },
   };
   return utt;
 }
 
 let lastUtterance: MockUtterance | null = null;
 const mockSpeechSynthesis = {
-  speak: vi.fn((utt: MockUtterance) => { lastUtterance = utt; }),
+  speak: vi.fn((utt: MockUtterance) => {
+    lastUtterance = utt;
+  }),
   cancel: vi.fn(),
 };
 
@@ -63,8 +71,8 @@ beforeEach(() => {
   (globalThis as any).window = {
     speechSynthesis: mockSpeechSynthesis,
   };
-  (globalThis as any).SpeechSynthesisUtterance = vi.fn(
-    (text: string) => makeMockUtterance(text),
+  (globalThis as any).SpeechSynthesisUtterance = vi.fn((text: string) =>
+    makeMockUtterance(text),
   );
 });
 

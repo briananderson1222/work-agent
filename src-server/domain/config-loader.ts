@@ -275,7 +275,9 @@ export class ConfigLoader {
         );
 
         // Plugin agents use 'pluginName:agentSlug' format
-        const pluginName = entry.name.includes(':') ? entry.name.split(':')[0] : undefined;
+        const pluginName = entry.name.includes(':')
+          ? entry.name.split(':')[0]
+          : undefined;
 
         agents.push({
           slug: entry.name,
@@ -544,7 +546,9 @@ export class ConfigLoader {
         for (const toolId of spec.tools?.mcpServers || []) {
           (map[toolId] ??= []).push(spec.name || entry.name);
         }
-      } catch { /* skip broken agents */ }
+      } catch {
+        /* skip broken agents */
+      }
     }
     return map;
   }
@@ -553,7 +557,12 @@ export class ConfigLoader {
    * Load workspace configuration
    */
   async loadWorkspace(slug: string): Promise<WorkspaceConfig> {
-    const path = join(this.projectHomeDir, 'workspaces', slug, 'workspace.json');
+    const path = join(
+      this.projectHomeDir,
+      'workspaces',
+      slug,
+      'workspace.json',
+    );
 
     if (!existsSync(path)) {
       throw new Error(`Workspace '${slug}' not found at ${path}`);
@@ -720,7 +729,12 @@ export class ConfigLoader {
    * Check if workspace exists
    */
   async workspaceExists(slug: string): Promise<boolean> {
-    const path = join(this.projectHomeDir, 'workspaces', slug, 'workspace.json');
+    const path = join(
+      this.projectHomeDir,
+      'workspaces',
+      slug,
+      'workspace.json',
+    );
     return existsSync(path);
   }
 

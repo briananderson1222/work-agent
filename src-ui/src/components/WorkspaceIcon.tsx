@@ -6,12 +6,24 @@ interface WorkspaceIconProps {
   style?: React.CSSProperties;
 }
 
-export function WorkspaceIcon({ workspace, size = 24, style }: WorkspaceIconProps) {
+export function WorkspaceIcon({
+  workspace,
+  size = 24,
+  style,
+}: WorkspaceIconProps) {
   const icon = getWorkspaceIcon(workspace);
   const baseStyle = getWorkspaceIconStyle(workspace, size);
 
   return (
-    <div style={{ ...baseStyle, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', overflow: 'hidden', ...style }}>
+    <div
+      style={{
+        ...baseStyle,
+        background: 'var(--bg-tertiary)',
+        color: 'var(--text-primary)',
+        overflow: 'hidden',
+        ...style,
+      }}
+    >
       {icon.isUrl ? (
         <img
           src={icon.display}

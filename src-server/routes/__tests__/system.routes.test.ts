@@ -32,7 +32,11 @@ const mockGetProviders = getOnboardingProviders as ReturnType<typeof vi.fn>;
 const mockExecFile = execFile as unknown as ReturnType<typeof vi.fn>;
 
 function makeExecFileImpl(results: Record<string, string>) {
-  return (cmd: string, args: string[], cb: (err: any, stdout: string) => void) => {
+  return (
+    cmd: string,
+    args: string[],
+    cb: (err: any, stdout: string) => void,
+  ) => {
     if (cmd === 'which') {
       const tool = args[0];
       const found = results[tool];
@@ -63,15 +67,16 @@ describe('system routes', () => {
     mockGetProviders.mockReturnValue([]);
     // Default: all tools found
     mockExecFile.mockImplementation(
-      makeExecFileImpl({ boo: '/usr/bin/boo', 'kiro-cli': '/usr/bin/kiro-cli', claude: '/usr/bin/claude' }),
+      makeExecFileImpl({
+        boo: '/usr/bin/boo',
+        'kiro-cli': '/usr/bin/kiro-cli',
+        claude: '/usr/bin/claude',
+      }),
     );
   });
 
   function makeApp(deps?: Parameters<typeof createSystemRoutes>[0]) {
-    return createSystemRoutes(
-      deps ?? makeACPStatus(true),
-      mockLogger(),
-    );
+    return createSystemRoutes(deps ?? makeACPStatus(true), mockLogger());
   }
 
   // ── GET /status ───────────────────────────────────────────────────────────
@@ -98,7 +103,10 @@ describe('system routes', () => {
   it('GET /status — boo not installed → booInstalled:false', async () => {
     mockCheckCreds.mockResolvedValue(true);
     mockExecFile.mockImplementation(
-      makeExecFileImpl({ 'kiro-cli': '/usr/bin/kiro-cli', claude: '/usr/bin/claude' }),
+      makeExecFileImpl({
+        'kiro-cli': '/usr/bin/kiro-cli',
+        claude: '/usr/bin/claude',
+      }),
     );
 
     const { body } = await req(makeApp(), 'GET', '/status');
@@ -116,7 +124,9 @@ describe('system routes', () => {
     mockCheckCreds.mockResolvedValue(true);
     mockGetProviders.mockReturnValue([
       {
-        provider: { getPrerequisites: vi.fn().mockRejectedValue(new Error('boom')) },
+        provider: {
+          getPrerequisites: vi.fn().mockRejectedValue(new Error('boom')),
+        },
         source: 'test',
       },
     ]);

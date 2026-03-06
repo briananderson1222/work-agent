@@ -6,7 +6,13 @@
  *
  * Active provider IDs are persisted to localStorage under 'stallion-voice-provider'.
  */
-import React, { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 import { voiceRegistry } from '@stallion-ai/sdk';
 import type { STTProvider, TTSProvider } from '@stallion-ai/sdk';
 import { useServerCapabilities } from '../hooks/useServerCapabilities';
@@ -33,7 +39,11 @@ function getTTSSnapshot() {
   return voiceRegistry.getAvailableTTS();
 }
 
-export function VoiceProviderContext({ children }: { children: React.ReactNode }) {
+export function VoiceProviderContext({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   // Fetch server capabilities and register server-backed providers
   useServerCapabilities();
 
@@ -67,24 +77,51 @@ export function VoiceProviderContext({ children }: { children: React.ReactNode }
   }, []);
 
   const activeSTT = useMemo(
-    () => availableSTT.find((p: STTProvider) => p.id === activeSTTId) ?? availableSTT[0] ?? null,
+    () =>
+      availableSTT.find((p: STTProvider) => p.id === activeSTTId) ??
+      availableSTT[0] ??
+      null,
     [availableSTT, activeSTTId],
   );
   const activeTTS = useMemo(
-    () => availableTTS.find((p: TTSProvider) => p.id === activeTTSId) ?? availableTTS[0] ?? null,
+    () =>
+      availableTTS.find((p: TTSProvider) => p.id === activeTTSId) ??
+      availableTTS[0] ??
+      null,
     [availableTTS, activeTTSId],
   );
 
   const value = useMemo(
-    () => ({ availableSTT, availableTTS, activeSTT, activeTTS, setSTTProvider, setTTSProvider }),
-    [availableSTT, availableTTS, activeSTT, activeTTS, setSTTProvider, setTTSProvider],
+    () => ({
+      availableSTT,
+      availableTTS,
+      activeSTT,
+      activeTTS,
+      setSTTProvider,
+      setTTSProvider,
+    }),
+    [
+      availableSTT,
+      availableTTS,
+      activeSTT,
+      activeTTS,
+      setSTTProvider,
+      setTTSProvider,
+    ],
   );
 
-  return <VoiceProviderCtx.Provider value={value}>{children}</VoiceProviderCtx.Provider>;
+  return (
+    <VoiceProviderCtx.Provider value={value}>
+      {children}
+    </VoiceProviderCtx.Provider>
+  );
 }
 
 export function useVoiceProviderContext(): VoiceProviderContextValue {
   const ctx = useContext(VoiceProviderCtx);
-  if (!ctx) throw new Error('useVoiceProviderContext must be used within VoiceProviderContext');
+  if (!ctx)
+    throw new Error(
+      'useVoiceProviderContext must be used within VoiceProviderContext',
+    );
   return ctx;
 }

@@ -13,7 +13,7 @@ export function PluginLoader({ pluginPath, agentSlug }: PluginLoaderProps) {
 
   return (
     <Suspense fallback={<div>Loading plugin...</div>}>
-      <Component {...{ agentSlug } as any} />
+      <Component {...({ agentSlug } as any)} />
     </Suspense>
   );
 }

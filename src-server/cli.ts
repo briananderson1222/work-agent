@@ -10,7 +10,8 @@ import { WorkAgentRuntime } from './runtime/voltagent-runtime.js';
 
 async function main() {
   const runtime = new WorkAgentRuntime({
-    projectHomeDir: process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai'),
+    projectHomeDir:
+      process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai'),
     logLevel: 'warn', // Less verbose for CLI
   });
 

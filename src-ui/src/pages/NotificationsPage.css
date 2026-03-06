@@ -4,13 +4,19 @@
   padding: 3rem 2rem;
   max-width: 800px;
   margin: 0 auto;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   animation: page-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .notifications-page__header {
@@ -24,13 +30,17 @@
 }
 
 .notifications-page__header::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: -2px;
   left: 0;
   width: 60px;
   height: 2px;
-  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary, var(--accent-primary)));
+  background: linear-gradient(
+    90deg,
+    var(--accent-primary),
+    var(--accent-secondary, var(--accent-primary))
+  );
 }
 
 .notifications-page__title {
@@ -38,16 +48,24 @@
   font-size: 2rem;
   font-weight: 700;
   letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--text-primary) 0%,
+    var(--accent-primary) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .notifications-page__clear-btn {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   padding: 10px 20px;
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 100%
+  );
   border: 1px solid var(--border-primary);
   border-radius: 8px;
   cursor: pointer;
@@ -60,7 +78,11 @@
 
 .notifications-page__clear-btn:hover {
   border-color: var(--accent-primary);
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 100%
+  );
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
@@ -85,7 +107,11 @@
 
 .notification-card {
   padding: 20px;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 100%
+  );
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -96,18 +122,28 @@
 }
 
 @keyframes notification-slide-in {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .notification-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   width: 4px;
   height: 100%;
-  background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary, var(--accent-primary)));
+  background: linear-gradient(
+    180deg,
+    var(--accent-primary),
+    var(--accent-secondary, var(--accent-primary))
+  );
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -140,7 +176,7 @@
 }
 
 .notification-card__type {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   color: var(--text-muted);
   margin-bottom: 6px;
@@ -160,7 +196,7 @@
 }
 
 .notification-card__time {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;

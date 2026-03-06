@@ -29,10 +29,7 @@ export function ProfilePage() {
             <AuthStatusBadge expanded />
           </div>
           <div className="profile-hero-content">
-            <UserIcon
-              size={120}
-              className="profile-card__avatar"
-            />
+            <UserIcon size={120} className="profile-card__avatar" />
             <div className="profile-hero-info">
               <div>
                 <div className="profile-card__info">
@@ -73,9 +70,7 @@ export function ProfilePage() {
                     )}
                   </div>
                   {user?.title && (
-                    <span className="profile-card__detail">
-                      {user.title}
-                    </span>
+                    <span className="profile-card__detail">{user.title}</span>
                   )}
                   {user?.email && (
                     <span className="profile-card__detail--muted">

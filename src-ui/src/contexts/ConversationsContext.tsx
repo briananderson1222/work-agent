@@ -271,7 +271,9 @@ class ConversationsStore {
     model?: string,
     attachments?: FileAttachment[],
   ): Promise<{ conversationId?: string; finishReason?: string }> {
-    void (conversationId ? `${agentSlug}:${conversationId}` : `${agentSlug}:temp`);
+    void (conversationId
+      ? `${agentSlug}:${conversationId}`
+      : `${agentSlug}:temp`);
     this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
 
     try {

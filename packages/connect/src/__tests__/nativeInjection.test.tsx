@@ -6,18 +6,35 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, render, screen, waitFor } from '@testing-library/react';
+import {
+  renderHook,
+  act,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { ConnectionStore } from '../core/ConnectionStore';
-import { ConnectionsProvider, useConnections } from '../react/ConnectionsContext';
+import {
+  ConnectionsProvider,
+  useConnections,
+} from '../react/ConnectionsContext';
 import { useNetworkDiscovery } from '../react/useNetworkDiscovery';
-import type { StorageAdapter, NativeScanFn, NativeDiscoverFn } from '../core/types';
+import type {
+  StorageAdapter,
+  NativeScanFn,
+  NativeDiscoverFn,
+} from '../core/types';
 
 function memoryAdapter(): StorageAdapter {
   const s: Record<string, string> = {};
   return {
     get: (k) => s[k] ?? null,
-    set: (k, v) => { s[k] = v; },
-    remove: (k) => { delete s[k]; },
+    set: (k, v) => {
+      s[k] = v;
+    },
+    remove: (k) => {
+      delete s[k];
+    },
   };
 }
 
@@ -59,7 +76,9 @@ describe('ConnectionsProvider — nativeScan / nativeDiscover forwarding', () =>
   });
 
   it('forwards injected nativeScan to context consumers', () => {
-    const nativeScan: NativeScanFn = vi.fn().mockResolvedValue('http://server:3141');
+    const nativeScan: NativeScanFn = vi
+      .fn()
+      .mockResolvedValue('http://server:3141');
     const store = makeStore();
     const { result } = renderHook(() => useConnections(), {
       wrapper: ({ children }) => (
@@ -101,15 +120,19 @@ describe('ConnectionsProvider — nativeScan / nativeDiscover forwarding', () =>
 
 describe('useNetworkDiscovery — nativeDiscover option', () => {
   it('calls nativeDiscover when provided and includes results', async () => {
-    const nativeDiscover: NativeDiscoverFn = vi.fn().mockResolvedValue([
-      { url: 'http://192.168.1.5:3141', name: 'Office Server', latency: 0 },
-    ]);
+    const nativeDiscover: NativeDiscoverFn = vi
+      .fn()
+      .mockResolvedValue([
+        { url: 'http://192.168.1.5:3141', name: 'Office Server', latency: 0 },
+      ]);
 
     const { result } = renderHook(() =>
       useNetworkDiscovery({ nativeDiscover, nativeOnly: true }),
     );
 
-    act(() => { result.current.scan(); });
+    act(() => {
+      result.current.scan();
+    });
 
     await waitFor(() => expect(result.current.scanning).toBe(false));
 
@@ -126,7 +149,9 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
       useNetworkDiscovery({ nativeDiscover, nativeOnly: true }),
     );
 
-    act(() => { result.current.scan(); });
+    act(() => {
+      result.current.scan();
+    });
 
     await waitFor(() => expect(result.current.scanning).toBe(false));
 
@@ -134,13 +159,17 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
   });
 
   it('falls back gracefully when nativeDiscover rejects', async () => {
-    const nativeDiscover: NativeDiscoverFn = vi.fn().mockRejectedValue(new Error('NSD failed'));
+    const nativeDiscover: NativeDiscoverFn = vi
+      .fn()
+      .mockRejectedValue(new Error('NSD failed'));
 
     const { result } = renderHook(() =>
       useNetworkDiscovery({ nativeDiscover, nativeOnly: true }),
     );
 
-    act(() => { result.current.scan(); });
+    act(() => {
+      result.current.scan();
+    });
 
     await waitFor(() => expect(result.current.scanning).toBe(false));
 
@@ -150,9 +179,11 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
   it('merges native results with subnet scan when nativeOnly is false', async () => {
     // Patch RTCPeerConnection so subnet detection resolves immediately with no subnets,
     // meaning the subnet loop runs 0 times. Native results still appear.
-    const nativeDiscover: NativeDiscoverFn = vi.fn().mockResolvedValue([
-      { url: 'http://10.0.0.5:3141', name: 'mdns-server', latency: 0 },
-    ]);
+    const nativeDiscover: NativeDiscoverFn = vi
+      .fn()
+      .mockResolvedValue([
+        { url: 'http://10.0.0.5:3141', name: 'mdns-server', latency: 0 },
+      ]);
 
     // Stub RTCPeerConnection to resolve instantly with no candidates
     const origRTC = (globalThis as any).RTCPeerConnection;
@@ -161,7 +192,9 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
       onicecandidate: any;
       onicegatheringstatechange: any;
       iceGatheringState = 'complete';
-      async createOffer() { return {}; }
+      async createOffer() {
+        return {};
+      }
       async setLocalDescription() {
         // Fire gathering complete synchronously so detectSubnets finishes fast
         setTimeout(() => this.onicegatheringstatechange?.(), 0);
@@ -173,9 +206,13 @@ describe('useNetworkDiscovery — nativeDiscover option', () => {
       useNetworkDiscovery({ nativeDiscover, nativeOnly: false }),
     );
 
-    act(() => { result.current.scan(); });
+    act(() => {
+      result.current.scan();
+    });
 
-    await waitFor(() => expect(result.current.scanning).toBe(false), { timeout: 5000 });
+    await waitFor(() => expect(result.current.scanning).toBe(false), {
+      timeout: 5000,
+    });
 
     expect(nativeDiscover).toHaveBeenCalledOnce();
     // Native result must be present (subnet scan may add nothing in test env)

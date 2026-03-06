@@ -53,7 +53,9 @@ export function useNetworkDiscovery({
     try {
       // Native mDNS path — run first, or exclusively when nativeOnly is set
       if (nativeDiscover) {
-        const native = await nativeDiscover().catch(() => [] as DiscoveredServer[]);
+        const native = await nativeDiscover().catch(
+          () => [] as DiscoveredServer[],
+        );
         if (ac.signal.aborted) return;
         if (native.length > 0) {
           setDiscovered((prev) => dedup([...prev, ...native]));
@@ -66,14 +68,19 @@ export function useNetworkDiscovery({
 
       for (const subnet of subnets) {
         // Build the 254 candidate IPs for this /24
-        const candidates = Array.from({ length: 254 }, (_, i) => `${subnet}${i + 1}`);
+        const candidates = Array.from(
+          { length: 254 },
+          (_, i) => `${subnet}${i + 1}`,
+        );
 
         // Probe in batches so we don't open 254 connections simultaneously
         for (let i = 0; i < candidates.length; i += batchSize) {
           if (ac.signal.aborted) break;
           const batch = candidates.slice(i, i + batchSize);
           const hits = await Promise.all(
-            batch.map((ip) => probeHost(ip, port, discoveryPath, timeout, ac.signal)),
+            batch.map((ip) =>
+              probeHost(ip, port, discoveryPath, timeout, ac.signal),
+            ),
           );
           const found = hits.filter((h): h is DiscoveredServer => h !== null);
           if (found.length > 0) {

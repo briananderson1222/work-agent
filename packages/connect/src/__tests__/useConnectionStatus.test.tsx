@@ -18,8 +18,12 @@ function memoryAdapter(): StorageAdapter {
   const s: Record<string, string> = {};
   return {
     get: (k) => s[k] ?? null,
-    set: (k, v) => { s[k] = v; },
-    remove: (k) => { delete s[k]; },
+    set: (k, v) => {
+      s[k] = v;
+    },
+    remove: (k) => {
+      delete s[k];
+    },
   };
 }
 
@@ -54,7 +58,9 @@ describe('useConnectionStatus', () => {
     expect(result.current.status).toBe('connecting');
 
     // Wait for the first health check to resolve
-    await waitFor(() => expect(result.current.status).toBe('connected'), { timeout: 2000 });
+    await waitFor(() => expect(result.current.status).toBe('connected'), {
+      timeout: 2000,
+    });
     expect(checkHealth).toHaveBeenCalledOnce();
   });
 
@@ -67,7 +73,9 @@ describe('useConnectionStatus', () => {
       { wrapper: wrapper(store) },
     );
 
-    await waitFor(() => expect(result.current.status).toBe('error'), { timeout: 2000 });
+    await waitFor(() => expect(result.current.status).toBe('error'), {
+      timeout: 2000,
+    });
   });
 
   it('transitions to error when checkHealth returns false', async () => {
@@ -79,14 +87,16 @@ describe('useConnectionStatus', () => {
       { wrapper: wrapper(store) },
     );
 
-    await waitFor(() => expect(result.current.status).toBe('error'), { timeout: 2000 });
+    await waitFor(() => expect(result.current.status).toBe('error'), {
+      timeout: 2000,
+    });
   });
 
   it('re-checks on poll interval — simulates server recovery', async () => {
     const checkHealth = vi
       .fn()
-      .mockResolvedValueOnce(false)   // first call: server down
-      .mockResolvedValue(true);        // subsequent calls: recovered
+      .mockResolvedValueOnce(false) // first call: server down
+      .mockResolvedValue(true); // subsequent calls: recovered
 
     const store = storeWithUrl('http://flaky-server:3141');
 
@@ -96,7 +106,9 @@ describe('useConnectionStatus', () => {
     );
 
     // First poll: error
-    await waitFor(() => expect(result.current.status).toBe('error'), { timeout: 2000 });
+    await waitFor(() => expect(result.current.status).toBe('error'), {
+      timeout: 2000,
+    });
 
     // Second poll (after POLL ms): connected
     await waitFor(() => expect(result.current.status).toBe('connected'), {
@@ -124,7 +136,9 @@ describe('useConnectionStatus', () => {
     );
 
     // First URL resolves quickly → connected
-    await waitFor(() => expect(result.current.status).toBe('connected'), { timeout: 2000 });
+    await waitFor(() => expect(result.current.status).toBe('connected'), {
+      timeout: 2000,
+    });
 
     // Switch to a different server (must explicitly setActive, add() keeps existing active)
     const { act } = await import('@testing-library/react');
@@ -134,10 +148,14 @@ describe('useConnectionStatus', () => {
     });
 
     // Now the slow second check is in flight → 'connecting'
-    await waitFor(() => expect(result.current.status).toBe('connecting'), { timeout: 500 });
+    await waitFor(() => expect(result.current.status).toBe('connecting'), {
+      timeout: 500,
+    });
 
     // Eventually resolves → 'connected' again
-    await waitFor(() => expect(result.current.status).toBe('connected'), { timeout: 2000 });
+    await waitFor(() => expect(result.current.status).toBe('connected'), {
+      timeout: 2000,
+    });
     expect(checkHealth).toHaveBeenCalledTimes(2);
   });
 });

@@ -11,7 +11,9 @@ import { mockLogger, req } from './helpers.js';
 function makeAdapter(overrides?: Record<string, any>) {
   return {
     getConversations: vi.fn().mockResolvedValue([]),
-    updateConversation: vi.fn().mockResolvedValue({ id: 'c1', title: 'Updated' }),
+    updateConversation: vi
+      .fn()
+      .mockResolvedValue({ id: 'c1', title: 'Updated' }),
     deleteConversation: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
     ...overrides,
@@ -35,7 +37,11 @@ describe('conversation routes', () => {
   // ── GET /:slug/conversations ───────────────────────────────────────────────
 
   it('GET /:slug/conversations — no adapter → 200 with empty data', async () => {
-    const { status, body } = await req(makeApp(), 'GET', '/agent1/conversations');
+    const { status, body } = await req(
+      makeApp(),
+      'GET',
+      '/agent1/conversations',
+    );
     expect(status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.data).toEqual([]);
@@ -43,21 +49,35 @@ describe('conversation routes', () => {
 
   it('GET /:slug/conversations — adapter present → 200 with conversations', async () => {
     const conversations = [{ id: 'c1', title: 'Chat 1' }];
-    adapters.set('agent1', makeAdapter({
-      getConversations: vi.fn().mockResolvedValue(conversations),
-    }));
+    adapters.set(
+      'agent1',
+      makeAdapter({
+        getConversations: vi.fn().mockResolvedValue(conversations),
+      }),
+    );
 
-    const { status, body } = await req(makeApp(), 'GET', '/agent1/conversations');
+    const { status, body } = await req(
+      makeApp(),
+      'GET',
+      '/agent1/conversations',
+    );
     expect(status).toBe(200);
     expect(body.data).toEqual(conversations);
   });
 
   it('GET /:slug/conversations — adapter throws → 500', async () => {
-    adapters.set('agent1', makeAdapter({
-      getConversations: vi.fn().mockRejectedValue(new Error('disk error')),
-    }));
+    adapters.set(
+      'agent1',
+      makeAdapter({
+        getConversations: vi.fn().mockRejectedValue(new Error('disk error')),
+      }),
+    );
 
-    const { status, body } = await req(makeApp(), 'GET', '/agent1/conversations');
+    const { status, body } = await req(
+      makeApp(),
+      'GET',
+      '/agent1/conversations',
+    );
     expect(status).toBe(500);
     expect(body.success).toBe(false);
   });
@@ -77,9 +97,12 @@ describe('conversation routes', () => {
 
   it('PATCH /:slug/conversations/:id — success → 200 with updated', async () => {
     const updated = { id: 'c1', title: 'New Title' };
-    adapters.set('agent1', makeAdapter({
-      updateConversation: vi.fn().mockResolvedValue(updated),
-    }));
+    adapters.set(
+      'agent1',
+      makeAdapter({
+        updateConversation: vi.fn().mockResolvedValue(updated),
+      }),
+    );
 
     const { status, body } = await req(
       makeApp(),
@@ -133,9 +156,12 @@ describe('conversation routes', () => {
 
   it('GET /:slug/conversations/:id/messages — success → 200 with messages', async () => {
     const messages = [{ role: 'user', content: 'Hello' }];
-    adapters.set('agent1', makeAdapter({
-      getMessages: vi.fn().mockResolvedValue(messages),
-    }));
+    adapters.set(
+      'agent1',
+      makeAdapter({
+        getMessages: vi.fn().mockResolvedValue(messages),
+      }),
+    );
 
     const { status, body } = await req(
       makeApp(),
@@ -147,9 +173,12 @@ describe('conversation routes', () => {
   });
 
   it('PATCH with unknown conversationId — adapter throws → 500', async () => {
-    adapters.set('agent1', makeAdapter({
-      updateConversation: vi.fn().mockRejectedValue(new Error('not found')),
-    }));
+    adapters.set(
+      'agent1',
+      makeAdapter({
+        updateConversation: vi.fn().mockRejectedValue(new Error('not found')),
+      }),
+    );
 
     const { status, body } = await req(
       makeApp(),

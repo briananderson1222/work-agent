@@ -31,8 +31,10 @@ function makeTTS(id: string): TTSProvider {
 describe('voiceRegistry', () => {
   // Clean up after each test so tests don't bleed state into each other
   afterEach(() => {
-    for (const p of voiceRegistry.getAvailableSTT()) voiceRegistry.unregisterSTT(p.id);
-    for (const p of voiceRegistry.getAvailableTTS()) voiceRegistry.unregisterTTS(p.id);
+    for (const p of voiceRegistry.getAvailableSTT())
+      voiceRegistry.unregisterSTT(p.id);
+    for (const p of voiceRegistry.getAvailableTTS())
+      voiceRegistry.unregisterTTS(p.id);
   });
 
   describe('STT registration', () => {
@@ -65,7 +67,9 @@ describe('voiceRegistry', () => {
       voiceRegistry.registerSTT(a);
       voiceRegistry.registerSTT(b);
       expect(voiceRegistry.getSTT('dup')?.name).toBe('Replaced');
-      expect(voiceRegistry.getAvailableSTT().filter((p) => p.id === 'dup')).toHaveLength(1);
+      expect(
+        voiceRegistry.getAvailableSTT().filter((p) => p.id === 'dup'),
+      ).toHaveLength(1);
     });
   });
 
