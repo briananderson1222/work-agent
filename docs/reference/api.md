@@ -26,6 +26,16 @@ This document describes all REST API endpoints available in Stallion, including 
 - [Analytics](#analytics)
 - [Monitoring](#monitoring)
 - [Agent Invocation](#agent-invocation)
+- [Auth & Users](#auth--users) *(new)*
+- [Branding](#branding) *(new)*
+- [Events (SSE)](#events-sse) *(new)*
+- [File System](#file-system) *(new)*
+- [Insights](#insights) *(new)*
+- [Model Capabilities (Legacy)](#model-capabilities-legacy) *(new)*
+- [Plugins](#plugins) *(new)*
+- [Registry](#registry) *(new)*
+- [Scheduler](#scheduler) *(new)*
+- [System](#system) *(new)*
 
 ---
 
@@ -1610,6 +1620,1162 @@ All VoltAgent generation endpoints support these options:
 | `experimental_output` | object | - | Structured output with tool calling |
 
 See [VoltAgent API Documentation](https://voltagent.dev/docs/api/endpoints/agents) for complete details.
+
+---
+
+---
+
+## Auth & Users
+
+> **New section** — routes from `src-server/routes/auth.ts`
+
+### Get Auth Status
+```http
+GET /auth/status
+```
+
+Returns current authentication status and resolved user identity.
+
+**Response**:
+```json
+{
+  "authenticated": true,
+  "user": {
+    "alias": "jdoe",
+    "name": "Jane Doe",
+    "email": "jdoe@example.com"
+  }
+}
+```
+
+---
+
+### Renew Credentials
+```http
+POST /auth/renew
+```
+
+Triggers credential renewal via the configured auth provider.
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Credentials renewed"
+}
+```
+
+---
+
+### Terminal Auth Renew
+```http
+POST /auth/terminal
+```
+
+Alias for `/auth/renew` — triggers credential renewal (used for terminal-based auth flows).
+
+**Response**: Same as `/auth/renew`
+
+---
+
+### Get Badge Photo
+```http
+GET /auth/badge-photo/:id
+```
+
+Returns a JPEG badge/profile photo for the given user ID. Requires the configured auth provider to support `getBadgePhoto`.
+
+**Response**: `image/jpeg` binary  
+**Cache-Control**: `public, max-age=86400`  
+**Error**: `404` if not found or provider does not support photos
+
+---
+
+### Search Users
+```http
+GET /users/search?q=<query>
+```
+
+Search the user directory by name or alias.
+
+**Query Parameters**:
+- `q`: Search string (required; returns `[]` if empty)
+
+**Response**:
+```json
+[
+  { "alias": "jdoe", "name": "Jane Doe", "email": "jdoe@example.com" }
+]
+```
+
+---
+
+### Lookup User by Alias
+```http
+GET /users/:alias
+```
+
+Look up a specific user by their alias.
+
+**Response**:
+```json
+{ "alias": "jdoe", "name": "Jane Doe", "email": "jdoe@example.com" }
+```
+
+**Error** (`404`):
+```json
+{ "alias": "jdoe", "name": "jdoe", "error": "User not found" }
+```
+
+---
+
+## Branding
+
+> **New section** — routes from `src-server/routes/branding.ts`
+
+### Get Branding Config
+```http
+GET /branding
+```
+
+Returns resolved branding configuration from the active branding provider.
+
+**Response**:
+```json
+{
+  "name": "Stallion AI",
+  "logo": null,
+  "theme": null,
+  "welcomeMessage": null
+}
+```
+
+Fields are `null` when the provider does not implement the optional method.
+
+---
+
+## Events (SSE)
+
+> **New section** — routes from `src-server/routes/events.ts`
+
+### Subscribe to Real-Time Events
+```http
+GET /events
+```
+
+Opens a Server-Sent Events stream for all real-time server events. On connect, replays the current ACP connection state so clients don't miss events that fired before they subscribed.
+
+**Response** (SSE stream):
+```
+event: acp:status
+data: {"connected":true,"connections":[{"id":"acp-1","status":"connected"}]}
+
+event: system:status-changed
+data: {"source":"config"}
+
+event: ping
+data: 
+```
+
+A `ping` keepalive is sent every 30 seconds.
+
+---
+
+## File System
+
+> **New section** — routes from `src-server/routes/fs.ts`
+
+### Browse Directories
+```http
+GET /fs/browse?path=<path>
+```
+
+Lists directories (not files) at the given path. Used by the UI directory picker.
+
+**Query Parameters**:
+- `path`: Absolute path or `~` for home directory (default: `~`)
+
+**Response**:
+```json
+{
+  "path": "/Users/jdoe",
+  "entries": [
+    { "name": "Documents", "isDirectory": true },
+    { "name": "Downloads", "isDirectory": true }
+  ]
+}
+```
+
+Entries are sorted: non-dotfiles first, then dotfiles, each group alphabetically.
+
+**Error** (`404`):
+```json
+{ "error": "Path not found or permission denied" }
+```
+
+---
+
+## Insights
+
+> **New section** — routes from `src-server/routes/insights.ts`
+
+### Get Usage Insights
+```http
+GET /insights?days=14
+```
+
+Aggregates monitoring event logs to produce tool usage, hourly activity, agent usage, and model usage statistics.
+
+**Query Parameters**:
+- `days`: Number of days to look back (default: `14`)
+
+**Response**:
+```json
+{
+  "data": {
+    "toolUsage": {
+      "files_read_file": { "calls": 42, "errors": 1 }
+    },
+    "hourlyActivity": [0, 0, 0, 0, 0, 0, 2, 5, 12, 18, 20, 15, 10, 8, 14, 16, 12, 9, 6, 4, 2, 1, 0, 0],
+    "agentUsage": {
+      "my-agent": { "chats": 30, "tokens": 45000 }
+    },
+    "modelUsage": {
+      "anthropic.claude-3-5-sonnet-20240620-v1:0": 28
+    },
+    "totalChats": 30,
+    "totalToolCalls": 42,
+    "totalErrors": 1,
+    "days": 14
+  }
+}
+```
+
+---
+
+## Model Capabilities (Legacy)
+
+> **New section** — routes from `src-server/routes/models.ts`
+>
+> **Note**: This is a legacy standalone route module. Prefer `/bedrock/models` and `/bedrock/pricing` (from `bedrock.ts`) for new integrations.
+
+### Get Model Capabilities
+```http
+GET /api/models/capabilities
+```
+
+Lists all ACTIVE and LEGACY Bedrock foundation models with capability flags. Results are cached for 1 hour.
+
+**Response**:
+```json
+{
+  "data": [
+    {
+      "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+      "modelName": "Claude 3.5 Sonnet",
+      "provider": "Anthropic",
+      "inputModalities": ["TEXT", "IMAGE"],
+      "outputModalities": ["TEXT"],
+      "supportsStreaming": true,
+      "supportsImages": true,
+      "supportsVideo": false,
+      "supportsAudio": false,
+      "lifecycleStatus": "ACTIVE"
+    }
+  ]
+}
+```
+
+**Error** (`401`): AWS credentials not configured.
+
+---
+
+### Get Model Pricing (Legacy)
+```http
+GET /api/models/pricing/:modelId?region=us-east-1
+```
+
+Fetches per-token pricing for a specific model from the AWS Pricing API.
+
+**Path Parameters**:
+- `modelId`: Bedrock model ID
+
+**Query Parameters**:
+- `region`: AWS region (default: `AWS_REGION` env or `us-east-1`)
+
+**Response**:
+```json
+{
+  "data": {
+    "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "region": "us-east-1",
+    "inputTokenPrice": 0.003,
+    "outputTokenPrice": 0.015,
+    "currency": "USD"
+  }
+}
+```
+
+---
+
+## Plugins
+
+> **New section** — routes from `src-server/routes/plugins.ts`
+
+### List Installed Plugins
+```http
+GET /plugins
+```
+
+Returns all installed plugins with manifest info, bundle status, git metadata, and permission state.
+
+**Response**:
+```json
+{
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "displayName": "My Plugin",
+      "version": "1.0.0",
+      "description": "A plugin",
+      "hasBundle": true,
+      "workspace": { "slug": "my-ws" },
+      "agents": [{ "slug": "assistant" }],
+      "providers": [],
+      "links": [],
+      "git": { "hash": "abc1234", "branch": "main", "remote": "https://github.com/org/my-plugin.git" },
+      "permissions": {
+        "declared": ["network.fetch"],
+        "granted": ["network.fetch"],
+        "missing": []
+      }
+    }
+  ]
+}
+```
+
+---
+
+### Preview Plugin (Pre-install Validation)
+```http
+POST /plugins/preview
+```
+
+Fetches a plugin from a git URL or local path, validates it, and returns manifest, components, conflicts, and dependencies — without installing.
+
+**Request Body**:
+```json
+{
+  "source": "https://github.com/org/my-plugin.git"
+}
+```
+
+**Response**:
+```json
+{
+  "valid": true,
+  "manifest": { "name": "my-plugin", "version": "1.0.0", "agents": [], "providers": [] },
+  "components": [
+    { "type": "agent", "id": "my-plugin:assistant" },
+    { "type": "workspace", "id": "my-ws" }
+  ],
+  "conflicts": [],
+  "dependencies": [],
+  "git": { "hash": "abc1234", "branch": "main" }
+}
+```
+
+**Error** (`400`/`500`):
+```json
+{ "valid": false, "error": "Not a valid plugin: plugin.json not found", "components": [], "conflicts": [] }
+```
+
+---
+
+### Install Plugin
+```http
+POST /plugins/install
+```
+
+Installs a plugin from a git URL or local path, including agents, workspace config, providers, tools, and dependencies.
+
+**Request Body**:
+```json
+{
+  "source": "https://github.com/org/my-plugin.git",
+  "skip": ["agent:my-plugin:assistant"]
+}
+```
+
+- `source`: Git URL (supports `#branch` suffix) or local path
+- `skip`: Optional array of component IDs to exclude (e.g. `"agent:<slug>"`, `"workspace:<slug>"`, `"provider:<type>"`, `"tool:<id>"`)
+
+**Response**:
+```json
+{
+  "success": true,
+  "plugin": { "name": "my-plugin", "displayName": "My Plugin", "version": "1.0.0", "hasBundle": true },
+  "tools": [{ "id": "my-tool", "status": "installed" }],
+  "dependencies": [{ "id": "dep-plugin", "status": "installed" }],
+  "permissions": {
+    "autoGranted": ["network.fetch"],
+    "pendingConsent": []
+  }
+}
+```
+
+---
+
+### Check for Plugin Updates
+```http
+GET /plugins/check-updates
+```
+
+Checks all installed plugins for available updates via git fetch (git-installed) or registry version comparison.
+
+**Response**:
+```json
+{
+  "updates": [
+    {
+      "name": "my-plugin",
+      "currentVersion": "1.0.0",
+      "latestVersion": "newer commit available",
+      "source": "git"
+    }
+  ]
+}
+```
+
+---
+
+### Update Plugin
+```http
+POST /plugins/:name/update
+```
+
+Updates a plugin via `git pull` (git-installed) or registry reinstall.
+
+**Response**:
+```json
+{
+  "success": true,
+  "plugin": { "name": "my-plugin", "version": "1.1.0" }
+}
+```
+
+---
+
+### Remove Plugin
+```http
+DELETE /plugins/:name
+```
+
+Removes a plugin, its agents, workspace config, and permission grants. Conversation memory is preserved.
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### Serve Plugin Bundle (JS)
+```http
+GET /plugins/:name/bundle.js
+```
+
+Serves the compiled JavaScript bundle for a plugin. Returns `404` if no bundle exists.
+
+**Response**: `application/javascript`
+
+---
+
+### Serve Plugin Bundle (CSS)
+```http
+GET /plugins/:name/bundle.css
+```
+
+Serves the compiled CSS bundle for a plugin. Returns empty `200` if no CSS exists.
+
+**Response**: `text/css`
+
+---
+
+### Get Plugin Permissions
+```http
+GET /plugins/:name/permissions
+```
+
+Returns declared and granted permissions for a plugin.
+
+**Response**:
+```json
+{
+  "declared": ["network.fetch", "fs.read"],
+  "granted": ["network.fetch"]
+}
+```
+
+---
+
+### Grant Plugin Permissions
+```http
+POST /plugins/:name/grant
+```
+
+Grants one or more permissions to a plugin.
+
+**Request Body**:
+```json
+{ "permissions": ["fs.read"] }
+```
+
+**Response**:
+```json
+{ "success": true, "granted": ["fs.read"] }
+```
+
+---
+
+### Plugin Fetch Proxy (Scoped)
+```http
+POST /plugins/:name/fetch
+```
+
+Server-side HTTP proxy for a plugin. Requires the plugin to have the `network.fetch` permission grant.
+
+**Request Body**:
+```json
+{
+  "url": "https://api.example.com/data",
+  "method": "GET",
+  "headers": { "Authorization": "Bearer <token>" },
+  "body": null
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "status": 200,
+  "contentType": "application/json",
+  "body": "{\"key\":\"value\"}"
+}
+```
+
+**Error** (`403`): Plugin does not have `network.fetch` permission.
+
+---
+
+### Plugin Fetch Proxy (Legacy/Unscoped)
+```http
+POST /plugins/fetch
+```
+
+Legacy server-side HTTP proxy with no permission check. Same request/response shape as the scoped variant above.
+
+---
+
+### Reload Plugin Providers
+```http
+POST /plugins/reload
+```
+
+Clears and reloads all plugin providers from disk. Useful after manual plugin changes.
+
+**Response**:
+```json
+{ "success": true, "loaded": 3 }
+```
+
+---
+
+### Get Plugin Providers
+```http
+GET /plugins/:name/providers
+```
+
+Returns provider declarations for a plugin with their enabled/disabled state.
+
+**Response**:
+```json
+{
+  "providers": [
+    { "type": "auth", "module": "dist/auth-provider.js", "workspace": null, "enabled": true }
+  ]
+}
+```
+
+---
+
+### Get Plugin Overrides
+```http
+GET /plugins/:name/overrides
+```
+
+Returns the current provider override config for a plugin (e.g. which providers are disabled).
+
+**Response**:
+```json
+{ "disabled": ["auth"] }
+```
+
+---
+
+### Update Plugin Overrides
+```http
+PUT /plugins/:name/overrides
+```
+
+Updates provider override config for a plugin.
+
+**Request Body**:
+```json
+{ "disabled": ["auth"] }
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+## Registry
+
+> **New section** — routes from `src-server/routes/registry.ts`
+
+### List Available Agents (Registry)
+```http
+GET /registry/agents
+```
+
+Lists agents available in the configured agent registry provider.
+
+**Response**:
+```json
+{ "success": true, "data": [{ "id": "my-agent", "version": "1.0.0", "description": "..." }] }
+```
+
+---
+
+### List Installed Agents (Registry)
+```http
+GET /registry/agents/installed
+```
+
+Lists agents currently installed via the registry.
+
+**Response**:
+```json
+{ "success": true, "data": [{ "id": "my-agent", "version": "1.0.0" }] }
+```
+
+---
+
+### Install Agent from Registry
+```http
+POST /registry/agents/install
+```
+
+**Request Body**:
+```json
+{ "id": "my-agent" }
+```
+
+**Response**:
+```json
+{ "success": true, "message": "Installed" }
+```
+
+---
+
+### Uninstall Agent from Registry
+```http
+DELETE /registry/agents/:id
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### List Available Tools (Registry)
+```http
+GET /registry/tools
+```
+
+**Response**:
+```json
+{ "success": true, "data": [{ "id": "my-tool", "version": "1.0.0", "description": "..." }] }
+```
+
+---
+
+### List Installed Tools (Registry)
+```http
+GET /registry/tools/installed
+```
+
+**Response**:
+```json
+{ "success": true, "data": [{ "id": "my-tool", "version": "1.0.0" }] }
+```
+
+---
+
+### Install Tool from Registry
+```http
+POST /registry/tools/install
+```
+
+Installs a tool and auto-generates its `tool.json` from provider metadata.
+
+**Request Body**:
+```json
+{ "id": "my-tool" }
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### Uninstall Tool from Registry
+```http
+DELETE /registry/tools/:id
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### Sync Tool Registry
+```http
+POST /registry/tools/sync
+```
+
+Triggers a sync of the tool registry provider.
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+## Scheduler
+
+> **New section** — routes from `src-server/routes/scheduler.ts`
+
+### List Scheduler Providers
+```http
+GET /scheduler/providers
+```
+
+Returns registered scheduler provider names (used to populate UI dropdowns).
+
+**Response**:
+```json
+{ "success": true, "data": ["cron", "eventbridge"] }
+```
+
+---
+
+### Subscribe to Scheduler Events (SSE)
+```http
+GET /scheduler/events
+```
+
+Opens a Server-Sent Events stream for real-time scheduler job events. Sends a `ping` keepalive every 30 seconds.
+
+**Response** (SSE stream):
+```
+data: {"type":"job-started","target":"my-job","timestamp":"..."}
+
+event: ping
+data: 
+```
+
+---
+
+### Scheduler Webhook Receiver
+```http
+POST /scheduler/webhook
+```
+
+Receives webhook events from external scheduler providers and broadcasts them to SSE subscribers.
+
+**Request Body**: Any JSON event payload from the scheduler provider.
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### List Scheduled Jobs
+```http
+GET /scheduler/jobs
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": [
+    { "target": "my-job", "schedule": "0 9 * * 1-5", "enabled": true, "lastRun": "..." }
+  ]
+}
+```
+
+---
+
+### Get Scheduler Stats
+```http
+GET /scheduler/stats
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": { "totalJobs": 5, "enabledJobs": 4, "lastRunAt": "..." }
+}
+```
+
+---
+
+### Get Scheduler Status
+```http
+GET /scheduler/status
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": { "running": true, "provider": "cron" }
+}
+```
+
+---
+
+### Preview Cron Schedule
+```http
+GET /scheduler/jobs/preview-schedule?cron=<expr>&count=5
+```
+
+Returns the next N scheduled run times for a cron expression.
+
+**Query Parameters**:
+- `cron`: Cron expression (required)
+- `count`: Number of upcoming runs to return (default: `5`)
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": ["2025-07-15T09:00:00Z", "2025-07-16T09:00:00Z"]
+}
+```
+
+---
+
+### Get Job Logs
+```http
+GET /scheduler/jobs/:target/logs?count=20
+```
+
+Returns recent run logs for a specific job.
+
+**Query Parameters**:
+- `count`: Number of log entries to return (default: `20`)
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": [
+    { "runAt": "2025-07-14T09:00:00Z", "status": "success", "outputPath": "/path/to/output.log" }
+  ]
+}
+```
+
+---
+
+### Read Run Output
+```http
+POST /scheduler/runs/output
+```
+
+Reads the content of a run output file by its log path.
+
+**Request Body**:
+```json
+{ "path": "/path/to/output.log" }
+```
+
+**Response**:
+```json
+{ "success": true, "data": { "content": "Job output text..." } }
+```
+
+---
+
+### Create Job
+```http
+POST /scheduler/jobs
+```
+
+**Request Body**: Job configuration (provider-specific).
+
+**Response**:
+```json
+{ "success": true, "data": { "output": "Job created" } }
+```
+
+---
+
+### Update Job
+```http
+PUT /scheduler/jobs/:target
+```
+
+**Request Body**: Updated job options (provider-specific).
+
+**Response**:
+```json
+{ "success": true, "data": { "output": "Job updated" } }
+```
+
+---
+
+### Run Job Now
+```http
+POST /scheduler/jobs/:target/run
+```
+
+Triggers an immediate run of a scheduled job.
+
+**Response**:
+```json
+{ "success": true, "data": { "output": "Job triggered" } }
+```
+
+---
+
+### Enable Job
+```http
+PUT /scheduler/jobs/:target/enable
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### Disable Job
+```http
+PUT /scheduler/jobs/:target/disable
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### Delete Job
+```http
+DELETE /scheduler/jobs/:target
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### Open File with System Handler
+```http
+POST /scheduler/open
+```
+
+Opens a file using the OS default application (`open` on macOS, `xdg-open` on Linux, `start` on Windows).
+
+**Request Body**:
+```json
+{ "path": "/path/to/file.log" }
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+## System
+
+> **New section** — routes from `src-server/routes/system.ts`
+
+### Get System Status
+```http
+GET /system/status
+```
+
+Fast readiness check: resolves AWS credentials, checks ACP connections, detects installed CLIs, and aggregates onboarding prerequisites from all registered providers.
+
+**Response**:
+```json
+{
+  "prerequisites": [
+    { "id": "aws-sso", "label": "AWS SSO Login", "met": true, "source": "my-plugin" }
+  ],
+  "bedrock": {
+    "credentialsFound": true,
+    "verified": null,
+    "region": "us-east-1"
+  },
+  "acp": {
+    "connected": true,
+    "connections": [{ "id": "acp-1", "status": "connected" }]
+  },
+  "clis": {
+    "kiro-cli": true,
+    "claude": false
+  },
+  "ready": true
+}
+```
+
+---
+
+### Verify Bedrock Credentials
+```http
+POST /system/verify-bedrock
+```
+
+Heavier check — actually calls `ListFoundationModels` to confirm credentials work.
+
+**Request Body** (optional):
+```json
+{ "region": "us-west-2" }
+```
+
+**Response**:
+```json
+{ "verified": true, "region": "us-east-1" }
+```
+
+**Error**:
+```json
+{ "verified": false, "error": "UnrecognizedClientException: ..." }
+```
+
+---
+
+### Check for Core App Update
+```http
+GET /system/core-update
+```
+
+Checks the app's git repository for upstream commits.
+
+**Response**:
+```json
+{
+  "currentHash": "abc1234",
+  "remoteHash": "def5678",
+  "branch": "main",
+  "behind": 3,
+  "ahead": 0,
+  "updateAvailable": true
+}
+```
+
+When no upstream is configured:
+```json
+{ "currentHash": "abc1234", "branch": "main", "behind": 0, "ahead": 0, "updateAvailable": false, "noUpstream": true }
+```
+
+---
+
+### Apply Core App Update
+```http
+POST /system/core-update
+```
+
+Runs `git pull --ff-only` on the app repository and emits a `core:updated` event.
+
+**Response**:
+```json
+{ "success": true, "hash": "def5678", "message": "Updated to def5678. Restart to apply." }
+```
+
+---
+
+### Get Server Capabilities
+```http
+GET /system/capabilities
+```
+
+Returns the server's runtime and available voice/context provider capabilities.
+
+**Response**:
+```json
+{
+  "runtime": "voltagent",
+  "voice": {
+    "stt": [
+      { "id": "webspeech", "name": "WebSpeech (Browser)", "clientOnly": true, "visibleOn": ["all"], "configured": true }
+    ],
+    "tts": [
+      { "id": "webspeech", "name": "WebSpeech (Browser)", "clientOnly": true, "visibleOn": ["all"], "configured": true }
+    ]
+  },
+  "context": {
+    "providers": [
+      { "id": "geolocation", "name": "Geolocation", "visibleOn": ["mobile"] },
+      { "id": "timezone", "name": "Timezone", "visibleOn": ["all"] }
+    ]
+  },
+  "scheduler": true
+}
+```
+
+---
+
+### Discovery Beacon
+```http
+GET /system/discover
+```
+
+Open-CORS endpoint that LAN clients can probe to detect a Stallion server without credentials.
+
+**Response** (CORS: `*`):
+```json
+{
+  "stallion": true,
+  "name": "Project Stallion",
+  "port": 3141
+}
+```
 
 ---
 
