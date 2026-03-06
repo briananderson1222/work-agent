@@ -3,6 +3,7 @@
  */
 
 import { execFile, execSync } from 'node:child_process';
+import { networkInterfaces } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
@@ -273,11 +274,24 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
 
   app.get('/discover', (c) => {
     const reqUrl = new URL(c.req.url);
+    const port = Number(reqUrl.port) || 3141;
+
+    // Collect LAN IPv4 addresses so clients can build a reachable QR URL
+    const localIps: string[] = [];
+    for (const ifaces of Object.values(networkInterfaces())) {
+      for (const iface of ifaces ?? []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          localIps.push(iface.address);
+        }
+      }
+    }
+
     return c.json({
       stallion: true,
       name: 'Project Stallion',
-      port: Number(reqUrl.port) || 3141,
+      port,
       mdns: process.env.STALLION_MDNS !== 'false',
+      localIps,
     });
   });
 

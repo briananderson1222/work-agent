@@ -1,4 +1,4 @@
-import { QRDisplay, useConnections, useHostUrl } from '@stallion-ai/connect';
+import { QRDisplay, useConnections } from '@stallion-ai/connect';
 import './SettingsView.css';
 import './page-layout.css';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
@@ -19,18 +19,44 @@ import './SettingsView.css';
 
 function MobilePairingSection() {
   const { activeConnection } = useConnections();
+  const serverBase = (() => {
+    try {
+      const u = new URL(activeConnection?.url || 'http://localhost:3141');
+      return `${u.protocol}//${u.host}`;
+    } catch {
+      return 'http://localhost:3141';
+    }
+  })();
   const serverPort = (() => {
     try {
-      const url = new URL(activeConnection?.url || 'http://localhost:3141');
-      return Number(url.port) || 3141;
+      return Number(new URL(serverBase).port) || 3141;
     } catch {
       return 3141;
     }
   })();
-  const { hostUrl, isDetecting } = useHostUrl({
-    port: serverPort,
-    fallback: activeConnection?.url || `http://localhost:${serverPort}`,
-  });
+
+  const [hostUrl, setHostUrl] = useState(`${serverBase}`);
+  const [isDetecting, setIsDetecting] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${serverBase}/api/system/discover`)
+      .then((r) => r.json())
+      .then((data: { localIps?: string[]; port?: number }) => {
+        if (cancelled) return;
+        const ip = data.localIps?.[0];
+        const port = data.port ?? serverPort;
+        setHostUrl(ip ? `http://${ip}:${port}` : serverBase);
+      })
+      .catch(() => {
+        if (!cancelled) setHostUrl(serverBase);
+      })
+      .finally(() => {
+        if (!cancelled) setIsDetecting(false);
+      });
+    return () => { cancelled = true; };
+  }, [serverBase, serverPort]);
+
   const isLocalhost =
     hostUrl.includes('localhost') || hostUrl.includes('127.0.0.1');
 
