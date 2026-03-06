@@ -6,7 +6,7 @@
 
 ```
 src-server/
-├── runtime/             # VoltAgent runtime integration
+├── runtime/             # Agent runtime integration
 │   ├── streaming/       # Streaming handlers
 │   └── stallion-runtime.ts  # Core runtime (should be minimal)
 ├── routes/              # HTTP route handlers (18 files)
@@ -73,7 +73,7 @@ Services should:
 ### 3. Runtime Stays Minimal
 
 `stallion-runtime.ts` should only contain:
-- VoltAgent initialization
+- Agent initialization
 - Service instantiation
 - Route mounting
 - Core streaming pipeline
@@ -242,9 +242,9 @@ const result: ActualResultType = await something();
 result.knownProperty;
 ```
 
-### VoltAgent Types
+### Usage Types
 
-VoltAgent types differ from what you might expect. Always check the actual type definitions:
+AI SDK types differ from what you might expect. Always check the actual type definitions:
 
 ```typescript
 // OperationContext uses Map, not object properties
@@ -280,13 +280,13 @@ await memory.createConversation({
 });
 ```
 
-### UsageInfo vs LanguageModelV2Usage
+### AI SDK UsageInfo vs LanguageModelV2Usage
 
 Two different types with different property names:
 
 | Type | Input Tokens | Output Tokens |
 |------|--------------|---------------|
-| VoltAgent `UsageInfo` | `promptTokens` | `completionTokens` |
+| AI SDK `UsageInfo` | `promptTokens` | `completionTokens` |
 | AI SDK `LanguageModelV2Usage` | `inputTokens` | `outputTokens` |
 
 Check which type you're working with before accessing properties.
@@ -469,7 +469,7 @@ When extracting code from `stallion-runtime.ts`:
 
 ## Common Pitfalls
 
-1. **Assuming VoltAgent properties exist** - Check type definitions
+1. **Assuming agent properties exist** - Check type definitions
 2. **Wrong usage property names** - `promptTokens` vs `inputTokens`
 3. **Missing null checks** - Use optional chaining
 4. **HTTP logic in services** - Keep in routes only
@@ -519,7 +519,7 @@ This pattern is used in `stallion-runtime.ts` (OTel recording + monitoring event
 | `chat.errors` | `stallion-runtime.ts` catch block | On chat endpoint error |
 | `tool.calls` | `MetadataHandler.collectStats()` | On `tool-call` stream chunk |
 | `tool.duration` | `MetadataHandler.collectStats()` | Between `tool-call` and `tool-result` chunks |
-| `tokens.context`, `cost.estimated` | `tool-executor.ts` stats update | After VoltAgent hook fires |
+| `tokens.context`, `cost.estimated` | `tool-executor.ts` stats update | After framework hook fires |
 | `agents.active`, `mcp.connections` | `stallion-runtime.ts` init | Observable gauges, polled by SDK |
 
 ### Dashboard
@@ -559,7 +559,7 @@ manager.shutdown()                  // stop everything
 
 ### Approval Registry (`services/approval-registry.ts`)
 
-Shared registry for pending tool-approval requests. Both VoltAgent elicitation hooks and ACP permission requests use this to pause execution and wait for the user to approve or reject a tool call via the UI.
+Shared registry for pending tool-approval requests. Both framework elicitation hooks and ACP permission requests use this to pause execution and wait for the user to approve or reject a tool call via the UI.
 
 **Public API:**
 ```typescript

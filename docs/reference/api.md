@@ -1,21 +1,18 @@
 # Stallion API Documentation
 
-This document describes all REST API endpoints available in Stallion, including both VoltAgent-provided and custom endpoints.
+This document describes all REST API endpoints available in Stallion.
 
 **Base URL**: `http://localhost:3141`  
-**Swagger UI**: `http://localhost:3141/ui` (VoltAgent built-in endpoints)  
 **In-Use Endpoints**: See [endpoints.md](./endpoints.md) for which endpoints are actively used by the frontend
 
 ## Endpoint Legend
 
-- 🔵 **VoltAgent Built-in** - Provided by `@voltagent/server-hono`
 - 🟢 **Custom** - Stallion-specific extensions
 - ✅ **In Use** - Currently used by frontend
 - ⚪ **Available** - Implemented but not currently used
 
 ## Table of Contents
 
-- [VoltAgent Core Endpoints](#voltagent-core-endpoints)
 - [Agent Management](#agent-management)
 - [Tool Management](#tool-management)
 - [Workspace Management](#workspace-management)
@@ -39,72 +36,7 @@ This document describes all REST API endpoints available in Stallion, including 
 
 ---
 
-## VoltAgent Core Endpoints
-
-These endpoints are provided by VoltAgent's `@voltagent/server-hono` package. See the [VoltAgent API documentation](https://voltagent.dev/docs/api/endpoints/agents) for complete details.
-
-**Note**: Stallion does not currently use any VoltAgent built-in endpoints. All functionality is provided through custom endpoints.
-
-### 🔵 ⚪ List All Agents (VoltAgent)
-```http
-GET /agents
-```
-
-Returns basic agent information from VoltAgent core.
-
-**Status**: Available but not used  
-**Note**: Use `/api/agents` (custom endpoint below) for enriched agent data with configuration details.
-
----
-
-### 🔵 ⚪ Generate Text
-```http
-POST /agents/:slug/text
-```
-
-Generate a text response from an agent synchronously.
-
-**Request Body**:
-```json
-{
-  "input": "What is the weather like today?",
-  "options": {
-    "userId": "user-123",
-    "conversationId": "conv-456",
-    "temperature": 0.7,
-    "maxOutputTokens": 1000
-  }
-}
-```
-
-**Status**: Available but not used  
-**Note**: We use custom `/agents/:slug/invoke` endpoint instead (no memory overhead)
-
----
-
-### 🔵 ⚪ Stream Text (Raw)
-```http
-POST /agents/:slug/stream
-```
-
-Generate a text response and stream raw fullStream data via Server-Sent Events (SSE).
-
-**Status**: Available but not used  
-**Note**: We use custom `/api/agents/:slug/chat` endpoint instead
-
----
-
-### 🔵 ⚪ Chat Stream (AI SDK Compatible)
-```http
-POST /agents/:slug/chat
-```
-
-Generate a text response and stream it as UI messages via SSE. Compatible with AI SDK's `useChat` hook.
-
-**Status**: Available but not used  
-**Note**: We use custom `/api/agents/:slug/chat` endpoint instead (see below)
-
----
+## Agent Management
 
 ### 🟢 ✅ Custom Chat Stream
 ```http
@@ -137,55 +69,6 @@ POST /api/agents/:slug/chat
 - Tool approval workflow integration
 - Model override capability
 - Conversation history management
-
----
-
-### 🔵 ⚪ Generate Object
-```http
-POST /agents/:slug/object
-```
-
-Generate a structured object that conforms to a JSON schema.
-
-**Status**: Available but not used
-
-**Request Body**:
-```json
-{
-  "input": "Extract user info: John Doe, 30 years old, john@example.com",
-  "schema": {
-    "type": "object",
-    "properties": {
-      "name": { "type": "string" },
-      "age": { "type": "number" },
-      "email": { "type": "string", "format": "email" }
-    },
-    "required": ["name", "age", "email"]
-  }
-}
-```
-
----
-
-### 🔵 ⚪ Stream Object
-```http
-POST /agents/:slug/stream-object
-```
-
-Generate a structured object and stream partial updates via SSE.
-
-**Status**: Available but not used
-
----
-
-### 🔵 ⚪ Workflow Endpoints
-
-VoltAgent also provides workflow execution endpoints. See [VoltAgent Workflow API](https://voltagent.dev/docs/api/endpoints/workflows) for details.
-
-**Status**: Available but not used  
-**Note**: We use custom workflow file management endpoints instead
-
----
 
 ---
 
@@ -1571,57 +1454,10 @@ Triggered when error message contains:
 
 ### Components Using Direct API Calls
 
-- **ChatDock**: Uses VoltAgent's built-in streaming endpoints
+- **ChatDock**: Uses the custom `/api/agents/:slug/chat` streaming endpoint
 - **Stallion Workspace**: `/agents/:slug/invoke/transform`, `/agents/:slug/tools/:toolName`
 - **Agent Editor**: Tool management endpoints
 - **Settings View**: Configuration endpoints
-
----
-
-## VoltAgent Built-in Endpoints
-
-The following endpoints are provided by `@voltagent/server-hono` and documented in Swagger UI at `http://localhost:3141/ui`:
-
-### 🔵 Core Agent Endpoints
-- `GET /agents` - List all agents (basic info)
-- `GET /agents/:id` - Get agent by ID
-- `POST /agents/:id/text` - Generate text response
-- `POST /agents/:id/stream` - Stream text response (raw SSE)
-- `POST /agents/:id/chat` - Stream text response (AI SDK format)
-- `POST /agents/:id/object` - Generate structured object
-- `POST /agents/:id/stream-object` - Stream structured object
-
-### 🔵 Workflow Endpoints
-- `GET /workflows` - List all workflows
-- `GET /workflows/:id` - Get workflow by ID
-- `POST /workflows/:id/execute` - Execute workflow
-- `POST /workflows/:id/stream` - Stream workflow execution
-- Additional workflow management endpoints
-
-### 🔵 Request Options
-
-All VoltAgent generation endpoints support these options:
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `userId` | string | - | User ID for tracking |
-| `conversationId` | string | - | Conversation ID for context |
-| `contextLimit` | number | 10 | Message history limit |
-| `maxSteps` | number | - | Max iteration steps (for tool use) |
-| `temperature` | number | 0.7 | Randomness (0-1) |
-| `maxOutputTokens` | number | 4000 | Max tokens to generate |
-| `topP` | number | 1.0 | Nucleus sampling (0-1) |
-| `frequencyPenalty` | number | 0.0 | Repeat penalty (0-2) |
-| `presencePenalty` | number | 0.0 | New topic penalty (0-2) |
-| `seed` | number | - | For reproducible results |
-| `stopSequences` | string[] | - | Stop generation sequences |
-| `providerOptions` | object | - | Provider-specific options |
-| `context` | object | - | Dynamic agent context |
-| `experimental_output` | object | - | Structured output with tool calling |
-
-See [VoltAgent API Documentation](https://voltagent.dev/docs/api/endpoints/agents) for complete details.
-
----
 
 ---
 
@@ -2798,7 +2634,7 @@ server: honoServer({
 
 ### Authentication
 
-When authentication is configured, custom routes inherit the same authentication behavior as VoltAgent's built-in routes. See [VoltAgent Authentication](https://voltagent.dev/docs/api/authentication) for details.
+When authentication is configured, custom routes inherit the same authentication behavior as the core runtime. See your auth provider documentation for details.
 
 ### CORS
 

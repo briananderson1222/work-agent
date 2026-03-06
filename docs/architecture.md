@@ -101,8 +101,7 @@ graph TB
 | `UsageAggregator` | `src-server/analytics/usage-aggregator.ts` | Aggregates token usage from persisted events |
 | `BedrockModelCatalog` | `src-server/providers/bedrock-models.ts` | Resolves and validates Bedrock model IDs |
 | `InjectableStream` | `src-server/runtime/streaming/InjectableStream.ts` | Wraps `fullStream` to allow out-of-band event injection (e.g. approval requests) |
-| `VoltAgentFramework` | `src-server/runtime/voltagent-adapter.ts` | Framework adapter for VoltAgent/Vercel AI SDK |
-| `StrandsFramework` | `src-server/runtime/strands-adapter.ts` | Framework adapter for Strands (alternate runtime) |
+| Framework Adapter | `src-server/runtime/voltagent-adapter.ts` or `strands-adapter.ts` | Pluggable adapter layer between the runtime and the underlying AI SDK |
 | Provider Registry | `src-server/providers/registry.ts` | Singleton registry for all plugin-provided implementations |
 
 ---
@@ -181,7 +180,7 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> Defined: agent YAML written to .stallion-ai/agents/
-    Defined --> Loading: createVoltAgentInstance()
+    Defined --> Loading: createAgentInstance()
     Loading --> MCPConnect: MCPManager.loadTools()
     MCPConnect --> Ready: agent registered in activeAgents
     Ready --> Running: POST /api/agents/:slug/chat
@@ -194,7 +193,7 @@ stateDiagram-v2
 
 **Define** — An agent is a YAML file in `.stallion-ai/agents/<slug>/agent.yaml` (schema: `schemas/agent.schema.json`). It specifies model, prompt, tools, guardrails, and MCP server references.
 
-**Load** — `createVoltAgentInstance()` reads the spec, resolves the Bedrock model, creates a `FileMemoryAdapter`, and delegates to the active framework adapter (`VoltAgentFramework` or `StrandsFramework`).
+**Load** — `createAgentInstance()` reads the spec, resolves the Bedrock model, creates a `FileMemoryAdapter`, and delegates to the active framework adapter.
 
 **MCP Connect** — For each `tools.mcpServers` entry, `MCPManager` creates an `MCPConfiguration` (stdio, HTTP, or WebSocket transport), connects, and loads the tool list. Tool names are normalized to avoid collisions.
 
@@ -301,4 +300,3 @@ Tauri wrapper around the web UI for native desktop distribution.
 - `docs/reference/connect.md` — `@stallion-ai/connect` API
 - `docs/reference/shared.md` — `@stallion-ai/shared` API
 - `docs/guides/monitoring.md` — OTel, Prometheus, Grafana setup
-- `docs/plans/architecture.md` — framework isolation plan (VoltAgent → Strands migration)

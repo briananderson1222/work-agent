@@ -4,8 +4,7 @@ This document shows which API endpoints are actively used by the Stallion fronte
 
 ## Summary
 
-- **VoltAgent Built-in**: 0 of 7+ generation endpoints in use (all replaced with custom endpoints)
-  - **Note**: `/agents/:slug/text` is called by `AgentEditorView.tsx` for prompt generation tests — see correction below
+- **Framework-provided generation endpoints**: 0 in use (all replaced with custom endpoints)
 - **Custom Endpoints**: 40+ of ~97 endpoints in use
 - **Default Agent**: System-level `default` agent always available, uses configured `defaultModel`, no tools
 
@@ -40,27 +39,6 @@ POST /api/agents/default/chat
 **Used by**:
 - `AgentEditorView.tsx` - Prompt generation via `/agents/default/invoke`
 - Available for any utility text generation tasks
-
----
-
-## VoltAgent Built-in Endpoints
-
-**Note**: VoltAgent only provides the core **generation endpoints** (`/agents/:id/text`, `/agents/:id/stream`, `/agents/:id/chat`, `/agents/:id/object`, etc.). All other `/agents/*` endpoints for CRUD operations, health checks, tools, conversations, etc. are **custom Stallion extensions**.
-
-### ⚪ Available but Not Used (VoltAgent generation endpoints)
-
-| Endpoint | Method | Why Not Used |
-|----------|--------|--------------|
-| `/agents` | GET | Using custom `/api/agents` for enriched data |
-| `/agents/:id` | GET | Not needed — using `/api/agents` for list |
-| `/agents/:slug/text` | POST | Using custom `/agents/:slug/invoke` instead (no memory overhead) |
-| `/agents/:slug/stream` | POST | Using custom `/api/agents/:slug/chat` instead |
-| `/agents/:slug/chat` | POST | Using custom `/api/agents/:slug/chat` instead |
-| `/agents/:slug/object` | POST | Not needed yet |
-| `/agents/:slug/stream-object` | POST | Not needed yet |
-| Workflow endpoints | Various | Using custom workflow file management |
-
-> **Correction from previous version**: The doc previously stated "0 VoltAgent endpoints in use" but also listed `AgentEditorView.tsx` as using `/agents/:slug/text`. The actual code in `AgentEditorView.tsx` calls `/agents/default/invoke` (the custom endpoint), not the VoltAgent `/agents/:slug/text`. The "0 VoltAgent endpoints in use" claim is accurate.
 
 ---
 
@@ -302,9 +280,9 @@ These endpoints are called by the frontend but not yet documented in `api.md`:
 
 ## Key Insights
 
-### Why We Don't Use VoltAgent's Chat Endpoints
+### Why We Use a Custom Chat Endpoint
 
-We implemented a custom `/api/agents/:slug/chat` endpoint instead of using VoltAgent's built-in `/agents/:slug/chat` because we need:
+We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the framework's built-in generation endpoints because we need:
 
 1. **Elicitation Support** - Gathering user information during conversations
 2. **Tool Approval Workflow** - User confirmation before executing tools

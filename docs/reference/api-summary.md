@@ -2,27 +2,7 @@
 
 ## Endpoint Overview
 
-### VoltAgent Built-in Endpoints (🔵)
-Provided by `@voltagent/server-hono` package:
-
-- **7 Core Agent Endpoints**
-  - `GET /agents` - List agents
-  - `GET /agents/:id` - Get agent details
-  - `POST /agents/:id/text` - Generate text
-  - `POST /agents/:id/stream` - Stream text (raw)
-  - `POST /agents/:id/chat` - Stream text (AI SDK)
-  - `POST /agents/:id/object` - Generate object
-  - `POST /agents/:id/stream-object` - Stream object
-
-- **5+ Workflow Endpoints**
-  - Workflow listing, execution, and streaming
-
-**Documentation**: `http://localhost:3141/ui` (Swagger UI)
-
----
-
-### Custom Stallion Endpoints (🟢)
-Stallion-specific extensions (**96 endpoints total**):
+### Stallion Endpoints (96 endpoints total):
 
 #### Agent Management (5)
 - `GET /api/agents` - Enriched agent list
@@ -257,12 +237,11 @@ Stallion-specific extensions (**96 endpoints total**):
 
 ### `/agents` vs `/api/agents`
 
-- **`GET /agents`** (🔵 VoltAgent) - Basic agent info
+- **`GET /agents`** - Basic agent info (not used by frontend)
 - **`GET /api/agents`** (🟢 Custom) - Enriched with config, tools, metadata
 
 ### Agent Invocation
 
-- **`POST /agents/:slug/text`** (🔵 VoltAgent) - Standard text generation with memory
 - **`POST /agents/:slug/invoke`** (🟢 Custom) - Silent invocation without memory loading
 - **`POST /agents/:slug/tools/:toolName`** (🟢 Custom) - Direct tool execution
 - **`POST /agents/:slug/invoke/transform`** (🟢 Custom) - Tool + JS transformation
@@ -277,5 +256,3 @@ The frontend uses `/api/auth/*` and `/api/users/*` prefixes (via `apiBase`), whi
 
 - **Complete API Reference**: [API.md](./API.md)
 - **Frontend Endpoint Audit**: [endpoints.md](./endpoints.md)
-- **VoltAgent Docs**: https://voltagent.dev/docs/api/endpoints/agents
-- **Swagger UI**: http://localhost:3141/ui
