@@ -3,26 +3,32 @@
 Optimized for parallel execution via 4 concurrent tool-dev subagents.
 Each wave completes before the next starts. Each agent gets a self-contained task.
 
+## Deferred (until CLI/plugin refactor settles)
+
+These docs depend on code that's actively being refactored:
+
+- `docs/reference/cli.md` — CLI commands and flags
+- `docs/reference/config.md` — plugin.json manifest schema (agent.json and app.json can be done now)
+- `docs/guides/plugins.md` update — SDK integration, plugin lifecycle
+- `docs/getting-started.md` — install flow depends on CLI + plugin structure
+- `docs/contributing.md` — dev setup depends on CLI
+
+Will revisit once the CLI and plugin installation refactor lands.
+
 ## Wave 1 — Independent Docs (no cross-dependencies)
 
 Each agent reads specific code areas and writes docs. No agent needs output from another.
 
-### Agent 1: CLI + Config Reference
-**Output:** `docs/reference/cli.md`, `docs/reference/config.md`
+### Agent 1: Config Reference (app + agent schemas)
+**Output:** `docs/reference/config.md`
 
-**cli.md** — Read `packages/cli/src/cli.ts`. Document every command and flag:
-- start (--port, --ui-port, --clean, --force), stop, upgrade, doctor, link, shortcut
-- install, preview, list, remove, info, update, registry
-- init, build, dev (--no-mcp, --tools-dir, port)
-- Include examples for common workflows
-
-**config.md** — Read these files and document every field with types and defaults:
-- `packages/shared/src/index.ts` (AppConfig, AgentSpec, PluginManifest, WorkspaceConfig types)
+Read these files and document every field with types and defaults:
+- `packages/shared/src/index.ts` (AppConfig, AgentSpec types)
 - `schemas/app.schema.json`
 - `~/.stallion-ai/config/app.json` (app config)
-- `~/.stallion-ai/agents/*/agent.json` (agent config)
-- `~/.stallion-ai/plugins/*/plugin.json` (plugin manifest)
+- `~/.stallion-ai/agents/*/agent.json` (agent config — tools, mcpServers, guardrails, model)
 - Include JSON examples with comments
+- Skip plugin.json manifest (being refactored)
 
 ### Agent 2: Package References (connect + shared)
 **Output:** `docs/reference/connect.md`, `docs/reference/shared.md`
@@ -157,38 +163,7 @@ Document:
 
 ## Wave 3 — Dependent Docs (need Wave 2 outputs)
 
-### Agent 1: Getting Started
-**Output:** `docs/getting-started.md`
-
-Write a complete onboarding guide:
-1. Prerequisites (Node 20+, AWS credentials, Docker for monitoring)
-2. Install and first run (`./stallion start`)
-3. Configure your first agent (edit agent.json)
-4. Install a plugin (`./stallion install`)
-5. Build your first plugin (`./stallion init my-plugin`)
-6. Add MCP tools to an agent
-7. Connect an external runtime via ACP
-8. Enable monitoring
-
-Read `docs/architecture.md` (from Wave 2) for system context.
-Read `docs/reference/cli.md` (from Wave 1) for CLI commands.
-Keep it practical — every step has a command to run and a result to verify.
-
-### Agent 2: Plugin Guide Expansion
-**Output:** Updated `docs/guides/plugins.md`
-
-Expand the existing plugin guide with:
-- SDK integration: which hooks to use, how to access agents/chat/config
-- Workspace components: lifecycle, props, registration
-- Provider interfaces: auth, user identity, user directory
-- Plugin-to-plugin dependencies
-- MCP tool access from plugin UI (callTool pattern)
-- Testing plugins (`./stallion dev`)
-- Publishing to registry
-
-Read `docs/reference/sdk.md` (from Wave 2) for hook/component details.
-
-### Agent 3: API Summary + Endpoints Sync
+### Agent 1: API Summary + Endpoints Sync
 **Output:** Updated `docs/reference/api-summary.md`, `docs/reference/endpoints.md`
 
 **api-summary.md** — Regenerate from the updated `docs/reference/api.md` (Wave 1):
@@ -202,17 +177,18 @@ Read `docs/reference/sdk.md` (from Wave 2) for hook/component details.
 - Fix the VoltAgent endpoint contradiction
 - Add coverage for plugin, scheduler, auth, system endpoints
 
-### Agent 4: Contributing Guide
-**Output:** `docs/contributing.md`
+### Agent 2: Agents Guide Refresh
+**Output:** Updated `docs/guides/agents.md`
 
-Read the codebase structure and write:
-- Dev environment setup (prerequisites, install, dev servers)
-- Project structure overview (link to architecture.md)
-- Code style (biome config, TypeScript conventions)
-- Testing (vitest for unit, Playwright for integration)
-- PR process and review guidelines
-- Where to add new features (routes, services, SDK hooks)
-- Documentation standards (link to this plan)
+Refresh for framework-agnostic framing:
+- Remove any VoltAgent-specific patterns
+- Document agent.json fields (link to reference/config.md)
+- MCP tool configuration and allow-lists
+- Guardrails (maxSteps, maxTokens)
+- Tool approval flow
+- Agent lifecycle in the runtime
+
+Read `docs/architecture.md` (from Wave 2) for context.
 
 ---
 
