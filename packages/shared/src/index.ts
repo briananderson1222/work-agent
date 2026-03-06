@@ -37,6 +37,7 @@ export interface PluginManifest {
   displayName?: string;
   description?: string;
   entrypoint?: string;
+  build?: string;
   capabilities?: string[];
   permissions?: string[];
   agents?: Array<{ slug: string; source: string }>;
@@ -589,7 +590,7 @@ async function buildWorkspacePlugin(pluginDir: string, manifest: PluginManifest,
           namespace: 'shared-external',
         }));
         build.onLoad({ filter: /.*/, namespace: 'shared-external' }, args => ({
-          contents: `module.exports = require('${args.path}')`,
+          contents: `var _m = globalThis.require('${args.path}'); module.exports = _m; module.exports.__esModule = true; if (!module.exports.default) module.exports.default = _m;`,
           loader: 'js',
         }));
       },
@@ -606,15 +607,12 @@ async function buildWorkspacePlugin(pluginDir: string, manifest: PluginManifest,
 }
 
 function buildCustomPlugin(pluginDir: string): BuildResult {
-  const hasBuildMjs = existsSync(join(pluginDir, 'build.mjs'));
-  const hasBuildSh = existsSync(join(pluginDir, 'build.sh'));
-  if (!hasBuildMjs && !hasBuildSh) return { built: false };
-  if (existsSync(join(pluginDir, 'dist', 'bundle.js'))) return { built: false };
+  const manifest = readPluginManifest(pluginDir);
+  if (!manifest.build) return { built: false };
 
   ensurePluginDeps(pluginDir);
 
-  const cmd = hasBuildMjs ? 'node build.mjs' : 'bash build.sh';
-  execSync(cmd, { cwd: pluginDir, timeout: 30000, stdio: 'inherit' });
+  execSync(manifest.build, { cwd: pluginDir, timeout: 30000, stdio: 'inherit' });
   return { built: true };
 }
 

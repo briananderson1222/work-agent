@@ -519,6 +519,9 @@ export function createPluginRoutes(
         manifest.permissions || [],
       );
 
+      // Notify UI that a plugin was installed (triggers agent reload + plugin registry refresh)
+      eventBus?.emit('plugins:installed', { name: pluginName, agents: manifest.agents?.map((a: any) => `${pluginName}:${a.slug}`) || [] });
+
       return c.json({
         success: true,
         plugin: {
@@ -526,6 +529,7 @@ export function createPluginRoutes(
           displayName: manifest.displayName,
           version: manifest.version,
           hasBundle: existsSync(join(pluginDir, 'dist', 'bundle.js')),
+          agents: (manifest.agents || []).map((a: any) => ({ slug: `${manifest.name}:${a.slug}` })),
         },
         tools: toolResults,
         dependencies: depResults,
@@ -568,16 +572,16 @@ export function createPluginRoutes(
               cwd: dir,
               encoding: 'utf-8',
             }).trim();
-            const remote = execSync('git rev-parse @{u}', {
+            const behind = execSync('git rev-list --count HEAD..@{u}', {
               cwd: dir,
               encoding: 'utf-8',
             }).trim();
-            if (local !== remote) {
+            if (parseInt(behind, 10) > 0) {
               const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
               updates.push({
                 name: entry.name,
                 currentVersion: manifest.version || 'unknown',
-                latestVersion: 'newer commit available',
+                latestVersion: `${behind} commit${behind === '1' ? '' : 's'} behind`,
                 source: 'git',
               });
             }
