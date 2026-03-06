@@ -24,6 +24,123 @@ When working on this codebase:
 - You discover a pitfall that others should avoid
 - You establish a convention for a new area
 
+---
+
+## Agent Configuration
+
+Agents live in `.stallion-ai/agents/<slug>/agent.json`. The directory name is the agent's slug.
+
+For full field reference see [docs/reference/config.md](../reference/config.md). Key fields:
+
+| Field | Description |
+|-------|-------------|
+| `name` | Display name |
+| `prompt` | System prompt (supports `{{key}}` template variables) |
+| `model` | Bedrock model ID — falls back to `defaultModel` in app.json |
+| `tools` | MCP server IDs, allow-list, auto-approve list |
+| `guardrails` | `maxSteps`, `maxTokens`, `temperature` |
+
+### MCP Tool Configuration
+
+`tools` in agent.json controls which MCP servers connect and which tools are exposed:
+
+```json
+{
+  "tools": {
+    "mcpServers": ["filesystem", "github"],
+    "available": ["read_file", "list_directory", "create_pull_request"],
+    "autoApprove": ["read_file", "list_directory"],
+    "aliases": { "ls": "list_directory" }
+  }
+}
+```
+
+- `mcpServers` — IDs of MCP servers to connect (each defined in `.stallion-ai/tools/<id>/tool.json`)
+- `available` — allowlist of tool names exposed to the agent; omit or set `["*"]` to expose all tools from connected servers
+- `autoApprove` — tools that execute without user confirmation; all other tools trigger the approval flow
+- `aliases` — rename tools in prompts without changing the underlying tool name
+
+### Guardrails
+
+Guardrails constrain model inference per agent:
+
+```json
+{
+  "guardrails": {
+    "maxSteps": 30,
+    "maxTokens": 8192,
+    "temperature": 0.3
+  }
+}
+```
+
+- `maxSteps` — maximum agentic steps per turn before the runtime halts the loop
+- `maxTokens` — maximum output tokens per model call (overrides `defaultMaxOutputTokens` from app.json)
+- `temperature` / `topP` / `stopSequences` — standard inference parameters
+
+---
+
+## Agent Lifecycle
+
+The runtime loads and manages agents through a defined lifecycle:
+
+```
+load → MCP connect → ready → chat → reload
+```
+
+1. **load** — `stallion-runtime.ts` reads `agent.json`, resolves the Bedrock model, and creates a memory adapter for the agent's conversation history
+2. **MCP connect** — for each entry in `tools.mcpServers`, the runtime connects to the MCP server and loads its tool schemas; connection status is tracked per `<slug>:<serverId>` key
+3. **ready** — the agent is registered in `activeAgents` and available for requests
+4. **chat** — `POST /api/agents/:slug/chat` streams a response; the runtime creates an `InjectableStream` to interleave approval events with model output
+5. **reload** — `reloadAgents()` diffs the on-disk agent list against `activeAgents`, disconnects removed agents' MCP servers, and registers new ones without a full restart
+
+Health is checked every 60 seconds and emitted as `agent-health` monitoring events.
+
+---
+
+## Tool Approval Flow
+
+Tools not in `autoApprove` pause the stream and request user confirmation before executing.
+
+Flow:
+1. `beforeToolCall` hook fires — checks `autoApprove` list via `isAutoApproved()`
+2. If not auto-approved, the hook calls `requestApproval` (wired per-request by the chat handler)
+3. `requestApproval` injects an `approval-request` SSE event into the stream
+4. The client renders a confirmation UI and `POST /tool-approval/:approvalId` with `{ approved: true/false }`
+5. `ApprovalRegistry.resolve()` unblocks the hook; the tool executes or is skipped
+
+The `InjectableStream` wrapper ensures approval events are emitted in the correct position in the SSE stream, even when the model is mid-reasoning.
+
+---
+
+## Agent Hooks
+
+`agent-hooks.ts` provides framework-agnostic lifecycle hooks wired into whichever runtime adapter is active. Hooks receive typed context objects — no framework imports.
+
+| Hook | When it fires | What it does |
+|------|--------------|--------------|
+| `beforeToolCall` | Before any tool executes | Checks auto-approve; triggers approval flow if needed |
+| `afterToolCall` | After a tool returns | Debug logging |
+| `afterInvocation` | After the full turn completes | Updates conversation stats (tokens, cost, tool call count) in the memory adapter |
+
+`afterInvocation` also enriches the last assistant message with model metadata and pricing from the Bedrock model catalog.
+
+---
+
+## API Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/agents/:slug/chat` | Streaming chat (SSE) |
+| `POST /agents/:slug/invoke` | Silent tool invocation (no stream) |
+| `POST /agents/:slug/invoke/stream` | Streaming invoke with optional JSON schema output |
+| `GET /agents/:slug/tools` | List tools with full schemas |
+| `PUT /agents/:slug/tools/allowed` | Update tool allow-list |
+| `POST /tool-approval/:approvalId` | Resolve a pending tool approval |
+| `GET /agents/:slug/health` | Agent health check (MCP connection status) |
+
+---
+
 ## Quick Reference
 
 ### Data Layer Architecture
@@ -82,20 +199,6 @@ const accountId = params.get('selectedAccount');
 - `setWorkspaceTab(workspaceSlug, tabId)` handles client-side URL navigation
 - Receiving tab reads state via `getTabState(tabId)` in a `useEffect` triggered by `activeTab`
 - State format is URL search params string (e.g., `'event=abc&date=2026-01-01'`)
-
-### Agent Configuration
-
-Agents live in `.stallion-ai/agents/<slug>/agent.json`:
-- `tools.mcpServers`: MCP server IDs to load
-- `tools.available`: Tools agent can invoke (wildcards supported)
-- `tools.autoApprove`: Tools that skip user confirmation
-
-### API Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /agents/:slug/stream` | Streaming chat |
-| `POST /agents/:slug/invoke` | Silent tool invocation |
 
 ### ⛔ NEVER run long-lived processes via the test-workspace.sh script from execute_bash
 
