@@ -20,25 +20,6 @@ interface Plugin {
   permissions?: { declared: string[]; granted: string[]; missing: Array<{ permission: string; tier: 'passive' | 'active' | 'trusted' }> };
 }
 
-interface ToolDef {
-  id: string;
-  displayName?: string;
-  description?: string;
-  kind?: string;
-  transport?: string;
-  source?: string;
-  usedBy?: string[];
-}
-
-interface RegistryItem {
-  id: string;
-  displayName?: string;
-  description?: string;
-  version?: string;
-  status?: string;
-  installed: boolean;
-}
-
 /* ── Folder Picker Modal ── */
 function FolderPickerModal({ apiBase, onSelect, onClose }: { apiBase: string; onSelect: (path: string) => void; onClose: () => void }) {
   const [currentPath, setCurrentPath] = useState('');
@@ -104,99 +85,103 @@ function FolderPickerModal({ apiBase, onSelect, onClose }: { apiBase: string; on
   );
 }
 
-/* ── Tool Registry Modal ── */
-function ToolRegistryModal({ apiBase, onClose }: { apiBase: string; onClose: () => void }) {
-  const [items, setItems] = useState<RegistryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [filter, setFilter] = useState('');
+interface PreviewComponent {
+  type: string;
+  id: string;
+  detail?: string;
+  conflict?: { type: string; id: string; existingSource?: string };
+}
 
-  const fetchItems = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/registry/tools`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      setItems(data.success ? data.data || [] : []);
-    } catch { setItems([]); }
-    finally { setLoading(false); }
-  }, [apiBase]);
+interface GitInfo {
+  hash: string;
+  branch: string;
+  remote?: string;
+}
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+interface PreviewData {
+  valid: boolean;
+  error?: string;
+  manifest?: Plugin;
+  components: PreviewComponent[];
+  conflicts: Array<{ type: string; id: string; existingSource?: string }>;
+  dependencies?: Array<{ id: string; source?: string; status: string; components?: Array<{ type: string; id: string }>; git?: GitInfo }>;
+  git?: GitInfo;
+}
 
-  const handleAction = async (item: RegistryItem, action: 'install' | 'uninstall') => {
-    setActionLoading(item.id);
-    setMessage(null);
-    try {
-      const res = action === 'install'
-        ? await fetch(`${apiBase}/api/registry/tools/install`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
-        : await fetch(`${apiBase}/api/registry/tools/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        setMessage({ type: 'success', text: data.message || `${action === 'install' ? 'Installed' : 'Removed'} ${item.displayName || item.id}` });
-        fetchItems();
-      } else {
-        setMessage({ type: 'error', text: data.error || `${action} failed` });
-      }
-    } catch (e: any) { setMessage({ type: 'error', text: e.message }); }
-    finally { setActionLoading(null); }
+/* ── Path Autocomplete ── */
+function PathAutocomplete({ value, onChange, onSubmit, placeholder, disabled, apiBase }: {
+  value: string; onChange: (v: string) => void; onSubmit: () => void;
+  placeholder: string; disabled: boolean; apiBase: string;
+}) {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState(-1);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (!value.startsWith('/') && !value.startsWith('~')) { setSuggestions([]); return; }
+    const lastSlash = value.lastIndexOf('/');
+    const dir = lastSlash <= 0 ? '/' : value.substring(0, lastSlash);
+    const prefix = value.substring(lastSlash + 1).toLowerCase();
+    const controller = new AbortController();
+    fetch(`${apiBase}/api/fs/browse?path=${encodeURIComponent(dir)}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.entries) return;
+        const matches = data.entries
+          .filter((e: any) => e.name.toLowerCase().startsWith(prefix))
+          .map((e: any) => `${data.path}/${e.name}`);
+        setSuggestions(matches);
+        setSelectedIdx(-1);
+        setShow(matches.length > 0);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [value, apiBase]);
+
+  const pick = (path: string) => { onChange(path); setShow(false); };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!show || suggestions.length === 0) { if (e.key === 'Enter') onSubmit(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIdx(i => Math.min(i + 1, suggestions.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Tab' || e.key === 'Enter') {
+      if (selectedIdx >= 0) { e.preventDefault(); pick(suggestions[selectedIdx]); }
+      else if (e.key === 'Enter') onSubmit();
+    }
+    else if (e.key === 'Escape') setShow(false);
   };
 
-  const filtered = items.filter(item => {
-    if (!filter) return true;
-    const q = filter.toLowerCase();
-    return (item.displayName || item.id).toLowerCase().includes(q) || item.description?.toLowerCase().includes(q);
-  });
-
   return (
-    <div className="plugins__modal-overlay" onClick={onClose}>
-      <div className="plugins__modal" onClick={e => e.stopPropagation()}>
-        <div className="plugins__modal-header">
-          <h3 className="plugins__modal-title">Tool Registry</h3>
-          <button className="plugins__modal-close" onClick={onClose}>&times;</button>
+    <div style={{ position: 'relative', flex: 1 }}>
+      <input
+        className="plugins__install-input"
+        type="text"
+        value={value}
+        onChange={e => { onChange(e.target.value); setShow(true); }}
+        onKeyDown={onKeyDown}
+        onBlur={() => setTimeout(() => setShow(false), 150)}
+        onFocus={() => suggestions.length > 0 && setShow(true)}
+        placeholder={placeholder}
+        disabled={disabled}
+      />
+      {show && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+          background: 'var(--bg-secondary, #1e1e1e)', border: '1px solid var(--border-color, #333)',
+          borderRadius: '0 0 8px 8px', maxHeight: 200, overflowY: 'auto',
+        }}>
+          {suggestions.map((s, i) => (
+            <div key={s} onMouseDown={() => pick(s)} style={{
+              padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem',
+              fontFamily: 'monospace', color: 'var(--text-primary, #ccc)',
+              background: i === selectedIdx ? 'var(--bg-hover, #2a2a2a)' : 'transparent',
+            }}>
+              📁 {s.split('/').pop()}
+              <span style={{ opacity: 0.4, marginLeft: 8, fontSize: '0.75rem' }}>{s}</span>
+            </div>
+          ))}
         </div>
-        <div className="plugins__modal-body">
-          {message && <div className={`plugins__modal-message plugins__message--${message.type}`}>{message.text}</div>}
-          {loading ? (
-            <LoadingState message="Loading registry..." />
-          ) : items.length === 0 ? (
-            <div className="plugins__empty">No tool registry provider configured.</div>
-          ) : (
-            <>
-              <input
-                className="plugins__filter-input"
-                type="text"
-                value={filter}
-                onChange={e => setFilter(e.target.value)}
-                placeholder="Filter tools..."
-                autoFocus
-              />
-              <div className="plugins__registry-list">
-                {filtered.length === 0 ? (
-                  <div className="plugins__empty">No tools match "{filter}"</div>
-                ) : filtered.map(item => (
-                  <div key={item.id} className="plugins__registry-item">
-                    <div className="plugins__registry-info">
-                      <div className="plugins__registry-name">
-                        {item.displayName || item.id}
-                        {item.version && <span className="plugins__card-version">v{item.version}</span>}
-                      </div>
-                      {item.description && <div className="plugins__registry-desc">{item.description}</div>}
-                    </div>
-                    <button
-                      className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
-                      onClick={() => handleAction(item, item.installed ? 'uninstall' : 'install')}
-                      disabled={actionLoading === item.id}
-                    >
-                      {actionLoading === item.id ? '...' : (item.installed ? 'Remove' : 'Install')}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -207,18 +192,17 @@ export function PluginManagementView() {
   const queryClient = useQueryClient();
   const { requestConsent } = usePermissions();
   const [plugins, setPlugins] = useState<Plugin[]>([]);
-  const [tools, setTools] = useState<ToolDef[]>([]);
   const [loading, setLoading] = useState(true);
-  const [toolsLoading, setToolsLoading] = useState(true);
   const [installSource, setInstallSource] = useState('');
   const [installing, setInstalling] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [updates, setUpdates] = useState<Array<{ name: string; currentVersion: string; latestVersion: string; source: string }>>([]);
   const [updating, setUpdating] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
-  const [showRegistry, setShowRegistry] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
-  const [toolFilter, setToolFilter] = useState('');
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewSkips, setPreviewSkips] = useState<Set<string>>(new Set());
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
 
   const fetchPlugins = useCallback(async () => {
@@ -228,15 +212,6 @@ export function PluginManagementView() {
       setPlugins(plugins || []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  }, [apiBase]);
-
-  const fetchTools = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiBase}/tools`);
-      const data = await res.json();
-      setTools(data.success ? data.data || [] : []);
-    } catch { /* ignore */ }
-    finally { setToolsLoading(false); }
   }, [apiBase]);
 
   const fetchUpdates = useCallback(async () => {
@@ -273,16 +248,43 @@ export function PluginManagementView() {
     } catch { /* ignore */ }
   }, [apiBase, plugins, fetchProviderDetails]);
 
-  useEffect(() => { fetchPlugins(); fetchTools(); fetchUpdates(); }, [fetchPlugins, fetchTools, fetchUpdates]);
+  useEffect(() => { fetchPlugins(); fetchUpdates(); }, [fetchPlugins, fetchUpdates]);
 
-  const install = async () => {
-    if (!installSource.trim()) return;
+  const install = async (skipList?: string[]) => {
+    const source = installSource.trim();
+    if (!source) return;
+
+    // If no preview yet, fetch preview first
+    if (!previewData && !skipList) {
+      setPreviewLoading(true);
+      setMessage(null);
+      try {
+        const res = await fetch(`${apiBase}/api/plugins/preview`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source }),
+        });
+        const data: PreviewData = await res.json();
+        if (!data.valid) {
+          setMessage({ type: 'error', text: data.error || 'Invalid plugin' });
+        } else {
+          // Auto-skip conflicting components
+          const autoSkips = new Set(data.conflicts.map(c => `${c.type}:${c.id}`));
+          setPreviewSkips(autoSkips);
+          setPreviewData(data);
+        }
+      } catch (e: any) { setMessage({ type: 'error', text: e.message }); }
+      finally { setPreviewLoading(false); }
+      return;
+    }
+
+    // Proceed with actual install
     setInstalling(true);
     setMessage(null);
+    setPreviewData(null);
     try {
       const res = await fetch(`${apiBase}/api/plugins/install`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: installSource.trim() }),
+        body: JSON.stringify({ source, skip: skipList || Array.from(previewSkips) }),
       });
       const data = await res.json();
       if (data.success) {
@@ -294,7 +296,7 @@ export function PluginManagementView() {
           setMessage({ type: 'success', text: `Installed ${data.plugin.displayName || data.plugin.name}.` });
         }
         setInstallSource('');
-        fetchPlugins(); fetchTools();
+        fetchPlugins();
         fetch(`${apiBase}/api/plugins/reload`, { method: 'POST' }).catch(() => {});
         queryClient.invalidateQueries({ queryKey: ['workspaces'] });
         try { const { pluginRegistry } = await import('../core/PluginRegistry'); await pluginRegistry.reload(); } catch {}
@@ -325,7 +327,7 @@ export function PluginManagementView() {
       const data = await res.json();
       if (data.success) {
         setMessage({ type: 'success', text: `Removed ${name}.` });
-        fetchPlugins(); fetchTools();
+        fetchPlugins();
         queryClient.invalidateQueries({ queryKey: ['workspaces'] });
         try { const { pluginRegistry } = await import('../core/PluginRegistry'); await pluginRegistry.reload(); } catch {}
       } else { setMessage({ type: 'error', text: data.error || 'Remove failed' }); }
@@ -339,27 +341,26 @@ export function PluginManagementView() {
           <div className="page__header-text">
             <div className="page__label">sys / plugins</div>
             <h1 className="page__title">Plugins</h1>
-            <p className="page__subtitle">Manage installed plugins and MCP tools</p>
+            <p className="page__subtitle">Manage installed plugins</p>
           </div>
         </div>
 
         {/* Install bar */}
         <div className="plugins__install">
           <span className="plugins__install-prefix">$</span>
-          <input
-            className="plugins__install-input"
-            type="text"
+          <PathAutocomplete
             value={installSource}
-            onChange={e => setInstallSource(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && install()}
+            onChange={val => { setInstallSource(val); setPreviewData(null); }}
+            onSubmit={() => install()}
             placeholder="git@github.com:org/plugin.git or /local/path"
             disabled={installing}
+            apiBase={apiBase}
           />
           <button className="plugins__browse-btn" onClick={() => setShowFolderPicker(true)} disabled={installing} title="Browse local folders">
             📁
           </button>
-          <button className="plugins__install-btn" onClick={install} disabled={installing || !installSource.trim()}>
-            {installing ? 'Installing...' : 'Install'}
+          <button className="plugins__install-btn" onClick={() => install()} disabled={installing || previewLoading || !installSource.trim()}>
+            {installing ? 'Installing...' : previewLoading ? 'Validating...' : 'Install'}
           </button>
         </div>
 
@@ -462,72 +463,95 @@ export function PluginManagementView() {
             </div>
           )}
         </div>
-
-        {/* ── Installed Tools ── */}
-        <div className="plugins__section">
-          <div className="plugins__section-header">
-            <h3 className="plugins__section-title">Installed Tools</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span className="plugins__section-count">{tools.length} active</span>
-              <button className="plugins__section-action" onClick={() => setShowRegistry(true)}>Browse Registry</button>
-            </div>
-          </div>
-          {toolsLoading ? (
-            <LoadingState message="Loading tools..." />
-          ) : tools.length === 0 ? (
-            <div className="plugins__empty">No tools configured.</div>
-          ) : (
-            <>
-              <input
-                className="plugins__filter-input"
-                type="text"
-                value={toolFilter}
-                onChange={e => setToolFilter(e.target.value)}
-                placeholder="Filter tools..."
-              />
-              <table className="plugins__tools-table">
-                <thead>
-                  <tr>
-                    <th className="plugins__tools-th">Name</th>
-                    <th className="plugins__tools-th">Type</th>
-                    <th className="plugins__tools-th">Source</th>
-                    <th className="plugins__tools-th">Agents</th>
-                    <th className="plugins__tools-th">Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tools
-                    .filter(t => {
-                      if (!toolFilter) return true;
-                      const q = toolFilter.toLowerCase();
-                      const name = (t.displayName || t.id).toLowerCase();
-                      return name.includes(q) || t.description?.toLowerCase().includes(q) || t.kind?.toLowerCase().includes(q) || t.source?.toLowerCase().includes(q) || t.usedBy?.some(a => a.toLowerCase().includes(q));
-                    })
-                    .map(t => (
-                      <tr key={t.id} className="plugins__tools-tr">
-                        <td className="plugins__tools-td"><span className="plugins__tools-name">{t.displayName || t.id}</span></td>
-                        <td className="plugins__tools-td"><span className="plugins__tools-kind">{t.transport || t.kind || 'mcp'}</span></td>
-                        <td className="plugins__tools-td"><span className="plugins__tools-desc">{t.source || t.id}</span></td>
-                        <td className="plugins__tools-td">
-                          {t.usedBy?.length ? t.usedBy.map(a => (
-                            <span key={a} className="plugins__cap plugins__cap--agent">{a}</span>
-                          )) : <span className="plugins__tools-desc">-</span>}
-                        </td>
-                        <td className="plugins__tools-td"><span className="plugins__tools-desc">{t.description || '-'}</span></td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </>
-          )}
-        </div>
       </div>
-
-      {/* Tool Registry Modal */}
-      {showRegistry && <ToolRegistryModal apiBase={apiBase} onClose={() => { setShowRegistry(false); fetchTools(); }} />}
 
       {/* Folder Picker Modal */}
       {showFolderPicker && <FolderPickerModal apiBase={apiBase} onSelect={setInstallSource} onClose={() => setShowFolderPicker(false)} />}
+
+      {/* Install Preview Modal */}
+      {previewData && (
+        <div className="plugins__modal-overlay" onClick={() => setPreviewData(null)}>
+          <div className="plugins__modal" onClick={e => e.stopPropagation()}>
+            <div className="plugins__modal-header">
+              <h3 className="plugins__modal-title">Install Preview</h3>
+              <button className="plugins__modal-close" onClick={() => setPreviewData(null)}>&times;</button>
+            </div>
+            <div className="plugins__modal-body">
+              <div style={{ marginBottom: '1rem' }}>
+                <strong>{previewData.manifest?.displayName || previewData.manifest?.name}</strong>
+                <span className="plugins__card-version" style={{ marginLeft: 8 }}>v{previewData.manifest?.version}</span>
+                {previewData.git && <span className="plugins__cap plugins__cap--ref" style={{ marginLeft: 8 }}>{previewData.git.branch}@{previewData.git.hash}</span>}
+                {previewData.manifest?.description && <div className="plugins__card-desc" style={{ marginTop: 4 }}>{previewData.manifest.description}</div>}
+              </div>
+              {previewData.conflicts.length > 0 && (
+                <div className="plugins__modal-message plugins__message--error" style={{ marginBottom: '0.75rem' }}>
+                  {previewData.conflicts.length} conflict{previewData.conflicts.length > 1 ? 's' : ''} detected — conflicting components are unchecked by default
+                </div>
+              )}
+              <div className="plugins__registry-list">
+                {previewData.components.map(comp => {
+                  const key = `${comp.type}:${comp.id}`;
+                  const skipped = previewSkips.has(key);
+                  return (
+                    <div key={key} className="plugins__registry-item" style={{ opacity: skipped ? 0.5 : 1 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!skipped}
+                          onChange={() => {
+                            const next = new Set(previewSkips);
+                            if (skipped) next.delete(key); else next.add(key);
+                            setPreviewSkips(next);
+                          }}
+                        />
+                        <span className={`plugins__cap plugins__cap--${comp.type === 'agent' ? 'agent' : comp.type === 'workspace' ? 'workspace' : comp.type === 'provider' ? 'provider' : 'bundle'}`}>
+                          {comp.type}
+                        </span>
+                        <span>{comp.id}</span>
+                      </label>
+                      {comp.conflict && <span style={{ color: 'var(--accent-primary)', fontSize: 12 }}>⚠ conflict{comp.conflict.existingSource ? ` (${comp.conflict.existingSource})` : ''}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              {previewData.dependencies && previewData.dependencies.length > 0 && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Dependencies ({previewData.dependencies.length})</div>
+                  <div className="plugins__registry-list">
+                    {previewData.dependencies.map(dep => (
+                      <div key={dep.id} className="plugins__registry-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className="plugins__cap plugins__cap--bundle">dep</span>
+                          <span>{dep.id}</span>
+                          {dep.git && <span className="plugins__cap plugins__cap--ref" style={{ fontSize: 11 }}>{dep.git.branch}@{dep.git.hash}</span>}
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                            {dep.status === 'installed' ? '✓ installed' : dep.status === 'will-install' ? '↓ will install' : '⚠ missing'}
+                          </span>
+                        </div>
+                        {dep.components && dep.components.length > 0 && (
+                          <div style={{ paddingLeft: 24, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {dep.components.map(c => (
+                              <span key={`${c.type}:${c.id}`} className={`plugins__cap plugins__cap--${c.type === 'agent' ? 'agent' : c.type === 'workspace' ? 'workspace' : 'provider'}`} style={{ fontSize: 11 }}>
+                                {c.type}:{c.id}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1rem' }}>
+                <button className="plugins__confirm-cancel" onClick={() => setPreviewData(null)}>Cancel</button>
+                <button className="plugins__install-btn" onClick={() => install(Array.from(previewSkips))} disabled={installing}>
+                  {installing ? 'Installing...' : 'Confirm Install'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Remove confirmation */}
       {removeConfirm && (

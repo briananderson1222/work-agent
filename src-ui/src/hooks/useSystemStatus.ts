@@ -16,7 +16,6 @@ export interface SystemStatus {
     connected: boolean;
     connections: Array<{ id: string; status: string }>;
   };
-  scheduler: { booInstalled: boolean };
   clis: Record<string, boolean>;
   ready: boolean;
 }

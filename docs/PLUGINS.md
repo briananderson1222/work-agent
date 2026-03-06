@@ -38,6 +38,9 @@ my-plugin/
   },
   "providers": [
     { "type": "auth", "module": "./providers/my-auth.js" }
+  ],
+  "links": [
+    { "label": "My Dashboard", "href": "https://example.com/dashboard", "icon": "/icon.png", "placement": "achievements" }
   ]
 }
 ```
@@ -163,6 +166,32 @@ These are provided by the host via `window.__stallion_ai_shared` and must be **e
 | `zod` | Schema validation |
 
 Add any you use to the `__require` shim and the `onResolve` filter in `build.mjs`.
+
+## Install & Update
+
+### Links
+
+Plugins can contribute external links to the host UI via the `links` array in `plugin.json`:
+
+```json
+"links": [
+  {
+    "label": "Activity Dashboard",
+    "href": "https://example.com/dashboard",
+    "icon": "/icon.png",
+    "placement": "achievements"
+  }
+]
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `label` | yes | Display text |
+| `href` | yes | URL (opens in new tab) |
+| `icon` | no | Icon image path |
+| `placement` | no | Where to render — currently `"achievements"` (profile page). Omit to make available everywhere. |
+
+Links from all installed plugins are aggregated by the host. Use this to inject environment-specific links (e.g., internal dashboards) without hardcoding them in core.
 
 ## Install & Update
 

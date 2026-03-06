@@ -31,6 +31,7 @@ import { AgentsView } from './views/AgentsView';
 import { PromptsView } from './views/PromptsView';
 import { SettingsView } from './views/SettingsView';
 import { ToolManagementView } from './views/ToolManagementView';
+import { ToolsView } from './views/ToolsView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { WorkspaceEditorView } from './views/WorkspaceEditorView';
 import { WorkspaceView } from './views/WorkspaceView';
@@ -68,7 +69,9 @@ function App() {
 
     if (path === '/agents') return { type: 'agents' };
     if (path === '/prompts') return { type: 'prompts' };
+    if (path === '/manage') return { type: 'manage' };
     if (path === '/plugins') return { type: 'plugins' };
+    if (path === '/tools') return { type: 'tools' };
     if (path === '/monitoring') return { type: 'monitoring' };
     if (path === '/schedule') return { type: 'schedule' };
     if (path === '/profile') return { type: 'profile' };
@@ -81,7 +84,7 @@ function App() {
     }
     if (path.startsWith('/agents/') && path.endsWith('/tools')) {
       const slug = path.split('/')[2];
-      return { type: 'tools', slug };
+      return { type: 'agent-tools', slug };
     }
     if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
       const slug = path.split('/')[2];
@@ -132,8 +135,12 @@ function App() {
       navigate('/agents');
     } else if (view.type === 'prompts') {
       navigate('/prompts');
+    } else if (view.type === 'manage') {
+      navigate('/manage');
     } else if (view.type === 'plugins') {
       navigate('/plugins');
+    } else if (view.type === 'tools') {
+      navigate('/tools');
     } else if (view.type === 'profile') {
       navigate('/profile');
     } else if (view.type === 'notifications') {
@@ -148,7 +155,7 @@ function App() {
       navigate('/agents/new');
     } else if (view.type === 'agent-edit' && 'slug' in view) {
       navigate(`/agents/${view.slug}/edit`);
-    } else if (view.type === 'tools' && 'slug' in view) {
+    } else if (view.type === 'agent-tools' && 'slug' in view) {
       navigate(`/agents/${view.slug}/tools`);
     } else if (view.type === 'workflows' && 'slug' in view) {
       navigate(`/agents/${view.slug}/workflows`);
@@ -176,6 +183,12 @@ function App() {
       // Check path for main app navigation
       if (path === '/agents') {
         setCurrentView({ type: 'agents' });
+        return;
+      } else if (path === '/manage') {
+        setCurrentView({ type: 'manage' });
+        return;
+      } else if (path === '/tools') {
+        setCurrentView({ type: 'tools' });
         return;
       } else if (path === '/prompts') {
         setCurrentView({ type: 'prompts' });
@@ -207,7 +220,7 @@ function App() {
         return;
       } else if (path.startsWith('/agents/') && path.endsWith('/tools')) {
         const slug = path.split('/')[2];
-        setCurrentView({ type: 'tools', slug });
+        setCurrentView({ type: 'agent-tools', slug });
         return;
       } else if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
         const slug = path.split('/')[2];
@@ -445,6 +458,7 @@ function App() {
         )}
         {currentView.type === 'prompts' && <PromptsView />}
         {currentView.type === 'plugins' && <PluginManagementView />}
+        {currentView.type === 'tools' && <ToolsView />}
         {currentView.type === 'agent-new' && (
           <AgentEditorView
             apiBase={API_BASE}
@@ -476,7 +490,7 @@ function App() {
             onSaved={handleWorkspaceSaved}
           />
         )}
-        {currentView.type === 'tools' && (
+        {currentView.type === 'agent-tools' && (
           <ToolManagementView
             apiBase={API_BASE}
             agentSlug={currentView.slug}

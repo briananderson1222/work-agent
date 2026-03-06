@@ -1,5 +1,5 @@
 /**
- * Scheduler Routes - boo scheduled job management
+ * Scheduler Routes — scheduled job management
  */
 
 import { Hono } from 'hono';
@@ -11,6 +11,11 @@ export function createSchedulerRoutes(
   logger: any,
 ) {
   const app = new Hono();
+
+  // List registered scheduler providers (for UI dropdown)
+  app.get('/providers', (c) => {
+    return c.json({ success: true, data: schedulerService.listProviders() });
+  });
 
   // SSE endpoint for real-time job events
   app.get('/events', (c) => {
@@ -39,7 +44,7 @@ export function createSchedulerRoutes(
     });
   });
 
-  // Webhook receiver (from boo)
+  // Webhook receiver (from scheduler provider)
   app.post('/webhook', async (c) => {
     try {
       const event = await c.req.json();
@@ -68,16 +73,6 @@ export function createSchedulerRoutes(
       return c.json({ success: true, data });
     } catch (error: any) {
       logger.error('Failed to get scheduler stats', { error });
-      return c.json({ success: false, error: error.message }, 500);
-    }
-  });
-
-  app.get('/stats/:target', async (c) => {
-    try {
-      const data = await schedulerService.getStats(c.req.param('target'));
-      return c.json({ success: true, data });
-    } catch (error: any) {
-      logger.error('Failed to get job stats', { error });
       return c.json({ success: false, error: error.message }, 500);
     }
   });

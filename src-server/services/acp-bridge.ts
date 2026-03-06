@@ -183,7 +183,8 @@ export type ACPConnectionStatus =
   | 'disconnected'
   | 'connecting'
   | 'connected'
-  | 'error';
+  | 'error'
+  | 'unavailable';
 
 export class ACPConnection {
   private proc: ChildProcess | null = null;
@@ -248,7 +249,7 @@ export class ACPConnection {
       this.logger.info(
         `[ACP:${this.prefix}] ${this.config.command} not found on PATH`,
       );
-      this.status = 'disconnected';
+      this.status = 'unavailable';
       return false;
     }
 

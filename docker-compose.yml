@@ -9,6 +9,9 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      - OTEL_SERVICE_NAME=stallion
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318
     volumes:
       - stallion-ai-data:/root/.stallion-ai
 
@@ -35,6 +38,8 @@ services:
       - AWS_SECRET_ACCESS_KEY
       - AWS_SESSION_TOKEN
       - AWS_DEFAULT_REGION=us-east-1
+      - OTEL_SERVICE_NAME=stallion
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318
     volumes:
       - .:/app
       - dev-node-modules:/app/node_modules
@@ -52,6 +57,48 @@ services:
     volumes:
       - .:/app
       - dev-node-modules:/app/node_modules
+
+  # ── Monitoring (docker compose --profile monitoring up) ──
+  collector:
+    profiles: [monitoring]
+    image: otel/opentelemetry-collector-contrib:latest
+    ports:
+      - "4318:4318"
+    volumes:
+      - ./monitoring/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    depends_on:
+      - jaeger
+
+  jaeger:
+    profiles: [monitoring]
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - collector
+
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:latest
+    ports:
+      - "3333:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=stallion
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
 
 volumes:
   dev-node-modules:

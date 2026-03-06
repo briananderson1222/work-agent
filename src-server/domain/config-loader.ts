@@ -66,7 +66,7 @@ export class ConfigLoader {
       // Create default config on first run
       const defaultConfig: AppConfig = {
         region: 'us-east-1',
-        defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        defaultModel: 'anthropic.claude-sonnet-4-6-20260217-v1:0',
         invokeModel: 'us.amazon.nova-2-lite-v1:0',
         structureModel: 'us.amazon.nova-micro-v1:0',
       };
@@ -798,23 +798,7 @@ export class ConfigLoader {
    */
   async loadACPConfig(): Promise<ACPConfig> {
     const path = join(this.projectHomeDir, 'config', 'acp.json');
-    if (!existsSync(path)) {
-      const defaultConfig: ACPConfig = {
-        connections: [
-          {
-            id: 'kiro',
-            name: 'kiro-cli',
-            command: 'kiro-cli',
-            args: ['acp'],
-            icon: '/kiro-icon.png',
-            enabled: true,
-          },
-        ],
-      };
-      await mkdir(join(this.projectHomeDir, 'config'), { recursive: true });
-      await writeFile(path, JSON.stringify(defaultConfig, null, 2), 'utf-8');
-      return defaultConfig;
-    }
+    if (!existsSync(path)) return { connections: [] };
     return JSON.parse(await readFile(path, 'utf-8'));
   }
 

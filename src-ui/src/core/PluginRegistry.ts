@@ -156,6 +156,17 @@ export class PluginRegistry {
   getComponentManifest(name: string) {
     return this.getWorkspaceManifest(name);
   }
+
+  /** Aggregate links from all plugins, optionally filtered by placement */
+  getLinks(placement?: string): Array<{ label: string; href: string; icon?: string; placement?: string }> {
+    const links: Array<{ label: string; href: string; icon?: string; placement?: string }> = [];
+    for (const meta of this.pluginMeta.values()) {
+      for (const link of meta.links || []) {
+        if (!placement || link.placement === placement) links.push(link);
+      }
+    }
+    return links;
+  }
 }
 
 export const pluginRegistry = new PluginRegistry();

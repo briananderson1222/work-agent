@@ -1,7 +1,7 @@
 {
   "region": "us-east-1",
-  "defaultModel": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-  "invokeModel": "us.amazon.nova-2-lite-v1:0",
+  "defaultModel": "anthropic.claude-sonnet-4-6-20260217-v1:0",
+  "invokeModel": "anthropic.claude-sonnet-4-6-20260217-v1:0",
   "structureModel": "us.amazon.nova-micro-v1:0",
   "defaultMaxTurns": 100,
   "defaultMaxOutputTokens": 16384,

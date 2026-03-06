@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useAddJob,
   useDeleteJob,
@@ -10,11 +11,13 @@ import {
   useRunJob,
   useSchedulerEvents,
   useSchedulerJobs,
+  useSchedulerProviders,
   useSchedulerStats,
   useSchedulerStatus,
   useToggleJob,
 } from '../hooks/useScheduler';
-import { useSystemStatus } from '../hooks/useSystemStatus';
+import { useAgents, type AgentData } from '../contexts/AgentsContext';
+import { AgentIcon } from '../components/AgentIcon';
 import { SortHeader, TableFilter, useSortableTable } from './SortableTable';
 import './ScheduleView.css';
 import './page-layout.css';
@@ -104,14 +107,15 @@ const IconFile = () => (
   </svg>
 );
 const IconPause = () => (
-  <svg viewBox="0 0 16 16" fill="currentColor">
-    <rect x="3" y="2" width="3.5" height="12" rx="0.75" />
-    <rect x="9.5" y="2" width="3.5" height="12" rx="0.75" />
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <circle cx="8" cy="8" r="5.5" />
+    <path d="M6 10l4-4M6 6l4 4" />
   </svg>
 );
 const IconResume = () => (
-  <svg viewBox="0 0 16 16" fill="currentColor">
-    <path d="M4 2.5v11l9-5.5z" />
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <circle cx="8" cy="8" r="5.5" />
+    <path d="M8 4.5v3.5" />
   </svg>
 );
 const IconX = () => (
@@ -170,15 +174,11 @@ function RateCell({ rate }: { rate: number | undefined }) {
 function JobDetail({ name }: { name: string }) {
   const { data: logs = [] } = useJobLogs(name);
   const fetchOutput = useFetchRunOutput();
+  const openArtifact = useOpenArtifact();
   const [viewIdx, setViewIdx] = useState<number | null>(null);
   const [outputContent, setOutputContent] = useState<string | null>(null);
 
   const handleViewOutput = async (i: number) => {
-    if (viewIdx === i) {
-      setViewIdx(null);
-      setOutputContent(null);
-      return;
-    }
     setViewIdx(i);
     setOutputContent(null);
     try {
@@ -187,6 +187,17 @@ function JobDetail({ name }: { name: string }) {
     } catch {
       setOutputContent('Failed to load output');
     }
+  };
+
+  const handleDownload = () => {
+    if (!outputContent || viewIdx === null) return;
+    const blob = new Blob([outputContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = logs[viewIdx].output_path.split('/').pop() || 'output.txt';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   if (!logs.length)
@@ -238,7 +249,7 @@ function JobDetail({ name }: { name: string }) {
                   disabled={fetchOutput.isPending && viewIdx === i}
                   className="schedule__action-btn"
                 >
-                  {viewIdx === i ? 'Hide' : 'Output'}
+                  Output
                 </button>
               </td>
             </tr>
@@ -246,77 +257,378 @@ function JobDetail({ name }: { name: string }) {
         </tbody>
       </table>
       {viewIdx !== null && (
-        <pre className="schedule__output">
-          {outputContent === null ? 'Loading...' : outputContent}
-        </pre>
+        <div className="schedule__output-overlay" onClick={() => setViewIdx(null)}>
+          <div className="schedule__output-modal" onClick={e => e.stopPropagation()}>
+            <div className="schedule__modal-header">
+              <h3>{name} — Run Output</h3>
+              <button className="schedule__modal-close" onClick={() => setViewIdx(null)}>
+                <IconX />
+              </button>
+            </div>
+            <pre className="schedule__output-modal-body">
+              {outputContent === null ? 'Loading...' : outputContent}
+            </pre>
+            <div className="schedule__modal-footer">
+              <button
+                className="schedule__modal-cancel"
+                onClick={() => openArtifact.mutate(logs[viewIdx].output_path)}
+              >
+                Open File
+              </button>
+              <button
+                className="schedule__modal-submit"
+                onClick={handleDownload}
+                disabled={!outputContent}
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
+}
+
+/* ── Cron Editor (crontab.guru-style) ── */
+const CRON_FIELDS = [
+  { label: 'minute', range: '0-59', allowed: [0, 59] },
+  { label: 'hour', range: '0-23', allowed: [0, 23] },
+  { label: 'day', range: '1-31', allowed: [1, 31] },
+  { label: 'month', range: '1-12', allowed: [1, 12] },
+  { label: 'weekday', range: '0-6', allowed: [0, 6] },
+];
+
+const CRON_SYNTAX = [
+  { sym: '*', desc: 'any value' },
+  { sym: ',', desc: 'value list separator' },
+  { sym: '-', desc: 'range of values' },
+  { sym: '/', desc: 'step values' },
+];
+
+function validateCronField(value: string, min: number, max: number): string | null {
+  if (!value || value.trim() === '') return 'required';
+  if (value === '*') return null;
+  for (const part of value.split(',')) {
+    const [range, step] = part.split('/');
+    if (step && (isNaN(+step) || +step < 1)) return `invalid step "${step}"`;
+    if (range === '*') continue;
+    if (range.includes('-')) {
+      const [a, b] = range.split('-').map(Number);
+      if (isNaN(a) || isNaN(b)) return `"${range}" is not a valid range`;
+      if (a < min || b > max) return `range must be ${min}-${max}`;
+      if (a > b) return `${a} > ${b} in range`;
+    } else {
+      const n = Number(range);
+      if (isNaN(n)) return `"${range}" is not a number`;
+      if (n < min || n > max) return `must be ${min}-${max}`;
+    }
+  }
+  return null;
+}
+
+function CronEditor({ value, onChange }: { value: string; onChange: (cron: string) => void }) {
+  const parts = (value || '* * * * *').split(/\s+/);
+  while (parts.length < 5) parts.push('*');
+  const [active, setActive] = useState<number | null>(null);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const setPart = (idx: number, val: string) => {
+    const next = [...parts];
+    next[idx] = val;
+    onChange(next.join(' '));
+  };
+
+  const errors = parts.map((p, i) => validateCronField(p, CRON_FIELDS[i].allowed[0], CRON_FIELDS[i].allowed[1]));
+  const hasError = errors.some(e => e !== null);
+  const activeErr = active !== null ? errors[active] : null;
+
+  return (
+    <div className="cron-editor">
+      <div className={`cron-editor__fields ${hasError ? 'cron-editor__fields--error' : ''}`}>
+        {parts.map((p, i) => (
+          <input
+            key={i}
+            ref={el => { inputRefs.current[i] = el; }}
+            className={`cron-editor__input ${errors[i] ? 'cron-editor__input--error' : ''}`}
+            value={p}
+            onChange={e => setPart(i, e.target.value)}
+            onFocus={() => setActive(i)}
+            onBlur={() => setActive(null)}
+          />
+        ))}
+      </div>
+      <div className="cron-editor__labels">
+        {CRON_FIELDS.map((f, i) => (
+          <span
+            key={f.label}
+            className={`cron-editor__label ${!errors[i] && parts[i] !== '*' ? 'cron-editor__label--active' : ''} ${active === i ? 'cron-editor__label--focused' : ''} ${errors[i] ? 'cron-editor__label--error' : ''}`}
+            onClick={() => inputRefs.current[i]?.focus()}
+          >
+            {f.label}
+          </span>
+        ))}
+      </div>
+      {active !== null && (
+        <div className="cron-editor__help">
+          <table className="cron-editor__syntax">
+            <tbody>
+              {CRON_SYNTAX.map(s => (
+                <tr key={s.sym}>
+                  <td className="cron-editor__sym">{s.sym}</td>
+                  <td>{s.desc}</td>
+                </tr>
+              ))}
+              <tr className={activeErr ? 'cron-editor__syntax--error' : ''}>
+                <td className="cron-editor__sym">{CRON_FIELDS[active].range}</td>
+                <td>{activeErr || 'allowed values'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Cron → Human Description ── */
+function cronToHuman(cron: string): string | null {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [min, hour, dom, mon, dow] = parts;
+
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  // Format time in local timezone
+  const fmtTime = (h: string, m: string) => {
+    const d = new Date();
+    d.setUTCHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const fmtDow = (d: string) => {
+    if (d === '*') return '';
+    if (d === '1-5') return 'Monday through Friday';
+    if (d === '0,6') return 'weekends';
+    return d.split(',').map(v => {
+      if (v.includes('-')) {
+        const [a, b] = v.split('-').map(Number);
+        return `${DAYS[a]} through ${DAYS[b]}`;
+      }
+      return DAYS[parseInt(v, 10)] || v;
+    }).join(', ');
+  };
+
+  const fmtDom = (d: string) => {
+    if (d === '*') return '';
+    return `on day ${d} of the month`;
+  };
+
+  const fmtMon = (m: string) => {
+    if (m === '*') return '';
+    return `in ${m.split(',').map(v => MONTHS[parseInt(v, 10)] || v).join(', ')}`;
+  };
+
+  try {
+    const time = (hour !== '*' && min !== '*') ? fmtTime(hour, min) : hour === '*' ? `every minute` : `at minute ${min} of every hour`;
+    const dowStr = fmtDow(dow);
+    const domStr = fmtDom(dom);
+    const monStr = fmtMon(mon);
+
+    if (hour !== '*' && min !== '*' && dom === '*' && mon === '*' && dow === '*') return `Daily at ${time}`;
+    if (hour !== '*' && min !== '*' && dom === '*' && mon === '*' && dow === '1-5') return `Weekdays at ${time}`;
+    if (hour !== '*' && min !== '*' && dom === '*' && mon === '*' && dowStr) return `At ${time} on ${dowStr}`;
+    if (hour !== '*' && min !== '*' && domStr && mon === '*' && dow === '*') return `At ${time} ${domStr}`;
+
+    const pieces = [time, domStr, monStr, dowStr ? `on ${dowStr}` : ''].filter(Boolean);
+    return pieces.join(' ') || null;
+  } catch { return null; }
 }
 
 /* ── Cron Preview ── */
 function CronPreview({ cron }: { cron: string }) {
   const { data, isLoading } = usePreviewSchedule(cron || null);
   if (!cron) return null;
-  if (isLoading) return <div className="schedule__cron-preview">Checking schedule...</div>;
-  if (!data || !Array.isArray(data) || data.length === 0) return <div className="schedule__cron-preview schedule__cron-preview--error">Invalid cron expression</div>;
+
+  const human = cronToHuman(cron);
+  const valid = data && Array.isArray(data) && data.length > 0;
+
+  if (isLoading) return (
+    <div className="schedule__cron-preview">
+      <div className="schedule__cron-human schedule__cron-human--muted">{human || '--'}</div>
+      <span className="schedule__cron-label">Next fires:</span>
+      <span className="schedule__cron-time">...</span>
+    </div>
+  );
+
   return (
     <div className="schedule__cron-preview">
+      <div className={`schedule__cron-human ${valid ? '' : 'schedule__cron-human--muted'}`}>{human || '--'}</div>
       <span className="schedule__cron-label">Next fires:</span>
-      {data.slice(0, 3).map((d: any, i: number) => (
-        <span key={i} className="schedule__cron-time">{new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
-      ))}
+      {valid
+        ? data.slice(0, 3).map((d: any, i: number) => (
+            <span key={i} className="schedule__cron-time">{new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+          ))
+        : <span className="schedule__cron-time">--</span>
+      }
     </div>
   );
 }
 
+/* ── Agent Picker ── */
+function AgentPicker({ value, onChange }: { value: string; onChange: (slug: string) => void }) {
+  const agents = useAgents();
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const selected = agents.find((a) => a.slug === value);
+
+  const filtered = useMemo(() => {
+    if (!filter) return agents;
+    const q = filter.toLowerCase();
+    return agents.filter((a) => a.name.toLowerCase().includes(q) || a.slug.toLowerCase().includes(q));
+  }, [agents, filter]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node) || dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 2, left: rect.left, width: rect.width });
+  }, [open]);
+
+  const toolCount = (a: AgentData) => {
+    const tc = a.toolsConfig;
+    if (!tc) return 0;
+    return (tc.available?.length || 0) + (tc.mcpServers?.length || 0);
+  };
+
+  const select = (slug: string) => { onChange(slug); setOpen(false); setFilter(''); };
+
+  if (!agents.length) {
+    return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="agent slug" />;
+  }
+
+  return (
+    <>
+      <div
+        ref={triggerRef}
+        onClick={() => setOpen(!open)}
+        style={{ padding: '0.5rem', border: '1px solid var(--border-primary)', borderRadius: '0.375rem', background: 'var(--bg-input)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)', minHeight: '2.25rem' }}
+      >
+        {selected && <AgentIcon agent={selected} size="small" />}
+        <span style={{ flex: 1 }}>{selected ? selected.name : value || 'Select agent…'}</span>
+        {selected && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{selected.model || 'default model'}</span>}
+        <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>▼</span>
+      </div>
+      {open && pos && createPortal(
+        <div
+          ref={dropRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 10000, background: 'var(--bg-elevated)', border: '1px solid var(--border-primary)', borderRadius: '0.375rem', maxHeight: 280, overflow: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+        >
+          {agents.length > 1 && (
+            <div style={{ padding: '0.375rem', borderBottom: '1px solid var(--border-primary)' }}>
+              <input
+                autoFocus
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter agents…"
+                onClick={(e) => e.stopPropagation()}
+                style={{ width: '100%', padding: '0.375rem 0.5rem', border: '1px solid var(--border-primary)', borderRadius: '0.25rem', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem', boxSizing: 'border-box' }}
+              />
+            </div>
+          )}
+          {filtered.map((a) => (
+            <div
+              key={a.slug}
+              onClick={() => select(a.slug)}
+              style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, background: a.slug === value ? 'var(--bg-highlight)' : undefined }}
+              onMouseEnter={(e) => { if (a.slug !== value) (e.currentTarget.style.background = 'var(--bg-hover)'); }}
+              onMouseLeave={(e) => { if (a.slug !== value) (e.currentTarget.style.background = ''); }}
+            >
+              <AgentIcon agent={a} size={28} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  {a.name}
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 6, fontWeight: 400 }}>{a.slug}</span>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 1 }}>
+                  {a.model || 'default model'}{toolCount(a) > 0 ? ` · ${toolCount(a)} tools` : ''}
+                </div>
+              </div>
+              {a.slug === value && <span style={{ color: 'var(--accent-primary)', fontSize: '0.8rem' }}>✓</span>}
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>No matching agents</div>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 /* ── Job Form Modal (Add / Edit) ── */
-function JobFormModal({ job, onClose }: { job?: any; onClose: () => void }) {
+function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; prefill?: any; onClose: () => void; providers?: any[] }) {
   const isEdit = !!job;
   const addJob = useAddJob();
   const editJob = useEditJob();
+  const [selectedProvider, setSelectedProvider] = useState(job?.provider || providers[0]?.id || 'built-in');
+  const activeProvider = providers.find((p: any) => p.id === selectedProvider);
+  const extraFields: any[] = activeProvider?.formFields || [];
+  const init = prefill || {};
+
   const [form, setForm] = useState({
-    name: job?.name || '',
-    cron: job?.schedule?.replace(/^cron\s+/, '') || '',
-    prompt: job?.prompt || '',
-    command: job?.command || '',
-    agent: job?.agent || '',
-    dir: job?.working_dir || '',
-    openArtifact: job?.artifact?.replace('-', '') === '' ? '' : (job?.artifact || ''),
-    description: job?.description || '',
+    name: job?.name || init.name || '',
+    cron: job?.schedule?.replace(/^cron\s+/, '') || init.cron || '',
+    prompt: job?.prompt || init.prompt || '',
+    agent: job?.agent || init.agent || 'default',
+    ...Object.fromEntries(extraFields.map((f: any) => [f.key, job?.[f.key] || ''])),
   });
   const [cronInput, setCronInput] = useState(form.cron);
 
-  // Debounce cron preview
   useEffect(() => {
     const t = setTimeout(() => setCronInput(form.cron), 400);
     return () => clearTimeout(t);
   }, [form.cron]);
 
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
+
+  const setBool = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm(f => ({ ...f, [field]: e.target.checked }));
 
   const handleSubmit = () => {
     if (isEdit) {
       const opts: Record<string, string> = {};
       if (form.cron && form.cron !== job.schedule?.replace(/^cron\s+/, '')) opts.cron = form.cron;
       if (form.prompt !== (job.prompt || '')) opts.prompt = form.prompt;
-      if (form.command !== (job.command || '')) opts.command = form.command;
       if (form.agent !== (job.agent || '')) opts.agent = form.agent;
-      if (form.dir !== (job.working_dir || '')) opts.dir = form.dir;
-      if (form.description !== (job.description || '')) opts.description = form.description;
-      if (form.openArtifact !== (job.artifact || '')) opts['open-artifact'] = form.openArtifact;
+      for (const f of extraFields) {
+        if (form[f.key] !== (job[f.key] || '')) opts[f.key] = form[f.key];
+      }
       editJob.mutate({ target: job.name, ...opts }, { onSuccess: onClose });
     } else {
       if (!form.name.trim()) return;
       addJob.mutate({
         name: form.name,
+        provider: selectedProvider,
         cron: form.cron || undefined,
         prompt: form.prompt || undefined,
-        command: form.command || undefined,
         agent: form.agent || undefined,
-        dir: form.dir || undefined,
-        openArtifact: form.openArtifact || undefined,
+        ...Object.fromEntries(extraFields.map((f: any) => [f.key, form[f.key] || undefined]).filter(([, v]: any) => v)),
       }, { onSuccess: onClose });
     }
   };
@@ -331,41 +643,49 @@ function JobFormModal({ job, onClose }: { job?: any; onClose: () => void }) {
           <button className="schedule__modal-close" onClick={onClose}>&times;</button>
         </div>
         <div className="schedule__modal-body">
+          {!isEdit && providers.length > 1 && (
+            <label className="schedule__field">
+              <span className="schedule__field-label">Run with</span>
+              <select value={selectedProvider} onChange={(e) => setSelectedProvider(e.target.value)}>
+                {providers.map((p: any) => (
+                  <option key={p.id} value={p.id}>{p.displayName}</option>
+                ))}
+              </select>
+            </label>
+          )}
           {!isEdit && (
             <label className="schedule__field">
               <span className="schedule__field-label">Name</span>
-              <input value={form.name} onChange={set('name')} placeholder="my-job" />
+              <input value={form.name} onChange={set('name')} placeholder="my-daily-briefing" />
             </label>
           )}
           <label className="schedule__field">
-            <span className="schedule__field-label">Cron Schedule</span>
-            <input value={form.cron} onChange={set('cron')} placeholder="0 15 * * 1-5" />
-            <CronPreview cron={cronInput} />
+            <span className="schedule__field-label">Agent</span>
+            <AgentPicker value={form.agent} onChange={(v) => setForm(f => ({ ...f, agent: v }))} />
           </label>
           <label className="schedule__field">
             <span className="schedule__field-label">Prompt</span>
             <textarea value={form.prompt} onChange={set('prompt')} rows={3} placeholder="What should the agent do?" />
           </label>
+          <div className="schedule__form-divider" />
           <label className="schedule__field">
-            <span className="schedule__field-label">Command <span className="schedule__field-hint">(alternative to prompt)</span></span>
-            <input value={form.command} onChange={set('command')} placeholder="/path/to/script.sh" />
+            <span className="schedule__field-label">Schedule</span>
+            <CronEditor value={form.cron} onChange={(v) => setForm(f => ({ ...f, cron: v }))} />
+            <CronPreview cron={cronInput} />
           </label>
-          <label className="schedule__field">
-            <span className="schedule__field-label">Agent</span>
-            <input value={form.agent} onChange={set('agent')} placeholder="default agent" />
-          </label>
-          <label className="schedule__field">
-            <span className="schedule__field-label">Working Directory</span>
-            <input value={form.dir} onChange={set('dir')} placeholder="~/.boo/workspace/job-name" />
-          </label>
-          <label className="schedule__field">
-            <span className="schedule__field-label">Open Artifact</span>
-            <input value={form.openArtifact} onChange={set('openArtifact')} placeholder="daily-*.html" />
-          </label>
-          <label className="schedule__field">
-            <span className="schedule__field-label">Description</span>
-            <input value={form.description} onChange={set('description')} placeholder="Optional description" />
-          </label>
+          {extraFields.length > 0 && <div className="schedule__form-divider" />}
+          {extraFields.map((f: any) => (
+            <label key={f.key} className="schedule__field">
+              <span className="schedule__field-label">{f.label} {f.hint && <span className="schedule__field-hint">({f.hint})</span>}</span>
+              {f.type === 'boolean' ? (
+                <input type="checkbox" checked={!!form[f.key]} onChange={setBool(f.key)} />
+              ) : f.type === 'textarea' ? (
+                <textarea value={form[f.key] || ''} onChange={set(f.key)} rows={3} placeholder={f.placeholder} />
+              ) : (
+                <input value={form[f.key] || ''} onChange={set(f.key)} placeholder={f.placeholder} />
+              )}
+            </label>
+          ))}
         </div>
         <div className="schedule__modal-footer">
           <button className="schedule__modal-cancel" onClick={onClose}>Cancel</button>
@@ -386,107 +706,30 @@ export function ScheduleView() {
     isLoading: loadingStatus,
     isError: statusError,
   } = useSchedulerStatus();
-  const { isRunning } = useSchedulerEvents();
+  const { data: providers = [] } = useSchedulerProviders();
+  const schedulerAvailable = !jobsError && !statusError;
+  const { isRunning } = useSchedulerEvents(schedulerAvailable);
   const runJob = useRunJob();
   const toggleJob = useToggleJob();
   const deleteJob = useDeleteJob();
   const openArtifact = useOpenArtifact();
   const addJob = useAddJob();
-  const { data: systemStatus } = useSystemStatus();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingJob, setEditingJob] = useState<any | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-
-  // Boo not installed — setup checklist
-  if (jobsError && statusError) {
-    const steps = [
-      {
-        label: 'kiro-cli installed',
-        done: systemStatus?.acp.connected ?? false,
-        help: 'Install kiro-cli to enable ACP agent connections and scheduled prompts.',
-      },
-      {
-        label: 'ACP connected',
-        done: systemStatus?.acp.connected ?? false,
-        help: 'kiro-cli connects automatically once installed and on your PATH.',
-      },
-      {
-        label: 'boo installed',
-        done: systemStatus?.scheduler.booInstalled ?? false,
-        help: (
-          <>
-            Download from{' '}
-            <a
-              href="https://github.com/briananderson1222/boo/releases"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: 'var(--accent-primary)' }}
-            >
-              GitHub releases
-            </a>{' '}
-            then run{' '}
-            <code
-              style={{
-                padding: '2px 6px',
-                background: 'var(--bg-tertiary)',
-                borderRadius: '0.25rem',
-                fontSize: '0.8rem',
-              }}
-            >
-              boo install
-            </code>
-          </>
-        ),
-      },
-    ];
-
-    return (
-      <div className="schedule__setup">
-        <div className="schedule__setup-header">
-          <div className="schedule__setup-icon">⏰</div>
-          <h2 className="schedule__setup-title">Scheduler Setup</h2>
-          <p className="schedule__setup-desc">
-            The scheduler runs prompts on a cron schedule via{' '}
-            <strong>boo</strong> and <strong>kiro-cli</strong>.
-          </p>
-        </div>
-        <div className="schedule__setup-steps">
-          {steps.map((step, i) => (
-            <div key={i} className="schedule__setup-step">
-              <div className="schedule__setup-step-row">
-                <span
-                  className={`schedule__setup-check ${step.done ? 'schedule__setup-check--done' : ''}`}
-                >
-                  {step.done ? '✓' : i + 1}
-                </span>
-                <span
-                  style={{
-                    fontWeight: 500,
-                    color: step.done
-                      ? 'var(--text-primary)'
-                      : 'var(--text-secondary)',
-                  }}
-                >
-                  {step.label}
-                </span>
-              </div>
-              {!step.done && (
-                <div className="schedule__setup-help">{step.help}</div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const [prefill, setPrefill] = useState<any>(null);
 
   const statsMap = new Map<string, any>();
-  if (stats?.jobs) for (const s of stats.jobs) statsMap.set(s.name, s);
+  if (stats?.providers) {
+    for (const provStats of Object.values(stats.providers) as any[]) {
+      for (const s of provStats.jobs || []) statsMap.set(s.name, s);
+    }
+  }
 
-  const enrichedJobs = jobs.map((job: any) => ({
-    ...job,
-    success_rate: statsMap.get(job.name)?.success_rate ?? -1,
-  }));
+  const enrichedJobs = jobs.map((job: any) => {
+    const js = statsMap.get(job.name);
+    return { ...job, success_rate: js ? (js.total > 0 ? js.success_rate : -1) : -1 };
+  });
 
   const {
     sorted: sortedJobs,
@@ -495,7 +738,7 @@ export function ScheduleView() {
     toggle,
     filterText,
     setFilterText,
-  } = useSortableTable(enrichedJobs, 'name', 'asc', ['name']);
+  } = useSortableTable(enrichedJobs, 'last_run', 'desc', ['name']);
 
   const handleRun = useCallback(
     (name: string) => {
@@ -504,8 +747,24 @@ export function ScheduleView() {
     [runJob],
   );
 
-  const daemonOk = !statusError && status?.daemon_running;
-  const failures = stats?.total?.last_7d?.failures || 0;
+  // Scheduler unavailable
+  if (jobsError && statusError) {
+    return (
+      <div className="schedule__setup">
+        <div className="schedule__setup-header">
+          <div className="schedule__setup-icon">⏰</div>
+          <h2 className="schedule__setup-title">Scheduler Unavailable</h2>
+          <p className="schedule__setup-desc">
+            Could not connect to the scheduler service. Check that the server is running.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const daemonOk = !statusError && Object.values(status?.providers || {}).some((p: any) => p.running);
+  const totalRuns = stats?.summary?.totalRuns ?? 0;
+  const successRate = stats?.summary?.successRate ?? -1;
 
   return (
     <div className="schedule page">
@@ -529,7 +788,7 @@ export function ScheduleView() {
             <div
               className={`stat-card ${statusError ? 'stat-card--warning' : daemonOk ? 'stat-card--success' : 'stat-card--error'}`}
             >
-              <div className="stat-card__label">Daemon</div>
+              <div className="stat-card__label">Scheduler</div>
               <div
                 className="stat-card__value"
                 style={{
@@ -554,28 +813,13 @@ export function ScheduleView() {
             <div className="stat-card stat-card--accent">
               <div className="stat-card__label">Success Rate</div>
               <div className="stat-card__value">
-                {stats?.total?.success_rate != null
-                  ? `${stats.total.success_rate}%`
-                  : '-'}
+                {successRate >= 0 ? `${successRate}%` : '-'}
               </div>
             </div>
             <div className="stat-card stat-card--accent">
               <div className="stat-card__label">Total Runs</div>
               <div className="stat-card__value">
-                {stats?.total?.total_runs ?? '-'}
-              </div>
-            </div>
-            <div
-              className={`stat-card ${failures > 0 ? 'stat-card--error' : ''}`}
-            >
-              <div className="stat-card__label">Failures (7d)</div>
-              <div
-                className="stat-card__value"
-                style={{
-                  color: failures > 0 ? 'var(--error-text)' : undefined,
-                }}
-              >
-                {stats?.total?.last_7d?.failures ?? '-'}
+                {totalRuns > 0 ? totalRuns : '-'}
               </div>
             </div>
           </div>
@@ -599,71 +843,69 @@ export function ScheduleView() {
                 ) : (
                   <div>
                     <p style={{ marginBottom: '1rem' }}>
-                      No scheduled jobs yet. Get started with a recommended
-                      schedule:
+                      No scheduled jobs yet. Pick a template to get started:
                     </p>
                     <div className="schedule__starters">
-                      {[
+                      {(() => {
+                        // Convert local hour to UTC for cron
+                        const utcHour = (localHour: number) => {
+                          const d = new Date();
+                          d.setHours(localHour, 0, 0, 0);
+                          return d.getUTCHours();
+                        };
+                        return [
                         {
                           name: 'good-morning',
                           label: '☀️ Morning Briefing',
-                          cron: '0 14 * * 1-5',
+                          cron: `0 ${utcHour(8)} * * 1-5`,
                           prompt:
                             'Review my calendar and email for today. Summarize priorities, prep for meetings, and flag anything urgent.',
-                          artifact: 'daily-*.html',
+                          meta: 'Weekdays · 8:00 AM',
                         },
                         {
                           name: 'catch-up-emails',
                           label: '📧 Email Catch-up',
-                          cron: '0 18 * * 1-5',
+                          cron: `0 ${utcHour(12)} * * 1-5`,
                           prompt:
                             'Check my recent emails and summarize anything I need to respond to or follow up on.',
-                          artifact: 'daily-*.html',
+                          meta: 'Weekdays · 12:00 PM',
                         },
                         {
                           name: 'wrap-up-day',
                           label: '🌙 End of Day Wrap',
-                          cron: '0 22 * * 1-5',
+                          cron: `0 ${utcHour(17)} * * 1-5`,
                           prompt:
                             'Summarize what I accomplished today. Check for any customer meetings that need activity logging. Preview tomorrow.',
-                          artifact: 'daily-*.html',
+                          meta: 'Weekdays · 5:00 PM',
                         },
                         {
                           name: 'prep-week',
                           label: '📋 Weekly Prep',
-                          cron: '0 3 * * 1',
+                          cron: `0 ${utcHour(8)} * * 1`,
                           prompt:
                             'Prepare my weekly overview: key meetings, customer engagements, deadlines, and priorities for the week ahead.',
-                          artifact: 'daily-*.html',
+                          meta: 'Mondays · 8:00 AM',
                         },
-                      ].map((t) => (
+                      ];})().map((t) => (
                         <button
                           key={t.name}
-                          disabled={addJob.isPending}
-                          onClick={() =>
-                            addJob.mutate({
-                              name: t.name,
-                              cron: t.cron,
-                              prompt: t.prompt,
-                              openArtifact: t.artifact,
-                              notifyStart: true,
-                            })
-                          }
+                          onClick={() => {
+                            setPrefill({ name: t.name, cron: t.cron, prompt: t.prompt });
+                            setShowAddForm(true);
+                          }}
                           className="schedule__starter-btn"
                         >
                           <div className="schedule__starter-label">
                             {t.label}
                           </div>
                           <div className="schedule__starter-meta">
-                            {t.cron.includes('* 1') ? 'Mondays' : 'Weekdays'} ·
-                            kiro-cli
+                            {t.meta}
                           </div>
                         </button>
                       ))}
                     </div>
                     <p className="schedule__starter-hint">
-                      Schedules run via <strong>kiro-cli</strong> against your
-                      ACP agents. Times are UTC.
+                      Templates pre-fill the form — you choose the agent and schedule.
                     </p>
                   </div>
                 )}
@@ -740,9 +982,9 @@ export function ScheduleView() {
                                   className={`schedule__status-dot ${
                                     running
                                       ? 'schedule__status-dot--running'
-                                      : job.enabled === 'yes'
+                                      : job.enabled
                                         ? (
-                                            status?.daemon_running
+                                            daemonOk
                                               ? 'schedule__status-dot--on'
                                               : 'schedule__status-dot--warn'
                                           )
@@ -751,7 +993,7 @@ export function ScheduleView() {
                                 />
                                 {running
                                   ? 'running'
-                                  : job.enabled === 'yes'
+                                  : job.enabled
                                     ? 'on'
                                     : 'off'}
                               </span>
@@ -763,7 +1005,7 @@ export function ScheduleView() {
                               {localTime(job.next_fire)}
                             </td>
                             <td className="schedule__td">
-                              <RateCell rate={jobStats?.success_rate} />
+                              <RateCell rate={job.success_rate} />
                             </td>
                             <td
                               className="schedule__td schedule__td--actions"
@@ -803,17 +1045,17 @@ export function ScheduleView() {
                                 </button>
                                 <button
                                   title={
-                                    job.enabled === 'yes' ? 'Disable' : 'Enable'
+                                    job.enabled ? 'Disable' : 'Enable'
                                   }
                                   onClick={() =>
                                     toggleJob.mutate({
                                       target: job.name,
-                                      enabled: job.enabled !== 'yes',
+                                      enabled: !job.enabled,
                                     })
                                   }
                                   className="schedule__action-btn"
                                 >
-                                  {job.enabled === 'yes' ? (
+                                  {job.enabled ? (
                                     <IconPause />
                                   ) : (
                                     <IconResume />
@@ -853,17 +1095,6 @@ export function ScheduleView() {
                                           Open Latest Artifact
                                         </button>
                                       )}
-                                      {job.last_run && (
-                                        <button
-                                          onClick={() => {
-                                            const resumePrompt = `Follow up on the last run of ${job.name}`;
-                                            window.open(`boo://resume/${job.name}?prompt=${encodeURIComponent(resumePrompt)}`, '_self');
-                                          }}
-                                          className="button button--secondary button--small"
-                                        >
-                                          Resume
-                                        </button>
-                                      )}
                                     </div>
                                   </div>
                                   {(job.description || job.prompt || job.command || job.agent) && (
@@ -889,8 +1120,8 @@ export function ScheduleView() {
           </div>
         </>
       )}
-      {editingJob && <JobFormModal job={editingJob} onClose={() => setEditingJob(null)} />}
-      {showAddForm && <JobFormModal onClose={() => setShowAddForm(false)} />}
+      {editingJob && <JobFormModal job={editingJob} onClose={() => setEditingJob(null)} providers={providers} />}
+      {showAddForm && <JobFormModal prefill={prefill} onClose={() => { setShowAddForm(false); setPrefill(null); }} providers={providers} />}
     </div>
   );
 }

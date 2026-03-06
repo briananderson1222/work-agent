@@ -167,6 +167,7 @@ export type NavigationView =
   | { type: 'agents' }
   | { type: 'prompts' }
   | { type: 'plugins' }
+  | { type: 'tools' }
   | { type: 'monitoring' }
   | { type: 'schedule' }
   | { type: 'profile' }
@@ -177,7 +178,7 @@ export type NavigationView =
       slug: string;
       initialTab?: 'basic' | 'model' | 'tools' | 'commands';
     }
-  | { type: 'tools'; slug: string }
+  | { type: 'agent-tools'; slug: string }
   | { type: 'workflows'; slug: string }
   | { type: 'settings' }
   | { type: 'workspace-new' }

@@ -4,7 +4,6 @@ import {
   type ACPConnectionInfo,
   useACPConnections,
 } from '../hooks/useACPConnections';
-import { useSystemStatus } from '../hooks/useSystemStatus';
 import type { AgentSummary } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -46,38 +45,16 @@ function ConnectionIcon({ icon, size = 24 }: { icon?: string; size?: number }) {
   );
 }
 
-const ACP_PRESETS = [
-  {
-    id: 'kiro',
-    name: 'kiro-cli',
-    command: 'kiro-cli',
-    args: 'acp',
-    icon: '/kiro-icon.png',
-    cliKey: 'kiro-cli',
-  },
-  {
-    id: 'claude',
-    name: 'Claude Code',
-    command: 'claude',
-    args: 'acp',
-    icon: '🟠',
-    cliKey: 'claude',
-  },
-];
-
 export function ACPConnectionsSection({
   acpAgents,
   apiBase,
 }: ACPConnectionsSectionProps) {
   const { data: connections = [] } = useACPConnections();
-  const { data: systemStatus } = useSystemStatus();
   const queryClient = useQueryClient();
-  const [showPresets, setShowPresets] = useState(false);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [selectedConn, setSelectedConn] = useState<ACPConnectionInfo | null>(
     null,
   );
-  const detectedClis = systemStatus?.clis || {};
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ['acp-connections'] });
@@ -106,13 +83,9 @@ export function ACPConnectionsSection({
           typeof data.args === 'string' ? data.args.split(/\s+/) : data.args,
       }),
     });
-    setShowPresets(false);
     setShowCustomModal(false);
     refresh();
   };
-
-  const existingIds = new Set(connections.map((c) => c.id));
-  const availablePresets = ACP_PRESETS.filter((p) => !existingIds.has(p.id));
 
   return (
     <>
@@ -140,49 +113,12 @@ export function ACPConnectionsSection({
         >
           Agent Client Protocol (ACP)
         </h2>
-        <div style={{ position: 'relative' }}>
-          <button
-            className="button button--secondary"
-            onClick={() => setShowPresets(!showPresets)}
-          >
-            + Add Connection
-          </button>
-          {showPresets && (
-            <div className="acp-preset-menu">
-              {availablePresets.map((preset) => {
-                const installed = detectedClis[preset.cliKey];
-                return (
-                  <button
-                    key={preset.id}
-                    className={`acp-preset-item${installed ? '' : ' acp-preset-item--disabled'}`}
-                    onClick={() => installed && addConnection(preset)}
-                  >
-                    <ConnectionIcon icon={preset.icon} size={20} />
-                    <span className="acp-preset-item__name">{preset.name}</span>
-                    {!installed && (
-                      <span className="acp-preset-item__hint">
-                        not installed
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              {availablePresets.length > 0 && (
-                <div className="acp-preset-divider" />
-              )}
-              <button
-                className="acp-preset-item"
-                onClick={() => {
-                  setShowPresets(false);
-                  setShowCustomModal(true);
-                }}
-              >
-                <span style={{ fontSize: 15 }}>⚙️</span>
-                <span className="acp-preset-item__name">Custom…</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          className="button button--secondary"
+          onClick={() => setShowCustomModal(true)}
+        >
+          + Add Connection
+        </button>
       </div>
 
       {showCustomModal && (
@@ -211,13 +147,12 @@ export function ACPConnectionsSection({
         ))}
       </div>
 
-      {connections.length === 0 && !showPresets && (
+      {connections.length === 0 && (
         <div className="acp-empty">
           <ConnectionIcon size={48} />
           <p className="acp-empty__text">No ACP connections configured</p>
           <p className="acp-empty__hint">
-            Add a connection to use external AI agents like kiro-cli, Gemini
-            CLI, or Goose
+            Add a connection or install a plugin that provides one
           </p>
         </div>
       )}
@@ -251,11 +186,24 @@ function ConnectionCard({
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const isConnected = conn.status === 'connected';
+  const isConnecting = conn.status === 'connecting';
+  const isUnavailable = conn.status === 'unavailable';
+  const isError = conn.status === 'error';
+  const isPlugin = conn.source === 'plugin';
+  const statusLabel = isUnavailable
+    ? 'not installed'
+    : isConnecting
+      ? 'connecting…'
+      : isError
+        ? 'connection failed'
+        : conn.enabled
+          ? conn.status
+          : 'disabled';
   const statusColor = isConnected
     ? 'var(--success-text)'
-    : conn.status === 'connecting'
+    : isConnecting
       ? 'var(--accent-acp)'
-      : conn.status === 'error'
+      : isError
         ? 'var(--error-text)'
         : 'var(--text-muted)';
 
@@ -264,14 +212,15 @@ function ConnectionCard({
       onClick={onClick}
       style={{
         background: 'var(--color-bg-secondary)',
-        border: '1px solid var(--color-border)',
+        border: `1px solid ${isConnecting ? 'var(--accent-acp)' : 'var(--color-border)'}`,
         borderRadius: '12px',
         padding: '20px',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
         cursor: 'pointer',
-        transition: 'border-color 0.2s',
+        transition: 'border-color 0.3s, opacity 0.3s',
+        opacity: isUnavailable || (!conn.enabled && !isConnecting) ? 0.55 : 1,
       }}
       onMouseEnter={(e) =>
         (e.currentTarget.style.borderColor = 'var(--accent-acp)')
@@ -290,7 +239,14 @@ function ConnectionCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ConnectionIcon icon={conn.icon} size={32} />
           <div>
-            <div style={{ fontSize: '16px', fontWeight: 600 }}>{conn.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '16px', fontWeight: 600 }}>{conn.name}</span>
+              {isPlugin && (
+                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'color-mix(in srgb, var(--text-muted) 15%, transparent)', color: 'var(--text-muted)' }}>
+                  via plugin
+                </span>
+              )}
+            </div>
             <div
               style={{
                 fontSize: '12px',
@@ -315,27 +271,17 @@ function ConnectionCard({
           </div>
         </div>
         <span
+          className="acp-badge"
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
-            fontWeight: 500,
-            padding: '3px 8px',
-            borderRadius: '4px',
             background: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
             color: statusColor,
           }}
         >
           <span
-            style={{
-              width: '5px',
-              height: '5px',
-              borderRadius: '50%',
-              background: statusColor,
-            }}
+            className={`acp-badge__dot${isConnecting ? ' acp-badge__dot--pulse' : ''}`}
+            style={{ background: statusColor }}
           />
-          {conn.status}
+          {statusLabel}
         </span>
       </div>
 
@@ -397,15 +343,17 @@ function ConnectionCard({
           {conn.enabled ? '● Enabled' : '○ Disabled'}
         </button>
         <div style={{ flex: 1 }} />
-        <button
-          className="button button--small button--danger-outline"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowRemoveConfirm(true);
-          }}
-        >
-          Remove
-        </button>
+        {!isPlugin && (
+          <button
+            className="button button--small button--danger-outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowRemoveConfirm(true);
+            }}
+          >
+            Remove
+          </button>
+        )}
       </div>
       <ConfirmModal
         isOpen={showDisableConfirm}
@@ -560,11 +508,25 @@ function ConnectionDetailModal({
   onClose: () => void;
 }) {
   const isConnected = conn.status === 'connected';
+  const isConnecting = conn.status === 'connecting';
+  const isUnavailable = conn.status === 'unavailable';
+  const isError = conn.status === 'error';
+  const statusLabel = isUnavailable
+    ? 'not installed'
+    : isConnecting
+      ? 'connecting…'
+      : isError
+        ? 'connection failed'
+        : conn.enabled
+          ? conn.status
+          : 'disabled';
   const statusColor = isConnected
     ? 'var(--success-text)'
-    : conn.status === 'error'
-      ? 'var(--error-text)'
-      : 'var(--text-muted)';
+    : isConnecting
+      ? 'var(--accent-acp)'
+      : isError
+        ? 'var(--error-text)'
+        : 'var(--text-muted)';
 
   const sectionLabel: React.CSSProperties = {
     fontSize: '11px',
@@ -625,27 +587,19 @@ function ConnectionDetailModal({
             </div>
           </div>
           <span
+            className="acp-badge"
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
               fontSize: '12px',
-              fontWeight: 500,
               padding: '4px 10px',
-              borderRadius: '4px',
               background: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
               color: statusColor,
             }}
           >
             <span
-              style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: statusColor,
-              }}
+              className={`acp-badge__dot${isConnecting ? ' acp-badge__dot--pulse' : ''}`}
+              style={{ background: statusColor }}
             />
-            {conn.status}
+            {statusLabel}
           </span>
         </div>
 

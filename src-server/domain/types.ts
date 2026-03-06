@@ -39,6 +39,7 @@ export interface ACPConnectionConfig {
   icon?: string;
   cwd?: string;
   enabled: boolean;
+  source?: 'user' | 'plugin';
 }
 
 export interface ACPConfig {

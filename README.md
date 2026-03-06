@@ -172,6 +172,22 @@ Or manually:
 
 See `examples/demo-workspace/` for a minimal working example.
 
+### Developing Plugins Locally
+
+Plugins that import `@stallion-ai/shared` should declare it as a `peerDependency` — stallion provides it at build time automatically. Never use `file:` paths in your plugin's `package.json`.
+
+For local development against an unreleased version of `@stallion-ai/shared`:
+
+```bash
+# In stallion-new/packages/shared — register the global link
+npm link
+
+# In your plugin repo — use the linked version
+npm link @stallion-ai/shared
+```
+
+This creates a symlink that works regardless of directory layout and doesn't pollute your `package.json`.
+
 ## Packages
 
 | Package | Path | Description |

@@ -1,26 +1,36 @@
 /**
  * Provider interfaces for pluggable auth, user identity, user directory,
  * and package registries (agents, tools/MCP servers).
+ *
+ * Data types are canonical in @stallion-ai/shared.
+ * This file adds the provider *interfaces* that plugins implement.
  */
 
 import type { ToolDef } from '../domain/types.js';
 import type { AppConfig } from '../domain/types.js';
 
-// ── Package Registry Providers ─────────────────────────
+// Re-export data types from shared so existing server imports still work
+export type {
+  RegistryItem,
+  InstallResult,
+  AuthStatus,
+  RenewResult,
+  UserIdentity,
+  UserDetailVM,
+  Prerequisite,
+} from '@stallion-ai/shared';
 
-export interface RegistryItem {
-  id: string;
-  displayName?: string;
-  description?: string;
-  version?: string;
-  status?: string;
-  installed: boolean;
-}
+import type {
+  RegistryItem,
+  InstallResult,
+  AuthStatus,
+  RenewResult,
+  UserIdentity,
+  UserDetailVM,
+  Prerequisite,
+} from '@stallion-ai/shared';
 
-export interface InstallResult {
-  success: boolean;
-  message: string;
-}
+// ── Provider Interfaces (server-only, not in shared) ───
 
 export interface IAgentRegistryProvider {
   listAvailable(): Promise<RegistryItem[]>;
@@ -38,34 +48,10 @@ export interface IToolRegistryProvider {
   sync(): Promise<void>;
 }
 
-// ── Auth Provider ──────────────────────────────────────
-
-export interface AuthStatus {
-  provider: string;
-  status: 'valid' | 'expiring' | 'expired' | 'missing';
-  expiresAt: string | null;
-  message: string;
-}
-
-export interface RenewResult {
-  success: boolean;
-  message: string;
-}
-
 export interface IAuthProvider {
   getStatus(): Promise<AuthStatus>;
   renew(): Promise<RenewResult>;
   getBadgePhoto?(id: string): Promise<ArrayBuffer | null>;
-}
-
-// ── User Identity Provider ─────────────────────────────
-
-export interface UserIdentity {
-  alias: string;
-  name?: string;
-  title?: string;
-  email?: string;
-  profileUrl?: string;
 }
 
 export interface IUserIdentityProvider {
@@ -73,50 +59,14 @@ export interface IUserIdentityProvider {
   enrichIdentity?(user: UserIdentity): Promise<UserIdentity>;
 }
 
-// ── User Directory Provider ────────────────────────────
-
-export interface UserDetailVM {
-  alias: string;
-  name: string;
-  title?: string;
-  team?: string;
-  manager?: { alias: string; name?: string };
-  email?: string;
-  location?: string;
-  avatarUrl?: string;
-  profileUrl?: string;
-  badges?: string[];
-  tenure?: string;
-  directReports?: number;
-  extra?: Record<string, unknown>;
-}
-
 export interface IUserDirectoryProvider {
   lookupPerson(alias: string): Promise<UserDetailVM>;
   searchPeople(query: string): Promise<UserDetailVM[]>;
 }
 
-// ── Onboarding Provider ────────────────────────────────
-
-export interface Prerequisite {
-  id: string;
-  name: string;
-  description: string;
-  status: 'installed' | 'missing' | 'error';
-  category: 'required' | 'optional';
-  source?: string;
-  installGuide?: {
-    steps: string[];
-    commands?: string[];
-    links?: string[];
-  };
-}
-
 export interface IOnboardingProvider {
   getPrerequisites(): Promise<Prerequisite[]>;
 }
-
-// ── Branding Provider ──────────────────────────────────
 
 export interface IBrandingProvider {
   getAppName(): Promise<string>;
@@ -125,10 +75,95 @@ export interface IBrandingProvider {
   getWelcomeMessage?(): Promise<string | null>;
 }
 
-// ── Settings Provider ──────────────────────────────────
-
 export interface ISettingsProvider {
   getDefaults(): Promise<Partial<AppConfig>>;
+}
+
+// ── Scheduler Provider ─────────────────────────────────
+
+export type SchedulerCapability = 'artifacts' | 'notifications' | 'daemon' | 'working-dir' | 'command';
+
+export interface SchedulerFormField {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'boolean';
+  placeholder?: string;
+  hint?: string;
+}
+
+export interface SchedulerJob {
+  name: string;
+  provider: string;
+  cron?: string;
+  prompt: string;
+  agent?: string;
+  enabled: boolean;
+  openArtifact?: string;
+  notifyStart?: boolean;
+  lastRun?: string;
+  nextRun?: string;
+  [key: string]: unknown;
+}
+
+export interface SchedulerLogEntry {
+  id: string;
+  job: string;
+  startedAt: string;
+  completedAt?: string;
+  success: boolean;
+  durationSecs?: number;
+  output?: string;
+  error?: string;
+}
+
+export interface AddJobOpts {
+  name: string;
+  provider?: string;
+  cron?: string;
+  prompt: string;
+  agent?: string;
+  openArtifact?: string;
+  notifyStart?: boolean;
+  [key: string]: unknown;
+}
+
+export interface SchedulerProviderStats {
+  jobs: { name: string; total: number; successes: number; failures: number; success_rate: number }[];
+}
+
+export interface SchedulerProviderStatus {
+  running: boolean;
+  jobCount: number;
+}
+
+export interface ISchedulerProvider {
+  readonly id: string;
+  readonly displayName: string;
+  readonly capabilities: SchedulerCapability[];
+  getFormFields?(): SchedulerFormField[];
+
+  listJobs(): Promise<SchedulerJob[]>;
+  addJob(opts: AddJobOpts): Promise<string>;
+  editJob(target: string, opts: Record<string, string | boolean>): Promise<string>;
+  removeJob(target: string): Promise<void>;
+  runJob(target: string): Promise<string>;
+  enableJob(target: string): Promise<void>;
+  disableJob(target: string): Promise<void>;
+  getJobLogs(target: string, count?: number): Promise<SchedulerLogEntry[]>;
+  getRunOutput?(target: string): Promise<string>;
+  readRunFile?(path: string): Promise<string>;
+  getStats(): Promise<SchedulerProviderStats>;
+  getStatus(): Promise<SchedulerProviderStatus>;
+  previewSchedule?(cron: string, count?: number): Promise<string[]>;
+  subscribe?(send: (data: string) => void): () => void;
+}
+
+// ── ACP Connections Provider ───────────────────────────
+
+import type { ACPConnectionConfig } from '../domain/types.js';
+
+export interface IACPConnectionsProvider {
+  getConnections(): ACPConnectionConfig[];
 }
 
 // ── Provider Cardinality Metadata ──────────────────────
@@ -141,7 +176,9 @@ export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
   userDirectory: 'singleton',
   branding: 'singleton',
   settings: 'singleton',
+  scheduler: 'additive',
   agentRegistry: 'additive',
   toolRegistry: 'additive',
   onboarding: 'additive',
+  acpConnections: 'additive',
 };

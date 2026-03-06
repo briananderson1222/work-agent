@@ -61,6 +61,10 @@ export class MCPService {
     return this.configLoader.getToolAgentMap();
   }
 
+  async saveTool(def: ToolDef): Promise<void> {
+    await this.configLoader.saveTool(def.id, def);
+  }
+
   getAgentTools(slug: string): ToolInfo[] {
     const tools = this.agentTools.get(slug) || [];
     return tools.map((tool: Tool<any> & { description?: string }) => {

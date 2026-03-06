@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { AchievementsBadge } from '../components/AchievementsBadge';
 import { ActivityTimeline } from '../components/ActivityTimeline';
 import { AuthStatusBadge } from '../components/AuthStatusBadge';
+import { InsightsDashboard } from '../components/InsightsDashboard';
 import { UsageStatsPanel } from '../components/UsageStatsPanel';
 import { UserDetailModal } from '../components/UserDetailModal';
 import { UserIcon } from '../components/UserIcon';
+import { pluginRegistry } from '../core/PluginRegistry';
 import { useAnalytics } from '../contexts/AnalyticsContext';
 import { useAuth } from '../contexts/AuthContext';
 import './ProfilePage.css';
@@ -12,6 +14,8 @@ import './ProfilePage.css';
 export function ProfilePage() {
   const { usageStats, refresh } = useAnalytics();
   const { user } = useAuth();
+
+  const achievementLinks = pluginRegistry.getLinks('achievements');
   const userName = user?.name || user?.alias || 'User';
   const totalMessages = usageStats?.lifetime.totalMessages || 0;
   const totalCost = usageStats?.lifetime.totalCost || 0;
@@ -115,8 +119,12 @@ export function ProfilePage() {
             <UsageStatsPanel />
           </div>
           <div className="profile-card">
-            <AchievementsBadge />
+            <AchievementsBadge links={achievementLinks} />
           </div>
+        </div>
+
+        <div className="profile-card">
+          <InsightsDashboard />
         </div>
 
         {totalMessages > 0 && (

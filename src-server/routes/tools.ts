@@ -25,6 +25,17 @@ export function createToolRoutes(
     }
   });
 
+  // Create a new tool definition (POST /tools)
+  app.post('/', async (c) => {
+    try {
+      const body = await c.req.json();
+      await mcpService.saveTool(body);
+      return c.json({ success: true });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 400);
+    }
+  });
+
   return app;
 }
 

@@ -1,5 +1,5 @@
 /**
- * Scheduler hooks — boo integration for Schedule view
+ * Scheduler hooks — integration for Schedule view
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,13 +18,14 @@ export type SchedulerEvent = {
 };
 
 /** Subscribe to scheduler SSE events. Shows toasts and refreshes queries on events. */
-export function useSchedulerEvents() {
+export function useSchedulerEvents(enabled = true) {
   const { apiBase } = useApiBase();
   const qc = useQueryClient();
   const { showToast } = useToast();
   const runningRef = useRef(new Set<string>());
 
   useEffect(() => {
+    if (!enabled) return;
     const es = new EventSource(`${apiBase}/scheduler/events`);
     es.onmessage = (e) => {
       if (!e.data) return;
@@ -93,6 +94,17 @@ export function useSchedulerJobs() {
     queryKey: ['scheduler', 'jobs'],
     queryFn: () => query<any[]>('/jobs'),
     staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function useSchedulerProviders() {
+  const { query } = useSchedulerFetch();
+  return useQuery({
+    queryKey: ['scheduler', 'providers'],
+    queryFn: () => query<any[]>('/providers'),
+    staleTime: 60_000,
+    retry: false,
   });
 }
 
@@ -102,6 +114,7 @@ export function useSchedulerStats() {
     queryKey: ['scheduler', 'stats'],
     queryFn: () => query<any>('/stats'),
     staleTime: 30_000,
+    retry: false,
   });
 }
 
@@ -111,6 +124,7 @@ export function useSchedulerStatus() {
     queryKey: ['scheduler', 'status'],
     queryFn: () => query<any>('/status'),
     staleTime: 30_000,
+    retry: false,
   });
 }
 

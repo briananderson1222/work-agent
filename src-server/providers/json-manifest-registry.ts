@@ -56,14 +56,20 @@ export class JsonManifestRegistryProvider
       return this.manifestCache;
     }
 
-    const response = await fetch(this.manifestUrl);
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch manifest: ${response.status} ${response.statusText}`,
-      );
+    // Support both URLs and local file paths
+    if (this.manifestUrl.startsWith('/') || this.manifestUrl.startsWith('.')) {
+      const raw = readFileSync(this.manifestUrl, 'utf-8');
+      this.manifestCache = JSON.parse(raw) as Manifest;
+    } else {
+      const response = await fetch(this.manifestUrl);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch manifest: ${response.status} ${response.statusText}`,
+        );
+      }
+      this.manifestCache = (await response.json()) as Manifest;
     }
 
-    this.manifestCache = (await response.json()) as Manifest;
     this.cacheExpiry = now + this.cacheTimeout;
     return this.manifestCache!;
   }

@@ -1,6 +1,7 @@
 import type { EventEmitter } from 'node:events';
 import { toolCalls as otelToolCalls, toolDuration as otelToolDuration } from '../../../telemetry/metrics.js';
 import type { StreamChunk, StreamHandler } from '../types.js';
+import { trace } from '@opentelemetry/api';
 
 /**
  * Collects statistics and emits monitoring events
@@ -105,6 +106,10 @@ export class MetadataHandler implements StreamHandler {
           input: chunk.input,
           toolCallNumber: this.stats.toolCalls,
         });
+        trace.getActiveSpan()?.addEvent('tool-call', {
+          'tool.name': chunk.toolName,
+          'tool.call_id': chunk.toolCallId,
+        });
         break;
 
       case 'tool-result':
@@ -114,6 +119,10 @@ export class MetadataHandler implements StreamHandler {
           toolName: chunk.toolName,
           toolCallId: chunk.toolCallId,
           result: chunk.output,
+        });
+        trace.getActiveSpan()?.addEvent('tool-result', {
+          'tool.name': chunk.toolName,
+          'tool.call_id': chunk.toolCallId,
         });
         break;
 

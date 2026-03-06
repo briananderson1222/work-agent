@@ -131,6 +131,7 @@ export function createPluginRoutes(
           workspace: manifest.workspace,
           agents: manifest.agents,
           providers: manifest.providers,
+          links: manifest.links,
           git,
           permissions: { declared, granted, missing },
         });
@@ -223,6 +224,122 @@ export function createPluginRoutes(
     return conflicts;
   }
 
+  /** Resolve plugin dependencies recursively with cycle detection, including their components */
+  async function resolveDependencies(
+    manifest: any,
+    seen: Set<string> = new Set(),
+  ): Promise<Array<{ id: string; source?: string; status: 'installed' | 'will-install' | 'missing'; components?: Array<{ type: string; id: string }>; git?: { hash: string; branch: string; remote?: string } }>> {
+    const deps: Array<{ id: string; source?: string; status: 'installed' | 'will-install' | 'missing'; components?: Array<{ type: string; id: string }>; git?: { hash: string; branch: string; remote?: string } }> = [];
+    if (!manifest.dependencies?.length) return deps;
+
+    for (const dep of manifest.dependencies) {
+      if (seen.has(dep.id)) continue;
+      seen.add(dep.id);
+
+      // Read manifest from installed dir or fetched source
+      let depManifest: any = null;
+      let depGit: { hash: string; branch: string; remote?: string } | undefined;
+      let status: 'installed' | 'will-install' | 'missing' = 'missing';
+
+      const depDir = join(pluginsDir, dep.id);
+      if (existsSync(join(depDir, 'plugin.json'))) {
+        status = 'installed';
+        try { depManifest = JSON.parse(readFileSync(join(depDir, 'plugin.json'), 'utf-8')); } catch {}
+        depGit = getGitInfo(depDir);
+      } else if (dep.source) {
+        status = 'will-install';
+        const result = await fetchSource(dep.source);
+        if (!('error' in result)) {
+          try { depManifest = JSON.parse(readFileSync(join(result.tempDir, 'plugin.json'), 'utf-8')); } catch {}
+          depGit = getGitInfo(result.tempDir);
+          rmSync(result.tempDir, { recursive: true, force: true });
+        }
+      } else {
+        try {
+          const available = await getAgentRegistryProvider().listAvailable();
+          if (available.find(a => a.id === dep.id)) status = 'will-install';
+        } catch {}
+      }
+
+      // Extract components from the dependency manifest
+      const components: Array<{ type: string; id: string }> = [];
+      if (depManifest) {
+        for (const a of depManifest.agents || []) components.push({ type: 'agent', id: `${depManifest.name}:${a.slug}` });
+        if (depManifest.workspace) components.push({ type: 'workspace', id: depManifest.workspace.slug });
+        for (const p of depManifest.providers || []) components.push({ type: 'provider', id: p.type });
+      }
+
+      deps.push({ id: dep.id, source: dep.source, status, components: components.length ? components : undefined, git: depGit });
+
+      // Recurse into transitive deps
+      if (depManifest) {
+        deps.push(...await resolveDependencies(depManifest, seen));
+      }
+    }
+
+    return deps;
+  }
+
+  /** Install a single dependency by id/source */
+  async function installDependency(dep: { id: string; source?: string }): Promise<{ success: boolean; error?: string }> {
+    // Already installed
+    if (existsSync(join(pluginsDir, dep.id, 'plugin.json'))) {
+      return { success: true };
+    }
+
+    if (dep.source) {
+      const result = await fetchSource(dep.source);
+      if ('error' in result) return { success: false, error: result.error };
+      const { tempDir } = result;
+      const targetDir = join(pluginsDir, dep.id);
+      if (existsSync(targetDir)) rmSync(targetDir, { recursive: true });
+      cpSync(tempDir, targetDir, { recursive: true });
+      rmSync(tempDir, { recursive: true, force: true });
+      buildPlugin(targetDir, dep.id);
+      // Recurse into transitive deps
+      try {
+        const depManifest = JSON.parse(readFileSync(join(targetDir, 'plugin.json'), 'utf-8'));
+        for (const transitive of depManifest.dependencies || []) {
+          await installDependency(transitive);
+        }
+      } catch {}
+      return { success: true };
+    }
+
+    // Try registry
+    try {
+      const registryResult = await getAgentRegistryProvider().install(dep.id);
+      if (registryResult.success) {
+        // Recurse into transitive deps
+        const depDir = join(pluginsDir, dep.id);
+        if (existsSync(join(depDir, 'plugin.json'))) {
+          try {
+            const depManifest = JSON.parse(readFileSync(join(depDir, 'plugin.json'), 'utf-8'));
+            for (const transitive of depManifest.dependencies || []) {
+              await installDependency(transitive);
+            }
+          } catch {}
+        }
+        return { success: true };
+      }
+      return { success: false, error: registryResult.message };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  /** Extract git info from a directory (if it's a git repo) */
+  function getGitInfo(dir: string): { hash: string; branch: string; remote?: string } | undefined {
+    if (!existsSync(join(dir, '.git'))) return undefined;
+    try {
+      const hash = execSync('git rev-parse --short HEAD', { cwd: dir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: dir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+      let remote: string | undefined;
+      try { remote = execSync('git remote get-url origin', { cwd: dir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim(); } catch {}
+      return { hash, branch, remote };
+    } catch { return undefined; }
+  }
+
   // ── Preview / validate plugin before install ─────────
 
   app.post('/preview', async (c) => {
@@ -261,7 +378,11 @@ export function createPluginRoutes(
           components.push({ type: 'tool', id: toolId, detail: installed ? 'already installed' : 'will install' });
         }
 
-        return c.json({ valid: true, manifest, components, conflicts });
+        // Resolve dependencies
+        const dependencies = await resolveDependencies(manifest);
+        const git = getGitInfo(tempDir);
+
+        return c.json({ valid: true, manifest, components, conflicts, dependencies, git });
       } finally {
         rmSync(tempDir, { recursive: true, force: true });
       }
@@ -291,6 +412,13 @@ export function createPluginRoutes(
       );
       const pluginName = manifest.name || tempName;
       const pluginDir = join(pluginsDir, pluginName);
+
+      // Resolve dependencies first
+      const depResults: Array<{ id: string; status: string; error?: string }> = [];
+      for (const dep of manifest.dependencies || []) {
+        const result = await installDependency(dep);
+        depResults.push({ id: dep.id, status: result.success ? 'installed' : 'failed', error: result.error });
+      }
 
       // Move to canonical directory (removes old version if exists)
       if (existsSync(pluginDir) && pluginDir !== tempDir)
@@ -346,6 +474,7 @@ export function createPluginRoutes(
       }
 
       // Resolve required tools (unless skipped)
+      const toolsDir = join(projectHomeDir, 'tools');
       const requiredTools = (manifest.tools?.required || []).filter(
         (id: string) => !skipSet.has(`tool:${id}`),
       );
@@ -398,6 +527,7 @@ export function createPluginRoutes(
           hasBundle: existsSync(join(pluginDir, 'dist', 'bundle.js')),
         },
         tools: toolResults,
+        dependencies: depResults,
         permissions: { autoGranted, pendingConsent },
       });
     } catch (e: any) {
@@ -796,6 +926,17 @@ async function loadProviders(
     if (!existsSync(modulePath)) continue;
 
     try {
+      // JSON files for registry types → auto-wrap with JsonManifestRegistryProvider
+      if (modulePath.endsWith('.json') && (p.type === 'agentRegistry' || p.type === 'toolRegistry')) {
+        const { JsonManifestRegistryProvider } = await import('../providers/json-manifest-registry.js');
+        const { dirname } = await import('node:path');
+        const instance = new JsonManifestRegistryProvider(modulePath, dirname(pluginsDir));
+        if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
+        else registerToolRegistryProvider(instance);
+        loaded++;
+        continue;
+      }
+
       const fileUrl = `file://${modulePath}?t=${Date.now()}`;
       const mod = await import(fileUrl);
       const factory = mod.default || mod;

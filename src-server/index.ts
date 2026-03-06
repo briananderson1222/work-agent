@@ -1,3 +1,5 @@
+import './telemetry.js';
+
 /**
  * Stallion - VoltAgent-based local-first AI agent system
  * Main entry point

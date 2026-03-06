@@ -45,7 +45,6 @@ const STATUS_READY = JSON.stringify({
   ready: true,
   bedrock: { credentialsFound: true, verified: null, region: 'us-east-1' },
   acp: { connected: false, connections: [] },
-  scheduler: { booInstalled: false },
   clis: {},
   prerequisites: [],
 });

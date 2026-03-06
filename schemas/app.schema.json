@@ -100,12 +100,10 @@
       "minimum": 10,
       "maximum": 24
     },
-    "runtime": {
+    "gitRemote": {
       "type": "string",
-      "enum": ["voltagent", "strands"],
-      "description": "Agent framework runtime. Default: voltagent",
-      "default": "voltagent"
+      "description": "Git remote URL resolved on first build, used for update checks"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }
