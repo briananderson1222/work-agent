@@ -10,6 +10,7 @@ import { pluginRegistry } from '../core/PluginRegistry';
 import { useAnalytics } from '../contexts/AnalyticsContext';
 import { useAuth } from '../contexts/AuthContext';
 import './ProfilePage.css';
+import '../views/page-layout.css';
 
 export function ProfilePage() {
   const { usageStats, refresh } = useAnalytics();
@@ -26,7 +27,7 @@ export function ProfilePage() {
   }, [refresh]);
 
   return (
-    <div className="profile-page">
+    <div className="profile-page page page--narrow">
       <div className="profile-container">
         <div className="profile-card">
           <div className="profile-card__edit-btn">

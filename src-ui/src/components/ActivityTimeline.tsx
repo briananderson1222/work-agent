@@ -170,7 +170,7 @@ export function ActivityTimeline() {
               <strong>{(rs?.totalMessages ?? 0).toLocaleString()} msgs</strong>
             </span>
             <span>
-              Avg/Day: <strong>{(rs?.avgPerDay ?? 0).toFixed(1)} msgs</strong>
+              Avg/Day: <strong>{((rs?.avgPerDay ?? 0) ?? 0).toFixed(1)} msgs</strong>
             </span>
             {(rs?.totalCost ?? 0) > 0 && (
               <span>
@@ -214,8 +214,7 @@ export function ActivityTimeline() {
                 marginBottom: '0.25rem',
               }}
             >
-              {hoverDay.messages} messages · ${hoverDay.cost.toFixed(2)}
-            </div>
+              ({hoverDay.messages} messages · ${(hoverDay.cost ?? 0).toFixed(2)})</div>
             {Object.entries(hoverDay.byAgent)
               .sort(([, a], [, b]) => b - a)
               .map(([agent, count]) => (

@@ -191,7 +191,7 @@ export function ConversationStats({
                     />
                   </div>
                   <span style={{ fontWeight: 600 }}>
-                    {stats.contextWindowPercentage.toFixed(1)}%
+                    {(stats.contextWindowPercentage ?? 0).toFixed(1)}%
                   </span>
                 </div>
                 {(stats.systemPromptTokens !== undefined ||
@@ -417,11 +417,11 @@ export function ConversationStats({
                   Total and per-turn cost
                 </div>
                 <div style={{ marginBottom: '4px' }}>
-                  Total: ${stats.estimatedCost.toFixed(4)}
+                  Total: ${(stats.estimatedCost ?? 0).toFixed(4)}
                 </div>
                 {stats.turns > 0 && (
                   <div>
-                    Per Turn: ${(stats.estimatedCost / stats.turns).toFixed(4)}
+                    Per Turn: ${((stats.estimatedCost / stats.turns) ?? 0).toFixed(4)}
                   </div>
                 )}
               </div>
@@ -499,7 +499,7 @@ export function ConversationStats({
                           <div>Turns: {modelStat.turns}</div>
                           <div>Tool Calls: {modelStat.toolCalls}</div>
                           <div style={{ marginTop: '4px' }}>
-                            Cost: ${modelStat.estimatedCost.toFixed(4)}
+                            Cost: ${(modelStat.estimatedCost ?? 0).toFixed(4)}
                           </div>
                         </div>
                       </div>
@@ -595,7 +595,7 @@ export function ContextPercentage({
             }}
           />
         </div>
-        <span>{percentage.toFixed(1)}%</span>
+        <span>({(percentage ?? 0).toFixed(1)}%)</span>
         {isActive && (
           <span
             style={{

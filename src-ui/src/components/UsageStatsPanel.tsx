@@ -282,7 +282,7 @@ function ModelRow({
     `Model: ${displayName}`,
     `ID: ${model}`,
     `Messages: ${stats.messages}`,
-    `Cost: $${stats.cost.toFixed(4)}`,
+    `Cost: $${(stats.cost ?? 0).toFixed(4)}`,
     usingAgents.length > 0
       ? `Agents: ${usingAgents.map((a: any) => a.name || a.slug).join(', ')}`
       : null,
@@ -321,7 +321,7 @@ function ModelRow({
               plan ↗
             </a>
           ) : (
-            `$${stats.cost.toFixed(2)}`
+            `$${(stats.cost ?? 0).toFixed(2)}`
           )}
         </span>
       </div>
@@ -411,7 +411,7 @@ function AgentRow({
               plan ↗
             </a>
           ) : (
-            `$${stats.cost.toFixed(2)}`
+            `$${(stats.cost ?? 0).toFixed(2)}`
           )}
         </span>
       </div>
@@ -557,13 +557,13 @@ function DrillDownModal({
                 {modelInfo?.inputCostPer1kTokens && (
                   <div>
                     <strong>Input Cost:</strong> $
-                    {modelInfo.inputCostPer1kTokens.toFixed(4)}/1K tokens
+                    {(modelInfo.inputCostPer1kTokens ?? 0).toFixed(4)}/1K tokens
                   </div>
                 )}
                 {modelInfo?.outputCostPer1kTokens && (
                   <div>
                     <strong>Output Cost:</strong> $
-                    {modelInfo.outputCostPer1kTokens.toFixed(4)}/1K tokens
+                    {(modelInfo.outputCostPer1kTokens ?? 0).toFixed(4)}/1K tokens
                   </div>
                 )}
                 {modelInfo?.supportsStreaming !== undefined && (
