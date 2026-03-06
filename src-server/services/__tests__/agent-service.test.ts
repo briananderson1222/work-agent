@@ -16,7 +16,7 @@ function makeTempDir() {
 }
 
 function makeService(dir: string) {
-  const configLoader = new ConfigLoader({ workAgentDir: dir });
+  const configLoader = new ConfigLoader({ projectHomeDir: dir });
   const activeAgents = new Map<string, any>();
   const agentMetadataMap = new Map<string, any>();
   const agentSpecs = new Map<string, any>();
@@ -145,7 +145,7 @@ describe('AgentService', () => {
     const coreAgents = [{ id: 'agent:my-agent' }];
 
     // Inject into metadata map
-    const configLoader = new ConfigLoader({ workAgentDir: dir });
+    const configLoader = new ConfigLoader({ projectHomeDir: dir });
     const activeAgents = new Map<string, any>();
     const agentMetadataMap = new Map<string, any>();
     agentMetadataMap.set('agent:my-agent', { slug, name: 'My Agent' });
@@ -175,7 +175,7 @@ describe('AgentService', () => {
     const coreAgents = [{ id: 'agent:ghost' }];
 
     // Inject into metadata map so it gets past the first check
-    const configLoader = new ConfigLoader({ workAgentDir: dir });
+    const configLoader = new ConfigLoader({ projectHomeDir: dir });
     const activeAgents = new Map<string, any>();
     const agentMetadataMap = new Map<string, any>();
     agentMetadataMap.set('agent:ghost', { slug: 'ghost', name: 'Ghost' });
@@ -217,7 +217,7 @@ describe('AgentService', () => {
     await service.createAgent(validSpec);
 
     // Create a workspace that references this agent
-    const configLoader = new ConfigLoader({ workAgentDir: dir });
+    const configLoader = new ConfigLoader({ projectHomeDir: dir });
     await configLoader.createWorkspace({
       slug: 'ws1',
       name: 'Workspace 1',

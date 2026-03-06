@@ -16,7 +16,7 @@ function makeTempDir() {
 }
 
 function makeService(dir: string) {
-  const configLoader = new ConfigLoader({ workAgentDir: dir });
+  const configLoader = new ConfigLoader({ projectHomeDir: dir });
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -150,7 +150,7 @@ describe('WorkspaceService', () => {
 
   it('workflow CRUD — full roundtrip: create → list → read → update → delete', async () => {
     // Need an agent directory for workflows
-    const configLoader = new ConfigLoader({ workAgentDir: dir });
+    const configLoader = new ConfigLoader({ projectHomeDir: dir });
     await configLoader.createAgent({ name: 'Wf Agent', prompt: 'p' });
     const agentSlug = 'wf-agent';
 
