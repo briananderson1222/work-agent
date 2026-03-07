@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stallion Competitive Analysis — AnythingLLM vs t3code vs Open WebUI</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; --purple: #bc8cff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { font-size: 1.15rem; margin: 1.5rem 0 0.75rem; color: var(--purple); }
+  p, li { color: var(--text); margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 2rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+  .card h3 { margin-top: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { padding: 0.6rem 0.8rem; text-align: left; border: 1px solid var(--border); }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; position: sticky; top: 0; }
+  td { background: var(--bg); }
+  tr:hover td { background: var(--surface); }
+  .yes { color: var(--green); font-weight: 600; }
+  .no { color: var(--red); }
+  .partial { color: var(--yellow); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-right: 4px; }
+  .tag-green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .tag-red { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }
+  .tag-yellow { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+  .tag-blue { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .tag-purple { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+  .verdict { background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(188,140,255,0.08)); border: 1px solid var(--accent); border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0; }
+  .verdict h3 { color: var(--accent); margin-top: 0; }
+  ul { padding-left: 1.5rem; }
+  li { margin-bottom: 0.4rem; }
+  strong { color: var(--text); }
+  em { color: var(--muted); font-style: normal; }
+  code { background: var(--surface); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; color: var(--accent); }
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin: 1.5rem 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ul { list-style: none; padding-left: 0; }
+  .toc li { margin-bottom: 0.3rem; }
+  .toc li::before { content: "→ "; color: var(--muted); }
+  .callout { border-left: 3px solid var(--yellow); padding: 0.75rem 1rem; margin: 1rem 0; background: rgba(210,153,34,0.06); border-radius: 0 6px 6px 0; }
+  .steal { border-left-color: var(--green); background: rgba(63,185,80,0.06); }
+  .warn { border-left-color: var(--red); background: rgba(248,81,73,0.06); }
+</style>
+</head>
+<body>
+
+<h1>Stallion Competitive Analysis</h1>
+<p class="subtitle">AnythingLLM · t3code · Open WebUI — audited March 7, 2026</p>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#matrix">Feature Matrix</a></li>
+    <li><a href="#anythingllm">AnythingLLM Deep Dive</a></li>
+    <li><a href="#t3code">t3code Deep Dive</a></li>
+    <li><a href="#openwebui">Open WebUI Deep Dive</a></li>
+    <li><a href="#goal1">Goal 1: Workspace → Project</a></li>
+    <li><a href="#goal2">Goal 2: Vector DB Integration</a></li>
+    <li><a href="#goal3">Goal 3: Multi-Provider Support</a></li>
+    <li><a href="#goal4">Goal 4: Coding Capabilities</a></li>
+    <li><a href="#fork">Fork or Build?</a></li>
+    <li><a href="#roadmap">Recommended Build Order</a></li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="matrix">Feature Matrix</h2>
+
+<div style="overflow-x:auto">
+<table>
+<thead>
+<tr><th>Capability</th><th>Stallion</th><th>AnythingLLM</th><th>t3code</th><th>Open WebUI</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Version / Maturity</strong></td><td><span class="tag tag-yellow">0.1.0 early</span></td><td><span class="tag tag-green">1.11.1 mature</span></td><td><span class="tag tag-red">0.0.4 alpha</span></td><td><span class="tag tag-green">0.8.8 mature</span></td></tr>
+<tr><td><strong>License</strong></td><td>Private</td><td>MIT</td><td>MIT</td><td>BSD-3 (was MIT)</td></tr>
+<tr><td><strong>Tech Stack</strong></td><td>Node/Hono/React</td><td>Node/Express/React</td><td>Bun/Effect-ts/React</td><td>Python/FastAPI/SvelteKit</td></tr>
+<tr><td><strong>Workspace concept</strong></td><td class="partial">UI layout only</td><td class="yes">Isolated context + vector namespace</td><td class="yes">Filesystem directory</td><td class="no">UI permission flag only</td></tr>
+<tr><td><strong>Per-workspace LLM</strong></td><td class="no">No</td><td class="yes">Yes (provider + model)</td><td class="no">No (global)</td><td class="no">No (global admin)</td></tr>
+<tr><td><strong>Vector DB</strong></td><td class="no">None</td><td class="yes">10 providers (LanceDB default)</td><td class="no">None</td><td class="yes">11 providers (Chroma default)</td></tr>
+<tr><td><strong>Embedding engines</strong></td><td class="no">None</td><td class="yes">15 (decoupled from LLM)</td><td class="no">None</td><td class="partial">4 (sentence-transformers default)</td></tr>
+<tr><td><strong>LLM providers</strong></td><td class="partial">1 (Bedrock)</td><td class="yes">38 providers</td><td class="no">1 (Codex only)</td><td class="yes">Ollama + OpenAI-compat + Anthropic + Gemini</td></tr>
+<tr><td><strong>Document ingestion</strong></td><td class="no">None</td><td class="yes">20+ types + collector service</td><td class="no">None</td><td class="yes">20+ types inline</td></tr>
+<tr><td><strong>RAG / Hybrid search</strong></td><td class="no">None</td><td class="partial">Vector + optional rerank</td><td class="no">None</td><td class="yes">Vector + BM25 + reranking</td></tr>
+<tr><td><strong>Code execution</strong></td><td class="no">None</td><td class="no">None</td><td class="yes">Via AI agent (Codex)</td><td class="yes">Jupyter + Pyodide + RestrictedPython</td></tr>
+<tr><td><strong>Terminal (PTY)</strong></td><td class="no">None</td><td class="no">None</td><td class="yes">Real PTY (node-pty + xterm.js)</td><td class="partial">Proxy to external server</td></tr>
+<tr><td><strong>Diff viewer</strong></td><td class="no">None</td><td class="no">None</td><td class="yes">Git-based, per-turn</td><td class="no">None</td></tr>
+<tr><td><strong>Git integration</strong></td><td class="no">None</td><td class="no">None</td><td class="yes">Worktrees, checkpoints, stacked PRs</td><td class="no">None</td></tr>
+<tr><td><strong>Plugin system</strong></td><td class="yes">Provider registry + SDK</td><td class="no">Monolithic</td><td class="no">Monolithic</td><td class="partial">Pipelines (external proxy)</td></tr>
+<tr><td><strong>Agent framework</strong></td><td class="yes">Strands/VoltAgent + ACP</td><td class="yes">Custom AIbitat</td><td class="partial">Codex app-server</td><td class="yes">LangChain + custom tools</td></tr>
+<tr><td><strong>MCP support</strong></td><td class="yes">Full lifecycle</td><td class="yes">Client</td><td class="no">None</td><td class="yes">Client</td></tr>
+<tr><td><strong>Multi-user / Auth</strong></td><td class="partial">Via plugin</td><td class="yes">RBAC</td><td class="no">Single-user</td><td class="yes">RBAC + LDAP + SCIM + OAuth</td></tr>
+<tr><td><strong>Desktop app</strong></td><td class="yes">Tauri</td><td class="yes">Docker-based</td><td class="yes">Electron</td><td class="no">Docker only</td></tr>
+<tr><td><strong>Mobile</strong></td><td class="yes">Android WebView</td><td class="yes">Mobile API</td><td class="no">None</td><td class="partial">PWA</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="anythingllm">AnythingLLM Deep Dive</h2>
+<p><span class="tag tag-green">v1.11.1</span> <span class="tag tag-blue">MIT</span> <span class="tag tag-purple">Node.js / Express / React</span></p>
+
+<div class="grid">
+<div class="card">
+  <h3>Architecture</h3>
+  <ul>
+    <li><strong>3 services:</strong> API server (Express, port 3001), React SPA frontend, Collector microservice (document ingestion)</li>
+    <li>SQLite via Prisma ORM (PostgreSQL optional)</li>
+    <li>Collector watches a <code>hotdir/</code> for files, processes them, writes JSON to <code>storage/documents/</code></li>
+    <li>Deploy: Docker, K8s, Helm, AWS CloudFormation, GCP, DigitalOcean, HuggingFace Spaces</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Workspace Model</h3>
+  <ul>
+    <li><strong>Workspace = isolated chat context</strong> — NOT tied to filesystem directories</li>
+    <li>Each workspace gets a unique <code>slug</code> used as the <strong>vector DB namespace</strong></li>
+    <li>Per-workspace: system prompt, temperature, history window, similarity threshold, topN, chat mode (chat vs query-only)</li>
+    <li><strong>Per-workspace LLM override:</strong> <code>chatProvider</code> + <code>chatModel</code> can differ from system default</li>
+    <li><strong>Per-workspace agent override:</strong> <code>agentProvider</code> + <code>agentModel</code></li>
+    <li>Workspace threads: sub-conversations sharing the workspace's document context</li>
+    <li>User scoping via <code>workspace_users</code> join table (admin/manager see all)</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Vector DB (10 providers)</h3>
+  <ul>
+    <li><strong>LanceDB</strong> (default, embedded, zero-config) — stored at <code>storage/lancedb/</code></li>
+    <li>Chroma, ChromaCloud, Pinecone, Qdrant, Weaviate, Milvus, Zilliz, AstraDB, PGVector</li>
+    <li>Selected via <code>VECTOR_DB</code> env var</li>
+    <li>Abstract interface: <code>connect()</code>, <code>addDocumentToNamespace()</code>, <code>performSimilaritySearch()</code>, <code>deleteVectorsInNamespace()</code>, etc.</li>
+    <li>Pipeline: check cache → get embedder → split text → embed chunks → batch insert → record in SQLite</li>
+    <li>Optional reranking via <code>@xenova/transformers</code> native reranker</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>LLM Providers (38)</h3>
+  <ul>
+    <li>OpenAI, Azure OpenAI, Anthropic, Gemini, Ollama, LMStudio, LocalAI, Mistral, HuggingFace, Groq, TogetherAI, FireworksAI, Perplexity, OpenRouter, Cohere, LiteLLM, Generic OpenAI-compat, <strong>Bedrock</strong>, DeepSeek, xAI/Grok, NVIDIA NIM, SambaNova, KoboldCpp, TextGenWebUI, and 14 more</li>
+    <li>Each provider: <code>streamGetChatCompletion()</code>, <code>getChatCompletion()</code>, <code>promptWindowLimit()</code>, <code>compressMessages()</code></li>
+    <li><strong>15 embedding engines</strong> (fully decoupled): native/local, OpenAI, Azure, Ollama, LMStudio, Cohere, VoyageAI, Mistral, Gemini, etc.</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Document Ingestion</h3>
+  <ul>
+    <li><strong>File types:</strong> PDF, DOCX, PPTX, XLSX, ODT, ODP, EPUB, CSV, JSON, HTML, MD, RST, TXT, MBOX</li>
+    <li><strong>Media:</strong> MP3, WAV, MP4 (Whisper transcription), PNG/JPG/WEBP (OCR)</li>
+    <li><strong>Data sources:</strong> YouTube transcripts, recursive web scraping, Confluence, Obsidian vaults, Paperless-ngx, Drupal, GitHub/GitLab repos</li>
+    <li>Background sync jobs for watched documents</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Agent System</h3>
+  <ul>
+    <li>Custom "AIbitat" framework (AutoGen-inspired, multi-agent)</li>
+    <li>Skills: memory, doc summarizer, web scraping, web browsing, SQL agent (MySQL/PG/MSSQL), charts</li>
+    <li>MCP client: any MCP server's tools auto-exposed as agent functions</li>
+    <li>Agent Flows: JSON-defined multi-step workflows</li>
+    <li><strong>No coding/IDE features</strong></li>
+  </ul>
+</div>
+</div>
+
+<div class="callout steal">
+  <strong>Steal from AnythingLLM:</strong> Workspace-as-vector-namespace isolation pattern, LanceDB as embedded default, per-workspace LLM override, decoupled embedding engine selection, the <code>VectorDatabase</code> abstract interface.
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="t3code">t3code Deep Dive</h2>
+<p><span class="tag tag-red">v0.0.4-alpha</span> <span class="tag tag-blue">MIT</span> <span class="tag tag-purple">Bun / Effect-ts / React / Electron</span></p>
+
+<div class="grid">
+<div class="card">
+  <h3>Architecture</h3>
+  <ul>
+    <li>Turborepo monorepo: <code>apps/server</code>, <code>apps/web</code>, <code>apps/desktop</code>, <code>apps/marketing</code></li>
+    <li>Server: Node.js WebSocket + HTTP, published as <code>npx t3</code> (port 3773)</li>
+    <li>Web: React 19 + Vite + TanStack Router/Query</li>
+    <li>Desktop: Electron 40 shell wrapping the web app</li>
+    <li>Effect-ts used <em>pervasively</em> for DI, error handling, service composition</li>
+    <li>SQLite (<code>@effect/sql-sqlite-bun</code>) for persistence</li>
+    <li>Data flow: Browser ↔ WebSocket ↔ Node server ↔ codex app-server (JSON-RPC over stdio)</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Project Model</h3>
+  <ul>
+    <li><strong>Project = filesystem directory</strong> (<code>workspaceRoot</code> path)</li>
+    <li>Schema: <code>{ id, title, workspaceRoot, defaultModel, scripts[], createdAt }</code></li>
+    <li>Threads scoped to projects, each thread can have a <code>branch</code> and <code>worktreePath</code></li>
+    <li>File search: fuzzy search within project root (respects <code>.gitignore</code>, max 25k entries, 15s cache)</li>
+    <li>Auto-bootstrap: creates project from <code>cwd</code> on startup</li>
+    <li>Configurable scripts per project (run/test/lint/build/debug)</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Provider System</h3>
+  <ul>
+    <li><strong>Currently Codex-only</strong> — <code>ProviderKind = Schema.Literal("codex")</code></li>
+    <li><code>claudeCode</code> reserved in contracts but not implemented</li>
+    <li>Models: GPT-5.4, GPT-5.3 Codex, GPT-5.3 Codex Spark, GPT-5.2 Codex, GPT-5.2</li>
+    <li>Adapter pattern: <code>ProviderAdapterShape</code> interface with <code>startSession</code>, <code>sendTurn</code>, <code>interruptTurn</code>, <code>respondToRequest</code>, <code>subscribeToEvents</code></li>
+    <li>Codex integration: spawns <code>codex app-server</code> as child process, JSON-RPC over stdio</li>
+    <li>Runtime modes: <code>full-access</code> (no approval) vs <code>approval-required</code> (prompts for file/command approval)</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Coding UX</h3>
+  <ul>
+    <li><strong>No embedded code editor</strong> — the AI agent edits code, not the user</li>
+    <li><strong>Diff viewer:</strong> <code>@pierre/diffs</code> library, stacked/split view, per-turn and full-thread diffs, virtualized rendering</li>
+    <li><strong>Terminal:</strong> Real PTY via <code>node-pty</code> (or Bun native PTY), xterm.js in browser, thread-scoped, history persistence</li>
+    <li><strong>File operations:</strong> fuzzy file search, <code>writeFile</code>, open in external editor (VS Code, Cursor)</li>
+    <li><strong>Composer:</strong> Lexical-based rich text, <code>@mentions</code> for file references, slash commands, image attachments</li>
+    <li><strong>Git:</strong> branch/checkout/create, worktree create/remove, pull, stacked actions (commit → push → PR), AI-generated commit messages</li>
+    <li><strong>Checkpointing:</strong> git-based checkpoints after each agent turn, diff blobs in SQLite, revert support</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Event Sourcing (CQRS)</h3>
+  <ul>
+    <li>Full event sourcing: <code>orchestration_events</code> table with sequence, aggregate_kind, stream_id, event_type, payload</li>
+    <li>Decider: pure function <code>decideOrchestrationCommand(command, readModel) → events[]</code></li>
+    <li>Projector: folds events into read model, writes to projection tables</li>
+    <li>Reactors: side-effect handlers (start provider session, create checkpoint, etc.)</li>
+    <li>Client state: Zustand store hydrated from server snapshot, updated via WebSocket push</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Desktop vs Web</h3>
+  <ul>
+    <li>Web: React SPA served by server, all calls via WebSocket RPC</li>
+    <li>Desktop: Electron spawns <code>t3</code> server as child process, custom <code>t3://</code> protocol</li>
+    <li><code>NativeApi</code> abstraction: checks for <code>window.nativeApi</code> (desktop injection) first, falls back to WebSocket</li>
+    <li>Desktop adds: native folder picker, confirm dialogs, context menus, auto-updater</li>
+  </ul>
+</div>
+</div>
+
+<div class="callout steal">
+  <strong>Steal from t3code:</strong> Directory-based project model, diff viewer per agent turn (with <code>@pierre/diffs</code>), real PTY terminal (<code>node-pty</code> + xterm.js), git worktree support for parallel sessions, checkpoint/revert pattern, <code>@mention</code> file references in composer, approval workflow for agent actions.
+</div>
+
+<div class="callout">
+  <strong>Note on terminal-first approach:</strong> t3code spawns <code>codex app-server</code> directly as a child process and communicates via JSON-RPC over stdio. This is more brittle than a protocol abstraction (like ACP) but significantly more powerful — it gives direct control over the agent process lifecycle, real-time event streaming, and the ability to integrate any CLI tool that speaks stdio. This is arguably the more pragmatic path for coding agent integration.
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="openwebui">Open WebUI Deep Dive</h2>
+<p><span class="tag tag-green">v0.8.8</span> <span class="tag tag-blue">BSD-3</span> <span class="tag tag-purple">Python / FastAPI / SvelteKit</span></p>
+
+<div class="grid">
+<div class="card">
+  <h3>Architecture</h3>
+  <ul>
+    <li>Backend: Python 3.11+, FastAPI, SQLAlchemy + Alembic, Uvicorn</li>
+    <li>Frontend: SvelteKit 2 + Svelte 5, Tailwind v4, Vite</li>
+    <li>DB: SQLite (default), PostgreSQL optional</li>
+    <li>Auth: JWT, OAuth, LDAP, SCIM 2.0</li>
+    <li>Real-time: Socket.IO + Redis</li>
+    <li>Storage: local filesystem, S3, GCS, Azure Blob</li>
+    <li>Observability: OpenTelemetry</li>
+    <li><strong>Massive codebase:</strong> <code>config.py</code> is 130KB, <code>middleware.py</code> is 197KB, <code>retrieval.py</code> is 123KB</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>"Workspace" Concept</h3>
+  <ul>
+    <li><strong>No real workspace/project isolation</strong></li>
+    <li>"Workspace" = UI permission flags: <code>WORKSPACE_MODELS_ACCESS</code>, <code>WORKSPACE_KNOWLEDGE_ACCESS</code>, <code>WORKSPACE_PROMPTS_ACCESS</code>, <code>WORKSPACE_TOOLS_ACCESS</code></li>
+    <li>Controls whether non-admin users can access the "Workspace" section of the UI</li>
+    <li>Chat organization via folders (purely UI groupings, no backend isolation)</li>
+    <li>Access control via generic <code>access_grants</code> ACL table</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Vector DB / RAG (11 providers)</h3>
+  <ul>
+    <li><strong>Chroma</strong> (default, embedded), Milvus, Qdrant, Pinecone, Elasticsearch, OpenSearch, PGVector, Oracle23ai, S3Vector, Weaviate, OpenGauss</li>
+    <li>Embeddings: sentence-transformers (default/local), OpenAI, Ollama, Azure OpenAI</li>
+    <li>Hybrid search: vector + BM25 via <code>EnsembleRetriever</code></li>
+    <li>Reranking: CrossEncoder, ColBERT, external API</li>
+    <li>20+ web search providers for web RAG</li>
+    <li>Per-file collection: <code>file-{file_id}</code>, per-knowledge-base: <code>knowledge-{id}</code></li>
+    <li>Milvus/Qdrant have multitenancy modes (deployment-level, not per-user)</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Multi-Provider LLM</h3>
+  <ul>
+    <li><strong>Ollama:</strong> multi-instance support (<code>OLLAMA_BASE_URLS</code> semicolon-separated), load balancing, full API proxy</li>
+    <li><strong>OpenAI-compatible:</strong> multi-endpoint (<code>OPENAI_API_BASE_URLS</code> + <code>OPENAI_API_KEYS</code>), works with LMStudio, Groq, Mistral, OpenRouter, etc.</li>
+    <li><strong>Azure OpenAI:</strong> native support via <code>DefaultAzureCredential</code></li>
+    <li><strong>Anthropic:</strong> detected by URL pattern, uses <code>anthropic</code> SDK</li>
+    <li><strong>Google Gemini:</strong> <code>google-genai</code> SDK</li>
+    <li><strong>Direct connections:</strong> users can add their own API connections in UI</li>
+    <li><strong>Pipelines:</strong> external proxy servers for custom logic, function calling, rate limiting</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Knowledge Management</h3>
+  <ul>
+    <li>Named knowledge bases with file management</li>
+    <li>Schema: <code>{ id, user_id, name, description, meta }</code> + <code>KnowledgeFile</code> junction table</li>
+    <li>CRUD + batch file add + export as ZIP</li>
+    <li>Access control via <code>access_grants</code> (share with users/groups, read or read+write)</li>
+    <li>Each knowledge base gets its own vector collection: <code>knowledge-{id}</code></li>
+    <li>Knowledge base metadata also embedded into shared <code>knowledge-bases</code> collection for semantic search across bases</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Code Execution</h3>
+  <ul>
+    <li><strong>Jupyter:</strong> <code>JupyterCodeExecuter</code> connects to external Jupyter server, executes Python, captures stdout/stderr/images</li>
+    <li><strong>Pyodide:</strong> Python in browser via WebAssembly (client-side, no server round-trip)</li>
+    <li><strong>RestrictedPython:</strong> sandboxed in-process Python for user-defined tools</li>
+    <li><strong>Terminal proxy:</strong> proxies HTTP + WebSocket to admin-configured terminal servers</li>
+    <li><strong>CodeMirror:</strong> editor for writing custom tools/functions</li>
+    <li><strong>MCP client:</strong> connects to external MCP tool servers</li>
+  </ul>
+</div>
+</div>
+
+<div class="callout steal">
+  <strong>Steal from Open WebUI:</strong> Knowledge base model with ACL + file management, hybrid search (vector + BM25 + reranking), multi-instance Ollama with load balancing, multi-endpoint OpenAI-compatible pattern, semantic search across knowledge bases, user-level direct connections.
+</div>
+
+<div class="callout warn">
+  <strong>Warning:</strong> Open WebUI is a monolith with some truly massive files (130KB config, 197KB middleware, 123KB retrieval router). It's feature-rich but architecturally brittle. Don't try to port patterns wholesale — extract the concepts.
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="goal1">Goal 1: Workspace → "Project" Concept</h2>
+
+<p>Your current <code>WorkspaceConfig</code> is a UI layout — tabs, components, prompts. That's valuable, but it's not a "project." Here's the proposed model:</p>
+
+<div class="card">
+  <h3>Proposed: Two-Level Hierarchy</h3>
+  <table>
+    <tr><th>Concept</th><th>What it is</th><th>Inspired by</th></tr>
+    <tr><td><strong>Project</strong> (new)</td><td>A directory-bound context with its own vector DB namespace, LLM config, document collection, and agent connections. The isolation boundary.</td><td>t3code's <code>workspaceRoot</code> + AnythingLLM's workspace isolation</td></tr>
+    <tr><td><strong>Layout</strong> (renamed from Workspace)</td><td>A UI arrangement of tabs/components/prompts. Multiple layouts can exist within a project. Think "views" into the same project context.</td><td>Current stallion <code>WorkspaceConfig</code></td></tr>
+  </table>
+  <p style="margin-top:1rem"><strong>Key properties of a Project:</strong></p>
+  <ul>
+    <li><code>workspaceRoot</code> — filesystem directory (optional, for coding projects)</li>
+    <li><code>vectorNamespace</code> — slug used as vector DB namespace for document isolation</li>
+    <li><code>provider</code> / <code>model</code> — per-project LLM override (falls back to system default)</li>
+    <li><code>embeddingProvider</code> / <code>embeddingModel</code> — per-project embedding config</li>
+    <li><code>layouts[]</code> — array of layout configs (your current workspace tabs)</li>
+    <li><code>documents[]</code> — uploaded/ingested documents scoped to this project</li>
+    <li><code>agents[]</code> — agent configs or ACP connections scoped to this project</li>
+  </ul>
+  <p style="margin-top:1rem"><strong>Cross-project queries:</strong> This is stallion's unique advantage. The sidebar shows all projects. A "global" chat can fan out queries to multiple project vector namespaces. None of the three competitors do this well.</p>
+</div>
+
+<div class="callout">
+  <strong>ACP integration:</strong> A project with a <code>workspaceRoot</code> could auto-configure an ACP connection that passes the directory as <code>cwd</code>. Or — taking the t3code approach — spawn a coding agent directly as a child process with that directory as its working dir. The latter is more direct and powerful.
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="goal2">Goal 2: Vector DB Integration</h2>
+
+<div class="card">
+  <h3>Recommended Approach</h3>
+  <ul>
+    <li><strong>Default: LanceDB (embedded)</strong> — zero config, stores in <code>.stallion-ai/vectordb/</code>. This is what AnythingLLM uses and it just works. No external service needed.</li>
+    <li><strong>Provider interface:</strong> <code>IVectorDbProvider</code> with <code>connect()</code>, <code>addDocuments(namespace, chunks)</code>, <code>search(namespace, query, topK)</code>, <code>deleteNamespace(namespace)</code>. Fits your existing provider registry.</li>
+    <li><strong>Per-project namespace:</strong> project slug = vector DB namespace. Documents uploaded to a project are embedded and stored in that namespace only.</li>
+    <li><strong>Embedding engine as separate provider:</strong> <code>IEmbeddingProvider</code> decoupled from LLM. Default to local (<code>@xenova/transformers</code>), with options for Ollama, OpenAI, Bedrock Titan embeddings.</li>
+    <li><strong>Implement as a plugin:</strong> <code>@stallion-ai/plugin-vectordb</code> registers both providers. Core just defines the interfaces.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Vector DB Provider Comparison</h3>
+  <table>
+    <tr><th>Provider</th><th>Type</th><th>AnythingLLM</th><th>Open WebUI</th><th>Priority for Stallion</th></tr>
+    <tr><td>LanceDB</td><td>Embedded</td><td class="yes">✓ (default)</td><td class="no">✗</td><td><span class="tag tag-green">P0 — default</span></td></tr>
+    <tr><td>Chroma</td><td>Self-hosted</td><td class="yes">✓</td><td class="yes">✓ (default)</td><td><span class="tag tag-yellow">P1</span></td></tr>
+    <tr><td>Qdrant</td><td>Self-hosted/Cloud</td><td class="yes">✓</td><td class="yes">✓</td><td><span class="tag tag-yellow">P1</span></td></tr>
+    <tr><td>PGVector</td><td>PostgreSQL ext</td><td class="yes">✓</td><td class="yes">✓</td><td><span class="tag tag-yellow">P2</span></td></tr>
+    <tr><td>Pinecone</td><td>Cloud</td><td class="yes">✓</td><td class="yes">✓</td><td><span class="tag tag-purple">P3</span></td></tr>
+    <tr><td>OpenSearch</td><td>AWS-native</td><td class="no">✗</td><td class="yes">✓</td><td><span class="tag tag-yellow">P2 — AWS story</span></td></tr>
+  </table>
+</div>
+
+<div class="callout">
+  <strong>Fully local setup:</strong> LanceDB (embedded vector DB) + Ollama embeddings (<code>nomic-embed-text</code>) + Ollama LLM (<code>llama3.2</code>). Zero cloud calls. This is the killer demo for privacy-conscious users.
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="goal3">Goal 3: Multi-Provider Support</h2>
+
+<div class="card">
+  <h3>Provider Priority</h3>
+  <table>
+    <tr><th>#</th><th>Provider</th><th>Why</th><th>Effort</th></tr>
+    <tr><td>1</td><td><strong>Ollama</strong></td><td>Local-first story, serves both LLM and embeddings, huge community. Unlocks the fully-local setup.</td><td><span class="tag tag-green">Low</span> — Ollama exposes an OpenAI-compatible API</td></tr>
+    <tr><td>2</td><td><strong>OpenAI-compatible</strong></td><td>One adapter covers: LMStudio, Groq, Mistral, OpenRouter, Together, Fireworks, DeepSeek, and any other OpenAI-compat endpoint</td><td><span class="tag tag-green">Low</span> — standard API</td></tr>
+    <tr><td>3</td><td><strong>Anthropic</strong></td><td>Claude is the other major coding model. Direct API for best experience.</td><td><span class="tag tag-yellow">Medium</span></td></tr>
+    <tr><td>4</td><td><strong>Bedrock</strong> (keep as default)</td><td>Already built. AWS-native story. Access to Claude, Llama, Mistral, etc. via Bedrock.</td><td><span class="tag tag-green">Done</span></td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Implementation Pattern</h3>
+  <ul>
+    <li>You already depend on the Vercel AI SDK (<code>ai</code> package). It has provider adapters for OpenAI, Anthropic, Google, Mistral, and more. Lean on this rather than writing raw HTTP clients.</li>
+    <li>Each provider = a plugin that registers an <code>ILLMProvider</code>. Core defines the interface.</li>
+    <li>Per-project override: project config specifies <code>{ provider: "ollama", model: "llama3.2" }</code>. Falls back to system default (Bedrock).</li>
+    <li>Open WebUI's multi-instance Ollama pattern is worth stealing: <code>OLLAMA_BASE_URLS</code> as a semicolon-separated list with load balancing.</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="goal4">Goal 4: Coding Capabilities</h2>
+
+<div class="card">
+  <h3>The t3code Insight</h3>
+  <p>t3code's key insight: <strong>the UI doesn't edit code — the agent does.</strong> The UI shows you what the agent changed (diffs), lets you approve/reject, and gives you a terminal to verify. The user's job is to direct and supervise, not to type code.</p>
+  <p style="margin-top:0.75rem">This maps well to stallion's existing patterns:</p>
+  <ul>
+    <li>Tool approval flow → agent action approval (file writes, command execution)</li>
+    <li>SSE streaming → real-time agent output</li>
+    <li>ACP → external coding agent connection (or direct child process spawn à la t3code)</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Coding as a Built-in Layout</h3>
+  <p>A "Coding" layout (in your current workspace/layout sense) that ships with core or as a first-party plugin:</p>
+  <table>
+    <tr><th>Panel</th><th>What it does</th><th>Steal from</th></tr>
+    <tr><td><strong>Chat</strong></td><td>Already have this. Connected to a coding agent (ACP or direct child process).</td><td>—</td></tr>
+    <tr><td><strong>Diff Viewer</strong></td><td>Shows file changes per agent turn. Stacked/split view. Checkpoint navigation.</td><td>t3code (<code>@pierre/diffs</code>)</td></tr>
+    <tr><td><strong>File Tree</strong></td><td>Project directory browser with fuzzy search. Read-only — agent writes, user browses.</td><td>t3code (file search)</td></tr>
+    <tr><td><strong>Terminal</strong></td><td>Real PTY. Thread-scoped. History persistence. Clickable links.</td><td>t3code (<code>node-pty</code> + xterm.js)</td></tr>
+    <tr><td><strong>File Viewer</strong></td><td>Read-only code viewer for inspecting files the agent references.</td><td>—</td></tr>
+  </table>
+</div>
+
+<div class="callout">
+  <strong>On ACP vs direct child process:</strong> t3code spawns <code>codex app-server</code> directly as a child process and communicates via JSON-RPC over stdio. This is more brittle than ACP's protocol abstraction but significantly more powerful — direct control over process lifecycle, real-time event streaming, and the ability to integrate any CLI tool that speaks stdio. For coding specifically, the direct approach is probably the right call. ACP remains valuable for connecting to <em>remote</em> or <em>third-party</em> agents, but for local coding agents, a direct spawn is simpler and faster.
+</div>
+
+<div class="card">
+  <h3>Cross-Project Advantage</h3>
+  <p>This is where stallion beats all three competitors. None of them let you easily work across projects:</p>
+  <ul>
+    <li>AnythingLLM: workspaces are isolated silos. No cross-workspace queries.</li>
+    <li>t3code: one project at a time. Switch projects = switch context entirely.</li>
+    <li>Open WebUI: no project concept at all.</li>
+  </ul>
+  <p style="margin-top:0.75rem">Stallion's sidebar shows all projects. You can have a coding session in Project A, switch to Project B's knowledge base to ask a question about their API docs, then switch back. Or fire off a query that searches across all project vector namespaces. This is the "unified cockpit" that none of the others provide.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="fork">Fork or Build?</h2>
+
+<div class="verdict">
+  <h3>Verdict: Don't Fork. Build.</h3>
+  <p>None of the three are good fork candidates:</p>
+  <table>
+    <tr><th>Project</th><th>Why not fork</th></tr>
+    <tr><td><strong>AnythingLLM</strong></td><td>Express monolith, no plugin system, no SDK pattern, no desktop/mobile story beyond Docker. You'd rip out the architecture to add what stallion already has.</td></tr>
+    <tr><td><strong>t3code</strong></td><td>v0.0.4 alpha, Codex-only, Effect-ts everywhere (massive learning curve, different paradigm), no vector DB, no multi-provider, no plugin system. You'd build 80% from scratch anyway.</td></tr>
+    <tr><td><strong>Open WebUI</strong></td><td>Python/SvelteKit (completely different stack), monolithic (130KB config file), no plugin system, no real workspace isolation. Tech stack mismatch kills it. <strong>Also: custom license with branding restriction clause — cannot remove "Open WebUI" branding in deployments &gt;50 users without enterprise license.</strong></td></tr>
+  </table>
+  <p style="margin-top:1rem">Stallion's architecture is better positioned because:</p>
+  <ul>
+    <li><strong>Plugin system</strong> — providers, vector DBs, coding features can be added modularly without touching core</li>
+    <li><strong>SDK pattern</strong> — <code>@stallion-ai/sdk</code> means community can build on top</li>
+    <li><strong>Provider registry</strong> — singleton/additive pattern already designed for this extensibility</li>
+    <li><strong>Multi-platform</strong> — web, Tauri desktop, Android already working</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="roadmap">Recommended Build Order</h2>
+
+<div class="card">
+  <h3>Phase 1: Multi-Provider Plugin</h3>
+  <p><span class="tag tag-green">Highest ROI</span> <span class="tag tag-blue">~1-2 weeks</span></p>
+  <ul>
+    <li>Ollama provider (LLM + embeddings) — unlocks fully-local story</li>
+    <li>OpenAI-compatible provider — covers dozens of providers with one adapter</li>
+    <li>Leverage Vercel AI SDK provider adapters you already depend on</li>
+    <li>System-level default + per-agent override (extend to per-project later)</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Phase 2: Project Concept</h3>
+  <p><span class="tag tag-yellow">Data model change</span> <span class="tag tag-blue">~1-2 weeks</span></p>
+  <ul>
+    <li>Rename <code>WorkspaceConfig</code> → <code>LayoutConfig</code> (or keep "workspace" for the UI arrangement, add "project" above it)</li>
+    <li>Introduce <code>ProjectConfig</code>: <code>workspaceRoot</code>, <code>provider/model</code> override, <code>vectorNamespace</code></li>
+    <li>Projects contain layouts. Sidebar shows projects with expandable layouts.</li>
+    <li>Migration path: existing workspaces become layouts within a "Default" project</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Phase 3: Vector DB Plugin</h3>
+  <p><span class="tag tag-purple">Knowledge layer</span> <span class="tag tag-blue">~2-3 weeks</span></p>
+  <ul>
+    <li>LanceDB as embedded default (zero config)</li>
+    <li><code>IVectorDbProvider</code> + <code>IEmbeddingProvider</code> interfaces in core</li>
+    <li>Document upload UI in project settings</li>
+    <li>Per-project namespace isolation</li>
+    <li>RAG integration: inject relevant chunks into agent context</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Phase 4: Coding Layout</h3>
+  <p><span class="tag tag-purple">Differentiation</span> <span class="tag tag-blue">~3-4 weeks</span></p>
+  <ul>
+    <li>Built-in layout with: chat + diff viewer + terminal + file tree</li>
+    <li>Real PTY via <code>node-pty</code> + xterm.js</li>
+    <li>Diff viewer via <code>@pierre/diffs</code> or similar</li>
+    <li>Direct child process spawn for coding agents (t3code pattern) alongside ACP</li>
+    <li>Approval workflow for agent file writes and command execution</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="stats">Community & Licensing</h2>
+
+<table>
+<tr><th>Project</th><th>Stars</th><th>Forks</th><th>Age</th><th>Latest Release</th><th>License</th></tr>
+<tr><td><strong>Open WebUI</strong></td><td class="yes">126,074</td><td>17,850</td><td>~2.5 years</td><td>v0.8.8 (Mar 2, 2026)</td><td class="partial">Custom BSD-3 + branding clause ⚠️</td></tr>
+<tr><td><strong>AnythingLLM</strong></td><td class="yes">55,825</td><td>6,035</td><td>~2.75 years</td><td>v1.11.1 (Mar 2, 2026)</td><td class="yes">MIT</td></tr>
+<tr><td><strong>t3code</strong></td><td>2,659</td><td>254</td><td>~1 month</td><td>v0.0.4 (Mar 7, 2026)</td><td class="yes">MIT</td></tr>
+</table>
+
+<div class="callout warn">
+  <strong>Open WebUI License Warning:</strong> The license includes a Clause 4 that prohibits removing "Open WebUI" branding in any deployment with &gt;50 users unless an enterprise license is obtained. This is NOT a standard BSD-3 license — GitHub shows it as "Other." This is a significant commercial constraint for any fork or white-label scenario.
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="ux">Second-Pass: UX Patterns Worth Stealing</h2>
+
+<h3>From AnythingLLM</h3>
+<div class="grid">
+<div class="card">
+  <h3>Sidebar & Navigation</h3>
+  <ul>
+    <li><strong>Drag-to-reorder workspaces</strong> via <code>react-beautiful-dnd</code>, order persisted to localStorage (zero server calls)</li>
+    <li>Hover reveals upload + settings icons per workspace</li>
+    <li>Debounced search (500ms) across workspaces AND threads</li>
+    <li>"Virtual active" workspace on home page via <code>LAST_VISITED_WORKSPACE</code> localStorage</li>
+    <li>Mobile: full-screen overlay sidebar with dark backdrop</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Document Upload UX</h3>
+  <ul>
+    <li><strong>Split-panel document manager:</strong> left = all available docs, right = docs in this workspace, separated by arrow icon</li>
+    <li>Drag-and-drop zone + URL scrape input</li>
+    <li>Embedding cost preview before confirming (OpenAI only)</li>
+    <li>Data connectors tab: GitHub, GitLab, YouTube, Confluence, Obsidian, web scraping</li>
+    <li>Checks if collector service is online, shows warning if down</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Workspace Settings</h3>
+  <ul>
+    <li>5 tabs: General, Chat, Vector Database, Members, Agent</li>
+    <li><strong>Inline LLM switcher:</strong> searchable split-panel modal (providers left, models right) accessible from chat toolbar — change provider mid-conversation</li>
+    <li>Per-workspace: system prompt, temperature, history window, similarity threshold (4 presets), chat mode (chat vs query-only)</li>
+    <li>Floating "Update Workspace" CTA only appears when form is dirty (<code>hasChanges</code> pattern)</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Agent & Commands</h3>
+  <ul>
+    <li><code>@</code> in textarea triggers agent menu (also via toolbar button)</li>
+    <li><code>/</code> triggers slash commands: reset chat, end agent session, user-defined presets</li>
+    <li>Agent shows ability tags: <code>rag-search</code>, <code>web-scraping</code>, <code>web-browsing</code>, <code>save-file</code>, <code>chart-generation</code></li>
+    <li>Embed widget: admin creates per-workspace embeds with domain allowlists, rate limits, and toggles for model/temp/prompt override</li>
+  </ul>
+</div>
+</div>
+
+<h3>From t3code</h3>
+<div class="grid">
+<div class="card">
+  <h3>Layout & Navigation</h3>
+  <ul>
+    <li><strong>Two-panel layout:</strong> left sidebar (project-grouped thread list) + right content area</li>
+    <li>Projects are collapsible sections in sidebar — no separate project switcher</li>
+    <li>Threads show status pills: "Working" (pulsing), "Completed", "Pending Approval" (amber)</li>
+    <li>PR status icons on threads (open/closed/merged)</li>
+    <li>Terminal running indicator (teal pulsing icon)</li>
+    <li>Right-click context menu: Rename, Mark unread, Copy ID, Delete</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Diff Panel</h3>
+  <ul>
+    <li><strong>Turn chip strip:</strong> horizontal scrollable chips — "All turns" + one per completed turn. URL-driven (<code>?diff=1&diffTurnId=...</code>) so diffs are bookmarkable</li>
+    <li>Stacked (unified) or split view toggle</li>
+    <li>Virtualized rendering via <code>@pierre/diffs</code></li>
+    <li>Click file header → opens in external editor</li>
+    <li>Three render modes: inline sidebar, sheet (mobile), resizable right sidebar</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Terminal</h3>
+  <ul>
+    <li><strong>Bottom drawer</strong> with drag-to-resize (180px to 75% viewport)</li>
+    <li><strong>Multi-terminal:</strong> split view (side-by-side grid) + tab groups with tree-style sidebar</li>
+    <li>Per-thread terminal state (persisted via Zustand)</li>
+    <li>Clickable file paths and URLs in output</li>
+    <li>Theme sync via MutationObserver on document class changes</li>
+    <li>5000 line scrollback, SF Mono font</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Approval Flow</h3>
+  <ul>
+    <li><strong>Hijacks the composer:</strong> text input replaced by approval panel in-place (not a modal)</li>
+    <li>Shows: "PENDING APPROVAL" + summary + counter (1/N)</li>
+    <li>Four actions: Cancel turn, Decline, Always allow this session, Approve once</li>
+    <li>Composer input disabled during approval state</li>
+    <li>Request kinds: command, file-read, file-change</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Composer / @mentions</h3>
+  <ul>
+    <li><strong>Lexical-based</strong> rich text editor with custom <code>ComposerMentionNode</code></li>
+    <li><code>@</code> triggers fuzzy file search (120ms debounce) → inserts atomic chip with VSCode file icon</li>
+    <li>Chips are non-editable, arrow keys skip over them, backspace deletes whole chip</li>
+    <li><code>/model</code> → switch model, <code>/plan</code> → plan mode, <code>/default</code> → normal mode</li>
+    <li>Image attachments: drag-and-drop/paste, thumbnail strip below editor</li>
+  </ul>
+</div>
+</div>
+
+<h3>From Open WebUI</h3>
+<div class="grid">
+<div class="card">
+  <h3>Multi-Model Parallel Responses</h3>
+  <ul>
+    <li><strong>Model selector supports MULTIPLE simultaneous models</strong> — <code>selectedModels</code> is an array</li>
+    <li><code>+</code> button adds model slots (permission-gated)</li>
+    <li>Get side-by-side responses from different models in the same conversation</li>
+    <li>Models can be pinned to user settings</li>
+    <li>Fuse.js fuzzy search over model list</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Knowledge Base Attachment</h3>
+  <ul>
+    <li><strong>Two paths:</strong> <code>#</code> command in message input (autocomplete) OR paperclip menu → Knowledge tab</li>
+    <li>Paginated list of knowledge bases, expandable to individual files</li>
+    <li>Can attach whole collection or single file</li>
+    <li>Injected as file attachment into the message context</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Channels (Slack-like)</h3>
+  <ul>
+    <li>Real-time messaging via WebSocket (Socket.IO)</li>
+    <li>Threaded replies in resizable side pane (mobile = drawer)</li>
+    <li>Typing indicators (5s timeout), reactions, unread tracking</li>
+    <li>Optimistic UI with temp_id UUIDs</li>
+    <li>DM support, webhooks per channel</li>
+    <li><em>Unique feature — none of the others have this</em></li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Arena / Model Evaluation</h3>
+  <ul>
+    <li>Admin configures "arena models" — virtual models that randomly route to real models for blind comparison</li>
+    <li>Users rate responses (thumbs up/down)</li>
+    <li>Ratings feed an <strong>ELO leaderboard</strong> — rank, rating, win/loss, sortable</li>
+    <li>Per-model usage analytics over time</li>
+    <li><em>Great for deciding which provider/model to default to</em></li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Tools / Code Editor</h3>
+  <ul>
+    <li><strong>Monaco-based</strong> code editor for writing custom Python tools</li>
+    <li>Pre-filled boilerplate with <code>Tools</code> class and example methods</li>
+    <li>"Valves" = runtime config per tool via dynamic JSON schema form</li>
+    <li>Import tools via URL or JSON file</li>
+    <li>Tools are stored in DB, executed server-side via RestrictedPython sandbox</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Admin Panel</h3>
+  <ul>
+    <li><strong>13 settings tabs:</strong> general, connections, models, evaluations, integrations, documents (RAG), web search, code-execution, interface, audio (STT/TTS), images (DALL-E/ComfyUI), pipelines, database</li>
+    <li>Additional routes: users, evaluations (leaderboard), functions, analytics</li>
+    <li><em>Comprehensive but overwhelming — stallion's plugin approach is cleaner</em></li>
+  </ul>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="unique">Unique Features Only One Project Has</h2>
+
+<table>
+<tr><th>Feature</th><th>Project</th><th>Relevance to Stallion</th></tr>
+<tr><td>Embed widget (chat on any website)</td><td>AnythingLLM</td><td class="partial">Medium — could be a plugin</td></tr>
+<tr><td>Data connectors (Confluence, Obsidian, GitHub repos)</td><td>AnythingLLM</td><td class="yes">High — document ingestion sources</td></tr>
+<tr><td>Git worktrees for parallel agent sessions</td><td>t3code</td><td class="yes">High — coding workflow</td></tr>
+<tr><td>CQRS event sourcing with replay</td><td>t3code</td><td class="partial">Medium — robust but complex</td></tr>
+<tr><td>Multi-model parallel responses</td><td>Open WebUI</td><td class="yes">High — model comparison</td></tr>
+<tr><td>Slack-like channels with threads</td><td>Open WebUI</td><td class="partial">Low — different use case</td></tr>
+<tr><td>Arena / ELO model leaderboard</td><td>Open WebUI</td><td class="partial">Medium — helps pick default model</td></tr>
+<tr><td>Pyodide (Python in browser via WASM)</td><td>Open WebUI</td><td class="no">Low — niche</td></tr>
+<tr><td>User-defined Python tools (RestrictedPython)</td><td>Open WebUI</td><td class="partial">Medium — stallion has MCP instead</td></tr>
+<tr><td>Pipelines (external filter/transform servers)</td><td>Open WebUI</td><td class="partial">Medium — stallion has plugins instead</td></tr>
+</table>
+
+<p style="margin-top:2rem; color: var(--muted); font-size: 0.85rem;">Generated by Stallion · March 7, 2026 · Based on two-pass source code audit of AnythingLLM v1.11.1 (55.8k ⭐), t3code v0.0.4-alpha (2.7k ⭐), Open WebUI v0.8.8 (126k ⭐)</p>
+
+</body>
+</html>
