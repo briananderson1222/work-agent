@@ -68,20 +68,27 @@ function App() {
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
     const path = window.location.pathname;
 
-    if (path === '/agents') return { type: 'agents' };
-    if (path === '/prompts') return { type: 'prompts' };
     if (path === '/manage') return { type: 'manage' };
+    if (path === '/manage/agents') return { type: 'agents' };
+    if (path === '/manage/workspaces') return { type: 'workspaces' };
+    if (path === '/manage/prompts') return { type: 'prompts' };
+    if (path === '/manage/plugins') return { type: 'plugins' };
+    if (path === '/manage/tools') return { type: 'tools' };
+    if (path === '/sys/monitoring') return { type: 'monitoring' };
+    if (path === '/sys/schedule') return { type: 'schedule' };
+    if (path === '/sys/settings') return { type: 'settings' };
+    if (path === '/profile') return { type: 'profile' };
+    if (path === '/notifications') return { type: 'notifications' };
+    // Legacy redirects
+    if (path === '/agents' || path === '/agents/new') return { type: 'agents' };
+    if (path === '/prompts') return { type: 'prompts' };
     if (path === '/plugins') return { type: 'plugins' };
     if (path === '/tools') return { type: 'tools' };
     if (path === '/monitoring') return { type: 'monitoring' };
     if (path === '/schedule') return { type: 'schedule' };
-    if (path === '/profile') return { type: 'profile' };
-    if (path === '/notifications') return { type: 'notifications' };
     if (path === '/settings') return { type: 'settings' };
-    if (path === '/agents/new') return { type: 'agent-new' };
     if (path.startsWith('/agents/') && path.endsWith('/edit')) {
-      const slug = path.split('/')[2];
-      return { type: 'agent-edit', slug };
+      return { type: 'agents' };
     }
     if (path.startsWith('/agents/') && path.endsWith('/tools')) {
       const slug = path.split('/')[2];
@@ -91,10 +98,9 @@ function App() {
       const slug = path.split('/')[2];
       return { type: 'workflows', slug };
     }
-    if (path === '/workspaces/new') return { type: 'workspace-new' };
+    if (path === '/workspaces/new') return { type: 'workspaces' };
     if (path.startsWith('/workspaces/') && path.endsWith('/edit')) {
-      const slug = path.split('/')[2];
-      return { type: 'workspace-edit', slug };
+      return { type: 'workspaces' };
     }
 
     return { type: 'workspace' };
@@ -132,39 +138,35 @@ function App() {
         navigate('/');
       }
     } else if (view.type === 'workspaces') {
-      navigate('/workspaces');
+      navigate('/manage/workspaces');
     } else if (view.type === 'agents') {
-      navigate('/agents');
+      navigate('/manage/agents');
     } else if (view.type === 'prompts') {
-      navigate('/prompts');
+      navigate('/manage/prompts');
     } else if (view.type === 'manage') {
       navigate('/manage');
     } else if (view.type === 'plugins') {
-      navigate('/plugins');
+      navigate('/manage/plugins');
     } else if (view.type === 'tools') {
-      navigate('/tools');
+      navigate('/manage/tools');
     } else if (view.type === 'profile') {
       navigate('/profile');
     } else if (view.type === 'notifications') {
       navigate('/notifications');
     } else if (view.type === 'settings') {
-      navigate('/settings');
+      navigate('/sys/settings');
     } else if (view.type === 'monitoring') {
-      navigate('/monitoring');
+      navigate('/sys/monitoring');
     } else if (view.type === 'schedule') {
-      navigate('/schedule');
-    } else if (view.type === 'agent-new') {
-      navigate('/agents/new');
-    } else if (view.type === 'agent-edit' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/edit`);
+      navigate('/sys/schedule');
+    } else if (view.type === 'agent-new' || view.type === 'agent-edit') {
+      navigate('/manage/agents');
     } else if (view.type === 'agent-tools' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/tools`);
+      navigate(`/manage/agents/${view.slug}/tools`);
     } else if (view.type === 'workflows' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/workflows`);
-    } else if (view.type === 'workspace-new') {
-      navigate('/workspaces/new');
-    } else if (view.type === 'workspace-edit' && 'slug' in view) {
-      navigate(`/workspaces/${view.slug}/edit`);
+      navigate(`/manage/agents/${view.slug}/workflows`);
+    } else if (view.type === 'workspace-new' || view.type === 'workspace-edit') {
+      navigate('/manage/workspaces');
     }
   }, [selectedWorkspace, lastWorkspace, navigate]);
 
@@ -182,62 +184,41 @@ function App() {
     const handlePathChange = () => {
       const path = window.location.pathname;
 
-      // Check path for main app navigation
-      if (path === '/agents') {
-        setCurrentView({ type: 'agents' });
-        return;
-      } else if (path === '/manage') {
-        setCurrentView({ type: 'manage' });
-        return;
-      } else if (path === '/tools') {
-        setCurrentView({ type: 'tools' });
-        return;
-      } else if (path === '/prompts') {
-        setCurrentView({ type: 'prompts' });
-        return;
-      } else if (path === '/plugins') {
-        setCurrentView({ type: 'plugins' });
-        return;
-      } else if (path === '/profile') {
-        setCurrentView({ type: 'profile' });
-        return;
-      } else if (path === '/notifications') {
-        setCurrentView({ type: 'notifications' });
-        return;
-      } else if (path === '/monitoring') {
-        setCurrentView({ type: 'monitoring' });
-        return;
-      } else if (path === '/schedule') {
-        setCurrentView({ type: 'schedule' });
-        return;
-      } else if (path === '/settings') {
-        setCurrentView({ type: 'settings' });
-        return;
-      } else if (path === '/agents/new') {
-        setCurrentView({ type: 'agent-new' });
-        return;
-      } else if (path.startsWith('/agents/') && path.endsWith('/edit')) {
+      // Hierarchical routes
+      if (path === '/manage') { setCurrentView({ type: 'manage' }); return; }
+      if (path === '/manage/agents') { setCurrentView({ type: 'agents' }); return; }
+      if (path === '/manage/workspaces') { setCurrentView({ type: 'workspaces' }); return; }
+      if (path === '/manage/prompts') { setCurrentView({ type: 'prompts' }); return; }
+      if (path === '/manage/plugins') { setCurrentView({ type: 'plugins' }); return; }
+      if (path === '/manage/tools') { setCurrentView({ type: 'tools' }); return; }
+      if (path === '/sys/monitoring') { setCurrentView({ type: 'monitoring' }); return; }
+      if (path === '/sys/schedule') { setCurrentView({ type: 'schedule' }); return; }
+      if (path === '/sys/settings') { setCurrentView({ type: 'settings' }); return; }
+      if (path === '/profile') { setCurrentView({ type: 'profile' }); return; }
+      if (path === '/notifications') { setCurrentView({ type: 'notifications' }); return; }
+
+      // Legacy paths → redirect to new hierarchy
+      if (path === '/agents' || path === '/agents/new') { setCurrentView({ type: 'agents' }); return; }
+      if (path === '/prompts') { setCurrentView({ type: 'prompts' }); return; }
+      if (path === '/plugins') { setCurrentView({ type: 'plugins' }); return; }
+      if (path === '/tools') { setCurrentView({ type: 'tools' }); return; }
+      if (path === '/monitoring') { setCurrentView({ type: 'monitoring' }); return; }
+      if (path === '/schedule') { setCurrentView({ type: 'schedule' }); return; }
+      if (path === '/settings') { setCurrentView({ type: 'settings' }); return; }
+      if (path.startsWith('/agents/') && path.endsWith('/edit')) { setCurrentView({ type: 'agents' }); return; }
+      if (path.startsWith('/agents/') && path.endsWith('/tools')) {
         const slug = path.split('/')[2];
-        setCurrentView({ type: 'agent-edit', slug });
-        return;
-      } else if (path.startsWith('/agents/') && path.endsWith('/tools')) {
+        setCurrentView({ type: 'agent-tools', slug }); return;
+      }
+      if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
         const slug = path.split('/')[2];
-        setCurrentView({ type: 'agent-tools', slug });
-        return;
-      } else if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
-        const slug = path.split('/')[2];
-        setCurrentView({ type: 'workflows', slug });
-        return;
-      } else if (path === '/workspaces/new') {
-        setCurrentView({ type: 'workspace-new' });
-        return;
-      } else if (path.startsWith('/workspaces/') && path.endsWith('/edit')) {
-        const slug = path.split('/')[2];
-        setCurrentView({ type: 'workspace-edit', slug });
-        return;
+        setCurrentView({ type: 'workflows', slug }); return;
+      }
+      if (path === '/workspaces/new' || (path.startsWith('/workspaces/') && path.endsWith('/edit'))) {
+        setCurrentView({ type: 'workspaces' }); return;
       }
 
-      // Parse workspace paths from URL (for workspace tab navigation)
+      // Workspace paths
       if (path === '/workspaces') {
         setCurrentView({ type: 'workspaces' });
         return;
@@ -247,10 +228,7 @@ function App() {
         const workspaceSlug = pathParts[2];
         const tabId = pathParts[3];
 
-        // Skip if this is an edit path (already handled above)
-        if (workspaceSlug === 'new' || path.endsWith('/edit')) {
-          return;
-        }
+        if (workspaceSlug === 'new' || path.endsWith('/edit')) return;
 
         if (workspaceSlug && workspaceSlug !== selectedWorkspace) {
           handleWorkspaceSelect(workspaceSlug, tabId);
@@ -261,7 +239,6 @@ function App() {
         return;
       }
 
-      // Default to workspace if no path matches
       setCurrentView({ type: 'workspace' });
     };
 
@@ -449,7 +426,7 @@ function App() {
         )}
 
         {currentView.type === 'workspaces' && (
-          <WorkspacesView workspaces={workspaces} onNavigate={navigateToView} />
+          <WorkspacesView />
         )}
 
         {currentView.type === 'agents' && (
@@ -465,36 +442,18 @@ function App() {
         {currentView.type === 'prompts' && <PromptsView />}
         {currentView.type === 'plugins' && <PluginManagementView />}
         {currentView.type === 'tools' && <ToolsView />}
-        {currentView.type === 'agent-new' && (
-          <AgentEditorView
+        {(currentView.type === 'agent-new' || currentView.type === 'agent-edit') && (
+          <AgentsView
+            agents={agents}
             apiBase={API_BASE}
-            onBack={navigateToWorkspace}
-            onSaved={handleAgentSaved}
+            availableModels={availableModels}
+            defaultModel={appConfig?.defaultModel}
+            bedrockReady={!!systemStatus?.bedrock.credentialsFound}
+            onNavigate={navigateToView}
           />
         )}
-        {currentView.type === 'agent-edit' && (
-          <AgentEditorView
-            apiBase={API_BASE}
-            slug={currentView.slug}
-            initialTab={currentView.initialTab}
-            onBack={navigateToWorkspace}
-            onSaved={handleAgentSaved}
-          />
-        )}
-        {currentView.type === 'workspace-new' && (
-          <WorkspaceEditorView
-            apiBase={API_BASE}
-            onBack={navigateToWorkspace}
-            onSaved={handleWorkspaceSaved}
-          />
-        )}
-        {currentView.type === 'workspace-edit' && (
-          <WorkspaceEditorView
-            apiBase={API_BASE}
-            slug={currentView.slug}
-            onBack={navigateToWorkspace}
-            onSaved={handleWorkspaceSaved}
-          />
+        {(currentView.type === 'workspace-new' || currentView.type === 'workspace-edit') && (
+          <WorkspacesView />
         )}
         {currentView.type === 'agent-tools' && (
           <ToolManagementView

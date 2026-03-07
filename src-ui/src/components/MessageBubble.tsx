@@ -110,7 +110,7 @@ export function MessageBubble({
       >
         {msg.traceId && (
           <a
-            href={`/monitoring?filters=${encodeURIComponent(JSON.stringify({ trace: [msg.traceId] }))}`}
+            href={`/sys/monitoring?filters=${encodeURIComponent(JSON.stringify({ trace: [msg.traceId] }))}`}
             target="_blank"
             rel="noopener noreferrer"
             className="message__trace"

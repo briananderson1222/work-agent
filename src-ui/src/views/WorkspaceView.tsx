@@ -251,7 +251,7 @@ function EmptyWorkspaceOnboarding() {
         <div className="workspace-onboarding__actions">
           <button
             className="workspace-onboarding__card"
-            onClick={() => navigate('/workspaces/new')}
+            onClick={() => navigate('/manage/workspaces')}
           >
             <span className="workspace-onboarding__card-icon">✨</span>
             <div>
@@ -265,7 +265,7 @@ function EmptyWorkspaceOnboarding() {
           </button>
           <button
             className="workspace-onboarding__card"
-            onClick={() => navigate('/plugins')}
+            onClick={() => navigate('/manage/plugins')}
           >
             <span className="workspace-onboarding__card-icon">🧩</span>
             <div>
