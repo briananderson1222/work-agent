@@ -1,4 +1,4 @@
-import React from 'react';
+
 import type { ConnectionStatus } from '../core/types';
 
 const COLOR: Record<ConnectionStatus, string> = {

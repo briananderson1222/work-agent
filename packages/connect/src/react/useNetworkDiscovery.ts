@@ -147,7 +147,7 @@ function detectSubnets(): Promise<string[]> {
 
 /** '192.168.1.42' → '192.168.1.' */
 function toSubnetPrefix(ip: string): string {
-  return ip.split('.').slice(0, 3).join('.') + '.';
+  return `${ip.split('.').slice(0, 3).join('.')}.`;
 }
 
 function dedup(servers: DiscoveredServer[]): DiscoveredServer[] {

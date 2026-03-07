@@ -8,7 +8,7 @@ import { CWD, PIDFILE } from './helpers.js';
 export function isRunning(): boolean {
   if (!existsSync(PIDFILE)) return false;
   const [pid] = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
-  try { process.kill(parseInt(pid), 0); return true; } catch { return false; }
+  try { process.kill(parseInt(pid, 10), 0); return true; } catch { return false; }
 }
 
 export function isInstalled(): boolean {
@@ -80,7 +80,7 @@ export function stop(): void {
   if (!existsSync(PIDFILE)) return;
   const pids = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
   for (const pid of pids) {
-    try { process.kill(parseInt(pid)); } catch {}
+    try { process.kill(parseInt(pid, 10)); } catch {}
   }
   rmSync(PIDFILE, { force: true });
   console.log('  ✓ Stopped');
@@ -90,12 +90,12 @@ export function doctor(): void {
   console.log('Checking prerequisites...\n');
   let ok = true;
 
-  const check = (name: string, cmd: string, versionCmd?: string) => {
+  const check = (name: string, _cmd: string, versionCmd?: string) => {
     try {
       const ver = versionCmd
         ? execSync(versionCmd, { encoding: 'utf-8' }).trim()
         : '';
-      console.log(`  ✓ ${name}${ver ? ' ' + ver : ''}`);
+      console.log(`  ✓ ${name}${ver ? ` ${ver}` : ''}`);
     } catch {
       console.log(`  ✗ ${name} — not found`);
       ok = false;
@@ -115,7 +115,7 @@ export function doctor(): void {
     console.log('  ⚠ Rust — not installed (desktop builds unavailable)');
   }
 
-  const major = parseInt(process.version.slice(1));
+  const major = parseInt(process.version.slice(1), 10);
   if (major < 20) {
     console.log(`\n  ✗ Node.js ${process.version} is too old (need >= 20)`);
     ok = false;

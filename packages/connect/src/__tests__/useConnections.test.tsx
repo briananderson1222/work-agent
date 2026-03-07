@@ -4,7 +4,7 @@
  */
 // @vitest-environment jsdom
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ConnectionStore } from '../core/ConnectionStore';
 import { ConnectionsProvider, useConnections } from '../react/ConnectionsContext';
@@ -19,7 +19,7 @@ function memoryAdapter(): StorageAdapter {
   };
 }
 
-function makeStore(defaultUrl = 'http://localhost:3141') {
+function makeStore(_defaultUrl = 'http://localhost:3141') {
   return new ConnectionStore({ storage: memoryAdapter() });
 }
 

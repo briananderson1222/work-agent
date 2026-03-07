@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './FullScreen.css';
 import { errorQuips, loadingPhrases, loadingTips } from './phrases';
 
@@ -160,7 +160,7 @@ export function FullScreenError({
           </div>
         )}
         <h2 className="fs-error-title">{title}</h2>
-        {description && <p className="fs-error-desc" dangerouslySetInnerHTML={{ __html: description }} />}
+        {description && <p className="fs-error-desc">{description}</p>}
         <div className="fs-error-actions">
           {onRetry && (
             <button className="fs-btn fs-btn--primary" onClick={onRetry}>

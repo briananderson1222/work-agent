@@ -49,7 +49,7 @@ export function useConnectionStatus({
   useEffect(() => {
     setStatus('connecting');
     runCheck();
-  }, [apiBase, runCheck]);
+  }, [runCheck]);
 
   // Poll on interval
   useEffect(() => {

@@ -183,7 +183,7 @@ class StrandsAgentWrapper implements IAgent {
 
     async function* streamGenerator(): AsyncIterable<IStreamChunk> {
       let fullText = '';
-      let emittedStart = false;
+      const emittedStart = false;
       let emittedTextStart = false;
       const stream = agent.stream(input);
       const accUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };

@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, write
 import { join, resolve } from 'node:path';
 import { type PluginManifest, buildPlugin, copyPluginTools } from '@stallion-ai/shared';
 import {
-  AGENTS_DIR, CWD, PLUGINS_DIR, PROJECT_HOME, WORKSPACES_DIR,
+  AGENTS_DIR, PLUGINS_DIR, PROJECT_HOME, WORKSPACES_DIR,
   extractPluginName, isGitUrl, lookupDepInRegistries, parseGitSource, readManifest,
 } from './helpers.js';
 

@@ -2,7 +2,7 @@
  * ConnectionStore unit tests — pure Node, no DOM, no React.
  * Uses an in-memory storage adapter to stay deterministic.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, } from 'vitest';
 import { ConnectionStore } from '../core/ConnectionStore';
 import type { StorageAdapter } from '../core/types';
 

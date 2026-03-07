@@ -15,7 +15,6 @@ import { execSync } from 'node:child_process';
 import { extname, join } from 'node:path';
 import {
   buildPlugin,
-  readPluginManifest,
   resolvePluginTools,
   type WorkspaceConfig,
   type ToolCallResponse,

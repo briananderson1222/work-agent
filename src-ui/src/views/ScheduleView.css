@@ -308,7 +308,6 @@
   }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-}
 
 /* ── Success Rate Bar ── */
 .schedule__rate {

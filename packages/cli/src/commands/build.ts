@@ -9,6 +9,6 @@ export async function build(mode: 'production' | 'dev' = 'production'): Promise<
   if (result.built && result.bundlePath) {
     const size = readFileSync(result.bundlePath).length;
     const cssSize = result.cssPath ? readFileSync(result.cssPath).length : 0;
-    console.log(`✅ ${result.bundlePath.replace(CWD + '/', '')} (${(size / 1024).toFixed(1)}KB)${cssSize ? ` + css (${(cssSize / 1024).toFixed(1)}KB)` : ''}`);
+    console.log(`✅ ${result.bundlePath.replace(`${CWD}/`, '')} (${(size / 1024).toFixed(1)}KB)${cssSize ? ` + css (${(cssSize / 1024).toFixed(1)}KB)` : ''}`);
   }
 }
