@@ -1,0 +1,35 @@
+/**
+ * Template Service — built-in + plugin-contributed templates for agents and workspaces.
+ */
+
+import type { Template, ITemplateProvider } from '../providers/types.js';
+
+const BUILTIN_AGENT_TEMPLATES: Template[] = [
+  { id: 'chat-assistant', icon: '💬', label: 'Chat Assistant', description: 'General-purpose conversational agent', type: 'agent', form: { name: 'Chat Assistant', slug: 'chat-assistant', description: 'A helpful conversational AI assistant', prompt: "You are a helpful, friendly assistant. Answer questions clearly and concisely. If you're unsure about something, say so." } },
+  { id: 'code-helper', icon: '💻', label: 'Code Helper', description: 'Programming and development assistant', type: 'agent', form: { name: 'Code Helper', slug: 'code-helper', description: 'An AI assistant specialized in software development', prompt: 'You are an expert software engineer. Help with code reviews, debugging, architecture decisions, and writing clean, maintainable code. Always explain your reasoning.' } },
+  { id: 'writer', icon: '📝', label: 'Writer', description: 'Content creation and editing', type: 'agent', form: { name: 'Writer', slug: 'writer', description: 'An AI writing assistant for drafting and editing content', prompt: "You are a skilled writer and editor. Help draft, revise, and improve written content. Match the user's tone and style. Be concise unless asked for detail." } },
+  { id: 'research-analyst', icon: '🔬', label: 'Research Analyst', description: 'Deep research and analysis', type: 'agent', form: { name: 'Research Analyst', slug: 'research-analyst', description: 'An AI research assistant for analysis and synthesis', prompt: 'You are a thorough research analyst. Gather information, identify patterns, and provide well-structured analysis. Always cite your reasoning and note uncertainties.' } },
+];
+
+const BUILTIN_WORKSPACE_TEMPLATES: Template[] = [
+  { id: 'team-dashboard', icon: '🏢', label: 'Team Dashboard', description: 'Multi-tab workspace for team collaboration', type: 'workspace', form: { name: 'Team Dashboard', slug: 'team-dashboard', description: 'Central hub for team collaboration and communication', icon: '🏢' }, tabs: [{ id: 'chat', label: 'Chat', component: 'chat' }, { id: 'tasks', label: 'Tasks', component: 'canvas' }] },
+  { id: 'dev-workspace', icon: '🔧', label: 'Dev Workspace', description: 'Development-focused with code and docs tabs', type: 'workspace', form: { name: 'Dev Workspace', slug: 'dev-workspace', description: 'Development workspace with code review and documentation', icon: '🔧' }, tabs: [{ id: 'code', label: 'Code', component: 'chat' }, { id: 'docs', label: 'Docs', component: 'canvas' }] },
+  { id: 'sales-hub', icon: '📊', label: 'Sales Hub', description: 'Customer management and outreach', type: 'workspace', form: { name: 'Sales Hub', slug: 'sales-hub', description: 'Sales workspace for customer management and outreach', icon: '📊' }, tabs: [{ id: 'crm', label: 'CRM', component: 'chat' }, { id: 'outreach', label: 'Outreach', component: 'chat' }] },
+  { id: 'research', icon: '📚', label: 'Research', description: 'Research and knowledge management', type: 'workspace', form: { name: 'Research', slug: 'research', description: 'Research workspace for knowledge gathering and analysis', icon: '📚' }, tabs: [{ id: 'research', label: 'Research', component: 'chat' }, { id: 'notes', label: 'Notes', component: 'canvas' }] },
+];
+
+export class TemplateService {
+  private providers: ITemplateProvider[] = [];
+
+  addProvider(provider: ITemplateProvider) { this.providers.push(provider); }
+
+  async listTemplates(type?: 'agent' | 'workspace'): Promise<Template[]> {
+    const builtins = [...BUILTIN_AGENT_TEMPLATES, ...BUILTIN_WORKSPACE_TEMPLATES]
+      .map(t => ({ ...t, source: 'built-in' }));
+    const external = (await Promise.all(
+      this.providers.map(p => p.listTemplates().then(ts => ts.map(t => ({ ...t, source: p.id }))).catch(() => []))
+    )).flat();
+    const all = [...builtins, ...external];
+    return type ? all.filter(t => t.type === type) : all;
+  }
+}

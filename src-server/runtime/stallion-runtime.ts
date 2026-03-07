@@ -99,6 +99,10 @@ import { createPluginRoutes } from '../routes/plugins.js';
 import { createRegistryRoutes } from '../routes/registry.js';
 import { createFsRoutes } from '../routes/fs.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
+import { createPromptRoutes } from '../routes/prompts.js';
+import { PromptService } from '../services/prompt-service.js';
+import { createTemplateRoutes } from '../routes/templates.js';
+import { TemplateService } from '../services/template-service.js';
 import { createSystemRoutes } from '../routes/system.js';
 import { createToolRoutes } from '../routes/tools.js';
 import {
@@ -1030,6 +1034,8 @@ export class StallionRuntime {
       '/scheduler',
       createSchedulerRoutes(schedulerService, this.logger),
     );
+    app.route('/api/prompts', createPromptRoutes(new PromptService(), this.logger));
+    app.route('/api/templates', createTemplateRoutes(new TemplateService()));
 
     // Agent health check (agent-specific, not in monitoring routes)
     app.get('/agents/:slug/health', async (c) => {
