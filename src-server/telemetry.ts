@@ -17,7 +17,6 @@ const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
 if (endpoint) {
   sdk = new NodeSDK({
     serviceName: process.env.OTEL_SERVICE_NAME || 'stallion',
-    serviceVersion: process.env.npm_package_version || '0.1.0',
     traceExporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
     metricReader: new PeriodicExportingMetricReader({
       exporter: new OTLPMetricExporter({ url: `${endpoint}/v1/metrics` }),

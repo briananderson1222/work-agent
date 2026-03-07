@@ -531,7 +531,7 @@ export class StrandsFramework {
       systemPrompt: opts.instructions,
       tools: (opts.tools || []) as any[],
     });
-    return new StrandsAgentWrapper(agent, opts.name, opts.name, opts.model, null);
+    return new StrandsAgentWrapper(agent, opts.name, opts.name, opts.model, null, { agentSlug: opts.name });
   }
 
   async shutdown(): Promise<void> {

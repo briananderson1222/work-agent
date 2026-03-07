@@ -265,9 +265,9 @@ export function createToolApprovalHooks(
         // Calculate context tokens: accumulated outputs + latest input
         // Context represents what's in memory (grows with conversation)
         const newOutputTokens =
-          existingStats.outputTokens + (usage.completionTokens || usage.outputTokens || 0);
+          existingStats.outputTokens + (usage.completionTokens || ((usage as any).outputTokens) || 0);
         const newInputTokens =
-          existingStats.inputTokens + (usage.promptTokens || usage.inputTokens || 0);
+          existingStats.inputTokens + (usage.promptTokens || ((usage as any).inputTokens) || 0);
 
         // Get fixed token counts from cache (calculated once at agent initialization)
         const fixedTokens = agentFixedTokens.get(agentSlug);
@@ -374,9 +374,9 @@ export function createToolApprovalHooks(
         };
 
         const newModelOutputTokens =
-          currentModelStats.outputTokens + (usage.completionTokens || usage.outputTokens || 0);
+          currentModelStats.outputTokens + (usage.completionTokens || ((usage as any).outputTokens) || 0);
         const newModelInputTokens =
-          currentModelStats.inputTokens + (usage.promptTokens || usage.inputTokens || 0);
+          currentModelStats.inputTokens + (usage.promptTokens || ((usage as any).inputTokens) || 0);
 
         // Per-model context is harder to track accurately, use accumulated outputs as approximation
         const modelContextTokens =
@@ -406,7 +406,7 @@ export function createToolApprovalHooks(
 
         // Record OTel context and cost metrics
         otelContextTokens.add(systemPromptTokens + mcpServerTokens, { agent: agentSlug });
-        otelCost.add(cost, { agent: agentSlug });
+        otelCost.add(cost ?? 0, { agent: agentSlug });
 
         // Enrich the last assistant message with model metadata and usage
         try {
@@ -466,8 +466,8 @@ export function createToolApprovalHooks(
                     }
                   : undefined,
                 usage: {
-                  inputTokens: usage.promptTokens || usage.inputTokens || 0,
-                  outputTokens: usage.completionTokens || usage.outputTokens || 0,
+                  inputTokens: usage.promptTokens || ((usage as any).inputTokens) || 0,
+                  outputTokens: usage.completionTokens || ((usage as any).outputTokens) || 0,
                   totalTokens: usage.totalTokens || 0,
                   estimatedCost: cost,
                 },
