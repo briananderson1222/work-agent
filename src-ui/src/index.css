@@ -711,6 +711,10 @@ body {
   padding-bottom: var(--chat-dock-height, 49px);
 }
 
+.content-view:has(.page--full) {
+  padding-bottom: 0;
+}
+
 /* Legacy class names for backward compatibility */
 .workspace-panel {
   flex: 1;

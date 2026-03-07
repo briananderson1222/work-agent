@@ -37,7 +37,10 @@
 
 /* Desktop: small inline button */
 .gvb--desktop {
-  position: relative;
+  position: fixed;
+  bottom: 70px;
+  right: 16px;
+  z-index: 101;
   width: 32px;
   height: 32px;
 }
