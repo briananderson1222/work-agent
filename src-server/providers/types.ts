@@ -167,6 +167,47 @@ export interface IACPConnectionsProvider {
   getConnections(): ACPConnectionConfig[];
 }
 
+// ── Prompt Registry ────────────────────────────────
+
+export interface Prompt {
+  id: string;
+  name: string;
+  content: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  agent?: string;
+  source?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IPromptRegistryProvider {
+  readonly id: string;
+  readonly displayName: string;
+  listPrompts(): Promise<Prompt[]>;
+  getPrompt(id: string): Promise<Prompt | null>;
+}
+
+// ── Template Provider ──────────────────────────────────
+
+export interface Template {
+  id: string;
+  icon: string;
+  label: string;
+  description: string;
+  type: 'agent' | 'workspace';
+  form: Record<string, any>;
+  tabs?: Array<{ id: string; label: string; component: string }>;
+  source?: string;
+}
+
+export interface ITemplateProvider {
+  readonly id: string;
+  readonly displayName: string;
+  listTemplates(): Promise<Template[]>;
+}
+
 // ── Provider Cardinality Metadata ──────────────────────
 
 export type ProviderCardinality = 'singleton' | 'additive';
