@@ -21,7 +21,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
 
       - name: Build SDK
         run: cd packages/sdk && npm run build
@@ -55,7 +55,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
 
       - name: Build SDK
         run: cd packages/sdk && npm run build
