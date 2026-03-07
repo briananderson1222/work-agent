@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigation } from '../contexts/NavigationContext';
+import { ConfirmModal } from '../components/ConfirmModal';
 import {
   useAddJob,
   useDeleteJob,
@@ -749,6 +750,7 @@ export function ScheduleView() {
   const [editingJob, setEditingJob] = useState<any | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [prefill, setPrefill] = useState<any>(null);
+  const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; variant: 'danger' | 'warning'; onConfirm: () => void } | null>(null);
   const deepLinked = useRef(false);
   const [autoOpenRun, setAutoOpenRun] = useState<string | null>(null);
 
@@ -1024,8 +1026,12 @@ export function ScheduleView() {
                             <td className="schedule__td" onClick={(e) => {
                               e.stopPropagation();
                               if (running) {
-                                if (confirm(`Disabling '${job.name}' will cancel the running job. Continue?`))
-                                  toggleJob.mutate({ target: job.name, enabled: false });
+                                setConfirmAction({
+                                  title: 'Cancel Running Job',
+                                  message: `Disabling '${job.name}' will cancel the currently running job. Continue?`,
+                                  variant: 'warning',
+                                  onConfirm: () => { toggleJob.mutate({ target: job.name, enabled: false }); setConfirmAction(null); },
+                                });
                               } else {
                                 toggleJob.mutate({ target: job.name, enabled: !job.enabled });
                               }
@@ -1099,8 +1105,12 @@ export function ScheduleView() {
                                 <button
                                   title="Delete"
                                   onClick={() => {
-                                    if (confirm(`Delete job "${job.name}"?`))
-                                      deleteJob.mutate(job.name);
+                                    setConfirmAction({
+                                      title: 'Delete Job',
+                                      message: `Delete job "${job.name}"? This cannot be undone.`,
+                                      variant: 'danger',
+                                      onConfirm: () => { deleteJob.mutate(job.name); setConfirmAction(null); },
+                                    });
                                   }}
                                   className="schedule__action-btn schedule__action-btn--danger"
                                 >
@@ -1157,6 +1167,7 @@ export function ScheduleView() {
       )}
       {editingJob && <JobFormModal job={editingJob} onClose={() => setEditingJob(null)} providers={providers} />}
       {showAddForm && <JobFormModal prefill={prefill} onClose={() => { setShowAddForm(false); setPrefill(null); }} providers={providers} />}
+      {confirmAction && <ConfirmModal isOpen title={confirmAction.title} message={confirmAction.message} variant={confirmAction.variant} confirmLabel={confirmAction.variant === 'danger' ? 'Delete' : 'Disable'} onConfirm={confirmAction.onConfirm} onCancel={() => setConfirmAction(null)} />}
     </div>
   );
 }
