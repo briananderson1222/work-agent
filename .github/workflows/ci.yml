@@ -78,6 +78,8 @@ jobs:
 
       - name: Run Android viewport tests
         run: npx playwright test --project=android --reporter=list,html
+        env:
+          PW_BASE_URL: http://localhost:5173
 
       - name: Upload Playwright report
         if: always()
