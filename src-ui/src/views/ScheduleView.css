@@ -286,7 +286,6 @@
   background: var(--success-text);
 }
 .schedule__status-dot--off {
-  background: var(--error-text);
   border: 1px solid var(--error-text);
   background: transparent;
 }

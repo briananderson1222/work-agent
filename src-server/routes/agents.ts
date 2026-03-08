@@ -34,9 +34,10 @@ export function createAgentRoutes(
   app.post('/', async (c) => {
     try {
       const body = await c.req.json();
-      const { slug, spec } = await agentService.createAgent(body);
+      const { slug: _slug, ...spec } = body;
+      const { slug, spec: created } = await agentService.createAgent(spec);
       await reinitialize();
-      return c.json({ success: true, data: { slug, ...spec } }, 201);
+      return c.json({ success: true, data: { slug, ...created } }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
     }

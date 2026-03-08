@@ -17,6 +17,10 @@
       "description": "System instructions for the agent",
       "minLength": 1
     },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Human-readable description of the agent"
+    },
     "model": {
       "type": ["string", "null"],
       "description": "Bedrock model ID (optional, falls back to defaultModel)"
