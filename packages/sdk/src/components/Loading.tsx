@@ -1,3 +1,4 @@
+// biome-ignore lint/correctness/noUnusedImports: React needed for classic JSX transform
 import React, { useState, useEffect, useCallback } from 'react';
 import './FullScreen.css';
 import { errorQuips, loadingPhrases, loadingTips } from './phrases';

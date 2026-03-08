@@ -18,6 +18,7 @@ export class ReasoningHandler implements StreamHandler {
 
   // State for tag detection
   private inThinking = false;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used via this.thinkingContent in handler methods
   private thinkingContent = '';
   private partialTag = '';
 
@@ -85,6 +86,7 @@ export class ReasoningHandler implements StreamHandler {
    * Handle text-start event
    * Buffer it until we know if the content is thinking or regular text
    */
+  // biome-ignore lint/correctness/useYield: generator buffers chunks, yields in subsequent calls
   private async *handleTextStart(
     chunk: StreamChunk,
   ): AsyncGenerator<StreamChunk> {

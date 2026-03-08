@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { readdir } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { resolve, } from 'node:path';
 import { homedir } from 'node:os';
 
 export function createFsRoutes() {
@@ -31,7 +31,7 @@ export function createFsRoutes() {
         path: resolvedPath,
         entries: directories
       });
-    } catch (error) {
+    } catch {
       return c.json({ error: 'Path not found or permission denied' }, 404);
     }
   });

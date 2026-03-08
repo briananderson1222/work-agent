@@ -36,7 +36,7 @@ export function useAgent(slug: string): AgentData | null {
 }
 
 export function useAgentActions() {
-  const apiBase = useApiBase();
+  const { apiBase } = useApiBase();
   const invalidate = useInvalidateQuery();
 
   const createMutation = useApiMutation(

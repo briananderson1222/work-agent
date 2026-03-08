@@ -1,7 +1,5 @@
 import { useWorkspaceQuery, useWorkspacesQuery } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ACPConnectionsSection } from './components/ACPConnectionsSection';
-import { AgentIcon } from './components/AgentIcon';
 import { ChatDock } from './components/ChatDock';
 import { Header } from './components/Header';
 import { ShortcutsCheatsheet } from './components/ShortcutsCheatsheet';
@@ -19,9 +17,8 @@ import { useSystemStatus } from './hooks/useSystemStatus';
 import { setAuthCallback } from './lib/apiClient';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
-import type { AgentSummary, NavigationView } from './types';
+import type { NavigationView } from './types';
 import { GlobalVoiceButton } from './components/GlobalVoiceButton';
-import { AgentEditorView } from './views/AgentEditorView';
 import { MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
 import { ScheduleView } from './views/ScheduleView';
@@ -33,7 +30,6 @@ import { SettingsView } from './views/SettingsView';
 import { ToolManagementView } from './views/ToolManagementView';
 import { ToolsView } from './views/ToolsView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
-import { WorkspaceEditorView } from './views/WorkspaceEditorView';
 import { WorkspaceView } from './views/WorkspaceView';
 
 function App() {
@@ -248,7 +244,7 @@ function App() {
       window.removeEventListener('popstate', handlePathChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeTabId, handleWorkspaceSelect, selectedWorkspace]);
 
 
   const currentAgent = useMemo(
@@ -351,12 +347,12 @@ function App() {
     showToast('Settings saved successfully');
   };
 
-  const handleAgentSaved = () => {
+  const _handleAgentSaved = () => {
     showToast('Agent saved successfully');
     navigateToView({ type: 'agents' });
   };
 
-  const handleWorkspaceSaved = () => {
+  const _handleWorkspaceSaved = () => {
     showToast('Workspace saved successfully');
     navigateToWorkspace();
   };

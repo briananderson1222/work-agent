@@ -1,4 +1,6 @@
+// biome-ignore lint/correctness/noUnusedImports: React needed for classic JSX transform
 import React from 'react';
+
 import {
   createContext,
   type ReactNode,

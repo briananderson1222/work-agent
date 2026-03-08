@@ -1,3 +1,4 @@
+// biome-ignore lint/correctness/noUnusedImports: React needed for classic JSX transform
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface QRScannerProps {

@@ -39,6 +39,7 @@
 			"correctness": {
 				"useExhaustiveDependencies": "warn",
 				"noUnusedVariables": "warn",
+			"noUnusedPrivateClassMembers": "warn",
 				"noUnusedFunctionParameters": "warn",
 				"noUnusedImports": "warn",
 				"noInvalidUseBeforeDeclaration": "warn",

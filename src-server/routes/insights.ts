@@ -8,7 +8,7 @@ export function createInsightsRoutes(monitoringDir: string) {
   const app = new Hono();
 
   app.get('/insights', async (c) => {
-    const days = parseInt(c.req.query('days') || '14');
+    const days = parseInt(c.req.query('days') || '14', 10);
     const cutoff = Date.now() - days * 86400000;
 
     const toolUsage: Record<string, { calls: number; errors: number }> = {};

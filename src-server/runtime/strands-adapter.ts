@@ -24,21 +24,17 @@ import {
   AfterInvocationEvent,
 } from '@strands-agents/sdk';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { AgentSpec, AppConfig } from '../domain/types.js';
-import type { ConfigLoader } from '../domain/config-loader.js';
-import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import type { AgentSpec, } from '../domain/types.js';
 import type {
   AgentBundle,
   AgentCreationConfig,
   IAgent,
-  IAgentHooks,
   IGenerateResult,
   IMemory,
   IStreamChunk,
   IStreamResult,
   ITool,
   InvocationContext,
-  TokenUsage,
 } from './types.js';
 import type { CreateAgentOptions } from './voltagent-adapter.js';
 import {
@@ -183,7 +179,7 @@ class StrandsAgentWrapper implements IAgent {
 
     async function* streamGenerator(): AsyncIterable<IStreamChunk> {
       let fullText = '';
-      const emittedStart = false;
+      const _emittedStart = false;
       let emittedTextStart = false;
       const stream = agent.stream(input);
       const accUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };

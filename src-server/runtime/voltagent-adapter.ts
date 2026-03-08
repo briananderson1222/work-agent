@@ -12,11 +12,10 @@ import {
   type Tool,
   createHooks,
 } from '@voltagent/core';
-import type { AgentSpec, AppConfig } from '../domain/types.js';
+import type { AgentSpec, } from '../domain/types.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
-import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import * as MCPManager from './mcp-manager.js';
 import type {
@@ -137,7 +136,7 @@ export class VoltAgentFramework {
     // afterInvocation business logic (stats, cost, enrichment) comes from
     // the shared hooks passed via config.hooks.
     const sharedHooks = config.hooks;
-    const autoApprove = spec.tools?.autoApprove || [];
+    const _autoApprove = spec.tools?.autoApprove || [];
     const hooks = createHooks({
       onToolStart: async ({ tool, context }) => {
         const currentCount = (context.context.get('toolCallCount') as number) || 0;

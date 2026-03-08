@@ -355,7 +355,7 @@ export function createPluginRoutes(
       try {
         const manifest = JSON.parse(await readFile(join(tempDir, 'plugin.json'), 'utf-8'));
         const conflicts = detectConflicts(manifest);
-        const conflictIds = new Set(conflicts.map(c => `${c.type}:${c.id}`));
+        const _conflictIds = new Set(conflicts.map(c => `${c.type}:${c.id}`));
 
         const components: Array<{ type: string; id: string; detail?: string; conflict?: typeof conflicts[0] }> = [];
 
@@ -568,7 +568,7 @@ export function createPluginRoutes(
               timeout: 10000,
               stdio: 'pipe',
             });
-            const local = execSync('git rev-parse HEAD', {
+            const _local = execSync('git rev-parse HEAD', {
               cwd: dir,
               encoding: 'utf-8',
             }).trim();

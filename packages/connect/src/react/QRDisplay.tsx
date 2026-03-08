@@ -1,3 +1,4 @@
+// biome-ignore lint/correctness/noUnusedImports: React needed for classic JSX transform
 import React, { useEffect, useRef } from 'react';
 
 export interface QRDisplayProps {

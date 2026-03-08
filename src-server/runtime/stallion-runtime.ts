@@ -5,13 +5,12 @@
 
 import { EventEmitter } from 'node:events';
 import { createReadStream, existsSync } from 'node:fs';
-import { appendFile, mkdir, readdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   Agent,
   type MCPConfiguration,
-  Memory,
   type Tool,
   VoltAgent,
 } from '@voltagent/core';
@@ -44,7 +43,6 @@ import {
 } from '../telemetry/metrics.js';
 import { createAgentHooks } from './agent-hooks.js';
 import { VoltAgentFramework } from './voltagent-adapter.js';
-import type { CreateAgentOptions } from './voltagent-adapter.js';
 import { StrandsFramework } from './strands-adapter.js';
 
 // Type extensions for VoltAgent SDK
@@ -148,8 +146,8 @@ export class StallionRuntime {
   private agentSpecs: Map<string, AgentSpec> = new Map(); // Cache agent specs
   private memoryAdapters: Map<string, FileMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
-  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
+  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private agentFixedTokens: Map<
     string,
     { systemPromptTokens: number; mcpServerTokens: number }
@@ -985,10 +983,6 @@ export class StallionRuntime {
     );
 
     // === Workspace & Workflow Management ===
-    app.route(
-      '/workspaces',
-      createWorkspaceRoutes(this.workspaceService),
-    );
     app.route('/agents', createWorkflowRoutes(this.workspaceService));
 
     // === Route Modules ===
@@ -1801,8 +1795,8 @@ export class StallionRuntime {
               // Get the original agent spec and tools
               const originalSpec = this.agentSpecs.get(slug);
               const originalTools = this.agentTools.get(slug);
-              const originalMemory = agent.getMemory();
-              const originalHooks = agent.hooks;
+              const _originalMemory = agent.getMemory();
+              const _originalHooks = agent.hooks;
 
               const resolvedModel = this.modelCatalog
                 ? await this.modelCatalog.resolveModelId(modelOverride)

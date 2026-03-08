@@ -114,7 +114,7 @@ export class UsageAggregator {
       const content = await readFile(this.statsPath, 'utf-8');
       const stats = JSON.parse(content);
       // Clean up legacy "unknown" model bucket
-      delete stats.byModel?.['unknown'];
+      delete stats.byModel?.unknown;
       return stats;
     }
     return this.getEmptyStats();
