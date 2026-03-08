@@ -158,14 +158,14 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   useEffect(() => {
     loadTools();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadTools]);
 
   useEffect(() => {
     if (selectedSlug && !isCreating) {
       loadAgent(selectedSlug);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSlug]);
+  }, [selectedSlug, isCreating, loadAgent]);
 
   function handleSelect(slug: string) {
     setSelectedSlug(slug);

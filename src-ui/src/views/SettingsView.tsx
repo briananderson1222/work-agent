@@ -14,7 +14,6 @@ import { useApprovalNotifications } from '../hooks/useApprovalNotifications';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import type { MobileSettings } from '../hooks/useMobileSettings';
 import { useMobileSettings } from '../hooks/useMobileSettings';
-import { useTabKeyboardShortcuts } from '../hooks/useTabKeyboardShortcuts';
 import type { AppConfig, NavigationView } from '../types';
 import './SettingsView.css';
 

@@ -49,7 +49,7 @@ function localTime(iso: string | null) {
   });
 }
 
-function localizeSchedule(human: string | undefined, schedule: string, nextFire?: string): string {
+function _localizeSchedule(human: string | undefined, schedule: string, nextFire?: string): string {
   if (!human) return schedule;
   const ref = nextFire ? new Date(nextFire) : new Date();
   const m = schedule.match(/^cron\s+(\d+)\s+(\d+)\s/);
@@ -109,13 +109,13 @@ const IconFile = () => (
     <path d="M9 1.5V5.5h4" />
   </svg>
 );
-const IconPause = () => (
+const _IconPause = () => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <circle cx="8" cy="8" r="5.5" />
     <path d="M6 10l4-4M6 6l4 4" />
   </svg>
 );
-const IconResume = () => (
+const _IconResume = () => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <circle cx="8" cy="8" r="5.5" />
     <path d="M8 4.5v3.5" />
@@ -203,7 +203,7 @@ function JobDetail({ name, autoOpenRun }: { name: string; autoOpenRun?: string |
       autoOpened.current = true;
       handleViewOutput(idx);
     }
-  }, [autoOpenRun, reversedLogs]);
+  }, [autoOpenRun, reversedLogs, handleViewOutput]);
 
   const handleDownload = () => {
     if (!outputContent || viewIdx === null) return;
@@ -327,16 +327,16 @@ function validateCronField(value: string, min: number, max: number): string | nu
   if (value === '*') return null;
   for (const part of value.split(',')) {
     const [range, step] = part.split('/');
-    if (step && (isNaN(+step) || +step < 1)) return `invalid step "${step}"`;
+    if (step && (Number.isNaN(+step) || +step < 1)) return `invalid step "${step}"`;
     if (range === '*') continue;
     if (range.includes('-')) {
       const [a, b] = range.split('-').map(Number);
-      if (isNaN(a) || isNaN(b)) return `"${range}" is not a valid range`;
+      if (Number.isNaN(a) || Number.isNaN(b)) return `"${range}" is not a valid range`;
       if (a < min || b > max) return `range must be ${min}-${max}`;
       if (a > b) return `${a} > ${b} in range`;
     } else {
       const n = Number(range);
-      if (isNaN(n)) return `"${range}" is not a number`;
+      if (Number.isNaN(n)) return `"${range}" is not a number`;
       if (n < min || n > max) return `must be ${min}-${max}`;
     }
   }
@@ -744,7 +744,7 @@ export function ScheduleView() {
   const toggleJob = useToggleJob();
   const deleteJob = useDeleteJob();
   const openArtifact = useOpenArtifact();
-  const addJob = useAddJob();
+  const _addJob = useAddJob();
   const { updateParams } = useNavigation();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingJob, setEditingJob] = useState<any | null>(null);
@@ -999,7 +999,7 @@ export function ScheduleView() {
                   </thead>
                   <tbody>
                     {sortedJobs.map((job: any) => {
-                      const jobStats = statsMap.get(job.name);
+                      const _jobStats = statsMap.get(job.name);
                       const isExpanded = expanded === job.name;
                       const running = isRunning(job.name);
                       return (

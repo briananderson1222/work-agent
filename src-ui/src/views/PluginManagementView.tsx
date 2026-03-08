@@ -142,7 +142,7 @@ function PathAutocomplete({ value, onChange, onSubmit, placeholder, disabled, ap
 
   const pick = (path: string) => {
     pickingRef.current = true;
-    onChange(path + '/');
+    onChange(`${path}/`);
     setShow(true);
     inputRef.current?.focus();
     setTimeout(() => { pickingRef.current = false; }, 300);

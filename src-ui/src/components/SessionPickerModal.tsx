@@ -80,7 +80,7 @@ export function SessionPickerModal({
       loadConversations();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, loadConversations]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);

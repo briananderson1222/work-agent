@@ -58,7 +58,7 @@ export function useSchedulerEvents(enabled = true) {
       }
     };
     return () => es.close();
-  }, [apiBase, qc, showToast, navigate]);
+  }, [apiBase, qc, showToast, navigate, enabled]);
 
   const isRunning = useCallback(
     (jobName: string) => runningRef.current.has(jobName),

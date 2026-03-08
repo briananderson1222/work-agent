@@ -39,7 +39,7 @@ export function GlobalVoiceButton() {
       const [sessionId, session] = entry;
       sendMessage(sessionId, session.agentSlug ?? '', session.conversationId, text);
     }
-  }, [stt.state, stt.transcript]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stt.state, stt.transcript, activeChats, sendMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLButtonElement>) => {

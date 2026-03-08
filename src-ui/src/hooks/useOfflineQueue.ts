@@ -151,7 +151,7 @@ export function useOfflineQueue({
     if (enabled && online && pending.length > 0) {
       flush();
     }
-  }, [enabled, online]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled, online, flush, pending.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { pending, enqueue, discard, flush };
 }

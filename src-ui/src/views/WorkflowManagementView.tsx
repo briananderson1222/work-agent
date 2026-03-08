@@ -65,7 +65,7 @@ export function WorkflowManagementView({
   useEffect(() => {
     loadWorkflows();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadWorkflows]);
 
   const loadWorkflowContent = async (workflowId: string) => {
     try {

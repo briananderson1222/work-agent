@@ -60,7 +60,7 @@ export function useShareReceiver({
       params.delete('title');
       const clean =
         window.location.pathname +
-        (params.toString() ? '?' + params.toString() : '') +
+        (params.toString() ? `?${params.toString()}` : '') +
         window.location.hash;
       window.history.replaceState(null, '', clean);
       onShare(decodeURIComponent(urlShare));

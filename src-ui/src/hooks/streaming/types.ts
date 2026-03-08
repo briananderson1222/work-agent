@@ -55,7 +55,7 @@ export interface HandlerContext {
   sessionId: string;
   updateChat: (sessionId: string, updates: any) => void;
   apiBase?: string;
-  showToolApproval?: (options: any) => string | void;
+  showToolApproval?: (options: any) => string | undefined;
   handleToolApproval?: (
     sessionId: string,
     agentSlug: string,

@@ -67,7 +67,7 @@ export function WorkspaceSelector({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, focusedIndex, workspaces]); // eslint-disable-line
+  }, [isOpen, focusedIndex, workspaces, close, handleSelect]); // eslint-disable-line
 
   const getDropdownStyle = () => {
     if (!buttonRef.current) return {};

@@ -154,7 +154,7 @@ export function AgentEditorView({
     }
     loadTools();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  }, [slug, loadAgent, loadTools]);
 
   const validateStep = (step: FormStep): boolean => {
     const errors: Record<string, string> = {};

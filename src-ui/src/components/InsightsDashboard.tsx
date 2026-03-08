@@ -87,7 +87,7 @@ export function InsightsDashboard() {
           ) : topTools.map(([name, stats]) => (
             <div key={name} style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: 3 }}>
-                <span style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem' }}>{name.length > 25 ? name.slice(0, 25) + '…' : name}</span>
+                <span style={{ color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem' }}>{name.length > 25 ? `${name.slice(0, 25)}…` : name}</span>
                 <span style={{ color: 'var(--text-muted)' }}>{stats.calls}{stats.errors > 0 ? ` (${stats.errors} err)` : ''}</span>
               </div>
               <div style={{ height: 4, background: 'var(--bg-tertiary)', borderRadius: 2 }}>

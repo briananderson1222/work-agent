@@ -93,10 +93,10 @@ export function ChatDockBody({
   useEffect(() => {
     if (stt.state === 'idle' && stt.transcript) {
       chatInput.handleInputChange(
-        chatInput.input ? chatInput.input + ' ' + stt.transcript : stt.transcript,
+        chatInput.input ? `${chatInput.input} ${stt.transcript}` : stt.transcript,
       );
     }
-  }, [stt.state, stt.transcript]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stt.state, stt.transcript, chatInput.handleInputChange, chatInput.input]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Share sheet / PWA share target
   useShareReceiver({
@@ -111,7 +111,7 @@ export function ChatDockBody({
   const handleSendWithContext = useCallback(async () => {
     const ctx = getComposedContext();
     if (ctx && chatInput.input && !chatInput.input.startsWith('[')) {
-      chatInput.handleInputChange(ctx + '\n' + chatInput.input);
+      chatInput.handleInputChange(`${ctx}\n${chatInput.input}`);
       await new Promise((r) => setTimeout(r, 0));
     }
     return chatInput.handleSend();
@@ -132,7 +132,7 @@ export function ChatDockBody({
         .map((p) => p.content)
         .join(' ') ?? lastMsg.content ?? '';
     if (text.trim()) tts.speak(text.slice(0, 800));
-  }, [activeSession.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSession.status, activeSession.messages, settings.ttsReadbackEnabled, tts.speak]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
