@@ -576,7 +576,8 @@ export class FileMemoryAdapter implements StorageAdapter {
     userId: string,
     conversationId: string,
     options?: GetMessagesOptions,
-  ): Promise<UIMessage[]> {
+    _context?: any,
+  ): Promise<any[]> {
     let resourceId = await this.resolveResourceId(conversationId, userId);
     let messagesPath = this.getMessagesPath(resourceId, conversationId);
 
@@ -900,6 +901,10 @@ export class FileMemoryAdapter implements StorageAdapter {
       logger.error('Failed to read workflow state', { error });
       return null;
     }
+  }
+
+  async queryWorkflowRuns(_query: any): Promise<WorkflowStateEntry[]> {
+    return [];
   }
 
   async setWorkflowState(
