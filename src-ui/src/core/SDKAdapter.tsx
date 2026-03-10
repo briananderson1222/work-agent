@@ -44,12 +44,12 @@ export function SDKAdapter({
   // Get API base from the single source of truth
   const { apiBase } = useApiBase();
 
+  // Set layout context synchronously so plugin tool calls resolve correctly on first render
+  _setApiBase(apiBase);
+  _setLayoutContext(layout);
+
   // Set API base and layout context for SDK API functions
   useEffect(() => {
-    _setApiBase(apiBase);
-    _setLayoutContext(layout);
-
-    // Inject provider functions into SDK
     _setProviderFunctions({
       getProvider,
       hasProvider,
