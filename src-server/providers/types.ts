@@ -159,6 +159,100 @@ export interface ISchedulerProvider {
   subscribe?(send: (data: string) => void): () => void;
 }
 
+// ── LLM Provider ───────────────────────────────────────
+
+export interface LLMModel {
+  id: string;
+  name: string;
+  contextWindow?: number;
+  supportsTools?: boolean;
+  supportsVision?: boolean;
+}
+
+export interface LLMMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  toolCallId?: string;
+  toolCalls?: Array<{ id: string; name: string; arguments: unknown }>;
+}
+
+export interface LLMStreamOpts {
+  model: string;
+  messages: LLMMessage[];
+  tools?: ToolDef[];
+  temperature?: number;
+  maxTokens?: number;
+  signal?: AbortSignal;
+}
+
+export interface LLMStreamChunk {
+  type: 'text-delta' | 'tool-call' | 'tool-result' | 'finish' | 'error';
+  content?: string;
+  toolCall?: { id: string; name: string; arguments: unknown };
+  toolResult?: { id: string; result: unknown };
+  finishReason?: string;
+  usage?: { inputTokens: number; outputTokens: number };
+  error?: string;
+}
+
+export interface ILLMProvider {
+  readonly id: string;
+  readonly displayName: string;
+  listModels(): Promise<LLMModel[]>;
+  createStream(opts: LLMStreamOpts): AsyncIterable<LLMStreamChunk>;
+  supportsStreaming?(): boolean;
+  supportsToolCalling?(): boolean;
+  healthCheck?(): Promise<boolean>;
+}
+
+// ── Embedding Provider ─────────────────────────────────
+
+export interface IEmbeddingProvider {
+  readonly id: string;
+  readonly displayName: string;
+  embed(texts: string[]): Promise<number[][]>;
+  dimensions(): number;
+  healthCheck?(): Promise<boolean>;
+}
+
+// ── Vector DB Provider ─────────────────────────────────
+
+export interface VectorDocument {
+  id: string;
+  vector: number[];
+  text: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface VectorSearchResult {
+  id: string;
+  text: string;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface IVectorDbProvider {
+  readonly id: string;
+  readonly displayName: string;
+  createNamespace(namespace: string): Promise<void>;
+  deleteNamespace(namespace: string): Promise<void>;
+  namespaceExists(namespace: string): Promise<boolean>;
+  addDocuments(namespace: string, docs: VectorDocument[]): Promise<void>;
+  deleteDocuments(namespace: string, docIds: string[]): Promise<void>;
+  search(namespace: string, query: number[], topK: number, threshold?: number): Promise<VectorSearchResult[]>;
+  count(namespace: string): Promise<number>;
+}
+
+// ── Layout Type Provider ───────────────────────────────
+
+export interface ILayoutTypeProvider {
+  readonly id: string;
+  readonly displayName: string;
+  readonly icon: string;
+  getConfigSchema?(): unknown;
+  getDefaultConfig(): Record<string, unknown>;
+}
+
 // ── ACP Connections Provider ───────────────────────────
 
 import type { ACPConnectionConfig } from '../domain/types.js';
@@ -223,4 +317,8 @@ export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
   toolRegistry: 'additive',
   onboarding: 'additive',
   acpConnections: 'additive',
+  llmProvider: 'additive',
+  embeddingProvider: 'additive',
+  vectorDbProvider: 'additive',
+  layoutType: 'additive',
 };

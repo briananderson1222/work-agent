@@ -101,8 +101,6 @@ import { createFsRoutes } from '../routes/fs.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createPromptRoutes } from '../routes/prompts.js';
 import { PromptService } from '../services/prompt-service.js';
-import { createTemplateRoutes } from '../routes/templates.js';
-import { TemplateService } from '../services/template-service.js';
 import { createSystemRoutes } from '../routes/system.js';
 import { createToolRoutes } from '../routes/tools.js';
 import {
@@ -115,6 +113,23 @@ import { ApprovalRegistry } from '../services/approval-registry.js';
 import { MCPService } from '../services/mcp-service.js';
 import { SchedulerService } from '../services/scheduler-service.js';
 import { WorkspaceService } from '../services/workspace-service.js';
+import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
+import { migrateWorkspacesToProject } from '../domain/migration.js';
+import { ProjectService } from '../services/project-service.js';
+import { ProviderService } from '../services/provider-service.js';
+import { createProjectRoutes } from '../routes/projects.js';
+import { createProviderRoutes } from '../routes/providers.js';
+import { LanceDBProvider } from '../providers/lancedb-provider.js';
+import { KnowledgeService } from '../services/knowledge-service.js';
+import { createKnowledgeRoutes, createCrossProjectKnowledgeRoutes } from '../routes/knowledge.js';
+import { FileTreeService } from '../services/file-tree-service.js';
+import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
+import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
+import { TerminalService } from '../services/terminal-service.js';
+import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
+import { createCodingRoutes } from '../routes/coding.js';
+import { createLLMProviderFromConfig, streamWithProvider } from '../services/llm-router.js';
+import { createTemplateRoutes } from '../routes/templates.js';
 import { isAuthError } from '../utils/auth-errors.js';
 import { InjectableStream } from './streaming/InjectableStream.js';
 import modelsRoute from '../routes/models.js';
@@ -190,6 +205,13 @@ export class StallionRuntime {
   private agentService!: AgentService;
   private mcpService!: MCPService;
   private workspaceService!: WorkspaceService;
+  private storageAdapter!: FileStorageAdapter;
+  private projectService!: ProjectService;
+  private providerService!: ProviderService;
+  private knowledgeService!: KnowledgeService;
+  private fileTreeService!: FileTreeService;
+  private terminalService!: TerminalService;
+  private terminalWsServer!: TerminalWebSocketServer;
   private acpBridge: ACPManager;
   public readonly eventBus = new EventBus();
   private framework!: VoltAgentFramework | StrandsFramework;
@@ -231,6 +253,21 @@ export class StallionRuntime {
       this.configLoader,
       this.logger,
     );
+    this.storageAdapter = new FileStorageAdapter(this.configLoader.getProjectHomeDir());
+    this.projectService = new ProjectService(this.storageAdapter);
+    this.providerService = new ProviderService(this.storageAdapter, () => this.configLoader.loadAppConfig());
+    this.knowledgeService = new KnowledgeService(
+      new LanceDBProvider({ dataDir: `${projectHomeDir}/vectordb` }),
+      null,
+      projectHomeDir,
+      this.storageAdapter,
+    );
+    this.fileTreeService = new FileTreeService();
+    const ptyAdapter = new NodePtyAdapter();
+    const historyStore = new FileTerminalHistoryStore();
+    this.terminalService = new TerminalService(ptyAdapter, historyStore);
+    this.terminalWsServer = new TerminalWebSocketServer(this.terminalService);
+    this.terminalWsServer.start(this.port + 1);
     this.acpBridge = new ACPManager(
       this.approvalRegistry,
       this.logger,
@@ -372,6 +409,29 @@ export class StallionRuntime {
       },
       30 * 60 * 1000,
     );
+
+    // Migrate legacy workspaces to project structure
+    await migrateWorkspacesToProject(this.configLoader.getProjectHomeDir());
+
+    // Seed default provider connections if none exist
+    const existingProviders = this.storageAdapter.listProviderConnections();
+    if (existingProviders.length === 0) {
+      try {
+        const { checkBedrockCredentials } = await import('../providers/bedrock.js');
+        const hasCreds = await checkBedrockCredentials();
+        if (hasCreds) {
+          this.storageAdapter.saveProviderConnection({
+            id: crypto.randomUUID(),
+            type: 'bedrock',
+            name: 'Amazon Bedrock',
+            config: { region: this.appConfig.region },
+            enabled: true,
+            capabilities: ['llm'],
+          });
+          this.logger.info('Seeded default Bedrock provider connection');
+        }
+      } catch { /* ignore */ }
+    }
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
@@ -991,6 +1051,15 @@ export class StallionRuntime {
     );
     app.route('/agents', createWorkflowRoutes(this.workspaceService));
 
+    // === Project Management ===
+    app.route('/api/projects', createProjectRoutes(this.projectService, this.storageAdapter, this.configLoader.getProjectHomeDir()));
+    app.route('/api/providers', createProviderRoutes(this.providerService));
+    app.route('/api/projects/:slug/knowledge', createKnowledgeRoutes(this.knowledgeService));
+    app.route('/api/knowledge', createCrossProjectKnowledgeRoutes(this.knowledgeService, this.storageAdapter));
+    app.route('/api/coding', createCodingRoutes(this.fileTreeService));
+    app.get('/api/coding/terminal-port', (c) => c.json({ success: true, port: this.port + 1 }));
+    app.route('/api/templates', createTemplateRoutes(this.storageAdapter));
+
     // === Route Modules ===
     app.route(
       '/config',
@@ -1035,7 +1104,6 @@ export class StallionRuntime {
       createSchedulerRoutes(schedulerService, this.logger),
     );
     app.route('/api/prompts', createPromptRoutes(new PromptService(), this.logger));
-    app.route('/api/templates', createTemplateRoutes(new TemplateService()));
 
     // Agent health check (agent-specific, not in monitoring routes)
     app.get('/agents/:slug/health', async (c) => {
@@ -1732,11 +1800,116 @@ export class StallionRuntime {
       const slug = c.req.param('slug');
 
       try {
-        const { input, options = {} } = await c.req.json();
+        const { input, options = {}, projectSlug } = await c.req.json();
 
         // ACP routing — delegate to kiro-cli if this is an ACP agent
         if (this.acpBridge.hasAgent(slug)) {
-          return this.acpBridge.handleChat(c, slug, input, options);
+          let acpCwd: string | undefined;
+          if (projectSlug) {
+            try {
+              const project = this.storageAdapter.getProject(projectSlug);
+              const primaryDir = project.directories?.find((d: any) => d.role === 'primary');
+              if (primaryDir) acpCwd = primaryDir.path;
+            } catch { /* use default */ }
+          }
+          return this.acpBridge.handleChat(c, slug, input, options, acpCwd ? { cwd: acpCwd } : undefined);
+        }
+
+        // Resolve project provider override when projectSlug is provided
+        let useAlternateProvider = false;
+        let resolvedProviderConn: any = null;
+        if (projectSlug && !options.model) {
+          try {
+            const resolved = await this.providerService.resolveProvider({ projectSlug });
+            if (resolved.model) {
+              options.model = resolved.model;
+            }
+            // Check if this is a non-Bedrock provider that needs alternate routing
+            if (resolved.providerId && resolved.providerId !== 'bedrock') {
+              const connections = this.providerService.listProviderConnections();
+              resolvedProviderConn = connections.find((c: any) => c.id === resolved.providerId);
+              if (resolvedProviderConn && resolvedProviderConn.type !== 'bedrock') {
+                useAlternateProvider = true;
+              }
+            }
+          } catch (err: any) {
+            this.logger.warn('Failed to resolve project provider', { projectSlug, error: err.message });
+          }
+        }
+
+        // RAG context injection — query project knowledge base
+        let ragContext: string | null = null;
+        if (projectSlug) {
+          try {
+            const userMessage = typeof input === 'string' ? input : (Array.isArray(input) ? input.find((m: any) => m.role === 'user')?.parts?.find((p: any) => p.type === 'text')?.text || '' : '');
+            if (userMessage) {
+              ragContext = await this.knowledgeService.getRAGContext(projectSlug, userMessage);
+            }
+          } catch (err: any) {
+            this.logger.debug('RAG context retrieval failed', { projectSlug, error: err.message });
+          }
+        }
+
+        // Route to alternate provider (Ollama, OpenAI-compat) if resolved
+        if (useAlternateProvider && resolvedProviderConn) {
+          const llmProvider = createLLMProviderFromConfig(resolvedProviderConn);
+          if (llmProvider) {
+            c.header('Content-Type', 'text/event-stream');
+            c.header('Cache-Control', 'no-cache');
+            c.header('Connection', 'keep-alive');
+            c.header('X-Accel-Buffering', 'no');
+
+            return stream(c, async (streamWriter) => {
+              const convId = options.conversationId || `${slug}:${Date.now()}`;
+              const messages: Array<{ role: string; content: string }> = [];
+
+              // Add system prompt from agent spec
+              const agentSpec = this.agentSpecs.get(slug);
+              if (agentSpec?.prompt) {
+                let systemPrompt = agentSpec.prompt;
+                if (ragContext) systemPrompt = `${ragContext}\n\n${systemPrompt}`;
+                messages.push({ role: 'system', content: systemPrompt });
+              } else if (ragContext) {
+                messages.push({ role: 'system', content: ragContext });
+              }
+
+              // Add conversation history from memory adapter
+              if (options.conversationId) {
+                try {
+                  const adapter = this.memoryAdapters.get(slug);
+                  if (adapter) {
+                    const userId = options.userId || 'default-user';
+                    const msgs = await adapter.getMessages(userId, options.conversationId);
+                    if (msgs) {
+                      for (const msg of msgs) {
+                        // UIMessage uses parts array, extract text content
+                        const textParts = (msg.parts || []).filter((p: any) => p.type === 'text').map((p: any) => p.text);
+                        const content = textParts.join('\n') || '';
+                        if (content) messages.push({ role: msg.role as string, content });
+                      }
+                    }
+                  }
+                } catch { /* no history */ }
+              }
+
+              // Add current user message
+              const userText = typeof input === 'string' ? input : (Array.isArray(input) ? input.find((m: any) => m.role === 'user')?.parts?.find((p: any) => p.type === 'text')?.text || '' : '');
+              messages.push({ role: 'user', content: userText });
+
+              try {
+                await streamWithProvider(
+                  llmProvider,
+                  options.model || resolvedProviderConn.config?.defaultModel || 'default',
+                  messages as any,
+                  { write: (data: string) => { streamWriter.write(data); return Promise.resolve(); } },
+                  convId,
+                  c.req.raw.signal,
+                );
+              } catch (err: any) {
+                await streamWriter.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+              }
+            });
+          }
         }
 
         // DEBUG: Log image data to trace truncation
@@ -1984,7 +2157,22 @@ export class StallionRuntime {
             const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
             operationContext.traceId = traceId;
 
-            result = await agent.streamText(input, operationContext);
+            // Inject RAG context into the input for Bedrock path
+            let finalInput = input;
+            if (ragContext && typeof input === 'string') {
+              finalInput = `${ragContext}\n\n${input}`;
+            } else if (ragContext && Array.isArray(input)) {
+              // Prepend RAG context as a system-like prefix to the first user message
+              const clone = JSON.parse(JSON.stringify(input));
+              const userMsg = clone.find((m: any) => m.role === 'user');
+              if (userMsg?.parts) {
+                const textPart = userMsg.parts.find((p: any) => p.type === 'text');
+                if (textPart) textPart.text = `${ragContext}\n\n${textPart.text}`;
+              }
+              finalInput = clone;
+            }
+
+            result = await agent.streamText(finalInput, operationContext);
 
             // Set agent status to running
             this.agentStatus.set(slug, 'running');
@@ -2843,6 +3031,10 @@ export class StallionRuntime {
 
     // Shutdown ACP bridge
     await this.acpBridge.shutdown();
+
+    // Shutdown terminal
+    this.terminalWsServer.stop();
+    await this.terminalService.dispose();
 
     // Dispose config loader
     await this.configLoader.dispose();
