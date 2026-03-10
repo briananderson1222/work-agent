@@ -16,14 +16,23 @@ export function isInstalled(): boolean {
     existsSync(join(CWD, 'dist-ui'));
 }
 
-export function start(serverPort = 3141, uiPort = 3000, logFile?: string): void {
+export interface StartOptions {
+  serverPort?: number;
+  uiPort?: number;
+  logFile?: string;
+  build?: boolean;
+  baseDir?: string;
+}
+
+export function start(opts: StartOptions = {}): void {
+  const { serverPort = 3141, uiPort = 3000, logFile, build, baseDir } = opts;
+
   if (isRunning()) {
     console.log(`✓ Already running\n  UI:   http://localhost:${uiPort}\n  Stop: stallion stop`);
     return;
   }
 
-  const firstBuild = !isInstalled();
-  if (firstBuild) {
+  if (build || !isInstalled()) {
     console.log('Building application...');
     execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
     execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
@@ -37,23 +46,34 @@ export function start(serverPort = 3141, uiPort = 3000, logFile?: string): void 
     serverStdio = ['ignore', fd, fd];
   }
 
+  const serverEnv: Record<string, string> = { ...process.env as any, PORT: String(serverPort) };
+  if (baseDir) serverEnv.STALLION_AI_DIR = baseDir;
+
   const serverProc = spawn('node', ['dist-server/index.js'], {
-    cwd: CWD, stdio: serverStdio, detached: true,
-    env: { ...process.env, PORT: String(serverPort) },
+    cwd: CWD, stdio: serverStdio, detached: true, env: serverEnv,
   });
   serverProc.unref();
 
+  const apiBase = `http://localhost:${serverPort}`;
   const uiProc = spawn('node', ['-e', `
     const http=require('http'),fs=require('fs'),path=require('path');
     const dir=path.join(process.cwd(),'dist-ui');
     const mime={'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff','.ttf':'font/ttf','.map':'application/json'};
+    const inject='<script>window.__API_BASE__=${JSON.stringify(apiBase)}</script>';
     http.createServer((req,res)=>{
       let u=req.url.split('?')[0];
       let p=path.join(dir,u==='/'?'index.html':u);
       if(!fs.existsSync(p)||fs.statSync(p).isDirectory())p=path.join(dir,'index.html');
       const ext=path.extname(p);
-      res.writeHead(200,{'Content-Type':mime[ext]||'application/octet-stream','Cache-Control':'no-cache'});
-      fs.createReadStream(p).pipe(res);
+      if(ext==='.html'){
+        let html=fs.readFileSync(p,'utf-8');
+        html=html.replace('<head>','<head>'+inject);
+        res.writeHead(200,{'Content-Type':'text/html','Cache-Control':'no-cache'});
+        res.end(html);
+      } else {
+        res.writeHead(200,{'Content-Type':mime[ext]||'application/octet-stream','Cache-Control':'no-cache'});
+        fs.createReadStream(p).pipe(res);
+      }
     }).listen(${uiPort});
   `], {
     cwd: CWD, stdio: 'ignore', detached: true, env: { ...process.env },

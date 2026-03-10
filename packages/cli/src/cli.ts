@@ -68,13 +68,17 @@ async function main() {
       let serverPort = 3141;
       let uiPort = 3000;
       let logFile: string | undefined;
+      let buildFlag = false;
+      let baseDir: string | undefined;
       for (const arg of args) {
         if (arg.startsWith('--port=')) serverPort = parseInt(arg.split('=')[1], 10);
         else if (arg.startsWith('--ui-port=')) uiPort = parseInt(arg.split('=')[1], 10);
         else if (arg.startsWith('--log=')) logFile = arg.split('=')[1];
         else if (arg === '--log') logFile = '/tmp/stallion-server.log';
+        else if (arg === '--build') buildFlag = true;
+        else if (arg.startsWith('--base=')) baseDir = arg.split('=')[1];
       }
-      start(serverPort, uiPort, logFile);
+      start({ serverPort, uiPort, logFile, build: buildFlag, baseDir });
       break;
     }
     case 'stop':
@@ -119,6 +123,8 @@ Usage:
   stallion start                Start the application (auto-builds if needed)
     --clean               Wipe and rebuild before starting
     --force               Skip confirmation prompt (use with --clean)
+    --build               Force rebuild before starting
+    --base=<dir>          Data directory (default: ~/.stallion-ai)
     --port=<n>            Server port (default: 3141)
     --ui-port=<n>         UI port (default: 3000)
   stallion stop                 Stop running application

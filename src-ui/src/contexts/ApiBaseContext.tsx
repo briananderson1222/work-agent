@@ -6,7 +6,9 @@ import { type ReactNode } from 'react';
 import { ConnectionsProvider, useConnections } from '@stallion-ai/connect';
 
 const DEFAULT_API_BASE =
-  import.meta.env.VITE_API_BASE || 'http://localhost:3141';
+  (window as Window & { __API_BASE__?: string }).__API_BASE__ ||
+  import.meta.env.VITE_API_BASE ||
+  'http://localhost:3141';
 
 export function ApiBaseProvider({ children }: { children: ReactNode }) {
   return (

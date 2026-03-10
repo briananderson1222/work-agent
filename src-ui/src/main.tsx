@@ -72,7 +72,7 @@ window.addEventListener('hashchange', () => {
   lastHash = newHash;
 });
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3141';
+const API_BASE = (window as Window & { __API_BASE__?: string }).__API_BASE__ || import.meta.env.VITE_API_BASE || 'http://localhost:3141';
 
 // Set API base for SDK before rendering
 _setApiBase(API_BASE);
