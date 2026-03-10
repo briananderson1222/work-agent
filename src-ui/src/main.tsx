@@ -41,6 +41,7 @@ import { MessageContextContext } from './contexts/MessageContextContext';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { PreviewProvider } from './contexts/PreviewContext';
 import { StreamingProvider } from './contexts/StreamingContext';
+import { SyntaxHighlighterProvider } from './contexts/SyntaxHighlighterContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { VoiceProviderContext } from './contexts/VoiceProviderContext';
 import { WorkflowsProvider } from './contexts/WorkflowsContext';
@@ -72,7 +73,27 @@ window.addEventListener('hashchange', () => {
   lastHash = newHash;
 });
 
-const API_BASE = (window as Window & { __API_BASE__?: string }).__API_BASE__ || import.meta.env.VITE_API_BASE || 'http://localhost:3141';
+const API_BASE = (() => {
+  // Prefer injected base from CLI --base flag
+  const injected = (window as Window & { __API_BASE__?: string }).__API_BASE__;
+  if (injected) return injected;
+  // Prefer the active connection URL from the connect system (stored in localStorage)
+  try {
+    const raw = localStorage.getItem('stallion-connect-connections');
+    const activeId = localStorage.getItem('stallion-connect-connections-active');
+    if (raw) {
+      const connections = JSON.parse(raw);
+      const active = activeId
+        ? connections.find((c: any) => c.id === activeId) ?? connections[0]
+        : connections[0];
+      if (active?.url) return active.url;
+    }
+  } catch {}
+  return import.meta.env.VITE_API_BASE || 'http://localhost:3141';
+})();
+
+// Expose for non-React code paths (ActiveChatsContext, ConfigContext) that check window.__API_BASE__
+(window as any).__API_BASE__ = API_BASE;
 
 // Set API base for SDK before rendering
 _setApiBase(API_BASE);
@@ -84,6 +105,7 @@ pluginRegistry.initialize().then(() => {
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <ApiBaseProvider>
+          <SyntaxHighlighterProvider>
           <AuthProvider>
             <OnboardingGate>
               <PermissionManager>
@@ -116,6 +138,7 @@ pluginRegistry.initialize().then(() => {
               </PermissionManager>
             </OnboardingGate>
           </AuthProvider>
+          </SyntaxHighlighterProvider>
         </ApiBaseProvider>
       </QueryClientProvider>
     </React.StrictMode>,

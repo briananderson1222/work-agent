@@ -204,6 +204,48 @@ export async function install(source: string, skipList: string[] = []): Promise<
       wsConfig.plugin = manifest.name;
       writeFileSync(join(targetDir, 'workspace.json'), JSON.stringify(wsConfig, null, 2));
       console.log(`  ✓ Workspace: ${manifest.workspace.slug}`);
+
+      // Auto-apply layout to project
+      const projectsDir = join(PROJECT_HOME, 'projects');
+      if (existsSync(projectsDir)) {
+        const projectSlugs = readdirSync(projectsDir, { withFileTypes: true })
+          .filter(d => d.isDirectory() && existsSync(join(projectsDir, d.name, 'project.json')))
+          .map(d => d.name);
+
+        let targetProject = projectSlugs.length === 1 ? projectSlugs[0] : null;
+
+        // If --project flag was passed, use that
+        const projectFlag = process.argv.find(a => a.startsWith('--project='));
+        if (projectFlag) targetProject = projectFlag.split('=')[1];
+
+        if (targetProject) {
+          const layoutsDir = join(projectsDir, targetProject, 'layouts');
+          mkdirSync(layoutsDir, { recursive: true });
+          // Check if already applied
+          const existing = existsSync(layoutsDir) && readdirSync(layoutsDir).some(f => {
+            try { return JSON.parse(readFileSync(join(layoutsDir, f), 'utf-8')).slug === wsConfig.slug; } catch { return false; }
+          });
+          if (!existing) {
+            const layout = {
+              id: crypto.randomUUID(),
+              projectSlug: targetProject,
+              type: 'chat',
+              name: wsConfig.name,
+              slug: wsConfig.slug,
+              icon: wsConfig.icon,
+              description: wsConfig.description,
+              config: { plugin: manifest.name, tabs: wsConfig.tabs, globalPrompts: wsConfig.globalPrompts, defaultAgent: wsConfig.defaultAgent, availableAgents: wsConfig.availableAgents, requiredProviders: wsConfig.requiredProviders },
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            writeFileSync(join(layoutsDir, `${wsConfig.slug}.json`), JSON.stringify(layout, null, 2));
+            console.log(`  ✓ Layout applied to project: ${targetProject}`);
+          }
+        } else if (projectSlugs.length > 1) {
+          console.log(`  ℹ Multiple projects found. Use --project=<slug> to apply layout, or add via UI.`);
+          console.log(`    Projects: ${projectSlugs.join(', ')}`);
+        }
+      }
     }
   }
 

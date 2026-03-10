@@ -13,10 +13,14 @@ interface ChatDockTabBarProps {
   focusSession: (id: string) => void;
   removeSession: (id: string) => void;
   openConversation: (conversationId: string, agentSlug: string) => void;
-  openChatForAgent: (agent: AgentData) => void;
+  openChatForAgent: (agent: AgentData, projectSlug?: string, projectName?: string) => void;
   updateChat: (id: string, updates: { title?: string }) => void;
   setShowSessionPicker: (show: boolean) => void;
   setShowNewChatModal: (show: boolean) => void;
+  projects: Array<{ slug: string; name: string; icon?: string }>;
+  projectFilter: string | null;
+  setProjectFilter: (filter: string | null) => void;
+  selectedProject: string | null;
 }
 
 export function ChatDockTabBar({
@@ -30,6 +34,10 @@ export function ChatDockTabBar({
   updateChat,
   setShowSessionPicker,
   setShowNewChatModal,
+  projects,
+  projectFilter,
+  setProjectFilter,
+  selectedProject: _selectedProject,
 }: ChatDockTabBarProps) {
   const agents = useAgents();
   const availableModels = useModels();

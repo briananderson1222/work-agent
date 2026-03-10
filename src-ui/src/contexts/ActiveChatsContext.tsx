@@ -32,6 +32,9 @@ type ChatUIState = {
   agentName?: string;
   title?: string;
   conversationId?: string; // Backend conversation ID (set after first message)
+  projectSlug?: string;
+  projectName?: string;
+  focusDirectoryId?: string;
   // Optimistic messages (shown immediately, replaced when backend responds)
   messages?: Array<{
     role: 'user' | 'assistant' | 'system';
@@ -140,6 +143,8 @@ class ActiveChatsStore {
           conversationId: chat.conversationId!,
           agentSlug: chat.agentSlug!,
           model: chat.model,
+          projectSlug: chat.projectSlug,
+          projectName: chat.projectName,
           sessionAutoApprove: chat.sessionAutoApprove || [],
           ephemeralMessages: chat.ephemeralMessages || [],
           inputHistory: chat.inputHistory || [],
@@ -179,7 +184,7 @@ class ActiveChatsStore {
 
   initChat(
     conversationId: string,
-    metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string },
+    metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string; projectSlug?: string; projectName?: string },
   ) {
     if (!this.chats[conversationId]) {
       this.chats[conversationId] = {
@@ -412,7 +417,7 @@ export const activeChatsStore = new ActiveChatsStore();
 type ActiveChatsContextType = {
   initChat: (
     conversationId: string,
-    metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string },
+    metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string; projectSlug?: string; projectName?: string },
   ) => void;
   updateChat: (
     conversationId: string,
@@ -492,7 +497,7 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
   const initChat = useCallback(
     (
       conversationId: string,
-      metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string },
+      metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string; projectSlug?: string; projectName?: string },
     ) => {
       activeChatsStore.initChat(conversationId, metadata);
     },
@@ -765,6 +770,7 @@ export function useSendMessage(
           abortController.signal,
           model,
           attachments,
+          currentState?.projectSlug,
         );
 
         const newConversationId = result?.conversationId;
@@ -938,12 +944,14 @@ export function useCreateChatSession() {
   const { initChat } = useActiveChatActions();
 
   return useCallback(
-    (agentSlug: string, agentName: string, title?: string) => {
+    (agentSlug: string, agentName: string, title?: string, projectSlug?: string, projectName?: string) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
       initChat(sessionId, {
         agentSlug,
         agentName,
         title: title || `${agentName} Chat`,
+        projectSlug,
+        projectName,
       });
       return sessionId;
     },

@@ -520,6 +520,7 @@ export class ACPConnection {
     slug: string,
     input: any,
     options: any,
+    context?: { cwd?: string },
   ): Promise<Response> {
     if (!this.connection || !this.sessionId) {
       return c.json({ success: false, error: 'ACP not connected' }, 503);
@@ -607,6 +608,11 @@ export class ACPConnection {
     } else {
       inputText = typeof input === 'string' ? input : JSON.stringify(input);
       promptContent.push({ type: 'text' as const, text: inputText });
+    }
+
+    // Prepend project working directory context if provided
+    if (context?.cwd && context.cwd !== this.cwd) {
+      promptContent.unshift({ type: 'text' as const, text: `[Working directory: ${context.cwd}]` });
     }
 
     // Get or create memory adapter for this ACP agent
@@ -1591,11 +1597,12 @@ export class ACPManager {
     slug: string,
     input: any,
     options: any,
+    context?: { cwd?: string },
   ): Promise<Response> {
     const conn = this.findConnectionForSlug(slug);
     if (!conn)
       return c.json({ success: false, error: 'ACP connection not found' }, 503);
-    return conn.handleChat(c, slug, input, options);
+    return conn.handleChat(c, slug, input, options, context);
   }
 
   /** Get status of all connections */

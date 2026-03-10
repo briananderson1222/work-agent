@@ -1,8 +1,8 @@
 /**
  * useUrlSelection — sync a selected item ID with the URL path.
  *
- * Given a base path like "/manage/agents", reads the selection from
- * the URL (e.g. "/manage/agents/my-agent") and provides setters that
+ * Given a base path like "/agents", reads the selection from
+ * the URL (e.g. "/agents/my-agent") and provides setters that
  * update both state and URL together.
  */
 import { useCallback, useMemo } from 'react';

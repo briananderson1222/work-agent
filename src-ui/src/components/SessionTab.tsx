@@ -50,11 +50,14 @@ export function SessionTab({
       type="button"
       ref={(el) => {
         if (el && isActive) {
-          el.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
-            inline: 'center',
-          });
+          const isVerticalList = el.closest('.chat-dock__tab-list')?.scrollHeight !== el.closest('.chat-dock__tab-list')?.clientHeight;
+          if (!isVerticalList) {
+            el.scrollIntoView({
+              behavior: 'smooth',
+              block: 'nearest',
+              inline: 'nearest',
+            });
+          }
         }
       }}
       className={`chat-dock__tab ${isActive ? 'is-active' : ''} ${session.hasUnread ? 'has-unread' : ''} ${session.status === 'sending' ? 'is-processing' : ''}`}
@@ -66,6 +69,21 @@ export function SessionTab({
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="chat-dock__tab-title">
+          {session.projectName && (
+            <span
+              style={{
+                fontSize: '9px',
+                color: 'var(--text-muted)',
+                background: 'var(--bg-subtle, rgba(0,0,0,0.08))',
+                borderRadius: '3px',
+                padding: '0 3px',
+                marginRight: '4px',
+                flexShrink: 0,
+              }}
+            >
+              {session.projectName}
+            </span>
+          )}
           {session.title}
           {session.status === 'sending' && (
             <span className="chat-dock__tab-badge">●</span>

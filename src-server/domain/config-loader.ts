@@ -30,6 +30,20 @@ import { validator } from './validator.js';
 
 const logger = createLogger({ name: 'config-loader' });
 
+export const DEFAULT_SYSTEM_PROMPT = [
+  'You are {{AGENT_NAME}}, a helpful AI assistant.',
+  '',
+  'Be concise and direct. When you lack information, say so rather than guessing.',
+  '',
+  '## Environment',
+  'Date: {{date}}',
+  'Time: {{time}}',
+].join('\n');
+
+const DEFAULT_TEMPLATE_VARIABLES = [
+  { key: 'AGENT_NAME', type: 'static' as const, value: 'Stallion' },
+];
+
 export interface ConfigLoaderOptions {
   projectHomeDir?: string;
   watchFiles?: boolean;
@@ -69,6 +83,8 @@ export class ConfigLoader {
         defaultModel: 'anthropic.claude-sonnet-4-6-20260217-v1:0',
         invokeModel: 'us.amazon.nova-2-lite-v1:0',
         structureModel: 'us.amazon.nova-micro-v1:0',
+        systemPrompt: DEFAULT_SYSTEM_PROMPT,
+        templateVariables: [...DEFAULT_TEMPLATE_VARIABLES],
       };
 
       await this.saveAppConfig(defaultConfig);
@@ -81,6 +97,13 @@ export class ConfigLoader {
     // Migrate: add defaults for new required fields
     if (!data.invokeModel) data.invokeModel = 'us.amazon.nova-2-lite-v1:0';
     if (!data.structureModel) data.structureModel = 'us.amazon.nova-micro-v1:0';
+    if (!data.systemPrompt) {
+      data.systemPrompt = DEFAULT_SYSTEM_PROMPT;
+      if (!data.templateVariables?.some((v: any) => v.key === 'AGENT_NAME')) {
+        data.templateVariables = [...(data.templateVariables || []), ...DEFAULT_TEMPLATE_VARIABLES];
+      }
+      await this.saveAppConfig(data);
+    }
 
     validator.validateAppConfig(data);
     return data;

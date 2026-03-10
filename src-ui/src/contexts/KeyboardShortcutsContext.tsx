@@ -70,8 +70,8 @@ export function KeyboardShortcutsProvider({
         const hasAlt = shortcut.modifiers.includes('alt');
 
         const cmdMatch = !hasCmd || e.metaKey || e.ctrlKey;
-        const shiftMatch = !hasShift || e.shiftKey;
-        const altMatch = !hasAlt || e.altKey;
+        const shiftMatch = hasShift === e.shiftKey;
+        const altMatch = hasAlt === e.altKey;
         const keyMatch = e.key.toLowerCase() === shortcut.key.toLowerCase();
 
         if (cmdMatch && shiftMatch && altMatch && keyMatch) {

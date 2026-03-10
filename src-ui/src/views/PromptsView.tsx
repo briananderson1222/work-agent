@@ -47,7 +47,7 @@ function promptToForm(p: Prompt): PromptForm {
 export function PromptsView() {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
-  const { selectedId: urlId, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/manage/prompts');
+  const { selectedId: urlId, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/prompts');
   const queryClient = useQueryClient();
 
   const selectedId = urlId === 'new' ? null : urlId;
@@ -194,7 +194,7 @@ export function PromptsView() {
   return (
     <div className="page page--full">
       <SplitPaneLayout
-        label="manage / prompts"
+        label="prompts"
         title="Prompts"
         subtitle="Reusable prompts for workspaces and agents"
         items={listItems}

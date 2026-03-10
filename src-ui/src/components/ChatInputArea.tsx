@@ -116,7 +116,7 @@ export function ChatInputArea({
       className="chat-input"
       style={{ display: 'flex', alignItems: 'stretch' }}
     >
-      <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
+      <div className="chat-input__textarea-wrapper">
         {modelQuery !== null && (
           <ModelSelectorAutocomplete
             query={modelQuery}
@@ -237,7 +237,7 @@ export function ChatInputArea({
               }}
               disabled={!input.trim() && attachments.length === 0}
               tabIndex={0}
-              className={`send-button ${input.trim() || attachments.length > 0 ? 'chat-input__send-btn--active' : 'chat-input__send-btn--inactive'}`}
+              className={`send-button chat-input__send-btn ${input.trim() || attachments.length > 0 ? 'chat-input__send-btn--active' : 'chat-input__send-btn--inactive'}`}
             >
               Send
             </button>

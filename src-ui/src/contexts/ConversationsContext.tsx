@@ -270,6 +270,7 @@ class ConversationsStore {
     signal?: AbortSignal,
     model?: string,
     attachments?: FileAttachment[],
+    projectSlug?: string,
   ): Promise<{ conversationId?: string; finishReason?: string }> {
     void (conversationId ? `${agentSlug}:${conversationId}` : `${agentSlug}:temp`);
     this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
@@ -332,6 +333,7 @@ class ConversationsStore {
           ...(title ? { title } : {}),
           ...(model ? { model } : {}),
         },
+        ...(projectSlug ? { projectSlug } : {}),
       };
 
       const headers: Record<string, string> = {

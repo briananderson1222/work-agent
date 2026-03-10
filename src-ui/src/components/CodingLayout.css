@@ -1,0 +1,106 @@
+.coding-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: calc(100vh - var(--chat-dock-height, 49px) - 48px);
+  overflow: hidden;
+}
+
+.coding-layout--terminal-open {
+  grid-template-rows: 1fr var(--coding-terminal-height, 200px);
+}
+
+.coding-layout--terminal-closed {
+  grid-template-rows: 1fr 30px;
+}
+
+/* File tree */
+.coding-layout__tree {
+  grid-row: 1;
+  grid-column: 1;
+  border-right: 1px solid var(--border-primary);
+  overflow: hidden;
+}
+
+/* Main panel (diff or file viewer) */
+.coding-layout__main {
+  grid-row: 1;
+  grid-column: 2;
+  overflow: hidden;
+}
+
+/* Terminal — full width bottom */
+.coding-layout__terminal {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Drag handle */
+.coding-layout__drag-handle {
+  height: 6px;
+  cursor: row-resize;
+  background: var(--border-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.coding-layout--terminal-closed .coding-layout__drag-handle {
+  cursor: pointer;
+}
+
+.coding-layout__drag-grip {
+  width: 32px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--text-muted);
+  opacity: 0.4;
+}
+
+/* Terminal header bar */
+.coding-layout__terminal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 24px;
+  flex-shrink: 0;
+  background: #1a1a2e;
+}
+
+.coding-layout--terminal-open .coding-layout__terminal-bar {
+  border-bottom: 1px solid #30363d;
+}
+
+.coding-layout__terminal-label {
+  font-size: 11px;
+  color: #7ec8e3;
+  font-family: monospace;
+}
+
+.coding-layout__terminal-toggle {
+  background: none;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: monospace;
+  padding: 0 4px;
+}
+
+.coding-layout__terminal-toggle:hover {
+  color: #e6edf3;
+}
+
+.coding-layout__terminal-shortcut {
+  opacity: 0.5;
+}
+
+.coding-layout__terminal-body {
+  flex: 1;
+  overflow: hidden;
+}

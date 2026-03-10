@@ -1,0 +1,101 @@
+import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { Hono } from 'hono';
+import type { FileTreeService } from '../services/file-tree-service.js';
+
+function validatePath(raw: string | undefined): string {
+  if (!raw) throw new Error('path required');
+  const resolved = resolve(raw);
+  if (!existsSync(resolved)) throw new Error(`Directory not found: ${resolved}`);
+  return resolved;
+}
+
+export function createCodingRoutes(fileTreeService: FileTreeService) {
+  const app = new Hono();
+
+  app.get('/files', (c) => {
+    try {
+      const dir = validatePath(c.req.query('path'));
+      const depth = c.req.query('depth') ? Number(c.req.query('depth')) : undefined;
+      const maxEntries = c.req.query('maxEntries') ? Number(c.req.query('maxEntries')) : undefined;
+      const data = fileTreeService.listDirectory(dir, { depth, maxEntries });
+      return c.json({ success: true, data });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 400);
+    }
+  });
+
+  app.get('/files/search', (c) => {
+    try {
+      const dir = validatePath(c.req.query('path'));
+      const query = c.req.query('query');
+      if (!query) return c.json({ success: false, error: 'query required' }, 400);
+      const data = fileTreeService.searchFiles(dir, query);
+      return c.json({ success: true, data });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 400);
+    }
+  });
+
+  app.get('/files/content', (c) => {
+    const path = c.req.query('path');
+    if (!path) return c.json({ success: false, error: 'path required' }, 400);
+    try {
+      const content = fileTreeService.readFile(path);
+      return c.json({ success: true, data: { path, content } });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 500);
+    }
+  });
+
+  app.get('/git/status', (c) => {
+    try {
+      const dir = validatePath(c.req.query('path'));
+      const branchOut = execSync('git rev-parse --abbrev-ref HEAD', { cwd: dir, encoding: 'utf-8' });
+      const statusOut = execSync('git status --porcelain', { cwd: dir, encoding: 'utf-8' });
+      const changes = statusOut.split('\n').filter((l) => l.trim().length > 0);
+      return c.json({ success: true, data: { branch: branchOut.trim(), changes } });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 400);
+    }
+  });
+
+  app.get('/git/diff', (c) => {
+    try {
+      const dir = validatePath(c.req.query('path'));
+      const diff = execSync('git diff', { cwd: dir, encoding: 'utf-8' });
+      return c.json({ success: true, data: { diff } });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 400);
+    }
+  });
+
+  app.get('/git/branches', (c) => {
+    try {
+      const dir = validatePath(c.req.query('path'));
+      const raw = execSync('git branch -a --format="%(refname:short)|%(objectname:short)|%(committerdate:relative)|%(HEAD)"', { cwd: dir, encoding: 'utf-8' });
+      const branches = raw.split('\n').filter(l => l.trim()).map(line => {
+        const [name, sha, date, head] = line.split('|');
+        return { name: name.trim(), sha, date, current: head?.trim() === '*' };
+      });
+      return c.json({ success: true, data: branches });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 400);
+    }
+  });
+
+  app.post('/exec', async (c) => {
+    try {
+      const { command, cwd } = await c.req.json();
+      if (!command) return c.json({ success: false, error: 'command required' }, 400);
+      const dir = validatePath(cwd);
+      const result = execSync(command, { cwd: dir, encoding: 'utf-8', timeout: 30000, maxBuffer: 1024 * 1024 });
+      return c.json({ success: true, data: { stdout: result, stderr: '', exitCode: 0 } });
+    } catch (e: any) {
+      return c.json({ success: true, data: { stdout: e.stdout ?? '', stderr: e.stderr ?? e.message, exitCode: e.status ?? 1 } });
+    }
+  });
+
+  return app;
+}

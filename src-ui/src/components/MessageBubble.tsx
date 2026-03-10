@@ -3,6 +3,7 @@ import remarkGfm from 'remark-gfm';
 import type { AgentSummary } from '../types';
 import { AgentIcon } from './AgentIcon';
 import { FilePartPreview } from './FilePartPreview';
+import { markdownCodeComponents } from './HighlightedCodeBlock';
 import { ReasoningSection } from './ReasoningSection';
 import { ToolCallDisplay } from './ToolCallDisplay';
 import { UserIcon } from './UserIcon';
@@ -110,7 +111,7 @@ export function MessageBubble({
       >
         {msg.traceId && (
           <a
-            href={`/sys/monitoring?filters=${encodeURIComponent(JSON.stringify({ trace: [msg.traceId] }))}`}
+            href={`/monitoring?filters=${encodeURIComponent(JSON.stringify({ trace: [msg.traceId] }))}`}
             target="_blank"
             rel="noopener noreferrer"
             className="message__trace"
@@ -203,7 +204,7 @@ export function MessageBubble({
               return null;
             })
           : textContent && (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownCodeComponents}>
                 {textContent}
               </ReactMarkdown>
             )}

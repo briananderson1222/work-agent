@@ -63,13 +63,13 @@ export function useChatDockActions({
   );
 
   const openChatForAgent = useCallback(
-    (agent: AgentData) => {
-      const sessionId = createChatSession(agent.slug, agent.name);
+    (agent: AgentData, projectSlug?: string, projectName?: string) => {
+      const sessionId = createChatSession(agent.slug, agent.name, undefined, projectSlug, projectName);
       setActiveSessionId(sessionId);
       setActiveChat(sessionId);
-      setDockState(true, false);
+      setDockState(true, isDockMaximized);
     },
-    [createChatSession, setActiveSessionId, setActiveChat, setDockState],
+    [createChatSession, setActiveSessionId, setActiveChat, setDockState, isDockMaximized],
   );
 
   const openConversation = useCallback(

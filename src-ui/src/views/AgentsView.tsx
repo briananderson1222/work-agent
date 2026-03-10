@@ -8,14 +8,14 @@ import { Checkbox } from '../components/Checkbox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
-import { useAgentActions, useAgents } from '../contexts/AgentsContext';
+import { useAgentActions, useAgents, type AgentData } from '../contexts/AgentsContext';
 import { useConfig } from '../contexts/ConfigContext';
 import type { AgentSummary, NavigationView, Tool } from '../types';
 import './editor-layout.css';
 import './page-layout.css';
 
 interface AgentsViewProps {
-  agents: AgentSummary[];
+  agents: AgentData[];
   apiBase: string;
   availableModels: Array<{ id: string; name: string }>;
   defaultModel?: string;
@@ -86,7 +86,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   const appConfig = useConfig();
   const { createAgent, updateAgent, deleteAgent } = useAgentActions();
   const { enrich, isEnriching } = useAIEnrich();
-  const { selectedId: urlSlug, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/manage/agents');
+  const { selectedId: urlSlug, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/agents');
 
   const { data: templates = [] } = useQuery({
     queryKey: ['templates', 'agent'],
@@ -272,7 +272,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   return (
     <div className="page page--full">
       <SplitPaneLayout
-        label="manage / agents"
+        label="agents"
         title="Agents"
         subtitle="AI agents with custom prompts, models, and tools"
         items={listItems}

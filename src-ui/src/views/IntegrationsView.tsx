@@ -129,7 +129,7 @@ export function IntegrationsView() {
   const [showRegistry, setShowRegistry] = useState(false);
   const [hasRegistry, setHasRegistry] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const { selectedId, select, deselect } = useUrlSelection('/manage/integrations');
+  const { selectedId, select, deselect } = useUrlSelection('/integrations');
   const [editForm, setEditForm] = useState<IntegrationDef | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -213,7 +213,7 @@ export function IntegrationsView() {
   return (
     <>
       <SplitPaneLayout
-        label="manage / integrations"
+        label="integrations"
         title="Integrations"
         subtitle="MCP server connections"
         items={loading ? [] : items}

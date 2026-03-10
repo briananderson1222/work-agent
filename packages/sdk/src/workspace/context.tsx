@@ -5,6 +5,7 @@ import { createContext, type ReactNode, useContext, useState } from 'react';
 
 interface WorkspaceContextConfig<T> {
   workspaceSlug: string;
+  projectSlug?: string;
   initialState: T;
   persist?: boolean; // Auto-save to sessionStorage
 }
@@ -12,8 +13,11 @@ interface WorkspaceContextConfig<T> {
 export function createWorkspaceContext<T extends Record<string, any>>(
   config: WorkspaceContextConfig<T>,
 ) {
-  const { workspaceSlug, initialState, persist = true } = config;
-  const storageKey = `workspace:${workspaceSlug}:context`;
+  const { workspaceSlug, projectSlug, initialState, persist = true } = config;
+  // Include projectSlug in storage key for proper scoping
+  const storageKey = projectSlug
+    ? `layout:${projectSlug}:${workspaceSlug}:context`
+    : `workspace:${workspaceSlug}:context`;
 
   type ContextValue = {
     state: T;

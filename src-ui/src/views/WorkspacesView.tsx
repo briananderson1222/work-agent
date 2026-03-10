@@ -31,7 +31,7 @@ const EMPTY_FORM: WorkspaceConfig = {
 export function WorkspacesView() {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
-  const { selectedId: urlSlug, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/manage/workspaces');
+  const { selectedId: urlSlug, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/workspaces');
   const qc = useQueryClient();
   const { enrich, isEnriching } = useAIEnrich();
 
@@ -130,7 +130,7 @@ export function WorkspacesView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       // Navigate away if the deleted workspace is the active one
-      navigate('/manage/workspaces');
+      navigate('/workspaces');
       urlDeselect();
       setIsNew(false);
       setForm(EMPTY_FORM);
@@ -246,7 +246,7 @@ export function WorkspacesView() {
   return (
     <div className="page page--full">
       <SplitPaneLayout
-        label="manage / workspaces"
+        label="workspaces"
         title="Workspaces"
         subtitle="Manage workspace configurations and layouts"
         items={listItems}

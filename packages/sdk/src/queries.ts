@@ -139,6 +139,133 @@ export function useWorkspacesQuery(config?: QueryConfig<any>) {
 }
 
 /**
+ * Fetch all projects
+ */
+export function useProjectsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['projects'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/projects`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    config,
+  );
+}
+
+/**
+ * Fetch project by slug
+ */
+export function useProjectQuery(slug: string, config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['projects', slug],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/projects/${slug}`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { ...config, enabled: !!slug && (config?.enabled ?? true) },
+  );
+}
+
+/**
+ * Fetch layouts for a project
+ */
+export function useProjectLayoutsQuery(projectSlug: string, config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['projects', projectSlug, 'layouts'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/projects/${projectSlug}/layouts`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { ...config, enabled: !!projectSlug && (config?.enabled ?? true) },
+  );
+}
+
+/**
+ * Create a new project
+ */
+export function useCreateProjectMutation() {
+  return useApiMutation(
+    async (data: { name: string; slug: string; description?: string; icon?: string; directories?: any[] }) => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { invalidateKeys: [['projects']] },
+  );
+}
+
+/**
+ * Update an existing project
+ */
+export function useUpdateProjectMutation() {
+  return useApiMutation(
+    async ({ slug, ...data }: { slug: string; [key: string]: any }) => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/projects/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { invalidateKeys: [['projects']] },
+  );
+}
+
+/**
+ * Delete a project
+ */
+export function useDeleteProjectMutation() {
+  return useApiMutation(
+    async (slug: string) => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/projects/${slug}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { invalidateKeys: [['projects']] },
+  );
+}
+
+/**
+ * Create a layout within a project
+ */
+export function useCreateLayoutMutation(projectSlug: string) {
+  return useApiMutation(
+    async (data: { name: string; slug: string; type: string; config?: Record<string, unknown> }) => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/projects/${projectSlug}/layouts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { invalidateKeys: [['projects', projectSlug, 'layouts']] },
+  );
+}
+
+/**
  * Fetch usage analytics
  */
 export function useUsageQuery(config?: QueryConfig<any>) {

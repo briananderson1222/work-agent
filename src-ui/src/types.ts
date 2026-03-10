@@ -116,6 +116,9 @@ export interface ChatSession {
   model?: string;
   inputHistory: string[];
   abortController?: AbortController;
+  projectSlug?: string;
+  projectName?: string;
+  focusDirectoryId?: string;
 }
 
 export interface Tool {
@@ -163,7 +166,6 @@ export interface TemplateVariable {
 export type NavigationView =
   | { type: 'workspace' }
   | { type: 'workspaces' }
-  | { type: 'manage' }
   | { type: 'agents' }
   | { type: 'prompts' }
   | { type: 'plugins' }
@@ -182,7 +184,15 @@ export type NavigationView =
   | { type: 'workflows'; slug: string }
   | { type: 'settings' }
   | { type: 'workspace-new' }
-  | { type: 'workspace-edit'; slug: string };
+  | { type: 'workspace-edit'; slug: string }
+  | { type: 'project'; slug: string }
+  | { type: 'project-new' }
+  | { type: 'project-edit'; slug: string }
+  | { type: 'layout'; projectSlug: string; layoutSlug: string }
+  | { type: 'providers' }
+  | { type: 'provider-edit'; id: string };
+
+export type DockMode = 'bottom' | 'right' | 'bottom-inline';
 
 export interface WorkspacePrompt {
   id: string;
