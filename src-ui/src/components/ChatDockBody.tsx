@@ -244,6 +244,15 @@ export function ChatDockBody({
           key={`${activeSession.conversationId || activeSession.agentSlug}-${activeSession.status}`}
         />
       )}
+      {/* Session info bar — project context */}
+      {activeSession.projectName && (
+        <div className="chat-dock__session-info">
+          <span className="chat-dock__session-project">{activeSession.projectName}</span>
+          <span className="chat-dock__session-count">
+            {activeSession.messages.length > 0 ? `${activeSession.messages.length} msgs` : ''}
+          </span>
+        </div>
+      )}
       <div
         className="chat-messages"
         ref={messagesContainerRef}

@@ -8,6 +8,7 @@ import type { ChatSession } from '../types';
 export function useDerivedSessions(
   _apiBase: string,
   agentSlug: string | null,
+  projectSlug?: string | null,
 ): ChatSession[] {
   const agents = useAgents();
   const allChats = useAllActiveChats();
@@ -26,6 +27,8 @@ export function useDerivedSessions(
     for (const [chatId, chatState] of Object.entries(allChats)) {
       // If agentSlug is provided, filter by it (for workspace views)
       if (agentSlug && chatState.agentSlug !== agentSlug) continue;
+      // If projectSlug is provided, filter by it
+      if (projectSlug && chatState.projectSlug !== projectSlug) continue;
 
       const agent = agents.find((a) => a.slug === chatState.agentSlug);
 
@@ -122,11 +125,14 @@ export function useDerivedSessions(
         createdAt: Date.now(),
         updatedAt: Date.now(),
         model: undefined,
+        projectSlug: chatState.projectSlug,
+        projectName: chatState.projectName,
+        focusDirectoryId: chatState.focusDirectoryId,
       });
     }
 
     return sessions;
-  }, [agents, allChats, conversationsSnapshot, agentSlug]);
+  }, [agents, allChats, conversationsSnapshot, agentSlug, projectSlug]);
 }
 
 // Hook to get full session data for a specific conversation (with messages and UI state)

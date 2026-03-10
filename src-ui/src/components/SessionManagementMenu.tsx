@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useSessionManagementMenu } from '../hooks/useSessionManagementMenu';
 import { useSessionManagementViewModel } from '../hooks/useSessionManagementViewModel';
 import { ConfirmModal } from './ConfirmModal';
@@ -62,6 +63,14 @@ export function SessionManagementMenu({
     onTitleUpdate,
     onDelete,
   });
+
+  const { dockMode } = useNavigation();
+
+  // Dismiss conversation history when dock mode changes
+  useEffect(() => {
+    if (menu.isOpen) menu.setIsOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dockMode]);
 
   const { conversations, loading } = useSessionManagementViewModel(
     agents,

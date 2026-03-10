@@ -1,3 +1,5 @@
+import type { DockMode } from '../types';
+
 interface ChatSettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -8,7 +10,15 @@ interface ChatSettingsPanelProps {
   setShowReasoning: (show: boolean) => void;
   showToolDetails: boolean;
   setShowToolDetails: (show: boolean) => void;
+  dockMode: DockMode;
+  onDockModeChange: (mode: DockMode) => void;
 }
+
+const DOCK_MODE_OPTIONS: { value: DockMode; label: string; desc: string }[] = [
+  { value: 'bottom', label: 'Bottom', desc: 'Overlay at bottom' },
+  { value: 'right', label: 'Right', desc: 'Side-by-side split' },
+  { value: 'bottom-inline', label: 'Inline', desc: 'Inline below content' },
+];
 
 export function ChatSettingsPanel({
   isOpen,
@@ -20,6 +30,8 @@ export function ChatSettingsPanel({
   setShowReasoning,
   showToolDetails,
   setShowToolDetails,
+  dockMode,
+  onDockModeChange,
 }: ChatSettingsPanelProps) {
   if (!isOpen) return null;
 
@@ -27,6 +39,25 @@ export function ChatSettingsPanel({
     <div className="chat-settings-overlay" onClick={onClose}>
       <div className="chat-settings-modal" onClick={(e) => e.stopPropagation()}>
         <h3 className="chat-settings-modal__title">Chat Settings</h3>
+
+        <div className="chat-settings-modal__section">
+          <label className="chat-settings-modal__label">Dock Position</label>
+          <div className="chat-settings-modal__control">
+            {DOCK_MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                className={`chat-settings-modal__btn${dockMode === opt.value ? ' chat-settings-modal__btn--active' : ''}`}
+                onClick={() => onDockModeChange(opt.value)}
+                title={opt.desc}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="chat-settings-modal__hint">
+            Position the chat panel · ⌘⇧D to cycle
+          </p>
+        </div>
 
         <div className="chat-settings-modal__section">
           <label className="chat-settings-modal__label">Font Size</label>

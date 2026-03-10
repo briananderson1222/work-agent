@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   useActiveChatActions,
   useRehydrateSessions,
@@ -9,11 +9,13 @@ import { CONFIG_DEFAULTS, useConfig } from '../contexts/ConfigContext';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import { useProjects } from '../contexts/ProjectsContext';
 import { useChatDockActions } from '../hooks/useChatDockActions';
 import { useChatDockKeyboardShortcuts } from '../hooks/useChatDockKeyboardShortcuts';
 import { useChatDockState } from '../hooks/useChatDockState';
 import { useChatInput } from '../hooks/useChatInput';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
+import { setDockModeOverride } from '../hooks/useDockModePreference';
 import { useDragResize } from '../hooks/useDragResize';
 import { ChatDockBody } from './ChatDockBody';
 import { ChatDockHeader } from './ChatDockHeader';
@@ -31,12 +33,16 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const { apiBase } = useApiBase();
   const {
     selectedAgent,
+    selectedProject,
     isDockOpen,
     isDockMaximized,
+    dockMode,
     activeChat,
     setActiveChat,
+    setDockMode,
   } = useNavigation();
   const agents = useAgents();
+  const { projects } = useProjects();
   const availableModels = useModels();
   const appConfig = useConfig();
   const defaultFontSize =
@@ -46,6 +52,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const {
     dockHeight,
     setDockHeight,
+    dockWidth: _dockWidth,
+    setDockWidth,
     previousDockHeight,
     setPreviousDockHeight,
     previousDockOpen,
@@ -71,7 +79,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   } = useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized });
 
   // Derive sessions from contexts (includes messages for all sessions)
-  const sessions = useDerivedSessions(apiBase, selectedAgent);
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const sessions = useDerivedSessions(apiBase, selectedAgent, projectFilter);
   const rehydrateSessions = useRehydrateSessions(apiBase);
 
   // Get active session for chat input hook
@@ -147,7 +156,13 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     });
 
   // Drag to resize
-  useDragResize({ isDragging, setIsDragging, setHeight: setDockHeight });
+  useDragResize({
+    isDragging,
+    setIsDragging,
+    setHeight: setDockHeight,
+    setWidth: setDockWidth,
+    direction: dockMode === 'right' ? 'horizontal' : 'vertical',
+  });
 
   // Keyboard shortcuts
   useChatDockKeyboardShortcuts({
@@ -165,22 +180,28 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     focusSession,
   });
 
+  const isRight = dockMode === 'right';
+
   return (
     <>
       <div
-        className={`chat-dock ${!isDockOpen ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''}`}
-        style={{
-          height: !isDockOpen
-            ? 'var(--chat-dock-header-height)'
-            : isDockMaximized
-              ? `calc(100vh - var(--app-toolbar-height))`
-              : `${dockHeight}px`,
-        }}
+        className={`chat-dock ${!isDockOpen ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''} ${dockMode !== 'bottom' ? `chat-dock--${dockMode}` : ''}`}
+        style={
+          isRight
+            ? { width: isDockMaximized ? '100%' : undefined }
+            : {
+                height: !isDockOpen
+                  ? 'var(--chat-dock-header-height)'
+                  : isDockMaximized
+                    ? `calc(100vh - var(--app-toolbar-height))`
+                    : `${dockHeight}px`,
+              }
+        }
         ref={chatSectionRef}
       >
         {isDockOpen && !isDockMaximized && (
           <div
-            className="chat-dock__resize-handle"
+            className={`chat-dock__resize-handle ${isRight ? 'chat-dock__resize-handle--horizontal' : ''}`}
             onMouseDown={(e) => {
               e.preventDefault();
               setIsDragging(true);
@@ -213,6 +234,10 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               updateChat={updateChat}
               setShowSessionPicker={setShowSessionPicker}
               setShowNewChatModal={setShowNewChatModal}
+              projects={projects}
+              projectFilter={projectFilter}
+              setProjectFilter={setProjectFilter}
+              selectedProject={selectedProject}
             />
 
             <div className="chat-dock__body">
@@ -245,7 +270,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         <NewChatModal
           agents={agents}
           onSelect={(agent) => {
-            openChatForAgent(agent);
+            // Get project name from the projects list if we have a selected project
+            const projectName = selectedProject ? (projects.find((p: any) => p.slug === selectedProject)?.name ?? selectedProject) : undefined;
+            openChatForAgent(agent, selectedProject ?? undefined, projectName);
             setShowNewChatModal(false);
           }}
           onClose={() => setShowNewChatModal(false)}
@@ -263,6 +290,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         setShowReasoning={setShowReasoning}
         showToolDetails={showToolDetails}
         setShowToolDetails={setShowToolDetails}
+        dockMode={dockMode}
+        onDockModeChange={(mode) => {
+          setDockModeOverride(null, mode);
+          setDockMode(mode);
+        }}
       />
 
       {showSessionPicker && (

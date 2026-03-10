@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
 
 interface PanelBounds {
   top: number;
@@ -21,11 +22,14 @@ export function SessionManagementPanel({
   onClearAll,
   children,
 }: SessionManagementPanelProps) {
+  const { dockMode } = useNavigation();
+  const isRight = dockMode === 'right';
+
   return (
     <div
       className="session-panel"
       style={{
-        left: bounds.left,
+        left: isRight ? undefined : bounds.left,
         top: bounds.top,
         bottom: `${window.innerHeight - bounds.bottom}px`,
       }}
