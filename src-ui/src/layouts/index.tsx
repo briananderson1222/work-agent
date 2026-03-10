@@ -29,7 +29,7 @@ const coreRegistry: Record<string, AgentLayoutComponent> = {};
 const loggedComponents = new Set<string>();
 
 const DefaultLayout: AgentLayoutComponent = ({
-  workspace,
+  layout,
   onShowChat,
 }) => (
   <div className="workspace-default">
@@ -91,7 +91,7 @@ interface LayoutRendererProps extends AgentLayoutProps {
 
 export function LayoutRenderer({
   componentId,
-  workspace,
+  layout,
   activeTab,
   onRefresh,
   loading,
@@ -104,20 +104,20 @@ export function LayoutRenderer({
   try {
     return (
       <>
-        {workspace && (
+        {layout && (
           <LayoutHeader
-            layoutName={workspace.name}
-            tabs={workspace.tabs?.map((tab) => ({
+            layoutName={layout.name}
+            tabs={layout.tabs?.map((tab) => ({
               id: tab.id,
               label: tab.label,
               icon: tab.icon,
             }))}
             activeTabId={activeTabId}
             onTabChange={onTabChange}
-            layoutPrompts={workspace.globalPrompts}
+            layoutPrompts={layout.globalPrompts}
             onLayoutPromptSelect={onLaunchPrompt}
-            title={activeTab?.label || workspace.name}
-            description={activeTab?.description || workspace.description || ''}
+            title={activeTab?.label || layout.name}
+            description={activeTab?.description || layout.description || ''}
             tabActions={activeTab?.actions}
             tabPrompts={activeTab?.prompts}
             onTabPromptSelect={onLaunchPrompt}
@@ -125,9 +125,9 @@ export function LayoutRenderer({
             loading={loading}
           />
         )}
-        {workspace?.tabs
+        {layout?.tabs
           ? // Only mount the active tab to avoid duplicate data fetching
-            workspace.tabs.map((tab) => {
+            layout.tabs.map((tab) => {
               const isActive = tab.id === activeTabId;
               if (!isActive) return null;
               const Component = resolveLayoutComponent(tab.component);
@@ -135,7 +135,7 @@ export function LayoutRenderer({
                 <div key={tab.id} className="workspace-tab-content">
                   <Component
                     key={`${tab.id}-${refreshKey}`}
-                    workspace={workspace}
+                    layout={layout}
                     activeTab={tab}
                     onLaunchPrompt={onLaunchPrompt}
                     {...props}
@@ -149,7 +149,7 @@ export function LayoutRenderer({
               return (
                 <Component
                   key={refreshKey}
-                  workspace={workspace}
+                  layout={layout}
                   activeTab={activeTab}
                   onLaunchPrompt={onLaunchPrompt}
                   {...props}

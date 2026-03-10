@@ -128,9 +128,9 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   // Group: standalone → workspace-scoped → ACP
   const listItems = useMemo(() => {
     const standalone = filteredAgents.filter(a => !a.slug.includes(':') && a.source !== 'acp');
-    const workspace = filteredAgents.filter(a => a.slug.includes(':'));
+    const layoutAgents = filteredAgents.filter(a => a.slug.includes(':'));
     const acp = filteredAgents.filter(a => a.source === 'acp');
-    return [...standalone, ...workspace, ...acp].map(a => ({
+    return [...standalone, ...layoutAgents, ...acp].map(a => ({
       id: a.slug,
       name: a.name,
       subtitle: a.slug,

@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
 import type {
   AgentSummary,
-  WorkspaceConfig,
-  WorkspacePrompt,
-  WorkspaceTab,
+  StandaloneLayoutConfig,
+  LayoutPrompt,
+  LayoutTab,
 } from '../types';
 import { LayoutIcon } from '../components/LayoutIcon';
 import './editor-layout.css';
@@ -22,7 +22,7 @@ export function LayoutEditorView({
   onBack,
   onSaved,
 }: LayoutEditorViewProps) {
-  const [formData, setFormData] = useState<WorkspaceConfig>({
+  const [formData, setFormData] = useState<StandaloneLayoutConfig>({
     name: '',
     slug: '',
     icon: '',
@@ -131,7 +131,7 @@ export function LayoutEditorView({
     setExpandedTabs((prev) => new Set([...prev, newIndex]));
   };
 
-  const updateTab = (index: number, updates: Partial<WorkspaceTab>) => {
+  const updateTab = (index: number, updates: Partial<LayoutTab>) => {
     setFormData((prev) => ({
       ...prev,
       tabs: prev.tabs.map((tab, i) =>
@@ -148,7 +148,7 @@ export function LayoutEditorView({
   };
 
   const addPrompt = (tabIndex: number | null) => {
-    const newPrompt: WorkspacePrompt = {
+    const newPrompt: LayoutPrompt = {
       id: `prompt-${Date.now()}`,
       label: '',
       prompt: '',
@@ -175,7 +175,7 @@ export function LayoutEditorView({
   const updatePrompt = (
     tabIndex: number | null,
     promptIndex: number,
-    updates: Partial<WorkspacePrompt>,
+    updates: Partial<LayoutPrompt>,
   ) => {
     if (tabIndex === null) {
       setFormData((prev) => ({
@@ -276,7 +276,7 @@ export function LayoutEditorView({
         <div className="editor__lock-banner">
           <div className="editor__lock-banner-text">
             <span className="editor__lock-banner-icon">🔒</span>
-            <span>This workspace is managed by the <strong>{formData?.plugin}</strong> plugin. Editing is locked to prevent accidental changes.</span>
+            <span>This layout is managed by the <strong>{formData?.plugin}</strong> plugin. Editing is locked to prevent accidental changes.</span>
           </div>
           <button className="editor__unlock-btn" onClick={() => setIsPluginLocked(false)}>
             Unlock Editing

@@ -113,7 +113,7 @@ import { MCPService } from '../services/mcp-service.js';
 import { SchedulerService } from '../services/scheduler-service.js';
 import { LayoutService } from '../services/layout-service.js';
 import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
-import { migrateWorkspacesToProject } from '../domain/migration.js';
+import { migrateToProject } from '../domain/migration.js';
 import { ProjectService } from '../services/project-service.js';
 import { ProviderService } from '../services/provider-service.js';
 import { createProjectRoutes } from '../routes/projects.js';
@@ -415,7 +415,7 @@ export class StallionRuntime {
     );
 
     // Migrate legacy workspaces to project structure
-    await migrateWorkspacesToProject(this.configLoader.getProjectHomeDir());
+    await migrateToProject(this.configLoader.getProjectHomeDir());
 
     // Seed default provider connections if none exist
     const existingProviders = this.storageAdapter.listProviderConnections();
@@ -2872,7 +2872,7 @@ export class StallionRuntime {
     for (const conflict of conflicts) {
       this.logger.warn('Provider conflict — multiple plugins provide singleton type', {
         type: conflict.type,
-        workspace: conflict.workspace,
+        layout: conflict.layout,
         candidates: conflict.candidates,
       });
     }
@@ -2896,7 +2896,7 @@ export class StallionRuntime {
         else if (entry.type === 'onboarding') registerOnboardingProvider(instance, entry.pluginName);
         else if (entry.type === 'branding') registerBrandingProvider(instance);
         else if (entry.type === 'settings') registerSettingsProvider(instance);
-        else registerProvider(entry.type, instance, { workspace: entry.layout, source: entry.pluginName });
+        else registerProvider(entry.type, instance, { layout: entry.layout, source: entry.pluginName });
 
         this.logger.info('Registered plugin provider', { plugin: entry.pluginName, type: entry.type });
       } catch (e: any) {

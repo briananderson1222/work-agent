@@ -110,7 +110,6 @@ function App() {
     // Legacy /manage/* redirects
     if (path === '/manage') return { type: 'agents' };
     if (path.startsWith('/manage/agents')) return { type: 'agents' };
-    if (path.startsWith('/manage/workspaces')) return { type: 'layouts' };
     if (path.startsWith('/manage/prompts')) return { type: 'prompts' };
     if (path.startsWith('/manage/plugins')) return { type: 'plugins' };
     if (path.startsWith('/manage/integrations')) return { type: 'integrations' };
@@ -121,9 +120,6 @@ function App() {
     if (path === '/sys/monitoring') return { type: 'monitoring' };
     if (path === '/sys/schedule') return { type: 'schedule' };
     if (path === '/sys/settings') return { type: 'settings' };
-    // Legacy /workspaces/* redirects
-    if (path === '/workspaces' || path === '/workspaces/new') return { type: 'layouts' };
-    if (path.startsWith('/workspaces/') && path.endsWith('/edit')) return { type: 'layouts' };
 
     // Project routes
     if (path === '/projects/new') return { type: 'project-new' };
@@ -246,10 +242,6 @@ function App() {
       if (path === '/layouts' || path === '/layouts/new' || (path.startsWith('/layouts/') && path.endsWith('/edit'))) {
         setCurrentView({ type: 'layouts' }); return;
       }
-      // Legacy /workspaces/* redirects
-      if (path === '/workspaces' || path === '/workspaces/new' || (path.startsWith('/workspaces/') && path.endsWith('/edit'))) {
-        setCurrentView({ type: 'layouts' }); return;
-      }
       if (path === '/prompts' || path.startsWith('/prompts/')) { setCurrentView({ type: 'prompts' }); return; }
       if (path === '/plugins' || path.startsWith('/plugins/')) { setCurrentView({ type: 'plugins' }); return; }
       if (path === '/integrations' || path.startsWith('/integrations/')) { setCurrentView({ type: 'integrations' }); return; }
@@ -297,22 +289,6 @@ function App() {
         return;
       }
       if (path.startsWith('/layouts/')) {
-        const pathParts = path.split('/');
-        const layoutSlug = pathParts[2];
-        const tabId = pathParts[3];
-
-        if (layoutSlug === 'new' || path.endsWith('/edit')) return;
-
-        if (layoutSlug && layoutSlug !== selectedLayout) {
-          handleLayoutSelect(layoutSlug, tabId);
-        } else if (tabId && tabId !== activeTabId) {
-          setActiveTabId(tabId);
-        }
-        setCurrentView({ type: 'standalone-layout' });
-        return;
-      }
-      // Legacy /workspaces/* paths
-      if (path.startsWith('/workspaces/')) {
         const pathParts = path.split('/');
         const layoutSlug = pathParts[2];
         const tabId = pathParts[3];

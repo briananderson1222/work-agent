@@ -21,13 +21,13 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { selectedLayout } = useNavigation();
-  const { data: workspace } = useLayoutQuery(selectedLayout || '', {
+  const { data: layout } = useLayoutQuery(selectedLayout || '', {
     enabled: !!selectedLayout,
   });
 
   const wsAgentSlugs = useMemo(
-    () => new Set(workspace?.availableAgents || []),
-    [workspace],
+    () => new Set(layout?.availableAgents || []),
+    [layout],
   );
 
   const { groups, flatList } = useMemo(() => {
@@ -82,11 +82,11 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
     if (recentAgents.length > 0 && !search)
       groups.push({ label: 'Recent', icon: '🕐', agents: recentAgents });
 
-    const wsName = workspace?.name;
+    const wsName = layout?.name;
     if (wsAgents.length > 0)
       groups.push({
-        label: wsName || 'Workspace',
-        icon: workspace?.icon,
+        label: wsName || 'Layout',
+        icon: layout?.icon,
         agents: wsAgents.filter((a) => !recentSet.has(a.slug) || !!search),
       });
     if (globalAgents.length > 0)
@@ -105,7 +105,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
       .filter((g) => g.agents.length > 0)
       .flatMap((g) => g.agents);
     return { groups: groups.filter((g) => g.agents.length > 0), flatList };
-  }, [agents, search, wsAgentSlugs, workspace?.icon, workspace?.name]);
+  }, [agents, search, wsAgentSlugs, layout?.icon, layout?.name]);
 
   return (
     <div

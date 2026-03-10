@@ -4,7 +4,7 @@ interface Conversation {
   id: string;
   agentSlug: string;
   agentName?: string;
-  agentType?: 'acp' | 'workspace' | 'global';
+  agentType?: 'acp' | 'layout' | 'global';
   agentLabel?: string;
   agentContext?: string;
   agentIcon?: string;
@@ -103,9 +103,9 @@ export function SessionConversationItem({
             <span className="session-item__badge session-item__badge--acp">
               ACP
             </span>
-          ) : conv.agentType === 'workspace' ? (
+          ) : conv.agentType === 'layout' ? (
             <span className="session-item__badge session-item__badge--workspace">
-              Workspace
+              Layout
             </span>
           ) : (
             <span className="session-item__badge session-item__badge--global">

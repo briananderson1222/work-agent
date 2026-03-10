@@ -18,10 +18,10 @@ interface Plugin {
   version: string;
   description?: string;
   hasBundle: boolean;
-  workspace?: { slug: string };
+  layout?: { slug: string };
   agents?: Array<{ slug: string }>;
   providers?: Array<{ type: string }>;
-  providerDetails?: Array<{ type: string; module: string; workspace: string | null; enabled: boolean }>;
+  providerDetails?: Array<{ type: string; module: string; layout: string | null; enabled: boolean }>;
   git?: { hash: string; branch: string; remote?: string };
   permissions?: { declared: string[]; granted: string[]; missing: Array<{ permission: string; tier: 'passive' | 'active' | 'trusted' }> };
 }

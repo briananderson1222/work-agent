@@ -91,7 +91,7 @@ export function LayoutView({
   });
 
   // Map LayoutConfig → workspace shape
-  const layoutAsWorkspace = layoutData
+  const projectLayout = layoutData
     ? {
         slug: layoutData.slug,
         name: layoutData.name,
@@ -122,7 +122,7 @@ export function LayoutView({
     enabled: !isProjectMode && !!selectedLayout && backendReady,
   });
 
-  const workspace = isProjectMode ? layoutAsWorkspace : standaloneLayoutData;
+  const layout = isProjectMode ? projectLayout : standaloneLayoutData;
   const effectiveLoading = isProjectMode ? layoutLoading : isLoading;
   const effectiveError = isProjectMode ? layoutError : isError;
   const effectiveRefetch = isProjectMode ? refetchLayout : refetch;
@@ -141,7 +141,7 @@ export function LayoutView({
   );
 
   // Auto-select first tab if none is active
-  const activeTabId = activeTab || workspace?.tabs?.[0]?.id || '';
+  const activeTabId = activeTab || layout?.tabs?.[0]?.id || '';
 
   const [refreshKey, setRefreshKey] = useState(0);
   const queryClient = useQueryClient();
@@ -167,15 +167,15 @@ export function LayoutView({
     handleSlashCommand,
   );
 
-  const activeTabObject = workspace?.tabs?.find(
+  const activeTabObject = layout?.tabs?.find(
     (t: any) => t.id === activeTabId,
   );
-  const agent = agents.find((a) => a.slug === workspace?.defaultAgent);
+  const agent = agents.find((a) => a.slug === layout?.defaultAgent);
 
   const handleLaunchPrompt = useCallback(
     async (prompt: any) => {
       const targetAgent = agents.find(
-        (a) => a.slug === (prompt.agent || workspace?.defaultAgent),
+        (a) => a.slug === (prompt.agent || layout?.defaultAgent),
       );
       if (!targetAgent) return;
 
@@ -191,7 +191,7 @@ export function LayoutView({
     },
     [
       agents,
-      workspace?.defaultAgent,
+      layout?.defaultAgent,
       createChatSession,
       sendMessage,
       setDockState,
@@ -269,18 +269,18 @@ export function LayoutView({
     );
   }
 
-  if (effectiveLoading || (!isProjectMode && backendChecking) || !workspace) {
+  if (effectiveLoading || (!isProjectMode && backendChecking) || !layout) {
     return <FullScreenLoader label="layout" />;
   }
 
   return (
-    <SDKAdapter layout={workspace}>
+    <SDKAdapter layout={layout}>
       <LayoutNavigationProvider
         activeTabId={activeTabId}
-        workspaceSlug={workspace?.slug}
+        layoutSlug={layout?.slug}
       >
         <LayoutRenderer
-          workspace={workspace}
+          layout={layout}
           activeTab={activeTabObject}
           activeTabId={activeTabId}
           onTabChange={setActiveTabId}

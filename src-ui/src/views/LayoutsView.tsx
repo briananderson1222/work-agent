@@ -7,7 +7,7 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAIEnrich } from '../hooks/useAIEnrich';
 import { useUrlSelection } from '../hooks/useUrlSelection';
-import type { WorkspaceConfig, WorkspaceTab, WorkspacePrompt, AgentSummary } from '../types';
+import type { StandaloneLayoutConfig, LayoutTab, LayoutPrompt, AgentSummary } from '../types';
 import './page-layout.css';
 import './editor-layout.css';
 
@@ -17,7 +17,7 @@ function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-const EMPTY_FORM: WorkspaceConfig = {
+const EMPTY_FORM: StandaloneLayoutConfig = {
   name: '',
   slug: '',
   icon: '',
@@ -39,8 +39,8 @@ export function LayoutsView() {
   const [isNew, setIsNew] = useState(urlSlug === 'new');
   const [templatePicked, setTemplatePicked] = useState(false);
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState<WorkspaceConfig>(EMPTY_FORM);
-  const [savedForm, setSavedForm] = useState<WorkspaceConfig>(EMPTY_FORM);
+  const [form, setForm] = useState<StandaloneLayoutConfig>(EMPTY_FORM);
+  const [savedForm, setSavedForm] = useState<StandaloneLayoutConfig>(EMPTY_FORM);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expandedTabs, setExpandedTabs] = useState<Set<number>>(new Set());
   const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
@@ -48,7 +48,7 @@ export function LayoutsView() {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch layout list
-  const { data: layouts = [] } = useQuery<WorkspaceConfig[]>({
+  const { data: layouts = [] } = useQuery<StandaloneLayoutConfig[]>({
     queryKey: ['layouts'],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/layouts`);
@@ -61,7 +61,7 @@ export function LayoutsView() {
   const { data: templates = [] } = useQuery({
     queryKey: ['templates', 'layout'],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/templates?type=workspace`);
+      const res = await fetch(`${apiBase}/api/templates?type=layout`);
       const json = await res.json();
       return json.data || [];
     },
@@ -78,7 +78,7 @@ export function LayoutsView() {
   });
 
   // Fetch single layout when selected
-  const { data: layoutDetail } = useQuery<WorkspaceConfig>({
+  const { data: layoutDetail } = useQuery<StandaloneLayoutConfig>({
     queryKey: ['layout', selectedSlug],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/layouts/${selectedSlug}`);
@@ -98,7 +98,7 @@ export function LayoutsView() {
   }, [layoutDetail]);
 
   const saveMutation = useMutation({
-    mutationFn: async (data: WorkspaceConfig) => {
+    mutationFn: async (data: StandaloneLayoutConfig) => {
       const url = isNew ? `${apiBase}/layouts` : `${apiBase}/layouts/${selectedSlug}`;
       const res = await fetch(url, {
         method: isNew ? 'POST' : 'PUT',
@@ -107,7 +107,7 @@ export function LayoutsView() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Save failed');
-      return json.data as WorkspaceConfig;
+      return json.data as StandaloneLayoutConfig;
     },
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['layouts'] });
@@ -179,17 +179,17 @@ export function LayoutsView() {
   }
 
   // Tab helpers
-  function setTabs(tabs: WorkspaceTab[]) {
+  function setTabs(tabs: LayoutTab[]) {
     setForm(f => ({ ...f, tabs }));
   }
 
   function addTab() {
-    const tab: WorkspaceTab = { id: `tab-${Date.now()}`, label: 'New Tab', component: 'chat' };
+    const tab: LayoutTab = { id: `tab-${Date.now()}`, label: 'New Tab', component: 'chat' };
     setForm(f => ({ ...f, tabs: [...f.tabs, tab] }));
     setExpandedTabs(prev => new Set([...prev, form.tabs.length]));
   }
 
-  function updateTab(i: number, updates: Partial<WorkspaceTab>) {
+  function updateTab(i: number, updates: Partial<LayoutTab>) {
     setForm(f => ({ ...f, tabs: f.tabs.map((t, idx) => idx === i ? { ...t, ...updates } : t) }));
   }
 
@@ -209,11 +209,11 @@ export function LayoutsView() {
 
   // Prompt helpers
   function addPrompt() {
-    const p: WorkspacePrompt = { id: `p-${Date.now()}`, label: '', prompt: '' };
+    const p: LayoutPrompt = { id: `p-${Date.now()}`, label: '', prompt: '' };
     setForm(f => ({ ...f, globalPrompts: [...(f.globalPrompts ?? []), p] }));
   }
 
-  function updatePrompt(i: number, updates: Partial<WorkspacePrompt>) {
+  function updatePrompt(i: number, updates: Partial<LayoutPrompt>) {
     setForm(f => ({
       ...f,
       globalPrompts: (f.globalPrompts ?? []).map((p, idx) => idx === i ? { ...p, ...updates } : p),
@@ -323,8 +323,8 @@ export function LayoutsView() {
                   <div className="template-grid">
                     {templates.map((t: any) => (
                       <button key={t.id} className="template-card" onClick={() => {
-                        setForm(f => ({ ...f, ...t.form, tabs: t.tabs as WorkspaceTab[] }));
-                        setSavedForm(f => ({ ...f, ...t.form, tabs: t.tabs as WorkspaceTab[] }));
+                        setForm(f => ({ ...f, ...t.form, tabs: t.tabs as LayoutTab[] }));
+                        setSavedForm(f => ({ ...f, ...t.form, tabs: t.tabs as LayoutTab[] }));
                         setTemplatePicked(true);
                       }}>
                         <span className="template-card__icon">{t.icon}</span>

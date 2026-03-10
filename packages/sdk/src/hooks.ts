@@ -56,14 +56,14 @@ export function useResolveAgent(agentSlug: string) {
 export function useLayouts() {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.layouts)
-    throw new Error('WorkspacesContext not available');
+    throw new Error('LayoutsContext not available');
   return sdk.contexts.layouts.useLayouts();
 }
 
 export function useLayout(slug: string, enabled = true) {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.layouts)
-    throw new Error('WorkspacesContext not available');
+    throw new Error('LayoutsContext not available');
   return sdk.contexts.layouts.useLayout(slug, enabled);
 }
 

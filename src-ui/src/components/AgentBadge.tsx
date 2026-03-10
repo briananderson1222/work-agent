@@ -16,19 +16,19 @@ export function AgentBadge({
 
   const isAcp = source === 'acp';
   const { namespace, name } = parseAgentSlug(agentSlug);
-  const isWorkspace = !isAcp && isLayoutAgent(agentSlug);
+  const isLayout = !isAcp && isLayoutAgent(agentSlug);
 
   // ACP agents: show "mode (connection)" format
   const displayName = isAcp ? name : name;
   const badgeClass = isAcp
     ? 'agent-badge--acp'
-    : isWorkspace
+    : isLayout
       ? 'agent-badge--layout'
       : 'agent-badge--global';
   const title = isAcp
     ? 'kiro-cli (ACP)'
-    : isWorkspace
-      ? `Workspace: ${namespace}`
+    : isLayout
+      ? `Layout: ${namespace}`
       : 'Global agent';
 
   return (
@@ -37,7 +37,7 @@ export function AgentBadge({
       title={title}
     >
       {isAcp && <span className="agent-badge__namespace">kiro-cli</span>}
-      {isWorkspace && (
+      {isLayout && (
         <span className="agent-badge__namespace">{namespace}</span>
       )}
       <span className="agent-badge__name">{displayName}</span>

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { LayoutConfig, ProjectConfig, StandaloneLayoutConfig } from '@stallion-ai/shared';
 
-export async function migrateWorkspacesToProject(projectHomeDir: string): Promise<void> {
+export async function migrateToProject(projectHomeDir: string): Promise<void> {
   const stallionDir = join(projectHomeDir, '.stallion-ai');
   const projectsDir = join(stallionDir, 'projects');
 

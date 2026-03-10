@@ -1,8 +1,8 @@
-import type { WorkspaceTab } from '../types';
+import type { LayoutTab } from '../types';
 import '../plugins/shared/workspace.css';
 
 export interface TabNavigationProps {
-  tabs: WorkspaceTab[];
+  tabs: LayoutTab[];
   activeTabId: string;
   onTabChange: (tabId: string) => void;
 }

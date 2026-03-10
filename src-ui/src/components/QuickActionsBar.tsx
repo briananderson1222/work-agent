@@ -1,9 +1,9 @@
-import type { WorkspacePrompt } from '../types';
+import type { LayoutPrompt } from '../types';
 
 export interface QuickActionsBarProps {
-  globalPrompts?: WorkspacePrompt[];
-  localPrompts?: WorkspacePrompt[];
-  onPromptSelect: (prompt: WorkspacePrompt) => void;
+  globalPrompts?: LayoutPrompt[];
+  localPrompts?: LayoutPrompt[];
+  onPromptSelect: (prompt: LayoutPrompt) => void;
 }
 
 export function QuickActionsBar({

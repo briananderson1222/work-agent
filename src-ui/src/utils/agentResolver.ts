@@ -1,4 +1,4 @@
-import type { WorkspaceConfig as StandaloneLayoutConfig } from '../types';
+import type { StandaloneLayoutConfig } from '../types';
 
 /**
  * Resolve agent name within workspace context
@@ -16,8 +16,8 @@ export function resolveAgentName(
   }
 
   // Try to find in workspace's available agents
-  if ((workspace as any)?.availableAgents) {
-    const match = ((workspace as any).availableAgents as string[]).find((a: string) =>
+  if (layout?.availableAgents) {
+    const match = (layout.availableAgents as string[]).find((a: string) =>
       a.endsWith(`:${agentName}`),
     );
     if (match) return match;

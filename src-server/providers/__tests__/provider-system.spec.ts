@@ -51,7 +51,7 @@ describe('Provider System', () => {
         pluginName: 'test-plugin',
         type: 'auth',
         module: './auth.js',
-        workspace: undefined
+        layout: undefined
       });
       expect(result.conflicts).toEqual([]);
     });
@@ -94,7 +94,7 @@ describe('Provider System', () => {
       expect(result.conflicts).toHaveLength(1);
       expect(result.conflicts[0]).toEqual({
         type: 'auth',
-        workspace: '*',
+        layout: '*',
         candidates: ['plugin1', 'plugin2']
       });
     });
@@ -150,15 +150,15 @@ describe('Provider System', () => {
       expect(result).toBeNull();
     });
 
-    it('getProvider with workspace scoping', () => {
+    it('getProvider with layout scoping', () => {
       const globalProvider = { scope: 'global' };
-      const workspaceProvider = { scope: 'workspace' };
+      const layoutProvider = { scope: 'layout' };
       
       registerProvider('auth', globalProvider);
-      registerProvider('auth', workspaceProvider, { workspace: 'test-ws' });
+      registerProvider('auth', layoutProvider, { layout: 'test-ws' });
       
       expect(getProvider('auth')).toBe(globalProvider);
-      expect(getProvider('auth', 'test-ws')).toBe(workspaceProvider);
+      expect(getProvider('auth', 'test-ws')).toBe(layoutProvider);
       expect(getProvider('auth', 'other-ws')).toBe(globalProvider);
     });
 

@@ -53,11 +53,11 @@ export function registerProvider(
   store.get(type)!.set(ws, { provider, source });
 }
 
-export function getProvider<T>(type: string, workspace?: string): T | null {
+export function getProvider<T>(type: string, layout?: string): T | null {
   const typeMap = store.get(type);
   if (!typeMap) return null;
-  if (workspace) {
-    const wsEntry = typeMap.get(workspace);
+  if (layout) {
+    const wsEntry = typeMap.get(layout);
     if (wsEntry) return wsEntry.provider as T;
   }
   const globalEntry = typeMap.get('*');

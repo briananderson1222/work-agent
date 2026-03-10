@@ -17,7 +17,7 @@ const IconTool = () => (
 );
 
 interface ManageViewProps {
-  workspaceCount: number;
+  layoutCount: number;
   agentCount: number;
   onNavigate: (view: NavigationView) => void;
 }
@@ -30,9 +30,9 @@ const sections = [
   { type: 'plugins' as const, idx: '05', icon: <IconPlugin />, label: 'Plugins', desc: 'Installed plugins — layouts, agents, and providers' },
 ] as const;
 
-export function ManageView({ workspaceCount, agentCount, onNavigate }: ManageViewProps) {
+export function ManageView({ layoutCount, agentCount, onNavigate }: ManageViewProps) {
   const counts: Record<string, string> = {
-    layouts: `${workspaceCount} configured`,
+    layouts: `${layoutCount} configured`,
     agents: `${agentCount} available`,
   };
 

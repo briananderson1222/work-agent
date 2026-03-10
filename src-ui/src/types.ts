@@ -195,34 +195,34 @@ export type NavigationView =
 export type DockMode = 'bottom' | 'right' | 'bottom-inline';
 
 // Workspace/Layout types — kept for backward compat with plugins that import from here
-export interface WorkspacePrompt {
+export interface LayoutPrompt {
   id: string;
   label: string;
   prompt: string;
   agent?: string;
 }
 
-export interface WorkspaceTab {
+export interface LayoutTab {
   id: string;
   label: string;
   component: string;
   icon?: string;
   description?: string;
-  actions?: WorkspacePrompt[];
-  prompts?: WorkspacePrompt[];
+  actions?: LayoutPrompt[];
+  prompts?: LayoutPrompt[];
 }
 
-export interface WorkspaceConfig {
+export interface StandaloneLayoutConfig {
   name: string;
   slug: string;
   icon?: string;
   description?: string;
   plugin?: string;
-  tabs: WorkspaceTab[];
-  globalPrompts?: WorkspacePrompt[];
+  tabs: LayoutTab[];
+  globalPrompts?: LayoutPrompt[];
 }
 
-export interface WorkspaceMetadata {
+export interface StandaloneLayoutMetadata {
   slug: string;
   name: string;
   icon?: string;

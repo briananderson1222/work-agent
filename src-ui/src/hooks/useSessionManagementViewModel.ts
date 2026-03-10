@@ -54,7 +54,7 @@ export function useSessionManagementViewModel(
 
       const agent = agents[index];
       const agentConvos = query.data.map((conv: Conversation) => {
-        let agentType: 'acp' | 'workspace' | 'global' = 'global';
+        let agentType: 'acp' | 'layout' | 'global' = 'global';
         let agentLabel = agent.name;
         let agentContext = '';
 
@@ -64,7 +64,7 @@ export function useSessionManagementViewModel(
           agentContext = dash > 0 ? agent.slug.substring(0, dash) : 'acp';
           agentLabel = dash > 0 ? agent.slug.substring(dash + 1) : agent.name;
         } else if (agent.slug.includes(':')) {
-          agentType = 'workspace';
+          agentType = 'layout';
           const [ws, ag] = agent.slug.split(':', 2);
           agentContext = ws;
           agentLabel = ag || agent.name;

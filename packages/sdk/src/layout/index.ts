@@ -1,6 +1,6 @@
 import type { PluginManifest } from '../types';
 
-export class WorkspaceAPI {
+export class LayoutAPI {
   constructor(private manifest: PluginManifest) {}
 
   getManifest(): PluginManifest {
