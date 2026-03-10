@@ -196,7 +196,7 @@ export function PromptsView() {
       <SplitPaneLayout
         label="prompts"
         title="Prompts"
-        subtitle="Reusable prompts for workspaces and agents"
+        subtitle="Reusable prompts for layouts and agents"
         items={listItems}
         selectedId={isNew ? '__new__' : selectedId}
         onSelect={selectPrompt}

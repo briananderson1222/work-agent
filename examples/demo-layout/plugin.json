@@ -1,8 +1,8 @@
 {
-  "name": "demo-workspace",
+  "name": "demo-layout",
   "version": "1.0.0",
-  "displayName": "Demo Workspace",
-  "description": "A demo workspace showing Stallion capabilities \u2014 no external dependencies",
+  "displayName": "Demo Layout",
+  "description": "A demo layout showing Stallion capabilities \u2014 no external dependencies",
   "entrypoint": "src/index.tsx",
   "capabilities": [
     "chat",
@@ -17,8 +17,8 @@
       "source": "./agents/assistant/agent.json"
     }
   ],
-  "workspace": {
+  "layout": {
     "slug": "demo",
-    "source": "./workspace.json"
+    "source": "./layout.json"
   }
 }

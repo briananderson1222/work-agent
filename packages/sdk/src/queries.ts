@@ -105,14 +105,14 @@ export function useInvalidateQuery() {
 }
 
 /**
- * Fetch workspace by slug
+ * Fetch layout by slug
  */
-export function useWorkspaceQuery(slug: string, config?: QueryConfig<any>) {
+export function useLayoutQuery(slug: string, config?: QueryConfig<any>) {
   return useApiQuery(
-    ['workspace', slug],
+    ['layout', slug],
     async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/workspaces/${slug}`);
+      const response = await fetch(`${apiBase}/layouts/${slug}`);
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       return result.data;
@@ -122,14 +122,14 @@ export function useWorkspaceQuery(slug: string, config?: QueryConfig<any>) {
 }
 
 /**
- * Fetch all workspaces
+ * Fetch all layouts
  */
-export function useWorkspacesQuery(config?: QueryConfig<any>) {
+export function useLayoutsQuery(config?: QueryConfig<any>) {
   return useApiQuery(
-    ['workspaces'],
+    ['layouts'],
     async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/workspaces`);
+      const response = await fetch(`${apiBase}/layouts`);
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       return result.data;

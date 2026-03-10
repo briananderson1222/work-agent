@@ -3,7 +3,7 @@ export interface DevTemplateOptions {
   pluginName: string;
   tabsJson: string;
   agentInfo: string;
-  wsSlug: string;
+  layoutSlug: string;
   sdkMockJs: string;
 }
 

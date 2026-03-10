@@ -10,7 +10,7 @@ function Welcome({ onShowChat }: WorkspaceComponentProps) {
     <div style={{ padding: '2rem', maxWidth: '720px', margin: '0 auto' }}>
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>👋 Welcome to Stallion</h1>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-        This is a demo workspace. Install plugins to add real functionality.
+        This is a demo layout. Install plugins to add real functionality.
       </p>
 
       <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
@@ -37,9 +37,9 @@ function Welcome({ onShowChat }: WorkspaceComponentProps) {
       <div style={{ marginTop: '2rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', fontSize: '0.85rem' }}>
         <strong>Getting Started</strong>
         <ol style={{ margin: '0.5rem 0 0', paddingLeft: '1.2rem' }}>
-          <li>Install a workspace plugin: <code>npx @stallion-ai/cli install &lt;git-url&gt;</code></li>
+          <li>Install a layout plugin: <code>npx @stallion-ai/cli install &lt;git-url&gt;</code></li>
           <li>Restart the server to load new agents and providers</li>
-          <li>Switch to the installed workspace from the workspace selector</li>
+          <li>Switch to the installed layout from the layout selector</li>
         </ol>
       </div>
     </div>
@@ -85,8 +85,8 @@ function Card({ title, value, children }: { title: string; value: string; childr
 }
 
 export const components = {
-  'demo-workspace-welcome': Welcome,
-  'demo-workspace-notes': Notes,
+  'demo-layout-welcome': Welcome,
+  'demo-layout-notes': Notes,
 };
 
 export default Welcome;

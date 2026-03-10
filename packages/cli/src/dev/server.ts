@@ -16,7 +16,7 @@ import { extname, join } from 'node:path';
 import {
   buildPlugin,
   resolvePluginIntegrations,
-  type WorkspaceConfig,
+  type StandaloneLayoutConfig,
   type ToolCallResponse,
 } from '@stallion-ai/shared';
 import { MCPManager } from '@stallion-ai/shared/mcp';
@@ -66,14 +66,14 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
   const bundleCss = join(CWD, 'dist/bundle-dev.css');
   const bundleCssFallback = join(CWD, 'dist/bundle.css');
 
-  const wsPath = manifest.workspace?.source
-    ? join(CWD, manifest.workspace.source)
+  const layoutPath = manifest.layout?.source
+    ? join(CWD, manifest.layout.source)
     : null;
-  const workspace: WorkspaceConfig | null =
-    wsPath && existsSync(wsPath)
-      ? JSON.parse(readFileSync(wsPath, 'utf-8'))
+  const layout: StandaloneLayoutConfig | null =
+    layoutPath && existsSync(layoutPath)
+      ? JSON.parse(readFileSync(layoutPath, 'utf-8'))
       : null;
-  const tabs = workspace?.tabs || [];
+  const tabs = layout?.tabs || [];
   const tabsJson = JSON.stringify(tabs);
 
   // Read agent info for dev header
@@ -91,7 +91,7 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
     .map((a) => `${a.name}${a.model ? ` (${a.model.split(':')[0].split('.').pop()})` : ''}`)
     .join(', ');
 
-  const wsSlug = workspace?.slug || pluginName;
+  const layoutSlug = layout?.slug || pluginName;
 
   // Build react + react-query from plugin's own node_modules
   const reactBundle = join(CWD, 'dist/.react-dev.js');
@@ -137,8 +137,8 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
     pluginName: pluginName!,
     tabsJson,
     agentInfo,
-    wsSlug,
-    sdkMockJs: serializeSDKMock({ wsSlug }),
+    layoutSlug,
+    sdkMockJs: serializeSDKMock({ layoutSlug }),
   });
 
   // ── MCP setup ──

@@ -30,10 +30,10 @@ export const loadingPhrases = [
 /** Tips and fun facts shown below the primary message. */
 export const loadingTips = [
   'tip: you can use / commands in chat for quick actions',
-  'tip: workspaces can have multiple tabs with different tools',
-  'tip: agents can be customized per workspace',
+  'tip: layouts can have multiple tabs with different tools',
+  'tip: agents can be customized per layout',
   'tip: keyboard shortcuts make everything faster',
-  'tip: plugins extend your workspace with new capabilities',
+  'tip: plugins extend your layout with new capabilities',
   'tip: chat sessions persist across page reloads',
   'tip: you can connect multiple AI backends at once',
   'fun fact: the first AI program was written in 1951',

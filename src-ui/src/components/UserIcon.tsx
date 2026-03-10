@@ -1,5 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
-import { getInitials, getUserIconStyle } from '../utils/workspace';
+import { getInitials, getUserIconStyle } from '../utils/layout';
 
 interface UserIconProps {
   size?: number;

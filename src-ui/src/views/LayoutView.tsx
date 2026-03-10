@@ -2,8 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FullScreenError,
   FullScreenLoader,
-  useWorkspaceQuery,
-  useWorkspacesQuery,
+  useLayoutQuery,
+  useLayoutsQuery,
   WorkspaceNavigationProvider,
 } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useState } from 'react';
@@ -17,7 +17,7 @@ import { useNavigation } from '../contexts/NavigationContext';
 import { SDKAdapter } from '../core/SDKAdapter';
 import { useBranding } from '../hooks/useBranding';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
-import { WorkspaceRenderer } from '../workspaces';
+import { LayoutRenderer } from '../layouts';
 
 function useBackendReady(apiBase: string) {
   const [ready, setReady] = useState(false);
@@ -44,7 +44,7 @@ function useBackendReady(apiBase: string) {
   return { ready, checking, retry: check };
 }
 
-export function WorkspaceView({
+export function LayoutView({
   projectSlug,
   layoutSlug,
 }: {
@@ -53,11 +53,11 @@ export function WorkspaceView({
 } = {}) {
   const { apiBase } = useApiBase();
   const {
-    selectedWorkspace,
+    selectedLayout,
     activeTab,
     setDockState,
-    setWorkspace,
-    setWorkspaceTab,
+    setStandaloneLayout,
+    setLayoutTab,
     setActiveChat,
   } = useNavigation();
 
@@ -114,15 +114,15 @@ export function WorkspaceView({
 
   // React Query auto-fetches, caches, dedupes
   const {
-    data: workspaceData,
+    data: standaloneLayoutData,
     isLoading,
     isError,
     refetch,
-  } = useWorkspaceQuery(selectedWorkspace || '', {
-    enabled: !isProjectMode && !!selectedWorkspace && backendReady,
+  } = useLayoutQuery(selectedLayout || '', {
+    enabled: !isProjectMode && !!selectedLayout && backendReady,
   });
 
-  const workspace = isProjectMode ? layoutAsWorkspace : workspaceData;
+  const workspace = isProjectMode ? layoutAsWorkspace : standaloneLayoutData;
   const effectiveLoading = isProjectMode ? layoutLoading : isLoading;
   const effectiveError = isProjectMode ? layoutError : isError;
   const effectiveRefetch = isProjectMode ? refetchLayout : refetch;
@@ -133,11 +133,11 @@ export function WorkspaceView({
   // Set active tab via NavigationContext
   const setActiveTabId = useCallback(
     (tabId: string) => {
-      if (selectedWorkspace) {
-        setWorkspaceTab(selectedWorkspace, tabId);
+      if (selectedLayout) {
+        setLayoutTab(selectedLayout, tabId);
       }
     },
-    [selectedWorkspace, setWorkspaceTab],
+    [selectedLayout, setLayoutTab],
   );
 
   // Auto-select first tab if none is active
@@ -201,8 +201,8 @@ export function WorkspaceView({
 
   const handleRefresh = useCallback(() => {
     if (!isProjectMode) {
-      // Clear sessionStorage keys for this workspace
-      const prefix = `workspace:${selectedWorkspace}`;
+      // Clear sessionStorage keys for this layout
+      const prefix = `layout:${selectedLayout}`;
       const keysToRemove: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
@@ -220,22 +220,22 @@ export function WorkspaceView({
 
     // Increment refresh key to force remount
     setRefreshKey((prev) => prev + 1);
-  }, [isProjectMode, selectedWorkspace, queryClient]);
+  }, [isProjectMode, selectedLayout, queryClient]);
 
-  const { data: allWorkspaces = [] } = useWorkspacesQuery();
+  const { data: allLayouts = [] } = useLayoutsQuery();
 
-  if (!selectedWorkspace && !isProjectMode) {
-    if (allWorkspaces.length === 0) {
-      return <EmptyWorkspaceOnboarding />;
+  if (!selectedLayout && !isProjectMode) {
+    if (allLayouts.length === 0) {
+      return <EmptyLayoutOnboarding />;
     }
-    setWorkspace(allWorkspaces[0].slug);
-    return <FullScreenLoader label="workspace" />;
+    setStandaloneLayout(allLayouts[0].slug);
+    return <FullScreenLoader label="layout" />;
   }
 
-  // Selected workspace doesn't exist — redirect to first available or root
-  if (allWorkspaces.length > 0 && !allWorkspaces.some((w: any) => w.slug === selectedWorkspace)) {
-    setWorkspace(allWorkspaces[0].slug);
-    return <FullScreenLoader label="workspace" />;
+  // Selected layout doesn't exist — redirect to first available or root
+  if (allLayouts.length > 0 && !allLayouts.some((w: any) => w.slug === selectedLayout)) {
+    setStandaloneLayout(allLayouts[0].slug);
+    return <FullScreenLoader label="layout" />;
   }
 
   // Backend unreachable (skip in project mode — layout query handles its own errors)
@@ -250,27 +250,27 @@ export function WorkspaceView({
     );
   }
 
-  // Query failed after backend was reachable — if workspace doesn't exist, show onboarding
+  // Query failed after backend was reachable — if layout doesn't exist, show onboarding
   if (effectiveError && !effectiveLoading) {
     if (!isProjectMode) {
-      const workspaceExists = allWorkspaces.some(
-        (w: any) => w.slug === selectedWorkspace,
+      const layoutExists = allLayouts.some(
+        (w: any) => w.slug === selectedLayout,
       );
-      if (!workspaceExists) {
-        return <EmptyWorkspaceOnboarding />;
+      if (!layoutExists) {
+        return <EmptyLayoutOnboarding />;
       }
     }
     return (
       <FullScreenError
-        title="Failed to load workspace"
-        description="Something went wrong loading this workspace. It might be a temporary issue."
+        title="Failed to load layout"
+        description="Something went wrong loading this layout. It might be a temporary issue."
         onRetry={() => effectiveRefetch()}
       />
     );
   }
 
   if (effectiveLoading || (!isProjectMode && backendChecking) || !workspace) {
-    return <FullScreenLoader label="workspace" />;
+    return <FullScreenLoader label="layout" />;
   }
 
   return (
@@ -279,7 +279,7 @@ export function WorkspaceView({
         activeTabId={activeTabId}
         workspaceSlug={workspace?.slug}
       >
-        <WorkspaceRenderer
+        <LayoutRenderer
           workspace={workspace}
           activeTab={activeTabObject}
           activeTabId={activeTabId}
@@ -296,7 +296,7 @@ export function WorkspaceView({
   );
 }
 
-function EmptyWorkspaceOnboarding() {
+function EmptyLayoutOnboarding() {
   const { navigate } = useNavigation();
   const { appName, welcomeMessage } = useBranding();
 
@@ -308,21 +308,21 @@ function EmptyWorkspaceOnboarding() {
           {welcomeMessage || `Welcome to ${appName}`}
         </h2>
         <p className="workspace-onboarding__desc">
-          Workspaces give you a custom dashboard with tabs, agents, and tools.
+          Layouts give you a custom dashboard with tabs, agents, and tools.
           Get started by creating one or installing a plugin.
         </p>
         <div className="workspace-onboarding__actions">
           <button
             className="workspace-onboarding__card"
-            onClick={() => navigate('/workspaces')}
+            onClick={() => navigate('/layouts')}
           >
             <span className="workspace-onboarding__card-icon">✨</span>
             <div>
               <div className="workspace-onboarding__card-title">
-                Create a Workspace
+                Create a Layout
               </div>
               <div className="workspace-onboarding__card-desc">
-                Build a custom workspace with your own tabs and agents
+                Build a custom layout with your own tabs and agents
               </div>
             </div>
           </button>
@@ -336,7 +336,7 @@ function EmptyWorkspaceOnboarding() {
                 Install a Plugin
               </div>
               <div className="workspace-onboarding__card-desc">
-                Add a pre-built workspace from a git repo or local path
+                Add a pre-built layout from a git repo or local path
               </div>
             </div>
           </button>

@@ -3,21 +3,21 @@ import React from 'react';
 
 import { createContext, type ReactNode, useContext, useState } from 'react';
 
-interface WorkspaceContextConfig<T> {
-  workspaceSlug: string;
+interface LayoutContextConfig<T> {
+  layoutSlug: string;
   projectSlug?: string;
   initialState: T;
   persist?: boolean; // Auto-save to sessionStorage
 }
 
-export function createWorkspaceContext<T extends Record<string, any>>(
-  config: WorkspaceContextConfig<T>,
+export function createLayoutContext<T extends Record<string, any>>(
+  config: LayoutContextConfig<T>,
 ) {
-  const { workspaceSlug, projectSlug, initialState, persist = true } = config;
+  const { layoutSlug, projectSlug, initialState, persist = true } = config;
   // Include projectSlug in storage key for proper scoping
   const storageKey = projectSlug
-    ? `layout:${projectSlug}:${workspaceSlug}:context`
-    : `workspace:${workspaceSlug}:context`;
+    ? `layout:${projectSlug}:${layoutSlug}:context`
+    : `layout:${layoutSlug}:context`;
 
   type ContextValue = {
     state: T;
@@ -49,7 +49,7 @@ export function createWorkspaceContext<T extends Record<string, any>>(
             sessionStorage.setItem(storageKey, JSON.stringify(next));
           } catch (err) {
             console.warn(
-              `Failed to persist workspace context for ${workspaceSlug}:`,
+              `Failed to persist layout context for ${layoutSlug}:`,
               err,
             );
           }
@@ -72,15 +72,15 @@ export function createWorkspaceContext<T extends Record<string, any>>(
     );
   }
 
-  function useWorkspaceContext() {
+  function useLayoutContext() {
     const context = useContext(Context);
     if (!context) {
       throw new Error(
-        `useWorkspaceContext must be used within ${workspaceSlug} workspace Provider`,
+        `useLayoutContext must be used within ${layoutSlug} layout Provider`,
       );
     }
     return context;
   }
 
-  return { Provider, useWorkspaceContext };
+  return { Provider, useLayoutContext };
 }

@@ -20,11 +20,11 @@ import type {
   AgentMetadata,
   AgentSpec,
   AppConfig,
+  StandaloneLayoutConfig,
+  StandaloneLayoutMetadata,
   ToolDef,
   ToolMetadata,
   WorkflowMetadata,
-  WorkspaceConfig,
-  WorkspaceMetadata,
 } from './types.js';
 import { validator } from './validator.js';
 
@@ -580,24 +580,24 @@ export class ConfigLoader {
   }
 
   /**
-   * Load workspace configuration
+   * Load layout configuration
    */
-  async loadWorkspace(slug: string): Promise<WorkspaceConfig> {
-    const path = join(this.projectHomeDir, 'workspaces', slug, 'workspace.json');
+  async loadLayout(slug: string): Promise<StandaloneLayoutConfig> {
+    const path = join(this.projectHomeDir, 'layouts', slug, 'layout.json');
 
     if (!existsSync(path)) {
-      throw new Error(`Workspace '${slug}' not found at ${path}`);
+      throw new Error(`Layout '${slug}' not found at ${path}`);
     }
 
     const content = await readFile(path, 'utf-8');
     const data = JSON.parse(content);
-    validator.validateWorkspaceConfig(data);
+    validator.validateLayoutConfig(data);
 
     // Validate agent references
     for (const prompt of data.globalPrompts || []) {
       if (prompt.agent && !(await this.agentExists(prompt.agent))) {
         throw new Error(
-          `Workspace '${slug}' references non-existent agent '${prompt.agent}'`,
+          `Layout '${slug}' references non-existent agent '${prompt.agent}'`,
         );
       }
     }
@@ -605,7 +605,7 @@ export class ConfigLoader {
       for (const prompt of tab.prompts || []) {
         if (prompt.agent && !(await this.agentExists(prompt.agent))) {
           throw new Error(
-            `Workspace '${slug}' tab '${tab.id}' references non-existent agent '${prompt.agent}'`,
+            `Layout '${slug}' tab '${tab.id}' references non-existent agent '${prompt.agent}'`,
           );
         }
       }
@@ -615,27 +615,27 @@ export class ConfigLoader {
   }
 
   /**
-   * List all workspaces
+   * List all layouts
    */
-  async listWorkspaces(): Promise<WorkspaceMetadata[]> {
-    const workspacesDir = join(this.projectHomeDir, 'workspaces');
+  async listLayouts(): Promise<StandaloneLayoutMetadata[]> {
+    const layoutsDir = join(this.projectHomeDir, 'layouts');
 
-    if (!existsSync(workspacesDir)) {
+    if (!existsSync(layoutsDir)) {
       return [];
     }
 
-    const entries = await readdir(workspacesDir, { withFileTypes: true });
-    const workspaces: WorkspaceMetadata[] = [];
+    const entries = await readdir(layoutsDir, { withFileTypes: true });
+    const layouts: StandaloneLayoutMetadata[] = [];
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
 
-      const workspacePath = join(workspacesDir, entry.name, 'workspace.json');
-      if (!existsSync(workspacePath)) continue;
+      const layoutPath = join(layoutsDir, entry.name, 'layout.json');
+      if (!existsSync(layoutPath)) continue;
 
       try {
-        const config = await this.loadWorkspace(entry.name);
-        workspaces.push({
+        const config = await this.loadLayout(entry.name);
+        layouts.push({
           slug: config.slug,
           name: config.name,
           icon: config.icon,
@@ -644,78 +644,78 @@ export class ConfigLoader {
           tabCount: config.tabs?.length || 0,
         });
       } catch (error) {
-        logger.error('Failed to load workspace', {
-          workspace: entry.name,
+        logger.error('Failed to load layout', {
+          layout: entry.name,
           error,
         });
       }
     }
 
-    return workspaces.sort((a, b) => a.name.localeCompare(b.name));
+    return layouts.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**
-   * Create a new workspace
+   * Create a new layout
    */
-  async createWorkspace(config: WorkspaceConfig): Promise<void> {
-    validator.validateWorkspaceConfig(config);
+  async createLayout(config: StandaloneLayoutConfig): Promise<void> {
+    validator.validateLayoutConfig(config);
 
-    if (await this.workspaceExists(config.slug)) {
-      throw new Error(`Workspace with slug '${config.slug}' already exists`);
+    if (await this.layoutExists(config.slug)) {
+      throw new Error(`Layout with slug '${config.slug}' already exists`);
     }
 
-    await this.saveWorkspace(config.slug, config);
+    await this.saveLayout(config.slug, config);
   }
 
   /**
-   * Update an existing workspace
+   * Update an existing layout
    */
-  async updateWorkspace(
+  async updateLayout(
     slug: string,
-    updates: Partial<WorkspaceConfig>,
-  ): Promise<WorkspaceConfig> {
-    const existing = await this.loadWorkspace(slug);
+    updates: Partial<StandaloneLayoutConfig>,
+  ): Promise<StandaloneLayoutConfig> {
+    const existing = await this.loadLayout(slug);
     const updated = { ...existing, ...updates };
-    await this.saveWorkspace(slug, updated);
+    await this.saveLayout(slug, updated);
     return updated;
   }
 
   /**
-   * Delete a workspace
+   * Delete a layout
    */
-  async deleteWorkspace(slug: string): Promise<void> {
-    const workspaceDir = join(this.projectHomeDir, 'workspaces', slug);
+  async deleteLayout(slug: string): Promise<void> {
+    const layoutDir = join(this.projectHomeDir, 'layouts', slug);
 
-    if (!existsSync(workspaceDir)) {
-      throw new Error(`Workspace '${slug}' not found`);
+    if (!existsSync(layoutDir)) {
+      throw new Error(`Layout '${slug}' not found`);
     }
 
-    await rm(workspaceDir, { recursive: true, force: true });
+    await rm(layoutDir, { recursive: true, force: true });
   }
 
   /**
-   * Save workspace configuration
+   * Save layout configuration
    */
-  async saveWorkspace(slug: string, config: WorkspaceConfig): Promise<void> {
-    validator.validateWorkspaceConfig(config);
+  async saveLayout(slug: string, config: StandaloneLayoutConfig): Promise<void> {
+    validator.validateLayoutConfig(config);
 
-    const workspaceDir = join(this.projectHomeDir, 'workspaces', slug);
-    await mkdir(workspaceDir, { recursive: true });
+    const layoutDir = join(this.projectHomeDir, 'layouts', slug);
+    await mkdir(layoutDir, { recursive: true });
 
-    const path = join(workspaceDir, 'workspace.json');
+    const path = join(layoutDir, 'layout.json');
     await writeFile(path, JSON.stringify(config, null, 2), 'utf-8');
   }
 
   /**
-   * Get all workspaces that reference a specific agent
+   * Get all layouts that reference a specific agent
    */
-  async getWorkspacesUsingAgent(agentSlug: string): Promise<string[]> {
-    const workspaces = await this.listWorkspaces();
+  async getLayoutsUsingAgent(agentSlug: string): Promise<string[]> {
+    const layouts = await this.listLayouts();
     const using: string[] = [];
 
-    for (const ws of workspaces) {
+    for (const layout of layouts) {
       try {
-        const config = await this.loadWorkspace(ws.slug);
+        const config = await this.loadLayout(layout.slug);
 
         // Check global prompts
         const hasGlobalRef = config.globalPrompts?.some(
@@ -728,10 +728,10 @@ export class ConfigLoader {
         );
 
         if (hasGlobalRef || hasTabRef) {
-          using.push(ws.slug);
+          using.push(layout.slug);
         }
       } catch (error) {
-        logger.error('Error checking workspace', { workspace: ws.slug, error });
+        logger.error('Error checking layout', { layout: layout.slug, error });
       }
     }
 
@@ -747,10 +747,10 @@ export class ConfigLoader {
   }
 
   /**
-   * Check if workspace exists
+   * Check if layout exists
    */
-  async workspaceExists(slug: string): Promise<boolean> {
-    const path = join(this.projectHomeDir, 'workspaces', slug, 'workspace.json');
+  async layoutExists(slug: string): Promise<boolean> {
+    const path = join(this.projectHomeDir, 'layouts', slug, 'layout.json');
     return existsSync(path);
   }
 

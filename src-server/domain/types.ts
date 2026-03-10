@@ -23,10 +23,10 @@ export {
   type ToolMetadata,
   type ToolPermissions,
   type WorkflowMetadata,
-  type WorkspaceConfig,
-  type WorkspaceMetadata,
-  type WorkspacePrompt,
-  type WorkspaceTab,
+  type StandaloneLayoutConfig,
+  type StandaloneLayoutMetadata,
+  type LayoutPrompt,
+  type LayoutTab,
 } from '@stallion-ai/shared';
 
 // Legacy aliases kept for backwards compat with existing core server code

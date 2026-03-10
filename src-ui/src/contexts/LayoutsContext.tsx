@@ -7,7 +7,7 @@ import {
 } from 'react';
 import { log } from '@/utils/logger';
 
-type WorkspaceData = {
+type LayoutData = {
   slug: string;
   name: string;
   icon?: string;
@@ -31,8 +31,8 @@ type WorkspaceData = {
   }>;
 };
 
-class WorkspacesStore {
-  private workspaces: WorkspaceData[] = [];
+class LayoutsStore {
+  private layouts: LayoutData[] = [];
   private listeners = new Set<() => void>();
   private fetching = new Map<string, Promise<void>>();
 
@@ -41,7 +41,7 @@ class WorkspacesStore {
     return () => this.listeners.delete(listener);
   };
 
-  getSnapshot = () => this.workspaces;
+  getSnapshot = () => this.layouts;
 
   private notify = () => {
     this.listeners.forEach((listener) => listener());
@@ -59,11 +59,11 @@ class WorkspacesStore {
         const result = await response.json();
 
         if (result.success) {
-          this.workspaces = result.data;
+          this.layouts = result.data;
           this.notify();
         }
       } catch (error) {
-        log.api('Failed to fetch workspaces:', error);
+        log.api('Failed to fetch layouts:', error);
       } finally {
         this.fetching.delete(key);
       }
@@ -85,16 +85,16 @@ class WorkspacesStore {
         const result = await response.json();
 
         if (result.success) {
-          const idx = this.workspaces.findIndex((w) => w.slug === slug);
+          const idx = this.layouts.findIndex((w) => w.slug === slug);
           if (idx >= 0) {
-            this.workspaces[idx] = result.data;
+            this.layouts[idx] = result.data;
           } else {
-            this.workspaces.push(result.data);
+            this.layouts.push(result.data);
           }
           this.notify();
         }
       } catch (error) {
-        log.api(`Failed to fetch workspace ${slug}:`, error);
+        log.api(`Failed to fetch layout ${slug}:`, error);
       } finally {
         this.fetching.delete(key);
       }
@@ -104,25 +104,25 @@ class WorkspacesStore {
     return promise;
   }
 
-  async create(apiBase: string, workspace: WorkspaceData) {
+  async create(apiBase: string, layout: LayoutData) {
     try {
       const response = await fetch(`${apiBase}/workspaces`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workspace),
+        body: JSON.stringify(layout),
       });
       const result = await response.json();
 
       if (result.success) {
-        this.workspaces.push(result.data);
+        this.layouts.push(result.data);
         this.notify();
       }
     } catch (error) {
-      log.api('Failed to create workspace:', error);
+      log.api('Failed to create layout:', error);
     }
   }
 
-  async update(apiBase: string, slug: string, updates: Partial<WorkspaceData>) {
+  async update(apiBase: string, slug: string, updates: Partial<LayoutData>) {
     try {
       const response = await fetch(`${apiBase}/workspaces/${slug}`, {
         method: 'PUT',
@@ -132,14 +132,14 @@ class WorkspacesStore {
       const result = await response.json();
 
       if (result.success) {
-        const idx = this.workspaces.findIndex((w) => w.slug === slug);
+        const idx = this.layouts.findIndex((w) => w.slug === slug);
         if (idx >= 0) {
-          this.workspaces[idx] = result.data;
+          this.layouts[idx] = result.data;
           this.notify();
         }
       }
     } catch (error) {
-      log.api('Failed to update workspace:', error);
+      log.api('Failed to update layout:', error);
     }
   }
 
@@ -151,87 +151,87 @@ class WorkspacesStore {
       const result = await response.json();
 
       if (result.success) {
-        this.workspaces = this.workspaces.filter((w) => w.slug !== slug);
+        this.layouts = this.layouts.filter((w) => w.slug !== slug);
         this.notify();
       }
     } catch (error) {
-      log.api('Failed to delete workspace:', error);
+      log.api('Failed to delete layout:', error);
     }
   }
 }
 
-const workspacesStore = new WorkspacesStore();
+const layoutsStore = new LayoutsStore();
 
-const WorkspacesContext = createContext<{
+const LayoutsContext = createContext<{
   fetchAll: (apiBase: string) => Promise<void>;
   fetchOne: (apiBase: string, slug: string) => Promise<void>;
-  create: (apiBase: string, workspace: WorkspaceData) => Promise<void>;
+  create: (apiBase: string, layout: LayoutData) => Promise<void>;
   update: (
     apiBase: string,
     slug: string,
-    updates: Partial<WorkspaceData>,
+    updates: Partial<LayoutData>,
   ) => Promise<void>;
   delete: (apiBase: string, slug: string) => Promise<void>;
 } | null>(null);
 
-export function WorkspacesProvider({ children }: { children: ReactNode }) {
+export function LayoutsProvider({ children }: { children: ReactNode }) {
   const fetchAll = useCallback(
-    (apiBase: string) => workspacesStore.fetchAll(apiBase),
+    (apiBase: string) => layoutsStore.fetchAll(apiBase),
     [],
   );
   const fetchOne = useCallback(
-    (apiBase: string, slug: string) => workspacesStore.fetchOne(apiBase, slug),
+    (apiBase: string, slug: string) => layoutsStore.fetchOne(apiBase, slug),
     [],
   );
   const create = useCallback(
-    (apiBase: string, workspace: WorkspaceData) =>
-      workspacesStore.create(apiBase, workspace),
+    (apiBase: string, layout: LayoutData) =>
+      layoutsStore.create(apiBase, layout),
     [],
   );
   const update = useCallback(
-    (apiBase: string, slug: string, updates: Partial<WorkspaceData>) =>
-      workspacesStore.update(apiBase, slug, updates),
+    (apiBase: string, slug: string, updates: Partial<LayoutData>) =>
+      layoutsStore.update(apiBase, slug, updates),
     [],
   );
-  const deleteWorkspace = useCallback(
-    (apiBase: string, slug: string) => workspacesStore.delete(apiBase, slug),
+  const deleteLayout = useCallback(
+    (apiBase: string, slug: string) => layoutsStore.delete(apiBase, slug),
     [],
   );
 
   return (
-    <WorkspacesContext.Provider
-      value={{ fetchAll, fetchOne, create, update, delete: deleteWorkspace }}
+    <LayoutsContext.Provider
+      value={{ fetchAll, fetchOne, create, update, delete: deleteLayout }}
     >
       {children}
-    </WorkspacesContext.Provider>
+    </LayoutsContext.Provider>
   );
 }
 
 // Hook for actions
-export function useWorkspacesActions() {
-  const context = useContext(WorkspacesContext);
+export function useLayoutsActions() {
+  const context = useContext(LayoutsContext);
   if (!context) {
     throw new Error(
-      'useWorkspacesActions must be used within WorkspacesProvider',
+      'useLayoutsActions must be used within LayoutsProvider',
     );
   }
   return context;
 }
 
 // Hook for data subscription (no side effects)
-export function useWorkspaces(_apiBase: string) {
-  const workspaces = useSyncExternalStore(
-    workspacesStore.subscribe,
-    workspacesStore.getSnapshot,
+export function useLayouts(_apiBase: string) {
+  const layouts = useSyncExternalStore(
+    layoutsStore.subscribe,
+    layoutsStore.getSnapshot,
   );
-  return workspaces;
+  return layouts;
 }
 
-// Hook for single workspace (no auto-fetch)
-export function useWorkspace(_apiBase: string, slug: string, _enabled = true) {
-  const workspaces = useSyncExternalStore(
-    workspacesStore.subscribe,
-    workspacesStore.getSnapshot,
+// Hook for single layout (no auto-fetch)
+export function useLayout(_apiBase: string, slug: string, _enabled = true) {
+  const layouts = useSyncExternalStore(
+    layoutsStore.subscribe,
+    layoutsStore.getSnapshot,
   );
-  return workspaces.find((w) => w.slug === slug) || null;
+  return layouts.find((w) => w.slug === slug) || null;
 }

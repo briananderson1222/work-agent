@@ -1,6 +1,6 @@
-# Minimal Workspace Plugin
+# Minimal Layout Plugin
 
-A minimal workspace plugin example for Stallion, demonstrating the plugin architecture and SDK usage.
+A minimal layout plugin example for Stallion, demonstrating the plugin architecture and SDK usage.
 
 ## Features
 
@@ -14,19 +14,19 @@ A minimal workspace plugin example for Stallion, demonstrating the plugin archit
 ### Using the CLI
 
 ```bash
-stallion install ./examples/minimal-workspace
+stallion install ./examples/minimal-layout
 ```
 
 ### Using the UI
 
-Go to **Settings → Plugins**, enter the path `./examples/minimal-workspace`, and click Install.
+Go to **Settings → Plugins**, enter the path `./examples/minimal-layout`, and click Install.
 
 ## Development
 
 ### Setup
 
 ```bash
-cd examples/minimal-workspace
+cd examples/minimal-layout
 npm install
 ```
 
@@ -46,8 +46,8 @@ npm run dev
 
 ```bash
 # Remove and reinstall during development
-stallion remove minimal-workspace
-stallion install ./examples/minimal-workspace
+stallion remove minimal-layout
+stallion install ./examples/minimal-layout
 npm run dev:ui
 ```
 
@@ -64,7 +64,7 @@ npm run dev:ui
     {
       "id": "main",
       "label": "Main",
-      "component": "minimal-workspace"
+      "component": "minimal-layout"
     }
   ]
 }
@@ -108,7 +108,7 @@ showToast({
 ## File Structure
 
 ```
-minimal-workspace/
+minimal-layout/
 ├── src/
 │   └── index.tsx           # Main component
 ├── dist/                   # Built output (gitignored)
@@ -124,11 +124,11 @@ minimal-workspace/
 
 ```json
 {
-  "name": "minimal-workspace",
+  "name": "minimal-layout",
   "version": "1.0.0",
-  "type": "workspace",
-  "displayName": "Minimal Workspace",
-  "description": "A minimal workspace plugin example",
+  "type": "layout",
+  "displayName": "Minimal Layout",
+  "description": "A minimal layout plugin example",
   "entrypoint": "./index.tsx",
   "capabilities": ["chat", "navigation"],
   "permissions": ["navigation.dock"]

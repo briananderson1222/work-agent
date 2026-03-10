@@ -25,7 +25,7 @@ const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
     qc.invalidateQueries({ queryKey: ['system-status'] }),
   'plugins:installed': (qc) => {
     qc.invalidateQueries({ queryKey: ['plugins'] });
-    qc.invalidateQueries({ queryKey: ['workspaces'] });
+    qc.invalidateQueries({ queryKey: ['layouts'] });
     qc.invalidateQueries({ queryKey: ['agents'] });
     // Hot-reload plugin bundles
     import('../core/PluginRegistry')
@@ -34,7 +34,7 @@ const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
   },
   'plugins:updated': (qc) => {
     qc.invalidateQueries({ queryKey: ['plugins'] });
-    qc.invalidateQueries({ queryKey: ['workspaces'] });
+    qc.invalidateQueries({ queryKey: ['layouts'] });
     // Hot-reload plugin bundles
     import('../core/PluginRegistry')
       .then(({ pluginRegistry }) => pluginRegistry.reload())

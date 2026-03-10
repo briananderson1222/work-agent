@@ -1,8 +1,8 @@
 {
-  "name": "minimal-workspace",
+  "name": "minimal-layout",
   "version": "1.0.0",
-  "displayName": "Minimal Workspace",
-  "description": "A minimal workspace plugin example",
+  "displayName": "Minimal Layout",
+  "description": "A minimal layout plugin example",
   "entrypoint": "./index.tsx",
   "capabilities": [
     "chat",

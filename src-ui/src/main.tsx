@@ -45,7 +45,7 @@ import { SyntaxHighlighterProvider } from './contexts/SyntaxHighlighterContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { VoiceProviderContext } from './contexts/VoiceProviderContext';
 import { WorkflowsProvider } from './contexts/WorkflowsContext';
-import { WorkspacesProvider } from './contexts/WorkspacesContext';
+import { LayoutsProvider } from './contexts/LayoutsContext';
 import { PermissionManager } from './core/PermissionManager';
 import { pluginRegistry } from './core/PluginRegistry';
 // Register default voice + context providers
@@ -112,7 +112,7 @@ pluginRegistry.initialize().then(() => {
                 <NavigationProvider>
                   <KeyboardShortcutsProvider>
                     <ToastProvider>
-                      <WorkspacesProvider>
+                      <LayoutsProvider>
                         <WorkflowsProvider>
                           <ConversationsProvider>
                             <ActiveChatsProvider>
@@ -131,7 +131,7 @@ pluginRegistry.initialize().then(() => {
                             </ActiveChatsProvider>
                           </ConversationsProvider>
                         </WorkflowsProvider>
-                      </WorkspacesProvider>
+                      </LayoutsProvider>
                     </ToastProvider>
                   </KeyboardShortcutsProvider>
                 </NavigationProvider>

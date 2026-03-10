@@ -6,22 +6,22 @@ import type {
   WorkspacePrompt,
   WorkspaceTab,
 } from '../types';
-import { WorkspaceIcon } from '../components/WorkspaceIcon';
+import { LayoutIcon } from '../components/LayoutIcon';
 import './editor-layout.css';
 
-export interface WorkspaceEditorViewProps {
+export interface LayoutEditorViewProps {
   apiBase: string;
   slug?: string;
   onBack: () => void;
   onSaved?: (slug: string) => void;
 }
 
-export function WorkspaceEditorView({
+export function LayoutEditorView({
   apiBase,
   slug,
   onBack,
   onSaved,
-}: WorkspaceEditorViewProps) {
+}: LayoutEditorViewProps) {
   const [formData, setFormData] = useState<WorkspaceConfig>({
     name: '',
     slug: '',
@@ -55,11 +55,11 @@ export function WorkspaceEditorView({
     }
   }
 
-  async function loadWorkspace(workspaceSlug: string) {
+  async function loadLayout(layoutSlug: string) {
     try {
       setIsLoading(true);
-      const res = await fetch(`${apiBase}/workspaces/${workspaceSlug}`);
-      if (!res.ok) throw new Error('Failed to load workspace');
+      const res = await fetch(`${apiBase}/workspaces/${layoutSlug}`);
+      if (!res.ok) throw new Error('Failed to load layout');
       const data = await res.json();
       setFormData(data.data);
     } catch (err: any) {
@@ -71,9 +71,9 @@ export function WorkspaceEditorView({
 
   useEffect(() => {
     loadAgents();
-    if (slug) loadWorkspace(slug);
+    if (slug) loadLayout(slug);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, loadAgents, loadWorkspace]);
+  }, [slug, loadAgents, loadLayout]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -104,7 +104,7 @@ export function WorkspaceEditorView({
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to save workspace');
+        throw new Error(data.error || 'Failed to save layout');
       }
 
       onSaved?.(formData.slug);
@@ -239,9 +239,9 @@ export function WorkspaceEditorView({
       {/* Header */}
       <div className="management-view__header editor__header">
         <div className="editor__header-left">
-          <div className="management-view__header-label">{slug ? 'manage / edit workspace' : 'manage / new workspace'}</div>
+          <div className="management-view__header-label">{slug ? 'manage / edit layout' : 'manage / new layout'}</div>
           <h2 className="editor__header-meta">
-            {slug ? 'Edit Workspace' : 'New Workspace'}
+            {slug ? 'Edit Layout' : 'New Layout'}
             {isPlugin && <span className="editor__plugin-badge">{formData?.plugin}</span>}
           </h2>
         </div>
@@ -327,7 +327,7 @@ export function WorkspaceEditorView({
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  placeholder="My Workspace"
+                  placeholder="My Layout"
                   style={{
                     width: '100%',
                     padding: '10px 12px',
@@ -372,7 +372,7 @@ export function WorkspaceEditorView({
                     }))
                   }
                   disabled={!!slug}
-                  placeholder="my-workspace"
+                  placeholder="my-layout"
                   style={{
                     width: '100%',
                     padding: '10px 12px',
@@ -402,8 +402,8 @@ export function WorkspaceEditorView({
                 <div
                   style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
                 >
-                  <WorkspaceIcon
-                    workspace={{ name: formData.name || 'Workspace', icon: formData.icon }}
+                  <LayoutIcon
+                    layout={{ name: formData.name || 'Layout', icon: formData.icon }}
                     size={48}
                   />
                   <div style={{ flex: 1 }}>
@@ -456,7 +456,7 @@ export function WorkspaceEditorView({
                       description: e.target.value,
                     }))
                   }
-                  placeholder="A brief description of this workspace"
+                  placeholder="A brief description of this layout"
                   rows={2}
                   style={{
                     width: '100%',

@@ -103,14 +103,14 @@ import { createSystemRoutes } from '../routes/system.js';
 import { createToolRoutes } from '../routes/tools.js';
 import {
   createWorkflowRoutes,
-  createWorkspaceRoutes,
-} from '../routes/workspaces.js';
+  createLayoutRoutes,
+} from '../routes/layouts.js';
 import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
 import { MCPService } from '../services/mcp-service.js';
 import { SchedulerService } from '../services/scheduler-service.js';
-import { WorkspaceService } from '../services/workspace-service.js';
+import { LayoutService } from '../services/layout-service.js';
 import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { migrateWorkspacesToProject } from '../domain/migration.js';
 import { ProjectService } from '../services/project-service.js';
@@ -202,7 +202,7 @@ export class StallionRuntime {
   // Services
   private agentService!: AgentService;
   private mcpService!: MCPService;
-  private workspaceService!: WorkspaceService;
+  private layoutService!: LayoutService;
   private storageAdapter!: FileStorageAdapter;
   private projectService!: ProjectService;
   private providerService!: ProviderService;
@@ -247,7 +247,7 @@ export class StallionRuntime {
       this.toolNameMapping,
       this.logger,
     );
-    this.workspaceService = new WorkspaceService(
+    this.layoutService = new LayoutService(
       this.configLoader,
       this.logger,
     );
@@ -1063,14 +1063,14 @@ export class StallionRuntime {
       }
     });
 
-    // === Workspace Management Endpoints ===
+    // === Layout Management Endpoints ===
     app.route(
-      '/workspaces',
-      createWorkspaceRoutes(this.workspaceService),
+      '/layouts',
+      createLayoutRoutes(this.layoutService),
     );
 
-    // === Workspace & Workflow Management ===
-    app.route('/agents', createWorkflowRoutes(this.workspaceService));
+    // === Layout & Workflow Management ===
+    app.route('/agents', createWorkflowRoutes(this.layoutService));
 
     // === Project Management ===
     app.route('/api/projects', createProjectRoutes(this.projectService, this.storageAdapter, this.configLoader.getProjectHomeDir()));
@@ -2895,7 +2895,7 @@ export class StallionRuntime {
         else if (entry.type === 'onboarding') registerOnboardingProvider(instance, entry.pluginName);
         else if (entry.type === 'branding') registerBrandingProvider(instance);
         else if (entry.type === 'settings') registerSettingsProvider(instance);
-        else registerProvider(entry.type, instance, { workspace: entry.workspace, source: entry.pluginName });
+        else registerProvider(entry.type, instance, { workspace: entry.layout, source: entry.pluginName });
 
         this.logger.info('Registered plugin provider', { plugin: entry.pluginName, type: entry.type });
       } catch (e: any) {

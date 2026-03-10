@@ -10,14 +10,14 @@ import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const PROJECT_DIR = join(dirname(__filename), '..');
-const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-workspace');
+const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-layout');
 const SA_AGENT_DIR = join(PROJECT_DIR, '..', 'sa-agent');
 
 const API = 'http://localhost:3141';
 
 test.describe('Plugin Preview', () => {
   test.beforeAll(() => {
-    // Ensure demo-workspace is built
+    // Ensure demo-layout is built
     execSync('npx tsx ../../packages/cli/src/cli.ts build', { cwd: DEMO_DIR, timeout: 15000 });
   });
 
@@ -29,7 +29,7 @@ test.describe('Plugin Preview', () => {
     })).json();
 
     expect(res.valid).toBe(true);
-    expect(res.manifest.name).toBe('demo-workspace');
+    expect(res.manifest.name).toBe('demo-layout');
     expect(res.components.length).toBeGreaterThan(0);
     expect(Array.isArray(res.conflicts)).toBe(true);
   });
@@ -81,21 +81,21 @@ test.describe('Plugin Preview', () => {
   });
 
   test('install API accepts skip list', async () => {
-    // Install demo-workspace but skip the workspace component
+    // Install demo-layout but skip the layout component
     const res = await (await fetch(`${API}/api/plugins/install`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         source: DEMO_DIR,
-        skip: ['workspace:demo-workspace'],
+        skip: ['layout:demo-layout'],
       }),
     })).json();
 
     expect(res.success).toBe(true);
-    expect(res.plugin.name).toBe('demo-workspace');
+    expect(res.plugin.name).toBe('demo-layout');
 
     // Clean up
-    await fetch(`${API}/api/plugins/demo-workspace`, { method: 'DELETE' });
+    await fetch(`${API}/api/plugins/demo-layout`, { method: 'DELETE' });
   });
 });
 

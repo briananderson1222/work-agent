@@ -9,12 +9,12 @@ import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type {
   AgentSpec,
   AppConfig,
+  StandaloneLayoutConfig,
   ToolDef,
-  WorkspaceConfig,
 } from './types.js';
 
 // Type extensions for validator
-interface WorkspaceConfigCandidate {
+interface LayoutConfigCandidate {
   name?: unknown;
   slug?: unknown;
   tabs?: unknown;
@@ -82,26 +82,26 @@ export class SchemaValidator {
   }
 
   /**
-   * Validate workspace configuration
+   * Validate layout configuration
    */
-  validateWorkspaceConfig(data: unknown): asserts data is WorkspaceConfig {
+  validateLayoutConfig(data: unknown): asserts data is StandaloneLayoutConfig {
     // Basic structure validation
     if (!data || typeof data !== 'object') {
-      throw new ValidationError('Workspace config must be an object', []);
+      throw new ValidationError('Layout config must be an object', []);
     }
 
-    const config = data as WorkspaceConfigCandidate;
+    const config = data as LayoutConfigCandidate;
 
     if (!config.name || typeof config.name !== 'string') {
-      throw new ValidationError('Workspace must have a name', []);
+      throw new ValidationError('Layout must have a name', []);
     }
 
     if (!config.slug || typeof config.slug !== 'string') {
-      throw new ValidationError('Workspace must have a slug', []);
+      throw new ValidationError('Layout must have a slug', []);
     }
 
     if (!Array.isArray(config.tabs) || config.tabs.length === 0) {
-      throw new ValidationError('Workspace must have at least one tab', []);
+      throw new ValidationError('Layout must have at least one tab', []);
     }
 
     // Validate tabs

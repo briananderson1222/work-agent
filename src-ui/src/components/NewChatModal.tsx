@@ -1,4 +1,4 @@
-import { useWorkspaceQuery } from '@stallion-ai/sdk';
+import { useLayoutQuery } from '@stallion-ai/sdk';
 import React, { useMemo, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import type { AgentData } from '../contexts/AgentsContext';
@@ -20,9 +20,9 @@ interface AgentGroup {
 export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const { selectedWorkspace } = useNavigation();
-  const { data: workspace } = useWorkspaceQuery(selectedWorkspace || '', {
-    enabled: !!selectedWorkspace,
+  const { selectedLayout } = useNavigation();
+  const { data: workspace } = useLayoutQuery(selectedLayout || '', {
+    enabled: !!selectedLayout,
   });
 
   const wsAgentSlugs = useMemo(

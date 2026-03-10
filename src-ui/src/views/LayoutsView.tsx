@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { WorkspaceIcon } from '../components/WorkspaceIcon';
+import { LayoutIcon } from '../components/LayoutIcon';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAIEnrich } from '../hooks/useAIEnrich';
@@ -28,10 +28,10 @@ const EMPTY_FORM: WorkspaceConfig = {
 
 
 
-export function WorkspacesView() {
+export function LayoutsView() {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
-  const { selectedId: urlSlug, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/workspaces');
+  const { selectedId: urlSlug, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/layouts');
   const qc = useQueryClient();
   const { enrich, isEnriching } = useAIEnrich();
 
@@ -47,9 +47,9 @@ export function WorkspacesView() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch workspace list
-  const { data: workspaces = [] } = useQuery<WorkspaceConfig[]>({
-    queryKey: ['workspaces'],
+  // Fetch layout list
+  const { data: layouts = [] } = useQuery<WorkspaceConfig[]>({
+    queryKey: ['layouts'],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/workspaces`);
       const json = await res.json();
@@ -57,9 +57,9 @@ export function WorkspacesView() {
     },
   });
 
-  // Fetch workspace templates
+  // Fetch layout templates
   const { data: templates = [] } = useQuery({
-    queryKey: ['templates', 'workspace'],
+    queryKey: ['templates', 'layout'],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/api/templates?type=workspace`);
       const json = await res.json();
@@ -77,9 +77,9 @@ export function WorkspacesView() {
     },
   });
 
-  // Fetch single workspace when selected
-  const { data: workspaceDetail } = useQuery<WorkspaceConfig>({
-    queryKey: ['workspace', selectedSlug],
+  // Fetch single layout when selected
+  const { data: layoutDetail } = useQuery<WorkspaceConfig>({
+    queryKey: ['layout', selectedSlug],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/workspaces/${selectedSlug}`);
       const json = await res.json();
@@ -89,13 +89,13 @@ export function WorkspacesView() {
   });
 
   useEffect(() => {
-    if (workspaceDetail) {
-      setForm(workspaceDetail);
-      setSavedForm(workspaceDetail);
+    if (layoutDetail) {
+      setForm(layoutDetail);
+      setSavedForm(layoutDetail);
       setExpandedTabs(new Set());
       setExpandedPrompts(new Set());
     }
-  }, [workspaceDetail]);
+  }, [layoutDetail]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: WorkspaceConfig) => {
@@ -110,8 +110,8 @@ export function WorkspacesView() {
       return json.data as WorkspaceConfig;
     },
     onSuccess: (saved) => {
-      qc.invalidateQueries({ queryKey: ['workspaces'] });
-      qc.invalidateQueries({ queryKey: ['workspace', saved.slug] });
+      qc.invalidateQueries({ queryKey: ['layouts'] });
+      qc.invalidateQueries({ queryKey: ['layout', saved.slug] });
       setSavedForm(saved);
       setForm(saved);
       setIsNew(false);
@@ -128,9 +128,8 @@ export function WorkspacesView() {
       if (!json.success) throw new Error(json.error || 'Delete failed');
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['workspaces'] });
-      // Navigate away if the deleted workspace is the active one
-      navigate('/workspaces');
+      qc.invalidateQueries({ queryKey: ['layouts'] });
+      navigate('/layouts');
       urlDeselect();
       setIsNew(false);
       setForm(EMPTY_FORM);
@@ -142,16 +141,16 @@ export function WorkspacesView() {
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
 
   const filtered = useMemo(() =>
-    workspaces.filter(w =>
+    layouts.filter(w =>
       w.name.toLowerCase().includes(search.toLowerCase()) ||
       w.slug.toLowerCase().includes(search.toLowerCase())
-    ), [workspaces, search]);
+    ), [layouts, search]);
 
   const listItems = filtered.map(w => ({
     id: w.slug,
     name: w.name,
     subtitle: (w as any).plugin ? (w as any).plugin : undefined,
-    icon: <WorkspaceIcon workspace={w} size={28} />,
+    icon: <LayoutIcon layout={w} size={28} />,
   }));
 
   function handleSelect(slug: string) {
@@ -164,7 +163,7 @@ export function WorkspacesView() {
   function handleNew() {
     urlSelect('new');
     setIsNew(true);
-    setTemplatePicked(workspaces.length === 0);
+    setTemplatePicked(layouts.length === 0);
     setForm(EMPTY_FORM);
     setSavedForm(EMPTY_FORM);
     setExpandedTabs(new Set());
@@ -241,29 +240,29 @@ export function WorkspacesView() {
     });
   }
 
-  const showEditor = isNew || (!!selectedSlug && selectedSlug !== '__new__' && !!workspaceDetail);
+  const showEditor = isNew || (!!selectedSlug && selectedSlug !== '__new__' && !!layoutDetail);
 
   return (
     <div className="page page--full">
       <SplitPaneLayout
-        label="workspaces"
-        title="Workspaces"
-        subtitle="Manage workspace configurations and layouts"
+        label="layouts"
+        title="Layouts"
+        subtitle="Manage layout configurations and tabs"
         items={listItems}
         selectedId={selectedSlug}
         onSelect={handleSelect}
         onDeselect={handleDeselect}
         onSearch={setSearch}
-        searchPlaceholder="Search workspaces..."
+        searchPlaceholder="Search layouts..."
         onAdd={handleNew}
-        addLabel="+ New Workspace"
+        addLabel="+ New Layout"
         emptyIcon="🗂️"
-        emptyTitle="No workspace selected"
-        emptyDescription="Select a workspace to edit or create a new one"
-        emptyContent={workspaces.length === 0 ? (
+        emptyTitle="No layout selected"
+        emptyDescription="Select a layout to edit or create a new one"
+        emptyContent={layouts.length === 0 ? (
           <div style={{ padding: '2rem' }}>
             <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Get started</h3>
-            <p style={{ margin: '0 0 1.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Create your first workspace from a template</p>
+            <p style={{ margin: '0 0 1.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Create your first layout from a template</p>
             <div className="template-grid">
               {templates.map((t: any) => (
                 <button key={t.id} className="template-card" onClick={() => {
@@ -291,7 +290,7 @@ export function WorkspacesView() {
             <div className="workspace-editor__header">
               <div>
                 <div className="workspace-editor__title">
-                  {isNew ? 'New Workspace' : form.name}
+                  {isNew ? 'New Layout' : form.name}
                   {isDirty && <span className="workspace-editor__dirty">●</span>}
                 </div>
               </div>
@@ -317,7 +316,7 @@ export function WorkspacesView() {
             {error && <div className="workspace-editor__error">{error}</div>}
 
             <div className="workspace-editor__body">
-              {isNew && !templatePicked && workspaces.length > 0 ? (
+              {isNew && !templatePicked && layouts.length > 0 ? (
                 <div style={{ padding: '2rem' }}>
                   <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Start with a template</h3>
                   <p style={{ margin: '0 0 1.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Pick a starting point or start from scratch</p>
@@ -348,7 +347,7 @@ export function WorkspacesView() {
                     className="editor-input"
                     type="text"
                     value={form.name}
-                    placeholder="My Workspace"
+                    placeholder="My Layout"
                     onChange={e => {
                       const name = e.target.value;
                       setForm(f => ({
@@ -369,7 +368,7 @@ export function WorkspacesView() {
                     className="editor-input"
                     type="text"
                     value={form.slug}
-                    placeholder="my-workspace"
+                    placeholder="my-layout"
                     disabled={!isNew}
                     onChange={e => setForm(f => ({
                       ...f,
@@ -381,7 +380,7 @@ export function WorkspacesView() {
                 <div className="editor-field">
                   <span className="editor-label">Icon</span>
                   <div className="editor-icon-row">
-                    <WorkspaceIcon workspace={{ name: form.name || 'W', icon: form.icon }} size={40} />
+                    <LayoutIcon layout={{ name: form.name || 'L', icon: form.icon }} size={40} />
                     <input
                       className="editor-input"
                       type="text"
@@ -400,7 +399,7 @@ export function WorkspacesView() {
                       className="editor-enrich-btn"
                       disabled={isEnriching || !form.name}
                       onClick={async () => {
-                        const text = await enrich(`Write a brief one-sentence description for a workspace named "${form.name}".`);
+                        const text = await enrich(`Write a brief one-sentence description for a layout named "${form.name}".`);
                         if (text) setForm(f => ({ ...f, description: text.trim() }));
                       }}
                     >
@@ -410,7 +409,7 @@ export function WorkspacesView() {
                   <textarea
                     className="editor-textarea"
                     value={form.description ?? ''}
-                    placeholder="A brief description of this workspace"
+                    placeholder="A brief description of this layout"
                     rows={2}
                     onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   />
@@ -549,7 +548,7 @@ export function WorkspacesView() {
 
       <ConfirmModal
         isOpen={deleteOpen}
-        title="Delete Workspace"
+        title="Delete Layout"
         message={`Delete "${form.name}"? This cannot be undone.`}
         confirmLabel="Delete"
         variant="danger"

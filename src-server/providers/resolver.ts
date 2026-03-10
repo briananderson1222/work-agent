@@ -12,7 +12,7 @@ export interface ResolvedEntry {
   pluginName: string;
   type: string;
   module: string;
-  workspace?: string;
+  layout?: string;
 }
 
 export interface ProviderConflict {
@@ -59,12 +59,12 @@ export function resolvePluginProviders(
     for (const p of manifest.providers) {
       if (disabled.includes(p.type)) continue;
 
-      const ws = p.workspace ?? '*';
+      const ws = p.layout ?? '*';
       const entry: ResolvedEntry = {
         pluginName,
         type: p.type,
         module: p.module,
-        workspace: p.workspace,
+        layout: p.layout,
       };
 
       if (!byType.has(p.type)) byType.set(p.type, new Map());

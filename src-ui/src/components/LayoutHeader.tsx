@@ -2,45 +2,45 @@ import { useState } from 'react';
 import { AuthStatusBadge } from './AuthStatusBadge';
 import './chat.css';
 
-interface WorkspaceTab {
+interface LayoutTab {
   id: string;
   label: string;
   icon?: string;
 }
 
-interface WorkspacePrompt {
+interface LayoutPrompt {
   id: string;
   label: string;
   prompt: string;
   agent?: string;
 }
 
-interface WorkspaceHeaderProps {
-  // Workspace-level (top header)
-  workspaceName?: string;
-  tabs?: WorkspaceTab[];
+interface LayoutHeaderProps {
+  // Layout-level (top header)
+  layoutName?: string;
+  tabs?: LayoutTab[];
   activeTabId?: string;
   onTabChange?: (tabId: string) => void;
-  workspacePrompts?: WorkspacePrompt[];
-  onWorkspacePromptSelect?: (prompt: WorkspacePrompt) => void;
+  layoutPrompts?: LayoutPrompt[];
+  onLayoutPromptSelect?: (prompt: LayoutPrompt) => void;
 
   // Tab-level (second header)
   title: string;
   description: string;
-  tabActions?: WorkspacePrompt[];
-  tabPrompts?: WorkspacePrompt[];
-  onTabPromptSelect?: (prompt: WorkspacePrompt) => void;
+  tabActions?: LayoutPrompt[];
+  tabPrompts?: LayoutPrompt[];
+  onTabPromptSelect?: (prompt: LayoutPrompt) => void;
   onRefresh?: () => void;
   loading?: boolean;
 }
 
-export function WorkspaceHeader({
-  workspaceName: _workspaceName,
+export function LayoutHeader({
+  layoutName: _layoutName,
   tabs,
   activeTabId,
   onTabChange,
-  workspacePrompts,
-  onWorkspacePromptSelect,
+  layoutPrompts,
+  onLayoutPromptSelect,
   title,
   description,
   tabActions,
@@ -48,15 +48,15 @@ export function WorkspaceHeader({
   onTabPromptSelect,
   onRefresh,
   loading,
-}: WorkspaceHeaderProps) {
-  const [_showWorkspacePrompts, _setShowWorkspacePrompts] = useState(false);
+}: LayoutHeaderProps) {
+  const [_showLayoutPrompts, _setShowLayoutPrompts] = useState(false);
   const [showTabPrompts, setShowTabPrompts] = useState(false);
 
   return (
     <>
-      {/* Workspace-level header: Tabs and workspace prompts */}
+      {/* Layout-level header: Tabs and layout prompts */}
       {(tabs && tabs.length > 0) ||
-      (workspacePrompts && workspacePrompts.length > 0) ? (
+      (layoutPrompts && layoutPrompts.length > 0) ? (
         <div className="workspace-tabs__header">
           {tabs && tabs.length > 0 && (
             <div className="workspace-tabs__container">
@@ -74,12 +74,12 @@ export function WorkspaceHeader({
               ))}
             </div>
           )}
-          {workspacePrompts && workspacePrompts.length > 0 && (
+          {layoutPrompts && layoutPrompts.length > 0 && (
             <div className="workspace-header__prompts">
-              {workspacePrompts.map((prompt) => (
+              {layoutPrompts.map((prompt) => (
                 <button
                   key={prompt.id}
-                  onClick={() => onWorkspacePromptSelect?.(prompt)}
+                  onClick={() => onLayoutPromptSelect?.(prompt)}
                   type="button"
                   className="workspace-header__prompt-btn"
                 >

@@ -6,7 +6,7 @@ import { type PluginManifest, readPluginManifest } from '@stallion-ai/shared';
 export const PROJECT_HOME = join(homedir(), '.stallion-ai');
 export const PLUGINS_DIR = join(PROJECT_HOME, 'plugins');
 export const AGENTS_DIR = join(PROJECT_HOME, 'agents');
-export const WORKSPACES_DIR = join(PROJECT_HOME, 'workspaces');
+export const LAYOUTS_DIR = join(PROJECT_HOME, 'layouts');
 export const CWD = process.cwd();
 export const PIDFILE = join(CWD, '.stallion.pids');
 

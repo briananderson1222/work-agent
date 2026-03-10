@@ -290,7 +290,7 @@ export interface Template {
   icon: string;
   label: string;
   description: string;
-  type: 'agent' | 'workspace';
+  type: 'agent' | 'layout';
   form: Record<string, any>;
   tabs?: Array<{ id: string; label: string; component: string }>;
   source?: string;

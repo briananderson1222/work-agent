@@ -1,62 +1,62 @@
 /**
- * Workspace Routes - workspace and workflow management
+ * Layout Routes - layout and workflow management
  */
 
 import { Hono } from 'hono';
-import type { WorkspaceService } from '../services/workspace-service.js';
+import type { LayoutService } from '../services/layout-service.js';
 
-export function createWorkspaceRoutes(workspaceService: WorkspaceService) {
+export function createLayoutRoutes(layoutService: LayoutService) {
   const app = new Hono();
 
-  // List all workspaces
+  // List all layouts
   app.get('/', async (c) => {
     try {
-      const workspaces = await workspaceService.listWorkspaces();
-      return c.json({ success: true, data: workspaces });
+      const layouts = await layoutService.listLayouts();
+      return c.json({ success: true, data: layouts });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
     }
   });
 
-  // Get workspace config
+  // Get layout config
   app.get('/:slug', async (c) => {
     try {
       const slug = c.req.param('slug');
-      const workspace = await workspaceService.getWorkspace(slug);
-      return c.json({ success: true, data: workspace });
+      const layout = await layoutService.getLayout(slug);
+      return c.json({ success: true, data: layout });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 404);
     }
   });
 
-  // Create new workspace
+  // Create new layout
   app.post('/', async (c) => {
     try {
       const config = await c.req.json();
-      const workspace = await workspaceService.createWorkspace(config);
-      return c.json({ success: true, data: workspace }, 201);
+      const layout = await layoutService.createLayout(config);
+      return c.json({ success: true, data: layout }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
     }
   });
 
-  // Update workspace
+  // Update layout
   app.put('/:slug', async (c) => {
     try {
       const slug = c.req.param('slug');
       const updates = await c.req.json();
-      const updated = await workspaceService.updateWorkspace(slug, updates);
+      const updated = await layoutService.updateLayout(slug, updates);
       return c.json({ success: true, data: updated });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
     }
   });
 
-  // Delete workspace
+  // Delete layout
   app.delete('/:slug', async (c) => {
     try {
       const slug = c.req.param('slug');
-      await workspaceService.deleteWorkspace(slug);
+      await layoutService.deleteLayout(slug);
       return c.json({ success: true }, 200);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -66,14 +66,14 @@ export function createWorkspaceRoutes(workspaceService: WorkspaceService) {
   return app;
 }
 
-export function createWorkflowRoutes(workspaceService: WorkspaceService) {
+export function createWorkflowRoutes(layoutService: LayoutService) {
   const app = new Hono();
 
   // List workflow files for agent
   app.get('/:slug/workflows/files', async (c) => {
     try {
       const slug = c.req.param('slug');
-      const workflows = await workspaceService.listAgentWorkflows(slug);
+      const workflows = await layoutService.listAgentWorkflows(slug);
       return c.json({ success: true, data: workflows });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
@@ -85,7 +85,7 @@ export function createWorkflowRoutes(workspaceService: WorkspaceService) {
     try {
       const slug = c.req.param('slug');
       const workflowId = c.req.param('workflowId');
-      const content = await workspaceService.getWorkflow(slug, workflowId);
+      const content = await layoutService.getWorkflow(slug, workflowId);
       return c.json({ success: true, data: { content } });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 404);
@@ -97,7 +97,7 @@ export function createWorkflowRoutes(workspaceService: WorkspaceService) {
     try {
       const slug = c.req.param('slug');
       const { filename, content } = await c.req.json();
-      await workspaceService.createWorkflow(slug, filename, content);
+      await layoutService.createWorkflow(slug, filename, content);
       return c.json({ success: true, data: { filename } }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -110,7 +110,7 @@ export function createWorkflowRoutes(workspaceService: WorkspaceService) {
       const slug = c.req.param('slug');
       const workflowId = c.req.param('workflowId');
       const { content } = await c.req.json();
-      await workspaceService.updateWorkflow(slug, workflowId, content);
+      await layoutService.updateWorkflow(slug, workflowId, content);
       return c.json({ success: true });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -122,7 +122,7 @@ export function createWorkflowRoutes(workspaceService: WorkspaceService) {
     try {
       const slug = c.req.param('slug');
       const workflowId = c.req.param('workflowId');
-      await workspaceService.deleteWorkflow(slug, workflowId);
+      await layoutService.deleteWorkflow(slug, workflowId);
       return c.json({ success: true }, 200);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);

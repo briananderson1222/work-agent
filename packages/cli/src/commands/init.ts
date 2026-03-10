@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CWD } from './helpers.js';
 
-export function init(name = 'my-workspace'): void {
+export function init(name = 'my-layout'): void {
   const dir = join(CWD, name);
   if (existsSync(dir)) {
     console.error(`Directory ${name} already exists`);
@@ -28,14 +28,14 @@ export function init(name = 'my-workspace'): void {
         agents: [
           { slug: 'assistant', source: './agents/assistant/agent.json' },
         ],
-        workspace: { slug: name, source: './workspace.json' },
+        layout: { slug: name, source: './layout.json' },
       },
       null,
       2,
     )}\n`,
   );
   writeFileSync(
-    join(dir, 'workspace.json'),
+    join(dir, 'layout.json'),
     `${JSON.stringify(
       {
         name: name
@@ -44,7 +44,7 @@ export function init(name = 'my-workspace'): void {
           .join(' '),
         slug: name,
         icon: '🚀',
-        description: 'My workspace',
+        description: 'My layout',
         availableAgents: [`${name}:assistant`],
         defaultAgent: `${name}:assistant`,
         tabs: [{ id: 'main', label: 'Main', component: `${name}-main` }],
@@ -68,7 +68,7 @@ export function init(name = 'my-workspace'): void {
   );
   writeFileSync(
     join(dir, 'src/index.tsx'),
-    `import { useAuth, type WorkspaceComponentProps } from '@stallion-ai/sdk';\n\nfunction Main({ onShowChat }: WorkspaceComponentProps) {\n  const { user } = useAuth();\n  return (\n    <div style={{ padding: '2rem' }}>\n      <h1>Hello{user?.name ? \`, \${user.name}\` : ''}!</h1>\n      <button onClick={() => onShowChat?.()}>Open Chat</button>\n    </div>\n  );\n}\n\nexport const components = { '${name}-main': Main };\nexport default Main;\n`,
+    `import { useAuth, type LayoutComponentProps } from '@stallion-ai/sdk';\n\nfunction Main({ onShowChat }: LayoutComponentProps) {\n  const { user } = useAuth();\n  return (\n    <div style={{ padding: '2rem' }}>\n      <h1>Hello{user?.name ? \`, \${user.name}\` : ''}!</h1>\n      <button onClick={() => onShowChat?.()}>Open Chat</button>\n    </div>\n  );\n}\n\nexport const components = { '${name}-main': Main };\nexport default Main;\n`,
   );
   writeFileSync(
     join(dir, 'package.json'),

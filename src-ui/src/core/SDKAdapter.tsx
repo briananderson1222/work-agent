@@ -3,7 +3,7 @@ import {
   _setProviderFunctions,
   _setWorkspaceContext,
   SDKProvider,
-  useWorkspacesQuery,
+  useLayoutsQuery,
 } from '@stallion-ai/sdk';
 import { type ReactNode, useEffect } from 'react';
 import {
@@ -25,7 +25,7 @@ import {
   getProvider,
   hasProvider,
   registerProvider,
-} from './workspaceProviders';
+} from './layoutProviders';
 
 interface SDKAdapterProps {
   children: ReactNode;
@@ -65,7 +65,7 @@ export function SDKAdapter({
 
   // Get all the core contexts
   const agents = useAgents();
-  const { data: workspaces = [] } = useWorkspacesQuery();
+  const { data: workspaces = [] } = useLayoutsQuery();
   const conversations = useConversations(workspace?.slug || '');
   const navigation = useNavigation();
   const toast = useToast();

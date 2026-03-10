@@ -6,14 +6,14 @@
  */
 
 import {
-  _setWorkspaceContext as _setWorkspaceContextResolver,
+  _setLayoutContext as _setLayoutContextResolver,
   resolveAgentName,
 } from './agentResolver';
-import type { WorkspaceConfig } from './types';
+import type { StandaloneLayoutConfig } from './types';
 
 // Internal context for API configuration
 let _apiBase: string = '';
-let _currentWorkspace: WorkspaceConfig | undefined;
+let _currentLayout: StandaloneLayoutConfig | undefined;
 
 /**
  * Set the API base URL
@@ -24,28 +24,28 @@ export function _setApiBase(apiBase: string) {
 }
 
 /**
- * Set the current workspace context for agent resolution
+ * Set the current layout context for agent resolution
  * @internal Called by SDK provider
  */
-export function _setWorkspaceContext(workspace: WorkspaceConfig | undefined) {
-  _currentWorkspace = workspace;
-  _setWorkspaceContextResolver(workspace);
+export function _setLayoutContext(layout: StandaloneLayoutConfig | undefined) {
+  _currentLayout = layout;
+  _setLayoutContextResolver(layout);
 }
 
 /**
- * Resolve agent slug using current workspace context
+ * Resolve agent slug using current layout context
  * @internal
  */
 function _resolveAgent(agentSlug: string): string {
-  return resolveAgentName(agentSlug, _currentWorkspace);
+  return resolveAgentName(agentSlug, _currentLayout);
 }
 
 /**
- * Get current plugin name from workspace context
+ * Get current plugin name from layout context
  * @internal
  */
 export function _getPluginName(): string {
-  return _currentWorkspace?.slug || '';
+  return _currentLayout?.slug || '';
 }
 
 /**
@@ -342,14 +342,14 @@ export async function fetchAgents(): Promise<any[]> {
 }
 
 /**
- * Fetch workspace list
+ * Fetch layout list
  */
-export async function fetchWorkspaces(): Promise<any[]> {
+export async function fetchLayouts(): Promise<any[]> {
   const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/workspaces`);
+  const response = await fetch(`${apiBase}/layouts`);
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch workspaces: ${response.statusText}`);
+    throw new Error(`Failed to fetch layouts: ${response.statusText}`);
   }
 
   return response.json();

@@ -230,7 +230,7 @@ export function PluginManagementView() {
         setMessage({ type: 'success', text: `Installed ${pluginName}. Setting up tools...` });
         fetchPlugins();
         fetch(`${apiBase}/api/plugins/reload`, { method: 'POST' }).catch(() => {});
-        queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+        queryClient.invalidateQueries({ queryKey: ['layouts'] });
         try { const { pluginRegistry } = await import('../core/PluginRegistry'); await pluginRegistry.reload(); } catch {}
 
         // Poll agent health until tools are connected (max 30s)
@@ -276,7 +276,7 @@ export function PluginManagementView() {
       if (data.success) {
         setMessage({ type: 'success', text: `Removed ${name}.` });
         fetchPlugins();
-        queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+        queryClient.invalidateQueries({ queryKey: ['layouts'] });
         try { const { pluginRegistry } = await import('../core/PluginRegistry'); await pluginRegistry.reload(); } catch {}
       } else { setMessage({ type: 'error', text: data.error || 'Remove failed' }); }
     } catch (e: any) { setMessage({ type: 'error', text: e.message }); }

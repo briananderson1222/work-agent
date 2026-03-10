@@ -3,7 +3,7 @@ import { useProjectLayoutsQuery } from '@stallion-ai/sdk';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useProjects, type ProjectMetadata } from '../contexts/ProjectsContext';
 import { useBranding } from '../hooks/useBranding';
-import { WorkspaceIcon } from './WorkspaceIcon';
+import { LayoutIcon } from './LayoutIcon';
 import './ProjectSidebar.css';
 
 const NAV_ITEMS: { type: string; label: string; icon: ReactNode }[] = [
@@ -44,7 +44,7 @@ function ProjectRow({ project, isActive, activeLayout, collapsed }: {
   return (
     <div>
       <button type="button" className={btnClass} onClick={handleClick} title={collapsed ? project.name : undefined}>
-        <WorkspaceIcon workspace={project} size={collapsed ? 28 : 18} />
+        <LayoutIcon layout={project} size={collapsed ? 28 : 18} />
         <span className="sidebar__project-name">{project.name}</span>
         <span className={`sidebar__chevron${expanded ? ' sidebar__chevron--open' : ''}`} onClick={handleChevronClick} role="button" tabIndex={-1}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

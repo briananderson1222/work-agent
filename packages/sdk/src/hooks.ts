@@ -32,18 +32,18 @@ export function useAgent(slug: string) {
 }
 
 export function useResolveAgent(agentSlug: string) {
-  const workspaces = useWorkspaces();
+  const layouts = useLayouts();
   const navigation = useNavigation();
-  const currentWorkspace = workspaces.find(
-    (w: any) => w.slug === navigation.selectedWorkspace,
+  const currentLayout = layouts.find(
+    (w: any) => w.slug === navigation.selectedLayout,
   );
 
   if (agentSlug.includes(':')) {
     return agentSlug;
   }
 
-  if (currentWorkspace?.availableAgents) {
-    const match = currentWorkspace.availableAgents.find((a: string) =>
+  if (currentLayout?.availableAgents) {
+    const match = currentLayout.availableAgents.find((a: string) =>
       a.endsWith(`:${agentSlug}`),
     );
     if (match) return match;
@@ -52,15 +52,15 @@ export function useResolveAgent(agentSlug: string) {
   return agentSlug;
 }
 
-// Workspace Management
-export function useWorkspaces() {
+// Layout Management
+export function useLayouts() {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.workspaces)
     throw new Error('WorkspacesContext not available');
   return sdk.contexts.workspaces.useWorkspaces();
 }
 
-export function useWorkspace(slug: string, enabled = true) {
+export function useLayout(slug: string, enabled = true) {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.workspaces)
     throw new Error('WorkspacesContext not available');

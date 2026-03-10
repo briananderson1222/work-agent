@@ -1,42 +1,42 @@
 /**
- * Workspace Provider Hook - Thin wrapper for plugins to access providers
+ * Layout Provider Hook - Thin wrapper for plugins to access providers
  *
  * The actual provider registry lives in core app. This just exposes
  * the interface plugins need.
  */
 
 // These will be injected by core app via _setProviderFunctions
-let _getProvider: <T>(workspace: string, type: string) => T;
-let _hasProvider: (workspace: string, type: string) => boolean;
-let _getActiveProviderId: (workspace: string, type: string) => string | null;
+let _getProvider: <T>(layout: string, type: string) => T;
+let _hasProvider: (layout: string, type: string) => boolean;
+let _getActiveProviderId: (layout: string, type: string) => string | null;
 let _registerProvider: (
   id: string,
   metadata: ProviderMetadata,
   factory: () => any,
 ) => void;
 let _configureProvider: (
-  workspace: string,
+  layout: string,
   type: string,
   providerId: string,
 ) => void;
 
 export interface ProviderMetadata {
-  workspace: string;
+  layout: string;
   type: string;
 }
 
 /** @internal Called by core app to inject provider functions */
 export function _setProviderFunctions(fns: {
-  getProvider: <T>(workspace: string, type: string) => T;
-  hasProvider: (workspace: string, type: string) => boolean;
-  getActiveProviderId: (workspace: string, type: string) => string | null;
+  getProvider: <T>(layout: string, type: string) => T;
+  hasProvider: (layout: string, type: string) => boolean;
+  getActiveProviderId: (layout: string, type: string) => string | null;
   registerProvider: (
     id: string,
     metadata: ProviderMetadata,
     factory: () => any,
   ) => void;
   configureProvider: (
-    workspace: string,
+    layout: string,
     type: string,
     providerId: string,
   ) => void;
@@ -48,28 +48,28 @@ export function _setProviderFunctions(fns: {
   _configureProvider = fns.configureProvider;
 }
 
-/** Get a provider instance for a workspace */
-export function getProvider<T = any>(workspace: string, type: string): T {
+/** Get a provider instance for a layout */
+export function getProvider<T = any>(layout: string, type: string): T {
   if (!_getProvider) throw new Error('Provider system not initialized');
-  return _getProvider<T>(workspace, type);
+  return _getProvider<T>(layout, type);
 }
 
 /** Check if a provider is configured */
-export function hasProvider(workspace: string, type: string): boolean {
+export function hasProvider(layout: string, type: string): boolean {
   if (!_hasProvider) return false;
-  return _hasProvider(workspace, type);
+  return _hasProvider(layout, type);
 }
 
 /** Get the active provider ID */
 export function getActiveProviderId(
-  workspace: string,
+  layout: string,
   type: string,
 ): string | null {
   if (!_getActiveProviderId) return null;
-  return _getActiveProviderId(workspace, type);
+  return _getActiveProviderId(layout, type);
 }
 
-/** Register a provider (called by workspace plugins) */
+/** Register a provider (called by layout plugins) */
 export function registerProvider(
   id: string,
   metadata: ProviderMetadata,
@@ -79,12 +79,12 @@ export function registerProvider(
   _registerProvider(id, metadata, factory);
 }
 
-/** Configure which provider to use (called by workspace plugins for defaults) */
+/** Configure which provider to use (called by layout plugins for defaults) */
 export function configureProvider(
-  workspace: string,
+  layout: string,
   type: string,
   providerId: string,
 ) {
   if (!_configureProvider) throw new Error('Provider system not initialized');
-  _configureProvider(workspace, type, providerId);
+  _configureProvider(layout, type, providerId);
 }

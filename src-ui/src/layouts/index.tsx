@@ -1,6 +1,6 @@
 import { log } from '@/utils/logger';
 import { FullScreenError } from '@stallion-ai/sdk';
-import { WorkspaceHeader } from '../components/WorkspaceHeader';
+import { LayoutHeader } from '../components/LayoutHeader';
 import { pluginRegistry } from '../core/PluginRegistry';
 import type {
   AgentQuickPrompt,
@@ -9,7 +9,7 @@ import type {
   WorkspaceTab,
 } from '../types';
 
-export interface AgentWorkspaceProps {
+export interface AgentLayoutProps {
   agent?: AgentSummary;
   workspace?: WorkspaceConfig;
   activeTab?: WorkspaceTab;
@@ -20,15 +20,15 @@ export interface AgentWorkspaceProps {
   onSendToChat?: (text: string, agent?: string) => void;
 }
 
-export type AgentWorkspaceComponent = (
-  props: AgentWorkspaceProps,
+export type AgentLayoutComponent = (
+  props: AgentLayoutProps,
 ) => JSX.Element;
 
-// Core workspace components (not plugins)
-const coreRegistry: Record<string, AgentWorkspaceComponent> = {};
+// Core layout components (not plugins)
+const coreRegistry: Record<string, AgentLayoutComponent> = {};
 const loggedComponents = new Set<string>();
 
-const DefaultWorkspace: AgentWorkspaceComponent = ({
+const DefaultLayout: AgentLayoutComponent = ({
   workspace,
   onShowChat,
 }) => (
@@ -42,7 +42,7 @@ const DefaultWorkspace: AgentWorkspaceComponent = ({
         <circle cx="26" cy="14" r="1.5" fill="currentColor" stroke="none" />
         <path d="M16 28l4-4 3 3 5-5 4 4" opacity="0.5" />
       </svg>
-      <h3 className="workspace-default__title">{workspace?.name || 'Workspace'}</h3>
+      <h3 className="workspace-default__title">{workspace?.name || 'Layout'}</h3>
       <p className="workspace-default__desc">Start a conversation or schedule an automated job to get things moving.</p>
       <div className="workspace-default__actions">
         <button
@@ -57,10 +57,10 @@ const DefaultWorkspace: AgentWorkspaceComponent = ({
   </div>
 );
 
-export function resolveWorkspaceComponent(
+export function resolveLayoutComponent(
   componentId?: string,
-): AgentWorkspaceComponent {
-  if (!componentId) return DefaultWorkspace;
+): AgentLayoutComponent {
+  if (!componentId) return DefaultLayout;
 
   // Check core components first
   if (coreRegistry[componentId]) {
@@ -71,16 +71,16 @@ export function resolveWorkspaceComponent(
   const pluginComponent = pluginRegistry.getWorkspace(componentId);
   if (pluginComponent) {
     if (!loggedComponents.has(componentId)) {
-      log.plugin(`Loaded workspace component: ${componentId}`);
+      log.plugin(`Loaded layout component: ${componentId}`);
       loggedComponents.add(componentId);
     }
-    return pluginComponent as AgentWorkspaceComponent;
+    return pluginComponent as AgentLayoutComponent;
   }
 
-  return DefaultWorkspace;
+  return DefaultLayout;
 }
 
-interface WorkspaceRendererProps extends AgentWorkspaceProps {
+interface LayoutRendererProps extends AgentLayoutProps {
   componentId?: string;
   onRefresh?: () => void;
   loading?: boolean;
@@ -89,7 +89,7 @@ interface WorkspaceRendererProps extends AgentWorkspaceProps {
   refreshKey?: number;
 }
 
-export function WorkspaceRenderer({
+export function LayoutRenderer({
   componentId,
   workspace,
   activeTab,
@@ -100,13 +100,13 @@ export function WorkspaceRenderer({
   onLaunchPrompt,
   refreshKey = 0,
   ...props
-}: WorkspaceRendererProps) {
+}: LayoutRendererProps) {
   try {
     return (
       <>
         {workspace && (
-          <WorkspaceHeader
-            workspaceName={workspace.name}
+          <LayoutHeader
+            layoutName={workspace.name}
             tabs={workspace.tabs?.map((tab) => ({
               id: tab.id,
               label: tab.label,
@@ -114,8 +114,8 @@ export function WorkspaceRenderer({
             }))}
             activeTabId={activeTabId}
             onTabChange={onTabChange}
-            workspacePrompts={workspace.globalPrompts}
-            onWorkspacePromptSelect={onLaunchPrompt}
+            layoutPrompts={workspace.globalPrompts}
+            onLayoutPromptSelect={onLaunchPrompt}
             title={activeTab?.label || workspace.name}
             description={activeTab?.description || workspace.description || ''}
             tabActions={activeTab?.actions}
@@ -130,7 +130,7 @@ export function WorkspaceRenderer({
             workspace.tabs.map((tab) => {
               const isActive = tab.id === activeTabId;
               if (!isActive) return null;
-              const Component = resolveWorkspaceComponent(tab.component);
+              const Component = resolveLayoutComponent(tab.component);
               return (
                 <div key={tab.id} className="workspace-tab-content">
                   <Component
@@ -143,9 +143,9 @@ export function WorkspaceRenderer({
                 </div>
               );
             })
-          : // Fallback for workspaces without tabs
+          : // Fallback for layouts without tabs
             (() => {
-              const Component = resolveWorkspaceComponent(componentId);
+              const Component = resolveLayoutComponent(componentId);
               return (
                 <Component
                   key={refreshKey}
@@ -159,7 +159,7 @@ export function WorkspaceRenderer({
       </>
     );
   } catch (error) {
-    log.api('Error rendering workspace:', error);
-    return <FullScreenError title="Error loading workspace" description="Something unexpected happened while rendering this workspace." onRetry={() => window.location.reload()} />;
+    log.api('Error rendering layout:', error);
+    return <FullScreenError title="Error loading layout" description="Something unexpected happened while rendering this layout." onRetry={() => window.location.reload()} />;
   }
 }

@@ -63,7 +63,7 @@ function seedRoutes(page: import('@playwright/test').Page) {
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: PROVIDERS }) })),
     page.route('**/api/agents', (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
-    page.route('**/workspaces', (r) =>
+    page.route('**/layouts', (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
     page.route('**/api/plugins', (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
@@ -92,11 +92,11 @@ test.describe('Project Sidebar', () => {
     await expect(page.getByRole('button', { name: /Providers/ })).toBeVisible();
   });
 
-  test('header has no workspace selector', async ({ page }) => {
+  test('header has no layout selector', async ({ page }) => {
     const banner = page.getByRole('banner');
     await expect(banner).toBeVisible();
     await expect(banner.getByText(/Stallion/)).toBeVisible();
-    // No workspace dropdown/combobox in header
+    // No layout dropdown/combobox in header
     await expect(banner.getByRole('combobox')).not.toBeVisible();
   });
 

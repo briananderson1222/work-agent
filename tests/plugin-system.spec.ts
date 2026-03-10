@@ -1,6 +1,6 @@
 /**
- * Plugin system integration tests using the demo-workspace example.
- * No dependency on external plugins — uses the built-in demo workspace.
+ * Plugin system integration tests using the demo-layout example.
+ * No dependency on external plugins — uses the built-in demo layout.
  */
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
@@ -9,18 +9,18 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const PROJECT_DIR = join(dirname(__filename), '..');
-const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-workspace');
+const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-layout');
 
 test.describe('Plugin System', () => {
   test.beforeAll(async () => {
-    // Build the demo workspace bundle using centralized build
+    // Build the demo layout bundle using centralized build
     execSync('npx tsx ../../packages/cli/src/cli.ts build', { cwd: DEMO_DIR, timeout: 30000 });
     // Ensure it's not installed
-    try { await fetch('http://localhost:3141/api/plugins/demo-workspace', { method: 'DELETE' }); } catch {}
+    try { await fetch('http://localhost:3141/api/plugins/demo-layout', { method: 'DELETE' }); } catch {}
   });
 
   test.afterAll(async () => {
-    try { await fetch('http://localhost:3141/api/plugins/demo-workspace', { method: 'DELETE' }); } catch {}
+    try { await fetch('http://localhost:3141/api/plugins/demo-layout', { method: 'DELETE' }); } catch {}
   });
 
   test('plugin API lists no plugins when none installed', async () => {
@@ -38,25 +38,25 @@ test.describe('Plugin System', () => {
     })).json();
 
     expect(res.success).toBe(true);
-    expect(res.plugin.name).toBe('demo-workspace');
+    expect(res.plugin.name).toBe('demo-layout');
     expect(res.plugin.hasBundle).toBe(true);
 
     // Verify it's in the list
     const list = await (await fetch('http://localhost:3141/api/plugins')).json();
-    const demo = list.plugins.find((p: any) => p.name === 'demo-workspace');
+    const demo = list.plugins.find((p: any) => p.name === 'demo-layout');
     expect(demo).toBeTruthy();
     expect(demo.hasBundle).toBe(true);
   });
 
   test('plugin bundle is served via API', async () => {
-    const jsRes = await fetch('http://localhost:3141/api/plugins/demo-workspace/bundle.js');
+    const jsRes = await fetch('http://localhost:3141/api/plugins/demo-layout/bundle.js');
     expect(jsRes.status).toBe(200);
     const js = await jsRes.text();
     expect(js).toContain('__plugin');
-    expect(js).toContain('demo-workspace');
+    expect(js).toContain('demo-layout');
   });
 
-  test('demo workspace loads in browser after install', async ({ page }) => {
+  test('demo layout loads in browser after install', async ({ page }) => {
     // Ensure plugin is installed
     await fetch('http://localhost:3141/api/plugins/install', {
       method: 'POST',
@@ -68,9 +68,9 @@ test.describe('Plugin System', () => {
     await page.goto('/');
     await page.waitForTimeout(5000);
 
-    // Check if demo workspace components registered
+    // Check if demo layout components registered
     const hasPlugin = await page.evaluate(() => {
-      return !!(window as any).__stallion_ai_plugins?.['demo-workspace'];
+      return !!(window as any).__stallion_ai_plugins?.['demo-layout'];
     });
     expect(hasPlugin).toBe(true);
   });
@@ -83,13 +83,13 @@ test.describe('Plugin System', () => {
       body: JSON.stringify({ source: DEMO_DIR }),
     });
 
-    const res = await (await fetch('http://localhost:3141/api/plugins/demo-workspace', {
+    const res = await (await fetch('http://localhost:3141/api/plugins/demo-layout', {
       method: 'DELETE',
     })).json();
     expect(res.success).toBe(true);
 
     const list = await (await fetch('http://localhost:3141/api/plugins')).json();
-    const demo = list.plugins.find((p: any) => p.name === 'demo-workspace');
+    const demo = list.plugins.find((p: any) => p.name === 'demo-layout');
     expect(demo).toBeFalsy();
   });
 });

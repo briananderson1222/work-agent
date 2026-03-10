@@ -1,4 +1,4 @@
-import { useWorkspacesQuery, useProjectLayoutsQuery } from '@stallion-ai/sdk';
+import { useLayoutsQuery, useProjectLayoutsQuery } from '@stallion-ai/sdk';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChatDock } from './components/ChatDock';
@@ -27,14 +27,14 @@ import { setDockModeOverride } from './hooks/useDockModePreference';
 import { MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
 import { ScheduleView } from './views/ScheduleView';
-import { WorkspacesView } from './views/WorkspacesView';
+import { LayoutsView } from './views/LayoutsView';
 import { AgentsView } from './views/AgentsView';
 import { PromptsView } from './views/PromptsView';
 import { SettingsView } from './views/SettingsView';
 import { ToolManagementView } from './views/ToolManagementView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
-import { WorkspaceView } from './views/WorkspaceView';
+import { LayoutView } from './views/LayoutView';
 import { CodingLayout } from './components/CodingLayout';
 import { NewProjectModal } from './components/NewProjectModal';
 import { ProjectSettingsView } from './views/ProjectSettingsView';
@@ -44,7 +44,7 @@ import { ProviderSettingsView } from './views/ProviderSettingsView';
 type LayoutTypeComponent = React.ComponentType<{ projectSlug: string; layoutSlug: string; config: Record<string, unknown> }>;
 const layoutTypeRegistry: Record<string, LayoutTypeComponent> = {
   coding: CodingLayout,
-  // 'chat' type falls through to WorkspaceView (default)
+  // 'chat' type falls through to LayoutView (default)
 };
 
 function App() {
@@ -56,16 +56,16 @@ function App() {
   useServerEvents();
   const {
     selectedAgent,
-    selectedWorkspace,
-    lastWorkspace,
+    selectedLayout,
+    lastLayout,
     dockMode,
-    setWorkspace,
-    setWorkspaceTab,
+    setStandaloneLayout,
+    setLayoutTab,
     setDockMode,
     navigate,
   } = useNavigation();
   const { showToast } = useToast();
-  const { data: workspaces = [] } = useWorkspacesQuery();
+  const { data: layouts = [] } = useLayoutsQuery();
   const [activeTabId, setActiveTabId] = useState<string>('');
   const appConfig = useConfig();
   const [globalError, _setGlobalError] = useState<string | null>(null);
@@ -90,8 +90,8 @@ function App() {
       }
       return { type: 'agents' };
     }
-    if (path === '/workspaces' || path === '/workspaces/new') return { type: 'workspaces' };
-    if (path.startsWith('/workspaces/') && path.endsWith('/edit')) return { type: 'workspaces' };
+    if (path === '/layouts' || path === '/layouts/new') return { type: 'layouts' };
+    if (path.startsWith('/layouts/') && path.endsWith('/edit')) return { type: 'layouts' };
     if (path === '/prompts' || path.startsWith('/prompts/')) return { type: 'prompts' };
     if (path === '/plugins' || path.startsWith('/plugins/')) return { type: 'plugins' };
     if (path === '/integrations' || path.startsWith('/integrations/')) return { type: 'integrations' };
@@ -108,7 +108,7 @@ function App() {
     // Legacy /manage/* redirects
     if (path === '/manage') return { type: 'agents' };
     if (path.startsWith('/manage/agents')) return { type: 'agents' };
-    if (path.startsWith('/manage/workspaces')) return { type: 'workspaces' };
+    if (path.startsWith('/manage/workspaces')) return { type: 'layouts' };
     if (path.startsWith('/manage/prompts')) return { type: 'prompts' };
     if (path.startsWith('/manage/plugins')) return { type: 'plugins' };
     if (path.startsWith('/manage/integrations')) return { type: 'integrations' };
@@ -119,6 +119,9 @@ function App() {
     if (path === '/sys/monitoring') return { type: 'monitoring' };
     if (path === '/sys/schedule') return { type: 'schedule' };
     if (path === '/sys/settings') return { type: 'settings' };
+    // Legacy /workspaces/* redirects
+    if (path === '/workspaces' || path === '/workspaces/new') return { type: 'layouts' };
+    if (path.startsWith('/workspaces/') && path.endsWith('/edit')) return { type: 'layouts' };
 
     // Project routes
     if (path === '/projects/new') return { type: 'project-new' };
@@ -135,42 +138,42 @@ function App() {
       if (slug) return { type: 'project', slug };
     }
 
-    return { type: 'workspace' };
+    return { type: 'standalone-layout' };
   });
-  const handleWorkspaceSelect = useCallback(async (
+  const handleLayoutSelect = useCallback(async (
     slug: string,
     preferredTabId?: string,
   ) => {
-    const workspace = workspaces.find((w: any) => w.slug === slug);
-    if (workspace) {
-      const tabs = workspace.tabs || [];
+    const layout = layouts.find((w: any) => w.slug === slug);
+    if (layout) {
+      const tabs = layout.tabs || [];
       const validTabId =
         preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
           ? preferredTabId
           : tabs[0]?.id || '';
 
-      setWorkspace(slug);
+      setStandaloneLayout(slug);
       setActiveTabId(validTabId);
-      setWorkspaceTab(slug, validTabId);
-      setCurrentView({ type: 'workspace' });
-      navigate(`/workspaces/${slug}`);
+      setLayoutTab(slug, validTabId);
+      setCurrentView({ type: 'standalone-layout' });
+      navigate(`/layouts/${slug}`);
     }
-  }, [workspaces, setWorkspace, setWorkspaceTab, navigate]);
+  }, [layouts, setStandaloneLayout, setLayoutTab, navigate]);
 
   // Navigation functions (declared early so useEffect closures can reference them)
   const navigateToView = useCallback((view: NavigationView) => {
     setCurrentView(view);
 
     // Update URL based on view type
-    if (view.type === 'workspace') {
-      const target = selectedWorkspace || lastWorkspace;
+    if (view.type === 'standalone-layout') {
+      const target = selectedLayout || lastLayout;
       if (target && target !== 'new') {
-        navigate(`/workspaces/${target}`);
+        navigate(`/layouts/${target}`);
       } else {
         navigate('/');
       }
-    } else if (view.type === 'workspaces') {
-      navigate('/workspaces');
+    } else if (view.type === 'layouts') {
+      navigate('/layouts');
     } else if (view.type === 'agents') {
       navigate('/agents');
     } else if (view.type === 'prompts') {
@@ -199,8 +202,8 @@ function App() {
       navigate(`/agents/${view.slug}/tools`);
     } else if (view.type === 'workflows' && 'slug' in view) {
       navigate(`/agents/${view.slug}/workflows`);
-    } else if (view.type === 'workspace-new' || view.type === 'workspace-edit') {
-      navigate('/workspaces');
+    } else if (view.type === 'layout-new' || view.type === 'layout-edit') {
+      navigate('/layouts');
     } else if (view.type === 'project-new') {
       navigate('/projects/new');
     } else if (view.type === 'project-edit' && 'slug' in view) {
@@ -210,16 +213,16 @@ function App() {
     } else if (view.type === 'layout' && 'projectSlug' in view) {
       navigate(`/projects/${view.projectSlug}/layouts/${view.layoutSlug}`);
     }
-  }, [selectedWorkspace, lastWorkspace, navigate]);
+  }, [selectedLayout, lastLayout, navigate]);
 
-  const navigateToWorkspace = useCallback(() => {
-    setCurrentView({ type: 'workspace' });
-    if (selectedWorkspace) {
-      navigate(`/workspaces/${selectedWorkspace}`);
+  const navigateToLayout = useCallback(() => {
+    setCurrentView({ type: 'standalone-layout' });
+    if (selectedLayout) {
+      navigate(`/layouts/${selectedLayout}`);
     } else {
       navigate('/');
     }
-  }, [selectedWorkspace, navigate]);
+  }, [selectedLayout, navigate]);
 
   // Listen for path changes (back/forward navigation)
   useEffect(() => {
@@ -238,8 +241,12 @@ function App() {
         }
         setCurrentView({ type: 'agents' }); return;
       }
+      if (path === '/layouts' || path === '/layouts/new' || (path.startsWith('/layouts/') && path.endsWith('/edit'))) {
+        setCurrentView({ type: 'layouts' }); return;
+      }
+      // Legacy /workspaces/* redirects
       if (path === '/workspaces' || path === '/workspaces/new' || (path.startsWith('/workspaces/') && path.endsWith('/edit'))) {
-        setCurrentView({ type: 'workspaces' }); return;
+        setCurrentView({ type: 'layouts' }); return;
       }
       if (path === '/prompts' || path.startsWith('/prompts/')) { setCurrentView({ type: 'prompts' }); return; }
       if (path === '/plugins' || path.startsWith('/plugins/')) { setCurrentView({ type: 'plugins' }); return; }
@@ -282,28 +289,44 @@ function App() {
         if (slug) { setCurrentView({ type: 'project', slug }); return; }
       }
 
-      // Workspace paths
-      if (path === '/workspaces') {
-        setCurrentView({ type: 'workspaces' });
+      // Standalone layout paths
+      if (path === '/layouts') {
+        setCurrentView({ type: 'layouts' });
         return;
       }
-      if (path.startsWith('/workspaces/')) {
+      if (path.startsWith('/layouts/')) {
         const pathParts = path.split('/');
-        const workspaceSlug = pathParts[2];
+        const layoutSlug = pathParts[2];
         const tabId = pathParts[3];
 
-        if (workspaceSlug === 'new' || path.endsWith('/edit')) return;
+        if (layoutSlug === 'new' || path.endsWith('/edit')) return;
 
-        if (workspaceSlug && workspaceSlug !== selectedWorkspace) {
-          handleWorkspaceSelect(workspaceSlug, tabId);
+        if (layoutSlug && layoutSlug !== selectedLayout) {
+          handleLayoutSelect(layoutSlug, tabId);
         } else if (tabId && tabId !== activeTabId) {
           setActiveTabId(tabId);
         }
-        setCurrentView({ type: 'workspace' });
+        setCurrentView({ type: 'standalone-layout' });
+        return;
+      }
+      // Legacy /workspaces/* paths
+      if (path.startsWith('/workspaces/')) {
+        const pathParts = path.split('/');
+        const layoutSlug = pathParts[2];
+        const tabId = pathParts[3];
+
+        if (layoutSlug === 'new' || path.endsWith('/edit')) return;
+
+        if (layoutSlug && layoutSlug !== selectedLayout) {
+          handleLayoutSelect(layoutSlug, tabId);
+        } else if (tabId && tabId !== activeTabId) {
+          setActiveTabId(tabId);
+        }
+        setCurrentView({ type: 'standalone-layout' });
         return;
       }
 
-      setCurrentView({ type: 'workspace' });
+      setCurrentView({ type: 'standalone-layout' });
     };
 
     handlePathChange(); // Initial call
@@ -312,7 +335,7 @@ function App() {
       window.removeEventListener('popstate', handlePathChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabId, handleWorkspaceSelect, selectedWorkspace]);
+  }, [activeTabId, handleLayoutSelect, selectedLayout]);
 
 
   const currentAgent = useMemo(
@@ -350,21 +373,21 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault();
         if (currentView.type === 'settings') {
-          navigateToWorkspace();
+          navigateToLayout();
         } else {
           navigateToView({ type: 'settings' });
         }
       }
-      // Cmd/Ctrl + N: New workspace
+      // Cmd/Ctrl + N: New layout
       else if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault();
-        navigateToView({ type: 'workspace-new' });
+        navigateToView({ type: 'layout-new' });
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentView, navigateToView, navigateToWorkspace]);
+  }, [currentView, navigateToView, navigateToLayout]);
 
   // Update scroll button visibility - handled by ChatDock
   useEffect(() => {
@@ -387,26 +410,26 @@ function App() {
 
   // Drag handling - handled by ChatDock
 
-  // Auto-select workspace if none selected — prefer last-used, fall back to first
+  // Auto-select layout if none selected — prefer last-used, fall back to first
   useEffect(() => {
     if (
-      workspaces.length > 0 &&
-      !selectedWorkspace &&
+      layouts.length > 0 &&
+      !selectedLayout &&
       !selectedAgent &&
-      currentView.type === 'workspace'
+      currentView.type === 'standalone-layout'
     ) {
-      const target = lastWorkspace && workspaces.find((w: any) => w.slug === lastWorkspace)
-        ? lastWorkspace
-        : workspaces[0].slug;
-      setWorkspace(target);
+      const target = lastLayout && layouts.find((w: any) => w.slug === lastLayout)
+        ? lastLayout
+        : layouts[0].slug;
+      setStandaloneLayout(target);
     }
   }, [
-    workspaces,
-    selectedWorkspace,
+    layouts,
+    selectedLayout,
     selectedAgent,
     currentView.type,
-    setWorkspace,
-    lastWorkspace,
+    setStandaloneLayout,
+    lastLayout,
   ]);
 
 
@@ -423,20 +446,20 @@ function App() {
     'Toggle settings',
     useCallback(() => {
       if (currentView.type === 'settings') {
-        navigateToWorkspace();
+        navigateToLayout();
       } else {
         navigateToView({ type: 'settings' });
       }
-    }, [currentView.type, navigateToWorkspace, navigateToView]),
+    }, [currentView.type, navigateToLayout, navigateToView]),
   );
 
   useKeyboardShortcut(
-    'app.newWorkspace',
+    'app.newLayout',
     'n',
     ['cmd'],
-    'New workspace',
+    'New layout',
     useCallback(() => {
-      navigateToView({ type: 'workspace-new' });
+      navigateToView({ type: 'layout-new' });
     }, [navigateToView]),
   );
 
@@ -468,7 +491,7 @@ function App() {
 
   // Render current view content
   const renderViewContent = () => {
-    if (currentView.type === 'workspace') {
+    if (currentView.type === 'standalone-layout') {
       return (
         <>
           {managementNotice && (
@@ -479,7 +502,7 @@ function App() {
               </button>
             </div>
           )}
-          <WorkspaceView />
+          <LayoutView />
         </>
       );
     }
@@ -487,8 +510,8 @@ function App() {
     // Management views
     return (
       <>
-        {currentView.type === 'workspaces' && (
-          <WorkspacesView />
+        {currentView.type === 'layouts' && (
+          <LayoutsView />
         )}
 
         {currentView.type === 'agents' && (
@@ -516,20 +539,20 @@ function App() {
             onNavigate={navigateToView}
           />
         )}
-        {(currentView.type === 'workspace-new' || currentView.type === 'workspace-edit') && (
-          <WorkspacesView />
+        {(currentView.type === 'layout-new' || currentView.type === 'layout-edit') && (
+          <LayoutsView />
         )}
         {currentView.type === 'project-new' && (
           <NewProjectModal isOpen onClose={() => {
             // Only go home if we're still on project-new (not if setProject already navigated)
-            if (window.location.pathname === '/projects/new') navigateToWorkspace();
+            if (window.location.pathname === '/projects/new') navigateToLayout();
           }} />
         )}
         {currentView.type === 'project-edit' && (
           <ProjectSettingsView slug={currentView.slug} />
         )}
         {currentView.type === 'layout' && (
-          <LayoutRenderer
+          <ProjectLayoutRenderer
             projectSlug={currentView.projectSlug}
             layoutSlug={currentView.layoutSlug}
           />
@@ -545,7 +568,7 @@ function App() {
               agents.find((a) => a.slug === currentView.slug)?.name ||
               currentView.slug
             }
-            onBack={navigateToWorkspace}
+            onBack={navigateToLayout}
           />
         )}
         {currentView.type === 'workflows' && (
@@ -556,12 +579,12 @@ function App() {
               agents.find((a) => a.slug === currentView.slug)?.name ||
               currentView.slug
             }
-            onBack={navigateToWorkspace}
+            onBack={navigateToLayout}
           />
         )}
         {currentView.type === 'settings' && (
           <SettingsView
-            onBack={navigateToWorkspace}
+            onBack={navigateToLayout}
             onSaved={handleSettingsSaved}
             onNavigate={navigateToView}
           />
@@ -584,7 +607,7 @@ function App() {
             onNavigate={navigateToView}
             onToggleSettings={() => {
               if (currentView.type === 'settings') {
-                navigateToWorkspace();
+                navigateToLayout();
               } else {
                 navigateToView({ type: 'settings' });
               }
@@ -616,7 +639,7 @@ function App() {
 
 export default App;
 
-function LayoutRenderer({ projectSlug, layoutSlug }: { projectSlug: string; layoutSlug: string }) {
+function ProjectLayoutRenderer({ projectSlug, layoutSlug }: { projectSlug: string; layoutSlug: string }) {
   const { apiBase: API_BASE } = useApiBase();
   const [layoutConfig, setLayoutConfig] = useState<{ type?: string; config?: Record<string, unknown> } | null>(null);
 
@@ -627,7 +650,7 @@ function LayoutRenderer({ projectSlug, layoutSlug }: { projectSlug: string; layo
       .catch(() => {});
   }, [API_BASE, projectSlug, layoutSlug]);
 
-  if (!layoutConfig) return <WorkspaceView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
+  if (!layoutConfig) return <LayoutView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
 
   const Renderer = layoutTypeRegistry[layoutConfig.type];
   if (Renderer) {
@@ -635,7 +658,7 @@ function LayoutRenderer({ projectSlug, layoutSlug }: { projectSlug: string; layo
   }
 
   // Default: treat as chat layout
-  return <WorkspaceView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
+  return <LayoutView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
 }
 
 function AddLayoutButton({ projectSlug, onAdded }: { projectSlug: string; onAdded: () => void }) {

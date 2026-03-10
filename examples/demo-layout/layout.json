@@ -2,19 +2,19 @@
   "name": "Demo",
   "slug": "demo",
   "icon": "🚀",
-  "description": "A demo workspace showing Stallion capabilities",
-  "availableAgents": ["demo-workspace:assistant"],
-  "defaultAgent": "demo-workspace:assistant",
+  "description": "A demo layout showing Stallion capabilities",
+  "availableAgents": ["demo-layout:assistant"],
+  "defaultAgent": "demo-layout:assistant",
   "tabs": [
     {
       "id": "welcome",
       "label": "Welcome",
-      "component": "demo-workspace-welcome"
+      "component": "demo-layout-welcome"
     },
     {
       "id": "notes",
       "label": "Notes",
-      "component": "demo-workspace-notes"
+      "component": "demo-layout-notes"
     }
   ],
   "globalPrompts": [

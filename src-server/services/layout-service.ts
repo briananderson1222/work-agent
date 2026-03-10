@@ -1,45 +1,45 @@
 /**
- * Workspace Service - handles workspace CRUD operations
+ * Layout Service - handles layout CRUD operations
  */
 
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type {
+  StandaloneLayoutConfig,
+  StandaloneLayoutMetadata,
   WorkflowMetadata,
-  WorkspaceConfig,
-  WorkspaceMetadata,
 } from '../domain/types.js';
 
-export class WorkspaceService {
+export class LayoutService {
   constructor(
     private configLoader: ConfigLoader,
     _logger: any,
   ) {}
 
-  async listWorkspaces(): Promise<WorkspaceMetadata[]> {
-    return this.configLoader.listWorkspaces();
+  async listLayouts(): Promise<StandaloneLayoutMetadata[]> {
+    return this.configLoader.listLayouts();
   }
 
-  async getWorkspace(slug: string): Promise<WorkspaceConfig> {
-    return this.configLoader.loadWorkspace(slug);
+  async getLayout(slug: string): Promise<StandaloneLayoutConfig> {
+    return this.configLoader.loadLayout(slug);
   }
 
-  async createWorkspace(config: WorkspaceConfig): Promise<WorkspaceConfig> {
-    await this.configLoader.createWorkspace(config);
+  async createLayout(config: StandaloneLayoutConfig): Promise<StandaloneLayoutConfig> {
+    await this.configLoader.createLayout(config);
     return config;
   }
 
-  async updateWorkspace(
+  async updateLayout(
     slug: string,
-    updates: Partial<WorkspaceConfig>,
-  ): Promise<WorkspaceConfig> {
-    return this.configLoader.updateWorkspace(slug, updates);
+    updates: Partial<StandaloneLayoutConfig>,
+  ): Promise<StandaloneLayoutConfig> {
+    return this.configLoader.updateLayout(slug, updates);
   }
 
-  async deleteWorkspace(slug: string): Promise<void> {
-    await this.configLoader.deleteWorkspace(slug);
+  async deleteLayout(slug: string): Promise<void> {
+    await this.configLoader.deleteLayout(slug);
   }
 
-  // Workflow management (workflows are per-agent but related to workspace functionality)
+  // Workflow management (workflows are per-agent but related to layout functionality)
   async listAgentWorkflows(agentSlug: string): Promise<WorkflowMetadata[]> {
     return this.configLoader.listAgentWorkflows(agentSlug);
   }

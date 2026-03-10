@@ -1,35 +1,35 @@
-import type { WorkspaceConfig } from './types';
+import type { StandaloneLayoutConfig } from './types';
 
-// Internal workspace context (set by WorkspaceProvider)
-let _currentWorkspace: WorkspaceConfig | undefined;
+// Internal layout context (set by LayoutProvider)
+let _currentLayout: StandaloneLayoutConfig | undefined;
 
 /**
- * Set current workspace context
- * @internal Called by WorkspaceProvider
+ * Set current layout context
+ * @internal Called by LayoutProvider
  */
-export function _setWorkspaceContext(workspace: WorkspaceConfig | undefined) {
-  _currentWorkspace = workspace;
+export function _setLayoutContext(layout: StandaloneLayoutConfig | undefined) {
+  _currentLayout = layout;
 }
 
 /**
- * Resolve agent name within workspace context
+ * Resolve agent name within layout context
  * - If name contains ':', use as-is (explicit namespace)
- * - Otherwise, check current workspace's available agents for matching short name
- * - Falls back to global agent if not found in workspace
+ * - Otherwise, check current layout's available agents for matching short name
+ * - Falls back to global agent if not found in layout
  */
 export function resolveAgentName(
   agentName: string,
-  workspace?: WorkspaceConfig,
+  layout?: StandaloneLayoutConfig,
 ): string {
   if (agentName.includes(':')) {
     return agentName;
   }
 
-  // Use provided workspace or fall back to current context
-  const activeWorkspace = workspace || _currentWorkspace;
+  // Use provided layout or fall back to current context
+  const activeLayout = layout || _currentLayout;
 
-  if (activeWorkspace?.availableAgents) {
-    const match = activeWorkspace.availableAgents.find((a) =>
+  if (activeLayout?.availableAgents) {
+    const match = activeLayout.availableAgents.find((a) =>
       a.endsWith(`:${agentName}`),
     );
     if (match) return match;
@@ -53,8 +53,8 @@ export function parseAgentSlug(slug: string): {
 }
 
 /**
- * Check if agent is workspace-scoped
+ * Check if agent is layout-scoped
  */
-export function isWorkspaceAgent(slug: string): boolean {
+export function isLayoutAgent(slug: string): boolean {
   return slug.includes(':');
 }

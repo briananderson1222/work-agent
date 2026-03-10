@@ -164,8 +164,8 @@ export interface TemplateVariable {
 }
 
 export type NavigationView =
-  | { type: 'workspace' }
-  | { type: 'workspaces' }
+  | { type: 'standalone-layout' }
+  | { type: 'layouts' }
   | { type: 'agents' }
   | { type: 'prompts' }
   | { type: 'plugins' }
@@ -183,8 +183,8 @@ export type NavigationView =
   | { type: 'agent-tools'; slug: string }
   | { type: 'workflows'; slug: string }
   | { type: 'settings' }
-  | { type: 'workspace-new' }
-  | { type: 'workspace-edit'; slug: string }
+  | { type: 'layout-new' }
+  | { type: 'layout-edit'; slug: string }
   | { type: 'project'; slug: string }
   | { type: 'project-new' }
   | { type: 'project-edit'; slug: string }
@@ -194,6 +194,7 @@ export type NavigationView =
 
 export type DockMode = 'bottom' | 'right' | 'bottom-inline';
 
+// Workspace/Layout types — kept for backward compat with plugins that import from here
 export interface WorkspacePrompt {
   id: string;
   label: string;

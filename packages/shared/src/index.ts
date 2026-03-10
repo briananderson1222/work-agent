@@ -22,7 +22,7 @@ const __shared_dir = dirname(fileURLToPath(import.meta.url));
 export interface PluginProviderEntry {
   type: string;
   module: string;
-  workspace?: string;
+  layout?: string;
 }
 
 export interface PluginDependency {
@@ -41,8 +41,8 @@ export interface PluginManifest {
   capabilities?: string[];
   permissions?: string[];
   agents?: Array<{ slug: string; source: string }>;
-  workspace?: { slug: string; source: string };
-  workspaces?: Array<{ slug: string; source: string }>;
+  layout?: { slug: string; source: string };
+  layouts?: Array<{ slug: string; source: string }>;
   providers?: PluginProviderEntry[];
   tools?: { required?: string[] };
   dependencies?: PluginDependency[];
@@ -232,13 +232,8 @@ export interface LayoutMetadata {
   name: string;
   icon?: string;
   description?: string;
-}
-
-export interface ChatLayoutConfig {
-  tabs: LayoutTab[];
-  globalPrompts?: LayoutPrompt[];
-  defaultAgent?: string;
-  availableAgents?: string[];
+  plugin?: string;
+  tabCount?: number;
 }
 
 export interface LayoutTab {
@@ -281,10 +276,9 @@ export interface LayoutTemplate {
   createdAt: string;
 }
 
-// ── Workspace (legacy aliases — backwards compat) ──────────────────
+// ── Standalone Layout (file-based, not project-scoped) ─────────────
 
-/** @deprecated Use LayoutConfig + ChatLayoutConfig instead */
-export interface WorkspaceConfig {
+export interface StandaloneLayoutConfig {
   name: string;
   slug: string;
   icon?: string;
@@ -293,31 +287,11 @@ export interface WorkspaceConfig {
   requiredProviders?: string[];
   availableAgents?: string[];
   defaultAgent?: string;
-  tabs: WorkspaceTab[];
-  globalPrompts?: WorkspacePrompt[];
+  tabs: LayoutTab[];
+  globalPrompts?: LayoutPrompt[];
 }
 
-/** @deprecated Use LayoutTab instead */
-export interface WorkspaceTab {
-  id: string;
-  label: string;
-  component: string;
-  icon?: string;
-  description?: string;
-  actions?: WorkspacePrompt[];
-  prompts?: WorkspacePrompt[];
-}
-
-/** @deprecated Use LayoutPrompt instead */
-export interface WorkspacePrompt {
-  id: string;
-  label: string;
-  prompt: string;
-  agent?: string;
-}
-
-/** @deprecated Use LayoutMetadata instead */
-export interface WorkspaceMetadata {
+export interface StandaloneLayoutMetadata {
   slug: string;
   name: string;
   icon?: string;
@@ -523,9 +497,9 @@ export function readAgentSpec(path: string): AgentSpec {
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 
-export function readWorkspaceConfig(path: string): WorkspaceConfig {
+export function readLayoutConfig(path: string): StandaloneLayoutConfig {
   if (!existsSync(path))
-    throw new Error(`Workspace config not found at ${path}`);
+    throw new Error(`Layout config not found at ${path}`);
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 
@@ -688,14 +662,14 @@ export async function buildPlugin(pluginDir: string, mode: 'production' | 'dev' 
 
   // Workspace plugins: centralized esbuild build
   if (manifest.entrypoint) {
-    return buildWorkspacePlugin(pluginDir, manifest, mode);
+    return buildLayoutPlugin(pluginDir, manifest, mode);
   }
 
   // Provider-only / custom plugins: fall back to existing scripts
   return buildCustomPlugin(pluginDir);
 }
 
-async function buildWorkspacePlugin(pluginDir: string, manifest: PluginManifest, mode: 'production' | 'dev'): Promise<BuildResult> {
+async function buildLayoutPlugin(pluginDir: string, manifest: PluginManifest, mode: 'production' | 'dev'): Promise<BuildResult> {
   const isDev = mode === 'dev';
   const outfile = join(pluginDir, 'dist', `bundle${isDev ? '-dev' : ''}.js`);
 

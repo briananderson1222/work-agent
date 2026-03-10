@@ -1,41 +1,41 @@
 import { useMemo } from 'react';
-import { getWorkspaceIcon } from '../utils/workspace';
+import { getLayoutIcon } from '../utils/layout';
 import { AutocompleteSelector } from './AutocompleteSelector';
-import { WorkspaceIcon } from './WorkspaceIcon';
+import { LayoutIcon } from './LayoutIcon';
 
-interface WorkspaceAutocompleteProps {
+interface LayoutAutocompleteProps {
   query: string;
-  workspaces: any[];
-  currentWorkspace?: string;
-  onSelect: (workspace: any) => void;
+  layouts: any[];
+  currentLayout?: string;
+  onSelect: (layout: any) => void;
   onClose: () => void;
 }
 
-export function WorkspaceAutocomplete({
+export function LayoutAutocomplete({
   query,
-  workspaces,
-  currentWorkspace,
+  layouts,
+  currentLayout,
   onSelect,
   onClose,
-}: WorkspaceAutocompleteProps) {
+}: LayoutAutocompleteProps) {
   const items = useMemo(() => {
     const searchTerm = (query || '').toLowerCase();
-    const filtered = (workspaces || []).filter(
+    const filtered = (layouts || []).filter(
       (w) =>
         w.name.toLowerCase().includes(searchTerm) ||
         w.slug.toLowerCase().includes(searchTerm) ||
         w.description?.toLowerCase().includes(searchTerm),
     );
 
-    const mapped = filtered.map((workspace) => {
-      const isActive = currentWorkspace === workspace.slug;
-      const icon = getWorkspaceIcon(workspace);
+    const mapped = filtered.map((layout) => {
+      const isActive = currentLayout === layout.slug;
+      const icon = getLayoutIcon(layout);
 
       return {
-        id: workspace.slug,
-        title: workspace.name,
-        description: workspace.description,
-        metadata: workspace,
+        id: layout.slug,
+        title: layout.name,
+        description: layout.description,
+        metadata: layout,
         isActive,
         icon: icon.display,
         isCustomIcon: icon.isCustomIcon,
@@ -47,16 +47,16 @@ export function WorkspaceAutocomplete({
       if (!a.isActive && b.isActive) return 1;
       return 0;
     });
-  }, [query, workspaces, currentWorkspace]);
+  }, [query, layouts, currentLayout]);
 
   return (
     <AutocompleteSelector
       items={items}
       onSelect={(item) => onSelect(item.metadata)}
       onClose={onClose}
-      emptyMessage="No workspaces found"
+      emptyMessage="No layouts found"
       renderIcon={(item) => (
-        <WorkspaceIcon workspace={item.metadata} size={32} />
+        <LayoutIcon layout={item.metadata} size={32} />
       )}
     />
   );

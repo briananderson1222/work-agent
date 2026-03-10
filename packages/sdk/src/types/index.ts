@@ -15,25 +15,25 @@ export type {
   AgentTools,
   AgentUIConfig,
   ConversationStats,
+  LayoutPrompt,
+  LayoutTab,
   PluginManifest,
   SlashCommand,
   SlashCommandParam,
+  StandaloneLayoutConfig,
+  StandaloneLayoutMetadata,
   ToolCallResponse,
   ToolDef,
   ToolMetadata,
   ToolPermissions,
-  WorkspaceConfig,
-  WorkspaceMetadata,
-  WorkspacePrompt,
-  WorkspaceTab,
 } from '@stallion-ai/shared';
 
 // ── SDK-specific types (React/UI concerns) ─────────────────────────
 
-export interface WorkspaceComponentProps {
+export interface LayoutComponentProps {
   agent?: AgentSummary;
-  workspace?: import('@stallion-ai/shared').WorkspaceConfig;
-  activeTab?: import('@stallion-ai/shared').WorkspaceTab;
+  layout?: import('@stallion-ai/shared').StandaloneLayoutConfig;
+  activeTab?: import('@stallion-ai/shared').LayoutTab;
   onLaunchPrompt?: (
     prompt: import('@stallion-ai/shared').AgentQuickPrompt,
   ) => void;
@@ -43,8 +43,8 @@ export interface WorkspaceComponentProps {
   onSendToChat?: (text: string, agent?: string) => void;
 }
 
-export type WorkspaceComponent = (
-  props: WorkspaceComponentProps,
+export type LayoutComponent = (
+  props: LayoutComponentProps,
 ) => ReactElement;
 
 export interface AgentSummary {
@@ -114,7 +114,7 @@ export interface Conversation {
 
 export interface NavigationState {
   currentView: string;
-  selectedWorkspace?: string;
+  selectedLayout?: string;
   selectedAgent?: string;
   dockState: boolean;
   dockHeight: number;

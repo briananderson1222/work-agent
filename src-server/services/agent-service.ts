@@ -108,13 +108,13 @@ export class AgentService {
   async deleteAgent(
     slug: string,
   ): Promise<{ success: boolean; error?: string }> {
-    // Check if any workspaces reference this agent
-    const dependentWorkspaces =
-      await this.configLoader.getWorkspacesUsingAgent(slug);
-    if (dependentWorkspaces.length > 0) {
+    // Check if any layouts reference this agent
+    const dependentLayouts =
+      await this.configLoader.getLayoutsUsingAgent(slug);
+    if (dependentLayouts.length > 0) {
       return {
         success: false,
-        error: `Cannot delete agent '${slug}' - it is referenced by workspaces: ${dependentWorkspaces.join(', ')}`,
+        error: `Cannot delete agent '${slug}' - it is referenced by layouts: ${dependentLayouts.join(', ')}`,
       };
     }
 

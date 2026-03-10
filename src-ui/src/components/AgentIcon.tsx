@@ -1,4 +1,4 @@
-import { getAgentIcon, getAgentIconStyle } from '../utils/workspace';
+import { getAgentIcon, getAgentIconStyle } from '../utils/layout';
 
 interface AgentIconProps {
   agent: { name: string; icon?: string };

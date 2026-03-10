@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ChatLayoutConfig, LayoutConfig, ProjectConfig, WorkspaceConfig } from '@stallion-ai/shared';
+import type { LayoutConfig, ProjectConfig, StandaloneLayoutConfig } from '@stallion-ai/shared';
 
 export async function migrateWorkspacesToProject(projectHomeDir: string): Promise<void> {
   const stallionDir = join(projectHomeDir, '.stallion-ai');
@@ -9,16 +9,16 @@ export async function migrateWorkspacesToProject(projectHomeDir: string): Promis
 
   if (existsSync(projectsDir)) return;
 
-  const workspacesDir = join(stallionDir, 'workspaces');
-  const workspaces: WorkspaceConfig[] = [];
+  const layoutsDir = join(stallionDir, 'layouts');
+  const standaloneLayouts: StandaloneLayoutConfig[] = [];
 
-  if (existsSync(workspacesDir)) {
-    for (const entry of readdirSync(workspacesDir, { withFileTypes: true })) {
+  if (existsSync(layoutsDir)) {
+    for (const entry of readdirSync(layoutsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const wsFile = join(workspacesDir, entry.name, 'workspace.json');
-      if (!existsSync(wsFile)) continue;
+      const layoutFile = join(layoutsDir, entry.name, 'layout.json');
+      if (!existsSync(layoutFile)) continue;
       try {
-        workspaces.push(JSON.parse(readFileSync(wsFile, 'utf-8')));
+        standaloneLayouts.push(JSON.parse(readFileSync(layoutFile, 'utf-8')));
       } catch {}
     }
   }
@@ -34,34 +34,32 @@ export async function migrateWorkspacesToProject(projectHomeDir: string): Promis
   };
 
   const defaultProjectDir = join(projectsDir, 'default');
-  const layoutsDir = join(defaultProjectDir, 'layouts');
-  mkdirSync(layoutsDir, { recursive: true });
+  const projectLayoutsDir = join(defaultProjectDir, 'layouts');
+  mkdirSync(projectLayoutsDir, { recursive: true });
 
   writeFileSync(join(defaultProjectDir, 'project.json'), JSON.stringify(project, null, 2), 'utf-8');
 
-  for (const ws of workspaces) {
-    const chatConfig: ChatLayoutConfig = {
-      tabs: ws.tabs,
-      globalPrompts: ws.globalPrompts,
-      defaultAgent: ws.defaultAgent,
-      availableAgents: ws.availableAgents,
-    };
-
+  for (const sl of standaloneLayouts) {
     const layout: LayoutConfig = {
       id: randomUUID(),
       projectSlug: 'default',
       type: 'chat',
-      name: ws.name,
-      slug: ws.slug,
-      icon: ws.icon,
-      description: ws.description,
-      config: chatConfig as unknown as Record<string, unknown>,
+      name: sl.name,
+      slug: sl.slug,
+      icon: sl.icon,
+      description: sl.description,
+      config: {
+        tabs: sl.tabs,
+        globalPrompts: sl.globalPrompts,
+        defaultAgent: sl.defaultAgent,
+        availableAgents: sl.availableAgents,
+      },
       createdAt: now,
       updatedAt: now,
     };
 
     writeFileSync(
-      join(layoutsDir, `${ws.slug}.json`),
+      join(projectLayoutsDir, `${sl.slug}.json`),
       JSON.stringify(layout, null, 2),
       'utf-8',
     );

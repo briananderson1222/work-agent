@@ -8,7 +8,7 @@ import { useAgents, useNavigation, useToast, type WorkspaceComponentProps } from
  * - Controlling chat dock via useNavigation()
  * - Showing notifications via useToast()
  */
-export default function MinimalWorkspace({ workspace, onShowChat }: WorkspaceComponentProps) {
+export default function MinimalWorkspace({ layout, onShowChat }: WorkspaceComponentProps) {
   const agents = useAgents();
   const { setDockState } = useNavigation();
   const { showToast } = useToast();
@@ -23,8 +23,8 @@ export default function MinimalWorkspace({ workspace, onShowChat }: WorkspaceCom
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h1>{workspace?.name || 'Minimal Workspace'}</h1>
-      <p>{workspace?.description || 'A minimal workspace plugin example'}</p>
+      <h1>{layout?.name || 'Minimal Layout'}</h1>
+      <p>{layout?.description || 'A minimal layout plugin example'}</p>
 
       <div style={{ marginTop: '2rem' }}>
         <h2>Available Agents</h2>

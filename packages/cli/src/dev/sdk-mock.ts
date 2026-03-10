@@ -1,10 +1,10 @@
 export interface SDKMockConfig {
-  wsSlug: string;
+  layoutSlug: string;
 }
 
 /** Serialize the SDK mock object to a JS string for injection into dev HTML */
 export function serializeSDKMock(config: SDKMockConfig): string {
-  const { wsSlug } = config;
+  const { layoutSlug } = config;
   return `
 // Toast overlay
 var noop=function(){};
@@ -28,12 +28,12 @@ window.__stallion_ai_sdk_mock={
   useAuth:function(){return{status:'valid',provider:'none',user:{alias:'dev-user',name:'Dev User'},expiresAt:null,renew:function(){return Promise.resolve()},isRenewing:false}},
   useConversations:function(){return[]},
   useOpenConversation:function(){return noop},
-  useNavigation:function(){return{pathname:window.location.pathname,selectedAgent:null,selectedWorkspace:'${wsSlug}',activeConversation:null,activeChat:null,activeTab:null,isDockOpen:false,isDockMaximized:false,fontSize:null,navigate:noop,updateParams:noop,setAgent:noop,setWorkspace:noop,setWorkspaceTab:function(ws,tab){if(window.__devSetTab)window.__devSetTab(tab)},setConversation:noop,setActiveChat:noop,setDockState:noop}},
+  useNavigation:function(){return{pathname:window.location.pathname,selectedAgent:null,selectedLayout:'${layoutSlug}',activeConversation:null,activeChat:null,activeTab:null,isDockOpen:false,isDockMaximized:false,fontSize:null,navigate:noop,updateParams:noop,setAgent:noop,setLayout:noop,setLayoutTab:function(ws,tab){if(window.__devSetTab)window.__devSetTab(tab)},setConversation:noop,setActiveChat:noop,setDockState:noop}},
   useDockState:function(){return{isOpen:false,setOpen:noop,toggle:noop}},
   useToast:function(){return{showToast:function(msg,opts){window.__devToast&&window.__devToast((opts&&opts.type?opts.type+': ':'')+msg)}}},
   useNotifications:function(){var toast={showToast:function(msg){window.__devToast&&window.__devToast(msg)}};return{notify:function(msg,opts){toast.showToast((opts&&opts.type?opts.type+': ':'')+msg)},dismiss:noop}},
-  useWorkspaceQuery:function(){return{data:undefined}},
-  useWorkspaceNavigation:function(){var ws='${wsSlug}';return{getTabState:function(t){return sessionStorage.getItem('workspace-'+ws+'-tab-'+t)||''},setTabState:function(t,s){var key='workspace-'+ws+'-tab-'+t;sessionStorage.setItem(key,s)},clearTabState:function(t){sessionStorage.removeItem('workspace-'+ws+'-tab-'+t)}}},
+  useLayoutQuery:function(){return{data:undefined}},
+  useLayoutNavigation:function(){var ls='${layoutSlug}';return{getTabState:function(t){return sessionStorage.getItem('layout-'+ls+'-tab-'+t)||''},setTabState:function(t,s){var key='layout-'+ls+'-tab-'+t;sessionStorage.setItem(key,s)},clearTabState:function(t){sessionStorage.removeItem('layout-'+ls+'-tab-'+t)}}},
   useSendToChat:function(slug){return function(msg){window.__devToast&&window.__devToast('→ chat('+slug+'): '+(typeof msg==='string'?msg:JSON.stringify(msg).slice(0,120)))}},
   useApiBase:function(){return __devApiBase},
   useServerFetch:function(){return __serverFetch},
@@ -48,9 +48,9 @@ window.__stallion_ai_sdk_mock={
   hasProvider:function(ws,type){var pid=__pc[ws+'/'+type];return !!pid&&!!__p[pid]},
   getProvider:function(ws,type){var pid=__pc[ws+'/'+type];if(!pid||!__p[pid])return null;var e=__p[pid];if(!e.instance)e.instance=typeof e.factory==='function'?e.factory():e.factory;return e.instance},
   getActiveProviderId:function(ws,type){return __pc[ws+'/'+type]||null},
-  // Workspace context factory
-  createWorkspaceContext:function(opts){var init=(opts&&opts.initialState)||{};var R=window.React;var Ctx=R.createContext({state:init,setState:noop});return{Provider:function(p){return R.createElement(Ctx.Provider,{value:{state:init,setState:noop}},p.children)},useWorkspaceContext:function(){return R.useContext(Ctx)}}},
+  // Layout context factory
+  createLayoutContext:function(opts){var init=(opts&&opts.initialState)||{};var R=window.React;var Ctx=R.createContext({state:init,setState:noop});return{Provider:function(p){return R.createElement(Ctx.Provider,{value:{state:init,setState:noop}},p.children)},useLayoutContext:function(){return R.useContext(Ctx)}}},
   // Components
   Button:function(props){return window.React.createElement('button',{onClick:props.onClick,disabled:props.disabled,className:'workspace-dashboard__btn'+(props.variant?' workspace-dashboard__btn--'+props.variant:''),style:props.style},props.children)},
-};`;
+};`;`;
 }

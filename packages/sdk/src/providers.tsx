@@ -9,8 +9,8 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { _setWorkspaceContext } from './api';
-import type { WorkspaceConfig } from './types';
+import { _setLayoutContext } from './api';
+import type { StandaloneLayoutConfig } from './types';
 
 /**
  * SDK Context - Provides access to all core app contexts and hooks
@@ -68,48 +68,48 @@ export function SDKProvider({ value, children }: SDKProviderProps) {
 }
 
 /**
- * WorkspaceProvider - Convenience wrapper for workspace plugins
+ * LayoutProvider - Convenience wrapper for layout plugins
  *
- * Provides common workspace props and SDK context.
+ * Provides common layout props and SDK context.
  */
-interface WorkspaceProviderProps {
+interface LayoutProviderProps {
   sdk: SDKContextValue;
-  workspace?: WorkspaceConfig;
+  layout?: StandaloneLayoutConfig;
   project?: { slug: string; name: string; [key: string]: any };
-  layout?: { slug: string; type: string; [key: string]: any };
+  activeLayout?: { slug: string; type: string; [key: string]: any };
   children: ReactNode;
 }
 
-export function WorkspaceProvider({
+export function LayoutProvider({
   sdk,
-  workspace,
+  layout,
   project: _project,
-  layout: _layout,
+  activeLayout: _activeLayout,
   children,
-}: WorkspaceProviderProps) {
-  // Set workspace context for API agent resolution
+}: LayoutProviderProps) {
+  // Set layout context for API agent resolution
   useEffect(() => {
-    _setWorkspaceContext(workspace);
-    return () => _setWorkspaceContext(undefined);
-  }, [workspace]);
+    _setLayoutContext(layout);
+    return () => _setLayoutContext(undefined);
+  }, [layout]);
 
   return <SDKProvider value={sdk}>{children}</SDKProvider>;
 }
 
-// Workspace Navigation Context
-interface WorkspaceNavigationContextType {
+// Layout Navigation Context
+interface LayoutNavigationContextType {
   getTabState: (tabId: string) => string;
   setTabState: (tabId: string, state: string) => void;
   clearTabState: (tabId: string) => void;
 }
 
-const WorkspaceNavigationContext =
-  createContext<WorkspaceNavigationContextType | null>(null);
+const LayoutNavigationContext =
+  createContext<LayoutNavigationContextType | null>(null);
 
-interface WorkspaceNavigationProviderProps {
+interface LayoutNavigationProviderProps {
   children: ReactNode;
   activeTabId?: string;
-  workspaceSlug?: string;
+  layoutSlug?: string;
 }
 
 // Global hash restoration mechanism
@@ -123,16 +123,16 @@ const restoreHashIfCleared = () => {
   }
 };
 
-export function WorkspaceNavigationProvider({
+export function LayoutNavigationProvider({
   children,
   activeTabId,
-  workspaceSlug,
-}: WorkspaceNavigationProviderProps) {
+  layoutSlug,
+}: LayoutNavigationProviderProps) {
   const [_instanceId] = useState(() => Math.random().toString(36).substr(2, 9));
 
   // IMMEDIATE hash restoration - before any state initialization
-  if (activeTabId && workspaceSlug) {
-    const key = `workspace-${workspaceSlug}-tab-${activeTabId}`;
+  if (activeTabId && layoutSlug) {
+    const key = `layout-${layoutSlug}-tab-${activeTabId}`;
     const stored = sessionStorage.getItem(key);
     const currentHash = window.location.hash.slice(1);
 
@@ -153,15 +153,15 @@ export function WorkspaceNavigationProvider({
 
   // Restore hash from sessionStorage on mount
   useEffect(() => {
-    if (activeTabId && workspaceSlug) {
-      const key = `workspace-${workspaceSlug}-tab-${activeTabId}`;
+    if (activeTabId && layoutSlug) {
+      const key = `layout-${layoutSlug}-tab-${activeTabId}`;
       const stored = sessionStorage.getItem(key);
       const currentHash = window.location.hash.slice(1);
       if (stored && !currentHash) {
         window.location.hash = stored;
       }
     }
-  }, [activeTabId, workspaceSlug]); // Empty deps - only run on mount
+  }, [activeTabId, layoutSlug]); // Empty deps - only run on mount
 
   // Debug: Track all hash changes
   useEffect(() => {
@@ -182,7 +182,7 @@ export function WorkspaceNavigationProvider({
 
     if (previousActiveTab !== activeTabId && activeTabId) {
       // Always restore the active tab's hash when switching tabs
-      const key = `workspace-${workspaceSlug}-tab-${activeTabId}`;
+      const key = `layout-${layoutSlug}-tab-${activeTabId}`;
       const stored = sessionStorage.getItem(key);
       if (stored) {
         window.location.hash = stored;
@@ -191,22 +191,22 @@ export function WorkspaceNavigationProvider({
       }
       setPreviousActiveTab(activeTabId);
     }
-  }, [activeTabId, previousActiveTab, workspaceSlug, isInitialized]);
+  }, [activeTabId, previousActiveTab, layoutSlug, isInitialized]);
 
   const getTabState = useCallback(
     (tabId: string): string => {
       // Always use sessionStorage as source of truth
-      const key = `workspace-${workspaceSlug}-tab-${tabId}`;
+      const key = `layout-${layoutSlug}-tab-${tabId}`;
       const stored = sessionStorage.getItem(key);
       return stored || '';
     },
-    [workspaceSlug],
+    [layoutSlug],
   );
 
   const setTabState = useCallback(
     (tabId: string, state: string) => {
       // Always save to sessionStorage first
-      const key = `workspace-${workspaceSlug}-tab-${tabId}`;
+      const key = `layout-${layoutSlug}-tab-${tabId}`;
       sessionStorage.setItem(key, state);
 
       if (tabId === activeTabId) {
@@ -221,7 +221,7 @@ export function WorkspaceNavigationProvider({
         });
       }
     },
-    [activeTabId, workspaceSlug],
+    [activeTabId, layoutSlug],
   );
 
   const clearTabState = useCallback(
@@ -229,28 +229,28 @@ export function WorkspaceNavigationProvider({
       if (tabId === activeTabId) {
         window.location.hash = '';
       } else {
-        const key = `workspace-${workspaceSlug}-tab-${tabId}`;
+        const key = `layout-${layoutSlug}-tab-${tabId}`;
         sessionStorage.removeItem(key);
       }
     },
-    [activeTabId, workspaceSlug],
+    [activeTabId, layoutSlug],
   );
 
   return (
-    <WorkspaceNavigationContext.Provider
+    <LayoutNavigationContext.Provider
       value={{ getTabState, setTabState, clearTabState }}
     >
       {children}
-    </WorkspaceNavigationContext.Provider>
+    </LayoutNavigationContext.Provider>
   );
 }
 
-export function useWorkspaceNavigation() {
-  const context = useContext(WorkspaceNavigationContext);
+export function useLayoutNavigation() {
+  const context = useContext(LayoutNavigationContext);
   if (!context) {
     // Context validation
     throw new Error(
-      'useWorkspaceNavigation must be used within WorkspaceNavigationProvider',
+      'useLayoutNavigation must be used within LayoutNavigationProvider',
     );
   }
   return context;

@@ -23,7 +23,7 @@ export { contextRegistry } from './context/registry.js';
 // Re-export useQueryClient for contexts that need access to cache
 export { useQueryClient } from '@tanstack/react-query';
 export {
-  isWorkspaceAgent,
+  isLayoutAgent,
   parseAgentSlug,
   resolveAgentName,
 } from './agentResolver';
@@ -31,10 +31,11 @@ export type { InvokeOptions } from './api';
 // Re-export utility functions
 export {
   _setApiBase,
-  _setWorkspaceContext,
+  _setLayoutContext,
   callTool,
   createChatSession,
   fetchConfig,
+  fetchLayouts,
   invoke,
   invokeAgent,
   sendMessage,
@@ -68,6 +69,9 @@ export {
   // Keyboard shortcuts
   useKeyboardShortcut,
   useKeyboardShortcuts,
+  useLayout,
+  // Layout management
+  useLayouts,
   // Models
   useModels,
   // Navigation
@@ -75,6 +79,10 @@ export {
   // Notifications
   useNotifications,
   useOpenConversation,
+  useProject,
+  // Project management
+  useProjects,
+  useResolveAgent,
   // SDK access
   useSDK,
   useSendMessage,
@@ -96,17 +104,14 @@ export {
   useWorkflowFiles,
   // Workflows
   useWorkflows,
-  useWorkspace,
-  // Workspace management
-  useWorkspaces,
 } from './hooks';
 // Re-export components
 export {
   SDKContext,
   SDKProvider,
-  useWorkspaceNavigation,
-  WorkspaceNavigationProvider,
-  WorkspaceProvider,
+  useLayoutNavigation,
+  LayoutNavigationProvider,
+  LayoutProvider,
 } from './providers';
 // Re-export query hooks (plugins use these instead of raw React Query)
 export {
@@ -117,31 +122,31 @@ export {
   useApiQuery,
   useConfigQuery,
   useConversationsQuery,
+  useCreateLayoutMutation,
+  useCreateProjectMutation,
+  useDeleteProjectMutation,
   useInvalidateQuery,
   useInvokeAgent,
+  useLayoutQuery,
+  useLayoutsQuery,
   useModelCapabilitiesQuery,
   useModelsQuery,
-  useStatsQuery,
-  useProjectsQuery,
-  useProjectQuery,
   useProjectLayoutsQuery,
-  useCreateProjectMutation,
-  useUpdateProjectMutation,
-  useDeleteProjectMutation,
-  useCreateLayoutMutation,
+  useProjectQuery,
+  useProjectsQuery,
+  useStatsQuery,
   useTransformTool,
+  useUpdateProjectMutation,
   useUsageQuery,
-  useWorkspaceQuery,
-  useWorkspacesQuery,
 } from './queries';
 // Re-export query factories (for imperative fetching in commands)
 export { agentQueries } from './queryFactories';
 export * from './types';
 
-// Re-export workspace utilities
-export { createWorkspaceContext } from './workspace/context';
-export type { ProviderMetadata } from './workspaceProviders';
-// Re-export workspace provider hooks (delegates to core app)
+// Re-export layout utilities
+export { createLayoutContext } from './layout/context';
+export type { ProviderMetadata } from './layoutProviders';
+// Re-export layout provider hooks (delegates to core app)
 export {
   _setProviderFunctions,
   configureProvider,
@@ -149,4 +154,4 @@ export {
   getProvider,
   hasProvider,
   registerProvider,
-} from './workspaceProviders';
+} from './layoutProviders';

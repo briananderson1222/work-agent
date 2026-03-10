@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, write
 import { join, resolve } from 'node:path';
 import { type PluginManifest, buildPlugin, copyPluginIntegrations } from '@stallion-ai/shared';
 import {
-  AGENTS_DIR, PLUGINS_DIR, PROJECT_HOME, WORKSPACES_DIR,
+  AGENTS_DIR, PLUGINS_DIR, PROJECT_HOME, LAYOUTS_DIR,
   extractPluginName, isGitUrl, lookupDepInRegistries, parseGitSource, readManifest,
 } from './helpers.js';
 
@@ -45,8 +45,8 @@ export function preview(source: string): void {
         conflicts.push({ type: 'agent', id: slug });
       }
     }
-    if (manifest.workspace && existsSync(join(WORKSPACES_DIR, manifest.workspace.slug, 'workspace.json'))) {
-      conflicts.push({ type: 'workspace', id: manifest.workspace.slug });
+    if (manifest.layout && existsSync(join(LAYOUTS_DIR, manifest.layout.slug, 'layout.json'))) {
+      conflicts.push({ type: 'layout', id: manifest.layout.slug });
     }
 
     console.log(`\n✅ Valid plugin\n`);
@@ -56,7 +56,7 @@ export function preview(source: string): void {
     const provides = [
       manifest.entrypoint && 'ui',
       manifest.agents?.length && 'agents',
-      manifest.workspace && 'workspace',
+      manifest.layout && 'layout',
       manifest.providers?.length && 'providers',
     ].filter(Boolean);
     if (provides.length) console.log(`  Provides: ${provides.join(', ')}`);
@@ -69,9 +69,9 @@ export function preview(source: string): void {
         console.log(`    agent:${slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`);
       }
     }
-    if (manifest.workspace) {
-      const conflict = conflicts.find(c => c.type === 'workspace' && c.id === manifest.workspace!.slug);
-      console.log(`    workspace:${manifest.workspace.slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`);
+    if (manifest.layout) {
+      const conflict = conflicts.find(c => c.type === 'layout' && c.id === manifest.layout!.slug);
+      console.log(`    layout:${manifest.layout.slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`);
     }
     for (const p of manifest.providers || []) {
       console.log(`    provider:${p.type}`);
@@ -194,16 +194,16 @@ export async function install(source: string, skipList: string[] = []): Promise<
     }
   }
 
-  if (manifest.workspace && !skipSet.has(`workspace:${manifest.workspace.slug}`)) {
-    mkdirSync(WORKSPACES_DIR, { recursive: true });
-    const sourcePath = join(finalDir, manifest.workspace.source);
-    const targetDir = join(WORKSPACES_DIR, manifest.workspace.slug);
+  if (manifest.layout && !skipSet.has(`layout:${manifest.layout.slug}`)) {
+    mkdirSync(LAYOUTS_DIR, { recursive: true });
+    const sourcePath = join(finalDir, manifest.layout.source);
+    const targetDir = join(LAYOUTS_DIR, manifest.layout.slug);
     if (existsSync(sourcePath)) {
       mkdirSync(targetDir, { recursive: true });
-      const wsConfig = JSON.parse(readFileSync(sourcePath, 'utf-8'));
-      wsConfig.plugin = manifest.name;
-      writeFileSync(join(targetDir, 'workspace.json'), JSON.stringify(wsConfig, null, 2));
-      console.log(`  ✓ Workspace: ${manifest.workspace.slug}`);
+      const layoutConfig = JSON.parse(readFileSync(sourcePath, 'utf-8'));
+      layoutConfig.plugin = manifest.name;
+      writeFileSync(join(targetDir, 'layout.json'), JSON.stringify(layoutConfig, null, 2));
+      console.log(`  ✓ Layout: ${manifest.layout.slug}`);
 
       // Auto-apply layout to project
       const projectsDir = join(PROJECT_HOME, 'projects');
@@ -223,22 +223,22 @@ export async function install(source: string, skipList: string[] = []): Promise<
           mkdirSync(layoutsDir, { recursive: true });
           // Check if already applied
           const existing = existsSync(layoutsDir) && readdirSync(layoutsDir).some(f => {
-            try { return JSON.parse(readFileSync(join(layoutsDir, f), 'utf-8')).slug === wsConfig.slug; } catch { return false; }
+            try { return JSON.parse(readFileSync(join(layoutsDir, f), 'utf-8')).slug === layoutConfig.slug; } catch { return false; }
           });
           if (!existing) {
             const layout = {
               id: crypto.randomUUID(),
               projectSlug: targetProject,
               type: 'chat',
-              name: wsConfig.name,
-              slug: wsConfig.slug,
-              icon: wsConfig.icon,
-              description: wsConfig.description,
-              config: { plugin: manifest.name, tabs: wsConfig.tabs, globalPrompts: wsConfig.globalPrompts, defaultAgent: wsConfig.defaultAgent, availableAgents: wsConfig.availableAgents, requiredProviders: wsConfig.requiredProviders },
+              name: layoutConfig.name,
+              slug: layoutConfig.slug,
+              icon: layoutConfig.icon,
+              description: layoutConfig.description,
+              config: { plugin: manifest.name, tabs: layoutConfig.tabs, globalPrompts: layoutConfig.globalPrompts, defaultAgent: layoutConfig.defaultAgent, availableAgents: layoutConfig.availableAgents, requiredProviders: layoutConfig.requiredProviders },
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             };
-            writeFileSync(join(layoutsDir, `${wsConfig.slug}.json`), JSON.stringify(layout, null, 2));
+            writeFileSync(join(layoutsDir, `${layoutConfig.slug}.json`), JSON.stringify(layout, null, 2));
             console.log(`  ✓ Layout applied to project: ${targetProject}`);
           }
         } else if (projectSlugs.length > 1) {
@@ -290,8 +290,8 @@ export function list(): void {
     if (m.agents?.length) {
       console.log(`    Agents: ${m.agents.map(a => `${m.name}:${a.slug}`).join(', ')}`);
     }
-    if (m.workspace) {
-      console.log(`    Workspace: ${m.workspace.slug}`);
+    if (m.layout) {
+      console.log(`    Layout: ${m.layout.slug}`);
     }
     if (m.providers?.length) {
       console.log(`    Providers: ${m.providers.map(p => p.type).join(', ')}`);
@@ -318,9 +318,9 @@ export function remove(name: string): void {
       if (existsSync(agentJson)) rmSync(agentJson);
     }
   }
-  if (manifest.workspace) {
-    const wsDir = join(WORKSPACES_DIR, manifest.workspace.slug);
-    if (existsSync(wsDir)) rmSync(wsDir, { recursive: true });
+  if (manifest.layout) {
+    const layoutDir = join(LAYOUTS_DIR, manifest.layout.slug);
+    if (existsSync(layoutDir)) rmSync(layoutDir, { recursive: true });
   }
   rmSync(pluginDir, { recursive: true });
   console.log(`✅ Removed ${manifest.displayName}`);
@@ -338,7 +338,7 @@ export function info(name: string): void {
     console.log(`Agents (${m.agents.length}):`);
     m.agents.forEach((a) => console.log(`  - ${m.name}:${a.slug}`));
   }
-  if (m.workspace) console.log(`Workspace: ${m.workspace.slug}`);
+  if (m.layout) console.log(`Layout: ${m.layout.slug}`);
 }
 
 export function update(name: string): void {

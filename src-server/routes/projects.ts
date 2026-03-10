@@ -17,7 +17,7 @@ function getAvailableLayouts(projectHomeDir: string) {
   results.push({ source: 'builtin', name: 'Chat', slug: 'chat', icon: '💬', description: 'Chat layout with tabs and prompts', type: 'chat' });
   results.push({ source: 'builtin', name: 'Coding', slug: 'coding', icon: '🔧', description: 'File tree, diff viewer, terminal, and chat', type: 'coding' });
 
-  // Scan plugins for workspaces
+  // Scan plugins for layouts
   const pluginsDir = join(projectHomeDir, 'plugins');
   if (!existsSync(pluginsDir)) return results;
   for (const entry of readdirSync(pluginsDir, { withFileTypes: true })) {
@@ -26,41 +26,41 @@ function getAvailableLayouts(projectHomeDir: string) {
     if (!existsSync(pluginFile)) continue;
     try {
       const plugin = JSON.parse(readFileSync(pluginFile, 'utf-8'));
-      if (!plugin.workspace) continue;
-      const wsFile = join(pluginsDir, entry.name, plugin.workspace.source || 'workspace.json');
-      // Also check the workspaces dir (where install copies it)
-      const wsDir = join(projectHomeDir, 'workspaces', plugin.workspace.slug, 'workspace.json');
-      const wsPath = existsSync(wsFile) ? wsFile : existsSync(wsDir) ? wsDir : null;
-      if (!wsPath) continue;
-      const ws = JSON.parse(readFileSync(wsPath, 'utf-8'));
+      if (!plugin.layout) continue;
+      const layoutFile = join(pluginsDir, entry.name, plugin.layout.source || 'layout.json');
+      // Also check the layouts dir (where install copies it)
+      const layoutDir = join(projectHomeDir, 'layouts', plugin.layout.slug, 'layout.json');
+      const layoutPath = existsSync(layoutFile) ? layoutFile : existsSync(layoutDir) ? layoutDir : null;
+      if (!layoutPath) continue;
+      const layout = JSON.parse(readFileSync(layoutPath, 'utf-8'));
       results.push({
         source: 'plugin',
         plugin: plugin.name,
-        name: ws.name || plugin.displayName || plugin.name,
-        slug: ws.slug || plugin.workspace.slug,
-        icon: ws.icon,
-        description: ws.description || plugin.description,
+        name: layout.name || plugin.displayName || plugin.name,
+        slug: layout.slug || plugin.layout.slug,
+        icon: layout.icon,
+        description: layout.description || plugin.description,
         type: 'chat',
-        tabCount: ws.tabs?.length,
+        tabCount: layout.tabs?.length,
       });
     } catch { /* skip broken plugins */ }
   }
   return results;
 }
 
-/** Read a plugin's workspace.json to create a layout reference */
-function readPluginWorkspace(projectHomeDir: string, pluginName: string) {
-  // Check workspaces dir first (where install copies it), then plugin source
+/** Read a plugin's layout.json to create a layout reference */
+function readPluginLayout(projectHomeDir: string, pluginName: string) {
+  // Check layouts dir first (where install copies it), then plugin source
   const pluginFile = join(projectHomeDir, 'plugins', pluginName, 'plugin.json');
   if (!existsSync(pluginFile)) return null;
   const plugin = JSON.parse(readFileSync(pluginFile, 'utf-8'));
-  if (!plugin.workspace) return null;
+  if (!plugin.layout) return null;
 
-  const wsDir = join(projectHomeDir, 'workspaces', plugin.workspace.slug, 'workspace.json');
-  const wsFile = join(projectHomeDir, 'plugins', pluginName, plugin.workspace.source || 'workspace.json');
-  const wsPath = existsSync(wsDir) ? wsDir : existsSync(wsFile) ? wsFile : null;
-  if (!wsPath) return null;
-  return JSON.parse(readFileSync(wsPath, 'utf-8'));
+  const layoutDir = join(projectHomeDir, 'layouts', plugin.layout.slug, 'layout.json');
+  const layoutFile = join(projectHomeDir, 'plugins', pluginName, plugin.layout.source || 'layout.json');
+  const layoutPath = existsSync(layoutDir) ? layoutDir : existsSync(layoutFile) ? layoutFile : null;
+  if (!layoutPath) return null;
+  return JSON.parse(readFileSync(layoutPath, 'utf-8'));
 }
 
 export function createProjectRoutes(projectService: ProjectService, storageAdapter: IStorageAdapter, projectHomeDir?: string) {
@@ -161,10 +161,10 @@ export function createProjectRoutes(projectService: ProjectService, storageAdapt
       const layoutSlug = c.req.param('layoutSlug');
       const layout = storageAdapter.getLayout(slug, layoutSlug);
 
-      // Dynamic resolution: if layout references a plugin, merge fresh workspace data
+      // Dynamic resolution: if layout references a plugin, merge fresh layout data
       const pluginName = (layout.config as any)?.plugin;
       if (pluginName && projectHomeDir) {
-        const ws = readPluginWorkspace(projectHomeDir, pluginName);
+        const ws = readPluginLayout(projectHomeDir, pluginName);
         if (ws) {
           layout.config = {
             ...(layout.config as any),
@@ -236,8 +236,8 @@ export function createProjectRoutes(projectService: ProjectService, storageAdapt
       if (!pluginName) return c.json({ success: false, error: 'plugin name required' }, 400);
 
       const homeDir = projectHomeDir || '.stallion-ai';
-      const ws = readPluginWorkspace(homeDir, pluginName);
-      if (!ws) return c.json({ success: false, error: `Plugin '${pluginName}' has no workspace` }, 404);
+      const ws = readPluginLayout(homeDir, pluginName);
+      if (!ws) return c.json({ success: false, error: `Plugin '${pluginName}' has no layout` }, 404);
 
       const now = new Date().toISOString();
       const layout = {

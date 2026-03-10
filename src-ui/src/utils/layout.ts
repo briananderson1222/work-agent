@@ -78,15 +78,15 @@ function getIconStyle(
   return baseStyle;
 }
 
-export function getWorkspaceIcon(workspace: IconEntity) {
-  return getIcon(workspace);
+export function getLayoutIcon(layout: IconEntity) {
+  return getIcon(layout);
 }
 
-export function getWorkspaceIconStyle(
-  workspace: IconEntity,
+export function getLayoutIconStyle(
+  layout: IconEntity,
   size: number = 48,
 ) {
-  return getIconStyle(workspace, size);
+  return getIconStyle(layout, size);
 }
 
 export function getAgentIcon(agent: IconEntity) {

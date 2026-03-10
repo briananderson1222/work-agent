@@ -41,7 +41,7 @@ export function createPluginRoutes(
   const app = new Hono();
   const pluginsDir = join(projectHomeDir, 'plugins');
   const agentsDir = join(projectHomeDir, 'agents');
-  const workspacesDir = join(projectHomeDir, 'workspaces');
+  const layoutsDir = join(projectHomeDir, 'layouts');
 
   /** Resolve a plugin bundle file by manifest name (not folder name) */
   function resolvePluginBundle(name: string, file: string): string | null {
@@ -129,7 +129,7 @@ export function createPluginRoutes(
           version: manifest.version,
           description: manifest.description,
           hasBundle: existsSync(bundlePath),
-          workspace: manifest.workspace,
+          layout: manifest.layout,
           agents: manifest.agents,
           providers: manifest.providers,
           links: manifest.links,
@@ -212,16 +212,16 @@ export function createPluginRoutes(
       }
     }
 
-    if (manifest.workspace) {
-      const wsDir = join(workspacesDir, manifest.workspace.slug, 'workspace.json');
-      if (existsSync(wsDir)) {
+    if (manifest.layout) {
+      const layoutDir = join(layoutsDir, manifest.layout.slug, 'layout.json');
+      if (existsSync(layoutDir)) {
         try {
-          const existing = JSON.parse(readFileSync(wsDir, 'utf-8'));
+          const existing = JSON.parse(readFileSync(layoutDir, 'utf-8'));
           if (existing.plugin && existing.plugin !== manifest.name) {
-            conflicts.push({ type: 'workspace', id: manifest.workspace.slug, existingSource: existing.plugin });
+            conflicts.push({ type: 'layout', id: manifest.layout.slug, existingSource: existing.plugin });
           }
         } catch {
-          conflicts.push({ type: 'workspace', id: manifest.workspace.slug });
+          conflicts.push({ type: 'layout', id: manifest.layout.slug });
         }
       }
     }
@@ -270,7 +270,7 @@ export function createPluginRoutes(
       const components: Array<{ type: string; id: string }> = [];
       if (depManifest) {
         for (const a of depManifest.agents || []) components.push({ type: 'agent', id: `${depManifest.name}:${a.slug}` });
-        if (depManifest.workspace) components.push({ type: 'workspace', id: depManifest.workspace.slug });
+        if (depManifest.layout) components.push({ type: 'layout', id: depManifest.layout.slug });
         for (const p of depManifest.providers || []) components.push({ type: 'provider', id: p.type });
       }
 
@@ -369,9 +369,9 @@ export function createPluginRoutes(
           components.push({ type: 'agent', id: slug, detail: agent.source, conflict });
         }
 
-        if (manifest.workspace) {
-          const conflict = conflicts.find(c => c.type === 'workspace' && c.id === manifest.workspace.slug);
-          components.push({ type: 'workspace', id: manifest.workspace.slug, detail: manifest.workspace.source, conflict });
+        if (manifest.layout) {
+          const conflict = conflicts.find(c => c.type === 'layout' && c.id === manifest.layout.slug);
+          components.push({ type: 'layout', id: manifest.layout.slug, detail: manifest.layout.source, conflict });
         }
 
         for (const p of manifest.providers || []) {
@@ -446,16 +446,16 @@ export function createPluginRoutes(
         }
       }
 
-      // Install workspace config (unless skipped)
-      if (manifest.workspace && !skipSet.has(`workspace:${manifest.workspace.slug}`)) {
-        mkdirSync(workspacesDir, { recursive: true });
-        const src = join(pluginDir, manifest.workspace.source);
+      // Install layout config (unless skipped)
+      if (manifest.layout && !skipSet.has(`layout:${manifest.layout.slug}`)) {
+        mkdirSync(layoutsDir, { recursive: true });
+        const src = join(pluginDir, manifest.layout.source);
         if (existsSync(src)) {
-          const wsDir = join(workspacesDir, manifest.workspace.slug);
-          mkdirSync(wsDir, { recursive: true });
-          const wsConfig = JSON.parse(readFileSync(src, 'utf-8'));
-          wsConfig.plugin = pluginName;
-          writeFileSync(join(wsDir, 'workspace.json'), JSON.stringify(wsConfig, null, 2));
+          const layoutDir = join(layoutsDir, manifest.layout.slug);
+          mkdirSync(layoutDir, { recursive: true });
+          const layoutConfig = JSON.parse(readFileSync(src, 'utf-8'));
+          layoutConfig.plugin = pluginName;
+          writeFileSync(join(layoutDir, 'layout.json'), JSON.stringify(layoutConfig, null, 2));
         }
       }
 
@@ -702,10 +702,10 @@ export function createPluginRoutes(
         }
       }
 
-      // Remove workspace
-      if (manifest.workspace) {
-        const wsDir = join(workspacesDir, manifest.workspace.slug);
-        if (existsSync(wsDir)) rmSync(wsDir, { recursive: true });
+      // Remove layout
+      if (manifest.layout) {
+        const layoutDir = join(layoutsDir, manifest.layout.slug);
+        if (existsSync(layoutDir)) rmSync(layoutDir, { recursive: true });
       }
 
       // Revoke permission grants
@@ -836,7 +836,7 @@ export function createPluginRoutes(
     const providers = (manifest.providers || []).map((p: any) => ({
       type: p.type,
       module: p.module,
-      workspace: p.workspace ?? null,
+      layout: p.layout ?? null,
       enabled: !disabled.includes(p.type),
     }));
 
@@ -959,7 +959,7 @@ async function loadProviders(
       else if (p.type === 'onboarding') registerOnboardingProvider(instance, manifest.displayName || pluginName);
       else if (p.type === 'branding') registerBrandingProvider(instance);
       else if (p.type === 'settings') registerSettingsProvider(instance);
-      else registerProvider(p.type, instance, { workspace: p.workspace, source: pluginName });
+      else registerProvider(p.type, instance, { workspace: p.layout, source: pluginName });
 
       loaded++;
     } catch (e: any) {

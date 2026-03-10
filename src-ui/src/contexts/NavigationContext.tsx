@@ -13,9 +13,9 @@ type NavigationState = {
 
   // Query params
   selectedAgent: string | null;
-  selectedWorkspace: string | null;
-  selectedProject: string | null;
   selectedLayout: string | null;
+  selectedProject: string | null;
+  selectedProjectLayout: string | null;
   activeConversation: string | null;
   activeChat: string | null;
   activeTab: string | null;
@@ -27,18 +27,18 @@ type NavigationState = {
   fontSize: number | null;
 };
 
-const LAST_WORKSPACE_KEY = 'stallion-last-workspace';
+const LAST_LAYOUT_KEY = 'lastLayout';
 
 class NavigationStore {
   private state: NavigationState;
   private listeners = new Set<() => void>();
   private isNavigating = false;
-  /** Persisted workspace — survives navigation to non-workspace pages */
-  lastWorkspace: string | null;
+  /** Persisted layout — survives navigation to non-layout pages */
+  lastLayout: string | null;
 
   constructor() {
-    this.lastWorkspace = typeof window !== 'undefined'
-      ? localStorage.getItem(LAST_WORKSPACE_KEY)
+    this.lastLayout = typeof window !== 'undefined'
+      ? localStorage.getItem(LAST_LAYOUT_KEY)
       : null;
     this.state = this.parseUrl();
 
@@ -56,8 +56,8 @@ class NavigationStore {
     oldUrl.pathname = this.state.pathname;
     oldUrl.search = new URLSearchParams({
       ...(this.state.selectedAgent && { agent: this.state.selectedAgent }),
-      ...(this.state.selectedWorkspace && {
-        workspace: this.state.selectedWorkspace,
+      ...(this.state.selectedLayout && {
+        layout: this.state.selectedLayout,
       }),
       ...(this.state.activeConversation && {
         conversation: this.state.activeConversation,
@@ -89,9 +89,9 @@ class NavigationStore {
       return {
         pathname: '/',
         selectedAgent: null,
-        selectedWorkspace: null,
-        selectedProject: null,
         selectedLayout: null,
+        selectedProject: null,
+        selectedProjectLayout: null,
         activeConversation: null,
         activeChat: null,
         activeTab: null,
@@ -110,35 +110,35 @@ class NavigationStore {
     const agentMatch = pathname.match(/^\/agents?\/([^/]+)/);
     if (agentMatch) selectedAgent = agentMatch[1];
 
-    // Extract workspace and tab from path or query
-    let selectedWorkspace = params.get('workspace');
+    // Extract standalone layout and tab from path or query
+    let selectedLayout = params.get('layout');
     let activeTab = params.get('tab'); // Fallback to query param for backward compatibility
 
-    const workspaceMatch = pathname.match(
-      /^\/workspaces?\/([^/]+)(?:\/([^/]+))?/,
+    const layoutMatch = pathname.match(
+      /^\/layouts?\/([^/]+)(?:\/([^/]+))?/,
     );
-    if (workspaceMatch) {
-      selectedWorkspace = workspaceMatch[1];
-      if (workspaceMatch[2]) {
-        activeTab = workspaceMatch[2]; // Tab from path takes precedence
+    if (layoutMatch) {
+      selectedLayout = layoutMatch[1];
+      if (layoutMatch[2]) {
+        activeTab = layoutMatch[2]; // Tab from path takes precedence
       }
     }
 
     // Extract project and layout from path
     let selectedProject: string | null = null;
-    let selectedLayout: string | null = null;
+    let selectedProjectLayout: string | null = null;
     const projectMatch = pathname.match(/^\/projects\/([^/]+)(?:\/layouts\/([^/]+))?/);
     if (projectMatch) {
       selectedProject = projectMatch[1];
-      if (projectMatch[2]) selectedLayout = projectMatch[2];
+      if (projectMatch[2]) selectedProjectLayout = projectMatch[2];
     }
 
     return {
       pathname,
       selectedAgent,
-      selectedWorkspace,
-      selectedProject,
       selectedLayout,
+      selectedProject,
+      selectedProjectLayout,
       activeConversation: params.get('conversation'),
       activeChat: params.get('chat'),
       activeTab,
@@ -219,21 +219,21 @@ class NavigationStore {
     }
   }
 
-  setWorkspace(slug: string | null) {
+  setStandaloneLayout(slug: string | null) {
     if (slug) {
-      this.lastWorkspace = slug;
-      try { localStorage.setItem(LAST_WORKSPACE_KEY, slug); } catch {}
-      this.navigate(`/workspaces/${slug}`);
+      this.lastLayout = slug;
+      try { localStorage.setItem(LAST_LAYOUT_KEY, slug); } catch {}
+      this.navigate(`/layouts/${slug}`);
     } else {
       this.navigate('/');
     }
   }
 
-  setWorkspaceTab(workspaceSlug: string, tabId: string | null) {
+  setLayoutTab(layoutSlug: string, tabId: string | null) {
     if (tabId) {
-      this.navigate(`/workspaces/${workspaceSlug}/${tabId}`);
+      this.navigate(`/layouts/${layoutSlug}/${tabId}`);
     } else {
-      this.navigate(`/workspaces/${workspaceSlug}`);
+      this.navigate(`/layouts/${layoutSlug}`);
     }
   }
 
@@ -278,8 +278,8 @@ const NavigationContext = createContext<{
   navigate: (pathname: string, params?: Record<string, string | null>) => void;
   updateParams: (params: Record<string, string | null>) => void;
   setAgent: (slug: string | null) => void;
-  setWorkspace: (slug: string | null) => void;
-  setWorkspaceTab: (workspaceSlug: string, tabId: string | null) => void;
+  setStandaloneLayout: (slug: string | null) => void;
+  setLayoutTab: (layoutSlug: string, tabId: string | null) => void;
   setProject: (slug: string) => void;
   setLayout: (projectSlug: string, layoutSlug: string) => void;
   setConversation: (id: string | null) => void;
@@ -304,13 +304,13 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     navigationStore.setAgent(slug);
   }, []);
 
-  const setWorkspace = useCallback((slug: string | null) => {
-    navigationStore.setWorkspace(slug);
+  const setStandaloneLayout = useCallback((slug: string | null) => {
+    navigationStore.setStandaloneLayout(slug);
   }, []);
 
-  const setWorkspaceTab = useCallback(
-    (workspaceSlug: string, tabId: string | null) => {
-      navigationStore.setWorkspaceTab(workspaceSlug, tabId);
+  const setLayoutTab = useCallback(
+    (layoutSlug: string, tabId: string | null) => {
+      navigationStore.setLayoutTab(layoutSlug, tabId);
     },
     [],
   );
@@ -345,8 +345,8 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
         navigate,
         updateParams,
         setAgent,
-        setWorkspace,
-        setWorkspaceTab,
+        setStandaloneLayout,
+        setLayoutTab,
         setProject,
         setLayout,
         setConversation,
@@ -373,7 +373,7 @@ export function useNavigation() {
 
   return {
     ...state,
-    lastWorkspace: navigationStore.lastWorkspace,
+    lastLayout: navigationStore.lastLayout,
     ...context,
   };
 }

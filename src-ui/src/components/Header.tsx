@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import { useBranding } from '../hooks/useBranding';
 import type { NavigationView } from '../types';
-import { getInitials } from '../utils/workspace';
+import { getInitials } from '../utils/layout';
 import { NotificationHistory } from './NotificationHistory';
 import './chat.css';
 
@@ -116,7 +116,7 @@ export function Header({
           className={`app-toolbar__icon-btn ${currentView?.type === 'profile' ? 'is-active' : ''}`}
           onClick={() => {
             if (currentView?.type === 'profile') {
-              onNavigate({ type: 'workspace' });
+              onNavigate({ type: 'standalone-layout' });
             } else {
               onNavigate({ type: 'profile' });
             }
