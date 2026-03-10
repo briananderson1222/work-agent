@@ -5,11 +5,11 @@
  * via script injection, and registers workspace components.
  */
 
-import type { WorkspaceComponent } from '@stallion-ai/sdk';
+import type { LayoutComponent } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 
 export class PluginRegistry {
-  private workspaces = new Map<string, WorkspaceComponent>();
+  private layouts = new Map<string, LayoutComponent>();
   private pluginMeta = new Map<string, any>();
   private apiBase = '';
 
@@ -31,7 +31,7 @@ export class PluginRegistry {
       }
 
       log.plugin(
-        `[PluginRegistry] Loaded ${this.pluginMeta.size} plugins, ${this.workspaces.size} components`,
+        `[PluginRegistry] Loaded ${this.pluginMeta.size} plugins, ${this.layouts.size} components`,
       );
     } catch (e) {
       log.api('[PluginRegistry] Failed to initialize:', e);
@@ -66,14 +66,14 @@ export class PluginRegistry {
         for (const [id, component] of Object.entries(
           pluginExports.components,
         )) {
-          this.workspaces.set(id, component as WorkspaceComponent);
+          this.layouts.set(id, component as LayoutComponent);
           log.plugin(`[PluginRegistry] Registered: ${id}`);
         }
       }
 
       // Also register default export
       if (pluginExports.default) {
-        this.workspaces.set(name, pluginExports.default as WorkspaceComponent);
+        this.layouts.set(name, pluginExports.default as LayoutComponent);
       }
 
       this.pluginMeta.set(name, pluginMeta);
@@ -119,28 +119,28 @@ export class PluginRegistry {
 
   /** Reload — re-fetch plugin list and load any new bundles */
   async reload(): Promise<void> {
-    this.workspaces.clear();
+    this.layouts.clear();
     this.pluginMeta.clear();
     await this.initialize();
   }
 
-  getWorkspace(name: string): WorkspaceComponent | null {
-    return this.workspaces.get(name) || null;
+  getLayout(name: string): LayoutComponent | null {
+    return this.layouts.get(name) || null;
   }
 
-  getComponent(name: string): WorkspaceComponent | null {
-    return this.workspaces.get(name) || null;
+  getComponent(name: string): LayoutComponent | null {
+    return this.layouts.get(name) || null;
   }
 
-  hasWorkspace(name: string): boolean {
-    return this.workspaces.has(name);
+  hasLayout(name: string): boolean {
+    return this.layouts.has(name);
   }
 
   hasComponent(name: string): boolean {
-    return this.workspaces.has(name);
+    return this.layouts.has(name);
   }
 
-  listWorkspaces(): Array<{ name: string; manifest: any }> {
+  listLayouts(): Array<{ name: string; manifest: any }> {
     return Array.from(this.pluginMeta.entries()).map(([name, manifest]) => ({
       name,
       manifest,
@@ -148,13 +148,13 @@ export class PluginRegistry {
   }
 
   listComponents() {
-    return this.listWorkspaces();
+    return this.listLayouts();
   }
-  getWorkspaceManifest(name: string) {
+  getLayoutManifest(name: string) {
     return this.pluginMeta.get(name) || null;
   }
   getComponentManifest(name: string) {
-    return this.getWorkspaceManifest(name);
+    return this.getLayoutManifest(name);
   }
 
   /** Aggregate links from all plugins, optionally filtered by placement */

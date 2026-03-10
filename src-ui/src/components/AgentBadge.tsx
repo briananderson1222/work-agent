@@ -1,4 +1,4 @@
-import { isWorkspaceAgent, parseAgentSlug } from '../utils/agentResolver';
+import { isLayoutAgent, parseAgentSlug } from '../utils/agentResolver';
 import './AgentBadge.css';
 
 interface AgentBadgeProps {
@@ -16,14 +16,14 @@ export function AgentBadge({
 
   const isAcp = source === 'acp';
   const { namespace, name } = parseAgentSlug(agentSlug);
-  const isWorkspace = !isAcp && isWorkspaceAgent(agentSlug);
+  const isWorkspace = !isAcp && isLayoutAgent(agentSlug);
 
   // ACP agents: show "mode (connection)" format
   const displayName = isAcp ? name : name;
   const badgeClass = isAcp
     ? 'agent-badge--acp'
     : isWorkspace
-      ? 'agent-badge--workspace'
+      ? 'agent-badge--layout'
       : 'agent-badge--global';
   const title = isAcp
     ? 'kiro-cli (ACP)'

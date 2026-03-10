@@ -5,14 +5,14 @@ import { pluginRegistry } from '../core/PluginRegistry';
 import type {
   AgentQuickPrompt,
   AgentSummary,
-  WorkspaceConfig,
-  WorkspaceTab,
+  StandaloneLayoutConfig,
+  LayoutTab,
 } from '../types';
 
 export interface AgentLayoutProps {
   agent?: AgentSummary;
-  workspace?: WorkspaceConfig;
-  activeTab?: WorkspaceTab;
+  layout?: StandaloneLayoutConfig;
+  activeTab?: LayoutTab;
   onLaunchPrompt?: (prompt: AgentQuickPrompt) => void;
   onLaunchWorkflow?: (workflowId: string) => void;
   onShowChat?: () => void;
@@ -68,7 +68,7 @@ export function resolveLayoutComponent(
   }
 
   // Check plugin registry as fallback
-  const pluginComponent = pluginRegistry.getWorkspace(componentId);
+  const pluginComponent = pluginRegistry.getLayout(componentId);
   if (pluginComponent) {
     if (!loggedComponents.has(componentId)) {
       log.plugin(`Loaded layout component: ${componentId}`);

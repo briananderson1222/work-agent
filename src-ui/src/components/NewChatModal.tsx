@@ -38,7 +38,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
     );
 
     // Workspace agents: listed in workspace config OR slug prefix matches workspace plugin
-    const isWorkspaceAgent = (a: AgentData) => {
+    const isLayoutAgent = (a: AgentData) => {
       if (a.source === 'acp') return false;
       if (wsAgentSlugs.has(a.slug)) return true;
       // Fallback: if slug contains ':' it's a plugin agent, treat as workspace
@@ -46,9 +46,9 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
       return false;
     };
 
-    const wsAgents = filtered.filter((a) => isWorkspaceAgent(a));
+    const wsAgents = filtered.filter((a) => isLayoutAgent(a));
     const globalAgents = filtered.filter(
-      (a) => a.source !== 'acp' && !isWorkspaceAgent(a),
+      (a) => a.source !== 'acp' && !isLayoutAgent(a),
     );
     const acpAgents = filtered.filter((a) => a.source === 'acp');
 

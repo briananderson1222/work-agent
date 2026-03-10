@@ -25,7 +25,7 @@ export interface SDKContextValue {
   // Core contexts (injected by core app)
   contexts: {
     agents?: any;
-    workspaces?: any;
+    layouts?: any;
     conversations?: any;
     activeChats?: any;
     models?: any;

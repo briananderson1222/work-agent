@@ -1,4 +1,4 @@
-import type { WorkspaceConfig } from '../types';
+import type { WorkspaceConfig as StandaloneLayoutConfig } from '../types';
 
 /**
  * Resolve agent name within workspace context
@@ -8,7 +8,7 @@ import type { WorkspaceConfig } from '../types';
  */
 export function resolveAgentName(
   agentName: string,
-  workspace?: WorkspaceConfig,
+  layout?: StandaloneLayoutConfig,
 ): string {
   // Already fully qualified
   if (agentName.includes(':')) {
@@ -44,7 +44,7 @@ export function parseAgentSlug(slug: string): {
 /**
  * Check if agent is workspace-scoped
  */
-export function isWorkspaceAgent(slug: string): boolean {
+export function isLayoutAgent(slug: string): boolean {
   return slug.includes(':');
 }
 

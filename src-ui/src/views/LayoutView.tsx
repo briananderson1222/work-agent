@@ -4,7 +4,7 @@ import {
   FullScreenLoader,
   useLayoutQuery,
   useLayoutsQuery,
-  WorkspaceNavigationProvider,
+  LayoutNavigationProvider,
 } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -275,7 +275,7 @@ export function LayoutView({
 
   return (
     <SDKAdapter workspace={workspace}>
-      <WorkspaceNavigationProvider
+      <LayoutNavigationProvider
         activeTabId={activeTabId}
         workspaceSlug={workspace?.slug}
       >
@@ -291,7 +291,7 @@ export function LayoutView({
           refreshKey={refreshKey}
           onRefresh={handleRefresh}
         />
-      </WorkspaceNavigationProvider>
+      </LayoutNavigationProvider>
     </SDKAdapter>
   );
 }

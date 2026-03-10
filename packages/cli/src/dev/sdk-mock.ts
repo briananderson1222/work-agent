@@ -51,6 +51,6 @@ window.__stallion_ai_sdk_mock={
   // Layout context factory
   createLayoutContext:function(opts){var init=(opts&&opts.initialState)||{};var R=window.React;var Ctx=R.createContext({state:init,setState:noop});return{Provider:function(p){return R.createElement(Ctx.Provider,{value:{state:init,setState:noop}},p.children)},useLayoutContext:function(){return R.useContext(Ctx)}}},
   // Components
-  Button:function(props){return window.React.createElement('button',{onClick:props.onClick,disabled:props.disabled,className:'workspace-dashboard__btn'+(props.variant?' workspace-dashboard__btn--'+props.variant:''),style:props.style},props.children)},
-};`;`;
+  Button:function(props){return window.React.createElement('button',{onClick:props.onClick,disabled:props.disabled,className:'layout-dashboard__btn'+(props.variant?' layout-dashboard__btn--'+props.variant:''),style:props.style},props.children)},
+};`;
 }

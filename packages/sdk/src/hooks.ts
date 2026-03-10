@@ -55,16 +55,16 @@ export function useResolveAgent(agentSlug: string) {
 // Layout Management
 export function useLayouts() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.workspaces)
+  if (!sdk?.contexts?.layouts)
     throw new Error('WorkspacesContext not available');
-  return sdk.contexts.workspaces.useWorkspaces();
+  return sdk.contexts.layouts.useLayouts();
 }
 
 export function useLayout(slug: string, enabled = true) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.workspaces)
+  if (!sdk?.contexts?.layouts)
     throw new Error('WorkspacesContext not available');
-  return sdk.contexts.workspaces.useWorkspace(slug, enabled);
+  return sdk.contexts.layouts.useLayout(slug, enabled);
 }
 
 // Project Management
@@ -293,7 +293,7 @@ export function useWorkflowFiles(agentSlug: string) {
  * Plugins MUST specify the agent slug - there is no default.
  *
  * @param agentSlug - The agent to send messages to (required). Can be short name (e.g., 'my-agent')
- *                    which will be resolved using current workspace context, or fully qualified
+ *                    which will be resolved using current layout context, or fully qualified
  *                    (e.g., 'sa-agent:stallion-agent').
  * @returns Function to send a message and open chat
  *
@@ -311,7 +311,7 @@ export function useSendToChat(agentSlug: string) {
 
   return useCallback(
     (message: string) => {
-      // Resolve short name to full slug using workspace context
+      // Resolve short name to full slug using layout context
       const resolvedSlug = resolveAgentName(agentSlug);
       const agent = agents.find((a: any) => a.slug === resolvedSlug);
       if (!agent) {

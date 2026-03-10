@@ -18,7 +18,7 @@ export function QuickActionsBar({
     return (
       <div className="quick-actions">
         <span className="quick-actions__helper">
-          Define prompts in workspace.json to surface them here.
+          Define prompts in layout.json to surface them here.
         </span>
       </div>
     );

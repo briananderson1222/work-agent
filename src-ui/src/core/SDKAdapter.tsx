@@ -1,7 +1,7 @@
 import {
   _setApiBase,
   _setProviderFunctions,
-  _setWorkspaceContext,
+  _setLayoutContext,
   SDKProvider,
   useLayoutsQuery,
 } from '@stallion-ai/sdk';
@@ -18,7 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
-import type { WorkspaceConfig } from '../types';
+import type { StandaloneLayoutConfig } from '../types';
 import {
   configureProvider,
   getActiveProviderId,
@@ -30,7 +30,7 @@ import {
 interface SDKAdapterProps {
   children: ReactNode;
   authToken?: string;
-  workspace?: WorkspaceConfig;
+  layout?: StandaloneLayoutConfig;
 }
 
 /**
@@ -39,15 +39,15 @@ interface SDKAdapterProps {
  */
 export function SDKAdapter({
   children,
-  workspace,
+  layout,
 }: SDKAdapterProps) {
   // Get API base from the single source of truth
   const { apiBase } = useApiBase();
 
-  // Set API base and workspace context for SDK API functions
+  // Set API base and layout context for SDK API functions
   useEffect(() => {
     _setApiBase(apiBase);
-    _setWorkspaceContext(workspace);
+    _setLayoutContext(layout);
 
     // Inject provider functions into SDK
     _setProviderFunctions({
@@ -59,14 +59,14 @@ export function SDKAdapter({
     });
 
     return () => {
-      _setWorkspaceContext(undefined);
+      _setLayoutContext(undefined);
     };
-  }, [apiBase, workspace]);
+  }, [apiBase, layout]);
 
   // Get all the core contexts
   const agents = useAgents();
-  const { data: workspaces = [] } = useLayoutsQuery();
-  const conversations = useConversations(workspace?.slug || '');
+  const { data: layouts = [] } = useLayoutsQuery();
+  const conversations = useConversations(layout?.slug || '');
   const navigation = useNavigation();
   const toast = useToast();
   const sendMessage = useSendMessage(apiBase);
@@ -80,7 +80,7 @@ export function SDKAdapter({
     apiBase,
     contexts: {
       agents: { useAgents: () => agents },
-      workspaces: { useWorkspaces: () => workspaces },
+      layouts: { useLayouts: () => layouts },
       conversations: { useConversations: () => conversations },
       navigation: { useNavigation: () => navigation },
       toast: { useToast: () => toast },
