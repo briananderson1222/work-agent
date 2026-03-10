@@ -133,6 +133,13 @@ class StrandsAgentWrapper implements IAgent {
     this._invocationCtx = invocationCtx;
   }
 
+  /** VoltAgent compat — used by server-core's handleGetAgents / handleListTools */
+  getFullState() {
+    return { id: this.id, name: this.name, status: 'idle', model: this.model, tools: [], subAgents: [], memory: this.memory };
+  }
+  getTools() { return []; }
+  isTelemetryConfigured() { return false; }
+
   async generateText(prompt: string, _options?: any): Promise<IGenerateResult> {
     // Use stream() internally to capture usage from modelMetadataEvent
     let fullText = '';

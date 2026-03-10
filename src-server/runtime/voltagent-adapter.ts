@@ -63,6 +63,12 @@ class VoltAgentWrapper implements IAgent {
   get name() { return this.inner.name; }
   get model() { return this.inner.model; }
 
+  /** VoltAgent compat — server-core routes call these on registered agents */
+  getFullState() { return (this.inner as any).getFullState(); }
+  getTools() { return (this.inner as any).getTools?.() ?? []; }
+  isTelemetryConfigured() { return (this.inner as any).isTelemetryConfigured?.() ?? false; }
+  getToolsForApi() { return (this.inner as any).getToolsForApi?.() ?? this.getTools(); }
+
   async generateText(prompt: string, options?: any): Promise<IGenerateResult> {
     const result = await this.inner.generateText(prompt, options);
     return result as unknown as IGenerateResult;
