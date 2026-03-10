@@ -8,7 +8,7 @@ await esbuild.build({
   format: 'esm',
   outfile: 'dist-server/index.js',
   sourcemap: true,
-  external: ['fsevents', 'esbuild'],
+  external: ['fsevents', 'esbuild', 'node-pty'],
   banner: {
     js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
   }
