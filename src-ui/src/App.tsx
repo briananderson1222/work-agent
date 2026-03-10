@@ -58,6 +58,8 @@ function App() {
     selectedAgent,
     selectedLayout,
     lastLayout,
+    lastProject,
+    lastProjectLayout,
     dockMode,
     setStandaloneLayout,
     setLayoutTab,
@@ -412,6 +414,18 @@ function App() {
 
   // Auto-select layout if none selected — prefer last-used, fall back to first
   useEffect(() => {
+    // If on root and we have a last-viewed project+layout, navigate there
+    if (
+      currentView.type === 'standalone-layout' &&
+      !selectedLayout &&
+      lastProject &&
+      lastProjectLayout
+    ) {
+      setCurrentView({ type: 'layout', projectSlug: lastProject, layoutSlug: lastProjectLayout });
+      navigate(`/projects/${lastProject}/layouts/${lastProjectLayout}`);
+      return;
+    }
+
     if (
       layouts.length > 0 &&
       !selectedLayout &&
@@ -430,6 +444,9 @@ function App() {
     currentView.type,
     setStandaloneLayout,
     lastLayout,
+    lastProject,
+    lastProjectLayout,
+    navigate,
   ]);
 
 

@@ -3,6 +3,7 @@
  */
 
 import { execSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -447,6 +448,7 @@ export function createPluginRoutes(
       }
 
       // Install layout config (unless skipped)
+      let installedLayoutSlug: string | null = null;
       if (manifest.layout && !skipSet.has(`layout:${manifest.layout.slug}`)) {
         mkdirSync(layoutsDir, { recursive: true });
         const src = join(pluginDir, manifest.layout.source);
@@ -456,6 +458,54 @@ export function createPluginRoutes(
           const layoutConfig = JSON.parse(readFileSync(src, 'utf-8'));
           layoutConfig.plugin = pluginName;
           writeFileSync(join(layoutDir, 'layout.json'), JSON.stringify(layoutConfig, null, 2));
+          installedLayoutSlug = manifest.layout.slug;
+        }
+      }
+
+      // Auto-create project for the layout if none exist
+      let createdProject: { slug: string; name: string } | null = null;
+      if (installedLayoutSlug) {
+        const projectsDir = join(projectHomeDir, 'projects');
+        const hasProjects = existsSync(projectsDir) &&
+          readdirSync(projectsDir, { withFileTypes: true }).some(
+            d => d.isDirectory() && existsSync(join(projectsDir, d.name, 'project.json'))
+          );
+
+        if (!hasProjects) {
+          const slug = 'default';
+          const projDir = join(projectsDir, slug);
+          const projLayoutsDir = join(projDir, 'layouts');
+          mkdirSync(projLayoutsDir, { recursive: true });
+
+          const now = new Date().toISOString();
+          writeFileSync(join(projDir, 'project.json'), JSON.stringify({
+            id: randomUUID(),
+            name: manifest.displayName || pluginName,
+            slug,
+            directories: [],
+            createdAt: now,
+            updatedAt: now,
+          }, null, 2));
+
+          // Read the installed layout and create a project layout entry
+          const layoutSrc = join(layoutsDir, installedLayoutSlug, 'layout.json');
+          if (existsSync(layoutSrc)) {
+            const ws = JSON.parse(readFileSync(layoutSrc, 'utf-8'));
+            writeFileSync(join(projLayoutsDir, `${installedLayoutSlug}.json`), JSON.stringify({
+              id: randomUUID(),
+              projectSlug: slug,
+              type: 'chat',
+              name: ws.name || manifest.displayName || pluginName,
+              slug: installedLayoutSlug,
+              icon: ws.icon,
+              description: ws.description,
+              config: { plugin: pluginName, tabs: ws.tabs, globalPrompts: ws.globalPrompts, defaultAgent: ws.defaultAgent, availableAgents: ws.availableAgents, requiredProviders: ws.requiredProviders },
+              createdAt: now,
+              updatedAt: now,
+            }, null, 2));
+          }
+
+          createdProject = { slug, name: manifest.displayName || pluginName };
         }
       }
 
@@ -535,6 +585,8 @@ export function createPluginRoutes(
           hasBundle: existsSync(join(pluginDir, 'dist', 'bundle.js')),
           agents: (manifest.agents || []).map((a: any) => ({ slug: `${manifest.name}:${a.slug}` })),
         },
+        layout: installedLayoutSlug ? { slug: installedLayoutSlug } : undefined,
+        project: createdProject || undefined,
         tools: toolResults,
         dependencies: depResults,
         permissions: { autoGranted, pendingConsent },

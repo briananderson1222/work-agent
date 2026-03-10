@@ -28,6 +28,8 @@ type NavigationState = {
 };
 
 const LAST_LAYOUT_KEY = 'lastLayout';
+const LAST_PROJECT_KEY = 'lastProject';
+const LAST_PROJECT_LAYOUT_KEY = 'lastProjectLayout';
 
 class NavigationStore {
   private state: NavigationState;
@@ -35,10 +37,19 @@ class NavigationStore {
   private isNavigating = false;
   /** Persisted layout — survives navigation to non-layout pages */
   lastLayout: string | null;
+  /** Persisted project+layout — for '/' route resolution */
+  lastProject: string | null;
+  lastProjectLayout: string | null;
 
   constructor() {
     this.lastLayout = typeof window !== 'undefined'
       ? localStorage.getItem(LAST_LAYOUT_KEY)
+      : null;
+    this.lastProject = typeof window !== 'undefined'
+      ? localStorage.getItem(LAST_PROJECT_KEY)
+      : null;
+    this.lastProjectLayout = typeof window !== 'undefined'
+      ? localStorage.getItem(LAST_PROJECT_LAYOUT_KEY)
       : null;
     this.state = this.parseUrl();
 
@@ -242,6 +253,12 @@ class NavigationStore {
   }
 
   setLayout(projectSlug: string, layoutSlug: string) {
+    this.lastProject = projectSlug;
+    this.lastProjectLayout = layoutSlug;
+    try {
+      localStorage.setItem(LAST_PROJECT_KEY, projectSlug);
+      localStorage.setItem(LAST_PROJECT_LAYOUT_KEY, layoutSlug);
+    } catch {}
     this.navigate(`/projects/${projectSlug}/layouts/${layoutSlug}`);
   }
 
@@ -374,6 +391,8 @@ export function useNavigation() {
   return {
     ...state,
     lastLayout: navigationStore.lastLayout,
+    lastProject: navigationStore.lastProject,
+    lastProjectLayout: navigationStore.lastProjectLayout,
     ...context,
   };
 }

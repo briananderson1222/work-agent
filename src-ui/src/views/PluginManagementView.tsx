@@ -247,7 +247,14 @@ export function PluginManagementView() {
           }
         }
         queryClient.invalidateQueries({ queryKey: ['agents'] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
         setMessage({ type: 'success', text: `${pluginName} is ready.` });
+
+        // If a project was auto-created, navigate to it
+        if (data.project?.slug && data.layout?.slug) {
+          window.history.pushState(null, '', `/projects/${data.project.slug}/layouts/${data.layout.slug}`);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
       } else {
         setMessage({ type: 'error', text: data.error || 'Install failed' });
       }
