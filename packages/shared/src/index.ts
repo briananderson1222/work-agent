@@ -170,8 +170,120 @@ export interface ToolMetadata {
   source?: string;
 }
 
-// ── Workspace ──────────────────────────────────────────────────────
+// ── Project ────────────────────────────────────────────────────────
 
+export interface ProjectConfig {
+  id: string;
+  name: string;
+  slug: string;
+  icon?: string;
+  description?: string;
+  directories: ProjectDirectory[];
+  defaultProviderId?: string;
+  defaultModel?: string;
+  defaultEmbeddingProviderId?: string;
+  defaultEmbeddingModel?: string;
+  similarityThreshold?: number;
+  topK?: number;
+  agents?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectDirectory {
+  id: string;
+  path: string;
+  label?: string;
+  role: 'primary' | 'reference';
+}
+
+export interface ProjectMetadata {
+  id: string;
+  slug: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  directoryCount: number;
+  layoutCount: number;
+  hasKnowledge: boolean;
+  defaultProviderId?: string;
+}
+
+// ── Layout (renamed from Workspace) ────────────────────────────────
+
+export interface LayoutConfig {
+  id: string;
+  projectSlug: string;
+  type: string;
+  name: string;
+  slug: string;
+  icon?: string;
+  description?: string;
+  config: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LayoutMetadata {
+  id: string;
+  slug: string;
+  projectSlug: string;
+  type: string;
+  name: string;
+  icon?: string;
+  description?: string;
+}
+
+export interface ChatLayoutConfig {
+  tabs: LayoutTab[];
+  globalPrompts?: LayoutPrompt[];
+  defaultAgent?: string;
+  availableAgents?: string[];
+}
+
+export interface LayoutTab {
+  id: string;
+  label: string;
+  component: string;
+  icon?: string;
+  description?: string;
+  actions?: LayoutPrompt[];
+  prompts?: LayoutPrompt[];
+}
+
+export interface LayoutPrompt {
+  id: string;
+  label: string;
+  prompt: string;
+  agent?: string;
+}
+
+// ── Provider Connection ────────────────────────────────────────────
+
+export interface ProviderConnectionConfig {
+  id: string;
+  type: string;
+  name: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  capabilities: ('llm' | 'embedding')[];
+}
+
+// ── Layout Template ────────────────────────────────────────────────
+
+export interface LayoutTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  type: string;
+  config: Record<string, unknown>;
+  createdAt: string;
+}
+
+// ── Workspace (legacy aliases — backwards compat) ──────────────────
+
+/** @deprecated Use LayoutConfig + ChatLayoutConfig instead */
 export interface WorkspaceConfig {
   name: string;
   slug: string;
@@ -185,6 +297,7 @@ export interface WorkspaceConfig {
   globalPrompts?: WorkspacePrompt[];
 }
 
+/** @deprecated Use LayoutTab instead */
 export interface WorkspaceTab {
   id: string;
   label: string;
@@ -195,6 +308,7 @@ export interface WorkspaceTab {
   prompts?: WorkspacePrompt[];
 }
 
+/** @deprecated Use LayoutPrompt instead */
 export interface WorkspacePrompt {
   id: string;
   label: string;
@@ -202,6 +316,7 @@ export interface WorkspacePrompt {
   agent?: string;
 }
 
+/** @deprecated Use LayoutMetadata instead */
 export interface WorkspaceMetadata {
   slug: string;
   name: string;
@@ -226,6 +341,10 @@ export interface AppConfig {
   defaultChatFontSize?: number;
   registryUrl?: string;
   gitRemote?: string;
+  defaultLLMProvider?: string;
+  defaultEmbeddingProvider?: string;
+  defaultEmbeddingModel?: string;
+  defaultVectorDbProvider?: string;
 }
 
 export interface TemplateVariable {

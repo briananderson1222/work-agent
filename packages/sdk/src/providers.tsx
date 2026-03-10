@@ -73,12 +73,16 @@ export function SDKProvider({ value, children }: SDKProviderProps) {
 interface WorkspaceProviderProps {
   sdk: SDKContextValue;
   workspace?: WorkspaceConfig;
+  project?: { slug: string; name: string; [key: string]: any };
+  layout?: { slug: string; type: string; [key: string]: any };
   children: ReactNode;
 }
 
 export function WorkspaceProvider({
   sdk,
   workspace,
+  project: _project,
+  layout: _layout,
   children,
 }: WorkspaceProviderProps) {
   // Set workspace context for API agent resolution

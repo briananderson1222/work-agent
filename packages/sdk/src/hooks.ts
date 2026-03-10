@@ -8,6 +8,7 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { resolveAgentName } from './agentResolver';
 import { _getApiBase, _getPluginName } from './api';
+import { useProjectsQuery, useProjectQuery } from './queries';
 import { SDKContext } from './providers';
 import type { AgentSummary } from './types';
 
@@ -64,6 +65,15 @@ export function useWorkspace(slug: string, enabled = true) {
   if (!sdk?.contexts?.workspaces)
     throw new Error('WorkspacesContext not available');
   return sdk.contexts.workspaces.useWorkspace(slug, enabled);
+}
+
+// Project Management
+export function useProjects() {
+  return useProjectsQuery();
+}
+
+export function useProject(slug: string) {
+  return useProjectQuery(slug);
 }
 
 // Conversation Management
