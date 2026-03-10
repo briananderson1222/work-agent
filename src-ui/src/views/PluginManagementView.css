@@ -304,6 +304,7 @@
   border: 1px solid var(--border-primary);
 }
 .plugins__confirm h3 { margin: 0 0 0.75rem; font-size: 1rem; }
+.plugins__confirm--wide { max-width: 440px; }
 .plugins__confirm p { margin: 0 0 1rem; font-size: 0.9rem; color: var(--text-secondary); }
 .plugins__confirm-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
 .plugins__confirm-cancel {
@@ -338,3 +339,15 @@
   border-top: 1px solid var(--border-primary);
 }
 .detail-panel__install { margin-bottom: 1.25rem; }
+
+/* ── Layout Assignment Modal ── */
+.plugins__assign-heading { margin: 0 0 4px; }
+.plugins__assign-desc { margin: 0 0 16px; font-size: 13px; color: var(--text-secondary); }
+.plugins__assign-quick-btn { width: 100%; margin-bottom: 12px; padding: 10px 16px; font-size: 14px; }
+.plugins__assign-section-label { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.plugins__assign-project-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 200px; overflow-y: auto; }
+.plugins__assign-project { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; padding: 6px 8px; border-radius: 6px; background: transparent; }
+.plugins__assign-project--selected { background: var(--accent-primary-alpha, rgba(59,130,246,0.1)); }
+.plugins__assign-project-count { margin-left: auto; font-size: 11px; color: var(--text-muted); }
+.plugins__assign-add-btn { width: 100%; margin-bottom: 12px; padding: 8px 16px; }
+.plugins__assign-skip { width: 100%; padding: 8px 16px; background: transparent; border: 1px solid var(--border-primary); border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-size: 13px; }

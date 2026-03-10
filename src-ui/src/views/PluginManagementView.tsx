@@ -569,28 +569,25 @@ export function PluginManagementView() {
       {/* Layout assignment modal — shown after installing a plugin with a layout */}
       {layoutAssignment && (
         <div className="plugins__confirm-overlay" onClick={() => setLayoutAssignment(null)}>
-          <div className="plugins__confirm" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 4px' }}>Add Layout to Project</h3>
-            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <div className="plugins__confirm plugins__confirm--wide" onClick={e => e.stopPropagation()}>
+            <h3 className="plugins__assign-heading">Add Layout to Project</h3>
+            <p className="plugins__assign-desc">
               <strong>{layoutAssignment.displayName}</strong> includes a layout. Add it to a project to start using it.
             </p>
 
             {/* Quick create */}
             <button
-              className="plugins__btn plugins__btn--install"
+              className="plugins__btn plugins__btn--install plugins__assign-quick-btn"
               disabled={assigningLayout}
-              style={{ width: '100%', marginBottom: 12, padding: '10px 16px', fontSize: 14 }}
               onClick={async () => {
                 setAssigningLayout(true);
                 try {
                   const slug = quickProjectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'default';
-                  // Create project
                   const projRes = await (await fetch(`${apiBase}/api/projects`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: quickProjectName, slug, directories: [] }),
                   })).json();
                   if (projRes.success) {
-                    // Add layout to it
                     await fetch(`${apiBase}/api/projects/${slug}/layouts/from-plugin`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ plugin: layoutAssignment.pluginName }),
@@ -608,12 +605,10 @@ export function PluginManagementView() {
             {/* Existing projects */}
             {projects.length > 0 && (
               <>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                  Or add to existing
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, maxHeight: 200, overflowY: 'auto' }}>
+                <div className="plugins__assign-section-label">Or add to existing</div>
+                <div className="plugins__assign-project-list">
                   {projects.map(p => (
-                    <label key={p.slug} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, padding: '6px 8px', borderRadius: 6, background: selectedProjects.has(p.slug) ? 'var(--accent-primary-alpha, rgba(59,130,246,0.1))' : 'transparent' }}>
+                    <label key={p.slug} className={`plugins__assign-project${selectedProjects.has(p.slug) ? ' plugins__assign-project--selected' : ''}`}>
                       <Checkbox
                         checked={selectedProjects.has(p.slug)}
                         onChange={(checked) => {
@@ -623,15 +618,14 @@ export function PluginManagementView() {
                         }}
                       />
                       <span>{p.icon && `${p.icon} `}{p.name}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{p.layoutCount} layout{p.layoutCount !== 1 ? 's' : ''}</span>
+                      <span className="plugins__assign-project-count">{p.layoutCount} layout{p.layoutCount !== 1 ? 's' : ''}</span>
                     </label>
                   ))}
                 </div>
                 {selectedProjects.size > 0 && (
                   <button
-                    className="plugins__btn plugins__btn--install"
+                    className="plugins__btn plugins__btn--install plugins__assign-add-btn"
                     disabled={assigningLayout}
-                    style={{ width: '100%', marginBottom: 12, padding: '8px 16px' }}
                     onClick={async () => {
                       setAssigningLayout(true);
                       try {
@@ -643,9 +637,7 @@ export function PluginManagementView() {
                         }
                         queryClient.invalidateQueries({ queryKey: ['projects'] });
                         setLayoutAssignment(null);
-                        // Navigate to first selected project
-                        const first = [...selectedProjects][0];
-                        navigate(`/projects/${first}`);
+                        navigate(`/projects/${[...selectedProjects][0]}`);
                       } catch {} finally { setAssigningLayout(false); }
                     }}
                   >
@@ -655,10 +647,7 @@ export function PluginManagementView() {
               </>
             )}
 
-            <button
-              style={{ width: '100%', padding: '8px 16px', background: 'transparent', border: '1px solid var(--border-primary)', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}
-              onClick={() => setLayoutAssignment(null)}
-            >
+            <button className="plugins__assign-skip" onClick={() => setLayoutAssignment(null)}>
               Skip for now
             </button>
           </div>
