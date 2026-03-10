@@ -1,6 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useStreamingContent } from '../hooks/useStreamingContent';
+import { markdownCodeComponents } from './HighlightedCodeBlock';
 import { LoadingDots } from './LoadingDots';
 
 type ContentPart = {
@@ -71,7 +72,7 @@ export function StreamingMessage({
 
         {/* Current streaming text — rendered as markdown with throttled updates */}
         {streamingText && (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownCodeComponents}>
             {streamingText}
           </ReactMarkdown>
         )}

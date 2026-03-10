@@ -6,13 +6,11 @@ import {
 } from '@stallion-ai/connect';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import { useBranding } from '../hooks/useBranding';
 import type { NavigationView } from '../types';
 import { getInitials } from '../utils/workspace';
 import { NotificationHistory } from './NotificationHistory';
-import { WorkspaceIcon } from './WorkspaceIcon';
 import './chat.css';
 
 function checkServerHealth(url: string): Promise<boolean> {
@@ -22,38 +20,22 @@ function checkServerHealth(url: string): Promise<boolean> {
 }
 
 interface HeaderProps {
-  workspaces: any[];
-  selectedWorkspace: any | null;
   currentView?: NavigationView;
-  onWorkspaceSelect: (slug: string) => void;
-  onCreateWorkspace?: () => void;
-  onEditWorkspace?: (slug: string) => void;
   onToggleSettings: () => void;
   onNavigate: (view: NavigationView) => void;
 }
 
 export function Header({
-  workspaces,
-  selectedWorkspace,
   currentView,
-  onWorkspaceSelect,
   onToggleSettings,
   onNavigate,
 }: HeaderProps) {
   const settingsShortcut = useShortcutDisplay('app.settings');
   const { user: authUser } = useAuth();
   const { appName } = useBranding();
-  const { lastWorkspace } = useNavigation();
   const userName = authUser?.name || authUser?.alias || 'User';
   const userInitials = getInitials(userName);
-  // When on a non-workspace page, show the last-selected workspace (disabled)
-  const displayWorkspace = !selectedWorkspace && lastWorkspace
-    ? workspaces.find((w: any) => w.slug === lastWorkspace) || null
-    : null;
-  const [showWorkspaceAutocomplete, setShowWorkspaceAutocomplete] =
-    useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [workspaceQuery, setWorkspaceQuery] = useState('');
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const { activeConnection } = useConnections();
   const { status: connStatus } = useConnectionStatus({
@@ -61,86 +43,29 @@ export function Header({
     pollInterval: 15_000,
   });
 
-  // Debug logging
-
-  const handleWorkspaceIndicatorClick = () => {
-    // If only one workspace, do nothing (already in it)
-    if (workspaces.length === 1) {
-      return;
-    }
-
-    // Otherwise show autocomplete to switch workspaces
-    setWorkspaceQuery('');
-    setShowWorkspaceAutocomplete(true);
-  };
-
-  const handleWorkspaceSelect = (workspace: any) => {
-    onWorkspaceSelect(workspace.slug);
-    setShowWorkspaceAutocomplete(false);
-    setWorkspaceQuery('');
-  };
-
   return (
     <header className="app-toolbar">
-      <div className="app-toolbar__brand" onClick={() => onNavigate({ type: 'workspace' })}>
-        <img src="/favicon.png" alt="" className="app-toolbar__logo" />
-        <div className="app-toolbar__name">{appName}</div>
-      </div>
-
-      {/* Workspace indicator — always visible to prevent layout shift */}
-      <div className="header-divider" />
-      <button
-        type="button"
-        className="app-toolbar__workspace-btn"
-        onClick={handleWorkspaceIndicatorClick}
-        disabled={!selectedWorkspace || workspaces.length <= 1}
-        title={
-          !selectedWorkspace
-            ? displayWorkspace?.name || 'No workspace selected'
-            : workspaces.length > 1
-              ? 'Switch workspace'
-              : selectedWorkspace.name
-        }
-      >
-        {(selectedWorkspace || displayWorkspace) ? (
-          <>
-            <WorkspaceIcon workspace={selectedWorkspace || displayWorkspace} size={20} />
-            <span>{(selectedWorkspace || displayWorkspace).name}</span>
-          </>
-        ) : (
-          <span>No Workspace</span>
-        )}
-      </button>
+      {/* Breadcrumb — show current project/layout context */}
+      {currentView && 'projectSlug' in currentView && (currentView as any).projectSlug && (
+        <div className="app-toolbar__breadcrumb">
+          <span
+            className="app-toolbar__breadcrumb-link"
+            onClick={() => onNavigate({ type: 'project', slug: (currentView as any).projectSlug })}
+          >
+            {(currentView as any).projectSlug}
+          </span>
+          {'layoutSlug' in currentView && (currentView as any).layoutSlug && (
+            <>
+              <span className="app-toolbar__breadcrumb-sep">/</span>
+              <span className="app-toolbar__breadcrumb-current">{(currentView as any).layoutSlug}</span>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="app-toolbar__spacer" />
 
       <div className="app-toolbar__actions">
-        <nav
-          style={{ display: 'flex', gap: '4px', alignItems: 'center' }}
-          className="header-nav"
-        >
-          <button
-            type="button"
-            className={`header-nav-btn ${currentView?.type === 'schedule' ? 'is-active' : ''}`}
-            onClick={() => onNavigate(currentView?.type === 'schedule' ? { type: 'workspace' } : { type: 'schedule' })}
-            title="Schedule"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className={`header-nav-btn ${['manage', 'workspaces', 'agents', 'prompts', 'plugins'].includes(currentView?.type || '') ? 'is-active' : ''}`}
-            onClick={() => onNavigate(currentView?.type === 'manage' ? { type: 'workspace' } : { type: 'manage' })}
-            title="Manage"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-            </svg>
-          </button>
-        </nav>
-
         <div className="header-divider" />
 
         {/* Connection status chip */}
@@ -217,86 +142,6 @@ export function Header({
         onClose={() => setShowConnectionModal(false)}
         checkHealth={checkServerHealth}
       />
-
-      {/* Workspace autocomplete modal */}
-      {showWorkspaceAutocomplete && (
-        <div
-          className="workspace-modal-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowWorkspaceAutocomplete(false);
-              setWorkspaceQuery('');
-            }
-          }}
-        >
-          <div className="workspace-modal">
-            <input
-              type="text"
-              value={workspaceQuery}
-              onChange={(e) => setWorkspaceQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setShowWorkspaceAutocomplete(false);
-                  setWorkspaceQuery('');
-                }
-              }}
-              placeholder="Search workspaces..."
-              autoFocus
-              className="workspace-modal__search"
-            />
-            <div className="workspace-modal__list">
-              {workspaces
-                .filter((w) => {
-                  const q = (workspaceQuery || '').toLowerCase();
-                  return (
-                    w.name.toLowerCase().includes(q) ||
-                    w.slug.toLowerCase().includes(q)
-                  );
-                })
-                .map((ws: any) => (
-                  <div
-                    key={ws.slug}
-                    onClick={() => handleWorkspaceSelect(ws)}
-                    className={`workspace-modal__item ${selectedWorkspace?.slug === ws.slug ? 'is-active' : ''}`}
-                  >
-                    <WorkspaceIcon workspace={ws} size={32} />
-                    <div className="workspace-modal__item-info">
-                      <div className="workspace-modal__item-name">
-                        <span>{ws.name}</span>
-                        {ws.plugin && (
-                          <span className="workspace-modal__pill workspace-modal__pill--plugin">
-                            {ws.plugin}
-                          </span>
-                        )}
-                        {selectedWorkspace?.slug === ws.slug && (
-                          <span className="workspace-modal__pill workspace-modal__pill--active">
-                            active
-                          </span>
-                        )}
-                      </div>
-                      {ws.description && (
-                        <div className="workspace-modal__item-desc">
-                          {ws.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              {workspaces.filter((w) => {
-                const q = (workspaceQuery || '').toLowerCase();
-                return (
-                  w.name.toLowerCase().includes(q) ||
-                  w.slug.toLowerCase().includes(q)
-                );
-              }).length === 0 && (
-                <div className="workspace-modal__empty">
-                  No workspaces found
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

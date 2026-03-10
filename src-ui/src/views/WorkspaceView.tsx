@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FullScreenError,
   FullScreenLoader,
@@ -44,7 +44,13 @@ function useBackendReady(apiBase: string) {
   return { ready, checking, retry: check };
 }
 
-export function WorkspaceView() {
+export function WorkspaceView({
+  projectSlug,
+  layoutSlug,
+}: {
+  projectSlug?: string;
+  layoutSlug?: string;
+} = {}) {
   const { apiBase } = useApiBase();
   const {
     selectedWorkspace,
@@ -61,15 +67,64 @@ export function WorkspaceView() {
     retry: retryBackend,
   } = useBackendReady(apiBase);
 
+  const isProjectMode = !!(projectSlug && layoutSlug);
+
+  // Project/layout path: fetch layout config and map to workspace shape
+  const {
+    data: layoutData,
+    isLoading: layoutLoading,
+    isError: layoutError,
+    refetch: refetchLayout,
+  } = useQuery({
+    queryKey: ['projects', projectSlug, 'layouts', layoutSlug],
+    queryFn: async () => {
+      const res = await fetch(
+        `${apiBase}/api/projects/${projectSlug}/layouts/${layoutSlug}`,
+      );
+      if (!res.ok) throw new Error('Failed to load layout');
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    enabled: isProjectMode,
+  });
+
+  // Map LayoutConfig → workspace shape
+  const layoutAsWorkspace = layoutData
+    ? {
+        slug: layoutData.slug,
+        name: layoutData.name,
+        icon: layoutData.icon,
+        description: layoutData.description,
+        tabs: (layoutData.config?.tabs ?? []).map((t: any) => ({
+          id: t.id,
+          label: t.label,
+          component: t.component,
+          icon: t.icon,
+          description: t.description,
+          actions: t.actions,
+          prompts: t.prompts,
+        })),
+        globalPrompts: layoutData.config?.globalPrompts ?? [],
+        defaultAgent: layoutData.config?.defaultAgent,
+        availableAgents: layoutData.config?.availableAgents,
+      }
+    : null;
+
   // React Query auto-fetches, caches, dedupes
   const {
-    data: workspace,
+    data: workspaceData,
     isLoading,
     isError,
     refetch,
   } = useWorkspaceQuery(selectedWorkspace || '', {
-    enabled: !!selectedWorkspace && backendReady,
+    enabled: !isProjectMode && !!selectedWorkspace && backendReady,
   });
+
+  const workspace = isProjectMode ? layoutAsWorkspace : workspaceData;
+  const effectiveLoading = isProjectMode ? layoutLoading : isLoading;
+  const effectiveError = isProjectMode ? layoutError : isError;
+  const effectiveRefetch = isProjectMode ? refetchLayout : refetch;
 
   const createChatSession = useCreateChatSession();
   const slashCommandHandler = useSlashCommandHandler();
@@ -144,16 +199,18 @@ export function WorkspaceView() {
   );
 
   const handleRefresh = useCallback(() => {
-    // Clear sessionStorage keys for this workspace
-    const prefix = `workspace:${selectedWorkspace}`;
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key?.startsWith(prefix)) {
-        keysToRemove.push(key);
+    if (!isProjectMode) {
+      // Clear sessionStorage keys for this workspace
+      const prefix = `workspace:${selectedWorkspace}`;
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith(prefix)) {
+          keysToRemove.push(key);
+        }
       }
+      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
     }
-    keysToRemove.forEach((key) => sessionStorage.removeItem(key));
 
     // Invalidate React Query cache for active tab data
     queryClient.invalidateQueries({ queryKey: ['calendar'] });
@@ -162,11 +219,11 @@ export function WorkspaceView() {
 
     // Increment refresh key to force remount
     setRefreshKey((prev) => prev + 1);
-  }, [selectedWorkspace, queryClient]);
+  }, [isProjectMode, selectedWorkspace, queryClient]);
 
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
 
-  if (!selectedWorkspace) {
+  if (!selectedWorkspace && !isProjectMode) {
     if (allWorkspaces.length === 0) {
       return <EmptyWorkspaceOnboarding />;
     }
@@ -177,8 +234,8 @@ export function WorkspaceView() {
     );
   }
 
-  // Backend unreachable
-  if (!backendChecking && !backendReady) {
+  // Backend unreachable (skip in project mode — layout query handles its own errors)
+  if (!isProjectMode && !backendChecking && !backendReady) {
     return (
       <FullScreenError
         title="Unable to connect"
@@ -190,23 +247,25 @@ export function WorkspaceView() {
   }
 
   // Query failed after backend was reachable — if workspace doesn't exist, show onboarding
-  if (isError && !isLoading) {
-    const workspaceExists = allWorkspaces.some(
-      (w: any) => w.slug === selectedWorkspace,
-    );
-    if (!workspaceExists) {
-      return <EmptyWorkspaceOnboarding />;
+  if (effectiveError && !effectiveLoading) {
+    if (!isProjectMode) {
+      const workspaceExists = allWorkspaces.some(
+        (w: any) => w.slug === selectedWorkspace,
+      );
+      if (!workspaceExists) {
+        return <EmptyWorkspaceOnboarding />;
+      }
     }
     return (
       <FullScreenError
         title="Failed to load workspace"
         description="Something went wrong loading this workspace. It might be a temporary issue."
-        onRetry={() => refetch()}
+        onRetry={() => effectiveRefetch()}
       />
     );
   }
 
-  if (isLoading || backendChecking || !workspace) {
+  if (effectiveLoading || (!isProjectMode && backendChecking) || !workspace) {
     return <FullScreenLoader label="workspace" />;
   }
 

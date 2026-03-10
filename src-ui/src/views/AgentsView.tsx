@@ -6,14 +6,14 @@ import { AgentIcon } from '../components/AgentIcon';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
-import { useAgentActions, useAgents } from '../contexts/AgentsContext';
+import { useAgentActions, useAgents, type AgentData } from '../contexts/AgentsContext';
 import { useConfig } from '../contexts/ConfigContext';
 import type { AgentSummary, NavigationView, Tool } from '../types';
 import './editor-layout.css';
 import './page-layout.css';
 
 interface AgentsViewProps {
-  agents: AgentSummary[];
+  agents: AgentData[];
   apiBase: string;
   availableModels: Array<{ id: string; name: string }>;
   defaultModel?: string;

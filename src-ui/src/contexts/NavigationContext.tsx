@@ -5,6 +5,7 @@ import {
   useContext,
   useSyncExternalStore,
 } from 'react';
+import type { DockMode } from '../types';
 
 type NavigationState = {
   // Path-based routing
@@ -13,6 +14,8 @@ type NavigationState = {
   // Query params
   selectedAgent: string | null;
   selectedWorkspace: string | null;
+  selectedProject: string | null;
+  selectedLayout: string | null;
   activeConversation: string | null;
   activeChat: string | null;
   activeTab: string | null;
@@ -20,6 +23,7 @@ type NavigationState = {
   // UI state from URL
   isDockOpen: boolean;
   isDockMaximized: boolean;
+  dockMode: DockMode;
   fontSize: number | null;
 };
 
@@ -86,11 +90,14 @@ class NavigationStore {
         pathname: '/',
         selectedAgent: null,
         selectedWorkspace: null,
+        selectedProject: null,
+        selectedLayout: null,
         activeConversation: null,
         activeChat: null,
         activeTab: null,
         isDockOpen: false,
         isDockMaximized: false,
+        dockMode: 'bottom' as DockMode,
         fontSize: null,
       };
     }
@@ -117,15 +124,27 @@ class NavigationStore {
       }
     }
 
+    // Extract project and layout from path
+    let selectedProject: string | null = null;
+    let selectedLayout: string | null = null;
+    const projectMatch = pathname.match(/^\/projects\/([^/]+)(?:\/layouts\/([^/]+))?/);
+    if (projectMatch) {
+      selectedProject = projectMatch[1];
+      if (projectMatch[2]) selectedLayout = projectMatch[2];
+    }
+
     return {
       pathname,
       selectedAgent,
       selectedWorkspace,
+      selectedProject,
+      selectedLayout,
       activeConversation: params.get('conversation'),
       activeChat: params.get('chat'),
       activeTab,
       isDockOpen: params.get('dock') === 'open',
       isDockMaximized: params.get('maximize') === 'true',
+      dockMode: (params.get('dockMode') as DockMode) || 'bottom',
       fontSize: params.get('fontSize')
         ? parseInt(params.get('fontSize')!, 10)
         : null,
@@ -218,6 +237,14 @@ class NavigationStore {
     }
   }
 
+  setProject(slug: string) {
+    this.navigate(`/projects/${slug}`);
+  }
+
+  setLayout(projectSlug: string, layoutSlug: string) {
+    this.navigate(`/projects/${projectSlug}/layouts/${layoutSlug}`);
+  }
+
   setConversation(id: string | null) {
     this.updateParams({ conversation: id });
   }
@@ -239,6 +266,10 @@ class NavigationStore {
     }
     this.updateParams(params);
   }
+
+  setDockMode(mode: DockMode) {
+    this.updateParams({ dockMode: mode === 'bottom' ? null : mode });
+  }
 }
 
 export const navigationStore = new NavigationStore();
@@ -249,9 +280,12 @@ const NavigationContext = createContext<{
   setAgent: (slug: string | null) => void;
   setWorkspace: (slug: string | null) => void;
   setWorkspaceTab: (workspaceSlug: string, tabId: string | null) => void;
+  setProject: (slug: string) => void;
+  setLayout: (projectSlug: string, layoutSlug: string) => void;
   setConversation: (id: string | null) => void;
   setActiveChat: (id: string | null) => void;
   setDockState: (open: boolean, maximized?: boolean) => void;
+  setDockMode: (mode: DockMode) => void;
 } | null>(null);
 
 export function NavigationProvider({ children }: { children: ReactNode }) {
@@ -281,6 +315,14 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setProject = useCallback((slug: string) => {
+    navigationStore.setProject(slug);
+  }, []);
+
+  const setLayout = useCallback((projectSlug: string, layoutSlug: string) => {
+    navigationStore.setLayout(projectSlug, layoutSlug);
+  }, []);
+
   const setConversation = useCallback((id: string | null) => {
     navigationStore.setConversation(id);
   }, []);
@@ -293,6 +335,10 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     navigationStore.setDockState(open, maximized);
   }, []);
 
+  const setDockMode = useCallback((mode: DockMode) => {
+    navigationStore.setDockMode(mode);
+  }, []);
+
   return (
     <NavigationContext.Provider
       value={{
@@ -301,9 +347,12 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
         setAgent,
         setWorkspace,
         setWorkspaceTab,
+        setProject,
+        setLayout,
         setConversation,
         setActiveChat,
         setDockState,
+        setDockMode,
       }}
     >
       {children}

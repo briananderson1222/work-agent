@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { markdownCodeComponents } from './HighlightedCodeBlock';
 
 interface EphemeralAction {
   label: string;
@@ -89,7 +90,7 @@ export function EphemeralMessage({
           }}
         />
       ) : (
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownCodeComponents}>{textContent}</ReactMarkdown>
       )}
       {msg.action && onAction && (
         <button
