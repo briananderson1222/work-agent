@@ -55,7 +55,7 @@ class LayoutsStore {
 
     const promise = (async () => {
       try {
-        const response = await fetch(`${apiBase}/workspaces`);
+        const response = await fetch(`${apiBase}/layouts`);
         const result = await response.json();
 
         if (result.success) {
@@ -81,7 +81,7 @@ class LayoutsStore {
 
     const promise = (async () => {
       try {
-        const response = await fetch(`${apiBase}/workspaces/${slug}`);
+        const response = await fetch(`${apiBase}/layouts/${slug}`);
         const result = await response.json();
 
         if (result.success) {
@@ -106,7 +106,7 @@ class LayoutsStore {
 
   async create(apiBase: string, layout: LayoutData) {
     try {
-      const response = await fetch(`${apiBase}/workspaces`, {
+      const response = await fetch(`${apiBase}/layouts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(layout),
@@ -124,7 +124,7 @@ class LayoutsStore {
 
   async update(apiBase: string, slug: string, updates: Partial<LayoutData>) {
     try {
-      const response = await fetch(`${apiBase}/workspaces/${slug}`, {
+      const response = await fetch(`${apiBase}/layouts/${slug}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -145,7 +145,7 @@ class LayoutsStore {
 
   async delete(apiBase: string, slug: string) {
     try {
-      const response = await fetch(`${apiBase}/workspaces/${slug}`, {
+      const response = await fetch(`${apiBase}/layouts/${slug}`, {
         method: 'DELETE',
       });
       const result = await response.json();

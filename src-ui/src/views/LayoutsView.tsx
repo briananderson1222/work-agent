@@ -51,7 +51,7 @@ export function LayoutsView() {
   const { data: layouts = [] } = useQuery<WorkspaceConfig[]>({
     queryKey: ['layouts'],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/workspaces`);
+      const res = await fetch(`${apiBase}/layouts`);
       const json = await res.json();
       return json.data ?? [];
     },
@@ -81,7 +81,7 @@ export function LayoutsView() {
   const { data: layoutDetail } = useQuery<WorkspaceConfig>({
     queryKey: ['layout', selectedSlug],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/workspaces/${selectedSlug}`);
+      const res = await fetch(`${apiBase}/layouts/${selectedSlug}`);
       const json = await res.json();
       return json.data;
     },
@@ -99,7 +99,7 @@ export function LayoutsView() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: WorkspaceConfig) => {
-      const url = isNew ? `${apiBase}/workspaces` : `${apiBase}/workspaces/${selectedSlug}`;
+      const url = isNew ? `${apiBase}/layouts` : `${apiBase}/layouts/${selectedSlug}`;
       const res = await fetch(url, {
         method: isNew ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -123,7 +123,7 @@ export function LayoutsView() {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${apiBase}/workspaces/${selectedSlug}`, { method: 'DELETE' });
+      const res = await fetch(`${apiBase}/layouts/${selectedSlug}`, { method: 'DELETE' });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Delete failed');
     },

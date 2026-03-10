@@ -58,7 +58,7 @@ export function LayoutEditorView({
   async function loadLayout(layoutSlug: string) {
     try {
       setIsLoading(true);
-      const res = await fetch(`${apiBase}/workspaces/${layoutSlug}`);
+      const res = await fetch(`${apiBase}/layouts/${layoutSlug}`);
       if (!res.ok) throw new Error('Failed to load layout');
       const data = await res.json();
       setFormData(data.data);
@@ -92,8 +92,8 @@ export function LayoutEditorView({
       setIsSaving(true);
       setError(null);
       const url = slug
-        ? `${apiBase}/workspaces/${slug}`
-        : `${apiBase}/workspaces`;
+        ? `${apiBase}/layouts/${slug}`
+        : `${apiBase}/layouts`;
       const method = slug ? 'PUT' : 'POST';
 
       const res = await fetch(url, {

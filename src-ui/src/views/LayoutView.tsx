@@ -26,7 +26,7 @@ function useBackendReady(apiBase: string) {
   const check = useCallback(async () => {
     setChecking(true);
     try {
-      const res = await fetch(`${apiBase}/workspaces`, {
+      const res = await fetch(`${apiBase}/layouts`, {
         signal: AbortSignal.timeout(3000),
       });
       setReady(res.ok);
