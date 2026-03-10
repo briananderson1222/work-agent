@@ -56,7 +56,7 @@ export function useChatDockKeyboardShortcuts({
     ['cmd'],
     'Toggle dock',
     useCallback(() => {
-      setDockState(!isDockOpen, isDockMaximized);
+      setDockState(!isDockOpen, isDockOpen ? false : isDockMaximized);
     }, [isDockOpen, isDockMaximized, setDockState]),
   );
 
