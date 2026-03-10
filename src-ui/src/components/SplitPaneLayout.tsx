@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
 import './SplitPaneLayout.css';
 
 interface SplitPaneItem {
@@ -18,6 +19,8 @@ interface SplitPaneLayoutProps {
   searchPlaceholder?: string;
   onAdd?: () => void;
   addLabel?: string;
+  /** Extra actions rendered next to the Add button in the sidebar footer */
+  sidebarActions?: React.ReactNode;
   // Right panel
   children: React.ReactNode;
   emptyIcon?: string;
@@ -42,6 +45,7 @@ export function SplitPaneLayout({
   searchPlaceholder = 'Search...',
   onAdd,
   addLabel = '+ New',
+  sidebarActions,
   children,
   emptyIcon = '⬡',
   emptyTitle = 'Nothing selected',
@@ -52,8 +56,12 @@ export function SplitPaneLayout({
   title,
   subtitle,
 }: SplitPaneLayoutProps) {
+  const { navigate } = useNavigation();
   const breadcrumb = label.split(/\s*\/\s*/).map((seg, i, arr) => {
-    const handler = breadcrumbLinks?.[seg.toLowerCase()];
+    // Non-terminal segments auto-link to /<segment> unless overridden
+    const isLast = i === arr.length - 1;
+    const handler = breadcrumbLinks?.[seg.toLowerCase()]
+      ?? (!isLast ? () => navigate(`/${seg.toLowerCase()}`) : undefined);
     return (
       <React.Fragment key={i}>
         {handler ? (
@@ -61,7 +69,7 @@ export function SplitPaneLayout({
         ) : (
           <span>{seg}</span>
         )}
-        {i < arr.length - 1 && <span className="split-pane__label-sep"> / </span>}
+        {!isLast && <span className="split-pane__label-sep"> / </span>}
       </React.Fragment>
     );
   });
@@ -100,11 +108,14 @@ export function SplitPaneLayout({
           ))}
         </div>
 
-        {onAdd && (
+        {(onAdd || sidebarActions) && (
           <div className="split-pane__add">
-            <button className="split-pane__add-btn" onClick={onAdd}>
-              {addLabel}
-            </button>
+            {sidebarActions}
+            {onAdd && (
+              <button className="split-pane__add-btn" onClick={onAdd}>
+                {addLabel}
+              </button>
+            )}
           </div>
         )}
       </div>

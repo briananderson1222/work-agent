@@ -167,7 +167,7 @@ export type NavigationView =
   | { type: 'agents' }
   | { type: 'prompts' }
   | { type: 'plugins' }
-  | { type: 'tools' }
+  | { type: 'integrations' }
   | { type: 'monitoring' }
   | { type: 'schedule' }
   | { type: 'profile' }

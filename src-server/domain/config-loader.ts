@@ -465,8 +465,8 @@ export class ConfigLoader {
   /**
    * Load tool definition
    */
-  async loadTool(id: string): Promise<ToolDef> {
-    const path = join(this.projectHomeDir, 'tools', id, 'tool.json');
+  async loadIntegration(id: string): Promise<ToolDef> {
+    const path = join(this.projectHomeDir, 'integrations', id, 'integration.json');
 
     if (!existsSync(path)) {
       throw new Error(`Tool '${id}' not found at ${path}`);
@@ -474,44 +474,50 @@ export class ConfigLoader {
 
     const content = await readFile(path, 'utf-8');
     const data = JSON.parse(content);
-    validator.validateToolDef(data);
     return data;
   }
 
   /**
    * Save tool definition
    */
-  async saveTool(id: string, def: ToolDef): Promise<void> {
+  async saveIntegration(id: string, def: ToolDef): Promise<void> {
     validator.validateToolDef(def);
 
-    const toolDir = join(this.projectHomeDir, 'tools', id);
-    await mkdir(toolDir, { recursive: true });
+    const integrationDir = join(this.projectHomeDir, 'integrations', id);
+    await mkdir(integrationDir, { recursive: true });
 
-    const path = join(toolDir, 'tool.json');
+    const path = join(integrationDir, 'integration.json');
     await writeFile(path, JSON.stringify(def, null, 2), 'utf-8');
+  }
+
+  async deleteIntegration(id: string): Promise<void> {
+    const integrationDir = join(this.projectHomeDir, 'integrations', id);
+    if (existsSync(integrationDir)) {
+      rmSync(integrationDir, { recursive: true, force: true });
+    }
   }
 
   /**
    * List all tools in catalog
    */
-  async listTools(): Promise<ToolMetadata[]> {
-    const toolsDir = join(this.projectHomeDir, 'tools');
+  async listIntegrations(): Promise<ToolMetadata[]> {
+    const integrationsDir = join(this.projectHomeDir, 'integrations');
 
-    if (!existsSync(toolsDir)) {
+    if (!existsSync(integrationsDir)) {
       return [];
     }
 
-    const entries = await readdir(toolsDir, { withFileTypes: true });
+    const entries = await readdir(integrationsDir, { withFileTypes: true });
     const tools: ToolMetadata[] = [];
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
 
-      const toolPath = join(toolsDir, entry.name, 'tool.json');
-      if (!existsSync(toolPath)) continue;
+      const integrationPath = join(integrationsDir, entry.name, 'integration.json');
+      if (!existsSync(integrationPath)) continue;
 
       try {
-        const def = await this.loadTool(entry.name);
+        const def = await this.loadIntegration(entry.name);
         tools.push({
           id: def.id,
           kind: def.kind,
@@ -519,6 +525,7 @@ export class ConfigLoader {
           description: def.description,
           transport: def.transport,
           source: def.command || def.endpoint,
+          plugin: def.plugin,
         });
       } catch (error) {
         logger.error('Failed to load tool', { tool: entry.name, error });
@@ -728,7 +735,7 @@ export class ConfigLoader {
    * Check if tool exists
    */
   async toolExists(id: string): Promise<boolean> {
-    const path = join(this.projectHomeDir, 'tools', id, 'tool.json');
+    const path = join(this.projectHomeDir, 'integrations', id, 'integration.json');
     return existsSync(path);
   }
 
@@ -739,7 +746,7 @@ export class ConfigLoader {
     const patterns = [
       join(this.projectHomeDir, 'config', '*.json'),
       join(this.projectHomeDir, 'agents', '*', 'agent.json'),
-      join(this.projectHomeDir, 'tools', '*', 'tool.json'),
+      join(this.projectHomeDir, 'integrations', '*', 'integration.json'),
     ];
 
     this.watcher = watch(patterns, {

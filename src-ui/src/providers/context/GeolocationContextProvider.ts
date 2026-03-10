@@ -12,6 +12,7 @@ import { ListenerManager } from '@stallion-ai/sdk';
 class GeolocationContextProvider extends ListenerManager implements MessageContextProvider {
   readonly id = 'geolocation';
   readonly name = 'Geolocation';
+  readonly description = 'Shares your GPS coordinates with the model for location-aware answers. Requires browser permission.';
 
   private _enabled = false;
   private _coords: { lat: number; lng: number } | null = null;

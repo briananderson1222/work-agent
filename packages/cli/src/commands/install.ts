@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { type PluginManifest, buildPlugin, copyPluginTools } from '@stallion-ai/shared';
+import { type PluginManifest, buildPlugin, copyPluginIntegrations } from '@stallion-ai/shared';
 import {
   AGENTS_DIR, PLUGINS_DIR, PROJECT_HOME, WORKSPACES_DIR,
   extractPluginName, isGitUrl, lookupDepInRegistries, parseGitSource, readManifest,
@@ -172,7 +172,7 @@ export async function install(source: string, skipList: string[] = []): Promise<
     console.log('  ✓ Plugin built');
   }
 
-  const copied = copyPluginTools(finalDir, join(PROJECT_HOME, 'tools'));
+  const copied = copyPluginIntegrations(finalDir, join(PROJECT_HOME, 'integrations'));
   for (const id of copied) {
     console.log(`  ✓ Tool: ${id}`);
   }

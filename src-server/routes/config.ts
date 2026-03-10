@@ -10,6 +10,7 @@ export function createConfigRoutes(
   configLoader: ConfigLoader,
   logger: any,
   eventBus?: EventBus,
+  onConfigChanged?: () => void,
 ) {
   const app = new Hono();
 
@@ -31,6 +32,7 @@ export function createConfigRoutes(
       const updated = await configLoader.updateAppConfig(updates);
       logger.info('App config updated', { config: updated });
       eventBus?.emit('system:status-changed', { source: 'config' });
+      onConfigChanged?.();
       return c.json({ success: true, data: updated });
     } catch (error: any) {
       logger.error('Failed to update app config', { error });

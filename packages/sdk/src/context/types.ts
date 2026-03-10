@@ -19,6 +19,8 @@ export interface ContextCapability {
 export interface MessageContextProvider {
   readonly id: string;
   readonly name: string;
+  /** Short description shown in Settings to explain what this provider does. */
+  readonly description?: string;
   /** Whether the user has enabled this provider. */
   enabled: boolean;
   /**

@@ -46,6 +46,12 @@ function makeDefaultStore(defaultUrl: string): ConnectionStore {
   // Ensure there is always at least one (default) connection
   if (store.getAll().length === 0) {
     store.add('Default', defaultUrl);
+  } else {
+    // Sync the "Default" connection URL when the server port changes at runtime
+    const def = store.getAll().find((c) => c.name === 'Default');
+    if (def && def.url !== defaultUrl) {
+      store.update(def.id, { url: defaultUrl });
+    }
   }
 
   return store;

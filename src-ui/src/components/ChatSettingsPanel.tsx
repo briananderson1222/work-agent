@@ -1,3 +1,5 @@
+import { Toggle } from './Toggle';
+
 interface ChatSettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -61,10 +63,10 @@ export function ChatSettingsPanel({
 
         <div className="chat-settings-modal__section">
           <label className="chat-settings-modal__checkbox">
-            <input
-              type="checkbox"
+            <Toggle
               checked={showReasoning}
-              onChange={(e) => setShowReasoning(e.target.checked)}
+              onChange={setShowReasoning}
+              size="sm"
             />
             <span>Show reasoning</span>
           </label>
@@ -75,10 +77,10 @@ export function ChatSettingsPanel({
 
         <div className="chat-settings-modal__section">
           <label className="chat-settings-modal__checkbox">
-            <input
-              type="checkbox"
+            <Toggle
               checked={showToolDetails}
-              onChange={(e) => setShowToolDetails(e.target.checked)}
+              onChange={setShowToolDetails}
+              size="sm"
             />
             <span>Show tool details</span>
           </label>

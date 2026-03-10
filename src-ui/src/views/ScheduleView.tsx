@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { createPortal } from 'react-dom';
 import { useNavigation } from '../contexts/NavigationContext';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { Toggle } from '../components/Toggle';
 import {
   useAddJob,
   useDeleteJob,
@@ -385,37 +386,28 @@ function CronEditor({ value, onChange }: { value: string; onChange: (cron: strin
           </span>
         ))}
       </div>
-      {active !== null ? (
-        <div className="cron-editor__help">
-          <table className="cron-editor__syntax">
-            <tbody>
-              {CRON_SYNTAX.map(s => (
-                <tr key={s.sym}>
-                  <td className="cron-editor__sym">{s.sym}</td>
-                  <td>{s.desc}</td>
+      {(() => {
+        const field = active !== null ? CRON_FIELDS[active] : null;
+        const err = active !== null ? errors[active] : null;
+        return (
+          <div className="cron-editor__help">
+            <table className="cron-editor__syntax">
+              <tbody>
+                {CRON_SYNTAX.map(s => (
+                  <tr key={s.sym}>
+                    <td className="cron-editor__sym">{s.sym}</td>
+                    <td>{s.desc}</td>
+                  </tr>
+                ))}
+                <tr className={err ? 'cron-editor__syntax--error' : ''}>
+                  <td className="cron-editor__sym">{field ? field.range : '—'}</td>
+                  <td>{err || (field ? 'allowed values' : 'select a field')}</td>
                 </tr>
-              ))}
-              <tr className={activeErr ? 'cron-editor__syntax--error' : ''}>
-                <td className="cron-editor__sym">{CRON_FIELDS[active].range}</td>
-                <td>{activeErr || 'allowed values'}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="cron-editor__help">
-          <table className="cron-editor__syntax">
-            <tbody>
-              {CRON_SYNTAX.map(s => (
-                <tr key={s.sym}>
-                  <td className="cron-editor__sym">{s.sym}</td>
-                  <td>{s.desc}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -424,6 +416,8 @@ function CronEditor({ value, onChange }: { value: string; onChange: (cron: strin
 function cronToHuman(cron: string, referenceDate?: Date): string | null {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return null;
+  // Bail if any field has invalid characters (only digits, *, /, -, , allowed)
+  if (parts.some(p => !/^[\d*,\-/]+$/.test(p))) return null;
   const [min, hour, dom, mon, dow] = parts;
 
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -462,7 +456,10 @@ function cronToHuman(cron: string, referenceDate?: Date): string | null {
   };
 
   try {
-    const time = (hour !== '*' && min !== '*') ? fmtTime(hour, min) : hour === '*' ? `every minute` : `at minute ${min} of every hour`;
+    const time = (hour !== '*' && min !== '*') ? fmtTime(hour, min)
+      : hour === '*' && min === '*' ? 'every minute'
+      : hour === '*' && min !== '*' ? `every hour at :${/^\d+$/.test(min) ? min.padStart(2, '0') : min}`
+      : `at minute ${min} of every hour`;
     const dowStr = fmtDow(dow);
     const domStr = fmtDom(dom);
     const monStr = fmtMon(mon);
@@ -623,7 +620,7 @@ function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; pr
 
   const [form, setForm] = useState({
     name: job?.name || init.name || '',
-    cron: job?.schedule?.replace(/^cron\s+/, '') || init.cron || '',
+    cron: job?.schedule?.replace(/^cron\s+/, '') || init.cron || '* * * * *',
     prompt: job?.prompt || init.prompt || '',
     agent: job?.agent || init.agent || 'default',
     ...Object.fromEntries(extraFields.map((f: any) => [f.key, job?.[f.key] || ''])),
@@ -709,7 +706,7 @@ function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; pr
             <label key={f.key} className="schedule__field">
               <span className="schedule__field-label">{f.label} {f.hint && <span className="schedule__field-hint">({f.hint})</span>}</span>
               {f.type === 'boolean' ? (
-                <input type="checkbox" checked={!!form[f.key]} onChange={setBool(f.key)} />
+                <Toggle checked={!!form[f.key]} onChange={(v) => setForm(prev => ({ ...prev, [f.key]: v }))} size="sm" />
               ) : f.type === 'textarea' ? (
                 <textarea value={form[f.key] || ''} onChange={set(f.key)} rows={3} placeholder={f.placeholder} />
               ) : (
@@ -819,7 +816,7 @@ export function ScheduleView() {
     <div className="schedule page">
       <div className="page__header">
         <div className="page__header-text">
-          <div className="page__label">sys / schedule</div>
+          <div className="page__label">schedule</div>
           <h1 className="page__title">Schedule</h1>
           <p className="page__subtitle">Manage scheduled jobs and automation</p>
         </div>

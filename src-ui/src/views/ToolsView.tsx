@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { LoadingState } from '@stallion-ai/sdk';
+import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useNavigation } from '../contexts/NavigationContext';
+import { useUrlSelection } from '../hooks/useUrlSelection';
 import './PluginManagementView.css';
 import './page-layout.css';
 
@@ -115,6 +118,7 @@ function ToolRegistryModal({ apiBase, onClose }: { apiBase: string; onClose: () 
 /* ── Tools View ── */
 export function ToolsView() {
   const { apiBase } = useApiBase();
+  const { navigate } = useNavigation();
   const [tools, setTools] = useState<ToolDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -124,6 +128,7 @@ export function ToolsView() {
   const [addForm, setAddForm] = useState({ id: '', command: '', args: '', displayName: '', description: '' });
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const { selectedId: selectedTool, select: selectTool, deselect: deselectTool } = useUrlSelection('/manage/tools');
 
   const fetchTools = useCallback(async () => {
     try {
@@ -173,97 +178,109 @@ export function ToolsView() {
     finally { setAdding(false); }
   };
 
+  const filtered = useMemo(() =>
+    tools.filter(t => {
+      if (!filter) return true;
+      const q = filter.toLowerCase();
+      return (t.displayName || t.id).toLowerCase().includes(q) || t.description?.toLowerCase().includes(q);
+    }), [tools, filter]);
+
+  const items = filtered.map(t => ({
+    id: t.id,
+    name: t.displayName || t.id,
+    subtitle: [t.transport || t.kind || 'mcp', t.source, t.description].filter(Boolean).join(' · '),
+  }));
+
+  const selected = tools.find(t => t.id === selectedTool);
+
   return (
-    <div className="plugins page">
-      <div className="page__header">
-        <div className="page__header-text">
-          <div className="page__label">sys / manage / tools</div>
-          <h1 className="page__title">Tools</h1>
-          <p className="page__subtitle">Installed tool configurations</p>
-        </div>
-        <div className="page__actions">
-          {hasRegistry && (
-            <button className="plugins__section-action" onClick={() => setShowRegistry(true)}>Browse Registry</button>
-          )}
-          <button className="page__btn-primary" onClick={() => setShowAdd(v => !v)}>
-            {showAdd ? 'Cancel' : 'Add Tool'}
-          </button>
-        </div>
-      </div>
-
-      {message && (
-        <div className={`plugins__modal-message plugins__message--${message.type}`} style={{ marginBottom: '1rem' }}>{message.text}</div>
-      )}
-
-      {showAdd && (
-        <div className="plugins__install" style={{ flexDirection: 'column', gap: '0.5rem', alignItems: 'stretch' }}>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input className="plugins__install-input" value={addForm.id} onChange={e => setAddForm(f => ({ ...f, id: e.target.value }))} placeholder="tool-id (e.g. my-mcp-server)" style={{ flex: 1 }} />
-            <input className="plugins__install-input" value={addForm.displayName} onChange={e => setAddForm(f => ({ ...f, displayName: e.target.value }))} placeholder="Display name (optional)" style={{ flex: 1 }} />
+    <>
+      <SplitPaneLayout
+        label="manage / tools"
+        title="Tools"
+        subtitle="Installed tool configurations"
+        items={loading ? [] : items}
+        selectedId={selectedTool}
+        onSelect={selectTool}
+        onDeselect={deselectTool}
+        onSearch={setFilter}
+        searchPlaceholder="Search tools..."
+        onAdd={() => setShowAdd(true)}
+        addLabel="+ Add Tool"
+        emptyIcon="⚙"
+        emptyTitle="No tool selected"
+        emptyDescription="Select a tool from the list or add a new one"
+        emptyContent={
+          <div className="detail-panel">
+            {message && <div className={`plugins__modal-message plugins__message--${message.type}`}>{message.text}</div>}
+            {hasRegistry && (
+              <button className="plugins__section-action" onClick={() => setShowRegistry(true)}>Browse Registry</button>
+            )}
+            {tools.length === 0 && !loading && (
+              <div className="plugins__empty">No tools configured. Click "+ Add Tool" to get started.</div>
+            )}
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input className="plugins__install-input" value={addForm.command} onChange={e => setAddForm(f => ({ ...f, command: e.target.value }))} placeholder="Command (e.g. npx, uvx, node)" style={{ flex: 1 }} />
-            <input className="plugins__install-input" value={addForm.args} onChange={e => setAddForm(f => ({ ...f, args: e.target.value }))} placeholder="Args (space-separated)" style={{ flex: 2 }} />
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input className="plugins__install-input" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" style={{ flex: 1 }} />
-            <button className="plugins__install-btn" onClick={handleAdd} disabled={adding || !addForm.id.trim() || !addForm.command.trim()}>
-              {adding ? 'Adding...' : 'Add'}
-            </button>
-          </div>
-        </div>
-      )}
+        }
+      >
+        {selected && (
+          <div className="detail-panel">
+            {message && <div className={`plugins__modal-message plugins__message--${message.type}`}>{message.text}</div>}
 
-      <div className="plugins__section">
-        <div className="plugins__section-header">
-          <h3 className="plugins__section-title">Installed Tools</h3>
-          <span className="plugins__section-count">{tools.length} active</span>
-        </div>
-        {loading ? (
-          <LoadingState message="Loading tools..." />
-        ) : tools.length === 0 ? (
-          <div className="plugins__empty">No tools configured.</div>
-        ) : (
-          <>
-            <input className="plugins__filter-input" type="text" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter tools..." />
-            <table className="plugins__tools-table">
-              <thead>
-                <tr>
-                  <th className="plugins__tools-th">Name</th>
-                  <th className="plugins__tools-th">Type</th>
-                  <th className="plugins__tools-th">Source</th>
-                  <th className="plugins__tools-th">Agents</th>
-                  <th className="plugins__tools-th">Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tools
-                  .filter(t => {
-                    if (!filter) return true;
-                    const q = filter.toLowerCase();
-                    const name = (t.displayName || t.id).toLowerCase();
-                    return name.includes(q) || t.description?.toLowerCase().includes(q) || t.kind?.toLowerCase().includes(q) || t.source?.toLowerCase().includes(q) || t.usedBy?.some(a => a.toLowerCase().includes(q));
-                  })
-                  .map(t => (
-                    <tr key={t.id} className="plugins__tools-tr">
-                      <td className="plugins__tools-td"><span className="plugins__tools-name">{t.displayName || t.id}</span></td>
-                      <td className="plugins__tools-td"><span className="plugins__tools-kind">{t.transport || t.kind || 'mcp'}</span></td>
-                      <td className="plugins__tools-td"><span className="plugins__tools-desc">{t.source || t.id}</span></td>
-                      <td className="plugins__tools-td">
-                        {t.usedBy?.length ? t.usedBy.map(a => (
-                          <span key={a} className="plugins__cap plugins__cap--agent">{a}</span>
-                        )) : <span className="plugins__tools-desc">-</span>}
-                      </td>
-                      <td className="plugins__tools-td"><span className="plugins__tools-desc">{t.description || '-'}</span></td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </>
+            <h2 className="detail-panel__title">{selected.displayName || selected.id}</h2>
+            {selected.description && <p className="detail-panel__desc">{selected.description}</p>}
+
+            <div className="detail-panel__section">
+              <div className="editor-field">
+                <span className="detail-panel__field-label">Type</span>
+                <div className="detail-panel__field-value">{selected.transport || selected.kind || 'mcp'}</div>
+              </div>
+              <div className="editor-field">
+                <span className="detail-panel__field-label">Source</span>
+                <div className="detail-panel__field-value detail-panel__field-value--mono">{selected.source || selected.id}</div>
+              </div>
+              {selected.usedBy && selected.usedBy.length > 0 && (
+                <div className="editor-field">
+                  <span className="detail-panel__field-label">Used by</span>
+                  <div className="detail-panel__caps">
+                    {selected.usedBy.map(a => <span key={a} className="plugins__cap plugins__cap--agent">{a}</span>)}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
-      </div>
+      </SplitPaneLayout>
+
+      {/* Add Tool Modal */}
+      {showAdd && (
+        <div className="plugins__modal-overlay" onClick={() => setShowAdd(false)}>
+          <div className="plugins__modal" onClick={e => e.stopPropagation()}>
+            <div className="plugins__modal-header">
+              <h3 className="plugins__modal-title">Add Tool</h3>
+              <button className="plugins__modal-close" onClick={() => setShowAdd(false)}>&times;</button>
+            </div>
+            <div className="plugins__modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input className="plugins__install-input" value={addForm.id} onChange={e => setAddForm(f => ({ ...f, id: e.target.value }))} placeholder="tool-id (e.g. my-mcp-server)" style={{ flex: 1 }} />
+                <input className="plugins__install-input" value={addForm.displayName} onChange={e => setAddForm(f => ({ ...f, displayName: e.target.value }))} placeholder="Display name (optional)" style={{ flex: 1 }} />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input className="plugins__install-input" value={addForm.command} onChange={e => setAddForm(f => ({ ...f, command: e.target.value }))} placeholder="Command (e.g. npx, uvx, node)" style={{ flex: 1 }} />
+                <input className="plugins__install-input" value={addForm.args} onChange={e => setAddForm(f => ({ ...f, args: e.target.value }))} placeholder="Args (space-separated)" style={{ flex: 2 }} />
+              </div>
+              <input className="plugins__install-input" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button className="plugins__confirm-cancel" onClick={() => setShowAdd(false)}>Cancel</button>
+                <button className="plugins__install-btn" onClick={handleAdd} disabled={adding || !addForm.id.trim() || !addForm.command.trim()}>
+                  {adding ? 'Adding...' : 'Add'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showRegistry && <ToolRegistryModal apiBase={apiBase} onClose={() => { setShowRegistry(false); fetchTools(); }} />}
-    </div>
+    </>
   );
 }

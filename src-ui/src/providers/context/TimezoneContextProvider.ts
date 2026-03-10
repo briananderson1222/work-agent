@@ -10,8 +10,9 @@ import { ListenerManager } from '@stallion-ai/sdk';
 class TimezoneContextProvider extends ListenerManager implements MessageContextProvider {
   readonly id = 'timezone';
   readonly name = 'Timezone';
+  readonly description = 'Tells the model your IANA timezone (e.g. America/Denver) so it can give time-aware answers.';
 
-  private _enabled = false;
+  private _enabled = true;
 
   get enabled(): boolean {
     return this._enabled;

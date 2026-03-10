@@ -39,7 +39,7 @@ export interface IAgentRegistryProvider {
   uninstall(id: string): Promise<InstallResult>;
 }
 
-export interface IToolRegistryProvider {
+export interface IIntegrationRegistryProvider {
   listAvailable(): Promise<RegistryItem[]>;
   listInstalled(): Promise<RegistryItem[]>;
   install(id: string): Promise<InstallResult>;
@@ -220,7 +220,7 @@ export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
   settings: 'singleton',
   scheduler: 'additive',
   agentRegistry: 'additive',
-  toolRegistry: 'additive',
+  integrationRegistry: 'additive',
   onboarding: 'additive',
   acpConnections: 'additive',
 };

@@ -393,9 +393,9 @@ export function readPluginManifest(dir: string): PluginManifest {
   return JSON.parse(readFileSync(p, 'utf-8'));
 }
 
-export function readToolDef(toolsDir: string, id: string): ToolDef {
-  const p = join(toolsDir, id, 'tool.json');
-  if (!existsSync(p)) throw new Error(`Tool '${id}' not found at ${p}`);
+export function readIntegrationDef(toolsDir: string, id: string): ToolDef {
+  const p = join(toolsDir, id, 'integration.json');
+  if (!existsSync(p)) throw new Error(`Integration '${id}' not found at ${p}`);
   return JSON.parse(readFileSync(p, 'utf-8'));
 }
 
@@ -410,7 +410,7 @@ export function readWorkspaceConfig(path: string): WorkspaceConfig {
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 
-export function resolvePluginTools(
+export function resolvePluginIntegrations(
   pluginDir: string,
   toolsDir: string,
 ): Map<string, ToolDef> {
@@ -423,18 +423,18 @@ export function resolvePluginTools(
     for (const serverId of agent.tools?.mcpServers || []) {
       if (tools.has(serverId)) continue;
       try {
-        tools.set(serverId, readToolDef(toolsDir, serverId));
+        tools.set(serverId, readIntegrationDef(toolsDir, serverId));
       } catch {}
     }
   }
   return tools;
 }
 
-export function listToolIds(toolsDir: string): string[] {
+export function listIntegrationIds(toolsDir: string): string[] {
   if (!existsSync(toolsDir)) return [];
   return readdirSync(toolsDir, { withFileTypes: true })
     .filter(
-      (d) => d.isDirectory() && existsSync(join(toolsDir, d.name, 'tool.json')),
+      (d) => d.isDirectory() && existsSync(join(toolsDir, d.name, 'integration.json')),
     )
     .map((d) => d.name);
 }
@@ -443,19 +443,33 @@ export function listToolIds(toolsDir: string): string[] {
  * Copy bundled tool configs from a plugin's tools/ directory to the project tools dir.
  * Returns the list of tool IDs that were copied.
  */
-export function copyPluginTools(
+export function copyPluginIntegrations(
   pluginDir: string,
-  projectToolsDir: string,
+  projectIntegrationsDir: string,
 ): string[] {
-  const pluginToolsDir = join(pluginDir, 'tools');
-  if (!existsSync(pluginToolsDir)) return [];
-  mkdirSync(projectToolsDir, { recursive: true });
+  const pluginIntegrationsDir = join(pluginDir, 'integrations');
+  if (!existsSync(pluginIntegrationsDir)) return [];
+  mkdirSync(projectIntegrationsDir, { recursive: true });
+  // Read plugin name for source stamping
+  let pluginName = '';
+  try { pluginName = JSON.parse(readFileSync(join(pluginDir, 'plugin.json'), 'utf-8')).name; } catch {}
   const copied: string[] = [];
-  for (const entry of readdirSync(pluginToolsDir, { withFileTypes: true })) {
+  for (const entry of readdirSync(pluginIntegrationsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const target = join(projectToolsDir, entry.name);
+    const target = join(projectIntegrationsDir, entry.name);
     if (!existsSync(target)) {
-      cpSync(join(pluginToolsDir, entry.name), target, { recursive: true });
+      cpSync(join(pluginIntegrationsDir, entry.name), target, { recursive: true });
+      // Stamp plugin source into integration.json
+      if (pluginName) {
+        const defPath = join(target, 'integration.json');
+        if (existsSync(defPath)) {
+          try {
+            const def = JSON.parse(readFileSync(defPath, 'utf-8'));
+            def.plugin = pluginName;
+            writeFileSync(defPath, JSON.stringify(def, null, 2));
+          } catch {}
+        }
+      }
       copied.push(entry.name);
     }
   }

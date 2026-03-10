@@ -14,6 +14,10 @@ export interface MobileSettings {
   offlineQueueEnabled: boolean;
   /** Subscribe to Web Push notifications for tool-approval requests. */
   approvalNotificationsEnabled: boolean;
+  /** Show voice input orb in chat and global voice button. */
+  voiceInputEnabled: boolean;
+  /** Show mobile pairing QR code and network discovery in Settings. */
+  mobilePairingEnabled: boolean;
 }
 
 const STORAGE_KEY = 'stallion-feature-settings';
@@ -22,6 +26,8 @@ const DEFAULTS: MobileSettings = {
   ttsReadbackEnabled: false,
   offlineQueueEnabled: true,
   approvalNotificationsEnabled: false,
+  voiceInputEnabled: false,
+  mobilePairingEnabled: false,
 };
 
 function load(): MobileSettings {

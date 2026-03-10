@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
 import { AgentIcon } from '../components/AgentIcon';
+import { Checkbox } from '../components/Checkbox';
 import { ImportPromptsModal } from '../components/ImportPromptsModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { useConfig } from '../contexts/ConfigContext';
@@ -894,8 +895,7 @@ export function AgentEditorView({
                 <div className="tool-grid">
                   {availableTools.map((tool) => (
                     <label key={tool.id} className="tool-checkbox">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={formData.tools.includes(tool.id)}
                         onChange={() => toggleTool(tool.id)}
                       />

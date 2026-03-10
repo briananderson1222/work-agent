@@ -7,7 +7,7 @@ import {
   DefaultAuthProvider,
   DefaultBrandingProvider,
   DefaultSettingsProvider,
-  DefaultToolRegistryProvider,
+  DefaultIntegrationRegistryProvider,
   DefaultUserDirectoryProvider,
   DefaultUserIdentityProvider,
 } from './defaults.js';
@@ -17,7 +17,7 @@ import type {
   IBrandingProvider,
   IOnboardingProvider,
   ISettingsProvider,
-  IToolRegistryProvider,
+  IIntegrationRegistryProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
 } from './types.js';
@@ -43,7 +43,7 @@ export function registerProvider(
   const ws = opts?.workspace ?? '*';
   const source = opts?.source ?? 'unknown';
   // For additive types, push to array
-  if (type === 'onboarding' || type === 'agentRegistry' || type === 'toolRegistry') {
+  if (type === 'onboarding' || type === 'agentRegistry' || type === 'integrationRegistry') {
     if (!additiveStore.has(type)) additiveStore.set(type, []);
     additiveStore.get(type)!.push({ provider, source });
     return;
@@ -122,13 +122,13 @@ export function getAgentRegistryProvider(): IAgentRegistryProvider {
 
 // ── Tool Registry ──────────────────────────────────────
 
-export function registerToolRegistryProvider(provider: IToolRegistryProvider) {
-  registerProvider('toolRegistry', provider);
+export function registerIntegrationRegistryProvider(provider: IIntegrationRegistryProvider) {
+  registerProvider('integrationRegistry', provider);
 }
 
-export function getToolRegistryProvider(): IToolRegistryProvider {
-  const entries = listProviders('toolRegistry');
-  return entries.length > 0 ? (entries[0].provider as IToolRegistryProvider) : new DefaultToolRegistryProvider();
+export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
+  const entries = listProviders('integrationRegistry');
+  return entries.length > 0 ? (entries[0].provider as IIntegrationRegistryProvider) : new DefaultIntegrationRegistryProvider();
 }
 
 // ── Onboarding ─────────────────────────────────────────

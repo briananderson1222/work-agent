@@ -50,6 +50,7 @@ export function WorkspaceView() {
     selectedWorkspace,
     activeTab,
     setDockState,
+    setWorkspace,
     setWorkspaceTab,
     setActiveChat,
   } = useNavigation();
@@ -166,15 +167,19 @@ export function WorkspaceView() {
 
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
 
+  // No workspace selected — auto-select first available or show onboarding
   if (!selectedWorkspace) {
-    if (allWorkspaces.length === 0) {
-      return <EmptyWorkspaceOnboarding />;
+    if (allWorkspaces.length > 0) {
+      setWorkspace(allWorkspaces[0].slug);
+      return <FullScreenLoader label="workspace" />;
     }
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>Select a workspace from the sidebar to get started.</p>
-      </div>
-    );
+    return <EmptyWorkspaceOnboarding />;
+  }
+
+  // Selected workspace doesn't exist — redirect to first available or root
+  if (allWorkspaces.length > 0 && !allWorkspaces.some((w: any) => w.slug === selectedWorkspace)) {
+    setWorkspace(allWorkspaces[0].slug);
+    return <FullScreenLoader label="workspace" />;
   }
 
   // Backend unreachable
@@ -189,11 +194,15 @@ export function WorkspaceView() {
     );
   }
 
-  // Query failed after backend was reachable — if workspace doesn't exist, show onboarding
+  // Query failed — workspace might have been deleted between list fetch and detail fetch
   if (isError && !isLoading) {
     const workspaceExists = allWorkspaces.some(
       (w: any) => w.slug === selectedWorkspace,
     );
+    if (!workspaceExists && allWorkspaces.length > 0) {
+      setWorkspace(allWorkspaces[0].slug);
+      return <FullScreenLoader label="workspace" />;
+    }
     if (!workspaceExists) {
       return <EmptyWorkspaceOnboarding />;
     }

@@ -34,7 +34,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
 
   // Loading state
   if (isLoading) {
-    return <FullScreenLoader label="sys / status" />;
+    return <FullScreenLoader label="loading" />;
   }
 
   // Can't reach server

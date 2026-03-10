@@ -309,7 +309,7 @@ export async function loadAgentTools(
   // Load each MCP server from catalog
   for (const toolId of spec.tools.mcpServers) {
     try {
-      const toolDef = await configLoader.loadTool(toolId);
+      const toolDef = await configLoader.loadIntegration(toolId);
 
       if (toolDef.kind === 'mcp') {
         const mcpTools = await createMCPTools(

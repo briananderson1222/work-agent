@@ -5,6 +5,7 @@ import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import { useUrlSelection } from '../hooks/useUrlSelection';
 import './page-layout.css';
 import './editor-layout.css';
 
@@ -46,10 +47,11 @@ function promptToForm(p: Prompt): PromptForm {
 export function PromptsView() {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
+  const { selectedId: urlId, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/manage/prompts');
   const queryClient = useQueryClient();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isNew, setIsNew] = useState(false);
+  const selectedId = urlId === 'new' ? null : urlId;
+  const [isNew, setIsNew] = useState(urlId === 'new');
   const [form, setForm] = useState<PromptForm>(EMPTY_FORM);
   const [search, setSearch] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -86,7 +88,7 @@ export function PromptsView() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['prompts'] });
       setIsNew(false);
-      setSelectedId(data.data?.id ?? null);
+      urlSelect(data.data?.id ?? "");
       setDirty(false);
     },
   });
@@ -112,7 +114,7 @@ export function PromptsView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prompts'] });
-      setSelectedId(null);
+      urlDeselect();
       setIsNew(false);
       setDirty(false);
     },
@@ -135,7 +137,7 @@ export function PromptsView() {
   function selectPrompt(id: string) {
     const p = prompts.find(x => x.id === id);
     if (!p) return;
-    setSelectedId(id);
+    urlSelect(id);
     setIsNew(false);
     setForm(promptToForm(p));
     setDirty(false);
@@ -143,7 +145,7 @@ export function PromptsView() {
   }
 
   function startNew() {
-    setSelectedId(null);
+    urlDeselect();
     setIsNew(true);
     setForm(EMPTY_FORM);
     setDirty(false);
@@ -151,7 +153,7 @@ export function PromptsView() {
   }
 
   function handleDeselect() {
-    setSelectedId(null);
+    urlDeselect();
     setIsNew(false);
   }
 
@@ -193,7 +195,6 @@ export function PromptsView() {
     <div className="page page--full">
       <SplitPaneLayout
         label="manage / prompts"
-        breadcrumbLinks={{ manage: () => navigate('/manage') }}
         title="Prompts"
         subtitle="Reusable prompts for workspaces and agents"
         items={listItems}

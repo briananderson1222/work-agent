@@ -13,7 +13,7 @@ import type {
   InstallResult,
   IOnboardingProvider,
   ISettingsProvider,
-  IToolRegistryProvider,
+  IIntegrationRegistryProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
   Prerequisite,
@@ -45,7 +45,7 @@ export class DefaultAgentRegistryProvider implements IAgentRegistryProvider {
   }
 }
 
-export class DefaultToolRegistryProvider implements IToolRegistryProvider {
+export class DefaultIntegrationRegistryProvider implements IIntegrationRegistryProvider {
   async listAvailable(): Promise<RegistryItem[]> {
     return [];
   }

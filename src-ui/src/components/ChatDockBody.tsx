@@ -145,7 +145,7 @@ export function ChatDockBody({
     if (!isUserScrolledUp && messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-  }, [isUserScrolledUp]);
+  }, [isUserScrolledUp, activeSession.messages, activeSession.status]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;

@@ -15,7 +15,7 @@ export function createToolRoutes(
   app.get('/', async (c) => {
     try {
       const [tools, agentMap] = await Promise.all([
-        mcpService.listTools(),
+        mcpService.listIntegrations(),
         mcpService.getToolAgentMap(),
       ]);
       const data = tools.map(t => ({ ...t, usedBy: agentMap[t.id] || [] }));
@@ -25,14 +25,45 @@ export function createToolRoutes(
     }
   });
 
-  // Create a new tool definition (POST /tools)
+  // Create/update an integration (POST /integrations)
   app.post('/', async (c) => {
     try {
       const body = await c.req.json();
-      await mcpService.saveTool(body);
+      await mcpService.saveIntegration(body);
       return c.json({ success: true });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
+    }
+  });
+
+  // Get single integration (GET /integrations/:id)
+  app.get('/:id', async (c) => {
+    try {
+      const def = await mcpService.getIntegration(c.req.param('id'));
+      return c.json({ success: true, data: def });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 404);
+    }
+  });
+
+  // Update integration (PUT /integrations/:id)
+  app.put('/:id', async (c) => {
+    try {
+      const body = await c.req.json();
+      await mcpService.saveIntegration({ ...body, id: c.req.param('id') });
+      return c.json({ success: true });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 400);
+    }
+  });
+
+  // Delete integration (DELETE /integrations/:id)
+  app.delete('/:id', async (c) => {
+    try {
+      await mcpService.deleteIntegration(c.req.param('id'));
+      return c.json({ success: true });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500);
     }
   });
 

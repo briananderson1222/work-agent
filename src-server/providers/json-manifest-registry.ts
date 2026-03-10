@@ -1,6 +1,6 @@
 /**
  * JSON Manifest Registry Provider
- * Implements both IAgentRegistryProvider and IToolRegistryProvider
+ * Implements both IAgentRegistryProvider and IIntegrationRegistryProvider
  * by fetching a remote JSON manifest.
  */
 
@@ -11,7 +11,7 @@ import type { ToolDef } from '../domain/types.js';
 import type {
   IAgentRegistryProvider,
   InstallResult,
-  IToolRegistryProvider,
+  IIntegrationRegistryProvider,
   RegistryItem,
 } from './types.js';
 
@@ -39,7 +39,7 @@ interface Manifest {
 }
 
 export class JsonManifestRegistryProvider
-  implements IAgentRegistryProvider, IToolRegistryProvider
+  implements IAgentRegistryProvider, IIntegrationRegistryProvider
 {
   private manifestCache: Manifest | null = null;
   private cacheExpiry = 0;
@@ -196,7 +196,7 @@ export class JsonManifestRegistryProvider
     }
   }
 
-  // IToolRegistryProvider implementation
+  // IIntegrationRegistryProvider implementation
 
   async getToolDef(_id: string): Promise<ToolDef | null> {
     return null; // Not implemented for now

@@ -83,7 +83,7 @@ interface BedrockProviderSpec {
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
   registerAgentRegistryProvider,
-  registerToolRegistryProvider,
+  registerIntegrationRegistryProvider,
 } from '../providers/registry.js';
 import { createAgentRoutes } from '../routes/agents.js';
 import { createAnalyticsRoutes } from '../routes/analytics.js';
@@ -257,11 +257,14 @@ export class StallionRuntime {
    * Reload agents from disk
    */
   async reloadAgents(): Promise<void> {
+    // Refresh app config so template variables (date/time) are current
+    this.appConfig = await this.configLoader.loadAppConfig();
     const agentMetadataList = await this.configLoader.listAgents();
     const currentSlugs = new Set(agentMetadataList.map((m) => m.slug));
 
-    // Remove deleted agents and cleanup MCP servers
+    // Remove deleted agents and cleanup MCP servers (skip built-in default)
     for (const slug of this.activeAgents.keys()) {
+      if (slug === 'default') continue;
       if (!currentSlugs.has(slug)) {
         // Cleanup MCP configs for this agent
         for (const [key, config] of this.mcpConfigs.entries()) {
@@ -296,10 +299,12 @@ export class StallionRuntime {
       }
     }
 
-    // Update metadata map
+    // Update metadata map (preserve default agent)
+    const defaultMeta = this.agentMetadataMap.get('default');
     this.agentMetadataMap = new Map(
       agentMetadataList.map((meta) => [meta.slug, meta]),
     );
+    if (defaultMeta) this.agentMetadataMap.set('default', defaultMeta);
 
     this.logger.info('Agents reloaded', { count: agentMetadataList.length });
     this.eventBus.emit('agents:changed', { count: agentMetadataList.length });
@@ -343,7 +348,7 @@ export class StallionRuntime {
         this.configLoader.getProjectHomeDir(),
       );
       registerAgentRegistryProvider(registryProvider);
-      registerToolRegistryProvider(registryProvider);
+      registerIntegrationRegistryProvider(registryProvider);
       this.logger.info('JSON manifest registry configured', {
         url: this.appConfig.registryUrl,
       });
@@ -370,6 +375,21 @@ export class StallionRuntime {
       },
       30 * 60 * 1000,
     );
+
+    // Daily agent reload at midnight so {{date}}/{{time}} template variables stay fresh
+    const msUntilMidnight = () => {
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setHours(24, 0, 0, 0);
+      return midnight.getTime() - now.getTime();
+    };
+    const scheduleDailyReload = () => {
+      setTimeout(() => {
+        this.reloadAgents().catch(() => {});
+        scheduleDailyReload();
+      }, msUntilMidnight());
+    };
+    scheduleDailyReload();
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
@@ -408,10 +428,12 @@ export class StallionRuntime {
       }
     }
 
-    // Store agent metadata for enriching API responses
+    // Store agent metadata for enriching API responses (preserve default agent)
+    const savedDefaultMeta = this.agentMetadataMap.get('default');
     this.agentMetadataMap = new Map(
       agentMetadataList.map((meta) => [meta.slug, meta]),
     );
+    if (savedDefaultMeta) this.agentMetadataMap.set('default', savedDefaultMeta);
     this.logger.info('Agent metadata map created', {
       count: this.agentMetadataMap.size,
       keys: Array.from(this.agentMetadataMap.keys()),
@@ -597,7 +619,9 @@ export class StallionRuntime {
             Array.from(this.agentMetadataMap.entries()).map(async ([slug, metadata]) => {
               if (!this.activeAgents.has(slug)) return null;
               try {
-                const spec = await this.configLoader.loadAgent(slug);
+                const spec = slug === 'default'
+                  ? { prompt: metadata.description, description: metadata.description, model: this.appConfig.defaultModel }
+                  : await this.configLoader.loadAgent(slug);
 
                 this.logger.debug('[Agent Enrichment] Loading spec', {
                   agent: metadata.slug,
@@ -697,9 +721,9 @@ export class StallionRuntime {
       }
     });
 
-    // List all tools
+    // List all integrations (MCP server configs)
     app.route(
-      '/tools',
+      '/integrations',
       createToolRoutes(this.mcpService, () => this.initialize()),
     );
 
@@ -988,7 +1012,7 @@ export class StallionRuntime {
     // === Route Modules ===
     app.route(
       '/config',
-      createConfigRoutes(this.configLoader, this.logger, this.eventBus),
+      createConfigRoutes(this.configLoader, this.logger, this.eventBus, () => this.reloadAgents()),
     );
     app.route(
       '/bedrock',
@@ -2502,7 +2526,9 @@ export class StallionRuntime {
     const spec = await this.configLoader.loadAgent(agentSlug);
     this.agentSpecs.set(agentSlug, spec);
 
-    // Replace template variables in prompts
+    // Replace template variables in prompts — resolved at agent creation time.
+    // Date/time are current as of agent load; prompt caching stays effective.
+    // Agents reload on config change, so updates to systemPrompt take effect.
     const processedPrompt = this.replaceTemplateVariables(spec.prompt);
     const processedSystemPrompt = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
@@ -2636,7 +2662,7 @@ export class StallionRuntime {
       registerUserIdentityProvider,
       registerUserDirectoryProvider,
       registerAgentRegistryProvider,
-      registerToolRegistryProvider,
+      registerIntegrationRegistryProvider,
       registerOnboardingProvider,
     } = await import('../providers/registry.js');
 
@@ -2667,7 +2693,7 @@ export class StallionRuntime {
         else if (entry.type === 'userIdentity') registerUserIdentityProvider(instance);
         else if (entry.type === 'userDirectory') registerUserDirectoryProvider(instance);
         else if (entry.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-        else if (entry.type === 'toolRegistry') registerToolRegistryProvider(instance);
+        else if (entry.type === 'integrationRegistry') registerIntegrationRegistryProvider(instance);
         else if (entry.type === 'onboarding') registerOnboardingProvider(instance, entry.pluginName);
         else if (entry.type === 'branding') registerBrandingProvider(instance);
         else if (entry.type === 'settings') registerSettingsProvider(instance);

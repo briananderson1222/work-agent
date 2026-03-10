@@ -427,7 +427,7 @@ export class StrandsFramework {
 
     for (const toolId of spec.tools.mcpServers) {
       try {
-        const toolDef = await opts.configLoader.loadTool(toolId);
+        const toolDef = await opts.configLoader.loadIntegration(toolId);
 
         if (toolDef.kind !== 'mcp') continue;
         if (toolDef.transport !== 'stdio' && toolDef.transport !== 'process') {

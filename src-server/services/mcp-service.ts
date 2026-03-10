@@ -53,16 +53,24 @@ export class MCPService {
     private logger: any,
   ) {}
 
-  async listTools(): Promise<ToolMetadata[]> {
-    return this.configLoader.listTools();
+  async listIntegrations(): Promise<ToolMetadata[]> {
+    return this.configLoader.listIntegrations();
   }
 
   async getToolAgentMap(): Promise<Record<string, string[]>> {
     return this.configLoader.getToolAgentMap();
   }
 
-  async saveTool(def: ToolDef): Promise<void> {
-    await this.configLoader.saveTool(def.id, def);
+  async saveIntegration(def: ToolDef): Promise<void> {
+    await this.configLoader.saveIntegration(def.id, def);
+  }
+
+  async getIntegration(id: string): Promise<ToolDef> {
+    return this.configLoader.loadIntegration(id);
+  }
+
+  async deleteIntegration(id: string): Promise<void> {
+    await this.configLoader.deleteIntegration(id);
   }
 
   getAgentTools(slug: string): ToolInfo[] {

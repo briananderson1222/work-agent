@@ -17,11 +17,11 @@ import { join } from 'node:path';
 import { Hono } from 'hono';
 import {
   buildPlugin as buildPluginBundle,
-  copyPluginTools,
+  copyPluginIntegrations,
 } from '@stallion-ai/shared';
 import {
   getAgentRegistryProvider,
-  getToolRegistryProvider,
+  getIntegrationRegistryProvider,
 } from '../providers/registry.js';
 import type { EventBus } from '../services/event-bus.js';
 import {
@@ -185,6 +185,10 @@ export function createPluginRoutes(
       if (!existsSync(source)) {
         rmSync(tempDir, { recursive: true });
         return { error: `Source not found: ${source}` };
+      }
+      if (!existsSync(join(source, 'plugin.json'))) {
+        rmSync(tempDir, { recursive: true });
+        return { error: 'Not a valid plugin: plugin.json not found' };
       }
       cpSync(source, tempDir, { recursive: true });
     }
@@ -374,8 +378,8 @@ export function createPluginRoutes(
           components.push({ type: 'provider', id: p.type, detail: p.module });
         }
 
-        for (const toolId of manifest.tools?.required || []) {
-          const installed = existsSync(join(projectHomeDir, 'tools', toolId, 'tool.json'));
+        for (const toolId of manifest.integrations?.required || []) {
+          const installed = existsSync(join(projectHomeDir, 'integrations', toolId, 'integration.json'));
           components.push({ type: 'tool', id: toolId, detail: installed ? 'already installed' : 'will install' });
         }
 
@@ -459,7 +463,7 @@ export function createPluginRoutes(
       await buildPlugin(pluginDir, pluginName);
 
       // Copy bundled tool configs from plugin
-      const copied = copyPluginTools(pluginDir, join(projectHomeDir, 'tools'));
+      const copied = copyPluginIntegrations(pluginDir, join(projectHomeDir, 'integrations'));
       for (const id of copied) {
         logger.info(`Copied tool config: ${id}`);
       }
@@ -475,8 +479,8 @@ export function createPluginRoutes(
       }
 
       // Resolve required tools (unless skipped)
-      const toolsDir = join(projectHomeDir, 'tools');
-      const requiredTools = (manifest.tools?.required || []).filter(
+      const toolsDir = join(projectHomeDir, 'integrations');
+      const requiredTools = (manifest.integrations?.required || []).filter(
         (id: string) => !skipSet.has(`tool:${id}`),
       );
       const toolResults: Array<{
@@ -485,11 +489,11 @@ export function createPluginRoutes(
       }> = [];
 
       for (const toolId of requiredTools) {
-        if (existsSync(join(toolsDir, toolId, 'tool.json'))) {
+        if (existsSync(join(toolsDir, toolId, 'integration.json'))) {
           toolResults.push({ id: toolId, status: 'installed' });
         } else {
           try {
-            const registry = getToolRegistryProvider();
+            const registry = getIntegrationRegistryProvider();
             const result = await registry.install(toolId);
             const toolDef = result.success
               ? await registry.getToolDef(toolId)
@@ -498,7 +502,7 @@ export function createPluginRoutes(
               const toolDir = join(toolsDir, toolId);
               mkdirSync(toolDir, { recursive: true });
               writeFileSync(
-                join(toolDir, 'tool.json'),
+                join(toolDir, 'integration.json'),
                 JSON.stringify(toolDef, null, 2),
               );
             }
@@ -654,7 +658,7 @@ export function createPluginRoutes(
       await buildPlugin(pluginDir, name);
 
       // Re-copy tool configs
-      copyPluginTools(pluginDir, join(projectHomeDir, 'tools'));
+      copyPluginIntegrations(pluginDir, join(projectHomeDir, 'integrations'));
 
       // Emit SSE event
       eventBus?.emit('plugins:updated', { name, version: manifest.version });
@@ -921,7 +925,7 @@ async function loadProviders(
     registerUserIdentityProvider,
     registerUserDirectoryProvider,
     registerAgentRegistryProvider,
-    registerToolRegistryProvider,
+    registerIntegrationRegistryProvider,
     registerOnboardingProvider,
   } = await import('../providers/registry.js');
   let loaded = 0;
@@ -932,12 +936,12 @@ async function loadProviders(
 
     try {
       // JSON files for registry types → auto-wrap with JsonManifestRegistryProvider
-      if (modulePath.endsWith('.json') && (p.type === 'agentRegistry' || p.type === 'toolRegistry')) {
+      if (modulePath.endsWith('.json') && (p.type === 'agentRegistry' || p.type === 'integrationRegistry')) {
         const { JsonManifestRegistryProvider } = await import('../providers/json-manifest-registry.js');
         const { dirname } = await import('node:path');
         const instance = new JsonManifestRegistryProvider(modulePath, dirname(pluginsDir));
         if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-        else registerToolRegistryProvider(instance);
+        else registerIntegrationRegistryProvider(instance);
         loaded++;
         continue;
       }
@@ -951,7 +955,7 @@ async function loadProviders(
       else if (p.type === 'userIdentity') registerUserIdentityProvider(instance);
       else if (p.type === 'userDirectory') registerUserDirectoryProvider(instance);
       else if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-      else if (p.type === 'toolRegistry') registerToolRegistryProvider(instance);
+      else if (p.type === 'integrationRegistry') registerIntegrationRegistryProvider(instance);
       else if (p.type === 'onboarding') registerOnboardingProvider(instance, manifest.displayName || pluginName);
       else if (p.type === 'branding') registerBrandingProvider(instance);
       else if (p.type === 'settings') registerSettingsProvider(instance);

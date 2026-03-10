@@ -157,7 +157,6 @@
 /* ── Add Button ── */
 .split-pane__add {
   padding: 0.75rem 1rem;
-  padding-bottom: calc(0.75rem + var(--chat-dock-height, 49px));
   border-top: 1px solid var(--border-primary);
 }
 

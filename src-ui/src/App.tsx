@@ -19,6 +19,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import type { NavigationView } from './types';
 import { GlobalVoiceButton } from './components/GlobalVoiceButton';
+import { useMobileSettings } from './hooks/useMobileSettings';
 import { MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
 import { ScheduleView } from './views/ScheduleView';
@@ -28,7 +29,7 @@ import { AgentsView } from './views/AgentsView';
 import { PromptsView } from './views/PromptsView';
 import { SettingsView } from './views/SettingsView';
 import { ToolManagementView } from './views/ToolManagementView';
-import { ToolsView } from './views/ToolsView';
+import { IntegrationsView } from './views/IntegrationsView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 import { WorkspaceView } from './views/WorkspaceView';
 
@@ -58,6 +59,7 @@ function App() {
   const [globalError, _setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
   useWorkflows(API_BASE);
+  const { settings: featureSettings } = useMobileSettings();
   const [showShortcutsCheatsheet, setShowShortcutsCheatsheet] = useState(false);
   useExternalAuth();
   const { data: systemStatus } = useSystemStatus();
@@ -65,11 +67,11 @@ function App() {
     const path = window.location.pathname;
 
     if (path === '/manage') return { type: 'manage' };
-    if (path === '/manage/agents') return { type: 'agents' };
-    if (path === '/manage/workspaces') return { type: 'workspaces' };
-    if (path === '/manage/prompts') return { type: 'prompts' };
-    if (path === '/manage/plugins') return { type: 'plugins' };
-    if (path === '/manage/tools') return { type: 'tools' };
+    if (path.startsWith('/manage/agents')) return { type: 'agents' };
+    if (path.startsWith('/manage/workspaces')) return { type: 'workspaces' };
+    if (path.startsWith('/manage/prompts')) return { type: 'prompts' };
+    if (path.startsWith('/manage/plugins')) return { type: 'plugins' };
+    if (path.startsWith('/manage/integrations')) return { type: 'integrations' };
     if (path === '/sys/monitoring') return { type: 'monitoring' };
     if (path === '/sys/schedule') return { type: 'schedule' };
     if (path === '/sys/settings') return { type: 'settings' };
@@ -79,7 +81,7 @@ function App() {
     if (path === '/agents' || path === '/agents/new') return { type: 'agents' };
     if (path === '/prompts') return { type: 'prompts' };
     if (path === '/plugins') return { type: 'plugins' };
-    if (path === '/tools') return { type: 'tools' };
+    if (path === '/tools') return { type: 'integrations' };
     if (path === '/monitoring') return { type: 'monitoring' };
     if (path === '/schedule') return { type: 'schedule' };
     if (path === '/settings') return { type: 'settings' };
@@ -143,8 +145,8 @@ function App() {
       navigate('/manage');
     } else if (view.type === 'plugins') {
       navigate('/manage/plugins');
-    } else if (view.type === 'tools') {
-      navigate('/manage/tools');
+    } else if (view.type === 'integrations') {
+      navigate('/manage/integrations');
     } else if (view.type === 'profile') {
       navigate('/profile');
     } else if (view.type === 'notifications') {
@@ -182,11 +184,11 @@ function App() {
 
       // Hierarchical routes
       if (path === '/manage') { setCurrentView({ type: 'manage' }); return; }
-      if (path === '/manage/agents') { setCurrentView({ type: 'agents' }); return; }
-      if (path === '/manage/workspaces') { setCurrentView({ type: 'workspaces' }); return; }
-      if (path === '/manage/prompts') { setCurrentView({ type: 'prompts' }); return; }
-      if (path === '/manage/plugins') { setCurrentView({ type: 'plugins' }); return; }
-      if (path === '/manage/tools') { setCurrentView({ type: 'tools' }); return; }
+      if (path.startsWith('/manage/agents')) { setCurrentView({ type: 'agents' }); return; }
+      if (path.startsWith('/manage/workspaces')) { setCurrentView({ type: 'workspaces' }); return; }
+      if (path.startsWith('/manage/prompts')) { setCurrentView({ type: 'prompts' }); return; }
+      if (path.startsWith('/manage/plugins')) { setCurrentView({ type: 'plugins' }); return; }
+      if (path.startsWith('/manage/integrations')) { setCurrentView({ type: 'integrations' }); return; }
       if (path === '/sys/monitoring') { setCurrentView({ type: 'monitoring' }); return; }
       if (path === '/sys/schedule') { setCurrentView({ type: 'schedule' }); return; }
       if (path === '/sys/settings') { setCurrentView({ type: 'settings' }); return; }
@@ -197,7 +199,7 @@ function App() {
       if (path === '/agents' || path === '/agents/new') { setCurrentView({ type: 'agents' }); return; }
       if (path === '/prompts') { setCurrentView({ type: 'prompts' }); return; }
       if (path === '/plugins') { setCurrentView({ type: 'plugins' }); return; }
-      if (path === '/tools') { setCurrentView({ type: 'tools' }); return; }
+      if (path === '/tools') { setCurrentView({ type: 'integrations' }); return; }
       if (path === '/monitoring') { setCurrentView({ type: 'monitoring' }); return; }
       if (path === '/schedule') { setCurrentView({ type: 'schedule' }); return; }
       if (path === '/settings') { setCurrentView({ type: 'settings' }); return; }
@@ -437,7 +439,7 @@ function App() {
         )}
         {currentView.type === 'prompts' && <PromptsView />}
         {currentView.type === 'plugins' && <PluginManagementView />}
-        {currentView.type === 'tools' && <ToolsView />}
+        {currentView.type === 'integrations' && <IntegrationsView />}
         {(currentView.type === 'agent-new' || currentView.type === 'agent-edit') && (
           <AgentsView
             agents={agents}
@@ -525,7 +527,7 @@ function App() {
       </div>
 
       <ChatDock onRequestAuth={handleAuthError} />
-      <GlobalVoiceButton />
+      {featureSettings.voiceInputEnabled && <GlobalVoiceButton />}
     </div>
   );
 }

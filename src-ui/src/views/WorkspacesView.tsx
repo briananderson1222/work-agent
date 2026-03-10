@@ -6,6 +6,7 @@ import { WorkspaceIcon } from '../components/WorkspaceIcon';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAIEnrich } from '../hooks/useAIEnrich';
+import { useUrlSelection } from '../hooks/useUrlSelection';
 import type { WorkspaceConfig, WorkspaceTab, WorkspacePrompt, AgentSummary } from '../types';
 import './page-layout.css';
 import './editor-layout.css';
@@ -30,11 +31,12 @@ const EMPTY_FORM: WorkspaceConfig = {
 export function WorkspacesView() {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
+  const { selectedId: urlSlug, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/manage/workspaces');
   const qc = useQueryClient();
   const { enrich, isEnriching } = useAIEnrich();
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [isNew, setIsNew] = useState(false);
+  const selectedSlug = urlSlug === 'new' ? null : urlSlug;
+  const [isNew, setIsNew] = useState(urlSlug === 'new');
   const [templatePicked, setTemplatePicked] = useState(false);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<WorkspaceConfig>(EMPTY_FORM);
@@ -113,7 +115,7 @@ export function WorkspacesView() {
       setSavedForm(saved);
       setForm(saved);
       setIsNew(false);
-      setSelectedSlug(saved.slug);
+      urlSelect(saved.slug);
       setError(null);
     },
     onError: (err: Error) => setError(err.message),
@@ -127,7 +129,9 @@ export function WorkspacesView() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['workspaces'] });
-      setSelectedSlug(null);
+      // Navigate away if the deleted workspace is the active one
+      navigate('/manage/workspaces');
+      urlDeselect();
       setIsNew(false);
       setForm(EMPTY_FORM);
       setSavedForm(EMPTY_FORM);
@@ -151,14 +155,14 @@ export function WorkspacesView() {
   }));
 
   function handleSelect(slug: string) {
-    setSelectedSlug(slug);
+    urlSelect(slug);
     setIsNew(false);
     setError(null);
     setAdvancedOpen(false);
   }
 
   function handleNew() {
-    setSelectedSlug('__new__');
+    urlSelect('new');
     setIsNew(true);
     setTemplatePicked(workspaces.length === 0);
     setForm(EMPTY_FORM);
@@ -170,7 +174,7 @@ export function WorkspacesView() {
   }
 
   function handleDeselect() {
-    setSelectedSlug(null);
+    urlDeselect();
     setIsNew(false);
     setError(null);
   }
@@ -243,7 +247,6 @@ export function WorkspacesView() {
     <div className="page page--full">
       <SplitPaneLayout
         label="manage / workspaces"
-        breadcrumbLinks={{ manage: () => navigate('/manage') }}
         title="Workspaces"
         subtitle="Manage workspace configurations and layouts"
         items={listItems}

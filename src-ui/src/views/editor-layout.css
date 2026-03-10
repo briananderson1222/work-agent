@@ -1249,3 +1249,86 @@
   color: var(--accent-primary);
   opacity: 0.7;
 }
+
+/* ═══ Agent Editor — Lock Banner ═══ */
+.editor__lock-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 10px 24px;
+  background: color-mix(in srgb, var(--color-warning, #eab308) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-warning, #eab308) 25%, transparent);
+  font-size: 0.8rem; color: var(--color-warning, #eab308);
+}
+.editor__lock-btn {
+  padding: 4px 12px; font-size: 0.75rem; font-weight: 500;
+  background: transparent; color: var(--color-warning, #eab308);
+  border: 1px solid color-mix(in srgb, var(--color-warning, #eab308) 40%, transparent);
+  border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+.editor__lock-btn:hover { background: color-mix(in srgb, var(--color-warning, #eab308) 15%, transparent); }
+
+/* ═══ Agent Editor — Guardrails Grid ═══ */
+.editor__guardrails-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.editor__guardrails-item .editor-label { margin-bottom: 4px; }
+
+/* ═══ Agent Editor — Tools Grouped ═══ */
+.editor__tools-empty {
+  font-size: 0.8rem; color: var(--text-muted); padding: 12px 0;
+}
+.editor__tools-link {
+  background: none; border: none; color: var(--accent-primary);
+  cursor: pointer; font: inherit; padding: 0; text-decoration: underline;
+}
+.editor__tools-grouped {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.editor__tools-server {
+  border: 1px solid var(--border-primary); border-radius: 8px; overflow: hidden;
+}
+.editor__tools-server-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary); border-bottom: 1px solid var(--border-primary);
+  font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.editor__tools-server-count {
+  font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: 0;
+}
+.editor__tools-list {
+  display: flex; flex-direction: column;
+}
+.editor__tool-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 12px; cursor: pointer;
+  border-bottom: 1px solid var(--border-primary);
+  transition: background 0.1s;
+}
+.editor__tool-item:last-child { border-bottom: none; }
+.editor__tool-item:hover { background: var(--bg-secondary); }
+.editor__tool-item--active { background: color-mix(in srgb, var(--accent-primary) 5%, transparent); }
+.editor__tool-info { flex: 1; min-width: 0; }
+.editor__tool-name {
+  font-size: 0.8rem; font-weight: 500; color: var(--text-primary);
+  display: flex; align-items: center; gap: 6px;
+}
+.editor__tool-desc {
+  font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.editor__tool-badge {
+  font-size: 0.6rem; font-weight: 600; padding: 1px 5px;
+  border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.editor__tool-badge--auto {
+  background: color-mix(in srgb, var(--success-text) 15%, transparent);
+  color: var(--success-text);
+}
+
+.editor__tools-server--disabled {
+  opacity: 0.5;
+}
+.editor__tools-server--disabled .editor__tools-server-header {
+  background: var(--bg-primary);
+}

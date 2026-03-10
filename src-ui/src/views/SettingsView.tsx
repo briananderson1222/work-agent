@@ -3,9 +3,11 @@ import './SettingsView.css';
 import './page-layout.css';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
+import { Checkbox } from '../components/Checkbox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { Toggle } from '../components/Toggle';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
 import { useMessageContextContext } from '../contexts/MessageContextContext';
@@ -349,6 +351,17 @@ const FEATURE_META: Array<{
   privacyNote?: string;
 }> = [
   {
+    key: 'voiceInputEnabled',
+    label: 'Voice input',
+    description: 'Show the microphone button for speech-to-text input in chat and the global voice button.',
+  },
+  {
+    key: 'mobilePairingEnabled',
+    label: 'Mobile pairing & network discovery',
+    description: 'Show QR code and LAN discovery for connecting mobile devices to this server.',
+    privacyNote: 'Detects your local IP address via WebRTC when enabled.',
+  },
+  {
     key: 'ttsReadbackEnabled',
     label: 'Read agent responses aloud (TTS)',
     description: "Automatically reads the latest assistant response via the selected TTS provider after each reply.",
@@ -357,12 +370,6 @@ const FEATURE_META: Array<{
     key: 'offlineQueueEnabled',
     label: 'Offline command queue',
     description: 'Save messages in IndexedDB when the server is unreachable; auto-sends them when connectivity returns.',
-  },
-  {
-    key: 'approvalNotificationsEnabled',
-    label: 'Tool-approval push notifications',
-    description: 'Receive browser push notifications (with Allow/Deny buttons) when an agent needs your approval to run a tool.',
-    privacyNote: 'Requires notification permission and HTTPS. See server docs to configure VAPID keys.',
   },
 ];
 
@@ -381,18 +388,9 @@ function FeatureToggle({
   checked: boolean;
   onToggle: (key: keyof MobileSettings) => void;
 }) {
-  const id = `feature-${featureKey}`;
   return (
-    <label
-      htmlFor={id}
-      className="settings__feature-toggle"
-    >
-      <input
-        id={id}
-        type="checkbox"
-        checked={checked}
-        onChange={() => onToggle(featureKey)}
-      />
+    <div className="settings__feature-toggle" onClick={() => onToggle(featureKey)}>
+      <Toggle checked={checked} onChange={() => onToggle(featureKey)} size="sm" />
       <div>
         <div style={{ fontWeight: 500, marginBottom: 2 }}>{label}</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
@@ -404,7 +402,7 @@ function FeatureToggle({
           </div>
         )}
       </div>
-    </label>
+    </div>
   );
 }
 
@@ -517,14 +515,21 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
             Message Context
           </div>
           {contextProviders.map((p) => (
-            <label key={p.id} className="context-provider-toggle">
-              <input
-                type="checkbox"
+            <div key={p.id} className="settings__feature-toggle" onClick={() => toggleProvider(p.id)}>
+              <Toggle
                 checked={p.enabled}
                 onChange={() => toggleProvider(p.id)}
+                size="sm"
               />
-              {p.name}
-            </label>
+              <div>
+                <div style={{ fontWeight: 500, marginBottom: 2 }}>{p.name}</div>
+                {p.description && (
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {p.description}
+                  </div>
+                )}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -543,9 +548,7 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
           />
         ))}
       </div>
-      {settings.approvalNotificationsEnabled && (
-        <NotificationSubscribeButton apiBase={apiBase} />
-      )}
+      {settings.mobilePairingEnabled && <MobilePairingSection />}
       <span className="form-help" style={{ marginTop: 8, display: 'block' }}>
         Voice provider selection and context settings are saved in this browser only.
         Install plugins to add ElevenLabs or Nova Sonic providers.
@@ -570,6 +573,7 @@ export function SettingsView({
   const [error, setError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [showResetModal, setShowResetModal] = useState(false);
+  const { settings: featureSettings, toggle: toggleFeature } = useMobileSettings();
 
   useEffect(() => {
     if (configData) {
@@ -617,7 +621,7 @@ export function SettingsView({
         {/* ── Header ── */}
         <div className="page__header">
           <div className="page__header-text">
-            <div className="page__label">sys / settings</div>
+            <div className="page__label">settings</div>
             <h1 className="page__title">Settings</h1>
           </div>
           <div className="page__actions">
@@ -780,13 +784,12 @@ export function SettingsView({
         {/* ── Notifications ── */}
         <Section icon="◉" title="Notifications">
           <label className="settings__toggle-row">
-            <input
-              type="checkbox"
+            <Toggle
               checked={config.meetingNotifications?.enabled !== false}
-              onChange={(e) =>
+              onChange={(checked) =>
                 setConfig({
                   ...config,
-                  meetingNotifications: { ...config.meetingNotifications, enabled: e.target.checked },
+                  meetingNotifications: { ...config.meetingNotifications, enabled: checked },
                 })
               }
             />
@@ -809,12 +812,11 @@ export function SettingsView({
                       key={t}
                       className={`settings__threshold${active ? ' settings__threshold--active' : ''}`}
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={active}
-                        onChange={(e) => {
+                        onChange={(checked) => {
                           const current = config.meetingNotifications?.thresholds || [30, 10, 1];
-                          const updated = e.target.checked
+                          const updated = checked
                             ? [...current, t].sort((a, b) => b - a)
                             : current.filter((v) => v !== t);
                           setConfig({
@@ -829,6 +831,22 @@ export function SettingsView({
                 })}
               </div>
             </div>
+          )}
+
+          <label className="settings__toggle-row" style={{ marginTop: '0.75rem' }}>
+            <Toggle
+              checked={featureSettings.approvalNotificationsEnabled}
+              onChange={() => toggleFeature('approvalNotificationsEnabled')}
+            />
+            <div>
+              <div className="settings__toggle-label">Tool-approval push notifications</div>
+              <div className="settings__toggle-desc">
+                Browser push notifications when an agent needs your approval to run a tool
+              </div>
+            </div>
+          </label>
+          {featureSettings.approvalNotificationsEnabled && (
+            <NotificationSubscribeButton apiBase={currentApiBase} />
           )}
         </Section>
 
@@ -891,8 +909,6 @@ export function SettingsView({
             <span className="settings__field-hint">Region for Bedrock API calls.</span>
           </div>
         </Section>
-
-        <MobilePairingSection />
 
         <VoiceFeaturesSection apiBase={currentApiBase} />
 

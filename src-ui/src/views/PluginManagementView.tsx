@@ -1,7 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { LoadingState } from '@stallion-ai/sdk';
+import { Checkbox } from '../components/Checkbox';
+import { SplitPaneLayout } from '../components/SplitPaneLayout';
+import { Toggle } from '../components/Toggle';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useNavigation } from '../contexts/NavigationContext';
+import { useUrlSelection } from '../hooks/useUrlSelection';
 import { usePermissions } from '../core/PermissionManager';
 import './PluginManagementView.css';
 import './page-layout.css';
@@ -203,6 +208,7 @@ function PathAutocomplete({ value, onChange, onSubmit, placeholder, disabled, ap
 /* ── Main View ── */
 export function PluginManagementView() {
   const { apiBase } = useApiBase();
+  const { navigate } = useNavigation();
   const queryClient = useQueryClient();
   const { requestConsent } = usePermissions();
   const [plugins, setPlugins] = useState<Plugin[]>([]);
@@ -218,6 +224,8 @@ export function PluginManagementView() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewSkips, setPreviewSkips] = useState<Set<string>>(new Set());
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
+  const { selectedId: selectedPlugin, select: selectPlugin, deselect: deselectPlugin } = useUrlSelection('/manage/plugins');
+  const [search, setSearch] = useState('');
 
   const fetchPlugins = useCallback(async () => {
     try {
@@ -363,136 +371,174 @@ export function PluginManagementView() {
     } catch (e: any) { setMessage({ type: 'error', text: e.message }); }
   };
 
+  const filtered = useMemo(() =>
+    plugins.filter(p => {
+      const q = search.toLowerCase();
+      return !q || (p.displayName || p.name).toLowerCase().includes(q) || p.description?.toLowerCase().includes(q);
+    }), [plugins, search]);
+
+  const items = filtered.map(p => ({
+    id: p.name,
+    name: p.displayName || p.name,
+    subtitle: `v${p.version}${p.description ? ` · ${p.description}` : ''}`,
+  }));
+
+  const selected = plugins.find(p => p.name === selectedPlugin);
+
   return (
     <>
-      <div className="plugins page">
-        <div className="page__header">
-          <div className="page__header-text">
-            <div className="page__label">sys / plugins</div>
-            <h1 className="page__title">Plugins</h1>
-            <p className="page__subtitle">Manage installed plugins</p>
+      <SplitPaneLayout
+        label="manage / plugins"
+        title="Plugins"
+        subtitle="Manage installed plugins"
+        items={loading ? [] : items}
+        selectedId={selectedPlugin}
+        onSelect={selectPlugin}
+        onDeselect={deselectPlugin}
+        onSearch={setSearch}
+        searchPlaceholder="Search plugins..."
+        emptyIcon="⬡"
+        emptyTitle="No plugin selected"
+        emptyDescription="Select a plugin from the list or install a new one"
+        emptyContent={
+          <div className="detail-panel">
+            {/* Install bar */}
+            <div className="plugins__install">
+              <span className="plugins__install-prefix">$</span>
+              <PathAutocomplete
+                value={installSource}
+                onChange={val => { setInstallSource(val); setPreviewData(null); }}
+                onSubmit={() => install()}
+                placeholder="git@github.com:org/plugin.git or /local/path"
+                disabled={installing}
+                apiBase={apiBase}
+              />
+              <button className="plugins__browse-btn" onClick={() => setShowFolderPicker(true)} disabled={installing} title="Browse local folders">
+                📁
+              </button>
+              <button className="plugins__install-btn" onClick={() => install()} disabled={installing || previewLoading || !installSource.trim()}>
+                {installing ? 'Installing...' : previewLoading ? 'Validating...' : 'Install'}
+              </button>
+            </div>
+            {updates.length > 0 && (
+              <div className="plugins__update-banner">
+                <span className="plugins__update-banner-text">{updates.length} update{updates.length > 1 ? 's' : ''} available</span>
+                <button className="plugins__update-all-btn" onClick={() => updates.forEach(u => updatePlugin(u.name))}>Update All</button>
+              </div>
+            )}
+            {message && <div className={`plugins__message plugins__message--${message.type}`}>{message.text}</div>}
+            {plugins.length === 0 && !loading && (
+              <div className="plugins__empty">No plugins installed yet.</div>
+            )}
           </div>
-        </div>
+        }
+      >
+        {selected && (
+          <div className="detail-panel">
+            {/* Install bar */}
+            <div className="detail-panel__install">
+              <div className="plugins__install">
+                <span className="plugins__install-prefix">$</span>
+                <PathAutocomplete
+                  value={installSource}
+                  onChange={val => { setInstallSource(val); setPreviewData(null); }}
+                  onSubmit={() => install()}
+                  placeholder="git@github.com:org/plugin.git or /local/path"
+                  disabled={installing}
+                  apiBase={apiBase}
+                />
+                <button className="plugins__browse-btn" onClick={() => setShowFolderPicker(true)} disabled={installing} title="Browse local folders">
+                  📁
+                </button>
+                <button className="plugins__install-btn" onClick={() => install()} disabled={installing || previewLoading || !installSource.trim()}>
+                  {installing ? 'Installing...' : previewLoading ? 'Validating...' : 'Install'}
+                </button>
+              </div>
+            </div>
 
-        {/* Install bar */}
-        <div className="plugins__install">
-          <span className="plugins__install-prefix">$</span>
-          <PathAutocomplete
-            value={installSource}
-            onChange={val => { setInstallSource(val); setPreviewData(null); }}
-            onSubmit={() => install()}
-            placeholder="git@github.com:org/plugin.git or /local/path"
-            disabled={installing}
-            apiBase={apiBase}
-          />
-          <button className="plugins__browse-btn" onClick={() => setShowFolderPicker(true)} disabled={installing} title="Browse local folders">
-            📁
-          </button>
-          <button className="plugins__install-btn" onClick={() => install()} disabled={installing || previewLoading || !installSource.trim()}>
-            {installing ? 'Installing...' : previewLoading ? 'Validating...' : 'Install'}
-          </button>
-        </div>
+            {message && <div className={`plugins__message plugins__message--${message.type}`}>{message.text}</div>}
 
-        {/* Update banner */}
-        {updates.length > 0 && (
-          <div className="plugins__update-banner">
-            <span className="plugins__update-banner-text">{updates.length} update{updates.length > 1 ? 's' : ''} available</span>
-            <button className="plugins__update-all-btn" onClick={() => updates.forEach(u => updatePlugin(u.name))}>Update All</button>
+            {/* Plugin detail */}
+            <div className="detail-panel__section">
+              <h2 className="detail-panel__title">
+                {selected.displayName || selected.name}
+                <span className="plugins__card-version">v{selected.version}</span>
+                {updates.find(u => u.name === selected.name) && (
+                  <span className="plugins__card-update-hint">
+                    &rarr; v{updates.find(u => u.name === selected.name)!.latestVersion}
+                  </span>
+                )}
+              </h2>
+              {selected.description && <p className="detail-panel__desc">{selected.description}</p>}
+            </div>
+
+            {/* Capabilities */}
+            <div className="detail-panel__caps">
+              {selected.hasBundle && <span className="plugins__cap plugins__cap--bundle">ui</span>}
+              {selected.workspace && <span className="plugins__cap plugins__cap--workspace">workspace:{selected.workspace.slug}</span>}
+              {selected.agents?.map(a => <span key={a.slug} className="plugins__cap plugins__cap--agent">agent:{a.slug}</span>)}
+              {selected.providers?.map(pr => <span key={pr.type} className="plugins__cap plugins__cap--provider">provider:{pr.type}</span>)}
+              {selected.git && <span className="plugins__cap plugins__cap--ref">{selected.git.branch}@{selected.git.hash?.slice(0, 7)}</span>}
+            </div>
+
+            {/* Providers */}
+            {selected.providers && selected.providers.length > 0 && (
+              <div className="detail-panel__section">
+                <button
+                  className="plugins__providers-toggle"
+                  onClick={() => {
+                    const next = new Set(expandedProviders);
+                    if (next.has(selected.name)) next.delete(selected.name);
+                    else { next.add(selected.name); fetchProviderDetails(selected.name); }
+                    setExpandedProviders(next);
+                  }}
+                >
+                  <span style={{ transform: expandedProviders.has(selected.name) ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}>▶</span>
+                  {' '}Providers ({selected.providers.length})
+                </button>
+                {expandedProviders.has(selected.name) && selected.providerDetails && (
+                  <div className="plugins__providers-list">
+                    {selected.providerDetails.map(pr => (
+                      <div key={pr.type} className="plugins__provider-row">
+                        <span className="plugins__cap plugins__cap--provider">{pr.type}</span>
+                        {pr.workspace && <span className="plugins__provider-scope">{pr.workspace}</span>}
+                        <label className="plugins__provider-toggle">
+                          <Toggle
+                            checked={pr.enabled}
+                            onChange={() => toggleProvider(selected.name, pr.type, pr.enabled)}
+                            size="sm"
+                          />
+                          {pr.enabled ? 'Enabled' : 'Disabled'}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Permissions */}
+            {selected.permissions?.missing && selected.permissions.missing.length > 0 && (
+              <button className="plugins__btn plugins__btn--permissions" onClick={async () => {
+                const approved = await requestConsent(selected.name, selected.displayName || selected.name, selected.permissions!.missing);
+                if (approved) fetchPlugins();
+              }}>
+                Review Permissions ({selected.permissions.missing.length})
+              </button>
+            )}
+
+            {/* Actions */}
+            <div className="detail-panel__actions">
+              {updates.find(u => u.name === selected.name) && (
+                <button className="plugins__btn plugins__btn--update" onClick={() => updatePlugin(selected.name)} disabled={updating === selected.name}>
+                  {updating === selected.name ? 'Updating...' : 'Update'}
+                </button>
+              )}
+              <button className="plugins__btn plugins__btn--remove" onClick={() => setRemoveConfirm(selected.name)}>Remove</button>
+            </div>
           </div>
         )}
-
-        {message && <div className={`plugins__message plugins__message--${message.type}`}>{message.text}</div>}
-
-        {/* ── Installed Plugins ── */}
-        <div className="plugins__section">
-          <div className="plugins__section-header">
-            <h3 className="plugins__section-title">Installed Plugins</h3>
-            {!loading && <span className="plugins__section-count">{plugins.length}</span>}
-          </div>
-          {loading ? (
-            <LoadingState message="Loading plugins..." />
-          ) : plugins.length === 0 ? (
-            <div className="plugins__empty">No plugins installed yet.</div>
-          ) : (
-            <div className="plugins__grid">
-              {plugins.map(p => {
-                const upd = updates.find(u => u.name === p.name);
-                return (
-                  <div key={p.name} className="plugins__card">
-                    <div className="plugins__card-top">
-                      <div className="plugins__card-info">
-                        <div className="plugins__card-name">
-                          {p.displayName || p.name}
-                          <span className="plugins__card-version">v{p.version}</span>
-                          {upd && <span className="plugins__card-update-hint">&rarr; {/^\d/.test(upd.latestVersion) ? `v${upd.latestVersion}` : upd.latestVersion}</span>}
-                        </div>
-                        {p.description && <div className="plugins__card-desc">{p.description}</div>}
-                        <div className="plugins__provides">
-                          {p.hasBundle && <span className="plugins__cap plugins__cap--bundle">ui</span>}
-                          {p.workspace && <span className="plugins__cap plugins__cap--workspace">workspace:{p.workspace.slug}</span>}
-                          {p.agents?.map(a => <span key={a.slug} className="plugins__cap plugins__cap--agent">agent:{a.slug}</span>)}
-                          {p.providers?.map(pr => <span key={pr.type} className="plugins__cap plugins__cap--provider">provider:{pr.type}</span>)}
-                          {p.git && <span className="plugins__cap plugins__cap--ref">{p.git.branch}@{p.git.hash?.slice(0, 7)}</span>}
-                        </div>
-                      </div>
-                      <div className="plugins__card-actions">
-                        {upd && (
-                          <button className="plugins__btn plugins__btn--update" onClick={() => updatePlugin(p.name)} disabled={updating === p.name}>
-                            {updating === p.name ? '...' : 'Update'}
-                          </button>
-                        )}
-                        {p.permissions?.missing && p.permissions.missing.length > 0 && (
-                          <button className="plugins__btn plugins__btn--permissions" onClick={async () => {
-                            const approved = await requestConsent(p.name, p.displayName || p.name, p.permissions!.missing);
-                            if (approved) fetchPlugins();
-                          }}>
-                            Permissions ({p.permissions.missing.length})
-                          </button>
-                        )}
-                        <button className="plugins__btn plugins__btn--remove" onClick={() => setRemoveConfirm(p.name)}>Remove</button>
-                      </div>
-                    </div>
-                    {p.providers && p.providers.length > 0 && (
-                      <div className="plugins__providers">
-                        <button
-                          className="plugins__providers-toggle"
-                          onClick={() => {
-                            const next = new Set(expandedProviders);
-                            if (next.has(p.name)) next.delete(p.name);
-                            else { next.add(p.name); fetchProviderDetails(p.name); }
-                            setExpandedProviders(next);
-                          }}
-                        >
-                          <span style={{ transform: expandedProviders.has(p.name) ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}>▶</span>
-                          {' '}Providers ({p.providers.length})
-                        </button>
-                        {expandedProviders.has(p.name) && p.providerDetails && (
-                          <div className="plugins__providers-list">
-                            {p.providerDetails.map(pr => (
-                              <div key={pr.type} className="plugins__provider-row">
-                                <span className="plugins__cap plugins__cap--provider">{pr.type}</span>
-                                {pr.workspace && <span className="plugins__provider-scope">{pr.workspace}</span>}
-                                <label className="plugins__provider-toggle">
-                                  <input
-                                    type="checkbox"
-                                    checked={pr.enabled}
-                                    onChange={() => toggleProvider(p.name, pr.type, pr.enabled)}
-                                  />
-                                  {pr.enabled ? 'Enabled' : 'Disabled'}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      </SplitPaneLayout>
 
       {/* Folder Picker Modal */}
       {showFolderPicker && <FolderPickerModal apiBase={apiBase} onSelect={setInstallSource} onClose={() => setShowFolderPicker(false)} />}
@@ -524,8 +570,7 @@ export function PluginManagementView() {
                   return (
                     <div key={key} className="plugins__registry-item" style={{ opacity: skipped ? 0.5 : 1 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={!skipped}
                           onChange={() => {
                             const next = new Set(previewSkips);

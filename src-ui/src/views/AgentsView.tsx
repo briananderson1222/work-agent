@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useAIEnrich } from '../hooks/useAIEnrich';
+import { useUrlSelection } from '../hooks/useUrlSelection';
 import { ACPConnectionsSection } from '../components/ACPConnectionsSection';
 import { AgentIcon } from '../components/AgentIcon';
+import { Checkbox } from '../components/Checkbox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
@@ -28,9 +30,13 @@ interface AgentFormData {
   prompt: string;
   modelId: string;
   region: string;
-  guardrails: string;
+  guardrails: { maxTokens?: number; temperature?: number; topP?: number; maxSteps?: number } | null;
   maxSteps: string;
-  tools: string[];
+  tools: {
+    mcpServers: string[];
+    available: string[];
+    autoApprove: string[];
+  };
   icon: string;
 }
 
@@ -41,9 +47,9 @@ const EMPTY_FORM: AgentFormData = {
   prompt: '',
   modelId: '',
   region: '',
-  guardrails: '',
+  guardrails: null,
   maxSteps: '',
-  tools: [],
+  tools: { mcpServers: [], available: [], autoApprove: [] },
   icon: '',
 };
 
@@ -60,9 +66,13 @@ function formFromAgent(agent: any): AgentFormData {
     prompt: agent.prompt || '',
     modelId: typeof agent.model === 'string' ? agent.model : agent.model?.modelId || '',
     region: agent.region || '',
-    guardrails: agent.guardrails || '',
+    guardrails: typeof agent.guardrails === 'object' && agent.guardrails ? agent.guardrails : null,
     maxSteps: agent.maxSteps?.toString() || '',
-    tools: agent.tools || [],
+    tools: {
+      mcpServers: agent.toolsConfig?.mcpServers || [],
+      available: agent.toolsConfig?.available || [],
+      autoApprove: agent.toolsConfig?.autoApprove || [],
+    },
     icon: agent.icon || '',
   };
 }
@@ -76,6 +86,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   const appConfig = useConfig();
   const { createAgent, updateAgent, deleteAgent } = useAgentActions();
   const { enrich, isEnriching } = useAIEnrich();
+  const { selectedId: urlSlug, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/manage/agents');
 
   const { data: templates = [] } = useQuery({
     queryKey: ['templates', 'agent'],
@@ -86,8 +97,8 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
     },
   });
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const selectedSlug = urlSlug === 'new' ? null : urlSlug;
+  const [isCreating, setIsCreating] = useState(urlSlug === 'new');
   const [templatePicked, setTemplatePicked] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -95,8 +106,10 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   const [savedForm, setSavedForm] = useState<AgentFormData>(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [toolsConfig, setToolsConfig] = useState<any>(null);
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -129,7 +142,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
 
   async function loadTools() {
     try {
-      const res = await fetch(`${apiBase}/tools`);
+      const res = await fetch(`${apiBase}/integrations`);
       if (!res.ok) return;
       const data = await res.json();
       setAvailableTools(data.data || []);
@@ -148,6 +161,8 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
       const f = formFromAgent(agent);
       setForm(f);
       setSavedForm(f);
+      setToolsConfig(agent.toolsConfig || null);
+      setIsLocked(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -158,17 +173,17 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   useEffect(() => {
     loadTools();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadTools]);
+  }, [apiBase]);
 
   useEffect(() => {
     if (selectedSlug && !isCreating) {
       loadAgent(selectedSlug);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSlug, isCreating, loadAgent]);
+  }, [selectedSlug, isCreating]);
 
   function handleSelect(slug: string) {
-    setSelectedSlug(slug);
+    urlSelect(slug);
     setIsCreating(false);
     setError(null);
     setValidationErrors({});
@@ -176,7 +191,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   }
 
   function handleNew() {
-    setSelectedSlug('__new__');
+    urlSelect('new');
     setIsCreating(true);
     setTemplatePicked(agents.length === 0);
     setForm(EMPTY_FORM);
@@ -187,7 +202,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   }
 
   function handleDeselect() {
-    setSelectedSlug(null);
+    urlDeselect();
     setIsCreating(false);
     setError(null);
   }
@@ -217,13 +232,13 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
         region: form.region || undefined,
         guardrails: form.guardrails || undefined,
         maxSteps: form.maxSteps ? parseInt(form.maxSteps, 10) : undefined,
-        tools: form.tools.length > 0 ? { use: form.tools } : undefined,
+        tools: form.tools.mcpServers.length > 0 ? form.tools : undefined,
         icon: form.icon || undefined,
       };
       if (isCreating) {
         await createAgent(payload as any);
         setIsCreating(false);
-        setSelectedSlug(form.slug);
+        urlSelect(form.slug);
       } else {
         await updateAgent(selectedSlug!, payload);
         await loadAgent(selectedSlug!);
@@ -238,7 +253,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
   async function handleDelete() {
     try {
       await deleteAgent(selectedSlug!);
-      setSelectedSlug(null);
+      urlDeselect();
       setIsCreating(false);
       setShowDeleteModal(false);
     } catch (err: any) {
@@ -249,6 +264,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
 
   const dirty = isDirty(form, savedForm);
   const isPlugin = selectedSlug?.includes(':') && !isCreating;
+  const locked = !!(isPlugin && isLocked);
   const selectedAgent = allAgents.find(a => a.slug === selectedSlug);
 
   const editorId = isCreating ? '__new__' : (selectedSlug ?? null);
@@ -257,7 +273,6 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
     <div className="page page--full">
       <SplitPaneLayout
         label="manage / agents"
-        breadcrumbLinks={{ manage: () => onNavigate({ type: 'manage' }) }}
         title="Agents"
         subtitle="AI agents with custom prompts, models, and tools"
         items={listItems}
@@ -327,7 +342,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                   className="editor-btn editor-btn--primary"
                   style={{ position: 'relative' }}
                   onClick={handleSave}
-                  disabled={isSaving}
+                  disabled={isSaving || locked}
                 >
                   {dirty && !isSaving && (
                     <span className="agent-inline-editor__dirty-dot" aria-label="Unsaved changes" />
@@ -338,6 +353,14 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
             </div>
 
             {error && <div className="management-view__error" style={{ margin: '0 24px 0' }}>{error}</div>}
+
+            {/* Plugin lock banner */}
+            {isPlugin && isLocked && (
+              <div className="editor__lock-banner">
+                <span>🔒 This agent is managed by a plugin. Edits will be overwritten on plugin updates.</span>
+                <button type="button" className="editor__lock-btn" onClick={() => setIsLocked(false)}>Unlock</button>
+              </div>
+            )}
 
             <div className="agent-inline-editor__body">
               {isCreating && !templatePicked && agents.length > 0 ? (
@@ -381,6 +404,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                       }));
                     }}
                     placeholder="My Agent"
+                  disabled={locked}
                   />
                   {validationErrors.name && <span className="editor-error">{validationErrors.name}</span>}
                 </div>
@@ -414,6 +438,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                       value={form.icon}
                       onChange={e => setForm(f => ({ ...f, icon: e.target.value }))}
                       placeholder="Emoji (e.g. 🤖) or leave empty for initials"
+                      disabled={locked}
                     />
                   </div>
                 </div>
@@ -424,7 +449,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                     <button
                       type="button"
                       className="editor-enrich-btn"
-                      disabled={isEnriching || !form.name}
+                      disabled={isEnriching || !form.name || locked}
                       onClick={async () => {
                         const text = await enrich(`Write a brief one-sentence description for an AI agent named "${form.name}".`);
                         if (text) setForm(f => ({ ...f, description: text.trim() }));
@@ -440,6 +465,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                     value={form.description}
                     onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                     placeholder="A helpful agent for..."
+                  disabled={locked}
                   />
                 </div>
 
@@ -449,7 +475,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                     <button
                       type="button"
                       className="editor-enrich-btn"
-                      disabled={isEnriching || !form.name}
+                      disabled={isEnriching || !form.name || locked}
                       onClick={async () => {
                         const text = await enrich(`Write a system prompt for an AI agent named "${form.name}"${form.description ? ` that ${form.description}` : ''}. Be specific and actionable.`);
                         if (text) setForm(f => ({ ...f, prompt: text.trim() }));
@@ -464,6 +490,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                     value={form.prompt}
                     onChange={e => setForm(f => ({ ...f, prompt: e.target.value }))}
                     placeholder="You are a helpful assistant..."
+                  disabled={locked}
                   />
                 </div>
               </div>
@@ -484,12 +511,14 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                   <div className="agent-editor__advanced-content">
                     <div className="editor-field">
                       <label className="editor-label">Model <span className="editor-hint">— leave empty to use default</span></label>
-                      <ModelSelector
-                        value={form.modelId}
-                        onChange={modelId => setForm(f => ({ ...f, modelId }))}
-                        placeholder="Select a model..."
-                        defaultModel={appConfig?.defaultModel}
-                      />
+                      <div style={locked ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
+                        <ModelSelector
+                          value={form.modelId}
+                          onChange={modelId => setForm(f => ({ ...f, modelId }))}
+                          placeholder="Select a model..."
+                          defaultModel={appConfig?.defaultModel}
+                        />
+                      </div>
                     </div>
 
                     <div className="editor-field">
@@ -506,14 +535,28 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
 
                     <div className="editor-field">
                       <label className="editor-label" htmlFor="ae-guardrails">Guardrails</label>
-                      <input
-                        id="ae-guardrails"
-                        type="text"
-                        className="editor-input"
-                        value={form.guardrails}
-                        onChange={e => setForm(f => ({ ...f, guardrails: e.target.value }))}
-                        placeholder="Optional guardrail ID"
-                      />
+                      {form.guardrails ? (
+                        <div className="editor__guardrails-grid">
+                          <div className="editor__guardrails-item">
+                            <label className="editor-label">Temperature</label>
+                            <input type="number" className="editor-input" min="0" max="1" step="0.1"
+                              value={form.guardrails.temperature ?? ''}
+                              onChange={e => setForm(f => ({ ...f, guardrails: { ...f.guardrails!, temperature: e.target.value ? parseFloat(e.target.value) : undefined } }))}
+                              placeholder="0.7" disabled={isPlugin && isLocked} />
+                          </div>
+                          <div className="editor__guardrails-item">
+                            <label className="editor-label">Max Tokens</label>
+                            <input type="number" className="editor-input" min="1"
+                              value={form.guardrails.maxTokens ?? ''}
+                              onChange={e => setForm(f => ({ ...f, guardrails: { ...f.guardrails!, maxTokens: e.target.value ? parseInt(e.target.value) : undefined } }))}
+                              placeholder="4096" disabled={isPlugin && isLocked} />
+                          </div>
+                        </div>
+                      ) : (
+                        <button type="button" className="editor-btn editor-btn--secondary" onClick={() => setForm(f => ({ ...f, guardrails: { temperature: 0.7, maxTokens: 4096 } }))} disabled={isPlugin && isLocked}>
+                          + Add Guardrails
+                        </button>
+                      )}
                     </div>
 
                     <div className="editor-field">
@@ -521,40 +564,73 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
                       <input
                         id="ae-maxsteps"
                         type="number"
-                        min="1"
+                        min="0"
                         max="100"
                         className="editor-input"
                         value={form.maxSteps}
                         onChange={e => setForm(f => ({ ...f, maxSteps: e.target.value }))}
-                        placeholder={appConfig?.defaultMaxSteps?.toString() || '10'}
+                        placeholder="0 (unlimited)"
+                        disabled={isPlugin && isLocked}
                       />
                     </div>
 
-                    {availableTools.length > 0 && (
-                      <div className="editor-field">
-                        <label className="editor-label">Tools</label>
-                        <div className="tool-grid">
-                          {availableTools.map(tool => (
-                            <label key={tool.id} className="tool-checkbox">
-                              <input
-                                type="checkbox"
-                                checked={form.tools.includes(tool.id)}
-                                onChange={() => setForm(f => ({
-                                  ...f,
-                                  tools: f.tools.includes(tool.id)
-                                    ? f.tools.filter(id => id !== tool.id)
-                                    : [...f.tools, tool.id],
-                                }))}
-                              />
-                              <div className="tool-info">
-                                <span className="tool-name">{tool.toolName || tool.name}</span>
-                                {tool.description && <span className="tool-desc">{tool.description}</span>}
-                              </div>
-                            </label>
-                          ))}
-                        </div>
+                    {/* Integrations & Tools */}
+                    <div className="editor-field">
+                      <div className="editor-label-row">
+                        <label className="editor-label">Integrations</label>
+                        <button type="button" className="editor-enrich-btn" onClick={() => onNavigate({ type: 'integrations' })}>
+                          Manage Integrations →
+                        </button>
                       </div>
-                    )}
+                      {availableTools.length === 0 ? (
+                        <div className="editor__tools-empty">
+                          No integrations available. <button type="button" className="editor__tools-link" onClick={() => onNavigate({ type: 'integrations' })}>Install integrations</button> to get started.
+                        </div>
+                      ) : (() => {
+                        const enabledServers = new Set(form.tools.mcpServers);
+
+                        const toggleIntegration = (id: string) => {
+                          if (locked) return;
+                          setForm(f => {
+                            const servers = new Set(f.tools.mcpServers);
+                            const avail = [...f.tools.available];
+                            if (servers.has(id)) {
+                              servers.delete(id);
+                              return { ...f, tools: { ...f.tools, mcpServers: [...servers], available: avail.filter(p => !p.startsWith(`${id}_`)) } };
+                            } else {
+                              servers.add(id);
+                              avail.push(`${id}_*`);
+                              return { ...f, tools: { ...f.tools, mcpServers: [...servers], available: avail } };
+                            }
+                          });
+                        };
+
+                        const sorted = [...availableTools].sort((a, b) => {
+                          const aOn = enabledServers.has(a.id) ? 0 : 1;
+                          const bOn = enabledServers.has(b.id) ? 0 : 1;
+                          return aOn - bOn;
+                        });
+
+                        return (
+                          <div className="editor__tools-grouped">
+                            {sorted.map(integration => {
+                              const enabled = enabledServers.has(integration.id);
+                              const hasWildcard = form.tools.available.includes(`${integration.id}_*`);
+                              return (
+                                <div key={integration.id} className={`editor__tools-server${enabled ? '' : ' editor__tools-server--disabled'}`}>
+                                  <div className="editor__tools-server-header" onClick={() => toggleIntegration(integration.id)} style={{ cursor: locked ? 'default' : 'pointer' }}>
+                                    <Checkbox checked={enabled} onChange={() => {}} disabled={locked} />
+                                    <span className="editor__tools-server-name">{integration.displayName || integration.id}</span>
+                                    {enabled && hasWildcard && <span className="editor__tools-server-count">all tools</span>}
+                                    {enabled && !hasWildcard && <span className="editor__tools-server-count">selective</span>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 )}
               </div>

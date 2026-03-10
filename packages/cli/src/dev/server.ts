@@ -15,7 +15,7 @@ import { execSync } from 'node:child_process';
 import { extname, join } from 'node:path';
 import {
   buildPlugin,
-  resolvePluginTools,
+  resolvePluginIntegrations,
   type WorkspaceConfig,
   type ToolCallResponse,
 } from '@stallion-ai/shared';
@@ -149,7 +149,7 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
   if (useMCP && manifest.agents?.length) {
     (async () => {
       try {
-        const toolDefs = resolvePluginTools(CWD, toolsDir);
+        const toolDefs = resolvePluginIntegrations(CWD, toolsDir);
         if (toolDefs.size > 0) {
           mcpManager = new MCPManager({
             onStatus: (id, status, err) => {
