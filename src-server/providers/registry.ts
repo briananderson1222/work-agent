@@ -38,9 +38,9 @@ const additiveStore = new Map<string, ProviderEntry[]>();
 export function registerProvider(
   type: string,
   provider: any,
-  opts?: { workspace?: string; source?: string },
+  opts?: { layout?: string; source?: string },
 ): void {
-  const ws = opts?.workspace ?? '*';
+  const ws = opts?.layout ?? '*';
   const source = opts?.source ?? 'unknown';
   // For additive types, push to array
   if (type === 'onboarding' || type === 'agentRegistry' || type === 'integrationRegistry') {

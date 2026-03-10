@@ -17,7 +17,7 @@ export interface ResolvedEntry {
 
 export interface ProviderConflict {
   type: string;
-  workspace: string;
+  layout: string;
   candidates: string[];
 }
 
@@ -34,7 +34,7 @@ export function resolvePluginProviders(
   const conflicts: ProviderConflict[] = [];
 
   // Collect all provider entries from all plugins
-  const byType = new Map<string, Map<string, ResolvedEntry[]>>(); // type -> workspace -> entries
+  const byType = new Map<string, Map<string, ResolvedEntry[]>>(); // type -> layout -> entries
 
   if (!existsSync(pluginsDir)) return { resolved, conflicts };
 
@@ -86,7 +86,7 @@ export function resolvePluginProviders(
       } else {
         conflicts.push({
           type,
-          workspace: ws,
+          layout: ws,
           candidates: entries.map((e) => e.pluginName),
         });
       }

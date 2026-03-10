@@ -7,7 +7,7 @@
 
 // Provider metadata (from package.json stallionProvider field)
 export interface ProviderMetadata {
-  workspace: string; // layout slug, or '*' for global (kept as 'workspace' for SDK compat)
+  layout: string; // layout slug, or '*' for global
   type: string; // provider type (e.g., 'calendar', 'crm')
 }
 
@@ -32,7 +32,7 @@ export function registerProvider(
   metadata: ProviderMetadata,
   factory: () => any,
 ) {
-  const { workspace: layout, type } = metadata;
+  const { layout, type } = metadata;
 
   if (!registry.has(layout)) {
     registry.set(layout, new Map());

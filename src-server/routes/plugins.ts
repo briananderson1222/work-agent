@@ -962,7 +962,7 @@ async function loadProviders(
       else if (p.type === 'onboarding') registerOnboardingProvider(instance, manifest.displayName || pluginName);
       else if (p.type === 'branding') registerBrandingProvider(instance);
       else if (p.type === 'settings') registerSettingsProvider(instance);
-      else registerProvider(p.type, instance, { workspace: p.layout, source: pluginName });
+      else registerProvider(p.type, instance, { layout: p.layout, source: pluginName });
 
       loaded++;
     } catch (e: any) {
