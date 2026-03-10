@@ -274,7 +274,7 @@ export function LayoutView({
   }
 
   return (
-    <SDKAdapter workspace={workspace}>
+    <SDKAdapter layout={workspace}>
       <LayoutNavigationProvider
         activeTabId={activeTabId}
         workspaceSlug={workspace?.slug}
