@@ -7,6 +7,7 @@ import { EventEmitter } from 'node:events';
 import { createReadStream, existsSync } from 'node:fs';
 import { appendFile, mkdir, readdir, } from 'node:fs/promises';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { createInterface } from 'node:readline';
 import {
   Agent,
@@ -215,7 +216,7 @@ export class StallionRuntime {
   private framework!: VoltAgentFramework | StrandsFramework;
 
   constructor(options: StallionRuntimeOptions = {}) {
-    const projectHomeDir = options.projectHomeDir || '.stallion-ai';
+    const projectHomeDir = options.projectHomeDir || process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai');
     this.port = options.port || 3141;
     this.eventLogPath = `${projectHomeDir}/monitoring`;
 
