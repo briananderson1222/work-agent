@@ -150,10 +150,6 @@ export interface AppConfig {
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
   logLevel?: string;
-  meetingNotifications?: {
-    enabled?: boolean;
-    thresholds?: number[]; // Minutes before meeting to show notification
-  };
 }
 
 export interface TemplateVariable {

@@ -85,6 +85,7 @@ import { JsonManifestRegistryProvider } from '../providers/json-manifest-registr
 import {
   registerAgentRegistryProvider,
   registerIntegrationRegistryProvider,
+  listProviders,
 } from '../providers/registry.js';
 import { createAgentRoutes } from '../routes/agents.js';
 import { createAnalyticsRoutes } from '../routes/analytics.js';
@@ -98,6 +99,9 @@ import { createPluginRoutes } from '../routes/plugins.js';
 import { createRegistryRoutes } from '../routes/registry.js';
 import { createFsRoutes } from '../routes/fs.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
+import { createNotificationRoutes } from '../routes/notifications.js';
+import { NotificationService } from '../services/notification-service.js';
+import { getNotificationProviders } from '../providers/registry.js';
 import { createPromptRoutes } from '../routes/prompts.js';
 import { PromptService } from '../services/prompt-service.js';
 import { createSystemRoutes } from '../routes/system.js';
@@ -532,7 +536,17 @@ export class StallionRuntime {
     this.configLoader
       .loadACPConfig()
       .then((acpConfig: any) => {
-        return this.acpBridge.startAll(acpConfig.connections);
+        // Merge connections from acpConnections providers (e.g. aws-internal plugin)
+        const providerEntries = listProviders('acpConnections');
+        const providerConns = providerEntries.flatMap((e: any) =>
+          (e.provider.getConnections?.() || []),
+        );
+        const configIds = new Set(acpConfig.connections.map((c: any) => c.id));
+        const merged = [
+          ...acpConfig.connections,
+          ...providerConns.filter((c: any) => !configIds.has(c.id)),
+        ];
+        return this.acpBridge.startAll(merged);
       })
       .then(() => {
         if (this.acpBridge.isConnected()) {
@@ -844,8 +858,18 @@ export class StallionRuntime {
     // ACP connection CRUD
     app.get('/acp/connections', async (c) => {
       const config = await this.configLoader.loadACPConfig();
+      // Merge connections from acpConnections providers (e.g. plugins)
+      const providerEntries = listProviders('acpConnections');
+      const providerConns = providerEntries.flatMap((e: any) =>
+        (e.provider.getConnections?.() || []).map((conn: any) => ({ ...conn, source: 'plugin' as const })),
+      );
+      const configIds = new Set(config.connections.map((c) => c.id));
+      const allConnections = [
+        ...config.connections,
+        ...providerConns.filter((c: any) => !configIds.has(c.id)),
+      ];
       const status = this.acpBridge.getStatus();
-      const connections = config.connections.map((cfg) => ({
+      const connections = allConnections.map((cfg) => ({
         ...cfg,
         ...(status.connections.find((s) => s.id === cfg.id) || {
           status: 'disconnected',
@@ -1125,6 +1149,13 @@ export class StallionRuntime {
       '/scheduler',
       createSchedulerRoutes(schedulerService, this.logger),
     );
+    // Notification service
+    const notificationService = new NotificationService(this.eventBus, join(homedir(), '.stallion-ai'), 60_000);
+    for (const { provider } of getNotificationProviders()) {
+      notificationService.addProvider(provider);
+    }
+    notificationService.start();
+    app.route('/notifications', createNotificationRoutes(notificationService));
     app.route('/api/prompts', createPromptRoutes(new PromptService(), this.logger));
 
     // Agent health check (agent-specific, not in monitoring routes)

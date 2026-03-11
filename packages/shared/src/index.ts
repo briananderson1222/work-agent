@@ -391,6 +391,8 @@ export enum AgentSwitchState {
 // ── Provider Interfaces ────────────────────────────────────────────
 // Contracts that plugins implement when providing auth, user, registry, etc.
 
+export type { Notification, NotificationAction, NotificationPriority, NotificationStatus, ScheduleNotificationOpts } from './notifications.js';
+
 export interface RegistryItem {
   id: string;
   displayName?: string;

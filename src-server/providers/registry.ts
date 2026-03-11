@@ -43,7 +43,7 @@ export function registerProvider(
   const ws = opts?.layout ?? '*';
   const source = opts?.source ?? 'unknown';
   // For additive types, push to array
-  if (type === 'onboarding' || type === 'agentRegistry' || type === 'integrationRegistry') {
+  if (type === 'onboarding' || type === 'agentRegistry' || type === 'integrationRegistry' || type === 'notification') {
     if (!additiveStore.has(type)) additiveStore.set(type, []);
     additiveStore.get(type)!.push({ provider, source });
     return;
@@ -162,4 +162,19 @@ export function registerSettingsProvider(provider: ISettingsProvider) {
 
 export function getSettingsProvider(): ISettingsProvider {
   return getProvider<ISettingsProvider>('settings') ?? new DefaultSettingsProvider();
+}
+
+// ── Notification ────────────────────────────────────────
+
+import type { INotificationProvider } from './types.js';
+
+export function registerNotificationProvider(
+  provider: INotificationProvider,
+  source = 'Core',
+): void {
+  registerProvider('notification', provider, { source });
+}
+
+export function getNotificationProviders(): { provider: INotificationProvider; source: string }[] {
+  return listProviders('notification') as { provider: INotificationProvider; source: string }[];
 }

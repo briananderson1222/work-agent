@@ -22,7 +22,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import type { NavigationView, DockMode } from './types';
 import { GlobalVoiceButton } from './components/GlobalVoiceButton';
-import { useMobileSettings } from './hooks/useMobileSettings';
+import { useFeatureSettings } from './hooks/useFeatureSettings';
 import { setDockModeOverride } from './hooks/useDockModePreference';
 import { MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
@@ -73,7 +73,7 @@ function App() {
   const [globalError, _setGlobalError] = useState<string | null>(null);
   const [managementNotice, setManagementNotice] = useState<string | null>(null);
   useWorkflows(API_BASE);
-  const { settings: featureSettings } = useMobileSettings();
+  const { settings: featureSettings } = useFeatureSettings();
   const [showShortcutsCheatsheet, setShowShortcutsCheatsheet] = useState(false);
   useExternalAuth();
   const { data: systemStatus } = useSystemStatus();

@@ -6,8 +6,22 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { toastStore } from '../contexts/ToastContext';
 
 type EventHandler = (data: Record<string, unknown>) => void;
+
+/** Handlers that receive event data (for side-effects beyond query invalidation) */
+const DATA_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
+  'notification:delivered': (data) => {
+    const title = data.title as string | undefined;
+    if (title) {
+      const body = data.body as string | undefined;
+      const ttl = typeof data.ttl === 'number' ? data.ttl : 8000;
+      const metadata = data.metadata as Record<string, unknown> | undefined;
+      toastStore.show(title + (body ? ` — ${body}` : ''), undefined, ttl, undefined, metadata);
+    }
+  },
+};
 
 const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
   'agents:changed': (qc) =>
@@ -43,6 +57,14 @@ const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
   'plugins:updates-available': (qc) => {
     qc.invalidateQueries({ queryKey: ['plugin-updates'] });
   },
+  'notification:delivered': (qc) =>
+    qc.invalidateQueries({ queryKey: ['notifications'] }),
+  'notification:dismissed': (qc) =>
+    qc.invalidateQueries({ queryKey: ['notifications'] }),
+  'notification:updated': (qc) =>
+    qc.invalidateQueries({ queryKey: ['notifications'] }),
+  'notification:cleared': (qc) =>
+    qc.invalidateQueries({ queryKey: ['notifications'] }),
 };
 
 export function useServerEvents(handlers?: Record<string, EventHandler>) {
@@ -61,8 +83,12 @@ export function useServerEvents(handlers?: Record<string, EventHandler>) {
 
       // Register built-in handlers
       for (const event of Object.keys(EVENT_HANDLERS)) {
-        es.addEventListener(event, () => {
+        es.addEventListener(event, (e: MessageEvent) => {
           EVENT_HANDLERS[event](queryClient);
+          // Also run data handler if one exists for this event
+          if (DATA_HANDLERS[event]) {
+            try { DATA_HANDLERS[event](JSON.parse(e.data)); } catch { /* ignore parse errors */ }
+          }
         });
       }
 

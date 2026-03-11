@@ -28,6 +28,7 @@ import type {
   UserIdentity,
   UserDetailVM,
   Prerequisite,
+  ScheduleNotificationOpts,
 } from '@stallion-ai/shared';
 
 // ── Provider Interfaces (server-only, not in shared) ───
@@ -157,6 +158,17 @@ export interface ISchedulerProvider {
   getStatus(): Promise<SchedulerProviderStatus>;
   previewSchedule?(cron: string, count?: number): Promise<string[]>;
   subscribe?(send: (data: string) => void): () => void;
+}
+
+// ── Notification Provider ──────────────────────────────
+
+export interface INotificationProvider {
+  readonly id: string;
+  readonly displayName: string;
+  readonly categories: string[];
+  poll?(): Promise<ScheduleNotificationOpts[]>;
+  handleAction?(notificationId: string, actionId: string): Promise<void>;
+  handleDismiss?(notificationId: string): Promise<void>;
 }
 
 // ── LLM Provider ───────────────────────────────────────
@@ -321,4 +333,5 @@ export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
   embeddingProvider: 'additive',
   vectorDbProvider: 'additive',
   layoutType: 'additive',
+  notification: 'additive',
 };

@@ -202,8 +202,11 @@ export function useToast() {
 // Generic Notification System
 export function useNotifications() {
   const toast = useToast();
+  const sdk = useContext(SDKContext);
+  const apiBase = sdk?.apiBase ?? '';
 
   return {
+    /** Show an immediate toast notification (backward compat) */
     notify: (
       message: string,
       options?: {
@@ -212,6 +215,30 @@ export function useNotifications() {
       },
     ) => {
       toast.showToast(message, options?.type || 'info', options?.duration);
+    },
+    /** Schedule a notification via the server */
+    schedule: async (opts: {
+      category: string;
+      title: string;
+      body?: string;
+      priority?: 'low' | 'normal' | 'high' | 'urgent';
+      scheduledAt?: string;
+      ttl?: number;
+      actions?: Array<{ id: string; label: string; variant?: 'primary' | 'secondary' | 'danger' }>;
+      metadata?: Record<string, unknown>;
+      dedupeTag?: string;
+    }) => {
+      const res = await fetch(`${apiBase}/api/notifications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'sdk', ...opts }),
+      });
+      if (!res.ok) throw new Error(`Failed to schedule notification: ${res.statusText}`);
+      return res.json();
+    },
+    /** Dismiss a notification */
+    dismiss: async (id: string) => {
+      await fetch(`${apiBase}/api/notifications/${id}`, { method: 'DELETE' });
     },
   };
 }

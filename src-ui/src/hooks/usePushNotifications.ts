@@ -1,17 +1,17 @@
 /**
- * useApprovalNotifications — Web Push notifications for tool-approval requests.
+ * usePushNotifications — Web Push subscription lifecycle management.
  *
- * When an agent needs approval for a dangerous tool call and the app is in the
- * background (or screen is off on mobile), a push notification is sent with
- * [Allow] / [Deny] action buttons so the user can approve without opening the app.
+ * Handles registering the service worker, subscribing to Web Push, and
+ * unsubscribing. Generic — works for any notification category (tool approvals,
+ * high-priority alerts, etc.). The service worker (public/sw.js) handles
+ * rendering and action routing per payload type.
  *
  * Architecture:
  *   1. Client subscribes to Web Push (this hook).
  *   2. Subscription is POSTed to /api/system/push-subscribe on the server.
- *   3. Server sends push messages when a tool needs approval.
- *   4. Service worker (public/sw.js) receives the push and shows a notification
- *      with action buttons.
- *   5. When the user taps an action, sw.js calls /api/tools/approve.
+ *   3. Server sends push messages via the NotificationService.
+ *   4. Service worker (public/sw.js) receives the push and shows a notification.
+ *   5. When the user taps an action, sw.js routes to the appropriate endpoint.
  *
  * Requires:
  *   - VAPID public key on the server (GET /api/system/vapid-public-key)
@@ -22,12 +22,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 type NotificationPermission = 'default' | 'denied' | 'granted';
 
-interface UseApprovalNotificationsOptions {
+interface UsePushNotificationsOptions {
   enabled: boolean;
   apiBase: string;
 }
 
-export interface UseApprovalNotificationsResult {
+export interface UsePushNotificationsResult {
   supported: boolean;
   permission: NotificationPermission;
   subscribed: boolean;
@@ -45,10 +45,10 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
-export function useApprovalNotifications({
+export function usePushNotifications({
   enabled,
   apiBase,
-}: UseApprovalNotificationsOptions): UseApprovalNotificationsResult {
+}: UsePushNotificationsOptions): UsePushNotificationsResult {
   const [supported] = useState(
     () => 'serviceWorker' in navigator && 'PushManager' in window,
   );

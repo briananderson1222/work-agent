@@ -142,6 +142,7 @@ export {
 // Re-export query factories (for imperative fetching in commands)
 export { agentQueries } from './queryFactories';
 export * from './types';
+export { NotificationsAPI } from './notifications/index.js';
 
 // Re-export layout utilities
 export { createLayoutContext } from './layout/context';

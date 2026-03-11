@@ -23,6 +23,8 @@ type Toast = {
   conversationTitle?: string;
   actions?: ToastAction[];
   onNavigate?: () => void;
+  /** Opaque metadata from server-side notifications (e.g. navigateTo for cross-project routing) */
+  metadata?: Record<string, unknown>;
 };
 
 class ToastStore {
@@ -63,9 +65,9 @@ class ToastStore {
     this.historyListeners.forEach((listener) => listener());
   };
 
-  show(message: string, sessionId?: string, duration = 5000, actions?: ToastAction[]) {
+  show(message: string, sessionId?: string, duration = 5000, actions?: ToastAction[], metadata?: Record<string, unknown>) {
     const id = `${Date.now()}-${Math.random()}`;
-    const toast: Toast = { id, message, sessionId, duration, type: 'info', actions };
+    const toast: Toast = { id, message, sessionId, duration, type: 'info', actions, metadata };
 
     this.toasts.push(toast);
     this.history.unshift({ ...toast, timestamp: Date.now(), dismissed: false });
@@ -253,151 +255,3 @@ export function useNotificationHistory() {
   );
 }
 
-// Toast display component
-export function ToastContainer() {
-  const toasts = useToasts();
-  const { dismissToast } = useToast();
-
-  if (toasts.length === 0) return null;
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: '20px',
-        right: '20px',
-        zIndex: 10000,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-        pointerEvents: 'none',
-      }}
-    >
-      {toasts.map((toast) => {
-        if (toast.type === 'tool-approval') {
-          return (
-            <div
-              key={toast.id}
-              style={{
-                padding: '16px',
-                background: 'var(--bg-primary)',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                color: 'var(--text-primary)',
-                pointerEvents: 'auto',
-                minWidth: '320px',
-                maxWidth: '400px',
-              }}
-            >
-              <div
-                style={{
-                  cursor: toast.onNavigate ? 'pointer' : 'default',
-                  marginBottom: '12px',
-                }}
-                onClick={toast.onNavigate}
-                onMouseEnter={(e) => {
-                  if (toast.onNavigate) {
-                    e.currentTarget.style.opacity = '0.8';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '1';
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    marginBottom: '4px',
-                  }}
-                >
-                  Tool Approval Required
-                </div>
-                <div
-                  style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
-                >
-                  {toast.message}
-                </div>
-                {toast.onNavigate && (
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      color: 'var(--color-primary)',
-                      marginTop: '4px',
-                      textDecoration: 'underline',
-                    }}
-                  >
-                    Click to view chat
-                  </div>
-                )}
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '8px',
-                  justifyContent: 'flex-end',
-                }}
-              >
-                {toast.actions?.map((action, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      action.onClick();
-                      dismissToast(toast.id);
-                    }}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '13px',
-                      borderRadius: '4px',
-                      border:
-                        action.variant === 'primary'
-                          ? 'none'
-                          : '1px solid var(--border-primary)',
-                      background:
-                        action.variant === 'primary'
-                          ? 'var(--accent-primary)'
-                          : action.variant === 'danger'
-                            ? 'var(--error-bg)'
-                            : 'transparent',
-                      color:
-                        action.variant === 'primary'
-                          ? 'white'
-                          : action.variant === 'danger'
-                            ? 'var(--error-text)'
-                            : 'var(--text-primary)',
-                      cursor: 'pointer',
-                      fontWeight: action.variant === 'primary' ? 500 : 400,
-                    }}
-                  >
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        return (
-          <div
-            key={toast.id}
-            style={{
-              padding: '12px 20px',
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '6px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              color: 'var(--text-primary)',
-              pointerEvents: 'auto',
-              cursor: 'pointer',
-              minWidth: '200px',
-            }}
-            onClick={() => dismissToast(toast.id)}
-          >
-            {toast.message}
-          </div>
-        );
-      })}
-    </div>
-  );
-}

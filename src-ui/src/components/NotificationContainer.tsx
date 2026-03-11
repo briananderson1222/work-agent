@@ -1,4 +1,5 @@
 import { useAllActiveChats } from '../contexts/ActiveChatsContext';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useNotificationHistory, useToast } from '../contexts/ToastContext';
 
 function formatTimestamp(timestamp: number): string {
@@ -20,9 +21,20 @@ export function NotificationContainer() {
   const history = useNotificationHistory();
   const { dismissToast } = useToast();
   const activeChats = useAllActiveChats();
+  const { setProject, setLayout } = useNavigation();
 
   // Only show notifications that haven't been dismissed
   const activeNotifications = history.filter((n) => !n.dismissed);
+
+  const handleNavigateTo = (metadata: Record<string, unknown>, toastId: string) => {
+    const nav = metadata.navigateTo as { project?: string; layout?: string } | undefined;
+    if (!nav) return;
+    if (nav.project) {
+      setProject(nav.project);
+      if (nav.layout) setLayout(nav.project, nav.layout);
+    }
+    dismissToast(toastId);
+  };
 
   // Get keyboard shortcut for a session
   const getSessionShortcut = (sessionId: string | undefined): string | null => {
@@ -209,6 +221,26 @@ export function NotificationContainer() {
                   {action.label}
                 </button>
               ))}
+            </div>
+          )}
+
+          {notification.metadata?.navigateTo != null && (
+            <div style={{ display: 'flex', gap: '8px', marginTop: notification.actions?.length ? '8px' : '12px' }}>
+              <button
+                onClick={() => handleNavigateTo(notification.metadata!, notification.id)}
+                style={{
+                  padding: '8px 16px',
+                  background: 'var(--accent-primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                }}
+              >
+                View
+              </button>
             </div>
           )}
         </div>

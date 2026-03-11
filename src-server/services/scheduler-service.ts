@@ -13,10 +13,12 @@ import type {
   AddJobOpts,
 } from '../providers/types.js';
 import { BuiltinScheduler, nextCronTimes, type ChatFn } from './builtin-scheduler.js';
+import { SSEBroadcaster } from './sse-broadcaster.js';
+import { schedulerJobRuns, schedulerJobDuration } from '../telemetry/metrics.js';
 
 export class SchedulerService {
   private providers = new Map<string, ISchedulerProvider>();
-  private sseClients = new Set<(data: string) => void>();
+  private sse = new SSEBroadcaster();
   private builtin: BuiltinScheduler;
 
   constructor(_logger: any) {
@@ -111,7 +113,17 @@ export class SchedulerService {
 
   async runJob(target: string): Promise<string> {
     const p = await this.findJobProvider(target);
-    return p.runJob(target);
+    const start = Date.now();
+    try {
+      const result = await p.runJob(target);
+      schedulerJobRuns.add(1, { job: target, status: 'success' });
+      schedulerJobDuration.record(Date.now() - start, { job: target });
+      return result;
+    } catch (e) {
+      schedulerJobRuns.add(1, { job: target, status: 'error' });
+      schedulerJobDuration.record(Date.now() - start, { job: target });
+      throw e;
+    }
   }
 
   async enableJob(target: string): Promise<void> {
@@ -149,18 +161,15 @@ export class SchedulerService {
   // ── SSE ──
 
   subscribe(send: (data: string) => void): () => void {
-    this.sseClients.add(send);
+    const localUnsub = this.sse.subscribe(send);
     const unsubs = [...this.providers.values()].map((p) => p.subscribe?.(send)).filter(Boolean) as (() => void)[];
     return () => {
-      this.sseClients.delete(send);
+      localUnsub();
       unsubs.forEach((u) => u());
     };
   }
 
   broadcast(event: Record<string, unknown>) {
-    const data = JSON.stringify(event);
-    for (const send of this.sseClients) {
-      try { send(data); } catch { this.sseClients.delete(send); }
-    }
+    this.sse.broadcast(event);
   }
 }
