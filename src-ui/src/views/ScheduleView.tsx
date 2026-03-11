@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LoadingState } from '@stallion-ai/sdk';
 import { createPortal } from 'react-dom';
 import { useNavigation } from '../contexts/NavigationContext';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -826,7 +827,7 @@ export function ScheduleView() {
       </div>
 
       {isLoading && loadingStats && loadingStatus ? (
-        <div className="schedule__loading">Loading scheduler...</div>
+        <LoadingState message="Loading scheduler..." />
       ) : (
         <>
           {/* Stats */}
@@ -881,7 +882,7 @@ export function ScheduleView() {
             </div>
 
             {isLoading ? (
-              <div className="schedule__loading">Loading jobs...</div>
+              <LoadingState message="Loading jobs..." />
             ) : sortedJobs.length === 0 ? (
               <div className="schedule__empty">
                 {filterText ? (

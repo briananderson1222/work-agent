@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useSyntaxHighlighter, langFromFilePath } from '../contexts/SyntaxHighlighterContext';
 import { useDockModePreference } from '../hooks/useDockModePreference';
@@ -91,22 +92,17 @@ function FileTreePanel({
   onFileSelect: (path: string) => void;
 }) {
   const { apiBase } = useApiBase();
-  const [tree, setTree] = useState<FileEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!workingDir) { setLoading(false); return; }
-    setLoading(true);
-    fetch(`${apiBase}/api/coding/files?path=${encodeURIComponent(workingDir)}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) setTree(json.data ?? []);
-        else setError(json.error ?? 'Failed to load files');
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [apiBase, workingDir]);
+  const { data: tree = [], isLoading: loading, error: queryError } = useQuery<FileEntry[]>({
+    queryKey: ['coding-files', workingDir],
+    queryFn: async () => {
+      const r = await fetch(`${apiBase}/api/coding/files?path=${encodeURIComponent(workingDir)}`);
+      const json = await r.json();
+      if (!json.success) throw new Error(json.error ?? 'Failed to load files');
+      return json.data ?? [];
+    },
+    enabled: !!workingDir,
+  });
+  const error = queryError?.message || null;
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '8px 0' }}>
@@ -131,22 +127,17 @@ function FileTreePanel({
 
 function DiffPanel({ workingDir }: { workingDir: string }) {
   const { apiBase } = useApiBase();
-  const [diff, setDiff] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!workingDir) { setLoading(false); return; }
-    setLoading(true);
-    fetch(`${apiBase}/api/coding/git/diff?path=${encodeURIComponent(workingDir)}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) setDiff(json.data?.diff ?? json.data ?? '');
-        else setError(json.error ?? 'Failed to load diff');
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [apiBase, workingDir]);
+  const { data: diff = '', isLoading: loading, error: queryError } = useQuery<string>({
+    queryKey: ['coding-diff', workingDir],
+    queryFn: async () => {
+      const r = await fetch(`${apiBase}/api/coding/git/diff?path=${encodeURIComponent(workingDir)}`);
+      const json = await r.json();
+      if (!json.success) throw new Error(json.error ?? 'Failed to load diff');
+      return json.data?.diff ?? json.data ?? '';
+    },
+    enabled: !!workingDir,
+  });
+  const error = queryError?.message || null;
 
   const renderDiff = (text: string) => {
     if (!text) return <div style={{ padding: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>No changes</div>;

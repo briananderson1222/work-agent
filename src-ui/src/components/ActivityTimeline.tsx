@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 interface DailyStats {
@@ -32,28 +33,20 @@ export function ActivityTimeline() {
     fmt(new Date(Date.now() - 13 * 86400000)),
   );
   const [toDate, setToDate] = useState(() => fmt(new Date()));
-  const [data, setData] = useState<{
+  const [hoverDate, setHoverDate] = useState<string | null>(null);
+
+  const { data, isLoading: loading } = useQuery<{
     byDate: Record<string, DailyStats>;
     lifetime: any;
     rangeSummary?: any;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [hoverDate, setHoverDate] = useState<string | null>(null);
-
-  const fetchData = useCallback((from: string, to: string) => {
-    setLoading(true);
-    fetch(`${apiBase}/api/analytics/usage?from=${from}&to=${to}`)
-      .then((r) => r.json())
-      .then((d) => setData(d.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [apiBase]);
-
-  useEffect(() => {
-    fetchData(fromDate, toDate);
-  }, [fetchData, fromDate, toDate]);
-
-  const handleSearch = () => fetchData(fromDate, toDate);
+  }>({
+    queryKey: ['analytics-usage', fromDate, toDate],
+    queryFn: async () => {
+      const r = await fetch(`${apiBase}/api/analytics/usage?from=${fromDate}&to=${toDate}`);
+      const d = await r.json();
+      return d.data;
+    },
+  });
 
   if (loading && !data)
     return (
@@ -127,7 +120,6 @@ export function ActivityTimeline() {
           style={inputStyle}
         />
         <button
-          onClick={handleSearch}
           style={{
             padding: '0.3rem 0.75rem',
             fontSize: '0.8rem',

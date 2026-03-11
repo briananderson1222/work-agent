@@ -9,6 +9,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useAgentActions, useAgents, type AgentData } from '../contexts/AgentsContext';
+import { useAgentsQuery } from '@stallion-ai/sdk';
 import { useConfig } from '../contexts/ConfigContext';
 import type { AgentSummary, NavigationView, Tool } from '../types';
 import './editor-layout.css';
@@ -83,6 +84,7 @@ function isDirty(form: AgentFormData, saved: AgentFormData): boolean {
 
 export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: AgentsViewProps) {
   const liveAgents = useAgents();
+  const { isLoading: agentsLoading } = useAgentsQuery();
   const appConfig = useConfig();
   const { createAgent, updateAgent, deleteAgent } = useAgentActions();
   const { enrich, isEnriching } = useAIEnrich();
@@ -276,6 +278,7 @@ export function AgentsView({ agents, apiBase, bedrockReady, onNavigate }: Agents
         title="Agents"
         subtitle="AI agents with custom prompts, models, and tools"
         items={listItems}
+        loading={agentsLoading}
         selectedId={editorId}
         onSelect={handleSelect}
         onDeselect={handleDeselect}

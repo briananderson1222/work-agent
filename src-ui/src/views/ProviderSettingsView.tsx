@@ -43,7 +43,7 @@ export function ProviderSettingsView({ selectedProviderId, onNavigate }: Props) 
   const [testError, setTestError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: providers = [] } = useQuery<ProviderConnection[]>({
+  const { data: providers = [], isLoading } = useQuery<ProviderConnection[]>({
     queryKey: ['providers'],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/api/providers`);
@@ -303,6 +303,7 @@ export function ProviderSettingsView({ selectedProviderId, onNavigate }: Props) 
       title="Provider Connections"
       subtitle="Manage LLM, embedding, and vector store providers"
       items={items}
+      loading={isLoading}
       selectedId={selectedProviderId ?? null}
       onSelect={handleSelect}
       onDeselect={() => onNavigate({ type: 'providers' })}

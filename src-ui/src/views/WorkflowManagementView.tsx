@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { LoadingState } from '@stallion-ai/sdk';
 import { ConfirmModal } from '../components/ConfirmModal';
 import type { WorkflowFile } from '../types';
 
@@ -33,43 +35,31 @@ export function WorkflowManagementView({
   agentName,
   onBack,
 }: WorkflowManagementViewProps) {
+  const qc = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [workflows, setWorkflows] = useState<WorkflowFile[]>([]);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowFile | null>(
     null,
   );
   const [editorContent, setEditorContent] = useState('');
   const [newWorkflowName, setNewWorkflowName] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [contentLoading, setContentLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
 
-  async function loadWorkflows() {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(
-        `${apiBase}/agents/${agentSlug}/workflows/files`,
-      );
-      if (!response.ok) throw new Error('Failed to load workflows');
-      const data = await response.json();
-      setWorkflows(data.data || []);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadWorkflows();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadWorkflows]);
+  const { data: workflows = [], isLoading } = useQuery<WorkflowFile[]>({
+    queryKey: ['workflows', agentSlug],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/agents/${agentSlug}/workflows/files`);
+      if (!res.ok) throw new Error('Failed to load workflows');
+      const data = await res.json();
+      return data.data || [];
+    },
+  });
 
   const loadWorkflowContent = async (workflowId: string) => {
     try {
-      setIsLoading(true);
+      setContentLoading(true);
       setError(null);
       const response = await fetch(
         `${apiBase}/agents/${agentSlug}/workflows/${workflowId}`,
@@ -83,7 +73,7 @@ export function WorkflowManagementView({
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setIsLoading(false);
+      setContentLoading(false);
     }
   };
 
@@ -128,7 +118,7 @@ export function WorkflowManagementView({
         }
       }
 
-      await loadWorkflows();
+      qc.invalidateQueries({ queryKey: ['workflows', agentSlug] });
       setViewMode('list');
       setCurrentWorkflow(null);
       setEditorContent('');
@@ -155,7 +145,7 @@ export function WorkflowManagementView({
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete workflow');
       }
-      await loadWorkflows();
+      qc.invalidateQueries({ queryKey: ['workflows', agentSlug] });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -195,7 +185,7 @@ export function WorkflowManagementView({
           </button>
           <h2>Manage Workflows: {agentName}</h2>
         </div>
-        <div className="management-view__loading">Loading workflows...</div>
+        <LoadingState message="Loading workflows..." />
       </div>
     );
   }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { LoadingState } from '@stallion-ai/sdk';
 import { useNavigation } from '../contexts/NavigationContext';
 import './SplitPaneLayout.css';
 
@@ -21,6 +22,8 @@ interface SplitPaneLayoutProps {
   addLabel?: string;
   /** Extra actions rendered next to the Add button in the sidebar footer */
   sidebarActions?: React.ReactNode;
+  /** Show loading spinner in list panel instead of items */
+  loading?: boolean;
   // Right panel
   children: React.ReactNode;
   emptyIcon?: string;
@@ -46,6 +49,7 @@ export function SplitPaneLayout({
   onAdd,
   addLabel = '+ New',
   sidebarActions,
+  loading,
   children,
   emptyIcon = '⬡',
   emptyTitle = 'Nothing selected',
@@ -89,7 +93,10 @@ export function SplitPaneLayout({
         </div>
 
         <div className="split-pane__list">
-          {items.map(item => (
+          {loading ? (
+            <LoadingState message="Loading..." />
+          ) : (
+            items.map(item => (
             <div
               key={item.id}
               className={`split-pane__item${selectedId === item.id ? ' split-pane__item--selected' : ''}`}
@@ -105,7 +112,8 @@ export function SplitPaneLayout({
                 )}
               </div>
             </div>
-          ))}
+          ))
+          )}
         </div>
 
         {(onAdd || sidebarActions) && (

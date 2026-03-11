@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoadingState } from '@stallion-ai/sdk';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -124,8 +125,15 @@ function RegistryModal({ apiBase, onClose }: { apiBase: string; onClose: () => v
 /* ── Integrations View ── */
 export function IntegrationsView() {
   const { apiBase } = useApiBase();
-  const [integrations, setIntegrations] = useState<IntegrationDef[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data: integrations = [], isLoading } = useQuery<IntegrationDef[]>({
+    queryKey: ['integrations'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/integrations`);
+      const data = await res.json();
+      return data.success ? data.data || [] : [];
+    },
+  });
   const [showRegistry, setShowRegistry] = useState(false);
   const [hasRegistry, setHasRegistry] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -135,14 +143,6 @@ export function IntegrationsView() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
 
-  const fetchIntegrations = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiBase}/integrations`);
-      const data = await res.json();
-      setIntegrations(data.success ? data.data || [] : []);
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
-  }, [apiBase]);
 
   useEffect(() => {
     fetch(`${apiBase}/api/registry/integrations`)
@@ -150,8 +150,6 @@ export function IntegrationsView() {
       .then(d => setHasRegistry(d.success && d.data?.length > 0))
       .catch(() => {});
   }, [apiBase]);
-
-  useEffect(() => { fetchIntegrations(); }, [fetchIntegrations]);
 
   // Load full detail when selected
   useEffect(() => {
@@ -175,7 +173,7 @@ export function IntegrationsView() {
       const data = await res.json();
       if (data.success) {
         setMessage({ type: 'success', text: 'Saved' });
-        fetchIntegrations();
+        qc.invalidateQueries({ queryKey: ['integrations'] });
         if (isNew) select(editForm.id);
       } else {
         setMessage({ type: 'error', text: data.error || 'Save failed' });
@@ -191,7 +189,7 @@ export function IntegrationsView() {
       await fetch(`${apiBase}/integrations/${encodeURIComponent(selectedId)}`, { method: 'DELETE' });
       deselect();
       setEditForm(null);
-      fetchIntegrations();
+      qc.invalidateQueries({ queryKey: ['integrations'] });
     } catch (e: any) { setMessage({ type: 'error', text: e.message }); }
   };
 
@@ -216,7 +214,8 @@ export function IntegrationsView() {
         label="integrations"
         title="Integrations"
         subtitle="MCP server connections"
-        items={loading ? [] : items}
+        items={items}
+        loading={isLoading}
         selectedId={selectedId}
         onSelect={(id) => { select(id); setMessage(null); setIsLocked(true); }}
         onDeselect={() => { deselect(); setEditForm(null); }}
@@ -307,7 +306,7 @@ export function IntegrationsView() {
         )}
       </SplitPaneLayout>
 
-      {showRegistry && <RegistryModal apiBase={apiBase} onClose={() => { setShowRegistry(false); fetchIntegrations(); }} />}
+      {showRegistry && <RegistryModal apiBase={apiBase} onClose={() => { setShowRegistry(false); qc.invalidateQueries({ queryKey: ['integrations'] }); }} />}
 
       {deleteConfirm && (
         <div className="plugins__confirm-overlay" onClick={() => setDeleteConfirm(false)}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoadingState } from '@stallion-ai/sdk';
 import { Checkbox } from '../components/Checkbox';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
@@ -123,12 +123,11 @@ export function PluginManagementView() {
   const { navigate } = useNavigation();
   const queryClient = useQueryClient();
   const { requestConsent } = usePermissions();
-  const [plugins, setPlugins] = useState<Plugin[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: plugins = [], isLoading } = useQuery<Plugin[]>({ queryKey: ['plugins'], queryFn: async () => { const res = await fetch(`${apiBase}/api/plugins`); const json = await res.json(); return json.plugins || []; } });
+  const { data: updates = [] } = useQuery<Array<{ name: string; currentVersion: string; latestVersion: string; source: string }>>({ queryKey: ['plugin-updates'], queryFn: async () => { const res = await fetch(`${apiBase}/api/plugins/check-updates`); if (!res.ok) return []; const data = await res.json(); return data.updates || []; } });
   const [installSource, setInstallSource] = useState('');
   const [installing, setInstalling] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [updates, setUpdates] = useState<Array<{ name: string; currentVersion: string; latestVersion: string; source: string }>>([]);
   const [updating, setUpdating] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
@@ -144,30 +143,12 @@ export function PluginManagementView() {
   const [quickProjectName, setQuickProjectName] = useState('');
   const [assigningLayout, setAssigningLayout] = useState(false);
 
-  const fetchPlugins = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/plugins`);
-      const { plugins } = await res.json();
-      setPlugins(plugins || []);
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
-  }, [apiBase]);
-
-  const fetchUpdates = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/plugins/check-updates`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setUpdates(data.updates || []);
-    } catch { /* ignore */ }
-  }, [apiBase]);
-
   const fetchProviderDetails = useCallback(async (name: string) => {
     try {
       const res = await fetch(`${apiBase}/api/plugins/${encodeURIComponent(name)}/providers`);
       if (!res.ok) return;
       const data = await res.json();
-      setPlugins(prev => prev.map(p => p.name === name ? { ...p, providerDetails: data.providers } : p));
+      queryClient.setQueryData<Plugin[]>(['plugins'], prev => prev?.map(p => p.name === name ? { ...p, providerDetails: data.providers } : p) ?? []);
     } catch { /* ignore */ }
   }, [apiBase]);
 
@@ -186,8 +167,6 @@ export function PluginManagementView() {
       fetchProviderDetails(pluginName);
     } catch { /* ignore */ }
   }, [apiBase, plugins, fetchProviderDetails]);
-
-  useEffect(() => { fetchPlugins(); fetchUpdates(); }, [fetchPlugins, fetchUpdates]);
 
   const install = async (skipList?: string[]) => {
     const source = installSource.trim();
@@ -234,7 +213,7 @@ export function PluginManagementView() {
         }
         setInstallSource('');
         setMessage({ type: 'success', text: `Installed ${pluginName}. Setting up tools...` });
-        fetchPlugins();
+        queryClient.invalidateQueries({ queryKey: ['plugins'] });
         fetch(`${apiBase}/api/plugins/reload`, { method: 'POST' }).catch(() => {});
         queryClient.invalidateQueries({ queryKey: ['layouts'] });
         try { const { pluginRegistry } = await import('../core/PluginRegistry'); await pluginRegistry.reload(); } catch {}
@@ -276,7 +255,7 @@ export function PluginManagementView() {
       const data = await res.json();
       if (data.success) {
         setMessage({ type: 'success', text: `Updated ${data.plugin?.name || name} to v${data.plugin?.version}` });
-        fetchPlugins(); fetchUpdates();
+        queryClient.invalidateQueries({ queryKey: ['plugins'] }); queryClient.invalidateQueries({ queryKey: ['plugin-updates'] });
       } else { setMessage({ type: 'error', text: data.error || 'Update failed' }); }
     } catch (e: any) { setMessage({ type: 'error', text: e.message }); }
     finally { setUpdating(null); }
@@ -289,7 +268,7 @@ export function PluginManagementView() {
       const data = await res.json();
       if (data.success) {
         setMessage({ type: 'success', text: `Removed ${name}.` });
-        fetchPlugins();
+        queryClient.invalidateQueries({ queryKey: ['plugins'] });
         queryClient.invalidateQueries({ queryKey: ['layouts'] });
         try { const { pluginRegistry } = await import('../core/PluginRegistry'); await pluginRegistry.reload(); } catch {}
       } else { setMessage({ type: 'error', text: data.error || 'Remove failed' }); }
@@ -316,7 +295,8 @@ export function PluginManagementView() {
         label="plugins"
         title="Plugins"
         subtitle="Manage installed plugins"
-        items={loading ? [] : items}
+        items={items}
+        loading={isLoading}
         selectedId={selectedPlugin}
         onSelect={selectPlugin}
         onDeselect={deselectPlugin}
@@ -352,7 +332,7 @@ export function PluginManagementView() {
               </div>
             )}
             {message && <div className={`plugins__message plugins__message--${message.type}`}>{message.text}</div>}
-            {plugins.length === 0 && !loading && (
+            {plugins.length === 0 && !isLoading && (
               <div className="plugins__empty">No plugins installed yet.</div>
             )}
           </div>
@@ -446,7 +426,7 @@ export function PluginManagementView() {
             {selected.permissions?.missing && selected.permissions.missing.length > 0 && (
               <button className="plugins__btn plugins__btn--permissions" onClick={async () => {
                 const approved = await requestConsent(selected.name, selected.displayName || selected.name, selected.permissions!.missing);
-                if (approved) fetchPlugins();
+                if (approved) queryClient.invalidateQueries({ queryKey: ['plugins'] });
               }}>
                 Review Permissions ({selected.permissions.missing.length})
               </button>

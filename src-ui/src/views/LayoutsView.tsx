@@ -48,7 +48,7 @@ export function LayoutsView() {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch layout list
-  const { data: layouts = [] } = useQuery<StandaloneLayoutConfig[]>({
+  const { data: layouts = [], isLoading } = useQuery<StandaloneLayoutConfig[]>({
     queryKey: ['layouts'],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/layouts`);
@@ -249,6 +249,7 @@ export function LayoutsView() {
         title="Layouts"
         subtitle="Manage layout configurations and tabs"
         items={listItems}
+        loading={isLoading}
         selectedId={selectedSlug}
         onSelect={handleSelect}
         onDeselect={handleDeselect}

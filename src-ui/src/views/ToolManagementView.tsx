@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { LoadingState } from '@stallion-ai/sdk';
 import { ConfirmModal } from '../components/ConfirmModal';
 import type { Tool } from '../types';
 
@@ -21,11 +23,7 @@ export function ToolManagementView({
   agentName,
   onBack,
 }: ToolManagementViewProps) {
-  const [globalTools, setGlobalTools] = useState<Tool[]>([]);
-  const [agentConfig, setAgentConfig] = useState<AgentToolConfig>({
-    tools: [],
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const qc = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toolToRemove, setToolToRemove] = useState<string | null>(null);
@@ -35,67 +33,41 @@ export function ToolManagementView({
   );
   const [aliasValues, setAliasValues] = useState<Record<string, string>>({});
 
-  async function loadData() {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const [toolsResponse, agentResponse, agentToolsResponse] =
-        await Promise.all([
-          fetch(`${apiBase}/tools`),
-          fetch(`${apiBase}/agents`),
-          fetch(`${apiBase}/agents/${agentSlug}/tools`).catch(() => null),
-        ]);
-
-      if (!toolsResponse.ok) throw new Error('Failed to load tools');
-      if (!agentResponse.ok) throw new Error('Failed to load agent');
-
-      const toolsData = await toolsResponse.json();
-      const agentData = await agentResponse.json();
-
-      const agent = (agentData.data || []).find(
-        (a: any) => a.slug === agentSlug || a.id === agentSlug,
-      );
+  const { data, isLoading, error: loadError } = useQuery({
+    queryKey: ['agent-tools', agentSlug],
+    queryFn: async () => {
+      const [toolsRes, agentRes, agentToolsRes] = await Promise.all([
+        fetch(`${apiBase}/tools`),
+        fetch(`${apiBase}/agents`),
+        fetch(`${apiBase}/agents/${agentSlug}/tools`).catch(() => null),
+      ]);
+      if (!toolsRes.ok) throw new Error('Failed to load tools');
+      if (!agentRes.ok) throw new Error('Failed to load agent');
+      const toolsData = await toolsRes.json();
+      const agentData = await agentRes.json();
+      const agent = (agentData.data || []).find((a: any) => a.slug === agentSlug || a.id === agentSlug);
       if (!agent) throw new Error('Agent not found');
-
       let tools = toolsData.data || [];
-
-      // Enrich with parameters from active agent if available
-      if (agentToolsResponse?.ok) {
-        const agentToolsData = await agentToolsResponse.json();
-        if (agentToolsData.success && agentToolsData.data) {
-          const toolsWithParams = new Map(
-            agentToolsData.data.map((t: any) => [t.id || t.name, t]),
-          );
-          tools = tools.map((tool: any) => {
-            const enriched: any = toolsWithParams.get(tool.id);
-            return enriched
-              ? { ...tool, parameters: enriched.parameters }
-              : tool;
-          });
+      if (agentToolsRes?.ok) {
+        const atd = await agentToolsRes.json();
+        if (atd.success && atd.data) {
+          const m = new Map(atd.data.map((t: any) => [t.id || t.name, t]));
+          tools = tools.map((tool: any) => { const e: any = m.get(tool.id); return e ? { ...tool, parameters: e.parameters } : tool; });
         }
       }
-
-      setGlobalTools(tools);
-      const config: AgentToolConfig = {
-        tools: agent.tools || [],
-        allowed: agent.allowed,
-        aliases: agent.aliases,
-      };
-      setAgentConfig(config);
-      setAllowListText((config.allowed || []).join(', '));
-      setAliasValues(config.aliases || {});
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+      const config: AgentToolConfig = { tools: agent.tools || [], allowed: agent.allowed, aliases: agent.aliases };
+      return { tools, config };
+    },
+  });
+  const globalTools = data?.tools ?? [];
+  const agentConfig = data?.config ?? { tools: [] };
 
   useEffect(() => {
-    loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadData]);
+    if (data?.config) {
+      setAllowListText((data.config.allowed || []).join(', '));
+      setAliasValues(data.config.aliases || {});
+    }
+  }, [data?.config]);
 
   const addTool = async (toolId: string) => {
     try {
@@ -110,7 +82,7 @@ export function ToolManagementView({
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to add tool');
       }
-      await loadData();
+      qc.invalidateQueries({ queryKey: ['agent-tools', agentSlug] });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -133,7 +105,7 @@ export function ToolManagementView({
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to remove tool');
       }
-      await loadData();
+      qc.invalidateQueries({ queryKey: ['agent-tools', agentSlug] });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -161,7 +133,7 @@ export function ToolManagementView({
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to update allow list');
       }
-      await loadData();
+      qc.invalidateQueries({ queryKey: ['agent-tools', agentSlug] });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -185,7 +157,7 @@ export function ToolManagementView({
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to update aliases');
       }
-      await loadData();
+      qc.invalidateQueries({ queryKey: ['agent-tools', agentSlug] });
       setAliasEditMode({});
     } catch (err: any) {
       setError(err.message);
@@ -240,7 +212,7 @@ export function ToolManagementView({
           </button>
           <h2>Manage Tools: {agentName}</h2>
         </div>
-        <div className="management-view__loading">Loading tools...</div>
+        <LoadingState message="Loading tools..." />
       </div>
     );
   }
@@ -266,7 +238,7 @@ export function ToolManagementView({
           <h2>Manage Tools: {agentName}</h2>
         </div>
 
-        {error && <div className="management-view__error">{error}</div>}
+        {(loadError || error) && <div className="management-view__error">{loadError?.message || error}</div>}
 
         <div className="tool-management">
           <div className="tool-management__column">

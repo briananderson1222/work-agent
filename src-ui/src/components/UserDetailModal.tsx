@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 function getInitials(name: string): string {
@@ -20,31 +20,18 @@ export function UserDetailModal({
   alias: string;
   onClose: () => void;
 }) {
-  const [person, setPerson] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { apiBase } = useApiBase();
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await fetch(
-        `${apiBase}/api/users/${encodeURIComponent(alias)}`,
-      );
+  const { data: person, isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: ['user', alias],
+    queryFn: async () => {
+      const r = await fetch(`${apiBase}/api/users/${encodeURIComponent(alias)}`);
       const data = await r.json();
       if (data.error && !data.name) throw new Error(data.error);
-      setPerson(data);
-    } catch (e: any) {
-      setError(e.message || 'Lookup failed');
-    } finally {
-      setLoading(false);
-    }
-  }, [apiBase, alias]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+      return data;
+    },
+  });
+  const error = queryError?.message || null;
 
   const hasDetails =
     person &&
@@ -96,7 +83,7 @@ export function UserDetailModal({
             >
               <p style={{ margin: '0 0 0.75rem' }}>{error}</p>
               <button
-                onClick={fetchData}
+                onClick={() => refetch()}
                 style={{
                   padding: '0.4rem 0.75rem',
                   fontSize: '0.8rem',

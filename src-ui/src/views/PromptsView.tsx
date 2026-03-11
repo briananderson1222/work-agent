@@ -58,7 +58,7 @@ export function PromptsView() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const { data: prompts = [] } = useQuery<Prompt[]>({
+  const { data: prompts = [], isLoading } = useQuery<Prompt[]>({
     queryKey: ['prompts'],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/api/prompts`);
@@ -198,6 +198,7 @@ export function PromptsView() {
         title="Prompts"
         subtitle="Reusable prompts for layouts and agents"
         items={listItems}
+        loading={isLoading}
         selectedId={isNew ? '__new__' : selectedId}
         onSelect={selectPrompt}
         onDeselect={handleDeselect}
