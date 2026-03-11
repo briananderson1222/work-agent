@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, extname, join, relative } from 'node:path';
 import type { IEmbeddingProvider, IVectorDbProvider } from '../providers/types.js';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
+import { knowledgeOps } from '../telemetry/metrics.js';
 
 export interface DocumentMeta {
   id: string;
@@ -105,6 +106,7 @@ export class KnowledgeService {
     const meta: DocumentMeta = { id: docId, filename, chunkCount: chunks.length, createdAt: new Date().toISOString() };
     const existing = loadMeta(this.dataDir, projectSlug);
     saveMeta(this.dataDir, projectSlug, [...existing, meta]);
+    knowledgeOps.add(1, { op: 'index' });
     return meta;
   }
 
@@ -113,7 +115,9 @@ export class KnowledgeService {
     if (!(await this.vectorDb.namespaceExists(ns))) return [];
     if (!this.embeddingProvider) return [];
     const [queryVector] = await this.embeddingProvider.embed([query]);
-    return this.vectorDb.search(ns, queryVector, topK);
+    const results = await this.vectorDb.search(ns, queryVector, topK);
+    knowledgeOps.add(1, { op: 'query' });
+    return results;
   }
 
   /**
@@ -145,6 +149,7 @@ export class KnowledgeService {
     const chunkIds = Array.from({ length: doc.chunkCount }, (_, i) => `${docId}:${i}`);
     await this.vectorDb.deleteDocuments(ns, chunkIds);
     saveMeta(this.dataDir, projectSlug, meta.filter((d) => d.id !== docId));
+    knowledgeOps.add(1, { op: 'delete' });
   }
 
   /**

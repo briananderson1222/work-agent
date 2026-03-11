@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ProjectConfig, ProjectMetadata } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
+import { projectOps } from '../telemetry/metrics.js';
 
 export class ProjectService {
   constructor(private storageAdapter: IStorageAdapter) {}
@@ -22,7 +23,7 @@ export class ProjectService {
       updatedAt: now,
     };
     await this.storageAdapter.saveProject(project);
-
+    projectOps.add(1, { op: 'create' });
     return project;
   }
 
@@ -30,10 +31,12 @@ export class ProjectService {
     const existing = await this.storageAdapter.getProject(slug);
     const updated: ProjectConfig = { ...existing, ...updates, updatedAt: new Date().toISOString() };
     await this.storageAdapter.saveProject(updated);
+    projectOps.add(1, { op: 'update' });
     return updated;
   }
 
   deleteProject(slug: string): void {
     this.storageAdapter.deleteProject(slug);
+    projectOps.add(1, { op: 'delete' });
   }
 }

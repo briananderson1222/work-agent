@@ -32,6 +32,7 @@ import {
   processInstallPermissions,
   revokeAllGrants,
 } from '../services/plugin-permissions.js';
+import { pluginInstalls, pluginUninstalls, pluginUpdates } from '../telemetry/metrics.js';
 
 export function createPluginRoutes(
   projectHomeDir: string,
@@ -527,6 +528,7 @@ export function createPluginRoutes(
 
       // Notify UI that a plugin was installed (triggers agent reload + plugin registry refresh)
       eventBus?.emit('plugins:installed', { name: pluginName, agents: manifest.agents?.map((a: any) => `${pluginName}:${a.slug}`) || [] });
+      pluginInstalls.add(1, { plugin: pluginName });
 
       return c.json({
         success: true,
@@ -665,6 +667,7 @@ export function createPluginRoutes(
 
       // Emit SSE event
       eventBus?.emit('plugins:updated', { name, version: manifest.version });
+      pluginUpdates.add(1, { plugin: name });
 
       return c.json({
         success: true,
@@ -716,6 +719,7 @@ export function createPluginRoutes(
 
       // Remove plugin
       rmSync(pluginDir, { recursive: true });
+      pluginUninstalls.add(1, { plugin: name });
 
       return c.json({ success: true });
     } catch (e: any) {

@@ -69,7 +69,7 @@ export function createProviderRoutes(providerService: ProviderService) {
       const provider = createLLMProvider(conn);
       if (!provider) return c.json({ success: false, error: `No provider implementation for type: ${conn.type}` }, 400);
 
-      const healthy = await provider.healthCheck?.() ?? false;
+      const healthy = await providerService.checkHealth(provider, conn.type);
       return c.json({ success: true, data: { healthy } });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
@@ -86,7 +86,7 @@ export function createProviderRoutes(providerService: ProviderService) {
       const provider = createLLMProvider(conn);
       if (!provider) return c.json({ success: true, data: { healthy: false, reason: `No implementation for type: ${conn.type}` } });
 
-      const healthy = await provider.healthCheck?.() ?? false;
+      const healthy = await providerService.checkHealth(provider, conn.type);
       return c.json({ success: true, data: { healthy, type: conn.type, name: conn.name } });
     } catch (error: any) {
       return c.json({ success: true, data: { healthy: false, reason: error.message } });

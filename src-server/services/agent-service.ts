@@ -4,6 +4,7 @@
 
 type Agent = any;
 import type { ConfigLoader } from '../domain/config-loader.js';
+import { agentOps } from '../telemetry/metrics.js';
 import type { AgentSpec } from '../domain/types.js';
 
 export interface AgentMetadata {
@@ -84,6 +85,7 @@ export class AgentService {
     const { slug, spec } = await this.configLoader.createAgent(
       body as AgentSpec,
     );
+    agentOps.add(1, { op: 'create' });
     return { slug, spec };
   }
 
@@ -102,7 +104,9 @@ export class AgentService {
       {} as Record<string, any>,
     );
 
-    return this.configLoader.updateAgent(slug, filtered);
+    const result = await this.configLoader.updateAgent(slug, filtered);
+    agentOps.add(1, { op: 'update' });
+    return result;
   }
 
   async deleteAgent(
@@ -124,6 +128,7 @@ export class AgentService {
     }
 
     await this.configLoader.deleteAgent(slug);
+    agentOps.add(1, { op: 'delete' });
     return { success: true };
   }
 

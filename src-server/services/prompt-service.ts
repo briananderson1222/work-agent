@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { IPromptRegistryProvider, Prompt } from '../providers/types.js';
+import { promptOps } from '../telemetry/metrics.js';
 
 const PROMPTS_DIR = join(homedir(), '.stallion-ai', 'prompts');
 const PROMPTS_FILE = join(PROMPTS_DIR, 'prompts.json');
@@ -46,6 +47,7 @@ export class PromptService {
     };
     prompts.push(prompt);
     save(prompts);
+    promptOps.add(1, { op: 'create' });
     return Promise.resolve(prompt);
   }
 
@@ -55,6 +57,7 @@ export class PromptService {
     if (idx === -1) throw new Error(`Prompt '${id}' not found`);
     prompts[idx] = { ...prompts[idx], ...updates, id, updatedAt: new Date().toISOString() };
     save(prompts);
+    promptOps.add(1, { op: 'update' });
     return Promise.resolve(prompts[idx]);
   }
 
@@ -64,6 +67,7 @@ export class PromptService {
     if (idx === -1) throw new Error(`Prompt '${id}' not found`);
     prompts.splice(idx, 1);
     save(prompts);
+    promptOps.add(1, { op: 'delete' });
     return Promise.resolve();
   }
 

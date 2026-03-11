@@ -1,5 +1,7 @@
 import type { AppConfig, ProviderConnectionConfig } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
+import type { ILLMProvider } from '../providers/types.js';
+import { providerOps } from '../telemetry/metrics.js';
 
 export class ProviderService {
   constructor(
@@ -13,10 +15,19 @@ export class ProviderService {
 
   saveProviderConnection(config: ProviderConnectionConfig): void {
     this.storageAdapter.saveProviderConnection(config);
+    providerOps.add(1, { op: 'register', type: config.type });
   }
 
   deleteProviderConnection(id: string): void {
+    const existing = this.storageAdapter.listProviderConnections().find(c => c.id === id);
     this.storageAdapter.deleteProviderConnection(id);
+    providerOps.add(1, { op: 'remove', type: existing?.type ?? 'unknown' });
+  }
+
+  async checkHealth(provider: ILLMProvider, providerType: string): Promise<boolean> {
+    const healthy = await provider.healthCheck?.() ?? false;
+    providerOps.add(1, { op: 'health', status: healthy ? 'healthy' : 'unhealthy' });
+    return healthy;
   }
 
   async resolveProvider(opts: {

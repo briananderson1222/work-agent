@@ -10,6 +10,7 @@ import {
   normalizeToolName,
   parseToolName,
 } from '../utils/tool-name-normalizer.js';
+import { mcpLifecycle } from '../telemetry/metrics.js';
 
 /**
  * Reference counting for MCP connections - tracks which agents use each toolId
@@ -131,6 +132,11 @@ export async function createMCPTools(
     mcpConfigs.set(mcpKey, mcpConfig);
     isNewConfig = true;
 
+    // Emit reconnect if this server was previously connected
+    if (mcpConnectionStatus.has(mcpKey)) {
+      mcpLifecycle.add(1, { event: 'reconnect', server: toolId });
+    }
+
     // Set up event listeners for connection status
     const clients = await mcpConfig.getClients();
     const client = clients[toolId];
@@ -138,6 +144,7 @@ export async function createMCPTools(
     if (client) {
       client.on('connect', () => {
         mcpConnectionStatus.set(mcpKey, { connected: true });
+        mcpLifecycle.add(1, { event: 'connect', server: toolId });
         logger.debug('MCP client connected', {
           agent: agentSlug,
           tool: toolId,
@@ -146,6 +153,7 @@ export async function createMCPTools(
 
       client.on('disconnect', () => {
         mcpConnectionStatus.set(mcpKey, { connected: false });
+        mcpLifecycle.add(1, { event: 'disconnect', server: toolId });
         logger.debug('MCP client disconnected', {
           agent: agentSlug,
           tool: toolId,
@@ -157,6 +165,7 @@ export async function createMCPTools(
           connected: false,
           error: error.message,
         });
+        mcpLifecycle.add(1, { event: 'error', server: toolId });
         logger.error('MCP client error', {
           agent: agentSlug,
           tool: toolId,

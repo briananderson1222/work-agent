@@ -3,6 +3,7 @@
  */
 
 import type { ConfigLoader } from '../domain/config-loader.js';
+import { layoutOps } from '../telemetry/metrics.js';
 import type {
   StandaloneLayoutConfig,
   StandaloneLayoutMetadata,
@@ -25,6 +26,7 @@ export class LayoutService {
 
   async createLayout(config: StandaloneLayoutConfig): Promise<StandaloneLayoutConfig> {
     await this.configLoader.createLayout(config);
+    layoutOps.add(1, { op: 'create' });
     return config;
   }
 
@@ -32,11 +34,14 @@ export class LayoutService {
     slug: string,
     updates: Partial<StandaloneLayoutConfig>,
   ): Promise<StandaloneLayoutConfig> {
-    return this.configLoader.updateLayout(slug, updates);
+    const result = await this.configLoader.updateLayout(slug, updates);
+    layoutOps.add(1, { op: 'update' });
+    return result;
   }
 
   async deleteLayout(slug: string): Promise<void> {
     await this.configLoader.deleteLayout(slug);
+    layoutOps.add(1, { op: 'delete' });
   }
 
   // Workflow management (workflows are per-agent but related to layout functionality)
