@@ -10,6 +10,7 @@ import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContex
 import { useModels } from '../contexts/ModelsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useProjects } from '../contexts/ProjectsContext';
+import { useActiveProject } from '../hooks/useActiveProject';
 import { useChatDockActions } from '../hooks/useChatDockActions';
 import { useChatDockKeyboardShortcuts } from '../hooks/useChatDockKeyboardShortcuts';
 import { useChatDockState } from '../hooks/useChatDockState';
@@ -43,6 +44,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   } = useNavigation();
   const agents = useAgents();
   const { projects } = useProjects();
+  const { projectSlug: activeProject, projectName: activeProjectName } = useActiveProject();
   const availableModels = useModels();
   const appConfig = useConfig();
   const defaultFontSize =
@@ -270,9 +272,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         <NewChatModal
           agents={agents}
           onSelect={(agent) => {
-            // Get project name from the projects list if we have a selected project
-            const projectName = selectedProject ? (projects.find((p: any) => p.slug === selectedProject)?.name ?? selectedProject) : undefined;
-            openChatForAgent(agent, selectedProject ?? undefined, projectName);
+            openChatForAgent(agent, activeProject ?? undefined, activeProjectName ?? undefined);
             setShowNewChatModal(false);
           }}
           onClose={() => setShowNewChatModal(false)}

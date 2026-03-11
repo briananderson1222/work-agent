@@ -64,7 +64,9 @@ export function ModelSelectorAutocomplete({
         agentDefaultModelStr === model.id ||
         agentDefaultModelStr === model.originalId;
 
-      const capability = capabilities.find((c) => c.modelId === model.id);
+      const capability = capabilities.find(
+        (c) => c.modelId === model.id || model.id.endsWith(c.modelId) || c.modelId.endsWith(model.id),
+      );
       const modalities = [];
       if (capability?.supportsImages) modalities.push('📷');
       if (capability?.supportsVideo) modalities.push('🎥');

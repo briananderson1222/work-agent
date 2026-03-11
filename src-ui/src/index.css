@@ -1915,7 +1915,6 @@ body {
 
 .chat-input {
   display: flex;
-  flex-wrap: wrap;
   align-items: stretch;
 }
 
@@ -1930,10 +1929,6 @@ body {
   align-self: center;
   margin: 0 2px;
   order: -1;
-}
-
-.chat-input > .chat-controls {
-  width: 100%;
 }
 
 .chat-controls {
@@ -4715,9 +4710,10 @@ body {
   gap: 4px;
 }
 
-/* Hide agent badge and model info in right-mode tabs */
+/* Inline agent badge next to title in right-mode tabs */
 .app__main--dock-right > .chat-dock .chat-dock__tab-agent {
-  display: none;
+  display: inline;
+  margin-left: 4px;
 }
 
 .app__main--dock-right > .chat-dock .chat-dock__tab-title {
@@ -4764,12 +4760,6 @@ body {
   max-height: 80px;
   font-size: 13px;
   padding: 8px 10px;
-}
-
-.app__main--dock-right > .chat-dock .chat-controls {
-  flex-direction: row;
-  width: 100%;
-  min-width: 0;
 }
 
 .app__main--dock-right > .chat-dock .chat-controls-row {

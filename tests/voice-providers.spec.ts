@@ -347,7 +347,7 @@ test.describe('Voice Providers — useMobileSettings cleanup', () => {
       expect(stored).not.toHaveProperty('locationContextEnabled');
       // Remaining flags must be present
       expect(stored).toHaveProperty('offlineQueueEnabled');
-      expect(stored).toHaveProperty('approvalNotificationsEnabled');
+      expect(stored).toHaveProperty('pushNotificationsEnabled');
     }
     // If stored is null, settings haven't been written yet (first visit) — that's fine
   });

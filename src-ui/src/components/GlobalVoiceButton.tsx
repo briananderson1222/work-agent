@@ -23,8 +23,9 @@ export function GlobalVoiceButton() {
   const sendMessage = useSendMessage(apiBase);
   const transcriptRef = useRef('');
 
-  // Accumulate transcript while listening; send on idle
+  // Accumulate transcript while listening; send on idle (mobile only)
   useEffect(() => {
+    if (!isMobile()) return;
     if (stt.state === 'listening' && stt.transcript) {
       transcriptRef.current = stt.transcript;
     } else if (stt.state === 'idle' && transcriptRef.current) {
@@ -55,6 +56,7 @@ export function GlobalVoiceButton() {
   }, [stt]);
 
   if (!stt.supported) return null;
+  if (!isMobile()) return null;
 
   const isListening = stt.state === 'listening';
   const isError = stt.state === 'error';

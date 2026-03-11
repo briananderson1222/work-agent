@@ -7,7 +7,7 @@ import type { ChatMessage, ChatSession, FileAttachment } from '../types';
 import type { SlashCommand } from '../hooks/useSlashCommands';
 import { useToast } from '../contexts/ToastContext';
 import { useMessageContext } from '../hooks/useMessageContext';
-import { useMobileSettings } from '../hooks/useMobileSettings';
+import { useFeatureSettings } from '../hooks/useFeatureSettings';
 import { useShareReceiver } from '../hooks/useShareReceiver';
 import { useSTT } from '../hooks/useSTT';
 import { useTTS } from '../hooks/useTTS';
@@ -82,7 +82,7 @@ export function ChatDockBody({
   const { updateChat, clearEphemeralMessages } = useActiveChatActions();
 
   // Mobile settings (only non-voice flags remain here)
-  const { settings } = useMobileSettings();
+  const { settings } = useFeatureSettings();
 
   // Voice via provider pattern
   const stt = useSTT();
@@ -90,13 +90,17 @@ export function ChatDockBody({
   const { getComposedContext } = useMessageContext();
 
   // Wire STT transcript into chat input
+  const inputRef = useRef(chatInput.input);
+  inputRef.current = chatInput.input;
+
   useEffect(() => {
     if (stt.state === 'idle' && stt.transcript) {
+      const cur = inputRef.current;
       chatInput.handleInputChange(
-        chatInput.input ? `${chatInput.input} ${stt.transcript}` : stt.transcript,
+        cur ? `${cur} ${stt.transcript}` : stt.transcript,
       );
     }
-  }, [stt.state, stt.transcript, chatInput.handleInputChange, chatInput.input]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stt.state, stt.transcript, chatInput.handleInputChange]);
 
   // Share sheet / PWA share target
   useShareReceiver({

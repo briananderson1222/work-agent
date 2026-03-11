@@ -183,6 +183,7 @@ export function LayoutView({
         targetAgent.slug,
         targetAgent.name,
         prompt.label,
+        projectSlug ?? undefined,
       );
       setDockState(true);
       setActiveChat(sessionId);
@@ -196,6 +197,7 @@ export function LayoutView({
       sendMessage,
       setDockState,
       setActiveChat,
+      projectSlug,
     ],
   );
 
@@ -233,7 +235,7 @@ export function LayoutView({
   }
 
   // Selected layout doesn't exist — redirect to first available or root
-  if (allLayouts.length > 0 && !allLayouts.some((w: any) => w.slug === selectedLayout)) {
+  if (!isProjectMode && allLayouts.length > 0 && !allLayouts.some((w: any) => w.slug === selectedLayout)) {
     setStandaloneLayout(allLayouts[0].slug);
     return <FullScreenLoader label="layout" />;
   }

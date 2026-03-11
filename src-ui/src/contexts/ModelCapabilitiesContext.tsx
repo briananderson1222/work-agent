@@ -25,7 +25,11 @@ export function useModelSupportsAttachments(
 
   if (!modelId) return false;
 
-  const capability = capabilities.find((c) => c.modelId === modelId);
+  // Model IDs may have cross-region inference prefixes (e.g. "us.anthropic.claude-...")
+  // that don't appear in the capabilities list. Match by suffix.
+  const capability = capabilities.find(
+    (c) => c.modelId === modelId || modelId.endsWith(c.modelId) || c.modelId.endsWith(modelId),
+  );
   return (
     capability?.supportsImages ||
     capability?.supportsVideo ||

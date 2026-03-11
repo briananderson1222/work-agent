@@ -2,8 +2,8 @@ import { QRDisplay, useConnections, useHostUrl } from '@stallion-ai/connect';
 import './SettingsView.css';
 import './page-layout.css';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Checkbox } from '../components/Checkbox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -12,10 +12,10 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
 import { useMessageContextContext } from '../contexts/MessageContextContext';
 import { useVoiceProviderContext } from '../contexts/VoiceProviderContext';
-import { useApprovalNotifications } from '../hooks/useApprovalNotifications';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
-import type { MobileSettings } from '../hooks/useMobileSettings';
-import { useMobileSettings } from '../hooks/useMobileSettings';
+import type { FeatureSettings } from '../hooks/useFeatureSettings';
+import { useFeatureSettings } from '../hooks/useFeatureSettings';
 import type { AppConfig, NavigationView } from '../types';
 import './SettingsView.css';
 
@@ -87,25 +87,23 @@ export interface SettingsViewProps {
 /* ── Environment Status ── */
 
 function EnvironmentStatus({ apiBase }: { apiBase: string }) {
-  const [prerequisites, setPrerequisites] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [guideOpen, setGuideOpen] = useState<Set<string>>(new Set());
 
+  const { data: prerequisites = [], isLoading: loading } = useQuery<any[]>({
+    queryKey: ['system-status'],
+    queryFn: async () => {
+      const r = await fetch(`${apiBase}/api/system/status`);
+      const data = await r.json();
+      return data.prerequisites || [];
+    },
+  });
+
   useEffect(() => {
-    fetch(`${apiBase}/api/system/status`)
-      .then((r) => r.json())
-      .then((data) => {
-        const prereqs = data.prerequisites || [];
-        setPrerequisites(prereqs);
-        // Auto-expand if something is broken
-        if (prereqs.some((p: any) => p.category === 'required' && p.status !== 'installed')) {
-          setExpanded(true);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [apiBase]);
+    if (prerequisites.some((p: any) => p.category === 'required' && p.status !== 'installed')) {
+      setExpanded(true);
+    }
+  }, [prerequisites]);
 
   if (loading || prerequisites.length === 0) return null;
 
@@ -343,9 +341,9 @@ function Section({ icon, title, children }: { icon: string; title: string; child
 
 // ─── Voice & Features Section ────────────────────────────────────────────────
 
-/** Non-voice feature flags that remain in useMobileSettings */
+/** Non-voice feature flags that remain in useFeatureSettings */
 const FEATURE_META: Array<{
-  key: keyof MobileSettings;
+  key: keyof FeatureSettings;
   label: string;
   description: string;
   privacyNote?: string;
@@ -381,12 +379,12 @@ function FeatureToggle({
   checked,
   onToggle,
 }: {
-  featureKey: keyof MobileSettings;
+  featureKey: keyof FeatureSettings;
   label: string;
   description: string;
   privacyNote?: string;
   checked: boolean;
-  onToggle: (key: keyof MobileSettings) => void;
+  onToggle: (key: keyof FeatureSettings) => void;
 }) {
   return (
     <div className="settings__feature-toggle" onClick={() => onToggle(featureKey)}>
@@ -407,9 +405,9 @@ function FeatureToggle({
 }
 
 function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
-  const { settings } = useMobileSettings();
-  const notifs = useApprovalNotifications({
-    enabled: settings.approvalNotificationsEnabled,
+  const { settings } = useFeatureSettings();
+  const notifs = usePushNotifications({
+    enabled: settings.pushNotificationsEnabled,
     apiBase,
   });
 
@@ -452,7 +450,7 @@ function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
 }
 
 function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
-  const { settings, toggle } = useMobileSettings();
+  const { settings, toggle } = useFeatureSettings();
   const { availableSTT, availableTTS, activeSTT, activeTTS, setSTTProvider, setTTSProvider } =
     useVoiceProviderContext();
   const { providers: contextProviders, toggleProvider } = useMessageContextContext();
@@ -573,7 +571,7 @@ export function SettingsView({
   const [error, setError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [showResetModal, setShowResetModal] = useState(false);
-  const { settings: featureSettings, toggle: toggleFeature } = useMobileSettings();
+  const { settings: featureSettings, toggle: toggleFeature } = useFeatureSettings();
 
   useEffect(() => {
     if (configData) {
@@ -785,67 +783,17 @@ export function SettingsView({
         <Section icon="◉" title="Notifications">
           <label className="settings__toggle-row">
             <Toggle
-              checked={config.meetingNotifications?.enabled !== false}
-              onChange={(checked) =>
-                setConfig({
-                  ...config,
-                  meetingNotifications: { ...config.meetingNotifications, enabled: checked },
-                })
-              }
+              checked={featureSettings.pushNotificationsEnabled}
+              onChange={() => toggleFeature('pushNotificationsEnabled')}
             />
             <div>
-              <div className="settings__toggle-label">Meeting notifications</div>
+              <div className="settings__toggle-label">Push notifications</div>
               <div className="settings__toggle-desc">
-                Toast alerts when you have upcoming meetings while viewing a different date
+                Browser push notifications for tool approvals and high-priority alerts
               </div>
             </div>
           </label>
-
-          {config.meetingNotifications?.enabled !== false && (
-            <div className="settings__field" style={{ marginTop: '0.75rem' }}>
-              <label className="settings__field-label">Timing</label>
-              <div className="settings__thresholds">
-                {[30, 15, 10, 5, 1].map((t) => {
-                  const active = (config.meetingNotifications?.thresholds || [30, 10, 1]).includes(t);
-                  return (
-                    <label
-                      key={t}
-                      className={`settings__threshold${active ? ' settings__threshold--active' : ''}`}
-                    >
-                      <Checkbox
-                        checked={active}
-                        onChange={(checked) => {
-                          const current = config.meetingNotifications?.thresholds || [30, 10, 1];
-                          const updated = checked
-                            ? [...current, t].sort((a, b) => b - a)
-                            : current.filter((v) => v !== t);
-                          setConfig({
-                            ...config,
-                            meetingNotifications: { ...config.meetingNotifications, thresholds: updated },
-                          });
-                        }}
-                      />
-                      {t} min
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <label className="settings__toggle-row" style={{ marginTop: '0.75rem' }}>
-            <Toggle
-              checked={featureSettings.approvalNotificationsEnabled}
-              onChange={() => toggleFeature('approvalNotificationsEnabled')}
-            />
-            <div>
-              <div className="settings__toggle-label">Tool-approval push notifications</div>
-              <div className="settings__toggle-desc">
-                Browser push notifications when an agent needs your approval to run a tool
-              </div>
-            </div>
-          </label>
-          {featureSettings.approvalNotificationsEnabled && (
+          {featureSettings.pushNotificationsEnabled && (
             <NotificationSubscribeButton apiBase={currentApiBase} />
           )}
         </Section>
