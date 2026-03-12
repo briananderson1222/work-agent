@@ -95,7 +95,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         hash: currentHash,
       } = resolveGitInfo(dirname(fileURLToPath(import.meta.url)));
 
-      // Check if upstream is configured
+      // Check if upstream is configured; auto-configure if origin exists
       let hasUpstream = false;
       try {
         execSync(`git rev-parse --abbrev-ref ${branch}@{u}`, {
@@ -104,7 +104,30 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
           stdio: ['pipe', 'pipe', 'pipe'],
         });
         hasUpstream = true;
-      } catch {}
+      } catch {
+        // Try to auto-configure tracking from origin
+        try {
+          execSync('git remote get-url origin', {
+            cwd: gitRoot,
+            encoding: 'utf-8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+          });
+          execSync(`git fetch origin ${branch} --quiet`, {
+            cwd: gitRoot,
+            timeout: 15000,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          });
+          execSync(
+            `git branch --set-upstream-to=origin/${branch} ${branch}`,
+            {
+              cwd: gitRoot,
+              encoding: 'utf-8',
+              stdio: ['pipe', 'pipe', 'pipe'],
+            },
+          );
+          hasUpstream = true;
+        } catch {}
+      }
 
       if (!hasUpstream) {
         return c.json({

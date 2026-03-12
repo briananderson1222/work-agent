@@ -279,7 +279,36 @@ export function upgrade(): void {
     stop();
   }
 
-  const { gitRoot } = resolveGitInfo(CWD);
+  const { gitRoot, branch } = resolveGitInfo(CWD);
+
+  // Auto-configure upstream tracking if missing but origin exists
+  try {
+    execSync(`git rev-parse --abbrev-ref ${branch}@{u}`, {
+      cwd: gitRoot,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    try {
+      execSync('git remote get-url origin', {
+        cwd: gitRoot,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      console.log('Configuring upstream tracking...');
+      execSync(`git fetch origin ${branch} --quiet`, {
+        cwd: gitRoot,
+        timeout: 15000,
+      });
+      execSync(`git branch --set-upstream-to=origin/${branch} ${branch}`, {
+        cwd: gitRoot,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch {
+      console.error(
+        'No upstream configured and no origin remote found. Cannot upgrade.',
+      );
+      process.exit(1);
+    }
+  }
 
   console.log('Pulling latest...');
   execSync('git pull', { cwd: gitRoot, stdio: 'inherit' });
