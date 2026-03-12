@@ -7,6 +7,7 @@ import type {
   TerminalSessionSnapshot,
   TerminalSessionState,
 } from '../domain/terminal-types.js';
+import { terminalOps } from '../telemetry/metrics.js';
 
 const HISTORY_LINE_LIMIT = 5000;
 const PERSIST_DEBOUNCE_MS = 40;
@@ -44,6 +45,7 @@ export class TerminalService {
     const sessionId = `${input.projectSlug}:${input.terminalId}`;
     const existing = this.sessions.get(sessionId);
     if (existing?.status === 'running') return this.snapshot(existing);
+    terminalOps.add(1, { operation: 'open' });
 
     const history =
       existing?.history ?? (await this.historyStore.load(sessionId));
@@ -127,6 +129,7 @@ export class TerminalService {
   async close(sessionId: string): Promise<void> {
     const entry = this.sessions.get(sessionId);
     if (!entry) return;
+    terminalOps.add(1, { operation: 'close' });
     entry.unsubData?.();
     entry.unsubExit?.();
     entry.process?.kill();
@@ -138,6 +141,7 @@ export class TerminalService {
   async restart(sessionId: string): Promise<TerminalSessionSnapshot> {
     const entry = this.sessions.get(sessionId);
     if (!entry) throw new Error(`Session not found: ${sessionId}`);
+    terminalOps.add(1, { operation: 'restart' });
     const input: TerminalOpenInput = {
       projectSlug: entry.projectSlug,
       terminalId: entry.terminalId,

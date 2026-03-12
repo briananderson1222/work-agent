@@ -5,6 +5,7 @@ import {
   getUserIdentityProvider,
 } from '../providers/registry.js';
 import type { UserIdentity } from '../providers/types.js';
+import { authOps } from '../telemetry/metrics.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger({ name: 'auth' });
@@ -47,6 +48,7 @@ export function createAuthRoutes() {
   const app = new Hono();
 
   app.get('/status', async (c) => {
+    authOps.add(1, { operation: 'status' });
     const [authStatus, user] = await Promise.all([
       getAuthProvider().getStatus(),
       resolveUser(),
@@ -55,6 +57,7 @@ export function createAuthRoutes() {
   });
 
   app.post('/renew', async (c) => {
+    authOps.add(1, { operation: 'renew' });
     try {
       const result = await getAuthProvider().renew();
       return c.json(result);
@@ -96,6 +99,7 @@ export function createUserRoutes() {
   const app = new Hono();
 
   app.get('/search', async (c) => {
+    authOps.add(1, { operation: 'search' });
     const q = c.req.query('q') || '';
     if (!q) return c.json([]);
     try {

@@ -9,6 +9,7 @@ import {
   getAgentRegistryProvider,
   getIntegrationRegistryProvider,
 } from '../providers/registry.js';
+import { registryOps } from '../telemetry/metrics.js';
 
 export function createRegistryRoutes(
   configLoader: ConfigLoader,
@@ -19,16 +20,19 @@ export function createRegistryRoutes(
   // ── Agent Registry ─────────────────────────────────────
 
   app.get('/agents', async (c) => {
+    registryOps.add(1, { operation: 'list-agents' });
     const items = await getAgentRegistryProvider().listAvailable();
     return c.json({ success: true, data: items });
   });
 
   app.get('/agents/installed', async (c) => {
+    registryOps.add(1, { operation: 'list-agents-installed' });
     const items = await getAgentRegistryProvider().listInstalled();
     return c.json({ success: true, data: items });
   });
 
   app.post('/agents/install', async (c) => {
+    registryOps.add(1, { operation: 'install-agent' });
     const { id } = await c.req.json();
     if (!id) return c.json({ success: false, error: 'id is required' }, 400);
 
@@ -41,6 +45,7 @@ export function createRegistryRoutes(
   });
 
   app.delete('/agents/:id', async (c) => {
+    registryOps.add(1, { operation: 'uninstall-agent' });
     const result = await getAgentRegistryProvider().uninstall(
       c.req.param('id'),
     );
@@ -53,6 +58,7 @@ export function createRegistryRoutes(
   // ── Integration Registry ──────────────────────────────────────
 
   app.get('/integrations', async (c) => {
+    registryOps.add(1, { operation: 'list-integrations' });
     const raw = await getIntegrationRegistryProvider().listAvailable();
     // Filter malformed entries, deduplicate, clean names
     const seen = new Set<string>();
@@ -79,11 +85,13 @@ export function createRegistryRoutes(
   });
 
   app.get('/integrations/installed', async (c) => {
+    registryOps.add(1, { operation: 'list-integrations-installed' });
     const items = await getIntegrationRegistryProvider().listInstalled();
     return c.json({ success: true, data: items });
   });
 
   app.post('/integrations/install', async (c) => {
+    registryOps.add(1, { operation: 'install-integration' });
     const { id } = await c.req.json();
     if (!id) return c.json({ success: false, error: 'id is required' }, 400);
 
@@ -100,6 +108,7 @@ export function createRegistryRoutes(
   });
 
   app.delete('/integrations/:id', async (c) => {
+    registryOps.add(1, { operation: 'uninstall-integration' });
     const id = c.req.param('id');
     const result = await getIntegrationRegistryProvider().uninstall(id);
     return c.json(result, result.success ? 200 : 500);

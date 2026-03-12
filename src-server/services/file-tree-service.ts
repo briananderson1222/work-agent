@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileTreeOps } from '../telemetry/metrics.js';
 
 export interface FileEntry {
   name: string;
@@ -25,6 +26,7 @@ export class FileTreeService {
     dirPath: string,
     opts?: { depth?: number; maxEntries?: number },
   ): FileEntry[] {
+    fileTreeOps.add(1, { operation: 'listDirectory' });
     const depth = opts?.depth ?? 3;
     const maxEntries = opts?.maxEntries ?? MAX_ENTRIES;
     const results: FileEntry[] = [];
@@ -90,6 +92,7 @@ export class FileTreeService {
   }
 
   searchFiles(dirPath: string, query: string, maxResults = 50): FileEntry[] {
+    fileTreeOps.add(1, { operation: 'searchFiles' });
     const lower = query.toLowerCase();
     const all = this.listDirectory(dirPath, {
       depth: 10,
@@ -101,6 +104,7 @@ export class FileTreeService {
   }
 
   readFile(filePath: string): string {
+    fileTreeOps.add(1, { operation: 'readFile' });
     if (!existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
     const buf = readFileSync(filePath);
     // Heuristic binary check: look for null bytes in first 8KB

@@ -17,6 +17,7 @@ export class LayoutService {
   ) {}
 
   async listLayouts(): Promise<StandaloneLayoutMetadata[]> {
+    layoutOps.add(1, { operation: 'list' });
     return this.configLoader.listLayouts();
   }
 
@@ -28,7 +29,7 @@ export class LayoutService {
     config: StandaloneLayoutConfig,
   ): Promise<StandaloneLayoutConfig> {
     await this.configLoader.createLayout(config);
-    layoutOps.add(1, { op: 'create' });
+    layoutOps.add(1, { operation: 'create' });
     return config;
   }
 
@@ -37,13 +38,13 @@ export class LayoutService {
     updates: Partial<StandaloneLayoutConfig>,
   ): Promise<StandaloneLayoutConfig> {
     const result = await this.configLoader.updateLayout(slug, updates);
-    layoutOps.add(1, { op: 'update' });
+    layoutOps.add(1, { operation: 'update' });
     return result;
   }
 
   async deleteLayout(slug: string): Promise<void> {
     await this.configLoader.deleteLayout(slug);
-    layoutOps.add(1, { op: 'delete' });
+    layoutOps.add(1, { operation: 'delete' });
   }
 
   // Workflow management (workflows are per-agent but related to layout functionality)

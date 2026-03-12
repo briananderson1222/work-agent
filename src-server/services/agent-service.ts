@@ -41,6 +41,7 @@ export class AgentService {
   ) {}
 
   async listAgents(): Promise<AgentMetadata[]> {
+    agentOps.add(1, { operation: 'list' });
     return this.configLoader.listAgents();
   }
 
@@ -86,7 +87,7 @@ export class AgentService {
     const { slug, spec } = await this.configLoader.createAgent(
       body as AgentSpec,
     );
-    agentOps.add(1, { op: 'create' });
+    agentOps.add(1, { operation: 'create' });
     return { slug, spec };
   }
 
@@ -106,7 +107,7 @@ export class AgentService {
     );
 
     const result = await this.configLoader.updateAgent(slug, filtered);
-    agentOps.add(1, { op: 'update' });
+    agentOps.add(1, { operation: 'update' });
     return result;
   }
 
@@ -128,7 +129,7 @@ export class AgentService {
     }
 
     await this.configLoader.deleteAgent(slug);
-    agentOps.add(1, { op: 'delete' });
+    agentOps.add(1, { operation: 'delete' });
     return { success: true };
   }
 

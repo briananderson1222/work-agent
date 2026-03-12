@@ -13,6 +13,7 @@
  */
 
 import { join } from 'node:path';
+import { feedbackOps } from '../telemetry/metrics.js';
 import { JsonFileStore } from './json-store.js';
 
 // ── Types ──────────────────────────────────────────────
@@ -118,6 +119,7 @@ export class FeedbackService {
     }
 
     this.store.write(data);
+    feedbackOps.add(1, { operation: 'rate', rating: params.rating });
     return entry;
   }
 
@@ -197,6 +199,7 @@ ${avoid || '(none identified yet)'}
   async runAnalysisPipeline(): Promise<FeedbackSummary | null> {
     if (!this.analyzeFn) return null;
     try {
+      feedbackOps.add(1, { operation: 'analyze' });
       await this.runMiniAnalysis();
       await this.runFullAnalysis();
     } catch {

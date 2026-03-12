@@ -3,6 +3,7 @@
  */
 
 import type { ITemplateProvider, Template } from '../providers/types.js';
+import { templateOps } from '../telemetry/metrics.js';
 
 const BUILTIN_AGENT_TEMPLATES: Template[] = [
   {
@@ -142,6 +143,7 @@ export class TemplateService {
   }
 
   async listTemplates(type?: 'agent' | 'layout'): Promise<Template[]> {
+    templateOps.add(1, { operation: 'list' });
     const builtins = [
       ...BUILTIN_AGENT_TEMPLATES,
       ...BUILTIN_LAYOUT_TEMPLATES,

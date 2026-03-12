@@ -47,7 +47,7 @@ export class PromptService {
     };
     prompts.push(prompt);
     save(prompts);
-    promptOps.add(1, { op: 'create' });
+    promptOps.add(1, { operation: 'create' });
     return Promise.resolve(prompt);
   }
 
@@ -65,7 +65,7 @@ export class PromptService {
       updatedAt: new Date().toISOString(),
     };
     save(prompts);
-    promptOps.add(1, { op: 'update' });
+    promptOps.add(1, { operation: 'update' });
     return Promise.resolve(prompts[idx]);
   }
 
@@ -75,7 +75,7 @@ export class PromptService {
     if (idx === -1) throw new Error(`Prompt '${id}' not found`);
     prompts.splice(idx, 1);
     save(prompts);
-    promptOps.add(1, { op: 'delete' });
+    promptOps.add(1, { operation: 'delete' });
     return Promise.resolve();
   }
 

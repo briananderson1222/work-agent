@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Hono } from 'hono';
 import type { FileTreeService } from '../services/file-tree-service.js';
+import { codingOps } from '../telemetry/metrics.js';
 
 function validatePath(raw: string | undefined): string {
   if (!raw) throw new Error('path required');
@@ -16,6 +17,7 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   const app = new Hono();
 
   app.get('/files', (c) => {
+    codingOps.add(1, { operation: 'files' });
     try {
       const dir = validatePath(c.req.query('path'));
       const depth = c.req.query('depth')
@@ -32,6 +34,7 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   });
 
   app.get('/files/search', (c) => {
+    codingOps.add(1, { operation: 'search' });
     try {
       const dir = validatePath(c.req.query('path'));
       const query = c.req.query('query');
@@ -45,6 +48,7 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   });
 
   app.get('/files/content', (c) => {
+    codingOps.add(1, { operation: 'content' });
     const path = c.req.query('path');
     if (!path) return c.json({ success: false, error: 'path required' }, 400);
     try {
@@ -56,6 +60,7 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   });
 
   app.get('/git/status', (c) => {
+    codingOps.add(1, { operation: 'git-status' });
     try {
       const dir = validatePath(c.req.query('path'));
       const branchOut = execSync('git rev-parse --abbrev-ref HEAD', {
@@ -112,6 +117,7 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   });
 
   app.post('/exec', async (c) => {
+    codingOps.add(1, { operation: 'exec' });
     try {
       const { command, cwd } = await c.req.json();
       if (!command)

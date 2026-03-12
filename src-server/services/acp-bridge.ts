@@ -33,6 +33,7 @@ import type { Context } from 'hono';
 import { stream as honoStream } from 'hono/streaming';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ACPConnectionConfig } from '../domain/types.js';
+import { acpOps } from '../telemetry/metrics.js';
 import { ApprovalRegistry } from './approval-registry.js';
 
 interface ACPMode {
@@ -266,6 +267,7 @@ export class ACPConnection {
         this.modes = [];
         this.slashCommands = [];
         this.status = 'disconnected';
+        acpOps.add(1, { operation: 'disconnect' });
         this.eventBus?.emit('acp:status', {
           id: this.config.id,
           status: 'disconnected',
@@ -366,6 +368,7 @@ export class ACPConnection {
       }
 
       this.status = 'connected';
+      acpOps.add(1, { operation: 'connect' });
       this.reconnectAttempts = 0;
       this.eventBus?.emit('acp:status', {
         id: this.config.id,
@@ -394,6 +397,7 @@ export class ACPConnection {
       this.logger.error('[ACPBridge] Failed to start', {
         error: error.message,
       });
+      acpOps.add(1, { operation: 'error' });
       this.status = 'error';
       this.eventBus?.emit('acp:status', {
         id: this.config.id,

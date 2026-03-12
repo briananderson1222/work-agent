@@ -79,3 +79,7 @@ The notification system follows the provider pattern. Core is abstract — it kn
 - `metadata` is opaque to core — plugins store domain-specific data, core just persists and delivers
 - `dedupeTag` prevents duplicate notifications without core knowing the domain
 - Tool-approval was NOT migrated — it's streaming-event-driven (ephemeral), not a scheduled notification
+
+### Observability (OTel)
+
+Every new feature MUST include OpenTelemetry instrumentation. Import instruments from `src-server/telemetry/metrics.ts` and record counters/histograms for meaningful operations (CRUD, lifecycle events, durations). If a new metric instrument is needed, add it to `metrics.ts` following the existing `stallion.<domain>.<metric>` naming convention.

@@ -116,6 +116,66 @@ export const knowledgeOps = meter.createCounter(
   },
 );
 
+// ── Feedback ──
+export const feedbackOps = meter.createCounter('stallion.feedback.operations', {
+  description: 'Feedback submission events',
+});
+
+// ── Tool Approvals ──
+export const approvalOps = meter.createCounter('stallion.approval.operations', {
+  description: 'Tool approval request/approve/deny events',
+});
+export const approvalDuration = meter.createHistogram(
+  'stallion.approval.duration',
+  {
+    description: 'Time from approval request to decision',
+    unit: 'ms',
+  },
+);
+
+// ── Terminal ──
+export const terminalOps = meter.createCounter('stallion.terminal.operations', {
+  description: 'Terminal session lifecycle events',
+});
+
+// ── ACP ──
+export const acpOps = meter.createCounter('stallion.acp.operations', {
+  description: 'ACP connection lifecycle events',
+});
+
+// ── Templates ──
+export const templateOps = meter.createCounter('stallion.template.operations', {
+  description: 'Template list/apply events',
+});
+
+// ── Conversations ──
+export const conversationOps = meter.createCounter(
+  'stallion.conversation.operations',
+  {
+    description: 'Conversation lifecycle events',
+  },
+);
+
+// ── Coding ──
+export const codingOps = meter.createCounter('stallion.coding.operations', {
+  description: 'Coding session events',
+});
+
+// ── Auth ──
+export const authOps = meter.createCounter('stallion.auth.operations', {
+  description: 'Auth lifecycle events',
+});
+
+// ── File Tree ──
+export const fileTreeOps = meter.createCounter('stallion.filetree.operations', {
+  description: 'File tree browse events',
+});
+
+// ── Registry ──
+export const registryOps = meter.createCounter('stallion.registry.operations', {
+  description: 'Registry install/uninstall events',
+});
+
 export function registerObservableGauges(callbacks: {
   activeAgents: () => number;
   mcpConnections: () => number;

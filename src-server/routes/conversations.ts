@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import { conversationOps } from '../telemetry/metrics.js';
 
 export function createConversationRoutes(
   memoryAdapters: Map<string, FileMemoryAdapter>,
@@ -14,6 +15,7 @@ export function createConversationRoutes(
   // Get conversations for an agent
   app.get('/:slug/conversations', async (c) => {
     try {
+      conversationOps.add(1, { operation: 'list' });
       const slug = c.req.param('slug');
       const adapter = memoryAdapters.get(slug);
 
@@ -33,6 +35,7 @@ export function createConversationRoutes(
   // Update conversation (e.g., title)
   app.patch('/:slug/conversations/:conversationId', async (c) => {
     try {
+      conversationOps.add(1, { operation: 'update' });
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);
@@ -54,6 +57,7 @@ export function createConversationRoutes(
   // Delete conversation
   app.delete('/:slug/conversations/:conversationId', async (c) => {
     try {
+      conversationOps.add(1, { operation: 'delete' });
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);
@@ -74,6 +78,7 @@ export function createConversationRoutes(
   // Get messages for a conversation
   app.get('/:slug/conversations/:conversationId/messages', async (c) => {
     try {
+      conversationOps.add(1, { operation: 'messages' });
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);

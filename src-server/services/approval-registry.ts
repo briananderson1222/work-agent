@@ -3,9 +3,12 @@
  * Used by both VoltAgent elicitation and ACP permission requests.
  */
 
+import { approvalDuration, approvalOps } from '../telemetry/metrics.js';
+
 interface PendingApproval {
   resolve: (approved: boolean) => void;
   reject: (error: Error) => void;
+  createdAt: number;
 }
 
 export class ApprovalRegistry {
@@ -35,7 +38,12 @@ export class ApprovalRegistry {
         resolve(value);
       };
 
-      this.pending.set(approvalId, { resolve: wrappedResolve, reject });
+      this.pending.set(approvalId, {
+        resolve: wrappedResolve,
+        reject,
+        createdAt: Date.now(),
+      });
+      approvalOps.add(1, { operation: 'request' });
     });
   }
 
@@ -45,8 +53,13 @@ export class ApprovalRegistry {
   resolve(approvalId: string, approved: boolean): boolean {
     const entry = this.pending.get(approvalId);
     if (entry) {
+      const elapsed = Date.now() - entry.createdAt;
       entry.resolve(approved);
       this.pending.delete(approvalId);
+      approvalOps.add(1, { operation: approved ? 'approve' : 'deny' });
+      approvalDuration.record(elapsed, {
+        action: approved ? 'approve' : 'deny',
+      });
       this.logger.info('[ApprovalRegistry] Resolved', { approvalId, approved });
       return true;
     }
