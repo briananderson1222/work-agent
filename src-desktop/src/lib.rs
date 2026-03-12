@@ -4,7 +4,7 @@ use tauri::Manager;
 #[cfg(not(mobile))]
 use std::process::{Child, Command, Stdio};
 #[cfg(not(mobile))]
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 #[cfg(not(mobile))]
 use std::time::{Duration, Instant};
 #[cfg(not(mobile))]
