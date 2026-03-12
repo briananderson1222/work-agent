@@ -46,6 +46,7 @@ export interface IIntegrationRegistryProvider {
   uninstall(id: string): Promise<InstallResult>;
   getToolDef(id: string): Promise<ToolDef | null>;
   sync(): Promise<void>;
+  installByCommand?(command: string): Promise<InstallResult>;
 }
 
 export interface IAuthProvider {

@@ -620,6 +620,36 @@ export function createPluginRoutes(
         logger.info(`Copied tool config: ${id}`);
       }
 
+      // Auto-install missing command binaries for copied integrations
+      for (const id of copied) {
+        try {
+          const defPath = join(
+            projectHomeDir,
+            'integrations',
+            id,
+            'integration.json',
+          );
+          if (!existsSync(defPath)) continue;
+          const def = JSON.parse(readFileSync(defPath, 'utf-8'));
+          if (!def.command) continue;
+          try {
+            execSync(`which ${def.command}`, { stdio: 'pipe' });
+            continue;
+          } catch {}
+          const registry = getIntegrationRegistryProvider();
+          if (registry.installByCommand) {
+            const result = await registry.installByCommand(def.command);
+            logger.info(
+              `Auto-install ${def.command}: ${result.success ? 'ok' : result.message}`,
+            );
+          }
+        } catch (e: any) {
+          logger.warn(`Failed to auto-install command for ${id}`, {
+            error: e.message,
+          });
+        }
+      }
+
       // Load providers (unless skipped)
       if (manifest.providers) {
         const activeProviders = manifest.providers.filter(

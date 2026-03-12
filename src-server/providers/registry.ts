@@ -147,9 +147,122 @@ export function registerIntegrationRegistryProvider(
 
 export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
   const entries = listProviders('integrationRegistry');
-  return entries.length > 0
-    ? (entries[0].provider as IIntegrationRegistryProvider)
-    : new DefaultIntegrationRegistryProvider();
+  if (entries.length === 0) return new DefaultIntegrationRegistryProvider();
+
+  const providers = entries.map(
+    (e) => e.provider as IIntegrationRegistryProvider,
+  );
+
+  // Scan on-disk integrations (plugin-bundled + manually added)
+  function readDiskIntegrations(): import('@stallion-ai/shared').RegistryItem[] {
+    const { existsSync, readdirSync, readFileSync } = require('node:fs');
+    const { join } = require('node:path');
+    const { homedir } = require('node:os');
+    const dir = join(
+      process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai'),
+      'integrations',
+    );
+    if (!existsSync(dir)) return [];
+    const items: import('@stallion-ai/shared').RegistryItem[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const defPath = join(dir, entry.name, 'integration.json');
+      if (!existsSync(defPath)) continue;
+      try {
+        const def = JSON.parse(readFileSync(defPath, 'utf-8'));
+        let commandExists = false;
+        if (def.command) {
+          try {
+            require('node:child_process').execSync(`which ${def.command}`, { stdio: 'pipe' });
+            commandExists = true;
+          } catch {}
+        }
+        items.push({
+          id: def.id || entry.name,
+          displayName: def.displayName || entry.name,
+          description: def.description || '',
+          installed: true,
+          status: commandExists ? 'connected' : 'missing binary',
+        });
+      } catch {}
+    }
+    return items;
+  }
+
+  return {
+    async listAvailable() {
+      const results = await Promise.all(
+        entries.map(async (e) => {
+          const items = await (
+            e.provider as IIntegrationRegistryProvider
+          ).listAvailable();
+          return items.map((item) => ({ ...item, source: e.source }));
+        }),
+      );
+      // Merge disk integrations first (they take priority as "installed")
+      const diskItems = readDiskIntegrations();
+      const seen = new Set<string>();
+      const merged: import('@stallion-ai/shared').RegistryItem[] = [];
+      for (const item of diskItems) {
+        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+      }
+      for (const item of results.flat()) {
+        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+      }
+      return merged;
+    },
+    async listInstalled() {
+      const results = await Promise.all(
+        providers.map((p) => p.listInstalled()),
+      );
+      const diskItems = readDiskIntegrations();
+      const seen = new Set<string>();
+      const merged: import('@stallion-ai/shared').RegistryItem[] = [];
+      for (const item of diskItems) {
+        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+      }
+      for (const item of results.flat()) {
+        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+      }
+      return merged;
+    },
+    async install(id) {
+      for (const p of providers) {
+        const result = await p.install(id);
+        if (result.success) return result;
+      }
+      return { success: false, message: `No provider could install ${id}` };
+    },
+    async uninstall(id) {
+      for (const p of providers) {
+        const result = await p.uninstall(id);
+        if (result.success) return result;
+      }
+      return { success: false, message: `No provider could uninstall ${id}` };
+    },
+    async getToolDef(id) {
+      for (const p of providers) {
+        const def = await p.getToolDef(id);
+        if (def) return def;
+      }
+      return null;
+    },
+    async sync() {
+      await Promise.all(providers.map((p) => p.sync()));
+    },
+    async installByCommand(command) {
+      for (const p of providers) {
+        if (p.installByCommand) {
+          const result = await p.installByCommand(command);
+          if (result.success) return result;
+        }
+      }
+      return {
+        success: false,
+        message: `No provider could install command ${command}`,
+      };
+    },
+  };
 }
 
 // ── Onboarding ─────────────────────────────────────────
