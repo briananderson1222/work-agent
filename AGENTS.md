@@ -38,6 +38,17 @@ Tests live in `tests/` and follow these conventions:
 ### Code style
 
 - Prefer CSS classes over inline styles. The project uses `.css` files alongside components.
+- **Use `useQuery` / `useMutation` from `@tanstack/react-query` for all data fetching.** Never use raw `useState` + `useCallback(fetch)` + `useEffect` patterns. The SDK (`@stallion-ai/sdk`) exports domain-specific hooks (`useAgentsQuery`, `useProjectsQuery`, `useLayoutsQuery`, etc.) — prefer those over raw `useQuery` when available. For views, destructure `isLoading` and pass it to `SplitPaneLayout`'s `loading` prop. After mutations, call `queryClient.invalidateQueries()` instead of manual refetch functions.
+
+### Navigation
+
+Project layout navigation MUST go through `setLayout(projectSlug, layoutSlug)` from `useNavigation()` — never raw `navigate(`/projects/...`)`. `setLayout` persists `lastProject`/`lastProjectLayout` to localStorage so `/` can restore the user's last-viewed project on reload. Raw `navigate()` only pushes the URL without persisting, which breaks restore-on-reload.
+
+- `setLayout(projectSlug, layoutSlug)` — project layout navigation (persists + navigates)
+- `setStandaloneLayout(slug)` — standalone layout navigation
+- `navigate(path)` — everything else (settings, agents, plugins, etc.)
+
+The root route (`/`) auto-selects in this priority: (1) last-viewed project+layout from localStorage, (2) first project's first layout, (3) standalone layout fallback.
 
 ### Known issues
 
