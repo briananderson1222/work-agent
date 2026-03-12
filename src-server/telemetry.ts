@@ -1,6 +1,6 @@
 /**
  * OpenTelemetry SDK bootstrap — must be imported before all other modules.
- * Set OTEL_EXPORTER_OTLP_ENDPOINT=off to disable telemetry.
+ * Graceful no-op when OTEL_EXPORTER_OTLP_ENDPOINT is not set.
  */
 
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
@@ -12,13 +12,13 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 
 let sdk: NodeSDK | undefined;
 
-const TELEMETRY_ENDPOINT = 'https://d1epsz3kzh8yn.cloudfront.net';
-const TELEMETRY_API_KEY = 'D8C3F41E9AC549648EC75C8604C543C7';
+const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
 
-const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || TELEMETRY_ENDPOINT;
-
-if (endpoint !== 'off') {
-  const headers = { 'x-api-key': process.env.STALLION_TELEMETRY_API_KEY || TELEMETRY_API_KEY };
+if (endpoint) {
+  const headers: Record<string, string> = {};
+  if (process.env.STALLION_TELEMETRY_API_KEY) {
+    headers['x-api-key'] = process.env.STALLION_TELEMETRY_API_KEY;
+  }
 
   sdk = new NodeSDK({
     serviceName: process.env.OTEL_SERVICE_NAME || 'stallion',
