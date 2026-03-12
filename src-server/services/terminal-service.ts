@@ -36,7 +36,7 @@ export class TerminalService {
     if (process.platform !== 'win32') {
       this.subprocessInterval = setInterval(
         () => this.pollSubprocesses(),
-        1000,
+        60000, // Poll every 60s instead of 1s to reduce popup frequency
       );
     }
   }
