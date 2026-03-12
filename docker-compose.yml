@@ -58,6 +58,43 @@ services:
       - .:/app
       - dev-node-modules:/app/node_modules
 
+  # ── Monitoring (docker compose --profile monitoring up) ──
+  collector:
+    profiles: [monitoring]
+    image: otel/opentelemetry-collector-contrib:latest
+    volumes:
+      - ./monitoring/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - "4318:4318"
+      - "8889:8889"
+
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:latest
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    ports:
+      - "3001:3000"
+
+  jaeger:
+    profiles: [monitoring]
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+
 volumes:
   dev-node-modules:
   stallion-ai-data:
