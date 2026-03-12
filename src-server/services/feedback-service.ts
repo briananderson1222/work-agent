@@ -127,8 +127,7 @@ export class FeedbackService {
     data.ratings = data.ratings.filter(
       (r) =>
         !(
-          r.conversationId === conversationId &&
-          r.messageIndex === messageIndex
+          r.conversationId === conversationId && r.messageIndex === messageIndex
         ),
     );
     if (data.ratings.length < before) {
@@ -266,10 +265,7 @@ Respond with ONLY a JSON array: [{"index": 1, "analysis": "..."}, ...]`;
     if (analyzed.length === 0) return;
 
     // Skip if nothing changed since last run
-    if (
-      data.summary &&
-      data.summary.analyzedCount === analyzed.length
-    ) {
+    if (data.summary && data.summary.analyzedCount === analyzed.length) {
       return;
     }
 
@@ -331,10 +327,7 @@ Respond with ONLY JSON: {"reinforce": ["behavior 1", ...], "avoid": ["behavior 1
 // ── Helpers ────────────────────────────────────────────
 
 function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function escapeAttr(s: string): string {

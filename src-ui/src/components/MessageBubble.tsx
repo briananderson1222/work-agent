@@ -1,8 +1,8 @@
-import ReactMarkdown from 'react-markdown';
 import { useCallback, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { AgentSummary } from '../types';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import type { AgentSummary } from '../types';
 import { AgentIcon } from './AgentIcon';
 import { FilePartPreview } from './FilePartPreview';
 import { markdownCodeComponents } from './HighlightedCodeBlock';
@@ -69,7 +69,12 @@ interface MessageBubbleProps {
 
 type RatingValue = 'thumbs_up' | 'thumbs_down' | null;
 
-function MessageRating({ conversationId, messageIndex, messagePreview, agentSlug }: {
+function MessageRating({
+  conversationId,
+  messageIndex,
+  messagePreview,
+  agentSlug,
+}: {
   conversationId: string;
   messageIndex: number;
   messagePreview: string;
@@ -78,25 +83,36 @@ function MessageRating({ conversationId, messageIndex, messagePreview, agentSlug
   const { apiBase } = useApiBase();
   const [rating, setRating] = useState<RatingValue>(null);
 
-  const handleRate = useCallback(async (value: RatingValue) => {
-    const newRating = rating === value ? null : value;
-    setRating(newRating);
-    try {
-      if (newRating) {
-        await fetch(`${apiBase}/api/feedback/rate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentSlug, conversationId, messageIndex, messagePreview, rating: newRating }),
-        });
-      } else {
-        await fetch(`${apiBase}/api/feedback/rate`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conversationId, messageIndex }),
-        });
+  const handleRate = useCallback(
+    async (value: RatingValue) => {
+      const newRating = rating === value ? null : value;
+      setRating(newRating);
+      try {
+        if (newRating) {
+          await fetch(`${apiBase}/api/feedback/rate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agentSlug,
+              conversationId,
+              messageIndex,
+              messagePreview,
+              rating: newRating,
+            }),
+          });
+        } else {
+          await fetch(`${apiBase}/api/feedback/rate`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationId, messageIndex }),
+          });
+        }
+      } catch {
+        /* soft-fail */
       }
-    } catch { /* soft-fail */ }
-  }, [apiBase, agentSlug, conversationId, messageIndex, messagePreview, rating]);
+    },
+    [apiBase, agentSlug, conversationId, messageIndex, messagePreview, rating],
+  );
 
   return (
     <span className="message__rating">

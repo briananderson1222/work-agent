@@ -11,9 +11,22 @@ export function createFeedbackRoutes(feedbackService: FeedbackService) {
   // Rate a message
   app.post('/rate', async (c) => {
     const body = await c.req.json();
-    const { agentSlug, conversationId, messageIndex, messagePreview, rating, reason } = body;
+    const {
+      agentSlug,
+      conversationId,
+      messageIndex,
+      messagePreview,
+      rating,
+      reason,
+    } = body;
     if (!conversationId || messageIndex == null || !rating) {
-      return c.json({ success: false, error: 'conversationId, messageIndex, and rating are required' }, 400);
+      return c.json(
+        {
+          success: false,
+          error: 'conversationId, messageIndex, and rating are required',
+        },
+        400,
+      );
     }
     const entry = feedbackService.rateMessage({
       agentSlug: agentSlug || 'unknown',

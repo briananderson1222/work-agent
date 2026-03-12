@@ -90,6 +90,7 @@ import { createBrandingRoutes } from '../routes/branding.js';
 import { createCodingRoutes } from '../routes/coding.js';
 import { createConfigRoutes } from '../routes/config.js';
 import { createConversationRoutes } from '../routes/conversations.js';
+import { createFeedbackRoutes } from '../routes/feedback.js';
 import { createFsRoutes } from '../routes/fs.js';
 import {
   createCrossProjectKnowledgeRoutes,
@@ -98,7 +99,6 @@ import {
 import { createLayoutRoutes, createWorkflowRoutes } from '../routes/layouts.js';
 import modelsRoute from '../routes/models.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
-import { createFeedbackRoutes } from '../routes/feedback.js';
 import { createNotificationRoutes } from '../routes/notifications.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createProjectRoutes } from '../routes/projects.js';
@@ -112,8 +112,8 @@ import { createToolRoutes } from '../routes/tools.js';
 import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
-import { FileTreeService } from '../services/file-tree-service.js';
 import { FeedbackService } from '../services/feedback-service.js';
+import { FileTreeService } from '../services/file-tree-service.js';
 import { KnowledgeService } from '../services/knowledge-service.js';
 import { LayoutService } from '../services/layout-service.js';
 import {
