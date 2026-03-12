@@ -222,16 +222,19 @@ function JobDetail({
 
   const reversedLogs = useMemo(() => [...logs].reverse(), [logs]);
 
-  const handleViewOutput = async (i: number) => {
-    setViewIdx(i);
-    setOutputContent(null);
-    try {
-      const data = await fetchOutput.mutateAsync(reversedLogs[i].output);
-      setOutputContent(data.content);
-    } catch {
-      setOutputContent('Failed to load output');
-    }
-  };
+  const handleViewOutput = useCallback(
+    async (i: number) => {
+      setViewIdx(i);
+      setOutputContent(null);
+      try {
+        const data = await fetchOutput.mutateAsync(reversedLogs[i].output);
+        setOutputContent(data.content);
+      } catch {
+        setOutputContent('Failed to load output');
+      }
+    },
+    [fetchOutput, reversedLogs],
+  );
 
   // Auto-open a specific run's output when deep-linked
   useEffect(() => {

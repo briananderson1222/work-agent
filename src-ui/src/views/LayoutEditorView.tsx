@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
 import { LayoutIcon } from '../components/LayoutIcon';
 import type {
@@ -44,7 +44,7 @@ export function LayoutEditorView({
 
   const isPlugin = !!formData?.plugin;
 
-  async function loadAgents() {
+  const loadAgents = useCallback(async () => {
     try {
       const res = await fetch(`${apiBase}/api/agents`);
       if (!res.ok) throw new Error('Failed to load agents');
@@ -53,21 +53,24 @@ export function LayoutEditorView({
     } catch (err: any) {
       log.api('Failed to load agents:', err);
     }
-  }
+  }, [apiBase]);
 
-  async function loadLayout(layoutSlug: string) {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`${apiBase}/layouts/${layoutSlug}`);
-      if (!res.ok) throw new Error('Failed to load layout');
-      const data = await res.json();
-      setFormData(data.data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  const loadLayout = useCallback(
+    async (layoutSlug: string) => {
+      try {
+        setIsLoading(true);
+        const res = await fetch(`${apiBase}/layouts/${layoutSlug}`);
+        if (!res.ok) throw new Error('Failed to load layout');
+        const data = await res.json();
+        setFormData(data.data);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [apiBase],
+  );
 
   useEffect(() => {
     loadAgents();

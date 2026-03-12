@@ -1,6 +1,6 @@
 import { useAgentsQuery } from '@stallion-ai/sdk';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ACPConnectionsSection } from '../components/ACPConnectionsSection';
 import { AgentIcon } from '../components/AgentIcon';
 import { Checkbox } from '../components/Checkbox';
@@ -173,7 +173,7 @@ export function AgentsView({
     }));
   }, [filteredAgents]);
 
-  async function loadTools() {
+  const loadTools = useCallback(async () => {
     try {
       const res = await fetch(`${apiBase}/integrations`);
       if (!res.ok) return;
@@ -182,30 +182,33 @@ export function AgentsView({
     } catch {
       /* non-critical */
     }
-  }
+  }, [apiBase]);
 
-  async function loadAgent(slug: string) {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const res = await fetch(`${apiBase}/api/agents`);
-      if (!res.ok) throw new Error('Failed to load agents');
-      const data = await res.json();
-      const agent = (data.data || []).find(
-        (a: any) => a.slug === slug || a.id === slug,
-      );
-      if (!agent) throw new Error('Agent not found');
-      const f = formFromAgent(agent);
-      setForm(f);
-      setSavedForm(f);
-      setToolsConfig(agent.toolsConfig || null);
-      setIsLocked(true);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  const loadAgent = useCallback(
+    async (slug: string) => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const res = await fetch(`${apiBase}/api/agents`);
+        if (!res.ok) throw new Error('Failed to load agents');
+        const data = await res.json();
+        const agent = (data.data || []).find(
+          (a: any) => a.slug === slug || a.id === slug,
+        );
+        if (!agent) throw new Error('Agent not found');
+        const f = formFromAgent(agent);
+        setForm(f);
+        setSavedForm(f);
+        setToolsConfig(agent.toolsConfig || null);
+        setIsLocked(true);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [apiBase],
+  );
 
   useEffect(() => {
     loadTools();

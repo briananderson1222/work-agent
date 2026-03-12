@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
 import { AgentIcon } from '../components/AgentIcon';
 import { Checkbox } from '../components/Checkbox';
@@ -102,43 +102,46 @@ export function AgentEditorView({
   const isEditMode = !!slug;
   const isPlugin = slug?.includes(':') || false;
 
-  async function loadAgent(agentSlug: string) {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(`${apiBase}/api/agents`);
-      if (!response.ok) throw new Error('Failed to load agents');
-      const data = await response.json();
-      const agent = (data.data || []).find(
-        (a: any) => a.slug === agentSlug || a.id === agentSlug,
-      );
-      if (!agent) throw new Error('Agent not found');
+  const loadAgent = useCallback(
+    async (agentSlug: string) => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await fetch(`${apiBase}/api/agents`);
+        if (!response.ok) throw new Error('Failed to load agents');
+        const data = await response.json();
+        const agent = (data.data || []).find(
+          (a: any) => a.slug === agentSlug || a.id === agentSlug,
+        );
+        if (!agent) throw new Error('Agent not found');
 
-      setUpdatedAt(agent.updatedAt);
-      setFormData({
-        slug: agent.slug || agent.id,
-        name: agent.name || '',
-        description: agent.description || '',
-        prompt: agent.prompt || '',
-        modelId:
-          typeof agent.model === 'string'
-            ? agent.model
-            : agent.model?.modelId || '',
-        region: agent.region || '',
-        guardrails: agent.guardrails || '',
-        maxSteps: agent.maxSteps?.toString() || '',
-        tools: agent.tools || [],
-        icon: agent.icon || '',
-        commands: agent.commands || {},
-      });
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+        setUpdatedAt(agent.updatedAt);
+        setFormData({
+          slug: agent.slug || agent.id,
+          name: agent.name || '',
+          description: agent.description || '',
+          prompt: agent.prompt || '',
+          modelId:
+            typeof agent.model === 'string'
+              ? agent.model
+              : agent.model?.modelId || '',
+          region: agent.region || '',
+          guardrails: agent.guardrails || '',
+          maxSteps: agent.maxSteps?.toString() || '',
+          tools: agent.tools || [],
+          icon: agent.icon || '',
+          commands: agent.commands || {},
+        });
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [apiBase],
+  );
 
-  async function loadTools() {
+  const loadTools = useCallback(async () => {
     try {
       const response = await fetch(`${apiBase}/tools`);
       if (!response.ok) throw new Error('Failed to load tools');
@@ -147,7 +150,7 @@ export function AgentEditorView({
     } catch (err: any) {
       log.api('Failed to load tools:', err);
     }
-  }
+  }, [apiBase]);
 
   useEffect(() => {
     if (slug) {

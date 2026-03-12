@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
 import { type AutoSelectItem, AutoSelectModal } from './AutoSelectModal';
 
@@ -38,7 +38,7 @@ export function SessionPickerModal({
   );
   const [loading, setLoading] = useState(false);
 
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     setLoading(true);
     try {
       const allConversations: ConversationMetadata[] = [];
@@ -73,7 +73,7 @@ export function SessionPickerModal({
     } finally {
       setLoading(false);
     }
-  }
+  }, [apiBase, agents]);
 
   useEffect(() => {
     if (isOpen) {
