@@ -4,7 +4,6 @@ import {
   useProjectsQuery,
 } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AgentIcon } from './components/AgentIcon';
 import { ChatDock } from './components/ChatDock';
 import { CodingLayout } from './components/CodingLayout';
 import { GlobalVoiceButton } from './components/GlobalVoiceButton';
@@ -36,6 +35,7 @@ import { LayoutsView } from './views/LayoutsView';
 import { LayoutView } from './views/LayoutView';
 import { MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
+import { ProjectPage } from './views/ProjectPage';
 import { ProjectSettingsView } from './views/ProjectSettingsView';
 import { PromptsView } from './views/PromptsView';
 import { ProviderSettingsView } from './views/ProviderSettingsView';
@@ -675,10 +675,7 @@ function App() {
           />
         )}
         {currentView.type === 'project' && (
-          <ProjectOverview
-            slug={currentView.slug}
-            onNavigate={navigateToView}
-          />
+          <ProjectPage slug={currentView.slug} />
         )}
         {currentView.type === 'agent-tools' && (
           <ToolManagementView
@@ -799,239 +796,4 @@ function ProjectLayoutRenderer({
 
   // Default: treat as chat layout
   return <LayoutView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
-}
-
-function ProjectOverview({
-  slug,
-  onNavigate,
-}: {
-  slug: string;
-  onNavigate: (view: NavigationView) => void;
-}) {
-  const { apiBase: API_BASE } = useApiBase();
-  const { data: layouts = [] } = useProjectLayoutsQuery(slug);
-  const [project, setProject] = useState<any>(null);
-  const [knowledge, setKnowledge] = useState<{
-    documentCount: number;
-    totalChunks: number;
-    lastIndexed: string | null;
-  } | null>(null);
-  const [gitInfo, setGitInfo] = useState<
-    Record<string, { branch: string; changes: string[] }>
-  >({});
-  const [agents, setAgents] = useState<
-    Array<{ slug: string; name: string; icon?: string; source?: string }>
-  >([]);
-
-  useEffect(() => {
-    fetch(`${API_BASE}/api/projects/${slug}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) setProject(d.data);
-      });
-    fetch(`${API_BASE}/api/projects/${slug}/knowledge/status`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) setKnowledge(d.data);
-      })
-      .catch(() => {});
-    fetch(`${API_BASE}/api/agents`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success ?? d.data) setAgents(d.data ?? []);
-      })
-      .catch(() => {});
-  }, [API_BASE, slug]);
-
-  // Fetch git info for each directory
-  useEffect(() => {
-    if (!project?.directories?.length) return;
-    for (const dir of project.directories) {
-      fetch(
-        `${API_BASE}/api/coding/git/status?path=${encodeURIComponent(dir.path)}`,
-      )
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.success)
-            setGitInfo((prev) => ({ ...prev, [dir.path]: d.data }));
-        })
-        .catch(() => {});
-    }
-  }, [API_BASE, project]);
-
-  if (!project) return <div className="project-dashboard">Loading…</div>;
-
-  return (
-    <div className="project-dashboard">
-      <div className="project-dashboard__header">
-        <h2 className="project-dashboard__title">
-          {project.icon && <span>{project.icon} </span>}
-          {project.name}
-        </h2>
-        <button
-          className="project-dashboard__edit-btn"
-          onClick={() => onNavigate({ type: 'project-edit', slug })}
-        >
-          ⚙ Settings
-        </button>
-      </div>
-      {project.description && (
-        <p className="project-dashboard__desc">{project.description}</p>
-      )}
-
-      <div className="project-dashboard__grid">
-        {/* Directories */}
-        <section className="project-dashboard__card">
-          <h3 className="project-dashboard__card-title">📁 Directories</h3>
-          {project.directories?.length > 0 ? (
-            <div className="project-dashboard__list">
-              {project.directories.map((dir: any) => {
-                const git = gitInfo[dir.path];
-                return (
-                  <div key={dir.id} className="project-dashboard__dir">
-                    <div className="project-dashboard__dir-path">
-                      {dir.label || dir.path.split('/').pop()}
-                    </div>
-                    <div className="project-dashboard__dir-meta">
-                      <span className="project-dashboard__badge">
-                        {dir.role}
-                      </span>
-                      {git && (
-                        <span className="project-dashboard__badge project-dashboard__badge--git">
-                          ⎇ {git.branch}
-                        </span>
-                      )}
-                      {git && git.changes.length > 0 && (
-                        <span className="project-dashboard__badge project-dashboard__badge--changes">
-                          {git.changes.length} changes
-                        </span>
-                      )}
-                    </div>
-                    <div className="project-dashboard__dir-fullpath">
-                      {dir.path}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="project-dashboard__empty">
-              No directories configured
-            </p>
-          )}
-        </section>
-
-        {/* Layouts */}
-        <section className="project-dashboard__card">
-          <div className="project-dashboard__list">
-            {(layouts as any[]).map((layout: any) => (
-              <button
-                key={layout.slug}
-                className="project-dashboard__layout-btn"
-                onClick={() =>
-                  onNavigate({
-                    type: 'layout',
-                    projectSlug: slug,
-                    layoutSlug: layout.slug,
-                  })
-                }
-              >
-                {layout.icon && <span>{layout.icon}</span>}
-                <span>{layout.name}</span>
-                <span className="project-dashboard__badge">{layout.type}</span>
-              </button>
-            ))}
-            {(layouts as any[]).length === 0 && (
-              <p className="project-dashboard__empty">
-                No layouts yet — add one in{' '}
-                <button
-                  className="project-dashboard__link"
-                  onClick={() => onNavigate({ type: 'project-edit', slug })}
-                >
-                  settings
-                </button>
-              </p>
-            )}
-          </div>
-        </section>
-
-        {/* Knowledge */}
-        <section className="project-dashboard__card">
-          <h3 className="project-dashboard__card-title">📚 Knowledge</h3>
-          {knowledge && knowledge.totalChunks > 0 ? (
-            <div className="project-dashboard__list">
-              <div className="project-dashboard__doc">
-                <span>{knowledge.documentCount} documents</span>
-                <span className="project-dashboard__badge">
-                  {knowledge.totalChunks} chunks
-                </span>
-              </div>
-              {knowledge.lastIndexed && (
-                <p className="project-dashboard__empty">
-                  Last indexed:{' '}
-                  {new Date(knowledge.lastIndexed).toLocaleDateString()}
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="project-dashboard__empty">
-              No documents — configure in{' '}
-              <button
-                className="project-dashboard__link"
-                onClick={() => onNavigate({ type: 'project-edit', slug })}
-              >
-                settings
-              </button>
-            </p>
-          )}
-        </section>
-
-        {/* Agents */}
-        <section className="project-dashboard__card">
-          <h3 className="project-dashboard__card-title">🤖 Agents</h3>
-          {agents.length > 0 ? (
-            <div className="project-dashboard__list">
-              {agents.map((agent) => {
-                const isAcp = agent.source === 'acp';
-                const primaryDir = project?.directories?.find(
-                  (d: any) => d.role === 'primary',
-                );
-                return (
-                  <div key={agent.slug} className="project-dashboard__doc">
-                    <span className="project-dashboard__agent-name">
-                      <AgentIcon
-                        agent={agent}
-                        size="small"
-                        className="project-dashboard__agent-icon"
-                      />{' '}
-                      {agent.name}
-                    </span>
-                    <div className="project-dashboard__agent-meta">
-                      {isAcp && (
-                        <span className="project-dashboard__badge project-dashboard__badge--git">
-                          ACP
-                        </span>
-                      )}
-                      {isAcp && primaryDir && (
-                        <span className="project-dashboard__badge">
-                          cwd: {primaryDir.path.split('/').pop()}
-                        </span>
-                      )}
-                      {!isAcp && (
-                        <span className="project-dashboard__badge">
-                          built-in
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="project-dashboard__empty">No agents configured</p>
-          )}
-        </section>
-      </div>
-    </div>
-  );
 }

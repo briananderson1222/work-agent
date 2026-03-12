@@ -1,0 +1,436 @@
+/* ── Project Page ──────────────────────────────────────────────── */
+
+.project-page {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+.project-page__inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 3rem;
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+
+.project-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.project-page__identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.project-page__icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.project-page__name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.project-page__desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}
+
+.project-page__settings-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.project-page__settings-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* ── Layout Cards (hero section) ────────────────────────────────── */
+
+.project-page__layouts {
+  margin-bottom: 2rem;
+}
+
+.project-page__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.project-page__section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.project-page__add-btn {
+  background: none;
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.project-page__add-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.project-page__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.project-page__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: inherit;
+}
+
+.project-page__card:hover {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-secondary));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.project-page__card-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.project-page__card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.project-page__card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.project-page__card-type {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  align-self: flex-start;
+}
+
+.project-page__empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  border: 2px dashed var(--border-secondary);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  grid-column: 1 / -1;
+}
+
+.project-page__empty-card:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* ── Details row (working dir + knowledge) ──────────────────────── */
+
+.project-page__details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 2rem;
+}
+
+.project-page__detail-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.project-page__detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.project-page__detail-value {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", monospace;
+  word-break: break-all;
+}
+
+.project-page__detail-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.project-page__detail-editable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.project-page__detail-editable:hover .project-page__detail-edit-icon {
+  opacity: 1;
+}
+
+.project-page__detail-edit-icon {
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.project-page__dir-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.project-page__dir-edit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.project-page__detail-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.project-page__detail-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Drop zone ──────────────────────────────────────────────────── */
+
+.project-page__dropzone {
+  border: 2px dashed var(--border-secondary);
+  border-radius: 10px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+}
+
+.project-page__dropzone:hover {
+  border-color: var(--accent-primary);
+}
+
+.project-page__dropzone--active {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 6%, var(--bg-primary));
+}
+
+.project-page__dropzone-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.project-page__dropzone-text {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.project-page__dropzone--active .project-page__dropzone-text {
+  color: var(--accent-primary);
+}
+
+.project-page__dropzone-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  opacity: 0.7;
+}
+
+/* ── Document list (below drop zone) ────────────────────────────── */
+
+.project-page__docs {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-page__doc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+.project-page__doc-name {
+  flex: 1;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-page__doc-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.project-page__doc-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.project-page__doc-remove:hover {
+  color: var(--error-text);
+}
+
+/* ── Add Layout Modal ───────────────────────────────────────────── */
+
+.project-page__modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.project-page__modal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.project-page__modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 16px;
+}
+
+.project-page__modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project-page__modal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.project-page__modal-item:hover {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-secondary));
+}
+
+.project-page__modal-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.project-page__modal-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-page__modal-item-name {
+  font-weight: 500;
+}
+
+.project-page__modal-item-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.project-page__modal-cancel {
+  margin-top: 14px;
+  text-align: right;
+}
