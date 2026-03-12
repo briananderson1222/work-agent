@@ -2,25 +2,22 @@ import type { ProviderConnectionConfig } from '@stallion-ai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { PathAutocomplete } from '../components/PathAutocomplete';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectConfig } from '../contexts/ProjectsContext';
 import './page-layout.css';
 import './editor-layout.css';
 
-interface ProjectDirectory {
-  id: string;
-  path: string;
-  label: string;
-  role: 'primary' | 'reference';
-}
-
 type ProjectForm = Pick<
   ProjectConfig,
-  'name' | 'icon' | 'description' | 'defaultProviderId' | 'defaultModel'
-> & {
-  directories: ProjectDirectory[];
-};
+  | 'name'
+  | 'icon'
+  | 'description'
+  | 'defaultProviderId'
+  | 'defaultModel'
+  | 'workingDirectory'
+>;
 
 export function ProjectSettingsView({ slug }: { slug: string }) {
   const { apiBase } = useApiBase();
@@ -76,7 +73,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         description: project.description ?? '',
         defaultProviderId: project.defaultProviderId ?? '',
         defaultModel: project.defaultModel ?? '',
-        directories: (project.directories ?? []) as ProjectDirectory[],
+        workingDirectory: project.workingDirectory ?? '',
       };
       setForm(f);
       setSavedForm(f);
@@ -103,7 +100,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         description: saved.description ?? '',
         defaultProviderId: saved.defaultProviderId ?? '',
         defaultModel: saved.defaultModel ?? '',
-        directories: (saved.directories ?? []) as ProjectDirectory[],
+        workingDirectory: saved.workingDirectory ?? '',
       };
       setSavedForm(f);
       setError(null);
@@ -150,35 +147,6 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
     value: ProjectForm[K],
   ) {
     setForm((f) => (f ? { ...f, [key]: value } : f));
-  }
-
-  function addDirectory() {
-    const dir: ProjectDirectory = {
-      id: crypto.randomUUID(),
-      path: '',
-      label: '',
-      role: 'primary',
-    };
-    setForm((f) => (f ? { ...f, directories: [...f.directories, dir] } : f));
-  }
-
-  function updateDirectory(id: string, updates: Partial<ProjectDirectory>) {
-    setForm((f) =>
-      f
-        ? {
-            ...f,
-            directories: f.directories.map((d) =>
-              d.id === id ? { ...d, ...updates } : d,
-            ),
-          }
-        : f,
-    );
-  }
-
-  function removeDirectory(id: string) {
-    setForm((f) =>
-      f ? { ...f, directories: f.directories.filter((d) => d.id !== id) } : f,
-    );
   }
 
   return (
@@ -307,7 +275,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
           </div>
         </section>
 
-        {/* Directories */}
+        {/* Working Directory */}
         <section
           style={{
             padding: '20px 24px',
@@ -316,116 +284,23 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         >
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '12px',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              marginBottom: '16px',
             }}
           >
-            <span
-              style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-              }}
-            >
-              Directories
-            </span>
-            <button
-              className="workspace-editor__add-btn"
-              onClick={addDirectory}
-            >
-              + Add
-            </button>
+            Working Directory
           </div>
-
-          {form.directories.length === 0 ? (
-            <div
-              style={{
-                padding: '16px',
-                border: '1px dashed var(--border-primary)',
-                borderRadius: '6px',
-                textAlign: 'center',
-                color: 'var(--text-muted)',
-                fontSize: '13px',
-              }}
-            >
-              No directories. Add one to index files for this project.
-            </div>
-          ) : (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-            >
-              {form.directories.map((dir) => (
-                <div
-                  key={dir.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto auto auto',
-                    gap: '8px',
-                    alignItems: 'center',
-                    padding: '10px 12px',
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-primary)',
-                    borderRadius: '6px',
-                  }}
-                >
-                  <input
-                    className="editor-input"
-                    type="text"
-                    value={dir.path}
-                    placeholder="/path/to/dir"
-                    style={{ margin: 0 }}
-                    onChange={(e) =>
-                      updateDirectory(dir.id, {
-                        path: e.target.value,
-                        label:
-                          dir.label ||
-                          e.target.value.split('/').filter(Boolean).pop() ||
-                          '',
-                      })
-                    }
-                  />
-                  <input
-                    className="editor-input"
-                    type="text"
-                    value={dir.label}
-                    placeholder="Label"
-                    style={{ margin: 0, maxWidth: '120px' }}
-                    onChange={(e) =>
-                      updateDirectory(dir.id, { label: e.target.value })
-                    }
-                  />
-                  <select
-                    className="editor-select"
-                    value={dir.role}
-                    style={{ margin: 0, maxWidth: '110px' }}
-                    onChange={(e) =>
-                      updateDirectory(dir.id, {
-                        role: e.target.value as 'primary' | 'reference',
-                      })
-                    }
-                  >
-                    <option value="primary">primary</option>
-                    <option value="reference">reference</option>
-                  </select>
-                  <button
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--error-text)',
-                      cursor: 'pointer',
-                      fontSize: '16px',
-                      padding: '0 4px',
-                    }}
-                    onClick={() => removeDirectory(dir.id)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="editor-field">
+            <label className="editor-label">Path</label>
+            <PathAutocomplete
+              apiBase={apiBase}
+              value={form.workingDirectory ?? ''}
+              onChange={(v) => setField('workingDirectory', v)}
+              placeholder="/path/to/project"
+            />
+          </div>
         </section>
 
         {/* Model */}
@@ -845,7 +720,7 @@ function KnowledgeSection({
     if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files);
   }
 
-  const directories = project?.directories ?? [];
+  const workingDir = project?.workingDirectory;
   const timeAgo = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
     if (diff < 60000) return 'just now';
@@ -866,38 +741,35 @@ function KnowledgeSection({
         )}
       </div>
 
-      {/* Sources — project directories */}
+      {/* Sources — working directory */}
       <div className="knowledge-section__card">
         <div className="knowledge-section__card-header">
           <span className="knowledge-section__card-label">Sources</span>
           <button
             className="knowledge-section__action-btn"
             onClick={handleScan}
-            disabled={scanning || directories.length === 0}
+            disabled={scanning || !workingDir}
           >
-            {scanning ? '⟳ Scanning…' : '⟳ Index directories'}
+            {scanning ? '⟳ Scanning…' : '⟳ Index directory'}
           </button>
         </div>
-        {directories.length > 0 ? (
+        {workingDir ? (
           <div className="knowledge-section__source-list">
-            {directories.map((dir: any) => (
-              <div key={dir.id} className="knowledge-section__source">
-                <span className="knowledge-section__source-icon">📁</span>
-                <div className="knowledge-section__source-info">
-                  <span className="knowledge-section__source-name">
-                    {dir.label || dir.path.split('/').pop()}
-                  </span>
-                  <span className="knowledge-section__source-path">
-                    {dir.path}
-                  </span>
-                </div>
-                <span className="knowledge-section__badge">{dir.role}</span>
+            <div className="knowledge-section__source">
+              <span className="knowledge-section__source-icon">📁</span>
+              <div className="knowledge-section__source-info">
+                <span className="knowledge-section__source-name">
+                  {workingDir.split('/').filter(Boolean).pop()}
+                </span>
+                <span className="knowledge-section__source-path">
+                  {workingDir}
+                </span>
               </div>
-            ))}
+            </div>
           </div>
         ) : (
           <p className="knowledge-section__empty">
-            No directories configured. Add them in project settings above.
+            No working directory configured.
           </p>
         )}
         {scanResult && (

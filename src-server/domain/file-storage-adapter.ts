@@ -57,7 +57,7 @@ export class FileStorageAdapter implements IStorageAdapter {
             name: config.name,
             icon: config.icon,
             description: config.description,
-            directoryCount: config.directories?.length ?? 0,
+            hasWorkingDirectory: !!config.workingDirectory,
             layoutCount,
             hasKnowledge: existsSync(
               join(dir, e.name, 'documents', 'metadata.json'),

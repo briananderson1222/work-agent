@@ -204,7 +204,7 @@ export function useCreateProjectMutation() {
       slug: string;
       description?: string;
       icon?: string;
-      directories?: any[];
+      workingDirectory?: string;
     }) => {
       const apiBase = await _getApiBase();
       const response = await fetch(`${apiBase}/api/projects`, {

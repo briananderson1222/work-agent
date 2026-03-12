@@ -231,7 +231,7 @@ export class KnowledgeService {
       throw new Error('Storage adapter required for directory scanning');
 
     const project = this.storageAdapter.getProject(projectSlug);
-    if (!project.directories || project.directories.length === 0) {
+    if (!project.workingDirectory) {
       return { indexed: 0, skipped: 0 };
     }
 
@@ -241,12 +241,11 @@ export class KnowledgeService {
     let indexed = 0;
     let skipped = 0;
 
-    for (const dir of project.directories) {
-      if (!existsSync(dir.path)) {
-        skipped++;
-        continue;
-      }
-      const files = this.collectFiles(dir.path, allowedExts);
+    const dirPath = project.workingDirectory;
+    if (!existsSync(dirPath)) {
+      skipped++;
+    } else {
+      const files = this.collectFiles(dirPath, allowedExts);
 
       for (const filePath of files) {
         try {
@@ -255,7 +254,7 @@ export class KnowledgeService {
             skipped++;
             continue;
           }
-          const relPath = relative(dir.path, filePath);
+          const relPath = relative(dirPath, filePath);
           await this.uploadDocument(projectSlug, relPath, content);
           indexed++;
         } catch {

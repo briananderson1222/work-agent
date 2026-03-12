@@ -42,7 +42,7 @@ const TEST_PROJECTS = [
     name: 'My Project',
     icon: '🚀',
     description: 'Test project',
-    directoryCount: 1,
+    hasWorkingDirectory: true,
     layoutCount: 1,
     hasKnowledge: false,
   },

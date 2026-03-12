@@ -16,7 +16,7 @@ function slugify(name: string) {
     .replace(/^-|-$/g, '');
 }
 
-function basename(path: string) {
+function _basename(path: string) {
   return path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path;
 }
 
@@ -91,16 +91,7 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
         slug: slugify(name.trim()),
         icon: icon.trim() || undefined,
         description: description.trim() || undefined,
-        directories: dir
-          ? [
-              {
-                id: crypto.randomUUID(),
-                path: dir,
-                label: basename(dir),
-                role: 'primary' as const,
-              },
-            ]
-          : [],
+        workingDirectory: dir || undefined,
       };
       const res = await fetch(`${apiBase}/api/projects`, {
         method: 'POST',

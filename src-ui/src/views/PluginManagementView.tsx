@@ -1044,7 +1044,6 @@ export function PluginManagementView() {
                       body: JSON.stringify({
                         name: quickProjectName,
                         slug,
-                        directories: [],
                       }),
                     })
                   ).json();

@@ -8,19 +8,14 @@ export interface ProjectMetadata {
   name: string;
   icon?: string;
   description?: string;
-  directoryCount: number;
+  hasWorkingDirectory: boolean;
   layoutCount: number;
   hasKnowledge: boolean;
   defaultProviderId?: string;
 }
 
 export interface ProjectConfig extends ProjectMetadata {
-  directories: Array<{
-    id: string;
-    path: string;
-    label?: string;
-    role: 'primary' | 'reference';
-  }>;
+  workingDirectory?: string;
   defaultModel?: string;
   defaultEmbeddingProviderId?: string;
   defaultEmbeddingModel?: string;

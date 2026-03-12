@@ -187,7 +187,7 @@ export interface ProjectConfig {
   slug: string;
   icon?: string;
   description?: string;
-  directories: ProjectDirectory[];
+  workingDirectory?: string;
   defaultProviderId?: string;
   defaultModel?: string;
   defaultEmbeddingProviderId?: string;
@@ -199,20 +199,13 @@ export interface ProjectConfig {
   updatedAt: string;
 }
 
-export interface ProjectDirectory {
-  id: string;
-  path: string;
-  label?: string;
-  role: 'primary' | 'reference';
-}
-
 export interface ProjectMetadata {
   id: string;
   slug: string;
   name: string;
   icon?: string;
   description?: string;
-  directoryCount: number;
+  hasWorkingDirectory: boolean;
   layoutCount: number;
   hasKnowledge: boolean;
   defaultProviderId?: string;

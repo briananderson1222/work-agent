@@ -1880,10 +1880,7 @@ export class StallionRuntime {
           if (projectSlug) {
             try {
               const project = this.storageAdapter.getProject(projectSlug);
-              const primaryDir = project.directories?.find(
-                (d: any) => d.role === 'primary',
-              );
-              if (primaryDir) acpCwd = primaryDir.path;
+              if (project.workingDirectory) acpCwd = project.workingDirectory;
             } catch {
               /* use default */
             }

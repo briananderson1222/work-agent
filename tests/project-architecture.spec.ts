@@ -19,7 +19,7 @@ const STATUS_READY = JSON.stringify({
 const TEST_PROJECTS = [
   {
     id: 'p1', slug: 'alpha', name: 'Alpha', icon: '🚀',
-    description: 'First project', directoryCount: 0, layoutCount: 1, hasKnowledge: false,
+    description: 'First project', hasWorkingDirectory: false, layoutCount: 1, hasKnowledge: false,
   },
 ];
 
@@ -29,7 +29,7 @@ const ALPHA_LAYOUTS = [
 
 const ALPHA_CONFIG = {
   id: 'p1', slug: 'alpha', name: 'Alpha', icon: '🚀',
-  description: 'First project', directories: [], layouts: [],
+  description: 'First project',
   createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
 };
 

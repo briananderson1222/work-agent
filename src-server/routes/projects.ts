@@ -25,14 +25,6 @@ function getAvailableLayouts(projectHomeDir: string) {
   // Built-in types
   results.push({
     source: 'builtin',
-    name: 'Chat',
-    slug: 'chat',
-    icon: '💬',
-    description: 'Chat layout with tabs and prompts',
-    type: 'chat',
-  });
-  results.push({
-    source: 'builtin',
     name: 'Coding',
     slug: 'coding',
     icon: '🔧',
@@ -194,14 +186,14 @@ export function createProjectRoutes(
       const slug = c.req.param('slug');
       const body = await c.req.json();
 
-      // Auto-resolve workingDirectory for coding layouts from project's primary directory
+      // Auto-resolve workingDirectory for coding layouts from project
       if (body.type === 'coding' && !body.config?.workingDirectory) {
         const project = storageAdapter.getProject(slug);
-        const primary = project.directories?.find(
-          (d: any) => d.role === 'primary',
-        );
-        if (primary) {
-          body.config = { ...body.config, workingDirectory: primary.path };
+        if (project.workingDirectory) {
+          body.config = {
+            ...body.config,
+            workingDirectory: project.workingDirectory,
+          };
         }
       }
 
@@ -241,11 +233,8 @@ export function createProjectRoutes(
         !(layout.config as any)?.workingDirectory
       ) {
         const project = storageAdapter.getProject(slug);
-        const primary = project.directories?.find(
-          (d: any) => d.role === 'primary',
-        );
-        if (primary) {
-          (layout.config as any).workingDirectory = primary.path;
+        if (project.workingDirectory) {
+          (layout.config as any).workingDirectory = project.workingDirectory;
         }
       }
 

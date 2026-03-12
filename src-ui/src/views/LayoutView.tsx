@@ -319,7 +319,7 @@ function EmptyLayoutOnboarding() {
           {welcomeMessage || `Welcome to ${appName}`}
         </h2>
         <p className="workspace-onboarding__desc">
-          Layouts give you a custom dashboard with tabs, agents, and tools. Get
+          Projects give you a workspace with layouts, agents, and tools. Get
           started by creating one or installing a plugin.
         </p>
         <div className="workspace-onboarding__actions">
@@ -330,10 +330,10 @@ function EmptyLayoutOnboarding() {
             <span className="workspace-onboarding__card-icon">✨</span>
             <div>
               <div className="workspace-onboarding__card-title">
-                Create a Layout
+                Create a Project
               </div>
               <div className="workspace-onboarding__card-desc">
-                Build a custom layout with your own tabs and agents
+                Set up a project with custom layouts, knowledge base, and agents
               </div>
             </div>
           </button>

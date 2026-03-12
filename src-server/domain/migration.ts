@@ -38,7 +38,6 @@ export async function migrateToProject(projectHomeDir: string): Promise<void> {
     id: randomUUID(),
     name: 'Default',
     slug: 'default',
-    directories: [],
     createdAt: now,
     updatedAt: now,
   };

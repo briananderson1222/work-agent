@@ -25,7 +25,7 @@ export class ProjectService {
       updatedAt: now,
     };
     await this.storageAdapter.saveProject(project);
-    projectOps.add(1, { op: 'create' });
+    projectOps.add(1, { operation: 'create' });
     return project;
   }
 
@@ -40,12 +40,12 @@ export class ProjectService {
       updatedAt: new Date().toISOString(),
     };
     await this.storageAdapter.saveProject(updated);
-    projectOps.add(1, { op: 'update' });
+    projectOps.add(1, { operation: 'update' });
     return updated;
   }
 
   deleteProject(slug: string): void {
     this.storageAdapter.deleteProject(slug);
-    projectOps.add(1, { op: 'delete' });
+    projectOps.add(1, { operation: 'delete' });
   }
 }
