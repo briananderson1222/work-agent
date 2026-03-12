@@ -1428,3 +1428,35 @@
 .editor__tools-server--disabled .editor__tools-server-header {
   background: var(--bg-primary);
 }
+
+/* ── Agents Empty State ── */
+.agents-empty-wrapper {
+  overflow: auto;
+  flex: 1;
+}
+
+.agents-empty-wrapper .split-pane__empty {
+  flex: none;
+  padding: 2rem 1.5rem;
+}
+
+.agents-onboard {
+  padding: 2rem;
+}
+
+.agents-onboard__title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agents-onboard__desc {
+  margin: 0 0 1.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.agents-acp-section {
+  padding: 0 1.5rem 1.5rem;
+}

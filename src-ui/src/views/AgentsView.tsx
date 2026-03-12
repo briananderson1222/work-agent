@@ -327,52 +327,53 @@ export function AgentsView({
         emptyTitle="No agent selected"
         emptyDescription="Select an agent to edit, or create a new one"
         emptyContent={
-          agents.length === 0 ? (
-            <div style={{ padding: '2rem' }}>
-              <h3
-                style={{
-                  margin: '0 0 0.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                }}
-              >
-                Get started
-              </h3>
-              <p
-                style={{
-                  margin: '0 0 1.5rem',
-                  fontSize: '0.8rem',
-                  color: 'var(--text-muted)',
-                }}
-              >
-                Create your first agent from a template
-              </p>
-              <div className="template-grid">
-                {templates.map((t: any) => (
-                  <button
-                    key={t.id}
-                    className="template-card"
-                    onClick={() => {
-                      handleNew();
-                      setTimeout(() => {
-                        setForm((f) => ({ ...f, ...t.form }));
-                        setSavedForm((f) => ({ ...f, ...t.form }));
-                        setTemplatePicked(true);
-                      }, 0);
-                    }}
-                  >
-                    <span className="template-card__icon">{t.icon}</span>
-                    <span className="template-card__label">{t.label}</span>
-                    <span className="template-card__desc">{t.description}</span>
-                    {t.source !== 'built-in' && (
-                      <span className="template-card__source">{t.source}</span>
-                    )}
-                  </button>
-                ))}
+          <div className="agents-empty-wrapper">
+            {agents.length === 0 ? (
+              <div className="agents-onboard">
+                <h3 className="agents-onboard__title">Get started</h3>
+                <p className="agents-onboard__desc">
+                  Create your first agent from a template
+                </p>
+                <div className="template-grid">
+                  {templates.map((t: any) => (
+                    <button
+                      key={t.id}
+                      className="template-card"
+                      onClick={() => {
+                        handleNew();
+                        setTimeout(() => {
+                          setForm((f) => ({ ...f, ...t.form }));
+                          setSavedForm((f) => ({ ...f, ...t.form }));
+                          setTemplatePicked(true);
+                        }, 0);
+                      }}
+                    >
+                      <span className="template-card__icon">{t.icon}</span>
+                      <span className="template-card__label">{t.label}</span>
+                      <span className="template-card__desc">{t.description}</span>
+                      {t.source !== 'built-in' && (
+                        <span className="template-card__source">{t.source}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : undefined
+            ) : (
+              <div className="split-pane__empty">
+                <div className="split-pane__empty-icon">⬡</div>
+                <p className="split-pane__empty-title">No agent selected</p>
+                <p className="split-pane__empty-desc">Select an agent to edit, or create a new one</p>
+              </div>
+            )}
+            {acpAgents.length > 0 && (
+              <div className="agents-acp-section">
+                <ACPConnectionsSection
+                  acpAgents={acpAgents as unknown as AgentSummary[]}
+                  apiBase={apiBase}
+                />
+              </div>
+            )}
+          </div>
         }
       >
         {isLoading ? (
@@ -966,13 +967,6 @@ export function AgentsView({
           </div>
         )}
       </SplitPaneLayout>
-
-      {acpAgents.length > 0 && (
-        <ACPConnectionsSection
-          acpAgents={acpAgents as unknown as AgentSummary[]}
-          apiBase={apiBase}
-        />
-      )}
 
       <ConfirmModal
         isOpen={showDeleteModal}

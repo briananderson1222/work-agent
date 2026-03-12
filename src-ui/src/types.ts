@@ -124,6 +124,7 @@ export interface ChatSession {
 export interface Tool {
   id: string;
   name: string;
+  displayName?: string;
   description?: string;
   kind?: 'mcp' | 'builtin' | 'custom';
   transport?: string;

@@ -9,14 +9,13 @@ import { useCallback, useMemo } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 
 export function useUrlSelection(basePath: string) {
-  const { navigate } = useNavigation();
+  const { pathname, navigate } = useNavigation();
 
   const selectedId = useMemo(() => {
-    const path = window.location.pathname;
-    if (!path.startsWith(`${basePath}/`)) return null;
-    const rest = decodeURIComponent(path.slice(basePath.length + 1));
+    if (!pathname.startsWith(`${basePath}/`)) return null;
+    const rest = decodeURIComponent(pathname.slice(basePath.length + 1));
     return rest || null;
-  }, [basePath]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [basePath, pathname]);
 
   const select = useCallback(
     (id: string) => navigate(`${basePath}/${encodeURIComponent(id)}`),
