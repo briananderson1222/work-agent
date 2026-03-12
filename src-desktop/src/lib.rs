@@ -19,7 +19,7 @@ use tauri_plugin_shell::ShellExt;
 #[cfg(not(mobile))]
 static WINDOW_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 #[cfg(not(mobile))]
-const PORT: u16 = 3141;
+const PORT: u16 = 3142;
 
 #[cfg(not(mobile))]
 #[tauri::command]
@@ -179,6 +179,7 @@ pub fn run() {
                     .arg(&server_path)
                     .current_dir(&resource_path)
                     .env("STALLION_AI_DIR", &data_dir)
+                    .env("PORT", PORT.to_string())
                     .env("PATH", &shell_path)
                     .env("HOME", &home)
                     .stdout(std::fs::File::create(log_dir.join("stallion-server.log")).map_or(
@@ -195,6 +196,13 @@ pub fn run() {
                         }
                     }
                     Err(e) => eprintln!("Failed to spawn server: {e}"),
+                }
+
+                // Inject API base so the frontend connects to the desktop port
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.eval(&format!(
+                        "window.__API_BASE__ = 'http://localhost:{PORT}';"
+                    ));
                 }
             }
 
