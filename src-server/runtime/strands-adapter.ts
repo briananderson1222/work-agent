@@ -13,34 +13,34 @@
  *   modelMetadataEvent                                                        → (usage tracking)
  */
 
-import {
-  Agent as StrandsAgent,
-  BedrockModel,
-  McpClient,
-  type AgentStreamEvent,
-  type AgentResult,
-  BeforeToolCallEvent,
-  AfterToolCallEvent,
-  AfterInvocationEvent,
-} from '@strands-agents/sdk';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { AgentSpec, } from '../domain/types.js';
+import {
+  AfterInvocationEvent,
+  AfterToolCallEvent,
+  type AgentResult,
+  type AgentStreamEvent,
+  BedrockModel,
+  BeforeToolCallEvent,
+  McpClient,
+  Agent as StrandsAgent,
+} from '@strands-agents/sdk';
+import type { AgentSpec } from '../domain/types.js';
+import {
+  normalizeToolName,
+  parseToolName,
+} from '../utils/tool-name-normalizer.js';
 import type {
   AgentBundle,
   AgentCreationConfig,
   IAgent,
   IGenerateResult,
   IMemory,
+  InvocationContext,
   IStreamChunk,
   IStreamResult,
   ITool,
-  InvocationContext,
 } from './types.js';
 import type { CreateAgentOptions } from './voltagent-adapter.js';
-import {
-  normalizeToolName,
-  parseToolName,
-} from '../utils/tool-name-normalizer.js';
 
 // ── Stream event mapper: Strands → IStreamChunk ────────
 
@@ -116,7 +116,10 @@ class StrandsAgentWrapper implements IAgent {
   private strandsAgent: StrandsAgent;
   private memory: IMemory | null;
   /** Accumulated usage from the last stream — read by AfterInvocationEvent hook */
-  _lastStreamUsage: { promptTokens?: number; completionTokens?: number } | null = null;
+  _lastStreamUsage: {
+    promptTokens?: number;
+    completionTokens?: number;
+  } | null = null;
   /** Mutable invocation context — updated per-request so hooks see conversationId/userId */
   _invocationCtx: InvocationContext;
 
@@ -135,10 +138,22 @@ class StrandsAgentWrapper implements IAgent {
 
   /** VoltAgent compat — used by server-core's handleGetAgents / handleListTools */
   getFullState() {
-    return { id: this.id, name: this.name, status: 'idle', model: this.model, tools: [], subAgents: [], memory: this.memory };
+    return {
+      id: this.id,
+      name: this.name,
+      status: 'idle',
+      model: this.model,
+      tools: [],
+      subAgents: [],
+      memory: this.memory,
+    };
   }
-  getTools() { return []; }
-  isTelemetryConfigured() { return false; }
+  getTools() {
+    return [];
+  }
+  isTelemetryConfigured() {
+    return false;
+  }
 
   async generateText(prompt: string, _options?: any): Promise<IGenerateResult> {
     // Use stream() internally to capture usage from modelMetadataEvent
@@ -151,8 +166,11 @@ class StrandsAgentWrapper implements IAgent {
         const agentResult = (event as any).result as AgentResult;
         fullText = agentResult.toString();
         const msg = agentResult.lastMessage;
-        const reasoningBlocks = msg?.content?.filter((b: any) => b.type === 'reasoningBlock') || [];
-        reasoning = reasoningBlocks.map((b: any) => b.reasoningText || b.text || '').join('\n');
+        const reasoningBlocks =
+          msg?.content?.filter((b: any) => b.type === 'reasoningBlock') || [];
+        reasoning = reasoningBlocks
+          .map((b: any) => b.reasoningText || b.text || '')
+          .join('\n');
         continue;
       }
       // Capture usage from metadata events
@@ -170,7 +188,8 @@ class StrandsAgentWrapper implements IAgent {
   async streamText(input: string, _options?: any): Promise<IStreamResult> {
     // Merge per-request context (conversationId, userId) into shared invocationCtx
     if (_options) {
-      if (_options.conversationId) this._invocationCtx.conversationId = _options.conversationId;
+      if (_options.conversationId)
+        this._invocationCtx.conversationId = _options.conversationId;
       if (_options.userId) this._invocationCtx.userId = _options.userId;
     }
     const agent = this.strandsAgent;
@@ -178,9 +197,15 @@ class StrandsAgentWrapper implements IAgent {
     let resolveFinish: (r: string) => void;
     let resolveText: (t: string) => void;
 
-    const usagePromise = new Promise<any>((r) => { resolveUsage = r; });
-    const finishPromise = new Promise<string>((r) => { resolveFinish = r; });
-    const textPromise = new Promise<string>((r) => { resolveText = r; });
+    const usagePromise = new Promise<any>((r) => {
+      resolveUsage = r;
+    });
+    const finishPromise = new Promise<string>((r) => {
+      resolveFinish = r;
+    });
+    const textPromise = new Promise<string>((r) => {
+      resolveText = r;
+    });
 
     const self = this;
 
@@ -211,8 +236,12 @@ class StrandsAgentWrapper implements IAgent {
           if (mapped.type === 'usage') {
             accUsage.promptTokens += (mapped as any).promptTokens || 0;
             accUsage.completionTokens += (mapped as any).completionTokens || 0;
-            accUsage.totalTokens = accUsage.promptTokens + accUsage.completionTokens;
-            self._lastStreamUsage = { promptTokens: accUsage.promptTokens, completionTokens: accUsage.completionTokens };
+            accUsage.totalTokens =
+              accUsage.promptTokens + accUsage.completionTokens;
+            self._lastStreamUsage = {
+              promptTokens: accUsage.promptTokens,
+              completionTokens: accUsage.completionTokens,
+            };
           }
           // Emit synthetic text-start before first text-delta
           if (mapped.type === 'text-delta' && !emittedTextStart) {
@@ -241,19 +270,29 @@ class StrandsAgentWrapper implements IAgent {
     };
   }
 
-  async generateObject(prompt: string, _options?: any): Promise<IGenerateResult> {
+  async generateObject(
+    prompt: string,
+    _options?: any,
+  ): Promise<IGenerateResult> {
     // Strands has structuredOutputSchema on the Agent config, but for ad-hoc
     // calls we just invoke and parse
     const result = await this.strandsAgent.invoke(prompt);
     const text = result.toString();
     let object: any;
     try {
-      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const cleaned = text
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
       object = JSON.parse(cleaned);
     } catch {
       object = { raw: text };
     }
-    return { object, text, usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } };
+    return {
+      object,
+      text,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    };
   }
 
   getMemory(): IMemory | null {
@@ -281,7 +320,8 @@ export class StrandsFramework {
     const model = new BedrockModel({
       modelId: resolvedModel,
       region: spec.region || config.appConfig.region,
-      maxTokens: spec.guardrails?.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
+      maxTokens:
+        spec.guardrails?.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
       temperature: spec.guardrails?.temperature,
       topP: spec.guardrails?.topP,
     });
@@ -292,7 +332,11 @@ export class StrandsFramework {
     // Calculate fixed token counts
     const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
     const toolsJson = JSON.stringify(
-      tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
+      tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      })),
     );
     const mcpServerTokens = Math.ceil(toolsJson.length / 4);
 
@@ -312,11 +356,14 @@ export class StrandsFramework {
 
     if (hooks?.beforeToolCall) {
       strandsAgent.hooks.addCallback(BeforeToolCallEvent, async (event) => {
-        const approved = await hooks.beforeToolCall!({
-          toolName: event.toolUse.name,
-          toolCallId: event.toolUse.toolUseId,
-          toolArgs: event.toolUse.input,
-        }, invocationCtx);
+        const approved = await hooks.beforeToolCall!(
+          {
+            toolName: event.toolUse.name,
+            toolCallId: event.toolUse.toolUseId,
+            toolArgs: event.toolUse.input,
+          },
+          invocationCtx,
+        );
         if (!approved) {
           // Strands doesn't have a built-in deny mechanism on BeforeToolCallEvent,
           // so we override the tool input to signal denial
@@ -328,14 +375,18 @@ export class StrandsFramework {
     if (hooks?.afterToolCall) {
       strandsAgent.hooks.addCallback(AfterToolCallEvent, (event) => {
         toolCallCount++;
-        hooks.afterToolCall!({
-          toolName: event.toolUse.name,
-          toolCallId: event.toolUse.toolUseId,
-          toolArgs: event.toolUse.input,
-        }, {
-          output: event.result?.content,
-          error: event.error,
-        }, invocationCtx);
+        hooks.afterToolCall!(
+          {
+            toolName: event.toolUse.name,
+            toolCallId: event.toolUse.toolUseId,
+            toolArgs: event.toolUse.input,
+          },
+          {
+            output: event.result?.content,
+            error: event.error,
+          },
+          invocationCtx,
+        );
       });
     }
 
@@ -353,7 +404,7 @@ export class StrandsFramework {
       const memoryAdapter = opts.memoryAdapter;
       strandsAgent.hooks.addCallback(AfterInvocationEvent, async (event) => {
         opts.logger.info('[Strands] AfterInvocationEvent fired', {
-          hasMessages: !!((event as any).agent?.messages?.length),
+          hasMessages: !!(event as any).agent?.messages?.length,
           messageCount: (event as any).agent?.messages?.length || 0,
           lastStreamUsage: wrapper._lastStreamUsage,
           conversationId: invocationCtx.conversationId,
@@ -381,7 +432,10 @@ export class StrandsFramework {
               const role = msg.role || 'assistant';
               const textParts = (msg.content || [])
                 .filter((b: any) => b.text !== undefined)
-                .map((b: any) => ({ type: 'text' as const, text: b.text || '' }));
+                .map((b: any) => ({
+                  type: 'text' as const,
+                  text: b.text || '',
+                }));
               if (textParts.length) {
                 await memoryAdapter.addMessage(
                   { id: crypto.randomUUID(), role, parts: textParts },
@@ -419,7 +473,16 @@ export class StrandsFramework {
   async loadTools(
     slug: string,
     spec: AgentSpec,
-    opts: Pick<CreateAgentOptions, 'configLoader' | 'mcpConfigs' | 'mcpConnectionStatus' | 'integrationMetadata' | 'toolNameMapping' | 'toolNameReverseMapping' | 'logger'>,
+    opts: Pick<
+      CreateAgentOptions,
+      | 'configLoader'
+      | 'mcpConfigs'
+      | 'mcpConnectionStatus'
+      | 'integrationMetadata'
+      | 'toolNameMapping'
+      | 'toolNameReverseMapping'
+      | 'logger'
+    >,
   ): Promise<ITool[]> {
     if (!spec.tools?.mcpServers?.length) return [];
 
@@ -431,7 +494,10 @@ export class StrandsFramework {
 
         if (toolDef.kind !== 'mcp') continue;
         if (toolDef.transport !== 'stdio' && toolDef.transport !== 'process') {
-          opts.logger.warn('Strands adapter only supports stdio MCP transport', { toolId, transport: toolDef.transport });
+          opts.logger.warn(
+            'Strands adapter only supports stdio MCP transport',
+            { toolId, transport: toolDef.transport },
+          );
           continue;
         }
 
@@ -490,8 +556,15 @@ export class StrandsFramework {
           count: mcpTools.length,
         });
       } catch (error) {
-        opts.logger.error('Failed to load MCP tool via Strands', { agent: slug, toolId, error });
-        opts.mcpConnectionStatus.set(toolId, { connected: false, error: String(error) });
+        opts.logger.error('Failed to load MCP tool via Strands', {
+          agent: slug,
+          toolId,
+          error,
+        });
+        opts.mcpConnectionStatus.set(toolId, {
+          connected: false,
+          error: String(error),
+        });
       }
     }
 
@@ -501,7 +574,8 @@ export class StrandsFramework {
       return allTools.filter((t) =>
         available.some((pattern) => {
           if (pattern === t.name) return true;
-          if (pattern.endsWith('*')) return t.name.startsWith(pattern.slice(0, -1));
+          if (pattern.endsWith('*'))
+            return t.name.startsWith(pattern.slice(0, -1));
           return false;
         }),
       );
@@ -512,7 +586,10 @@ export class StrandsFramework {
 
   async destroyAgent(_slug: string): Promise<void> {}
 
-  async createModel(spec: AgentSpec, config: AgentCreationConfig): Promise<any> {
+  async createModel(
+    spec: AgentSpec,
+    config: AgentCreationConfig,
+  ): Promise<any> {
     const modelId = spec.model || config.appConfig.defaultModel;
     const resolvedModel = config.modelCatalog
       ? await config.modelCatalog.resolveModelId(modelId)
@@ -520,21 +597,33 @@ export class StrandsFramework {
     return new BedrockModel({
       modelId: resolvedModel,
       region: spec.region || config.appConfig.region,
-      maxTokens: spec.guardrails?.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
+      maxTokens:
+        spec.guardrails?.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
       temperature: spec.guardrails?.temperature,
       topP: spec.guardrails?.topP,
     });
   }
 
   async createTempAgent(opts: {
-    name: string; instructions: string; model: any; tools?: ITool[]; maxSteps?: number;
+    name: string;
+    instructions: string;
+    model: any;
+    tools?: ITool[];
+    maxSteps?: number;
   }): Promise<IAgent> {
     const agent = new StrandsAgent({
       model: opts.model,
       systemPrompt: opts.instructions,
       tools: (opts.tools || []) as any[],
     });
-    return new StrandsAgentWrapper(agent, opts.name, opts.name, opts.model, null, { agentSlug: opts.name });
+    return new StrandsAgentWrapper(
+      agent,
+      opts.name,
+      opts.name,
+      opts.model,
+      null,
+      { agentSlug: opts.name },
+    );
   }
 
   async shutdown(): Promise<void> {

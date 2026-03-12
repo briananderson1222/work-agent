@@ -1,5 +1,5 @@
-import React from 'react';
 import { LoadingState } from '@stallion-ai/sdk';
+import React from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import './SplitPaneLayout.css';
 
@@ -64,12 +64,15 @@ export function SplitPaneLayout({
   const breadcrumb = label.split(/\s*\/\s*/).map((seg, i, arr) => {
     // Non-terminal segments auto-link to /<segment> unless overridden
     const isLast = i === arr.length - 1;
-    const handler = breadcrumbLinks?.[seg.toLowerCase()]
-      ?? (!isLast ? () => navigate(`/${seg.toLowerCase()}`) : undefined);
+    const handler =
+      breadcrumbLinks?.[seg.toLowerCase()] ??
+      (!isLast ? () => navigate(`/${seg.toLowerCase()}`) : undefined);
     return (
       <React.Fragment key={i}>
         {handler ? (
-          <span className="split-pane__label-link" onClick={handler}>{seg}</span>
+          <span className="split-pane__label-link" onClick={handler}>
+            {seg}
+          </span>
         ) : (
           <span>{seg}</span>
         )}
@@ -82,13 +85,18 @@ export function SplitPaneLayout({
       <div className="split-pane__left">
         <div className="split-pane__header">
           <div className="split-pane__label">{breadcrumb}</div>
-          <h2 className={`split-pane__title ${selectedId && onDeselect ? 'split-pane__title--clickable' : ''}`} onClick={selectedId && onDeselect ? onDeselect : undefined}>{title}</h2>
+          <h2
+            className={`split-pane__title ${selectedId && onDeselect ? 'split-pane__title--clickable' : ''}`}
+            onClick={selectedId && onDeselect ? onDeselect : undefined}
+          >
+            {title}
+          </h2>
           {subtitle && <p className="split-pane__subtitle">{subtitle}</p>}
           <input
             className="split-pane__search"
             type="text"
             placeholder={searchPlaceholder}
-            onChange={e => onSearch(e.target.value)}
+            onChange={(e) => onSearch(e.target.value)}
           />
         </div>
 
@@ -96,23 +104,25 @@ export function SplitPaneLayout({
           {loading ? (
             <LoadingState message="Loading..." />
           ) : (
-            items.map(item => (
-            <div
-              key={item.id}
-              className={`split-pane__item${selectedId === item.id ? ' split-pane__item--selected' : ''}`}
-              onClick={() => onSelect(item.id)}
-            >
-              {item.icon && (
-                <div className="split-pane__item-icon">{item.icon}</div>
-              )}
-              <div className="split-pane__item-text">
-                <div className="split-pane__item-name">{item.name}</div>
-                {item.subtitle && (
-                  <div className="split-pane__item-subtitle">{item.subtitle}</div>
+            items.map((item) => (
+              <div
+                key={item.id}
+                className={`split-pane__item${selectedId === item.id ? ' split-pane__item--selected' : ''}`}
+                onClick={() => onSelect(item.id)}
+              >
+                {item.icon && (
+                  <div className="split-pane__item-icon">{item.icon}</div>
                 )}
+                <div className="split-pane__item-text">
+                  <div className="split-pane__item-name">{item.name}</div>
+                  {item.subtitle && (
+                    <div className="split-pane__item-subtitle">
+                      {item.subtitle}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            ))
           )}
         </div>
 
@@ -129,15 +139,15 @@ export function SplitPaneLayout({
       </div>
 
       <div className="split-pane__right">
-        {selectedId ? children : (
-          emptyContent || (
-            <div className="split-pane__empty">
-              <div className="split-pane__empty-icon">{emptyIcon}</div>
-              <p className="split-pane__empty-title">{emptyTitle}</p>
-              <p className="split-pane__empty-desc">{emptyDescription}</p>
-            </div>
-          )
-        )}
+        {selectedId
+          ? children
+          : emptyContent || (
+              <div className="split-pane__empty">
+                <div className="split-pane__empty-icon">{emptyIcon}</div>
+                <p className="split-pane__empty-title">{emptyTitle}</p>
+                <p className="split-pane__empty-desc">{emptyDescription}</p>
+              </div>
+            )}
       </div>
     </div>
   );

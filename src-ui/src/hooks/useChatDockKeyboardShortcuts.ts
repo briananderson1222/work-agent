@@ -102,7 +102,7 @@ export function useChatDockKeyboardShortcuts({
     useCallback(() => {
       if (selectedAgent) {
         const newSessionId = `session-${Date.now()}`;
-        initChat(newSessionId, selectedAgent as any ?? undefined);
+        initChat(newSessionId, (selectedAgent as any) ?? undefined);
         setActiveSessionId(newSessionId);
         setActiveChat(newSessionId);
       }

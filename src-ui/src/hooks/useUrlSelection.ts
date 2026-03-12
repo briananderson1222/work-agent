@@ -13,20 +13,17 @@ export function useUrlSelection(basePath: string) {
 
   const selectedId = useMemo(() => {
     const path = window.location.pathname;
-    if (!path.startsWith(basePath + '/')) return null;
+    if (!path.startsWith(`${basePath}/`)) return null;
     const rest = decodeURIComponent(path.slice(basePath.length + 1));
     return rest || null;
-  }, [basePath, window.location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [basePath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const select = useCallback(
     (id: string) => navigate(`${basePath}/${encodeURIComponent(id)}`),
     [basePath, navigate],
   );
 
-  const deselect = useCallback(
-    () => navigate(basePath),
-    [basePath, navigate],
-  );
+  const deselect = useCallback(() => navigate(basePath), [basePath, navigate]);
 
   return { selectedId, select, deselect };
 }

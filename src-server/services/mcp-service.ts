@@ -4,6 +4,7 @@
 
 type MCPConfiguration = any;
 type Tool<_T = any> = any;
+
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, ToolDef, ToolMetadata } from '../domain/types.js';
@@ -175,7 +176,10 @@ export class MCPService {
     for (const [key, config] of this.mcpConfigs.entries()) {
       if (key.startsWith(`${agentSlug}:`)) {
         await (config as MCPConfigurationWithClose).close?.();
-        mcpLifecycle.add(1, { event: 'disconnect', server: key.slice(agentSlug.length + 1) });
+        mcpLifecycle.add(1, {
+          event: 'disconnect',
+          server: key.slice(agentSlug.length + 1),
+        });
         this.mcpConfigs.delete(key);
         this.mcpConnectionStatus.delete(key);
         this.integrationMetadata.delete(key);

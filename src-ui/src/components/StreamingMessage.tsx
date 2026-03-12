@@ -72,7 +72,10 @@ export function StreamingMessage({
 
         {/* Current streaming text — rendered as markdown with throttled updates */}
         {streamingText && (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownCodeComponents}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={markdownCodeComponents}
+          >
             {streamingText}
           </ReactMarkdown>
         )}

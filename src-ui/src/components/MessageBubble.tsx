@@ -1,6 +1,8 @@
 import ReactMarkdown from 'react-markdown';
+import { useCallback, useState } from 'react';
 import remarkGfm from 'remark-gfm';
 import type { AgentSummary } from '../types';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import { AgentIcon } from './AgentIcon';
 import { FilePartPreview } from './FilePartPreview';
 import { markdownCodeComponents } from './HighlightedCodeBlock';
@@ -65,6 +67,57 @@ interface MessageBubbleProps {
   ) => void;
 }
 
+type RatingValue = 'thumbs_up' | 'thumbs_down' | null;
+
+function MessageRating({ conversationId, messageIndex, messagePreview, agentSlug }: {
+  conversationId: string;
+  messageIndex: number;
+  messagePreview: string;
+  agentSlug: string;
+}) {
+  const { apiBase } = useApiBase();
+  const [rating, setRating] = useState<RatingValue>(null);
+
+  const handleRate = useCallback(async (value: RatingValue) => {
+    const newRating = rating === value ? null : value;
+    setRating(newRating);
+    try {
+      if (newRating) {
+        await fetch(`${apiBase}/api/feedback/rate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentSlug, conversationId, messageIndex, messagePreview, rating: newRating }),
+        });
+      } else {
+        await fetch(`${apiBase}/api/feedback/rate`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversationId, messageIndex }),
+        });
+      }
+    } catch { /* soft-fail */ }
+  }, [apiBase, agentSlug, conversationId, messageIndex, messagePreview, rating]);
+
+  return (
+    <span className="message__rating">
+      <button
+        className={`message__rating-btn${rating === 'thumbs_up' ? ' message__rating-btn--active' : ''}`}
+        onClick={() => handleRate('thumbs_up')}
+        title="Good response"
+      >
+        👍
+      </button>
+      <button
+        className={`message__rating-btn${rating === 'thumbs_down' ? ' message__rating-btn--active' : ''}`}
+        onClick={() => handleRate('thumbs_down')}
+        title="Bad response"
+      >
+        👎
+      </button>
+    </span>
+  );
+}
+
 function getModelDisplayName(model: string): string {
   if (model.includes('claude-3-7-sonnet')) return '🤖 Claude 3.7 Sonnet';
   if (model.includes('claude-3-5-sonnet-20241022'))
@@ -100,12 +153,14 @@ export function MessageBubble({
   );
 
   return (
-    <div className={`message-row ${msg.role === 'user' ? 'message-row--user' : ''}`}>
+    <div
+      className={`message-row ${msg.role === 'user' ? 'message-row--user' : ''}`}
+    >
       <div className="message-row__avatar">{avatarContent}</div>
       <div
         style={{
           position: 'relative',
-          maxWidth: '70%'
+          maxWidth: '70%',
         }}
         className={`message ${msg.role}${msg.role === 'user' && msg.fromPrompt ? ' message--from-prompt' : ''}`}
       >
@@ -141,6 +196,15 @@ export function MessageBubble({
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
           </button>
+        )}
+
+        {msg.role === 'assistant' && textContent && (
+          <MessageRating
+            conversationId={activeSession.id}
+            messageIndex={idx}
+            messagePreview={textContent.slice(0, 200)}
+            agentSlug={activeSession.agentSlug}
+          />
         )}
 
         {msg.role === 'assistant' && msg.model && (
@@ -204,7 +268,10 @@ export function MessageBubble({
               return null;
             })
           : textContent && (
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownCodeComponents}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownCodeComponents}
+              >
                 {textContent}
               </ReactMarkdown>
             )}

@@ -3,7 +3,9 @@
  */
 
 import type { EventEmitter } from 'node:events';
+
 type Agent = any;
+
 import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';

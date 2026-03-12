@@ -6,11 +6,15 @@
   cursor: pointer;
   user-select: none;
 }
-.cb--disabled { opacity: 0.4; cursor: default; }
+.cb--disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .cb__input {
   position: absolute;
-  width: 1px; height: 1px;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
@@ -19,12 +23,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px; height: 18px;
+  width: 18px;
+  height: 18px;
   border: 1.5px solid var(--border-primary);
   border-radius: 4px;
   background: var(--bg-primary);
   flex-shrink: 0;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 .cb__input:checked + .cb__box {
   background: var(--accent-primary);
@@ -39,7 +46,8 @@
 }
 
 .cb__check {
-  width: 12px; height: 12px;
+  width: 12px;
+  height: 12px;
   color: #fff;
 }
 

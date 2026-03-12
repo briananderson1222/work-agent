@@ -18,7 +18,13 @@ const DATA_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
       const body = data.body as string | undefined;
       const ttl = typeof data.ttl === 'number' ? data.ttl : 8000;
       const metadata = data.metadata as Record<string, unknown> | undefined;
-      toastStore.show(title + (body ? ` — ${body}` : ''), undefined, ttl, undefined, metadata);
+      toastStore.show(
+        title + (body ? ` — ${body}` : ''),
+        undefined,
+        ttl,
+        undefined,
+        metadata,
+      );
     }
   },
 };
@@ -87,7 +93,11 @@ export function useServerEvents(handlers?: Record<string, EventHandler>) {
           EVENT_HANDLERS[event](queryClient);
           // Also run data handler if one exists for this event
           if (DATA_HANDLERS[event]) {
-            try { DATA_HANDLERS[event](JSON.parse(e.data)); } catch { /* ignore parse errors */ }
+            try {
+              DATA_HANDLERS[event](JSON.parse(e.data));
+            } catch {
+              /* ignore parse errors */
+            }
           }
         });
       }

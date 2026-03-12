@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoadingState } from '@stallion-ai/sdk';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import type { WorkflowFile } from '../types';
 
@@ -42,7 +42,7 @@ export function WorkflowManagementView({
   );
   const [editorContent, setEditorContent] = useState('');
   const [newWorkflowName, setNewWorkflowName] = useState('');
-  const [contentLoading, setContentLoading] = useState(false);
+  const [_contentLoading, setContentLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);

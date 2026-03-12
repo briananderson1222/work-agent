@@ -10,8 +10,17 @@
  */
 
 import { execSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
 
@@ -391,7 +400,13 @@ export enum AgentSwitchState {
 // ── Provider Interfaces ────────────────────────────────────────────
 // Contracts that plugins implement when providing auth, user, registry, etc.
 
-export type { Notification, NotificationAction, NotificationPriority, NotificationStatus, ScheduleNotificationOpts } from './notifications.js';
+export type {
+  Notification,
+  NotificationAction,
+  NotificationPriority,
+  NotificationStatus,
+  ScheduleNotificationOpts,
+} from './notifications.js';
 
 export interface RegistryItem {
   id: string;
@@ -500,8 +515,7 @@ export function readAgentSpec(path: string): AgentSpec {
 }
 
 export function readLayoutConfig(path: string): StandaloneLayoutConfig {
-  if (!existsSync(path))
-    throw new Error(`Layout config not found at ${path}`);
+  if (!existsSync(path)) throw new Error(`Layout config not found at ${path}`);
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 
@@ -529,7 +543,9 @@ export function listIntegrationIds(toolsDir: string): string[] {
   if (!existsSync(toolsDir)) return [];
   return readdirSync(toolsDir, { withFileTypes: true })
     .filter(
-      (d) => d.isDirectory() && existsSync(join(toolsDir, d.name, 'integration.json')),
+      (d) =>
+        d.isDirectory() &&
+        existsSync(join(toolsDir, d.name, 'integration.json')),
     )
     .map((d) => d.name);
 }
@@ -547,13 +563,21 @@ export function copyPluginIntegrations(
   mkdirSync(projectIntegrationsDir, { recursive: true });
   // Read plugin name for source stamping
   let pluginName = '';
-  try { pluginName = JSON.parse(readFileSync(join(pluginDir, 'plugin.json'), 'utf-8')).name; } catch {}
+  try {
+    pluginName = JSON.parse(
+      readFileSync(join(pluginDir, 'plugin.json'), 'utf-8'),
+    ).name;
+  } catch {}
   const copied: string[] = [];
-  for (const entry of readdirSync(pluginIntegrationsDir, { withFileTypes: true })) {
+  for (const entry of readdirSync(pluginIntegrationsDir, {
+    withFileTypes: true,
+  })) {
     if (!entry.isDirectory()) continue;
     const target = join(projectIntegrationsDir, entry.name);
     if (!existsSync(target)) {
-      cpSync(join(pluginIntegrationsDir, entry.name), target, { recursive: true });
+      cpSync(join(pluginIntegrationsDir, entry.name), target, {
+        recursive: true,
+      });
       // Stamp plugin source into integration.json
       if (pluginName) {
         const defPath = join(target, 'integration.json');
@@ -583,14 +607,18 @@ export function resolveGitInfo(hint?: string): {
 } {
   const candidates = [hint, process.cwd()].filter(Boolean) as string[];
   // Bundled server: try dist-server entry from argv
-  const serverEntry = process.argv.find(a => a.includes('src-server') || a.includes('dist-server'));
+  const serverEntry = process.argv.find(
+    (a) => a.includes('src-server') || a.includes('dist-server'),
+  );
   if (serverEntry) candidates.splice(1, 0, dirname(resolve(serverEntry)));
 
   let gitRoot: string | undefined;
   for (const dir of candidates) {
     try {
       gitRoot = execSync('git rev-parse --show-toplevel', {
-        cwd: dir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: dir,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
       }).trim();
       break;
     } catch {}
@@ -598,17 +626,23 @@ export function resolveGitInfo(hint?: string): {
   if (!gitRoot) throw new Error('Not a git repository');
 
   const branch = execSync('git rev-parse --abbrev-ref HEAD', {
-    cwd: gitRoot, encoding: 'utf-8',
+    cwd: gitRoot,
+    encoding: 'utf-8',
   }).trim();
 
   const hash = execSync('git rev-parse HEAD', {
-    cwd: gitRoot, encoding: 'utf-8',
-  }).trim().substring(0, 7);
+    cwd: gitRoot,
+    encoding: 'utf-8',
+  })
+    .trim()
+    .substring(0, 7);
 
   let remote: string | undefined;
   try {
     remote = execSync('git remote get-url origin', {
-      cwd: gitRoot, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: gitRoot,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
   } catch {}
 
@@ -631,7 +665,8 @@ export const SHARED_EXTERNALS = [
 ];
 
 /** esbuild filter regex matching all shared externals */
-export const SHARED_EXTERNALS_REGEX = /^react$|^react\/|^@stallion-ai\/sdk$|^@stallion-ai\/components$|^@tanstack\/react-query$|^dompurify$|^debug$|^zod$/;
+export const SHARED_EXTERNALS_REGEX =
+  /^react$|^react\/|^@stallion-ai\/sdk$|^@stallion-ai\/components$|^@tanstack\/react-query$|^dompurify$|^debug$|^zod$/;
 
 /** Runtime require() shim — maps externals to window.__stallion_ai_shared at runtime */
 export const RUNTIME_SHIM = [
@@ -659,7 +694,10 @@ export interface BuildResult {
  * Build a plugin. Workspace plugins (with entrypoint) use esbuild JS API directly.
  * Provider-only plugins fall back to build.mjs / build.sh / npm run build.
  */
-export async function buildPlugin(pluginDir: string, mode: 'production' | 'dev' = 'production'): Promise<BuildResult> {
+export async function buildPlugin(
+  pluginDir: string,
+  mode: 'production' | 'dev' = 'production',
+): Promise<BuildResult> {
   const manifest = readPluginManifest(pluginDir);
 
   // Workspace plugins: centralized esbuild build
@@ -671,7 +709,11 @@ export async function buildPlugin(pluginDir: string, mode: 'production' | 'dev' 
   return buildCustomPlugin(pluginDir);
 }
 
-async function buildLayoutPlugin(pluginDir: string, manifest: PluginManifest, mode: 'production' | 'dev'): Promise<BuildResult> {
+async function buildLayoutPlugin(
+  pluginDir: string,
+  manifest: PluginManifest,
+  mode: 'production' | 'dev',
+): Promise<BuildResult> {
   const isDev = mode === 'dev';
   const outfile = join(pluginDir, 'dist', `bundle${isDev ? '-dev' : ''}.js`);
 
@@ -690,20 +732,27 @@ async function buildLayoutPlugin(pluginDir: string, manifest: PluginManifest, mo
     sourcemap: isDev ? 'inline' : false,
     banner: { js: RUNTIME_SHIM },
     footer: { js: registrationFooter(manifest.name) },
-    define: { 'process.env.NODE_ENV': isDev ? '"development"' : '"production"' },
-    plugins: [{
-      name: 'externalize-shared',
-      setup(build) {
-        build.onResolve({ filter: SHARED_EXTERNALS_REGEX }, args => ({
-          path: args.path,
-          namespace: 'shared-external',
-        }));
-        build.onLoad({ filter: /.*/, namespace: 'shared-external' }, args => ({
-          contents: `var _m = globalThis.require('${args.path}'); module.exports = _m; module.exports.__esModule = true; if (!module.exports.default) module.exports.default = _m;`,
-          loader: 'js',
-        }));
+    define: {
+      'process.env.NODE_ENV': isDev ? '"development"' : '"production"',
+    },
+    plugins: [
+      {
+        name: 'externalize-shared',
+        setup(build) {
+          build.onResolve({ filter: SHARED_EXTERNALS_REGEX }, (args) => ({
+            path: args.path,
+            namespace: 'shared-external',
+          }));
+          build.onLoad(
+            { filter: /.*/, namespace: 'shared-external' },
+            (args) => ({
+              contents: `var _m = globalThis.require('${args.path}'); module.exports = _m; module.exports.__esModule = true; if (!module.exports.default) module.exports.default = _m;`,
+              loader: 'js',
+            }),
+          );
+        },
       },
-    }],
+    ],
     logLevel: 'info',
   });
 
@@ -721,7 +770,11 @@ function buildCustomPlugin(pluginDir: string): BuildResult {
 
   ensurePluginDeps(pluginDir);
 
-  execSync(manifest.build, { cwd: pluginDir, timeout: 30000, stdio: 'inherit' });
+  execSync(manifest.build, {
+    cwd: pluginDir,
+    timeout: 30000,
+    stdio: 'inherit',
+  });
   return { built: true };
 }
 
@@ -730,13 +783,19 @@ function ensurePluginDeps(pluginDir: string): void {
   if (!existsSync(join(pluginDir, 'package.json'))) return;
 
   execSync('npm install --legacy-peer-deps --ignore-scripts', {
-    cwd: pluginDir, timeout: 60000, stdio: 'pipe',
+    cwd: pluginDir,
+    timeout: 60000,
+    stdio: 'pipe',
   });
 
   const sharedLink = join(pluginDir, 'node_modules', '@stallion-ai', 'shared');
   if (!existsSync(sharedLink)) {
-    mkdirSync(join(pluginDir, 'node_modules', '@stallion-ai'), { recursive: true });
-    try { unlinkSync(sharedLink); } catch {}
+    mkdirSync(join(pluginDir, 'node_modules', '@stallion-ai'), {
+      recursive: true,
+    });
+    try {
+      unlinkSync(sharedLink);
+    } catch {}
     const devRoot = resolve(__shared_dir, '..');
     const sharedRoot = existsSync(join(devRoot, 'src', 'index.ts'))
       ? devRoot

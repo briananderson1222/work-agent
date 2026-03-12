@@ -10,10 +10,10 @@ import type {
   IAgentRegistryProvider,
   IAuthProvider,
   IBrandingProvider,
+  IIntegrationRegistryProvider,
   InstallResult,
   IOnboardingProvider,
   ISettingsProvider,
-  IIntegrationRegistryProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
   Prerequisite,
@@ -45,7 +45,9 @@ export class DefaultAgentRegistryProvider implements IAgentRegistryProvider {
   }
 }
 
-export class DefaultIntegrationRegistryProvider implements IIntegrationRegistryProvider {
+export class DefaultIntegrationRegistryProvider
+  implements IIntegrationRegistryProvider
+{
   async listAvailable(): Promise<RegistryItem[]> {
     return [];
   }

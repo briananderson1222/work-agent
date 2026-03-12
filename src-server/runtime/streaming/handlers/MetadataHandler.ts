@@ -1,7 +1,10 @@
 import type { EventEmitter } from 'node:events';
-import { toolCalls as otelToolCalls, toolDuration as otelToolDuration } from '../../../telemetry/metrics.js';
-import type { StreamChunk, StreamHandler } from '../types.js';
 import { trace } from '@opentelemetry/api';
+import {
+  toolCalls as otelToolCalls,
+  toolDuration as otelToolDuration,
+} from '../../../telemetry/metrics.js';
+import type { StreamChunk, StreamHandler } from '../types.js';
 
 /**
  * Collects statistics and emits monitoring events
@@ -73,7 +76,9 @@ export class MetadataHandler implements StreamHandler {
         if (chunk.toolCallId) {
           const entry = this.toolStartTimes.get(chunk.toolCallId);
           if (entry) {
-            otelToolDuration.record(performance.now() - entry.start, { tool: entry.tool });
+            otelToolDuration.record(performance.now() - entry.start, {
+              tool: entry.tool,
+            });
             this.toolStartTimes.delete(chunk.toolCallId);
           }
         }

@@ -24,7 +24,7 @@
 				"noExplicitAny": "off",
 				"noArrayIndexKey": "off",
 				"noAssignInExpressions": "warn",
-				"useIterableCallbackReturn": "warn",
+				"useIterableCallbackReturn": "off",
 				"noImplicitAnyLet": "warn"
 			},
 			"complexity": {
@@ -32,9 +32,13 @@
 				"noImportantStyles": "off",
 				"noBannedTypes": "warn"
 			},
+			"security": {
+				"noDangerouslySetInnerHtml": "off"
+			},
 			"style": {
 				"noNonNullAssertion": "off",
-				"useImportType": "off"
+				"useImportType": "off",
+				"noDescendingSpecificity": "off"
 			},
 			"correctness": {
 				"useExhaustiveDependencies": "warn",

@@ -5,8 +5,8 @@
 import { execFile, execSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Hono } from 'hono';
 import { resolveGitInfo } from '@stallion-ai/shared';
+import { Hono } from 'hono';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
 import { getOnboardingProviders } from '../providers/registry.js';
 
@@ -15,7 +15,11 @@ interface SystemStatusDeps {
     connected: boolean;
     connections: Array<{ id: string; status: string }>;
   };
-  getAppConfig: () => { region: string; defaultModel: string; runtime?: string };
+  getAppConfig: () => {
+    region: string;
+    defaultModel: string;
+    runtime?: string;
+  };
   eventBus?: { emit: (event: string, data?: Record<string, unknown>) => void };
 }
 
@@ -45,7 +49,8 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
     const providers = getOnboardingProviders();
     const prerequisiteArrays = await Promise.all(
       providers.map(({ provider, source }) =>
-        provider.getPrerequisites()
+        provider
+          .getPrerequisites()
           .then((items) => items.map((p) => ({ ...p, source })))
           .catch(() => []),
       ),
@@ -84,40 +89,66 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // Check for core app updates
   app.get('/core-update', async (c) => {
     try {
-      const { gitRoot, branch, hash: currentHash } = resolveGitInfo(
-        dirname(fileURLToPath(import.meta.url)),
-      );
+      const {
+        gitRoot,
+        branch,
+        hash: currentHash,
+      } = resolveGitInfo(dirname(fileURLToPath(import.meta.url)));
 
       // Check if upstream is configured
       let hasUpstream = false;
       try {
         execSync(`git rev-parse --abbrev-ref ${branch}@{u}`, {
-          cwd: gitRoot, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: gitRoot,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
         });
         hasUpstream = true;
       } catch {}
 
       if (!hasUpstream) {
         return c.json({
-          currentHash, branch, behind: 0, ahead: 0,
-          updateAvailable: false, noUpstream: true,
+          currentHash,
+          branch,
+          behind: 0,
+          ahead: 0,
+          updateAvailable: false,
+          noUpstream: true,
         });
       }
 
       execSync('git fetch --quiet', { cwd: gitRoot, timeout: 15000 });
 
       const remoteHash = execSync('git rev-parse @{u}', {
-        cwd: gitRoot, encoding: 'utf-8',
-      }).trim().substring(0, 7);
+        cwd: gitRoot,
+        encoding: 'utf-8',
+      })
+        .trim()
+        .substring(0, 7);
 
       const behind = parseInt(
-        execSync('git rev-list HEAD..@{u} --count', { cwd: gitRoot, encoding: 'utf-8' }).trim(), 10,
+        execSync('git rev-list HEAD..@{u} --count', {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+        }).trim(),
+        10,
       );
       const ahead = parseInt(
-        execSync('git rev-list @{u}..HEAD --count', { cwd: gitRoot, encoding: 'utf-8' }).trim(), 10,
+        execSync('git rev-list @{u}..HEAD --count', {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+        }).trim(),
+        10,
       );
 
-      return c.json({ currentHash, remoteHash, branch, behind, ahead, updateAvailable: behind > 0 });
+      return c.json({
+        currentHash,
+        remoteHash,
+        branch,
+        behind,
+        ahead,
+        updateAvailable: behind > 0,
+      });
     } catch (error: any) {
       return c.json({ updateAvailable: false, error: error.message });
     }
@@ -133,13 +164,17 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
       execSync('git pull --ff-only', { cwd: gitRoot, timeout: 30000 });
 
       const newHash = execSync('git rev-parse HEAD', {
-        cwd: gitRoot, encoding: 'utf-8',
-      }).trim().substring(0, 7);
+        cwd: gitRoot,
+        encoding: 'utf-8',
+      })
+        .trim()
+        .substring(0, 7);
 
       deps.eventBus?.emit('core:updated', { hash: newHash });
 
       return c.json({
-        success: true, hash: newHash,
+        success: true,
+        hash: newHash,
         message: `Updated to ${newHash}. Restart to apply.`,
       });
     } catch (error: any) {

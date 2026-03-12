@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoadingState } from '@stallion-ai/sdk';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
-import type { Tool } from '../types';
 
 export interface ToolManagementViewProps {
   apiBase: string;
@@ -33,7 +32,11 @@ export function ToolManagementView({
   );
   const [aliasValues, setAliasValues] = useState<Record<string, string>>({});
 
-  const { data, isLoading, error: loadError } = useQuery({
+  const {
+    data,
+    isLoading,
+    error: loadError,
+  } = useQuery({
     queryKey: ['agent-tools', agentSlug],
     queryFn: async () => {
       const [toolsRes, agentRes, agentToolsRes] = await Promise.all([
@@ -45,17 +48,26 @@ export function ToolManagementView({
       if (!agentRes.ok) throw new Error('Failed to load agent');
       const toolsData = await toolsRes.json();
       const agentData = await agentRes.json();
-      const agent = (agentData.data || []).find((a: any) => a.slug === agentSlug || a.id === agentSlug);
+      const agent = (agentData.data || []).find(
+        (a: any) => a.slug === agentSlug || a.id === agentSlug,
+      );
       if (!agent) throw new Error('Agent not found');
       let tools = toolsData.data || [];
       if (agentToolsRes?.ok) {
         const atd = await agentToolsRes.json();
         if (atd.success && atd.data) {
           const m = new Map(atd.data.map((t: any) => [t.id || t.name, t]));
-          tools = tools.map((tool: any) => { const e: any = m.get(tool.id); return e ? { ...tool, parameters: e.parameters } : tool; });
+          tools = tools.map((tool: any) => {
+            const e: any = m.get(tool.id);
+            return e ? { ...tool, parameters: e.parameters } : tool;
+          });
         }
       }
-      const config: AgentToolConfig = { tools: agent.tools || [], allowed: agent.allowed, aliases: agent.aliases };
+      const config: AgentToolConfig = {
+        tools: agent.tools || [],
+        allowed: agent.allowed,
+        aliases: agent.aliases,
+      };
       return { tools, config };
     },
   });
@@ -238,7 +250,11 @@ export function ToolManagementView({
           <h2>Manage Tools: {agentName}</h2>
         </div>
 
-        {(loadError || error) && <div className="management-view__error">{loadError?.message || error}</div>}
+        {(loadError || error) && (
+          <div className="management-view__error">
+            {loadError?.message || error}
+          </div>
+        )}
 
         <div className="tool-management">
           <div className="tool-management__column">

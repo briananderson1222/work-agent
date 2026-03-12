@@ -1,7 +1,17 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { LayoutConfig, ProjectConfig, StandaloneLayoutConfig } from '@stallion-ai/shared';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import type {
+  LayoutConfig,
+  ProjectConfig,
+  StandaloneLayoutConfig,
+} from '@stallion-ai/shared';
 
 export async function migrateToProject(projectHomeDir: string): Promise<void> {
   const stallionDir = join(projectHomeDir, '.stallion-ai');
@@ -37,7 +47,11 @@ export async function migrateToProject(projectHomeDir: string): Promise<void> {
   const projectLayoutsDir = join(defaultProjectDir, 'layouts');
   mkdirSync(projectLayoutsDir, { recursive: true });
 
-  writeFileSync(join(defaultProjectDir, 'project.json'), JSON.stringify(project, null, 2), 'utf-8');
+  writeFileSync(
+    join(defaultProjectDir, 'project.json'),
+    JSON.stringify(project, null, 2),
+    'utf-8',
+  );
 
   for (const sl of standaloneLayouts) {
     const layout: LayoutConfig = {

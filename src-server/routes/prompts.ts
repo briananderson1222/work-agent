@@ -21,7 +21,8 @@ export function createPromptRoutes(service: PromptService, logger: any) {
   app.get('/:id', async (c) => {
     try {
       const data = await service.getPrompt(c.req.param('id'));
-      if (!data) return c.json({ success: false, error: 'Prompt not found' }, 404);
+      if (!data)
+        return c.json({ success: false, error: 'Prompt not found' }, 404);
       return c.json({ success: true, data });
     } catch (error: any) {
       logger.error('Failed to get prompt', { error });

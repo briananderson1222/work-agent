@@ -7,7 +7,6 @@ import {
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
-import { useBranding } from '../hooks/useBranding';
 import type { NavigationView } from '../types';
 import { getInitials } from '../utils/layout';
 import { NotificationHistory } from './NotificationHistory';
@@ -32,7 +31,6 @@ export function Header({
 }: HeaderProps) {
   const settingsShortcut = useShortcutDisplay('app.settings');
   const { user: authUser } = useAuth();
-  const { appName } = useBranding();
   const userName = authUser?.name || authUser?.alias || 'User';
   const userInitials = getInitials(userName);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -46,22 +44,31 @@ export function Header({
   return (
     <header className="app-toolbar">
       {/* Breadcrumb — show current project/layout context */}
-      {currentView && 'projectSlug' in currentView && (currentView as any).projectSlug && (
-        <div className="app-toolbar__breadcrumb">
-          <span
-            className="app-toolbar__breadcrumb-link"
-            onClick={() => onNavigate({ type: 'project', slug: (currentView as any).projectSlug })}
-          >
-            {(currentView as any).projectSlug}
-          </span>
-          {'layoutSlug' in currentView && (currentView as any).layoutSlug && (
-            <>
-              <span className="app-toolbar__breadcrumb-sep">/</span>
-              <span className="app-toolbar__breadcrumb-current">{(currentView as any).layoutSlug}</span>
-            </>
-          )}
-        </div>
-      )}
+      {currentView &&
+        'projectSlug' in currentView &&
+        (currentView as any).projectSlug && (
+          <div className="app-toolbar__breadcrumb">
+            <span
+              className="app-toolbar__breadcrumb-link"
+              onClick={() =>
+                onNavigate({
+                  type: 'project',
+                  slug: (currentView as any).projectSlug,
+                })
+              }
+            >
+              {(currentView as any).projectSlug}
+            </span>
+            {'layoutSlug' in currentView && (currentView as any).layoutSlug && (
+              <>
+                <span className="app-toolbar__breadcrumb-sep">/</span>
+                <span className="app-toolbar__breadcrumb-current">
+                  {(currentView as any).layoutSlug}
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
       <div className="app-toolbar__spacer" />
 

@@ -11,7 +11,13 @@ interface ToggleProps {
   size?: 'sm' | 'md';
 }
 
-export function Toggle({ checked, onChange, id, disabled, size = 'md' }: ToggleProps) {
+export function Toggle({
+  checked,
+  onChange,
+  id,
+  disabled,
+  size = 'md',
+}: ToggleProps) {
   return (
     <button
       type="button"

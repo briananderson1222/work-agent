@@ -24,8 +24,8 @@ import type {
   WorkflowStateEntry,
   WorkingMemoryScope,
 } from '@voltagent/core';
-import { createLogger } from '../../utils/logger.js';
 import type { UIMessage } from 'ai';
+import { createLogger } from '../../utils/logger.js';
 import { parseReasoningFromMessage } from '../../utils/reasoning-parser.js';
 
 // Type extensions for memory adapter

@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { mkdirSync, rmSync, } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 // ── Temp dir isolation — set before module loads so constants resolve correctly ──
 
@@ -20,15 +20,24 @@ const mockChatFn = vi.fn(async () => {
 });
 
 // Must import AFTER mock so module-level constants use the mocked homedir
-const { BuiltinScheduler, nextCronTimes } = await import('../builtin-scheduler.js');
+const { BuiltinScheduler, nextCronTimes } = await import(
+  '../builtin-scheduler.js'
+);
 const { SchedulerService } = await import('../scheduler-service.js');
 const { createSchedulerRoutes } = await import('../../routes/scheduler.js');
 
-const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+const mockLogger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+};
 
 beforeEach(() => {
   rmSync(join(tempDir, '.stallion-ai'), { recursive: true, force: true });
-  mkdirSync(join(tempDir, '.stallion-ai', 'scheduler', 'logs'), { recursive: true });
+  mkdirSync(join(tempDir, '.stallion-ai', 'scheduler', 'logs'), {
+    recursive: true,
+  });
 });
 
 afterEach(() => {
@@ -99,28 +108,51 @@ describe('BuiltinScheduler', () => {
   });
 
   test('addJob creates a job and listJobs returns it', async () => {
-    await scheduler.addJob({ name: 'test-job', prompt: 'do stuff', cron: '0 * * * *' });
+    await scheduler.addJob({
+      name: 'test-job',
+      prompt: 'do stuff',
+      cron: '0 * * * *',
+    });
     const jobs = await scheduler.listJobs();
     expect(jobs).toHaveLength(1);
-    expect(jobs[0]).toMatchObject({ name: 'test-job', prompt: 'do stuff', cron: '0 * * * *', enabled: true, provider: 'built-in' });
+    expect(jobs[0]).toMatchObject({
+      name: 'test-job',
+      prompt: 'do stuff',
+      cron: '0 * * * *',
+      enabled: true,
+      provider: 'built-in',
+    });
   });
 
   test('addJob rejects duplicate names', async () => {
     await scheduler.addJob({ name: 'dup', prompt: 'a' });
-    await expect(scheduler.addJob({ name: 'dup', prompt: 'b' })).rejects.toThrow("Job 'dup' already exists");
+    await expect(
+      scheduler.addJob({ name: 'dup', prompt: 'b' }),
+    ).rejects.toThrow("Job 'dup' already exists");
   });
 
   test('addJob validates name is required', async () => {
-    await expect(scheduler.addJob({ name: '', prompt: 'x' })).rejects.toThrow('Job name is required');
+    await expect(scheduler.addJob({ name: '', prompt: 'x' })).rejects.toThrow(
+      'Job name is required',
+    );
   });
 
   test('addJob validates prompt is required', async () => {
-    await expect(scheduler.addJob({ name: 'x', prompt: '' })).rejects.toThrow('Job prompt is required');
+    await expect(scheduler.addJob({ name: 'x', prompt: '' })).rejects.toThrow(
+      'Job prompt is required',
+    );
   });
 
   test('editJob updates allowed fields', async () => {
-    await scheduler.addJob({ name: 'edit-me', prompt: 'original', cron: '0 * * * *' });
-    await scheduler.editJob('edit-me', { prompt: 'updated', cron: '*/5 * * * *' });
+    await scheduler.addJob({
+      name: 'edit-me',
+      prompt: 'original',
+      cron: '0 * * * *',
+    });
+    await scheduler.editJob('edit-me', {
+      prompt: 'updated',
+      cron: '*/5 * * * *',
+    });
     const jobs = await scheduler.listJobs();
     expect(jobs[0]).toMatchObject({ prompt: 'updated', cron: '*/5 * * * *' });
   });
@@ -128,14 +160,19 @@ describe('BuiltinScheduler', () => {
   test('editJob blocks protected fields', async () => {
     await scheduler.addJob({ name: 'protect-me', prompt: 'test' });
     const before = (await scheduler.listJobs())[0];
-    await scheduler.editJob('protect-me', { name: 'hacked', createdAt: '1999-01-01' } as any);
+    await scheduler.editJob('protect-me', {
+      name: 'hacked',
+      createdAt: '1999-01-01',
+    } as any);
     const after = (await scheduler.listJobs())[0];
     expect(after.name).toBe('protect-me');
     expect((after as any).createdAt).toBe((before as any).createdAt);
   });
 
   test('editJob throws for non-existent job', async () => {
-    await expect(scheduler.editJob('ghost', { prompt: 'x' })).rejects.toThrow("Job 'ghost' not found");
+    await expect(scheduler.editJob('ghost', { prompt: 'x' })).rejects.toThrow(
+      "Job 'ghost' not found",
+    );
   });
 
   test('removeJob deletes the job', async () => {
@@ -145,11 +182,17 @@ describe('BuiltinScheduler', () => {
   });
 
   test('removeJob throws for non-existent job', async () => {
-    await expect(scheduler.removeJob('nope')).rejects.toThrow("Job 'nope' not found");
+    await expect(scheduler.removeJob('nope')).rejects.toThrow(
+      "Job 'nope' not found",
+    );
   });
 
   test('enableJob / disableJob toggles enabled flag', async () => {
-    await scheduler.addJob({ name: 'toggle', prompt: 'test', cron: '0 * * * *' });
+    await scheduler.addJob({
+      name: 'toggle',
+      prompt: 'test',
+      cron: '0 * * * *',
+    });
     await scheduler.disableJob('toggle');
     expect((await scheduler.listJobs())[0].enabled).toBe(false);
     await scheduler.enableJob('toggle');
@@ -157,13 +200,21 @@ describe('BuiltinScheduler', () => {
   });
 
   test('runJob throws for non-existent job', async () => {
-    await expect(scheduler.runJob('missing')).rejects.toThrow("Job 'missing' not found");
+    await expect(scheduler.runJob('missing')).rejects.toThrow(
+      "Job 'missing' not found",
+    );
   });
 
   test('getStats returns zero-based stats for jobs with no runs', async () => {
     await scheduler.addJob({ name: 'no-runs', prompt: 'test' });
     const stats = await scheduler.getStats();
-    expect(stats.jobs[0]).toMatchObject({ name: 'no-runs', total: 0, successes: 0, failures: 0, success_rate: 0 });
+    expect(stats.jobs[0]).toMatchObject({
+      name: 'no-runs',
+      total: 0,
+      successes: 0,
+      failures: 0,
+      success_rate: 0,
+    });
   });
 
   test('getStatus reflects running state', async () => {
@@ -195,14 +246,22 @@ describe('BuiltinScheduler', () => {
   });
 
   test('listJobs includes nextRun for enabled cron jobs', async () => {
-    await scheduler.addJob({ name: 'cron-job', prompt: 'test', cron: '0 * * * *' });
+    await scheduler.addJob({
+      name: 'cron-job',
+      prompt: 'test',
+      cron: '0 * * * *',
+    });
     const jobs = await scheduler.listJobs();
     expect(jobs[0].nextRun).toBeDefined();
     expect(() => new Date(jobs[0].nextRun!)).not.toThrow();
   });
 
   test('listJobs omits nextRun for disabled jobs', async () => {
-    await scheduler.addJob({ name: 'disabled-job', prompt: 'test', cron: '0 * * * *' });
+    await scheduler.addJob({
+      name: 'disabled-job',
+      prompt: 'test',
+      cron: '0 * * * *',
+    });
     await scheduler.disableJob('disabled-job');
     const jobs = await scheduler.listJobs();
     expect(jobs[0].nextRun).toBeUndefined();
@@ -246,8 +305,12 @@ describe('BuiltinScheduler', () => {
     await scheduler.addJob({ name: 'event-job', prompt: 'test' });
     await scheduler.runJob('event-job');
     await new Promise((r) => setTimeout(r, 50));
-    expect(events.some((e) => e.event === 'job.started' && e.job === 'event-job')).toBe(true);
-    expect(events.some((e) => e.event === 'job.completed' && e.job === 'event-job')).toBe(true);
+    expect(
+      events.some((e) => e.event === 'job.started' && e.job === 'event-job'),
+    ).toBe(true);
+    expect(
+      events.some((e) => e.event === 'job.completed' && e.job === 'event-job'),
+    ).toBe(true);
   });
 
   test('runJob broadcasts failed event on error', async () => {
@@ -257,7 +320,11 @@ describe('BuiltinScheduler', () => {
     await scheduler.addJob({ name: 'fail-event-job', prompt: 'test' });
     await scheduler.runJob('fail-event-job');
     await new Promise((r) => setTimeout(r, 50));
-    expect(events.some((e) => e.event === 'job.failed' && e.job === 'fail-event-job')).toBe(true);
+    expect(
+      events.some(
+        (e) => e.event === 'job.failed' && e.job === 'fail-event-job',
+      ),
+    ).toBe(true);
   });
 
   test('getStats reflects runs after execution', async () => {
@@ -377,7 +444,11 @@ describe('Scheduler Routes', () => {
     const res = await app.request('/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'route-job', prompt: 'test', cron: '0 * * * *' }),
+      body: JSON.stringify({
+        name: 'route-job',
+        prompt: 'test',
+        cron: '0 * * * *',
+      }),
     });
     const body = await json(res);
     expect(body.success).toBe(true);
@@ -441,7 +512,9 @@ describe('Scheduler Routes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'disable-me', prompt: 'test' }),
     });
-    const res = await app.request('/jobs/disable-me/disable', { method: 'PUT' });
+    const res = await app.request('/jobs/disable-me/disable', {
+      method: 'PUT',
+    });
     expect((await json(res)).success).toBe(true);
   });
 
@@ -460,7 +533,9 @@ describe('Scheduler Routes', () => {
   });
 
   test('GET /jobs/preview-schedule returns times', async () => {
-    const res = await app.request('/jobs/preview-schedule?cron=0+*+*+*+*&count=3');
+    const res = await app.request(
+      '/jobs/preview-schedule?cron=0+*+*+*+*&count=3',
+    );
     const body = await json(res);
     expect(body.success).toBe(true);
     expect(body.data).toHaveLength(3);

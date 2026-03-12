@@ -1,14 +1,12 @@
 /* ManageView — admin hub cards */
 
-
-
 .manage__header {
   margin-bottom: 2.5rem;
   position: relative;
 }
 
 .manage__label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0.15em;
@@ -18,7 +16,7 @@
 }
 
 .manage__title {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -48,7 +46,9 @@
   padding: 1.75rem 1.5rem;
   cursor: pointer;
   position: relative;
-  transition: background 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -69,7 +69,7 @@
 }
 
 .manage__card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -87,11 +87,15 @@
   background: var(--accent-primary);
 }
 
-.manage__card:first-child { border-radius: 11px 0 0 11px; }
-.manage__card:last-child { border-radius: 0 11px 11px 0; }
+.manage__card:first-child {
+  border-radius: 11px 0 0 11px;
+}
+.manage__card:last-child {
+  border-radius: 0 11px 11px 0;
+}
 
 .manage__card-index {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.6rem;
   font-weight: 500;
   color: var(--text-muted);
@@ -106,7 +110,7 @@
 }
 
 .manage__card-title {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -120,7 +124,7 @@
 }
 
 .manage__card-count {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.7rem;
   font-weight: 500;
   color: var(--accent-primary);
@@ -136,7 +140,9 @@
   color: var(--text-muted);
   opacity: 0;
   transform: translateX(-4px);
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
   font-size: 1rem;
 }
 
@@ -155,6 +161,10 @@
   .manage__card:nth-child(5) {
     grid-column: span 1;
   }
-  .manage__card:first-child { border-radius: 11px 11px 0 0; }
-  .manage__card:last-child { border-radius: 0 0 11px 11px; }
+  .manage__card:first-child {
+    border-radius: 11px 11px 0 0;
+  }
+  .manage__card:last-child {
+    border-radius: 0 0 11px 11px;
+  }
 }

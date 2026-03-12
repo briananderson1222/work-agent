@@ -13,11 +13,20 @@ function ensureSpawnHelper(): void {
     const pkgPath = require.resolve('node-pty/package.json');
     const pkgDir = dirname(pkgPath);
     const candidates = [
-      join(pkgDir, 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper'),
+      join(
+        pkgDir,
+        'prebuilds',
+        `${process.platform}-${process.arch}`,
+        'spawn-helper',
+      ),
       join(pkgDir, 'build', 'Release', 'spawn-helper'),
     ];
     for (const p of candidates) {
-      if (existsSync(p)) { try { chmodSync(p, 0o755); } catch {} }
+      if (existsSync(p)) {
+        try {
+          chmodSync(p, 0o755);
+        } catch {}
+      }
     }
   } catch {}
 }
@@ -54,7 +63,9 @@ class NodePtyProcess implements IPtyProcess {
     return () => disposable.dispose();
   }
 
-  onExit(cb: (event: { exitCode: number; signal: number | null }) => void): () => void {
+  onExit(
+    cb: (event: { exitCode: number; signal: number | null }) => void,
+  ): () => void {
     const disposable = this.pty.onExit(({ exitCode, signal }) =>
       cb({ exitCode, signal: signal ?? null }),
     );
@@ -72,7 +83,8 @@ export class NodePtyAdapter implements IPtyAdapter {
     env: NodeJS.ProcessEnv;
   }): Promise<IPtyProcess> {
     const nodePty = await getNodePty();
-    const name = process.platform === 'win32' ? 'xterm-color' : 'xterm-256color';
+    const name =
+      process.platform === 'win32' ? 'xterm-color' : 'xterm-256color';
     const pty = nodePty.spawn(input.shell, input.args ?? [], {
       name,
       cwd: input.cwd,

@@ -68,10 +68,7 @@ export function getProviderConfig(layout: string): Record<string, string> {
 }
 
 /** Set provider configuration for a layout (bulk) */
-export function setProviderConfig(
-  layout: string,
-  cfg: Record<string, string>,
-) {
+export function setProviderConfig(layout: string, cfg: Record<string, string>) {
   config.set(layout, new Map(Object.entries(cfg)));
   // Clear active instances
   active.delete(layout);
@@ -137,10 +134,7 @@ export function hasProvider(layout: string, type: string): boolean {
 }
 
 /** List available providers for a layout + type (layout-specific + global) */
-export function getAvailableProviders(
-  layout: string,
-  type: string,
-): string[] {
+export function getAvailableProviders(layout: string, type: string): string[] {
   const ids = new Set<string>();
 
   // Layout-specific

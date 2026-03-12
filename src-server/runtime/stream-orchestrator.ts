@@ -15,17 +15,6 @@ import type { InjectableStream } from './streaming/InjectableStream.js';
 import { StreamPipeline } from './streaming/StreamPipeline.js';
 import { isAutoApproved } from './tool-executor.js';
 
-// Type extensions for stream orchestrator
-interface ToolApprovalRequestChunk {
-  type: 'tool-approval-request';
-  approvalId: string;
-  toolName: string;
-  server: string | null;
-  tool: string;
-  toolDescription: string;
-  toolArgs: any;
-}
-
 /**
  * Create elicitation callback for tool approval
  */

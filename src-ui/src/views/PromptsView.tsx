@@ -1,10 +1,9 @@
-import { useState, useMemo } from 'react';
-import { useAIEnrich } from '../hooks/useAIEnrich';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { SplitPaneLayout } from '../components/SplitPaneLayout';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
-import { useNavigation } from '../contexts/NavigationContext';
+import { useAIEnrich } from '../hooks/useAIEnrich';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import './page-layout.css';
 import './editor-layout.css';
@@ -31,7 +30,14 @@ interface PromptForm {
   agent: string;
 }
 
-const EMPTY_FORM: PromptForm = { name: '', content: '', description: '', category: '', tags: '', agent: '' };
+const EMPTY_FORM: PromptForm = {
+  name: '',
+  content: '',
+  description: '',
+  category: '',
+  tags: '',
+  agent: '',
+};
 
 function promptToForm(p: Prompt): PromptForm {
   return {
@@ -46,8 +52,11 @@ function promptToForm(p: Prompt): PromptForm {
 
 export function PromptsView() {
   const { apiBase } = useApiBase();
-  const { navigate } = useNavigation();
-  const { selectedId: urlId, select: urlSelect, deselect: urlDeselect } = useUrlSelection('/prompts');
+  const {
+    selectedId: urlId,
+    select: urlSelect,
+    deselect: urlDeselect,
+  } = useUrlSelection('/prompts');
   const queryClient = useQueryClient();
 
   const selectedId = urlId === 'new' ? null : urlId;
@@ -88,7 +97,7 @@ export function PromptsView() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['prompts'] });
       setIsNew(false);
-      urlSelect(data.data?.id ?? "");
+      urlSelect(data.data?.id ?? '');
       setDirty(false);
     },
   });
@@ -121,21 +130,27 @@ export function PromptsView() {
   });
 
   const categories = useMemo(
-    () => [...new Set(prompts.map(p => p.category).filter(Boolean) as string[])],
+    () => [
+      ...new Set(prompts.map((p) => p.category).filter(Boolean) as string[]),
+    ],
     [prompts],
   );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return prompts.filter(p =>
-      !q || p.name.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q) || p.tags?.some(t => t.toLowerCase().includes(q)),
+    return prompts.filter(
+      (p) =>
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.category?.toLowerCase().includes(q) ||
+        p.tags?.some((t) => t.toLowerCase().includes(q)),
     );
   }, [prompts, search]);
 
-  const selectedPrompt = prompts.find(p => p.id === selectedId);
+  const selectedPrompt = prompts.find((p) => p.id === selectedId);
 
   function selectPrompt(id: string) {
-    const p = prompts.find(x => x.id === id);
+    const p = prompts.find((x) => x.id === id);
     if (!p) return;
     urlSelect(id);
     setIsNew(false);
@@ -158,7 +173,7 @@ export function PromptsView() {
   }
 
   function updateField(field: keyof PromptForm, value: string) {
-    setForm(f => ({ ...f, [field]: value }));
+    setForm((f) => ({ ...f, [field]: value }));
     setDirty(true);
   }
 
@@ -168,7 +183,12 @@ export function PromptsView() {
       content: form.content,
       description: form.description || undefined,
       category: form.category || undefined,
-      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+      tags: form.tags
+        ? form.tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : undefined,
       agent: form.agent || undefined,
     };
   }
@@ -185,10 +205,12 @@ export function PromptsView() {
   const { enrich, isEnriching } = useAIEnrich();
   const isEditing = isNew || !!selectedId;
 
-  const listItems = filtered.map(p => ({
+  const listItems = filtered.map((p) => ({
     id: p.id,
     name: p.name,
-    subtitle: [p.category, p.tags?.slice(0, 2).join(', ')].filter(Boolean).join(' · '),
+    subtitle: [p.category, p.tags?.slice(0, 2).join(', ')]
+      .filter(Boolean)
+      .join(' · '),
   }));
 
   return (
@@ -216,9 +238,13 @@ export function PromptsView() {
             <div className="editor__section">
               <div className="editor__section-header">
                 <span className="editor__section-title">
-                  {isNew ? 'New Prompt' : (form.name || 'Edit Prompt')}
+                  {isNew ? 'New Prompt' : form.name || 'Edit Prompt'}
                 </span>
-                {dirty && <span className="prompt-editor__unsaved">unsaved changes</span>}
+                {dirty && (
+                  <span className="prompt-editor__unsaved">
+                    unsaved changes
+                  </span>
+                )}
               </div>
 
               <div className="editor-field">
@@ -227,7 +253,7 @@ export function PromptsView() {
                   type="text"
                   className="editor-input"
                   value={form.name}
-                  onChange={e => updateField('name', e.target.value)}
+                  onChange={(e) => updateField('name', e.target.value)}
                   placeholder="Prompt name"
                 />
               </div>
@@ -240,7 +266,9 @@ export function PromptsView() {
                     className="editor-enrich-btn"
                     disabled={isEnriching || !form.name}
                     onClick={async () => {
-                      const text = await enrich(`Write a reusable prompt template named "${form.name}"${form.description ? ` for: ${form.description}` : ''}. Output only the prompt text, no explanation.`);
+                      const text = await enrich(
+                        `Write a reusable prompt template named "${form.name}"${form.description ? ` for: ${form.description}` : ''}. Output only the prompt text, no explanation.`,
+                      );
                       if (text) updateField('content', text);
                     }}
                   >
@@ -250,7 +278,7 @@ export function PromptsView() {
                 <textarea
                   className="editor-textarea editor-textarea--tall editor-textarea--mono"
                   value={form.content}
-                  onChange={e => updateField('content', e.target.value)}
+                  onChange={(e) => updateField('content', e.target.value)}
                   placeholder="Write your prompt here..."
                   spellCheck={false}
                 />
@@ -264,7 +292,9 @@ export function PromptsView() {
                     className="editor-enrich-btn"
                     disabled={isEnriching || !form.name}
                     onClick={async () => {
-                      const text = await enrich(`Write a brief one-sentence description for a prompt named "${form.name}" with this content: ${form.content.slice(0, 200)}`);
+                      const text = await enrich(
+                        `Write a brief one-sentence description for a prompt named "${form.name}" with this content: ${form.content.slice(0, 200)}`,
+                      );
                       if (text) updateField('description', text);
                     }}
                   >
@@ -274,7 +304,7 @@ export function PromptsView() {
                 <textarea
                   className="editor-textarea"
                   value={form.description}
-                  onChange={e => updateField('description', e.target.value)}
+                  onChange={(e) => updateField('description', e.target.value)}
                   placeholder="Optional description"
                 />
               </div>
@@ -285,7 +315,9 @@ export function PromptsView() {
               <details
                 className="editor__expandable"
                 open={advancedOpen}
-                onToggle={e => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
+                onToggle={(e) =>
+                  setAdvancedOpen((e.target as HTMLDetailsElement).open)
+                }
               >
                 <summary className="editor__expandable-header">
                   <span className="editor__section-title">Advanced</span>
@@ -297,12 +329,14 @@ export function PromptsView() {
                       type="text"
                       className="editor-input"
                       value={form.category}
-                      onChange={e => updateField('category', e.target.value)}
+                      onChange={(e) => updateField('category', e.target.value)}
                       placeholder="e.g. coding, writing, analysis"
                       list="prompt-categories"
                     />
                     <datalist id="prompt-categories">
-                      {categories.map(c => <option key={c} value={c} />)}
+                      {categories.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
                     </datalist>
                   </div>
 
@@ -312,15 +346,21 @@ export function PromptsView() {
                       type="text"
                       className="editor-input"
                       value={form.tags}
-                      onChange={e => updateField('tags', e.target.value)}
+                      onChange={(e) => updateField('tags', e.target.value)}
                       placeholder="comma-separated tags"
                     />
                   </div>
                   {form.tags && (
                     <div className="editor__tags" style={{ marginTop: 8 }}>
-                      {form.tags.split(',').map(t => t.trim()).filter(Boolean).map(t => (
-                        <span key={t} className="editor__tag">{t}</span>
-                      ))}
+                      {form.tags
+                        .split(',')
+                        .map((t) => t.trim())
+                        .filter(Boolean)
+                        .map((t) => (
+                          <span key={t} className="editor__tag">
+                            {t}
+                          </span>
+                        ))}
                     </div>
                   )}
 
@@ -329,11 +369,13 @@ export function PromptsView() {
                     <select
                       className="editor-select"
                       value={form.agent}
-                      onChange={e => updateField('agent', e.target.value)}
+                      onChange={(e) => updateField('agent', e.target.value)}
                     >
                       <option value="">— none —</option>
                       {agents.map((a: any) => (
-                        <option key={a.slug} value={a.slug}>{a.name || a.slug}</option>
+                        <option key={a.slug} value={a.slug}>
+                          {a.name || a.slug}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -345,9 +387,15 @@ export function PromptsView() {
             <div className="editor__footer">
               {selectedPrompt && (
                 <div className="prompt-editor__timestamps">
-                  <span>created {new Date(selectedPrompt.createdAt).toLocaleDateString()}</span>
+                  <span>
+                    created{' '}
+                    {new Date(selectedPrompt.createdAt).toLocaleDateString()}
+                  </span>
                   <span>·</span>
-                  <span>updated {new Date(selectedPrompt.updatedAt).toLocaleDateString()}</span>
+                  <span>
+                    updated{' '}
+                    {new Date(selectedPrompt.updatedAt).toLocaleDateString()}
+                  </span>
                 </div>
               )}
               <div style={{ flex: 1 }} />

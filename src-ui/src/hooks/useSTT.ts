@@ -6,9 +6,10 @@
  *
  * Returns a stable API surface regardless of which provider is active.
  */
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+
 import type { STTOptions, STTState } from '@stallion-ai/sdk';
 import { noopSubscribe } from '@stallion-ai/sdk';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useVoiceProviderContext } from '../contexts/VoiceProviderContext';
 
 export interface UseSTTResult {

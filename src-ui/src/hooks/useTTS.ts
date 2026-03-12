@@ -4,9 +4,10 @@
  * Binds to the active TTSProvider via useSyncExternalStore so the component
  * re-renders whenever speaking state changes.
  */
-import { useSyncExternalStore } from 'react';
+
 import type { TTSOptions } from '@stallion-ai/sdk';
 import { noopSubscribe } from '@stallion-ai/sdk';
+import { useSyncExternalStore } from 'react';
 import { useVoiceProviderContext } from '../contexts/VoiceProviderContext';
 
 export interface UseTTSResult {

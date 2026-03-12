@@ -34,9 +34,14 @@ self.addEventListener('push', (event) => {
 
   // Determine notification tag and actions based on payload type
   const isApproval = !!approvalId;
-  const tag = isApproval ? `approval-${approvalId}` : `notification-${notificationId || Date.now()}`;
+  const tag = isApproval
+    ? `approval-${approvalId}`
+    : `notification-${notificationId || Date.now()}`;
   const actions = isApproval
-    ? [{ action: 'allow', title: 'Allow' }, { action: 'deny', title: 'Deny' }]
+    ? [
+        { action: 'allow', title: 'Allow' },
+        { action: 'deny', title: 'Deny' },
+      ]
     : (customActions || []).map((a) => ({ action: a.id, title: a.label }));
 
   const showPromise = self.registration.showNotification(title, {
@@ -54,7 +59,8 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   const { action } = event;
-  const { approvalId, notificationId, agentSlug, apiBase, category } = event.notification.data || {};
+  const { approvalId, notificationId, agentSlug, apiBase } =
+    event.notification.data || {};
 
   event.notification.close();
 
@@ -65,7 +71,7 @@ self.addEventListener('notificationclick', (event) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approvalId, agentSlug, action }),
-      }).catch(() => {})
+      }).catch(() => {}),
     );
     return;
   }
@@ -76,7 +82,7 @@ self.addEventListener('notificationclick', (event) => {
       fetch(`${apiBase}/notifications/${notificationId}/action/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-      }).catch(() => {})
+      }).catch(() => {}),
     );
     return;
   }
@@ -89,6 +95,6 @@ self.addEventListener('notificationclick', (event) => {
         const existing = clients.find((c) => c.focus);
         if (existing) return existing.focus();
         return self.clients.openWindow('/');
-      })
+      }),
   );
 });

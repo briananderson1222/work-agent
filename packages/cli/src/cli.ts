@@ -21,11 +21,27 @@
  *     --tools-dir=<path>    Tool configs directory
  */
 
-import { install, preview, list, remove, info, update, registry } from './commands/install.js';
 import { build } from './commands/build.js';
 import { init } from './commands/init.js';
-import { start, stop, clean, upgrade, doctor, link, shortcut } from './commands/lifecycle.js';
-import { startDevServer, type DevFlags } from './dev/server.js';
+import {
+  info,
+  install,
+  list,
+  preview,
+  registry,
+  remove,
+  update,
+} from './commands/install.js';
+import {
+  clean,
+  doctor,
+  link,
+  shortcut,
+  start,
+  stop,
+  upgrade,
+} from './commands/lifecycle.js';
+import { type DevFlags, startDevServer } from './dev/server.js';
 
 const [, , command, ...args] = process.argv;
 
@@ -33,9 +49,9 @@ async function main() {
   switch (command) {
     case 'install': {
       if (args.includes('--clean')) clean();
-      const skipArg = args.find(a => a.startsWith('--skip='));
+      const skipArg = args.find((a) => a.startsWith('--skip='));
       const skipList = skipArg ? skipArg.replace('--skip=', '').split(',') : [];
-      const source = args.find(a => !a.startsWith('--'));
+      const source = args.find((a) => !a.startsWith('--'));
       await install(source!, skipList);
       break;
     }
@@ -71,8 +87,10 @@ async function main() {
       let buildFlag = false;
       let baseDir: string | undefined;
       for (const arg of args) {
-        if (arg.startsWith('--port=')) serverPort = parseInt(arg.split('=')[1], 10);
-        else if (arg.startsWith('--ui-port=')) uiPort = parseInt(arg.split('=')[1], 10);
+        if (arg.startsWith('--port='))
+          serverPort = parseInt(arg.split('=')[1], 10);
+        else if (arg.startsWith('--ui-port='))
+          uiPort = parseInt(arg.split('=')[1], 10);
         else if (arg.startsWith('--log=')) logFile = arg.split('=')[1];
         else if (arg === '--log') logFile = '/tmp/stallion-server.log';
         else if (arg === '--build') buildFlag = true;
@@ -105,7 +123,8 @@ async function main() {
       for (const arg of args) {
         if (arg === '--no-mcp') flags.mcp = false;
         else if (arg === '--mcp') flags.mcp = true;
-        else if (arg.startsWith('--tools-dir=')) flags.toolsDir = arg.split('=')[1];
+        else if (arg.startsWith('--tools-dir='))
+          flags.toolsDir = arg.split('=')[1];
         else if (/^\d+$/.test(arg)) devPort = parseInt(arg, 10);
       }
       await startDevServer(devPort, flags);
@@ -152,7 +171,7 @@ Plugin Development:
   }
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Error:', err.message);
   process.exit(1);
 });

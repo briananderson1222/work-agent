@@ -50,7 +50,9 @@ export function SessionTab({
       type="button"
       ref={(el) => {
         if (el && isActive) {
-          const isVerticalList = el.closest('.chat-dock__tab-list')?.scrollHeight !== el.closest('.chat-dock__tab-list')?.clientHeight;
+          const isVerticalList =
+            el.closest('.chat-dock__tab-list')?.scrollHeight !==
+            el.closest('.chat-dock__tab-list')?.clientHeight;
           if (!isVerticalList) {
             el.scrollIntoView({
               behavior: 'smooth',

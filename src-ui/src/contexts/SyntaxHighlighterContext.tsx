@@ -7,7 +7,15 @@
  *   - Any future component needing syntax highlighting
  */
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 // ── Interface ─────────────────────────────────────────────────────
 
@@ -49,16 +57,33 @@ class HighlightCache {
 
 // ── Shiki singleton ───────────────────────────────────────────────
 
-type ShikiHighlighter = Awaited<ReturnType<typeof import('shiki')['createHighlighter']>>;
+type ShikiHighlighter = Awaited<
+  ReturnType<typeof import('shiki')['createHighlighter']>
+>;
 
 let shikiInstance: ShikiHighlighter | null = null;
 let shikiLoading = false;
 const shikiWaiters: Array<(h: ShikiHighlighter) => void> = [];
 
 const PRELOAD_LANGS = [
-  'typescript', 'javascript', 'tsx', 'jsx', 'json', 'html', 'css',
-  'python', 'rust', 'go', 'java', 'bash', 'yaml', 'toml', 'sql',
-  'markdown', 'xml', 'dockerfile',
+  'typescript',
+  'javascript',
+  'tsx',
+  'jsx',
+  'json',
+  'html',
+  'css',
+  'python',
+  'rust',
+  'go',
+  'java',
+  'bash',
+  'yaml',
+  'toml',
+  'sql',
+  'markdown',
+  'xml',
+  'dockerfile',
 ] as const;
 
 const THEME = 'github-dark';
@@ -66,7 +91,9 @@ const THEME = 'github-dark';
 async function initShiki(): Promise<ShikiHighlighter> {
   if (shikiInstance) return shikiInstance;
   if (shikiLoading) {
-    return new Promise<ShikiHighlighter>(resolve => shikiWaiters.push(resolve));
+    return new Promise<ShikiHighlighter>((resolve) =>
+      shikiWaiters.push(resolve),
+    );
   }
   shikiLoading = true;
   const { createHighlighter } = await import('shiki');
@@ -83,15 +110,37 @@ async function initShiki(): Promise<ShikiHighlighter> {
 // ── File extension → language mapping ─────────────────────────────
 
 const EXT_LANG: Record<string, string> = {
-  ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx', mjs: 'javascript', cjs: 'javascript',
-  py: 'python', rs: 'rust', go: 'go', java: 'java',
-  json: 'json', yaml: 'yaml', yml: 'yaml', toml: 'toml',
-  html: 'html', htm: 'html', css: 'css', scss: 'scss',
-  md: 'markdown', mdx: 'markdown', sql: 'sql',
-  sh: 'bash', bash: 'bash', zsh: 'bash',
-  xml: 'xml', svg: 'xml', dockerfile: 'dockerfile',
-  graphql: 'graphql', gql: 'graphql',
-  vue: 'vue', svelte: 'svelte',
+  ts: 'typescript',
+  tsx: 'tsx',
+  js: 'javascript',
+  jsx: 'jsx',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  py: 'python',
+  rs: 'rust',
+  go: 'go',
+  java: 'java',
+  json: 'json',
+  yaml: 'yaml',
+  yml: 'yaml',
+  toml: 'toml',
+  html: 'html',
+  htm: 'html',
+  css: 'css',
+  scss: 'scss',
+  md: 'markdown',
+  mdx: 'markdown',
+  sql: 'sql',
+  sh: 'bash',
+  bash: 'bash',
+  zsh: 'bash',
+  xml: 'xml',
+  svg: 'xml',
+  dockerfile: 'dockerfile',
+  graphql: 'graphql',
+  gql: 'graphql',
+  vue: 'vue',
+  svelte: 'svelte',
 };
 
 export function langFromFilePath(path: string): string | undefined {
@@ -107,21 +156,33 @@ class ShikiSyntaxHighlighter implements ISyntaxHighlighter {
   private cache = new HighlightCache();
   private highlighter: ShikiHighlighter | null = null;
 
-  get ready() { return this.highlighter !== null; }
-  get loadedLanguages() { return this.highlighter?.getLoadedLanguages() ?? []; }
+  get ready() {
+    return this.highlighter !== null;
+  }
+  get loadedLanguages() {
+    return this.highlighter?.getLoadedLanguages() ?? [];
+  }
 
-  setHighlighter(h: ShikiHighlighter) { this.highlighter = h; }
+  setHighlighter(h: ShikiHighlighter) {
+    this.highlighter = h;
+  }
 
   highlight(code: string, lang?: string): string {
     if (!this.highlighter) return escapeHtml(code);
 
-    const resolvedLang = lang && this.highlighter.getLoadedLanguages().includes(lang) ? lang : 'text';
+    const resolvedLang =
+      lang && this.highlighter.getLoadedLanguages().includes(lang)
+        ? lang
+        : 'text';
     const cacheKey = `${resolvedLang}:${fnv1a(code)}`;
     const cached = this.cache.get(cacheKey);
     if (cached) return cached;
 
     try {
-      const html = this.highlighter.codeToHtml(code, { lang: resolvedLang, theme: THEME });
+      const html = this.highlighter.codeToHtml(code, {
+        lang: resolvedLang,
+        theme: THEME,
+      });
       this.cache.set(cacheKey, html);
       return html;
     } catch {
@@ -149,8 +210,12 @@ function fnv1a(str: string): number {
 
 const SyntaxHighlighterContext = createContext<ISyntaxHighlighter | null>(null);
 
-export function SyntaxHighlighterProvider({ children }: { children: ReactNode }) {
-  const [ready, setReady] = useState(!!shikiInstance);
+export function SyntaxHighlighterProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [_ready, setReady] = useState(!!shikiInstance);
   const implRef = useRef(new ShikiSyntaxHighlighter());
 
   useEffect(() => {
@@ -160,16 +225,18 @@ export function SyntaxHighlighterProvider({ children }: { children: ReactNode })
       return;
     }
     let cancelled = false;
-    initShiki().then(h => {
+    initShiki().then((h) => {
       if (cancelled) return;
       implRef.current.setHighlighter(h);
       setReady(true);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Force re-render when ready changes so consumers see updated `ready`
-  const value = useMemo(() => implRef.current, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  const value = useMemo(() => implRef.current, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <SyntaxHighlighterContext.Provider value={value}>
@@ -180,6 +247,9 @@ export function SyntaxHighlighterProvider({ children }: { children: ReactNode })
 
 export function useSyntaxHighlighter(): ISyntaxHighlighter {
   const ctx = useContext(SyntaxHighlighterContext);
-  if (!ctx) throw new Error('useSyntaxHighlighter must be used within SyntaxHighlighterProvider');
+  if (!ctx)
+    throw new Error(
+      'useSyntaxHighlighter must be used within SyntaxHighlighterProvider',
+    );
   return ctx;
 }

@@ -211,9 +211,7 @@ export function LayoutsProvider({ children }: { children: ReactNode }) {
 export function useLayoutsActions() {
   const context = useContext(LayoutsContext);
   if (!context) {
-    throw new Error(
-      'useLayoutsActions must be used within LayoutsProvider',
-    );
+    throw new Error('useLayoutsActions must be used within LayoutsProvider');
   }
   return context;
 }

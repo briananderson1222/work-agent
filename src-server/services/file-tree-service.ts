@@ -10,11 +10,21 @@ export interface FileEntry {
   children?: FileEntry[];
 }
 
-const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', '.cache', '__pycache__']);
+const SKIP_DIRS = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  '.cache',
+  '__pycache__',
+]);
 const MAX_ENTRIES = 500;
 
 export class FileTreeService {
-  listDirectory(dirPath: string, opts?: { depth?: number; maxEntries?: number }): FileEntry[] {
+  listDirectory(
+    dirPath: string,
+    opts?: { depth?: number; maxEntries?: number },
+  ): FileEntry[] {
     const depth = opts?.depth ?? 3;
     const maxEntries = opts?.maxEntries ?? MAX_ENTRIES;
     const results: FileEntry[] = [];
@@ -27,7 +37,8 @@ export class FileTreeService {
     const roots: FileEntry[] = [];
     // Create entries with children arrays for directories
     for (const entry of flat) {
-      const node: FileEntry = entry.type === 'directory' ? { ...entry, children: [] } : { ...entry };
+      const node: FileEntry =
+        entry.type === 'directory' ? { ...entry, children: [] } : { ...entry };
       map.set(entry.path, node);
     }
     for (const node of map.values()) {
@@ -80,8 +91,13 @@ export class FileTreeService {
 
   searchFiles(dirPath: string, query: string, maxResults = 50): FileEntry[] {
     const lower = query.toLowerCase();
-    const all = this.listDirectory(dirPath, { depth: 10, maxEntries: MAX_ENTRIES });
-    return all.filter((e) => e.name.toLowerCase().includes(lower)).slice(0, maxResults);
+    const all = this.listDirectory(dirPath, {
+      depth: 10,
+      maxEntries: MAX_ENTRIES,
+    });
+    return all
+      .filter((e) => e.name.toLowerCase().includes(lower))
+      .slice(0, maxResults);
   }
 
   readFile(filePath: string): string {
@@ -90,7 +106,8 @@ export class FileTreeService {
     // Heuristic binary check: look for null bytes in first 8KB
     const sample = buf.slice(0, 8192);
     for (let i = 0; i < sample.length; i++) {
-      if (sample[i] === 0) throw new Error(`File appears to be binary: ${filePath}`);
+      if (sample[i] === 0)
+        throw new Error(`File appears to be binary: ${filePath}`);
     }
     return buf.toString('utf-8');
   }

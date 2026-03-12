@@ -43,9 +43,7 @@ export interface LayoutComponentProps {
   onSendToChat?: (text: string, agent?: string) => void;
 }
 
-export type LayoutComponent = (
-  props: LayoutComponentProps,
-) => ReactElement;
+export type LayoutComponent = (props: LayoutComponentProps) => ReactElement;
 
 export interface AgentSummary {
   slug: string;

@@ -26,8 +26,13 @@ export function NotificationContainer() {
   // Only show notifications that haven't been dismissed
   const activeNotifications = history.filter((n) => !n.dismissed);
 
-  const handleNavigateTo = (metadata: Record<string, unknown>, toastId: string) => {
-    const nav = metadata.navigateTo as { project?: string; layout?: string } | undefined;
+  const handleNavigateTo = (
+    metadata: Record<string, unknown>,
+    toastId: string,
+  ) => {
+    const nav = metadata.navigateTo as
+      | { project?: string; layout?: string }
+      | undefined;
     if (!nav) return;
     if (nav.project) {
       setProject(nav.project);
@@ -225,9 +230,17 @@ export function NotificationContainer() {
           )}
 
           {notification.metadata?.navigateTo != null && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: notification.actions?.length ? '8px' : '12px' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: '8px',
+                marginTop: notification.actions?.length ? '8px' : '12px',
+              }}
+            >
               <button
-                onClick={() => handleNavigateTo(notification.metadata!, notification.id)}
+                onClick={() =>
+                  handleNavigateTo(notification.metadata!, notification.id)
+                }
                 style={{
                   padding: '8px 16px',
                   background: 'var(--accent-primary)',

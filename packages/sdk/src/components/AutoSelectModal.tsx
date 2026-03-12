@@ -1,5 +1,4 @@
-import React from 'react';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import React, { type ReactNode, useEffect, useRef, useState } from 'react';
 import './AutoSelectModal.css';
 
 export interface AutoSelectItem<T = any> {

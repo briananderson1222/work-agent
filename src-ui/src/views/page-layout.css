@@ -4,27 +4,43 @@
  * All management views MUST use .page as their root container class.
  */
 
-
-
 /* ── Page Container ── */
 .page {
   padding: 2rem 1.5rem;
   max-width: 1600px;
   margin: 0 auto;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   animation: page-fade-in 0.4s ease-out;
 }
 
-.page--narrow { max-width: 960px; }
-.page--full { max-width: none; padding: 0; margin: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.page--narrow {
+  max-width: 960px;
+}
+.page--full {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 @keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 640px) {
-  .page { padding: 1.5rem 1rem; }
+  .page {
+    padding: 1.5rem 1rem;
+  }
 }
 
 /* ── Page Header ── */
@@ -36,10 +52,12 @@
   gap: 1rem;
 }
 
-.page__header-text { flex: 1; }
+.page__header-text {
+  flex: 1;
+}
 
 .page__label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0.15em;
@@ -49,7 +67,7 @@
 }
 
 .page__title {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -73,7 +91,7 @@
 
 /* ── Section Headers ── */
 .page__section-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -102,16 +120,22 @@
 }
 
 .page__card::before {
-  content: '';
+  content: "";
   position: absolute;
-  top: 0; left: 0; right: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 2px;
   background: transparent;
   transition: background 0.3s ease;
 }
 
-.page__card:hover { background: var(--bg-tertiary); }
-.page__card:hover::before { background: var(--accent-primary); }
+.page__card:hover {
+  background: var(--bg-tertiary);
+}
+.page__card:hover::before {
+  background: var(--accent-primary);
+}
 
 /* ── Loose Card Grid (separate cards with gaps) ── */
 .page__card-grid {
@@ -126,7 +150,9 @@
   border-radius: 10px;
   padding: 1.25rem 1.5rem;
   cursor: pointer;
-  transition: border-color 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
 }
 
 .page__card-loose:hover {
@@ -163,7 +189,7 @@
 
 /* ── Utility: Tag/Badge ── */
 .page__tag {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65rem;
   font-weight: 500;
   padding: 0.2rem 0.5rem;
@@ -184,7 +210,7 @@
 
 /* ── Primary Action Button (consistent across views) ── */
 .page__btn-primary {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 0.8rem;
   font-weight: 600;
   padding: 0.5rem 1.25rem;
@@ -197,5 +223,10 @@
   transition: opacity 0.2s;
 }
 
-.page__btn-primary:hover { opacity: 0.85; }
-.page__btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.page__btn-primary:hover {
+  opacity: 0.85;
+}
+.page__btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

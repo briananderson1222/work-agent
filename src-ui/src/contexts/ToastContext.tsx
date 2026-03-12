@@ -65,9 +65,23 @@ class ToastStore {
     this.historyListeners.forEach((listener) => listener());
   };
 
-  show(message: string, sessionId?: string, duration = 5000, actions?: ToastAction[], metadata?: Record<string, unknown>) {
+  show(
+    message: string,
+    sessionId?: string,
+    duration = 5000,
+    actions?: ToastAction[],
+    metadata?: Record<string, unknown>,
+  ) {
     const id = `${Date.now()}-${Math.random()}`;
-    const toast: Toast = { id, message, sessionId, duration, type: 'info', actions, metadata };
+    const toast: Toast = {
+      id,
+      message,
+      sessionId,
+      duration,
+      type: 'info',
+      actions,
+      metadata,
+    };
 
     this.toasts.push(toast);
     this.history.unshift({ ...toast, timestamp: Date.now(), dismissed: false });
@@ -169,7 +183,12 @@ class ToastStore {
 export const toastStore = new ToastStore();
 
 const ToastContext = createContext<{
-  showToast: (message: string, sessionId?: string, duration?: number, actions?: ToastAction[]) => string;
+  showToast: (
+    message: string,
+    sessionId?: string,
+    duration?: number,
+    actions?: ToastAction[],
+  ) => string;
   showToolApproval: (options: {
     sessionId: string;
     toolName: string;
@@ -187,7 +206,12 @@ const ToastContext = createContext<{
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback(
-    (message: string, sessionId?: string, duration?: number, actions?: ToastAction[]) => {
+    (
+      message: string,
+      sessionId?: string,
+      duration?: number,
+      actions?: ToastAction[],
+    ) => {
       return toastStore.show(message, sessionId, duration, actions);
     },
     [],
@@ -254,4 +278,3 @@ export function useNotificationHistory() {
     toastStore.getHistorySnapshot,
   );
 }
-

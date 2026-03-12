@@ -5,16 +5,23 @@
  */
 
 import type {
+  AddJobOpts,
   ISchedulerProvider,
   SchedulerJob,
   SchedulerLogEntry,
   SchedulerProviderStats,
   SchedulerProviderStatus,
-  AddJobOpts,
 } from '../providers/types.js';
-import { BuiltinScheduler, nextCronTimes, type ChatFn } from './builtin-scheduler.js';
+import {
+  schedulerJobDuration,
+  schedulerJobRuns,
+} from '../telemetry/metrics.js';
+import {
+  BuiltinScheduler,
+  type ChatFn,
+  nextCronTimes,
+} from './builtin-scheduler.js';
 import { SSEBroadcaster } from './sse-broadcaster.js';
-import { schedulerJobRuns, schedulerJobDuration } from '../telemetry/metrics.js';
 
 export class SchedulerService {
   private providers = new Map<string, ISchedulerProvider>();
@@ -28,7 +35,9 @@ export class SchedulerService {
   }
 
   /** Wire the chat function once the runtime is ready */
-  setChatFn(fn: ChatFn) { this.builtin.setChatFn(fn); }
+  setChatFn(fn: ChatFn) {
+    this.builtin.setChatFn(fn);
+  }
 
   /** Register an additional scheduler provider (from plugin) */
   addProvider(provider: ISchedulerProvider) {
@@ -36,7 +45,12 @@ export class SchedulerService {
   }
 
   /** List registered providers (for UI dropdown) */
-  listProviders(): Array<{ id: string; displayName: string; capabilities: string[]; formFields?: any[] }> {
+  listProviders(): Array<{
+    id: string;
+    displayName: string;
+    capabilities: string[];
+    formFields?: any[];
+  }> {
     return [...this.providers.values()].map((p) => ({
       id: p.id,
       displayName: p.displayName,
@@ -62,13 +76,20 @@ export class SchedulerService {
   // ── Aggregated reads ──
 
   async listJobs(): Promise<SchedulerJob[]> {
-    const all = await Promise.all([...this.providers.values()].map((p) => p.listJobs().catch(() => [])));
+    const all = await Promise.all(
+      [...this.providers.values()].map((p) => p.listJobs().catch(() => [])),
+    );
     return all.flat();
   }
 
-  async getStats(): Promise<{ providers: Record<string, SchedulerProviderStats>; summary: { totalJobs: number; totalRuns: number; successRate: number } }> {
+  async getStats(): Promise<{
+    providers: Record<string, SchedulerProviderStats>;
+    summary: { totalJobs: number; totalRuns: number; successRate: number };
+  }> {
     const providers: Record<string, SchedulerProviderStats> = {};
-    let totalJobs = 0, totalRuns = 0, totalSuccesses = 0;
+    let totalJobs = 0,
+      totalRuns = 0,
+      totalSuccesses = 0;
     for (const p of this.providers.values()) {
       try {
         const s = await p.getStats();
@@ -78,18 +99,39 @@ export class SchedulerService {
           totalRuns += j.total;
           totalSuccesses += j.successes;
         }
-      } catch { /* provider unavailable */ }
+      } catch {
+        /* provider unavailable */
+      }
     }
-    return { providers, summary: { totalJobs, totalRuns, successRate: totalRuns ? Math.round((totalSuccesses / totalRuns) * 100) : 0 } };
+    return {
+      providers,
+      summary: {
+        totalJobs,
+        totalRuns,
+        successRate: totalRuns
+          ? Math.round((totalSuccesses / totalRuns) * 100)
+          : 0,
+      },
+    };
   }
 
-  async getStatus(): Promise<{ providers: Record<string, SchedulerProviderStatus & { id: string; displayName: string }> }> {
-    const providers: Record<string, SchedulerProviderStatus & { id: string; displayName: string }> = {};
+  async getStatus(): Promise<{
+    providers: Record<
+      string,
+      SchedulerProviderStatus & { id: string; displayName: string }
+    >;
+  }> {
+    const providers: Record<
+      string,
+      SchedulerProviderStatus & { id: string; displayName: string }
+    > = {};
     for (const p of this.providers.values()) {
       try {
         const s = await p.getStatus();
         providers[p.id] = { ...s, id: p.id, displayName: p.displayName };
-      } catch { /* provider unavailable */ }
+      } catch {
+        /* provider unavailable */
+      }
     }
     return { providers };
   }
@@ -101,7 +143,10 @@ export class SchedulerService {
     return this.getProvider(providerId).addJob(opts);
   }
 
-  async editJob(target: string, opts: Record<string, string | boolean>): Promise<string> {
+  async editJob(
+    target: string,
+    opts: Record<string, string | boolean>,
+  ): Promise<string> {
     const p = await this.findJobProvider(target);
     return p.editJob(target, opts);
   }
@@ -136,7 +181,10 @@ export class SchedulerService {
     return p.disableJob(target);
   }
 
-  async getJobLogs(target: string, count?: number): Promise<SchedulerLogEntry[]> {
+  async getJobLogs(
+    target: string,
+    count?: number,
+  ): Promise<SchedulerLogEntry[]> {
     const p = await this.findJobProvider(target);
     return p.getJobLogs(target, count);
   }
@@ -149,7 +197,11 @@ export class SchedulerService {
   async readRunFile(path: string): Promise<string> {
     // Try each provider
     for (const p of this.providers.values()) {
-      try { if (p.readRunFile) return await p.readRunFile(path); } catch { /* not this provider */ }
+      try {
+        if (p.readRunFile) return await p.readRunFile(path);
+      } catch {
+        /* not this provider */
+      }
     }
     throw new Error('No provider could read this file');
   }
@@ -162,7 +214,9 @@ export class SchedulerService {
 
   subscribe(send: (data: string) => void): () => void {
     const localUnsub = this.sse.subscribe(send);
-    const unsubs = [...this.providers.values()].map((p) => p.subscribe?.(send)).filter(Boolean) as (() => void)[];
+    const unsubs = [...this.providers.values()]
+      .map((p) => p.subscribe?.(send))
+      .filter(Boolean) as (() => void)[];
     return () => {
       localUnsub();
       unsubs.forEach((u) => u());

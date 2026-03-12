@@ -4,7 +4,6 @@
  * transitions, and hover states matching the page-layout.css aesthetic.
  */
 
-
 /* ── Header ── */
 .app-toolbar__brand {
   display: flex;
@@ -18,7 +17,11 @@
 }
 
 .app-toolbar__brand:hover {
-  background: linear-gradient(135deg, var(--bg-hover) 0%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-hover) 0%,
+    var(--bg-tertiary) 100%
+  );
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -34,11 +37,15 @@
 }
 
 .app-toolbar__name {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--text-primary) 0%,
+    var(--accent-primary) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -56,7 +63,7 @@
 
 /* ── Header Buttons ── */
 .app-toolbar__workspace-btn {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 13px;
   font-weight: 600;
   padding: 4px 10px;
@@ -82,7 +89,7 @@
 }
 
 .app-toolbar__icon-btn {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
   padding: 6px 10px;
@@ -130,8 +137,14 @@
 }
 
 @keyframes modal-fade-in {
-  from { opacity: 0; backdrop-filter: blur(0px); }
-  to { opacity: 1; backdrop-filter: blur(8px); }
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
 }
 
 .workspace-modal {
@@ -140,7 +153,7 @@
   padding: 20px;
   min-width: 400px;
   max-width: 600px;
-  box-shadow: 
+  box-shadow:
     0 20px 40px rgba(0, 0, 0, 0.15),
     0 8px 16px rgba(0, 0, 0, 0.1),
     0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -151,18 +164,29 @@
 }
 
 @keyframes modal-slide-up {
-  from { transform: translateY(20px) scale(0.95); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
+  from {
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
 }
 
 .workspace-modal::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent-primary),
+    transparent
+  );
   opacity: 0.6;
 }
 
@@ -260,8 +284,14 @@
 }
 
 @keyframes message-slide-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message-row--user {
@@ -275,11 +305,15 @@
 }
 
 .message-row__avatar::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -2px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary, var(--accent-primary)));
+  background: linear-gradient(
+    135deg,
+    var(--accent-primary),
+    var(--accent-secondary, var(--accent-primary))
+  );
   opacity: 0;
   transition: opacity 0.3s ease;
   z-index: -1;
@@ -290,7 +324,11 @@
 }
 
 .message--from-prompt {
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 100%
+  );
   border-left: 3px solid var(--accent-primary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   position: relative;
@@ -298,26 +336,34 @@
 }
 
 .message--from-prompt::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   width: 3px;
   height: 100%;
-  background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary, var(--accent-primary)));
+  background: linear-gradient(
+    180deg,
+    var(--accent-primary),
+    var(--accent-secondary, var(--accent-primary))
+  );
   animation: prompt-glow 2s ease-in-out infinite alternate;
 }
 
 @keyframes prompt-glow {
-  from { opacity: 0.6; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .message__trace {
   position: absolute;
   top: 8px;
   right: 8px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65em;
   color: var(--text-muted);
   text-decoration: none;
@@ -351,8 +397,49 @@
   opacity: 1;
 }
 
+.message__rating {
+  position: absolute;
+  bottom: 5px;
+  right: 32px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.message:hover .message__rating {
+  opacity: 0.6;
+}
+
+.message__rating:hover {
+  opacity: 1 !important;
+}
+
+.message__rating-btn {
+  padding: 1px 3px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.message__rating-btn:hover {
+  opacity: 1;
+  border-color: var(--border-primary);
+}
+
+.message__rating-btn--active {
+  opacity: 1;
+  border-color: var(--accent-primary);
+  background: var(--bg-secondary);
+}
+
 .message__model-badge {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.64em;
   color: var(--text-muted);
   margin-bottom: 4px;
@@ -412,7 +499,9 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s,
+    opacity 0.2s;
 }
 
 .chat-input__send-btn--active {
@@ -448,7 +537,7 @@
 }
 
 .chat-input__model-btn {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   padding: 4px 8px;
   text-align: center;
@@ -490,7 +579,7 @@
 }
 
 .workspace-header__prompt-btn {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   padding: 0.4rem 0.85rem;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
@@ -537,7 +626,7 @@
 }
 
 .workspace-header__action-btn {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   padding: 0.5rem 1rem;
   background: var(--accent-primary);
   color: white;
@@ -598,7 +687,9 @@
   border: 1px solid var(--color-border);
   border-radius: 0.375rem;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;

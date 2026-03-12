@@ -5,7 +5,9 @@
 import { Hono } from 'hono';
 import type { NotificationService } from '../services/notification-service.js';
 
-export function createNotificationRoutes(notificationService: NotificationService) {
+export function createNotificationRoutes(
+  notificationService: NotificationService,
+) {
   const app = new Hono();
 
   // List notifications (with optional status/category filters)
@@ -22,7 +24,10 @@ export function createNotificationRoutes(notificationService: NotificationServic
   // Schedule a new notification
   app.post('/', async (c) => {
     const body = await c.req.json();
-    const notification = notificationService.schedule(body.source ?? 'api', body);
+    const notification = notificationService.schedule(
+      body.source ?? 'api',
+      body,
+    );
     return c.json({ success: true, data: notification }, 201);
   });
 
@@ -34,7 +39,10 @@ export function createNotificationRoutes(notificationService: NotificationServic
 
   // Execute a notification action
   app.post('/:id/action/:actionId', async (c) => {
-    await notificationService.action(c.req.param('id'), c.req.param('actionId'));
+    await notificationService.action(
+      c.req.param('id'),
+      c.req.param('actionId'),
+    );
     return c.json({ success: true });
   });
 

@@ -184,7 +184,14 @@ class ActiveChatsStore {
 
   initChat(
     conversationId: string,
-    metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string; projectSlug?: string; projectName?: string },
+    metadata?: {
+      agentSlug: string;
+      agentName: string;
+      title: string;
+      conversationId?: string;
+      projectSlug?: string;
+      projectName?: string;
+    },
   ) {
     if (!this.chats[conversationId]) {
       this.chats[conversationId] = {
@@ -199,7 +206,11 @@ class ActiveChatsStore {
     }
   }
 
-  updateChat(conversationId: string, updates: Partial<ChatUIState>, _sync?: boolean) {
+  updateChat(
+    conversationId: string,
+    updates: Partial<ChatUIState>,
+    _sync?: boolean,
+  ) {
     if (this.chats[conversationId]) {
       // If updating input and not navigating history, reset historyIndex
       if ('input' in updates && !('historyIndex' in updates)) {
@@ -329,7 +340,13 @@ class ActiveChatsStore {
 
       const latestTimestamp =
         backendMessages.length > 0
-          ? Math.max(...backendMessages.map((m) => (m as any).timestamp ? new Date((m as any).timestamp).getTime() : 0))
+          ? Math.max(
+              ...backendMessages.map((m) =>
+                (m as any).timestamp
+                  ? new Date((m as any).timestamp).getTime()
+                  : 0,
+              ),
+            )
           : Date.now();
 
       this.chats[conversationId] = {
@@ -417,7 +434,14 @@ export const activeChatsStore = new ActiveChatsStore();
 type ActiveChatsContextType = {
   initChat: (
     conversationId: string,
-    metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string; projectSlug?: string; projectName?: string },
+    metadata?: {
+      agentSlug: string;
+      agentName: string;
+      title: string;
+      conversationId?: string;
+      projectSlug?: string;
+      projectName?: string;
+    },
   ) => void;
   updateChat: (
     conversationId: string,
@@ -497,7 +521,14 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
   const initChat = useCallback(
     (
       conversationId: string,
-      metadata?: { agentSlug: string; agentName: string; title: string; conversationId?: string; projectSlug?: string; projectName?: string },
+      metadata?: {
+        agentSlug: string;
+        agentName: string;
+        title: string;
+        conversationId?: string;
+        projectSlug?: string;
+        projectName?: string;
+      },
     ) => {
       activeChatsStore.initChat(conversationId, metadata);
     },
@@ -944,7 +975,13 @@ export function useCreateChatSession() {
   const { initChat } = useActiveChatActions();
 
   return useCallback(
-    (agentSlug: string, agentName: string, title?: string, projectSlug?: string, projectName?: string) => {
+    (
+      agentSlug: string,
+      agentName: string,
+      title?: string,
+      projectSlug?: string,
+      projectName?: string,
+    ) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
       initChat(sessionId, {
         agentSlug,

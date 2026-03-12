@@ -34,7 +34,8 @@ export function ChatDockHeader({
   setShowChatSettings,
   focusSession,
 }: ChatDockHeaderProps) {
-  const { isDockOpen, isDockMaximized, setDockState, dockMode } = useNavigation();
+  const { isDockOpen, isDockMaximized, setDockState, dockMode } =
+    useNavigation();
   const toggleDockShortcut = useShortcutDisplay('dock.toggle');
   const maximizeShortcut = useShortcutDisplay('dock.maximize');
 
@@ -163,7 +164,13 @@ export function ChatDockHeader({
               : `Maximize (${maximizeShortcut})`
           }
         >
-          {isDockMaximized ? (dockMode === 'right' ? '➡' : '⬇') : (dockMode === 'right' ? '⬅' : '⬆')}
+          {isDockMaximized
+            ? dockMode === 'right'
+              ? '➡'
+              : '⬇'
+            : dockMode === 'right'
+              ? '⬅'
+              : '⬆'}
           <span className="chat-dock__subtitle">{maximizeShortcut}</span>
         </button>
         <button
@@ -178,9 +185,14 @@ export function ChatDockHeader({
             style={{
               width: '16px',
               height: '16px',
-              transform: dockMode === 'right'
-                ? (isDockOpen ? 'rotate(270deg)' : 'rotate(90deg)')
-                : (isDockOpen ? 'rotate(0deg)' : 'rotate(180deg)'),
+              transform:
+                dockMode === 'right'
+                  ? isDockOpen
+                    ? 'rotate(270deg)'
+                    : 'rotate(90deg)'
+                  : isDockOpen
+                    ? 'rotate(0deg)'
+                    : 'rotate(180deg)',
               transition: 'transform 0.2s',
             }}
             fill="none"

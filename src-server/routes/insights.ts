@@ -1,8 +1,8 @@
-import { Hono } from 'hono';
 import { createReadStream, existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { Hono } from 'hono';
 
 export function createInsightsRoutes(monitoringDir: string) {
   const app = new Hono();
@@ -19,10 +19,24 @@ export function createInsightsRoutes(monitoringDir: string) {
     let totalToolCalls = 0;
     let totalErrors = 0;
 
-    if (!existsSync(monitoringDir)) return c.json({ data: { toolUsage: {}, hourlyActivity, agentUsage: {}, modelUsage: {}, totalChats: 0, totalToolCalls: 0, totalErrors: 0, days } });
+    if (!existsSync(monitoringDir))
+      return c.json({
+        data: {
+          toolUsage: {},
+          hourlyActivity,
+          agentUsage: {},
+          modelUsage: {},
+          totalChats: 0,
+          totalToolCalls: 0,
+          totalErrors: 0,
+          days,
+        },
+      });
 
     const files = await readdir(monitoringDir);
-    for (const file of files.filter(f => f.startsWith('events-') && f.endsWith('.ndjson'))) {
+    for (const file of files.filter(
+      (f) => f.startsWith('events-') && f.endsWith('.ndjson'),
+    )) {
       const stream = createReadStream(join(monitoringDir, file));
       const rl = createInterface({ input: stream, crlfDelay: Infinity });
       for await (const line of rl) {
@@ -44,8 +58,12 @@ export function createInsightsRoutes(monitoringDir: string) {
           if (event.type === 'agent-complete') {
             const agent = event.agentSlug || 'unknown';
             if (!agentUsage[agent]) agentUsage[agent] = { chats: 0, tokens: 0 };
-            agentUsage[agent].tokens += (event.usage?.promptTokens || 0) + (event.usage?.completionTokens || 0);
-            if (event.usage?.model) modelUsage[event.usage.model] = (modelUsage[event.usage.model] || 0) + 1;
+            agentUsage[agent].tokens +=
+              (event.usage?.promptTokens || 0) +
+              (event.usage?.completionTokens || 0);
+            if (event.usage?.model)
+              modelUsage[event.usage.model] =
+                (modelUsage[event.usage.model] || 0) + 1;
           }
           if (event.type === 'tool-call') {
             totalToolCalls++;
@@ -64,7 +82,16 @@ export function createInsightsRoutes(monitoringDir: string) {
     }
 
     return c.json({
-      data: { toolUsage, hourlyActivity, agentUsage, modelUsage, totalChats, totalToolCalls, totalErrors, days }
+      data: {
+        toolUsage,
+        hourlyActivity,
+        agentUsage,
+        modelUsage,
+        totalChats,
+        totalToolCalls,
+        totalErrors,
+        days,
+      },
     });
   });
 

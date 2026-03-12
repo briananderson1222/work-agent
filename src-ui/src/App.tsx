@@ -1,8 +1,15 @@
-import { useLayoutsQuery, useProjectLayoutsQuery } from '@stallion-ai/sdk';
-import { useQueryClient } from '@tanstack/react-query';
+import {
+  useLayoutsQuery,
+  useProjectLayoutsQuery,
+  useProjectsQuery,
+} from '@stallion-ai/sdk';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AgentIcon } from './components/AgentIcon';
 import { ChatDock } from './components/ChatDock';
+import { CodingLayout } from './components/CodingLayout';
+import { GlobalVoiceButton } from './components/GlobalVoiceButton';
 import { Header } from './components/Header';
+import { NewProjectModal } from './components/NewProjectModal';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ShortcutsCheatsheet } from './components/ShortcutsCheatsheet';
 import { useAgents } from './contexts/AgentsContext';
@@ -13,35 +20,36 @@ import { useNavigation } from './contexts/NavigationContext';
 import { ProjectsProvider } from './contexts/ProjectsContext';
 import { useToast } from './contexts/ToastContext';
 import { useWorkflows } from './contexts/WorkflowsContext';
+import { setDockModeOverride } from './hooks/useDockModePreference';
 import { useExternalAuth } from './hooks/useExternalAuth';
+import { useFeatureSettings } from './hooks/useFeatureSettings';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
 import { useServerEvents } from './hooks/useServerEvents';
 import { useSystemStatus } from './hooks/useSystemStatus';
 import { setAuthCallback } from './lib/apiClient';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
-import type { NavigationView, DockMode } from './types';
-import { GlobalVoiceButton } from './components/GlobalVoiceButton';
-import { useFeatureSettings } from './hooks/useFeatureSettings';
-import { setDockModeOverride } from './hooks/useDockModePreference';
+import type { DockMode, NavigationView } from './types';
+import { AgentsView } from './views/AgentsView';
+import { IntegrationsView } from './views/IntegrationsView';
+import { LayoutsView } from './views/LayoutsView';
+import { LayoutView } from './views/LayoutView';
 import { MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
-import { ScheduleView } from './views/ScheduleView';
-import { LayoutsView } from './views/LayoutsView';
-import { AgentsView } from './views/AgentsView';
+import { ProjectSettingsView } from './views/ProjectSettingsView';
 import { PromptsView } from './views/PromptsView';
+import { ProviderSettingsView } from './views/ProviderSettingsView';
+import { ScheduleView } from './views/ScheduleView';
 import { SettingsView } from './views/SettingsView';
 import { ToolManagementView } from './views/ToolManagementView';
-import { IntegrationsView } from './views/IntegrationsView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
-import { LayoutView } from './views/LayoutView';
-import { CodingLayout } from './components/CodingLayout';
-import { NewProjectModal } from './components/NewProjectModal';
-import { ProjectSettingsView } from './views/ProjectSettingsView';
-import { ProviderSettingsView } from './views/ProviderSettingsView';
 
 // Layout type registry — maps layout type strings to React components
-type LayoutTypeComponent = React.ComponentType<{ projectSlug: string; layoutSlug: string; config: Record<string, unknown> }>;
+type LayoutTypeComponent = React.ComponentType<{
+  projectSlug: string;
+  layoutSlug: string;
+  config: Record<string, unknown>;
+}>;
 const layoutTypeRegistry: Record<string, LayoutTypeComponent> = {
   coding: CodingLayout,
   // 'chat' type falls through to LayoutView (default)
@@ -63,11 +71,13 @@ function App() {
     dockMode,
     setStandaloneLayout,
     setLayoutTab,
+    setLayout,
     setDockMode,
     navigate,
   } = useNavigation();
   const { showToast } = useToast();
   const { data: layouts = [] } = useLayoutsQuery();
+  const { data: projects = [] } = useProjectsQuery();
   const [activeTabId, setActiveTabId] = useState<string>('');
   const appConfig = useConfig();
   const [globalError, _setGlobalError] = useState<string | null>(null);
@@ -81,7 +91,8 @@ function App() {
     const path = window.location.pathname;
 
     if (path === '/agents' || path.startsWith('/agents/')) {
-      if (path.endsWith('/edit') || path === '/agents/new') return { type: 'agents' };
+      if (path.endsWith('/edit') || path === '/agents/new')
+        return { type: 'agents' };
       if (path.endsWith('/tools')) {
         const slug = path.split('/')[2];
         return { type: 'agent-tools', slug };
@@ -92,11 +103,16 @@ function App() {
       }
       return { type: 'agents' };
     }
-    if (path === '/layouts' || path === '/layouts/new') return { type: 'layouts' };
-    if (path.startsWith('/layouts/') && path.endsWith('/edit')) return { type: 'layouts' };
-    if (path === '/prompts' || path.startsWith('/prompts/')) return { type: 'prompts' };
-    if (path === '/plugins' || path.startsWith('/plugins/')) return { type: 'plugins' };
-    if (path === '/integrations' || path.startsWith('/integrations/')) return { type: 'integrations' };
+    if (path === '/layouts' || path === '/layouts/new')
+      return { type: 'layouts' };
+    if (path.startsWith('/layouts/') && path.endsWith('/edit'))
+      return { type: 'layouts' };
+    if (path === '/prompts' || path.startsWith('/prompts/'))
+      return { type: 'prompts' };
+    if (path === '/plugins' || path.startsWith('/plugins/'))
+      return { type: 'plugins' };
+    if (path === '/integrations' || path.startsWith('/integrations/'))
+      return { type: 'integrations' };
     if (path === '/providers') return { type: 'providers' };
     if (path.startsWith('/providers/')) {
       const id = path.split('/')[2];
@@ -112,7 +128,8 @@ function App() {
     if (path.startsWith('/manage/agents')) return { type: 'agents' };
     if (path.startsWith('/manage/prompts')) return { type: 'prompts' };
     if (path.startsWith('/manage/plugins')) return { type: 'plugins' };
-    if (path.startsWith('/manage/integrations')) return { type: 'integrations' };
+    if (path.startsWith('/manage/integrations'))
+      return { type: 'integrations' };
     if (path.startsWith('/manage/providers')) return { type: 'providers' };
     // Legacy /tools redirect
     if (path === '/tools') return { type: 'integrations' };
@@ -138,80 +155,83 @@ function App() {
 
     return { type: 'standalone-layout' };
   });
-  const handleLayoutSelect = useCallback(async (
-    slug: string,
-    preferredTabId?: string,
-  ) => {
-    const layout = layouts.find((w: any) => w.slug === slug);
-    if (layout) {
-      const tabs = layout.tabs || [];
-      const validTabId =
-        preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
-          ? preferredTabId
-          : tabs[0]?.id || '';
+  const handleLayoutSelect = useCallback(
+    async (slug: string, preferredTabId?: string) => {
+      const layout = layouts.find((w: any) => w.slug === slug);
+      if (layout) {
+        const tabs = layout.tabs || [];
+        const validTabId =
+          preferredTabId && tabs.find((t: any) => t.id === preferredTabId)
+            ? preferredTabId
+            : tabs[0]?.id || '';
 
-      setStandaloneLayout(slug);
-      setActiveTabId(validTabId);
-      setLayoutTab(slug, validTabId);
-      setCurrentView({ type: 'standalone-layout' });
-      navigate(`/layouts/${slug}`);
-    }
-  }, [layouts, setStandaloneLayout, setLayoutTab, navigate]);
+        setStandaloneLayout(slug);
+        setActiveTabId(validTabId);
+        setLayoutTab(slug, validTabId);
+        setCurrentView({ type: 'standalone-layout' });
+        navigate(`/layouts/${slug}`);
+      }
+    },
+    [layouts, setStandaloneLayout, setLayoutTab, navigate],
+  );
 
   // Navigation functions (declared early so useEffect closures can reference them)
-  const navigateToView = useCallback((view: NavigationView) => {
-    setCurrentView(view);
+  const navigateToView = useCallback(
+    (view: NavigationView) => {
+      setCurrentView(view);
 
-    // Update URL based on view type
-    if (view.type === 'standalone-layout') {
-      const target = selectedLayout || lastLayout;
-      if (target && target !== 'new') {
-        navigate(`/layouts/${target}`);
-      } else {
-        navigate('/');
+      // Update URL based on view type
+      if (view.type === 'standalone-layout') {
+        const target = selectedLayout || lastLayout;
+        if (target && target !== 'new') {
+          navigate(`/layouts/${target}`);
+        } else {
+          navigate('/');
+        }
+      } else if (view.type === 'layouts') {
+        navigate('/layouts');
+      } else if (view.type === 'agents') {
+        navigate('/agents');
+      } else if (view.type === 'prompts') {
+        navigate('/prompts');
+      } else if (view.type === 'plugins') {
+        navigate('/plugins');
+      } else if (view.type === 'integrations') {
+        navigate('/integrations');
+      } else if (view.type === 'providers') {
+        navigate('/providers');
+      } else if (view.type === 'provider-edit') {
+        navigate(`/providers/${view.id}`);
+      } else if (view.type === 'profile') {
+        navigate('/profile');
+      } else if (view.type === 'notifications') {
+        navigate('/notifications');
+      } else if (view.type === 'settings') {
+        navigate('/settings');
+      } else if (view.type === 'monitoring') {
+        navigate('/monitoring');
+      } else if (view.type === 'schedule') {
+        navigate('/schedule');
+      } else if (view.type === 'agent-new' || view.type === 'agent-edit') {
+        navigate('/agents');
+      } else if (view.type === 'agent-tools' && 'slug' in view) {
+        navigate(`/agents/${view.slug}/tools`);
+      } else if (view.type === 'workflows' && 'slug' in view) {
+        navigate(`/agents/${view.slug}/workflows`);
+      } else if (view.type === 'layout-new' || view.type === 'layout-edit') {
+        navigate('/layouts');
+      } else if (view.type === 'project-new') {
+        navigate('/projects/new');
+      } else if (view.type === 'project-edit' && 'slug' in view) {
+        navigate(`/projects/${view.slug}/edit`);
+      } else if (view.type === 'project' && 'slug' in view) {
+        navigate(`/projects/${view.slug}`);
+      } else if (view.type === 'layout' && 'projectSlug' in view) {
+        setLayout(view.projectSlug!, view.layoutSlug!);
       }
-    } else if (view.type === 'layouts') {
-      navigate('/layouts');
-    } else if (view.type === 'agents') {
-      navigate('/agents');
-    } else if (view.type === 'prompts') {
-      navigate('/prompts');
-    } else if (view.type === 'plugins') {
-      navigate('/plugins');
-    } else if (view.type === 'integrations') {
-      navigate('/integrations');
-    } else if (view.type === 'providers') {
-      navigate('/providers');
-    } else if (view.type === 'provider-edit') {
-      navigate(`/providers/${view.id}`);
-    } else if (view.type === 'profile') {
-      navigate('/profile');
-    } else if (view.type === 'notifications') {
-      navigate('/notifications');
-    } else if (view.type === 'settings') {
-      navigate('/settings');
-    } else if (view.type === 'monitoring') {
-      navigate('/monitoring');
-    } else if (view.type === 'schedule') {
-      navigate('/schedule');
-    } else if (view.type === 'agent-new' || view.type === 'agent-edit') {
-      navigate('/agents');
-    } else if (view.type === 'agent-tools' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/tools`);
-    } else if (view.type === 'workflows' && 'slug' in view) {
-      navigate(`/agents/${view.slug}/workflows`);
-    } else if (view.type === 'layout-new' || view.type === 'layout-edit') {
-      navigate('/layouts');
-    } else if (view.type === 'project-new') {
-      navigate('/projects/new');
-    } else if (view.type === 'project-edit' && 'slug' in view) {
-      navigate(`/projects/${view.slug}/edit`);
-    } else if (view.type === 'project' && 'slug' in view) {
-      navigate(`/projects/${view.slug}`);
-    } else if (view.type === 'layout' && 'projectSlug' in view) {
-      navigate(`/projects/${view.projectSlug}/layouts/${view.layoutSlug}`);
-    }
-  }, [selectedLayout, lastLayout, navigate]);
+    },
+    [selectedLayout, lastLayout, navigate, setLayout],
+  );
 
   const navigateToLayout = useCallback(() => {
     setCurrentView({ type: 'standalone-layout' });
@@ -231,56 +251,124 @@ function App() {
       if (path === '/agents' || path.startsWith('/agents/')) {
         if (path.startsWith('/agents/') && path.endsWith('/tools')) {
           const slug = path.split('/')[2];
-          setCurrentView({ type: 'agent-tools', slug }); return;
+          setCurrentView({ type: 'agent-tools', slug });
+          return;
         }
         if (path.startsWith('/agents/') && path.endsWith('/workflows')) {
           const slug = path.split('/')[2];
-          setCurrentView({ type: 'workflows', slug }); return;
+          setCurrentView({ type: 'workflows', slug });
+          return;
         }
-        setCurrentView({ type: 'agents' }); return;
+        setCurrentView({ type: 'agents' });
+        return;
       }
-      if (path === '/layouts' || path === '/layouts/new' || (path.startsWith('/layouts/') && path.endsWith('/edit'))) {
-        setCurrentView({ type: 'layouts' }); return;
+      if (
+        path === '/layouts' ||
+        path === '/layouts/new' ||
+        (path.startsWith('/layouts/') && path.endsWith('/edit'))
+      ) {
+        setCurrentView({ type: 'layouts' });
+        return;
       }
-      if (path === '/prompts' || path.startsWith('/prompts/')) { setCurrentView({ type: 'prompts' }); return; }
-      if (path === '/plugins' || path.startsWith('/plugins/')) { setCurrentView({ type: 'plugins' }); return; }
-      if (path === '/integrations' || path.startsWith('/integrations/')) { setCurrentView({ type: 'integrations' }); return; }
-      if (path === '/providers') { setCurrentView({ type: 'providers' }); return; }
+      if (path === '/prompts' || path.startsWith('/prompts/')) {
+        setCurrentView({ type: 'prompts' });
+        return;
+      }
+      if (path === '/plugins' || path.startsWith('/plugins/')) {
+        setCurrentView({ type: 'plugins' });
+        return;
+      }
+      if (path === '/integrations' || path.startsWith('/integrations/')) {
+        setCurrentView({ type: 'integrations' });
+        return;
+      }
+      if (path === '/providers') {
+        setCurrentView({ type: 'providers' });
+        return;
+      }
       if (path.startsWith('/providers/')) {
         const id = path.split('/')[2];
-        if (id) { setCurrentView({ type: 'provider-edit', id }); return; }
+        if (id) {
+          setCurrentView({ type: 'provider-edit', id });
+          return;
+        }
       }
-      if (path === '/monitoring') { setCurrentView({ type: 'monitoring' }); return; }
-      if (path === '/schedule') { setCurrentView({ type: 'schedule' }); return; }
-      if (path === '/settings') { setCurrentView({ type: 'settings' }); return; }
-      if (path === '/profile') { setCurrentView({ type: 'profile' }); return; }
-      if (path === '/notifications') { setCurrentView({ type: 'notifications' }); return; }
+      if (path === '/monitoring') {
+        setCurrentView({ type: 'monitoring' });
+        return;
+      }
+      if (path === '/schedule') {
+        setCurrentView({ type: 'schedule' });
+        return;
+      }
+      if (path === '/settings') {
+        setCurrentView({ type: 'settings' });
+        return;
+      }
+      if (path === '/profile') {
+        setCurrentView({ type: 'profile' });
+        return;
+      }
+      if (path === '/notifications') {
+        setCurrentView({ type: 'notifications' });
+        return;
+      }
 
       // Legacy /manage/* paths
-      if (path === '/manage') { setCurrentView({ type: 'agents' }); return; }
-      if (path.startsWith('/manage/')) { setCurrentView({ type: 'agents' }); return; }
+      if (path === '/manage') {
+        setCurrentView({ type: 'agents' });
+        return;
+      }
+      if (path.startsWith('/manage/')) {
+        setCurrentView({ type: 'agents' });
+        return;
+      }
       // Legacy /tools path
-      if (path === '/tools') { setCurrentView({ type: 'integrations' }); return; }
+      if (path === '/tools') {
+        setCurrentView({ type: 'integrations' });
+        return;
+      }
       // Legacy /sys/* paths
       if (path.startsWith('/sys/')) {
-        if (path === '/sys/monitoring') { setCurrentView({ type: 'monitoring' }); return; }
-        if (path === '/sys/schedule') { setCurrentView({ type: 'schedule' }); return; }
-        if (path === '/sys/settings') { setCurrentView({ type: 'settings' }); return; }
+        if (path === '/sys/monitoring') {
+          setCurrentView({ type: 'monitoring' });
+          return;
+        }
+        if (path === '/sys/schedule') {
+          setCurrentView({ type: 'schedule' });
+          return;
+        }
+        if (path === '/sys/settings') {
+          setCurrentView({ type: 'settings' });
+          return;
+        }
       }
 
       // Project routes
-      if (path === '/projects/new') { setCurrentView({ type: 'project-new' }); return; }
+      if (path === '/projects/new') {
+        setCurrentView({ type: 'project-new' });
+        return;
+      }
       if (path.startsWith('/projects/') && path.endsWith('/edit')) {
         const slug = path.split('/')[2];
-        setCurrentView({ type: 'project-edit', slug }); return;
+        setCurrentView({ type: 'project-edit', slug });
+        return;
       }
       if (path.match(/^\/projects\/[^/]+\/layouts\/[^/]+$/)) {
         const parts = path.split('/');
-        setCurrentView({ type: 'layout', projectSlug: parts[2], layoutSlug: parts[4] }); return;
+        setCurrentView({
+          type: 'layout',
+          projectSlug: parts[2],
+          layoutSlug: parts[4],
+        });
+        return;
       }
       if (path.startsWith('/projects/')) {
         const slug = path.split('/')[2];
-        if (slug) { setCurrentView({ type: 'project', slug }); return; }
+        if (slug) {
+          setCurrentView({ type: 'project', slug });
+          return;
+        }
       }
 
       // Standalone layout paths
@@ -314,7 +402,6 @@ function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId, handleLayoutSelect, selectedLayout]);
-
 
   const currentAgent = useMemo(
     () => agents.find((agent) => agent.slug === selectedAgent) ?? null,
@@ -388,44 +475,72 @@ function App() {
 
   // Drag handling - handled by ChatDock
 
+  // Determine first project for default routing
+  const firstProjectSlug = projects[0]?.slug || '';
+  const { data: firstProjectLayouts = [] } = useProjectLayoutsQuery(
+    firstProjectSlug,
+    {
+      enabled: !!firstProjectSlug,
+    },
+  );
+
   // Auto-select layout if none selected — prefer last-used, fall back to first
   useEffect(() => {
-    // If on root and we have a last-viewed project+layout, navigate there
     if (
-      currentView.type === 'standalone-layout' &&
-      !selectedLayout &&
+      currentView.type !== 'standalone-layout' ||
+      selectedLayout ||
+      selectedAgent
+    )
+      return;
+
+    // 1. Restore last-viewed project+layout if it still exists
+    if (
       lastProject &&
-      lastProjectLayout
+      lastProjectLayout &&
+      projects.some((p: any) => p.slug === lastProject)
     ) {
-      setCurrentView({ type: 'layout', projectSlug: lastProject, layoutSlug: lastProjectLayout });
-      navigate(`/projects/${lastProject}/layouts/${lastProjectLayout}`);
+      setCurrentView({
+        type: 'layout',
+        projectSlug: lastProject,
+        layoutSlug: lastProjectLayout,
+      });
+      setLayout(lastProject, lastProjectLayout);
       return;
     }
 
-    if (
-      layouts.length > 0 &&
-      !selectedLayout &&
-      !selectedAgent &&
-      currentView.type === 'standalone-layout'
-    ) {
-      const target = lastLayout && layouts.find((w: any) => w.slug === lastLayout)
-        ? lastLayout
-        : layouts[0].slug;
+    // 2. If projects exist with layouts, default to first project's first layout
+    if (firstProjectSlug && firstProjectLayouts.length > 0 && !lastProject) {
+      setCurrentView({
+        type: 'layout',
+        projectSlug: firstProjectSlug,
+        layoutSlug: firstProjectLayouts[0].slug,
+      });
+      setLayout(firstProjectSlug, firstProjectLayouts[0].slug);
+      return;
+    }
+
+    // 3. Fall back to standalone layout
+    if (layouts.length > 0) {
+      const target =
+        lastLayout && layouts.find((w: any) => w.slug === lastLayout)
+          ? lastLayout
+          : layouts[0].slug;
       setStandaloneLayout(target);
     }
   }, [
     layouts,
+    projects,
+    firstProjectSlug,
+    firstProjectLayouts,
     selectedLayout,
     selectedAgent,
     currentView.type,
     setStandaloneLayout,
+    setLayout,
     lastLayout,
     lastProject,
     lastProjectLayout,
-    navigate,
   ]);
-
-
 
   const handleSettingsSaved = () => {
     showToast('Settings saved successfully');
@@ -503,9 +618,7 @@ function App() {
     // Management views
     return (
       <>
-        {currentView.type === 'layouts' && (
-          <LayoutsView />
-        )}
+        {currentView.type === 'layouts' && <LayoutsView />}
 
         {currentView.type === 'agents' && (
           <AgentsView
@@ -520,9 +633,17 @@ function App() {
         {currentView.type === 'prompts' && <PromptsView />}
         {currentView.type === 'plugins' && <PluginManagementView />}
         {currentView.type === 'integrations' && <IntegrationsView />}
-        {currentView.type === 'providers' && <ProviderSettingsView onNavigate={navigateToView} />}
-        {currentView.type === 'provider-edit' && <ProviderSettingsView selectedProviderId={currentView.id} onNavigate={navigateToView} />}
-        {(currentView.type === 'agent-new' || currentView.type === 'agent-edit') && (
+        {currentView.type === 'providers' && (
+          <ProviderSettingsView onNavigate={navigateToView} />
+        )}
+        {currentView.type === 'provider-edit' && (
+          <ProviderSettingsView
+            selectedProviderId={currentView.id}
+            onNavigate={navigateToView}
+          />
+        )}
+        {(currentView.type === 'agent-new' ||
+          currentView.type === 'agent-edit') && (
           <AgentsView
             agents={agents}
             apiBase={API_BASE}
@@ -532,14 +653,17 @@ function App() {
             onNavigate={navigateToView}
           />
         )}
-        {(currentView.type === 'layout-new' || currentView.type === 'layout-edit') && (
-          <LayoutsView />
-        )}
+        {(currentView.type === 'layout-new' ||
+          currentView.type === 'layout-edit') && <LayoutsView />}
         {currentView.type === 'project-new' && (
-          <NewProjectModal isOpen onClose={() => {
-            // Only go home if we're still on project-new (not if setProject already navigated)
-            if (window.location.pathname === '/projects/new') navigateToLayout();
-          }} />
+          <NewProjectModal
+            isOpen
+            onClose={() => {
+              // Only go home if we're still on project-new (not if setProject already navigated)
+              if (window.location.pathname === '/projects/new')
+                navigateToLayout();
+            }}
+          />
         )}
         {currentView.type === 'project-edit' && (
           <ProjectSettingsView slug={currentView.slug} />
@@ -551,7 +675,10 @@ function App() {
           />
         )}
         {currentView.type === 'project' && (
-          <ProjectOverview slug={currentView.slug} onNavigate={navigateToView} />
+          <ProjectOverview
+            slug={currentView.slug}
+            onNavigate={navigateToView}
+          />
         )}
         {currentView.type === 'agent-tools' && (
           <ToolManagementView
@@ -594,7 +721,9 @@ function App() {
     <ProjectsProvider>
       <div className="app app--with-sidebar">
         <ProjectSidebar />
-        <div className={`app__main${dockMode !== 'bottom' ? ` app__main--dock-${dockMode}` : ''}`}>
+        <div
+          className={`app__main${dockMode !== 'bottom' ? ` app__main--dock-${dockMode}` : ''}`}
+        >
           <Header
             currentView={currentView}
             onNavigate={navigateToView}
@@ -632,98 +761,44 @@ function App() {
 
 export default App;
 
-function ProjectLayoutRenderer({ projectSlug, layoutSlug }: { projectSlug: string; layoutSlug: string }) {
+function ProjectLayoutRenderer({
+  projectSlug,
+  layoutSlug,
+}: {
+  projectSlug: string;
+  layoutSlug: string;
+}) {
   const { apiBase: API_BASE } = useApiBase();
-  const [layoutConfig, setLayoutConfig] = useState<{ type?: string; config?: Record<string, unknown> } | null>(null);
+  const [layoutConfig, setLayoutConfig] = useState<{
+    type?: string;
+    config?: Record<string, unknown>;
+  } | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/projects/${projectSlug}/layouts/${layoutSlug}`)
       .then((r) => r.json())
-      .then((json) => { if (json.success) setLayoutConfig(json.data); })
+      .then((json) => {
+        if (json.success) setLayoutConfig(json.data);
+      })
       .catch(() => {});
   }, [API_BASE, projectSlug, layoutSlug]);
 
-  if (!layoutConfig) return <LayoutView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
+  if (!layoutConfig)
+    return <LayoutView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
 
   const Renderer = layoutTypeRegistry[layoutConfig.type];
   if (Renderer) {
-    return <Renderer projectSlug={projectSlug} layoutSlug={layoutSlug} config={layoutConfig.config ?? {}} />;
+    return (
+      <Renderer
+        projectSlug={projectSlug}
+        layoutSlug={layoutSlug}
+        config={layoutConfig.config ?? {}}
+      />
+    );
   }
 
   // Default: treat as chat layout
   return <LayoutView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
-}
-
-function AddLayoutButton({ projectSlug, onAdded }: { projectSlug: string; onAdded: () => void }) {
-  const { apiBase } = useApiBase();
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [available, setAvailable] = useState<Array<{ source: string; plugin?: string; name: string; slug: string; icon?: string; description?: string; type: string; tabCount?: number }>>([]);
-  const [adding, setAdding] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    fetch(`${apiBase}/api/projects/layouts/available`).then(r => r.json()).then(d => {
-      if (d.success) setAvailable(d.data ?? []);
-    }).catch(() => {});
-  }, [open, apiBase]);
-
-  const addLayout = async (item: typeof available[0]) => {
-    setAdding(item.slug);
-    try {
-      if (item.source === 'plugin' && item.plugin) {
-        await fetch(`${apiBase}/api/projects/${projectSlug}/layouts/from-plugin`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plugin: item.plugin }),
-        });
-      } else {
-        await fetch(`${apiBase}/api/projects/${projectSlug}/layouts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: item.type, name: item.name, slug: `${item.slug}-${Date.now().toString(36)}`, icon: item.icon, config: {} }),
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: ['projects', projectSlug, 'layouts'] });
-      onAdded();
-      setOpen(false);
-    } catch { /* ignore */ }
-    setAdding(null);
-  };
-
-  return (
-    <>
-      <button className="project-dashboard__edit-btn" onClick={() => setOpen(true)}>+ Add Layout</button>
-      {open && (
-        <div className="project-dashboard__modal-overlay" onClick={() => setOpen(false)}>
-          <div className="project-dashboard__modal" onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>Add Layout</h3>
-            <div className="project-dashboard__list">
-              {available.map(item => (
-                <button
-                  key={`${item.source}-${item.slug}`}
-                  className="project-dashboard__layout-btn"
-                  disabled={adding === item.slug}
-                  onClick={() => addLayout(item)}
-                >
-                  {item.icon && <span>{item.icon}</span>}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{item.name}</div>
-                    {item.description && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{item.description}</div>}
-                  </div>
-                  <span className="project-dashboard__badge">{item.source === 'plugin' ? `plugin: ${item.plugin}` : item.type}</span>
-                </button>
-              ))}
-              {available.length === 0 && <p className="project-dashboard__empty">No layouts available. Install a plugin first.</p>}
-            </div>
-            <div style={{ marginTop: '16px', textAlign: 'right' }}>
-              <button className="project-dashboard__edit-btn" onClick={() => setOpen(false)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
 }
 
 function ProjectOverview({
@@ -736,23 +811,50 @@ function ProjectOverview({
   const { apiBase: API_BASE } = useApiBase();
   const { data: layouts = [] } = useProjectLayoutsQuery(slug);
   const [project, setProject] = useState<any>(null);
-  const [knowledge, setKnowledge] = useState<{ documentCount: number; totalChunks: number; lastIndexed: string | null } | null>(null);
-  const [gitInfo, setGitInfo] = useState<Record<string, { branch: string; changes: string[] }>>({});
-  const [agents, setAgents] = useState<Array<{ slug: string; name: string; icon?: string; source?: string }>>([]);
+  const [knowledge, setKnowledge] = useState<{
+    documentCount: number;
+    totalChunks: number;
+    lastIndexed: string | null;
+  } | null>(null);
+  const [gitInfo, setGitInfo] = useState<
+    Record<string, { branch: string; changes: string[] }>
+  >({});
+  const [agents, setAgents] = useState<
+    Array<{ slug: string; name: string; icon?: string; source?: string }>
+  >([]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/projects/${slug}`).then(r => r.json()).then(d => { if (d.success) setProject(d.data); });
-    fetch(`${API_BASE}/api/projects/${slug}/knowledge/status`).then(r => r.json()).then(d => { if (d.success) setKnowledge(d.data); }).catch(() => {});
-    fetch(`${API_BASE}/api/agents`).then(r => r.json()).then(d => { if (d.success ?? d.data) setAgents(d.data ?? []); }).catch(() => {});
+    fetch(`${API_BASE}/api/projects/${slug}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) setProject(d.data);
+      });
+    fetch(`${API_BASE}/api/projects/${slug}/knowledge/status`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) setKnowledge(d.data);
+      })
+      .catch(() => {});
+    fetch(`${API_BASE}/api/agents`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success ?? d.data) setAgents(d.data ?? []);
+      })
+      .catch(() => {});
   }, [API_BASE, slug]);
 
   // Fetch git info for each directory
   useEffect(() => {
     if (!project?.directories?.length) return;
     for (const dir of project.directories) {
-      fetch(`${API_BASE}/api/coding/git/status?path=${encodeURIComponent(dir.path)}`)
-        .then(r => r.json())
-        .then(d => { if (d.success) setGitInfo(prev => ({ ...prev, [dir.path]: d.data })); })
+      fetch(
+        `${API_BASE}/api/coding/git/status?path=${encodeURIComponent(dir.path)}`,
+      )
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success)
+            setGitInfo((prev) => ({ ...prev, [dir.path]: d.data }));
+        })
         .catch(() => {});
     }
   }, [API_BASE, project]);
@@ -763,13 +865,19 @@ function ProjectOverview({
     <div className="project-dashboard">
       <div className="project-dashboard__header">
         <h2 className="project-dashboard__title">
-          {project.icon && <span>{project.icon} </span>}{project.name}
+          {project.icon && <span>{project.icon} </span>}
+          {project.name}
         </h2>
-        <button className="project-dashboard__edit-btn" onClick={() => onNavigate({ type: 'project-edit', slug })}>
+        <button
+          className="project-dashboard__edit-btn"
+          onClick={() => onNavigate({ type: 'project-edit', slug })}
+        >
           ⚙ Settings
         </button>
       </div>
-      {project.description && <p className="project-dashboard__desc">{project.description}</p>}
+      {project.description && (
+        <p className="project-dashboard__desc">{project.description}</p>
+      )}
 
       <div className="project-dashboard__grid">
         {/* Directories */}
@@ -781,19 +889,35 @@ function ProjectOverview({
                 const git = gitInfo[dir.path];
                 return (
                   <div key={dir.id} className="project-dashboard__dir">
-                    <div className="project-dashboard__dir-path">{dir.label || dir.path.split('/').pop()}</div>
-                    <div className="project-dashboard__dir-meta">
-                      <span className="project-dashboard__badge">{dir.role}</span>
-                      {git && <span className="project-dashboard__badge project-dashboard__badge--git">⎇ {git.branch}</span>}
-                      {git && git.changes.length > 0 && <span className="project-dashboard__badge project-dashboard__badge--changes">{git.changes.length} changes</span>}
+                    <div className="project-dashboard__dir-path">
+                      {dir.label || dir.path.split('/').pop()}
                     </div>
-                    <div className="project-dashboard__dir-fullpath">{dir.path}</div>
+                    <div className="project-dashboard__dir-meta">
+                      <span className="project-dashboard__badge">
+                        {dir.role}
+                      </span>
+                      {git && (
+                        <span className="project-dashboard__badge project-dashboard__badge--git">
+                          ⎇ {git.branch}
+                        </span>
+                      )}
+                      {git && git.changes.length > 0 && (
+                        <span className="project-dashboard__badge project-dashboard__badge--changes">
+                          {git.changes.length} changes
+                        </span>
+                      )}
+                    </div>
+                    <div className="project-dashboard__dir-fullpath">
+                      {dir.path}
+                    </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <p className="project-dashboard__empty">No directories configured</p>
+            <p className="project-dashboard__empty">
+              No directories configured
+            </p>
           )}
         </section>
 
@@ -804,7 +928,13 @@ function ProjectOverview({
               <button
                 key={layout.slug}
                 className="project-dashboard__layout-btn"
-                onClick={() => onNavigate({ type: 'layout', projectSlug: slug, layoutSlug: layout.slug })}
+                onClick={() =>
+                  onNavigate({
+                    type: 'layout',
+                    projectSlug: slug,
+                    layoutSlug: layout.slug,
+                  })
+                }
               >
                 {layout.icon && <span>{layout.icon}</span>}
                 <span>{layout.name}</span>
@@ -812,7 +942,15 @@ function ProjectOverview({
               </button>
             ))}
             {(layouts as any[]).length === 0 && (
-              <p className="project-dashboard__empty">No layouts yet — add one in <button className="project-dashboard__link" onClick={() => onNavigate({ type: 'project-edit', slug })}>settings</button></p>
+              <p className="project-dashboard__empty">
+                No layouts yet — add one in{' '}
+                <button
+                  className="project-dashboard__link"
+                  onClick={() => onNavigate({ type: 'project-edit', slug })}
+                >
+                  settings
+                </button>
+              </p>
             )}
           </div>
         </section>
@@ -824,14 +962,27 @@ function ProjectOverview({
             <div className="project-dashboard__list">
               <div className="project-dashboard__doc">
                 <span>{knowledge.documentCount} documents</span>
-                <span className="project-dashboard__badge">{knowledge.totalChunks} chunks</span>
+                <span className="project-dashboard__badge">
+                  {knowledge.totalChunks} chunks
+                </span>
               </div>
               {knowledge.lastIndexed && (
-                <p className="project-dashboard__empty">Last indexed: {new Date(knowledge.lastIndexed).toLocaleDateString()}</p>
+                <p className="project-dashboard__empty">
+                  Last indexed:{' '}
+                  {new Date(knowledge.lastIndexed).toLocaleDateString()}
+                </p>
               )}
             </div>
           ) : (
-            <p className="project-dashboard__empty">No documents — configure in <button className="project-dashboard__link" onClick={() => onNavigate({ type: 'project-edit', slug })}>settings</button></p>
+            <p className="project-dashboard__empty">
+              No documents — configure in{' '}
+              <button
+                className="project-dashboard__link"
+                onClick={() => onNavigate({ type: 'project-edit', slug })}
+              >
+                settings
+              </button>
+            </p>
           )}
         </section>
 
@@ -842,14 +993,35 @@ function ProjectOverview({
             <div className="project-dashboard__list">
               {agents.map((agent) => {
                 const isAcp = agent.source === 'acp';
-                const primaryDir = project?.directories?.find((d: any) => d.role === 'primary');
+                const primaryDir = project?.directories?.find(
+                  (d: any) => d.role === 'primary',
+                );
                 return (
                   <div key={agent.slug} className="project-dashboard__doc">
-                    <span>{agent.icon ?? '🤖'} {agent.name}</span>
+                    <span className="project-dashboard__agent-name">
+                      <AgentIcon
+                        agent={agent}
+                        size="small"
+                        className="project-dashboard__agent-icon"
+                      />{' '}
+                      {agent.name}
+                    </span>
                     <div className="project-dashboard__agent-meta">
-                      {isAcp && <span className="project-dashboard__badge project-dashboard__badge--git">ACP</span>}
-                      {isAcp && primaryDir && <span className="project-dashboard__badge">cwd: {primaryDir.path.split('/').pop()}</span>}
-                      {!isAcp && <span className="project-dashboard__badge">built-in</span>}
+                      {isAcp && (
+                        <span className="project-dashboard__badge project-dashboard__badge--git">
+                          ACP
+                        </span>
+                      )}
+                      {isAcp && primaryDir && (
+                        <span className="project-dashboard__badge">
+                          cwd: {primaryDir.path.split('/').pop()}
+                        </span>
+                      )}
+                      {!isAcp && (
+                        <span className="project-dashboard__badge">
+                          built-in
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

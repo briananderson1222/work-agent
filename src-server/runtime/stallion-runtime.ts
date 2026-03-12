@@ -5,58 +5,53 @@
 
 import { EventEmitter } from 'node:events';
 import { createReadStream, existsSync } from 'node:fs';
-import { appendFile, mkdir, readdir, } from 'node:fs/promises';
-import { join } from 'node:path';
+import { appendFile, mkdir, readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { SpanStatusCode } from '@opentelemetry/api';
 import {
   Agent,
   type MCPConfiguration,
   type Tool,
   VoltAgent,
 } from '@voltagent/core';
-import { createLogger } from '../utils/logger.js';
-import { honoServer, type HonoServerConfig } from '@voltagent/server-hono';
+import { type HonoServerConfig, honoServer } from '@voltagent/server-hono';
 import { jsonSchema } from 'ai';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { UsageAggregator } from '../analytics/usage-aggregator.js';
-import { ConfigLoader, DEFAULT_SYSTEM_PROMPT } from '../domain/config-loader.js';
+import {
+  ConfigLoader,
+  DEFAULT_SYSTEM_PROMPT,
+} from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { createEventRoutes } from '../routes/events.js';
 import { EventBus } from '../services/event-bus.js';
-import * as ConversationManager from './conversation-manager.js';
-import * as MCPManager from './mcp-manager.js';
-import * as StreamOrchestrator from './stream-orchestrator.js';
-import * as ToolExecutor from './tool-executor.js';
-import { SpanStatusCode } from '@opentelemetry/api';
 import {
-  chatRequests,
   chatDuration,
   chatErrors,
+  chatRequests,
+  registerObservableGauges,
   tokensInput,
   tokensOutput,
-  registerObservableGauges,
   tracer,
 } from '../telemetry/metrics.js';
+import { createLogger } from '../utils/logger.js';
 import { createAgentHooks } from './agent-hooks.js';
-import { VoltAgentFramework } from './voltagent-adapter.js';
+import * as ConversationManager from './conversation-manager.js';
+import * as MCPManager from './mcp-manager.js';
 import { StrandsFramework } from './strands-adapter.js';
+import * as StreamOrchestrator from './stream-orchestrator.js';
+import * as ToolExecutor from './tool-executor.js';
+import { VoltAgentFramework } from './voltagent-adapter.js';
 
 // Type extensions for VoltAgent SDK
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
   description?: string;
-}
-
-interface ModelProvider {
-  modelId?: string;
-  settings?: {
-    maxTokens?: number;
-    temperature?: number;
-  };
 }
 
 interface GenerateResult {
@@ -75,67 +70,66 @@ interface ToolResult {
   [key: string]: any; // Allow additional properties
 }
 
-interface BedrockProviderSpec {
-  model: string;
-  region?: string;
-  [key: string]: any; // Allow additional properties
-}
-
+import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
+import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
+import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
+import { migrateToProject } from '../domain/migration.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
+import { LanceDBProvider } from '../providers/lancedb-provider.js';
 import {
+  getNotificationProviders,
+  listProviders,
   registerAgentRegistryProvider,
   registerIntegrationRegistryProvider,
-  listProviders,
 } from '../providers/registry.js';
 import { createAgentRoutes } from '../routes/agents.js';
 import { createAnalyticsRoutes } from '../routes/analytics.js';
 import { createAuthRoutes, createUserRoutes } from '../routes/auth.js';
 import { createBedrockRoutes } from '../routes/bedrock.js';
 import { createBrandingRoutes } from '../routes/branding.js';
+import { createCodingRoutes } from '../routes/coding.js';
 import { createConfigRoutes } from '../routes/config.js';
 import { createConversationRoutes } from '../routes/conversations.js';
-import { createMonitoringRoutes } from '../routes/monitoring.js';
-import { createPluginRoutes } from '../routes/plugins.js';
-import { createRegistryRoutes } from '../routes/registry.js';
 import { createFsRoutes } from '../routes/fs.js';
-import { createSchedulerRoutes } from '../routes/scheduler.js';
-import { createNotificationRoutes } from '../routes/notifications.js';
-import { NotificationService } from '../services/notification-service.js';
-import { getNotificationProviders } from '../providers/registry.js';
-import { createPromptRoutes } from '../routes/prompts.js';
-import { PromptService } from '../services/prompt-service.js';
-import { createSystemRoutes } from '../routes/system.js';
-import { createToolRoutes } from '../routes/tools.js';
 import {
-  createWorkflowRoutes,
-  createLayoutRoutes,
-} from '../routes/layouts.js';
+  createCrossProjectKnowledgeRoutes,
+  createKnowledgeRoutes,
+} from '../routes/knowledge.js';
+import { createLayoutRoutes, createWorkflowRoutes } from '../routes/layouts.js';
+import modelsRoute from '../routes/models.js';
+import { createMonitoringRoutes } from '../routes/monitoring.js';
+import { createFeedbackRoutes } from '../routes/feedback.js';
+import { createNotificationRoutes } from '../routes/notifications.js';
+import { createPluginRoutes } from '../routes/plugins.js';
+import { createProjectRoutes } from '../routes/projects.js';
+import { createPromptRoutes } from '../routes/prompts.js';
+import { createProviderRoutes } from '../routes/providers.js';
+import { createRegistryRoutes } from '../routes/registry.js';
+import { createSchedulerRoutes } from '../routes/scheduler.js';
+import { createSystemRoutes } from '../routes/system.js';
+import { createTemplateRoutes } from '../routes/templates.js';
+import { createToolRoutes } from '../routes/tools.js';
 import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
-import { MCPService } from '../services/mcp-service.js';
-import { SchedulerService } from '../services/scheduler-service.js';
-import { LayoutService } from '../services/layout-service.js';
-import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
-import { migrateToProject } from '../domain/migration.js';
-import { ProjectService } from '../services/project-service.js';
-import { ProviderService } from '../services/provider-service.js';
-import { createProjectRoutes } from '../routes/projects.js';
-import { createProviderRoutes } from '../routes/providers.js';
-import { LanceDBProvider } from '../providers/lancedb-provider.js';
-import { KnowledgeService } from '../services/knowledge-service.js';
-import { createKnowledgeRoutes, createCrossProjectKnowledgeRoutes } from '../routes/knowledge.js';
 import { FileTreeService } from '../services/file-tree-service.js';
-import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
-import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
+import { FeedbackService } from '../services/feedback-service.js';
+import { KnowledgeService } from '../services/knowledge-service.js';
+import { LayoutService } from '../services/layout-service.js';
+import {
+  createLLMProviderFromConfig,
+  streamWithProvider,
+} from '../services/llm-router.js';
+import { MCPService } from '../services/mcp-service.js';
+import { NotificationService } from '../services/notification-service.js';
+import { ProjectService } from '../services/project-service.js';
+import { PromptService } from '../services/prompt-service.js';
+import { ProviderService } from '../services/provider-service.js';
+import { SchedulerService } from '../services/scheduler-service.js';
 import { TerminalService } from '../services/terminal-service.js';
 import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
-import { createCodingRoutes } from '../routes/coding.js';
-import { createLLMProviderFromConfig, streamWithProvider } from '../services/llm-router.js';
-import { createTemplateRoutes } from '../routes/templates.js';
 import { isAuthError } from '../utils/auth-errors.js';
 import { InjectableStream } from './streaming/InjectableStream.js';
-import modelsRoute from '../routes/models.js';
 
 export interface StallionRuntimeOptions {
   projectHomeDir?: string;
@@ -167,12 +161,12 @@ export class StallionRuntime {
   private memoryAdapters: Map<string, FileMemoryAdapter> = new Map();
   private agentTools: Map<string, Tool<any>[]> = new Map(); // Cache loaded tools per agent
   private globalToolRegistry: Map<string, Tool<any>> = new Map(); // All unique tools by name
-  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private agentFixedTokens: Map<
     string,
     { systemPromptTokens: number; mcpServerTokens: number }
   > = new Map(); // Cache fixed token counts per agent
-  private agentHooksMap: Map<string, ReturnType<typeof createAgentHooks>> = new Map();
+  private agentHooksMap: Map<string, ReturnType<typeof createAgentHooks>> =
+    new Map();
   private toolNameMapping: Map<
     string,
     {
@@ -216,11 +210,15 @@ export class StallionRuntime {
   private terminalService!: TerminalService;
   private terminalWsServer!: TerminalWebSocketServer;
   private acpBridge: ACPManager;
+  private feedbackService: FeedbackService;
   public readonly eventBus = new EventBus();
   private framework!: VoltAgentFramework | StrandsFramework;
 
   constructor(options: StallionRuntimeOptions = {}) {
-    const projectHomeDir = options.projectHomeDir || process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai');
+    const projectHomeDir =
+      options.projectHomeDir ||
+      process.env.STALLION_AI_DIR ||
+      join(homedir(), '.stallion-ai');
     this.port = options.port || 3141;
     this.eventLogPath = `${projectHomeDir}/monitoring`;
 
@@ -252,13 +250,14 @@ export class StallionRuntime {
       this.toolNameMapping,
       this.logger,
     );
-    this.layoutService = new LayoutService(
-      this.configLoader,
-      this.logger,
+    this.layoutService = new LayoutService(this.configLoader, this.logger);
+    this.storageAdapter = new FileStorageAdapter(
+      this.configLoader.getProjectHomeDir(),
     );
-    this.storageAdapter = new FileStorageAdapter(this.configLoader.getProjectHomeDir());
     this.projectService = new ProjectService(this.storageAdapter);
-    this.providerService = new ProviderService(this.storageAdapter, () => this.configLoader.loadAppConfig());
+    this.providerService = new ProviderService(this.storageAdapter, () =>
+      this.configLoader.loadAppConfig(),
+    );
     this.knowledgeService = new KnowledgeService(
       new LanceDBProvider({ dataDir: `${projectHomeDir}/vectordb` }),
       null,
@@ -293,6 +292,9 @@ export class StallionRuntime {
       aiSdkBedrock: '3.0.56',
       nodeVersion: process.version,
     });
+
+    // Feedback service (provider-agnostic — analyze callback set after agents load)
+    this.feedbackService = new FeedbackService(projectHomeDir);
   }
 
   /**
@@ -363,9 +365,8 @@ export class StallionRuntime {
 
     // Select agent framework based on config
     const runtime = this.appConfig.runtime || 'voltagent';
-    this.framework = runtime === 'strands'
-      ? new StrandsFramework()
-      : new VoltAgentFramework();
+    this.framework =
+      runtime === 'strands' ? new StrandsFramework() : new VoltAgentFramework();
     this.logger.info('App config loaded', {
       region: this.appConfig.region,
       model: this.appConfig.defaultModel,
@@ -425,7 +426,9 @@ export class StallionRuntime {
     const existingProviders = this.storageAdapter.listProviderConnections();
     if (existingProviders.length === 0) {
       try {
-        const { checkBedrockCredentials } = await import('../providers/bedrock.js');
+        const { checkBedrockCredentials } = await import(
+          '../providers/bedrock.js'
+        );
         const hasCreds = await checkBedrockCredentials();
         if (hasCreds) {
           this.storageAdapter.saveProviderConnection({
@@ -438,7 +441,9 @@ export class StallionRuntime {
           });
           this.logger.info('Seeded default Bedrock provider connection');
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     // Daily agent reload at midnight so {{date}}/{{time}} template variables stay fresh
@@ -464,7 +469,9 @@ export class StallionRuntime {
     const agents: Record<string, Agent> = {};
 
     // Create default agent (always available, uses defaultModel, no tools)
-    const defaultModel = await this.createBedrockModel({ model: this.appConfig.defaultModel } as AgentSpec);
+    const defaultModel = await this.createBedrockModel({
+      model: this.appConfig.defaultModel,
+    } as AgentSpec);
     const defaultInstructions = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : this.replaceTemplateVariables(DEFAULT_SYSTEM_PROMPT);
@@ -501,7 +508,8 @@ export class StallionRuntime {
     this.agentMetadataMap = new Map(
       agentMetadataList.map((meta) => [meta.slug, meta]),
     );
-    if (savedDefaultMeta) this.agentMetadataMap.set('default', savedDefaultMeta);
+    if (savedDefaultMeta)
+      this.agentMetadataMap.set('default', savedDefaultMeta);
     this.logger.info('Agent metadata map created', {
       count: this.agentMetadataMap.size,
       keys: Array.from(this.agentMetadataMap.keys()),
@@ -532,14 +540,23 @@ export class StallionRuntime {
     // Start periodic health checks (every 60 seconds)
     this.startHealthChecks();
 
+    // Start feedback analysis loop (uses default agent for LLM calls)
+    this.feedbackService.setAnalyzeCallback(async (prompt: string) => {
+      const agent = this.activeAgents.get('default');
+      if (!agent) throw new Error('No default agent for feedback analysis');
+      const result = await agent.generateText(prompt);
+      return result.text;
+    });
+    this.feedbackService.start();
+
     // Start ACP bridge (non-blocking — no-op if kiro-cli not found)
     this.configLoader
       .loadACPConfig()
       .then((acpConfig: any) => {
         // Merge connections from acpConnections providers (e.g. aws-internal plugin)
         const providerEntries = listProviders('acpConnections');
-        const providerConns = providerEntries.flatMap((e: any) =>
-          (e.provider.getConnections?.() || []),
+        const providerConns = providerEntries.flatMap(
+          (e: any) => e.provider.getConnections?.() || [],
         );
         const configIds = new Set(acpConfig.connections.map((c: any) => c.id));
         const merged = [
@@ -588,7 +605,9 @@ export class StallionRuntime {
    * Configure all HTTP routes on the Hono app instance.
    * Extracted from the configureApp callback for readability.
    */
-  private configureRoutes(app: Parameters<NonNullable<HonoServerConfig['configureApp']>>[0]): void {
+  private configureRoutes(
+    app: Parameters<NonNullable<HonoServerConfig['configureApp']>>[0],
+  ): void {
     // Global error handler middleware
     app.onError((err, c) => {
       if (isAuthError(err)) {
@@ -652,10 +671,7 @@ export class StallionRuntime {
     );
 
     // Analytics endpoints
-    app.route(
-      '/api/analytics',
-      createAnalyticsRoutes(this.usageAggregator),
-    );
+    app.route('/api/analytics', createAnalyticsRoutes(this.usageAggregator));
 
     // Auth endpoints
     app.route('/api/auth', createAuthRoutes());
@@ -694,40 +710,48 @@ export class StallionRuntime {
         // Build enriched list from metadata map (framework-agnostic)
         const enrichedAgents = (
           await Promise.all(
-            Array.from(this.agentMetadataMap.entries()).map(async ([slug, metadata]) => {
-              if (!this.activeAgents.has(slug)) return null;
-              try {
-                const spec = slug === 'default'
-                  ? { prompt: metadata.description, description: metadata.description, model: this.appConfig.defaultModel }
-                  : await this.configLoader.loadAgent(slug);
+            Array.from(this.agentMetadataMap.entries()).map(
+              async ([slug, metadata]) => {
+                if (!this.activeAgents.has(slug)) return null;
+                try {
+                  const spec: AgentSpec =
+                    slug === 'default'
+                      ? {
+                          name: 'default',
+                          prompt: metadata.description,
+                          description: metadata.description,
+                          model: this.appConfig.defaultModel,
+                        }
+                      : await this.configLoader.loadAgent(slug);
 
-                this.logger.debug('[Agent Enrichment] Loading spec', {
-                  agent: metadata.slug,
-                  hasSpec: !!spec,
-                  hasTools: !!spec.tools,
-                });
+                  this.logger.debug('[Agent Enrichment] Loading spec', {
+                    agent: metadata.slug,
+                    hasSpec: !!spec,
+                    hasTools: !!spec.tools,
+                  });
 
-                return {
-                  slug,
-                  name: metadata.name,
-                  prompt: spec.prompt,
-                  description: spec.description,
-                  model: spec.model,
-                  region: spec.region,
-                  guardrails: spec.guardrails,
-                  maxTurns: spec.maxTurns,
-                  icon: spec.icon,
-                  commands: spec.commands,
-                  toolsConfig: spec.tools,
-                  updatedAt: metadata.updatedAt,
-                };
-              } catch (_error) {
-                this.logger.warn('Agent spec not found, skipping', {
-                  agent: metadata.slug,
-                });
-                return null;
-              }
-            }),
+                  return {
+                    slug,
+                    name: metadata.name,
+                    prompt: spec.prompt,
+                    description: spec.description,
+                    model: spec.model,
+                    region: spec.region,
+                    guardrails: spec.guardrails,
+                    maxTurns: spec.maxTurns,
+                    icon: spec.icon,
+                    commands: spec.commands,
+                    toolsConfig: spec.tools,
+                    updatedAt: metadata.updatedAt,
+                  };
+                } catch (_error) {
+                  this.logger.warn('Agent spec not found, skipping', {
+                    agent: metadata.slug,
+                  });
+                  return null;
+                }
+              },
+            ),
           )
         ).filter((a) => a !== null);
 
@@ -813,9 +837,7 @@ export class StallionRuntime {
         getACPStatus: () => {
           const s = this.acpBridge.getStatus();
           return {
-            connected: s.connections.some(
-              (c) => c.status === 'connected',
-            ),
+            connected: s.connections.some((c) => c.status === 'connected'),
             connections: s.connections,
           };
         },
@@ -848,10 +870,7 @@ export class StallionRuntime {
     app.get('/acp/commands/:slug/options', async (c) => {
       const slug = c.req.param('slug');
       const partial = c.req.query('q') || '';
-      const options = await this.acpBridge.getCommandOptions(
-        slug,
-        partial,
-      );
+      const options = await this.acpBridge.getCommandOptions(slug, partial);
       return c.json({ success: true, data: options });
     });
 
@@ -861,7 +880,10 @@ export class StallionRuntime {
       // Merge connections from acpConnections providers (e.g. plugins)
       const providerEntries = listProviders('acpConnections');
       const providerConns = providerEntries.flatMap((e: any) =>
-        (e.provider.getConnections?.() || []).map((conn: any) => ({ ...conn, source: 'plugin' as const })),
+        (e.provider.getConnections?.() || []).map((conn: any) => ({
+          ...conn,
+          source: 'plugin' as const,
+        })),
       );
       const configIds = new Set(config.connections.map((c) => c.id));
       const allConnections = [
@@ -919,10 +941,7 @@ export class StallionRuntime {
       const config = await this.configLoader.loadACPConfig();
       const idx = config.connections.findIndex((conn) => conn.id === id);
       if (idx === -1)
-        return c.json(
-          { success: false, error: 'Connection not found' },
-          404,
-        );
+        return c.json({ success: false, error: 'Connection not found' }, 404);
       config.connections[idx] = {
         ...config.connections[idx],
         ...body,
@@ -939,9 +958,7 @@ export class StallionRuntime {
     app.delete('/acp/connections/:id', async (c) => {
       const id = c.req.param('id');
       const config = await this.configLoader.loadACPConfig();
-      config.connections = config.connections.filter(
-        (conn) => conn.id !== id,
-      );
+      config.connections = config.connections.filter((conn) => conn.id !== id);
       await this.configLoader.saveACPConfig(config);
       await this.acpBridge.removeConnection(id);
       return c.json({ success: true });
@@ -975,10 +992,10 @@ export class StallionRuntime {
             try {
               parameters = zodToJsonSchema(parameters);
             } catch (error) {
-              this.logger.warn(
-                'Failed to convert Zod schema to JSON schema',
-                { tool: tool.name, error },
-              );
+              this.logger.warn('Failed to convert Zod schema to JSON schema', {
+                tool: tool.name,
+                error,
+              });
             }
           }
 
@@ -1089,35 +1106,48 @@ export class StallionRuntime {
     });
 
     // === Layout Management Endpoints ===
-    app.route(
-      '/layouts',
-      createLayoutRoutes(this.layoutService),
-    );
+    app.route('/layouts', createLayoutRoutes(this.layoutService));
 
     // === Layout & Workflow Management ===
     app.route('/agents', createWorkflowRoutes(this.layoutService));
 
     // === Project Management ===
-    app.route('/api/projects', createProjectRoutes(this.projectService, this.storageAdapter, this.configLoader.getProjectHomeDir()));
+    app.route(
+      '/api/projects',
+      createProjectRoutes(
+        this.projectService,
+        this.storageAdapter,
+        this.configLoader.getProjectHomeDir(),
+      ),
+    );
     app.route('/api/providers', createProviderRoutes(this.providerService));
-    app.route('/api/projects/:slug/knowledge', createKnowledgeRoutes(this.knowledgeService));
-    app.route('/api/knowledge', createCrossProjectKnowledgeRoutes(this.knowledgeService, this.storageAdapter));
+    app.route(
+      '/api/projects/:slug/knowledge',
+      createKnowledgeRoutes(this.knowledgeService),
+    );
+    app.route(
+      '/api/knowledge',
+      createCrossProjectKnowledgeRoutes(
+        this.knowledgeService,
+        this.storageAdapter,
+      ),
+    );
     app.route('/api/coding', createCodingRoutes(this.fileTreeService));
-    app.get('/api/coding/terminal-port', (c) => c.json({ success: true, port: this.port + 1 }));
+    app.get('/api/coding/terminal-port', (c) =>
+      c.json({ success: true, port: this.port + 1 }),
+    );
     app.route('/api/templates', createTemplateRoutes(this.storageAdapter));
 
     // === Route Modules ===
     app.route(
       '/config',
-      createConfigRoutes(this.configLoader, this.logger, this.eventBus, () => this.reloadAgents()),
+      createConfigRoutes(this.configLoader, this.logger, this.eventBus, () =>
+        this.reloadAgents(),
+      ),
     );
     app.route(
       '/bedrock',
-      createBedrockRoutes(
-        () => this.modelCatalog,
-        this.appConfig,
-        this.logger,
-      ),
+      createBedrockRoutes(() => this.modelCatalog, this.appConfig, this.logger),
     );
     app.route('/api/branding', createBrandingRoutes());
     app.route(
@@ -1139,7 +1169,10 @@ export class StallionRuntime {
     );
     const schedulerService = new SchedulerService(this.logger);
     schedulerService.setChatFn(async (agentSlug, prompt) => {
-      const slug = agentSlug === 'default' ? (this.activeAgents.keys().next().value || agentSlug) : agentSlug;
+      const slug =
+        agentSlug === 'default'
+          ? this.activeAgents.keys().next().value || agentSlug
+          : agentSlug;
       const agent = this.activeAgents.get(slug);
       if (!agent) throw new Error(`Agent '${slug}' not found`);
       const result = await agent.generateText(prompt);
@@ -1150,13 +1183,21 @@ export class StallionRuntime {
       createSchedulerRoutes(schedulerService, this.logger),
     );
     // Notification service
-    const notificationService = new NotificationService(this.eventBus, join(homedir(), '.stallion-ai'), 60_000);
+    const notificationService = new NotificationService(
+      this.eventBus,
+      join(homedir(), '.stallion-ai'),
+      60_000,
+    );
     for (const { provider } of getNotificationProviders()) {
       notificationService.addProvider(provider);
     }
     notificationService.start();
     app.route('/notifications', createNotificationRoutes(notificationService));
-    app.route('/api/prompts', createPromptRoutes(new PromptService(), this.logger));
+    app.route('/api/feedback', createFeedbackRoutes(this.feedbackService));
+    app.route(
+      '/api/prompts',
+      createPromptRoutes(new PromptService(), this.logger),
+    );
 
     // Agent health check (agent-specific, not in monitoring routes)
     app.get('/agents/:slug/health', async (c) => {
@@ -1230,9 +1271,7 @@ export class StallionRuntime {
           });
         }
 
-        checks.integrationsConnected = integrations.every(
-          (i) => i.connected,
-        );
+        checks.integrationsConnected = integrations.every((i) => i.connected);
       }
 
       const healthy = Object.values(checks).every((v) => v);
@@ -1257,14 +1296,13 @@ export class StallionRuntime {
           const conversationId = c.req.param('conversationId');
           const { action, content } = await c.req.json();
 
-          const result =
-            await ConversationManager.manageConversationContext(
-              slug,
-              conversationId,
-              action,
-              content,
-              this.memoryAdapters,
-            );
+          const result = await ConversationManager.manageConversationContext(
+            slug,
+            conversationId,
+            action,
+            content,
+            this.memoryAdapters,
+          );
 
           return c.json(result);
         } catch (error: any) {
@@ -1277,53 +1315,41 @@ export class StallionRuntime {
     );
 
     // Get conversation statistics
-    app.get(
-      '/agents/:slug/conversations/:conversationId/stats',
-      async (c) => {
-        try {
-          const slug = c.req.param('slug');
-          const conversationId = c.req.param('conversationId');
+    app.get('/agents/:slug/conversations/:conversationId/stats', async (c) => {
+      try {
+        const slug = c.req.param('slug');
+        const conversationId = c.req.param('conversationId');
 
-          const data = await ConversationManager.getConversationStats(
-            slug,
-            conversationId,
-            this.memoryAdapters,
-            this.agentFixedTokens,
-            this.agentTools,
-            this.configLoader,
-            this.appConfig,
-            this.modelCatalog,
-            this.logger,
-          );
+        const data = await ConversationManager.getConversationStats(
+          slug,
+          conversationId,
+          this.memoryAdapters,
+          this.agentFixedTokens,
+          this.agentTools,
+          this.configLoader,
+          this.appConfig,
+          this.modelCatalog,
+          this.logger,
+        );
 
-          return c.json({ success: true, data });
-        } catch (error: any) {
-          this.logger.error('Failed to load conversation stats', {
-            error,
-          });
-          return c.json({ success: false, error: error.message }, 500);
-        }
-      },
-    );
+        return c.json({ success: true, data });
+      } catch (error: any) {
+        this.logger.error('Failed to load conversation stats', {
+          error,
+        });
+        return c.json({ success: false, error: error.message }, 500);
+      }
+    });
 
     // Silent agent invocation for dashboard data fetching
     app.post('/agents/:slug/invoke', async (c) => {
       try {
         const slug = c.req.param('slug');
-        const {
-          input,
-          silent = true,
-          model,
-          tools: toolNames,
-          schema,
-        } = await c.req.json();
+        const { input, model, tools: toolNames, schema } = await c.req.json();
 
         const agent = this.activeAgents.get(slug);
         if (!agent) {
-          return c.json(
-            { success: false, error: 'Agent not found' },
-            404,
-          );
+          return c.json({ success: false, error: 'Agent not found' }, 404);
         }
 
         // Build prompt with schema instruction if provided
@@ -1334,9 +1360,10 @@ export class StallionRuntime {
 
         const options: any = {};
         if (model && this.modelCatalog) {
-          const resolvedModel =
-            await this.modelCatalog.resolveModelId(model);
-          options.model = await this.createBedrockModel({ model: resolvedModel } as AgentSpec);
+          const resolvedModel = await this.modelCatalog.resolveModelId(model);
+          options.model = await this.createBedrockModel({
+            model: resolvedModel,
+          } as AgentSpec);
         }
 
         // Override tools if specified - get from our cached tools
@@ -1357,9 +1384,7 @@ export class StallionRuntime {
           try {
             // Extract JSON from markdown code blocks if present
             let jsonText = result.text.trim();
-            const jsonMatch = jsonText.match(
-              /```(?:json)?\s*([\s\S]*?)\s*```/,
-            );
+            const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
             if (jsonMatch) {
               jsonText = jsonMatch[1].trim();
             }
@@ -1399,15 +1424,25 @@ export class StallionRuntime {
         const toolName = c.req.param('toolName');
         const toolArgs = await c.req.json();
 
-        const agent = this.activeAgents.get(slug);
+        let resolvedSlug = slug;
+        let agent = this.activeAgents.get(resolvedSlug);
+
+        // Fallback: try namespace-scoped lookup (e.g. "sales-sa" → "sales-sa:sales-sa")
         if (!agent) {
-          return c.json(
-            { success: false, error: 'Agent not found' },
-            404,
+          const nsMatch = Array.from(this.activeAgents.keys()).find((k) =>
+            k.endsWith(`:${slug}`),
           );
+          if (nsMatch) {
+            resolvedSlug = nsMatch;
+            agent = this.activeAgents.get(resolvedSlug);
+          }
         }
 
-        const allTools = this.agentTools.get(slug) || [];
+        if (!agent) {
+          return c.json({ success: false, error: 'Agent not found' }, 404);
+        }
+
+        const allTools = this.agentTools.get(resolvedSlug) || [];
 
         // Try to find tool by normalized name first, then by original name
         let tool = allTools.find((t) => t.name === toolName);
@@ -1475,10 +1510,7 @@ export class StallionRuntime {
 
         const agent = this.activeAgents.get(slug);
         if (!agent) {
-          return c.json(
-            { success: false, error: 'Agent not found' },
-            404,
-          );
+          return c.json({ success: false, error: 'Agent not found' }, 404);
         }
 
         const allTools = this.agentTools.get(slug) || [];
@@ -1547,13 +1579,8 @@ export class StallionRuntime {
           const lastBrace = unwrappedResult.response.lastIndexOf(', {');
           if (lastBrace > 0) {
             try {
-              parseError = unwrappedResult.response.substring(
-                0,
-                lastBrace,
-              );
-              const jsonStr = unwrappedResult.response.substring(
-                lastBrace + 2,
-              );
+              parseError = unwrappedResult.response.substring(0, lastBrace);
+              const jsonStr = unwrappedResult.response.substring(lastBrace + 2);
               unwrappedResult = JSON.parse(jsonStr);
             } catch {
               parseError = undefined;
@@ -1562,17 +1589,12 @@ export class StallionRuntime {
         }
 
         // Check if the MCP tool returned an error
-        if (
-          unwrappedResult?.success === false &&
-          unwrappedResult?.error
-        ) {
+        if (unwrappedResult?.success === false && unwrappedResult?.error) {
           const errorObj = unwrappedResult.error;
           const errorMessage =
             typeof errorObj === 'string'
               ? errorObj
-              : errorObj?.message?.message ||
-                errorObj?.message ||
-                errorObj;
+              : errorObj?.message?.message || errorObj?.message || errorObj;
           if (isAuthError(errorMessage)) {
             return c.json({ success: false, error: errorMessage }, 401);
           }
@@ -1612,7 +1634,6 @@ export class StallionRuntime {
         const slug = c.req.param('slug');
         const {
           prompt,
-          silent = true,
           model,
           tools: toolNames,
           maxSteps = 10,
@@ -1621,17 +1642,15 @@ export class StallionRuntime {
 
         const agent = this.activeAgents.get(slug);
         if (!agent) {
-          return c.json(
-            { success: false, error: 'Agent not found' },
-            404,
-          );
+          return c.json({ success: false, error: 'Agent not found' }, 404);
         }
 
         const options: any = { maxSteps, maxOutputTokens: 2000 };
         if (model && this.modelCatalog) {
-          const resolvedModel =
-            await this.modelCatalog.resolveModelId(model);
-          options.model = await this.createBedrockModel({ model: resolvedModel } as AgentSpec);
+          const resolvedModel = await this.modelCatalog.resolveModelId(model);
+          options.model = await this.createBedrockModel({
+            model: resolvedModel,
+          } as AgentSpec);
         }
 
         // Override tools if specified - create temp agent with only filtered tools
@@ -1657,10 +1676,10 @@ export class StallionRuntime {
             );
 
             // Extract JSON from response (handles markdown code blocks)
-            let parsed;
+            let parsed: unknown;
             try {
-              const cleaned = textResult.text!
-                .replace(/```json\n?/g, '')
+              const cleaned = textResult
+                .text!.replace(/```json\n?/g, '')
                 .replace(/```\n?/g, '')
                 .trim();
               parsed = JSON.parse(cleaned);
@@ -1715,19 +1734,18 @@ export class StallionRuntime {
         const approvalId = c.req.param('approvalId');
         const { approved } = await c.req.json();
 
-        this.logger.info(
-          '[Approval Endpoint] Received approval response',
-          { approvalId, approved },
-        );
+        this.logger.info('[Approval Endpoint] Received approval response', {
+          approvalId,
+          approved,
+        });
 
         if (this.approvalRegistry.resolve(approvalId, approved)) {
           return c.json({ success: true });
         }
 
-        this.logger.warn(
-          '[Approval Endpoint] Approval request not found',
-          { approvalId },
-        );
+        this.logger.warn('[Approval Endpoint] Approval request not found', {
+          approvalId,
+        });
         return c.json(
           { success: false, error: 'Approval request not found' },
           404,
@@ -1862,11 +1880,21 @@ export class StallionRuntime {
           if (projectSlug) {
             try {
               const project = this.storageAdapter.getProject(projectSlug);
-              const primaryDir = project.directories?.find((d: any) => d.role === 'primary');
+              const primaryDir = project.directories?.find(
+                (d: any) => d.role === 'primary',
+              );
               if (primaryDir) acpCwd = primaryDir.path;
-            } catch { /* use default */ }
+            } catch {
+              /* use default */
+            }
           }
-          return this.acpBridge.handleChat(c, slug, input, options, acpCwd ? { cwd: acpCwd } : undefined);
+          return this.acpBridge.handleChat(
+            c,
+            slug,
+            input,
+            options,
+            acpCwd ? { cwd: acpCwd } : undefined,
+          );
         }
 
         // Resolve project provider override when projectSlug is provided
@@ -1874,20 +1902,31 @@ export class StallionRuntime {
         let resolvedProviderConn: any = null;
         if (projectSlug && !options.model) {
           try {
-            const resolved = await this.providerService.resolveProvider({ projectSlug });
+            const resolved = await this.providerService.resolveProvider({
+              projectSlug,
+            });
             if (resolved.model) {
               options.model = resolved.model;
             }
             // Check if this is a non-Bedrock provider that needs alternate routing
             if (resolved.providerId && resolved.providerId !== 'bedrock') {
-              const connections = this.providerService.listProviderConnections();
-              resolvedProviderConn = connections.find((c: any) => c.id === resolved.providerId);
-              if (resolvedProviderConn && resolvedProviderConn.type !== 'bedrock') {
+              const connections =
+                this.providerService.listProviderConnections();
+              resolvedProviderConn = connections.find(
+                (c: any) => c.id === resolved.providerId,
+              );
+              if (
+                resolvedProviderConn &&
+                resolvedProviderConn.type !== 'bedrock'
+              ) {
                 useAlternateProvider = true;
               }
             }
           } catch (err: any) {
-            this.logger.warn('Failed to resolve project provider', { projectSlug, error: err.message });
+            this.logger.warn('Failed to resolve project provider', {
+              projectSlug,
+              error: err.message,
+            });
           }
         }
 
@@ -1895,13 +1934,34 @@ export class StallionRuntime {
         let ragContext: string | null = null;
         if (projectSlug) {
           try {
-            const userMessage = typeof input === 'string' ? input : (Array.isArray(input) ? input.find((m: any) => m.role === 'user')?.parts?.find((p: any) => p.type === 'text')?.text || '' : '');
+            const userMessage =
+              typeof input === 'string'
+                ? input
+                : Array.isArray(input)
+                  ? input
+                      .find((m: any) => m.role === 'user')
+                      ?.parts?.find((p: any) => p.type === 'text')?.text || ''
+                  : '';
             if (userMessage) {
-              ragContext = await this.knowledgeService.getRAGContext(projectSlug, userMessage);
+              ragContext = await this.knowledgeService.getRAGContext(
+                projectSlug,
+                userMessage,
+              );
             }
           } catch (err: any) {
-            this.logger.debug('RAG context retrieval failed', { projectSlug, error: err.message });
+            this.logger.debug('RAG context retrieval failed', {
+              projectSlug,
+              error: err.message,
+            });
           }
+        }
+
+        // Feedback guidelines injection — provider-agnostic, applies to all chat paths
+        const feedbackGuidelines = this.feedbackService.getBehaviorGuidelines();
+        if (feedbackGuidelines) {
+          ragContext = ragContext
+            ? `${ragContext}\n\n${feedbackGuidelines}`
+            : feedbackGuidelines;
         }
 
         // Route to alternate provider (Ollama, OpenAI-compat) if resolved
@@ -1925,10 +1985,13 @@ export class StallionRuntime {
               const agentPrompt = agentSpec?.prompt
                 ? this.replaceTemplateVariables(agentSpec.prompt)
                 : '';
-              const combinedPrompt = [globalPrompt, agentPrompt].filter(Boolean).join('\n\n');
-              const systemPrompt = ragContext && combinedPrompt
-                ? `${ragContext}\n\n${combinedPrompt}`
-                : ragContext || combinedPrompt;
+              const combinedPrompt = [globalPrompt, agentPrompt]
+                .filter(Boolean)
+                .join('\n\n');
+              const systemPrompt =
+                ragContext && combinedPrompt
+                  ? `${ragContext}\n\n${combinedPrompt}`
+                  : ragContext || combinedPrompt;
               if (systemPrompt) {
                 messages.push({ role: 'system', content: systemPrompt });
               }
@@ -1939,34 +2002,58 @@ export class StallionRuntime {
                   const adapter = this.memoryAdapters.get(slug);
                   if (adapter) {
                     const userId = options.userId || 'default-user';
-                    const msgs = await adapter.getMessages(userId, options.conversationId);
+                    const msgs = await adapter.getMessages(
+                      userId,
+                      options.conversationId,
+                    );
                     if (msgs) {
                       for (const msg of msgs) {
                         // UIMessage uses parts array, extract text content
-                        const textParts = (msg.parts || []).filter((p: any) => p.type === 'text').map((p: any) => p.text);
+                        const textParts = (msg.parts || [])
+                          .filter((p: any) => p.type === 'text')
+                          .map((p: any) => p.text);
                         const content = textParts.join('\n') || '';
-                        if (content) messages.push({ role: msg.role as string, content });
+                        if (content)
+                          messages.push({ role: msg.role as string, content });
                       }
                     }
                   }
-                } catch { /* no history */ }
+                } catch {
+                  /* no history */
+                }
               }
 
               // Add current user message
-              const userText = typeof input === 'string' ? input : (Array.isArray(input) ? input.find((m: any) => m.role === 'user')?.parts?.find((p: any) => p.type === 'text')?.text || '' : '');
+              const userText =
+                typeof input === 'string'
+                  ? input
+                  : Array.isArray(input)
+                    ? input
+                        .find((m: any) => m.role === 'user')
+                        ?.parts?.find((p: any) => p.type === 'text')?.text || ''
+                    : '';
               messages.push({ role: 'user', content: userText });
 
               try {
                 await streamWithProvider(
                   llmProvider,
-                  options.model || resolvedProviderConn.config?.defaultModel || 'default',
+                  options.model ||
+                    resolvedProviderConn.config?.defaultModel ||
+                    'default',
                   messages as any,
-                  { write: (data: string) => { streamWriter.write(data); return Promise.resolve(); } },
+                  {
+                    write: (data: string) => {
+                      streamWriter.write(data);
+                      return Promise.resolve();
+                    },
+                  },
                   convId,
                   c.req.raw.signal,
                 );
               } catch (err: any) {
-                await streamWriter.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+                await streamWriter.write(
+                  `data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`,
+                );
               }
             });
           }
@@ -1995,10 +2082,7 @@ export class StallionRuntime {
 
         let agent: any = this.activeAgents.get(slug);
         if (!agent) {
-          return c.json(
-            { success: false, error: 'Agent not found' },
-            404,
-          );
+          return c.json({ success: false, error: 'Agent not found' }, 404);
         }
 
         // If model override, get or create cached agent with that model
@@ -2059,14 +2143,11 @@ export class StallionRuntime {
                 modelOverride,
               });
             } catch (modelError: any) {
-              this.logger.error(
-                'Failed to create agent with model override',
-                {
-                  slug,
-                  modelOverride,
-                  error: modelError,
-                },
-              );
+              this.logger.error('Failed to create agent with model override', {
+                slug,
+                modelOverride,
+                error: modelError,
+              });
               return c.json(
                 {
                   success: false,
@@ -2116,14 +2197,13 @@ export class StallionRuntime {
             const agentSpec = this.agentSpecs.get(slug);
 
             // Elicitation callback that injects events instead of writing directly
-            const elicitation =
-              StreamOrchestrator.createElicitationCallback(
-                agentSpec!,
-                this.toolNameMapping,
-                this.approvalRegistry,
-                injectableStream,
-                this.logger,
-              );
+            const elicitation = StreamOrchestrator.createElicitationCallback(
+              agentSpec!,
+              this.toolNameMapping,
+              this.approvalRegistry,
+              injectableStream,
+              this.logger,
+            );
 
             operationContext = {
               ...restOptions,
@@ -2150,9 +2230,7 @@ export class StallionRuntime {
               operationContext.userId === 'default-user'
             ) {
               try {
-                const { getCachedUser } = await import(
-                  '../routes/auth.js'
-                );
+                const { getCachedUser } = await import('../routes/auth.js');
                 operationContext.userId =
                   getCachedUser().alias || 'default-user';
               } catch {
@@ -2173,10 +2251,9 @@ export class StallionRuntime {
 
             // Listen for client disconnect and abort operation
             c.req.raw.signal?.addEventListener('abort', () => {
-              this.logger.debug(
-                'Client disconnected, aborting operation',
-                { conversationId },
-              );
+              this.logger.debug('Client disconnected, aborting operation', {
+                conversationId,
+              });
               abortController.abort('Client disconnected');
             });
 
@@ -2200,9 +2277,7 @@ export class StallionRuntime {
                 // Use provided title or generate from first 50 chars of user message
                 const title =
                   operationContext.title ||
-                  (input.length > 50
-                    ? `${input.substring(0, 50)}...`
-                    : input);
+                  (input.length > 50 ? `${input.substring(0, 50)}...` : input);
                 await memory.createConversation({
                   id: operationContext.conversationId,
                   resourceId: slug,
@@ -2226,8 +2301,11 @@ export class StallionRuntime {
               const clone = JSON.parse(JSON.stringify(input));
               const userMsg = clone.find((m: any) => m.role === 'user');
               if (userMsg?.parts) {
-                const textPart = userMsg.parts.find((p: any) => p.type === 'text');
-                if (textPart) textPart.text = `${ragContext}\n\n${textPart.text}`;
+                const textPart = userMsg.parts.find(
+                  (p: any) => p.type === 'text',
+                );
+                if (textPart)
+                  textPart.text = `${ragContext}\n\n${textPart.text}`;
               }
               finalInput = clone;
             }
@@ -2258,8 +2336,7 @@ export class StallionRuntime {
             if (!this.agentStats.has(slug)) {
               const adapter = this.memoryAdapters.get(slug);
               if (adapter) {
-                const conversations =
-                  await adapter.getConversations(slug);
+                const conversations = await adapter.getConversations(slug);
                 let totalMessages = 0;
                 for (const conv of conversations) {
                   const messages = await adapter.getMessages(
@@ -2278,9 +2355,7 @@ export class StallionRuntime {
 
             // Prevent unhandled rejections when stream is aborted mid-flight
             const suppressAbortError = (err: any) =>
-              abortController.signal.aborted
-                ? undefined
-                : Promise.reject(err);
+              abortController.signal.aborted ? undefined : Promise.reject(err);
 
             result.text?.catch(suppressAbortError);
             result.usage?.catch(suppressAbortError);
@@ -2303,9 +2378,7 @@ export class StallionRuntime {
             if (isNewConversation && operationContext.conversationId) {
               const mem = agent.getMemory();
               const conversation = mem
-                ? await mem.getConversation(
-                    operationContext.conversationId,
-                  )
+                ? await mem.getConversation(operationContext.conversationId)
                 : null;
               await streamWriter.write(
                 `data: ${JSON.stringify({
@@ -2369,9 +2442,7 @@ export class StallionRuntime {
             // Wrap fullStream with injectable stream
             // ReasoningHandler buffers all chunks during thinking, so approval-request
             // will be held until reasoning-end is emitted
-            const wrappedStream = injectableStream.wrap(
-              result.fullStream,
-            );
+            const wrappedStream = injectableStream.wrap(result.fullStream);
 
             // Run pipeline and write chunks to stream
             for await (const chunk of pipeline.run(wrappedStream)) {
@@ -2400,7 +2471,10 @@ export class StallionRuntime {
               if (!hasOutput) await saveCancellationMessage();
             }
           } catch (error: any) {
-            chatSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+            chatSpan.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
             chatSpan.recordException(error);
             const agentModelForError = agent.model as
               | { modelId?: string }
@@ -2436,7 +2510,7 @@ export class StallionRuntime {
             }
 
             // Collect usage stats
-            let usage;
+            let usage: Record<string, any> | undefined;
             try {
               usage = await result.usage;
             } catch (_e) {
@@ -2465,7 +2539,8 @@ export class StallionRuntime {
               usage: usage
                 ? {
                     promptTokens: usage.promptTokens || usage.inputTokens || 0,
-                    completionTokens: usage.completionTokens || usage.outputTokens || 0,
+                    completionTokens:
+                      usage.completionTokens || usage.outputTokens || 0,
                     totalTokens: usage.totalTokens || 0,
                   }
                 : undefined,
@@ -2497,14 +2572,28 @@ export class StallionRuntime {
             chatRequests.add(1, { agent: slug });
             chatDuration.record(Date.now() - chatStartMs, { agent: slug });
             if (usage) {
-              tokensInput.add(usage.promptTokens || usage.inputTokens || 0, { agent: slug });
-              tokensOutput.add(usage.completionTokens || usage.outputTokens || 0, { agent: slug });
+              tokensInput.add(usage.promptTokens || usage.inputTokens || 0, {
+                agent: slug,
+              });
+              tokensOutput.add(
+                usage.completionTokens || usage.outputTokens || 0,
+                { agent: slug },
+              );
             }
 
             // Close OTel span
-            chatSpan.setAttribute('stallion.conversation_id', operationContext.conversationId || '');
-            chatSpan.setAttribute('stallion.tokens.input', usage?.promptTokens || usage?.inputTokens || 0);
-            chatSpan.setAttribute('stallion.tokens.output', usage?.completionTokens || usage?.outputTokens || 0);
+            chatSpan.setAttribute(
+              'stallion.conversation_id',
+              operationContext.conversationId || '',
+            );
+            chatSpan.setAttribute(
+              'stallion.tokens.input',
+              usage?.promptTokens || usage?.inputTokens || 0,
+            );
+            chatSpan.setAttribute(
+              'stallion.tokens.output',
+              usage?.completionTokens || usage?.outputTokens || 0,
+            );
             chatSpan.end();
           }
         });
@@ -2596,7 +2685,7 @@ export class StallionRuntime {
     runHealthChecks();
 
     // Then run periodically
-    this.healthCheckInterval = setInterval(runHealthChecks, interval);
+    setInterval(runHealthChecks, interval);
 
     this.logger.debug('Health checks started', { interval });
   }
@@ -2827,7 +2916,9 @@ export class StallionRuntime {
       agent: agentSlug,
       runtime: this.appConfig.runtime || 'voltagent',
       ...bundle.fixedTokens,
-      totalFixedTokens: bundle.fixedTokens.systemPromptTokens + bundle.fixedTokens.mcpServerTokens,
+      totalFixedTokens:
+        bundle.fixedTokens.systemPromptTokens +
+        bundle.fixedTokens.mcpServerTokens,
     });
 
     // Return raw VoltAgent Agent for backward compat, or the IAgent wrapper for Strands
@@ -2898,20 +2989,29 @@ export class StallionRuntime {
 
     clearAll();
     const overrides = await this.configLoader.loadPluginOverrides();
-    const { resolved, conflicts } = resolvePluginProviders(pluginsDir, overrides);
+    const { resolved, conflicts } = resolvePluginProviders(
+      pluginsDir,
+      overrides,
+    );
 
     for (const conflict of conflicts) {
-      this.logger.warn('Provider conflict — multiple plugins provide singleton type', {
-        type: conflict.type,
-        layout: conflict.layout,
-        candidates: conflict.candidates,
-      });
+      this.logger.warn(
+        'Provider conflict — multiple plugins provide singleton type',
+        {
+          type: conflict.type,
+          layout: conflict.layout,
+          candidates: conflict.candidates,
+        },
+      );
     }
 
     for (const entry of resolved) {
       const modulePath = join(pluginsDir, entry.pluginName, entry.module);
       if (!existsSync(modulePath)) {
-        this.logger.warn('Plugin provider module not found', { plugin: entry.pluginName, module: entry.module });
+        this.logger.warn('Plugin provider module not found', {
+          plugin: entry.pluginName,
+          module: entry.module,
+        });
         continue;
       }
       try {
@@ -2920,23 +3020,39 @@ export class StallionRuntime {
         const instance = typeof factory === 'function' ? factory() : factory;
 
         if (entry.type === 'auth') registerAuthProvider(instance);
-        else if (entry.type === 'userIdentity') registerUserIdentityProvider(instance);
-        else if (entry.type === 'userDirectory') registerUserDirectoryProvider(instance);
-        else if (entry.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-        else if (entry.type === 'integrationRegistry') registerIntegrationRegistryProvider(instance);
-        else if (entry.type === 'onboarding') registerOnboardingProvider(instance, entry.pluginName);
+        else if (entry.type === 'userIdentity')
+          registerUserIdentityProvider(instance);
+        else if (entry.type === 'userDirectory')
+          registerUserDirectoryProvider(instance);
+        else if (entry.type === 'agentRegistry')
+          registerAgentRegistryProvider(instance);
+        else if (entry.type === 'integrationRegistry')
+          registerIntegrationRegistryProvider(instance);
+        else if (entry.type === 'onboarding')
+          registerOnboardingProvider(instance, entry.pluginName);
         else if (entry.type === 'branding') registerBrandingProvider(instance);
         else if (entry.type === 'settings') registerSettingsProvider(instance);
-        else registerProvider(entry.type, instance, { layout: entry.layout, source: entry.pluginName });
+        else
+          registerProvider(entry.type, instance, {
+            layout: entry.layout,
+            source: entry.pluginName,
+          });
 
-        this.logger.info('Registered plugin provider', { plugin: entry.pluginName, type: entry.type });
+        this.logger.info('Registered plugin provider', {
+          plugin: entry.pluginName,
+          type: entry.type,
+        });
       } catch (e: any) {
-        this.logger.error('Failed to load plugin provider', { plugin: entry.pluginName, type: entry.type, error: e.message });
+        this.logger.error('Failed to load plugin provider', {
+          plugin: entry.pluginName,
+          type: entry.type,
+          error: e.message,
+        });
       }
     }
   }
 
-  private replaceTemplateVariables(text: string, agentName?: string): string {
+  private replaceTemplateVariables(text: string, _agentName?: string): string {
     const now = new Date();
 
     // User identity (from auth/OS)
@@ -3093,6 +3209,9 @@ export class StallionRuntime {
 
     // Shutdown ACP bridge
     await this.acpBridge.shutdown();
+
+    // Stop feedback analysis
+    this.feedbackService.stop();
 
     // Shutdown terminal
     this.terminalWsServer.stop();

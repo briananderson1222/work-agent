@@ -1,11 +1,11 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FullScreenError,
   FullScreenLoader,
+  LayoutNavigationProvider,
   useLayoutQuery,
   useLayoutsQuery,
-  LayoutNavigationProvider,
 } from '@stallion-ai/sdk';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import {
   useCreateChatSession,
@@ -59,6 +59,7 @@ export function LayoutView({
     setStandaloneLayout,
     setLayoutTab,
     setActiveChat,
+    navigate,
   } = useNavigation();
 
   const agents = useAgents();
@@ -167,9 +168,7 @@ export function LayoutView({
     handleSlashCommand,
   );
 
-  const activeTabObject = layout?.tabs?.find(
-    (t: any) => t.id === activeTabId,
-  );
+  const activeTabObject = layout?.tabs?.find((t: any) => t.id === activeTabId);
   const agent = agents.find((a) => a.slug === layout?.defaultAgent);
 
   const handleLaunchPrompt = useCallback(
@@ -235,7 +234,11 @@ export function LayoutView({
   }
 
   // Selected layout doesn't exist — redirect to first available or root
-  if (!isProjectMode && allLayouts.length > 0 && !allLayouts.some((w: any) => w.slug === selectedLayout)) {
+  if (
+    !isProjectMode &&
+    allLayouts.length > 0 &&
+    !allLayouts.some((w: any) => w.slug === selectedLayout)
+  ) {
     setStandaloneLayout(allLayouts[0].slug);
     return <FullScreenLoader label="layout" />;
   }
@@ -250,6 +253,12 @@ export function LayoutView({
         retryLabel="Retry Connection"
       />
     );
+  }
+
+  // Project layout failed — project likely doesn't exist, redirect to root
+  if (isProjectMode && effectiveError && !effectiveLoading) {
+    navigate('/');
+    return <FullScreenLoader label="layout" />;
   }
 
   // Query failed after backend was reachable — if layout doesn't exist, show onboarding
@@ -310,8 +319,8 @@ function EmptyLayoutOnboarding() {
           {welcomeMessage || `Welcome to ${appName}`}
         </h2>
         <p className="workspace-onboarding__desc">
-          Layouts give you a custom dashboard with tabs, agents, and tools.
-          Get started by creating one or installing a plugin.
+          Layouts give you a custom dashboard with tabs, agents, and tools. Get
+          started by creating one or installing a plugin.
         </p>
         <div className="workspace-onboarding__actions">
           <button

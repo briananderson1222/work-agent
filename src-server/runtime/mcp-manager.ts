@@ -6,11 +6,11 @@
 import { MCPConfiguration, type Tool } from '@voltagent/core';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, ToolDef } from '../domain/types.js';
+import { mcpLifecycle } from '../telemetry/metrics.js';
 import {
   normalizeToolName,
   parseToolName,
 } from '../utils/tool-name-normalizer.js';
-import { mcpLifecycle } from '../telemetry/metrics.js';
 
 /**
  * Reference counting for MCP connections - tracks which agents use each toolId

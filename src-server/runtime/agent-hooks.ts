@@ -18,8 +18,8 @@ import { isAutoApproved } from './tool-executor.js';
 import type {
   IAgentHooks,
   InvocationContext,
-  ToolCallContext,
   TokenUsage,
+  ToolCallContext,
 } from './types.js';
 
 // ── Hook factory dependencies ──────────────────────────
@@ -29,7 +29,10 @@ export interface AgentHooksDeps {
   appConfig: AppConfig;
   configLoader: ConfigLoader;
   modelCatalog?: BedrockModelCatalog;
-  agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }>;
+  agentFixedTokens: Map<
+    string,
+    { systemPromptTokens: number; mcpServerTokens: number }
+  >;
   memoryAdapters: Map<string, FileMemoryAdapter>;
   approvalRegistry: ApprovalRegistry;
   logger: any;
@@ -45,10 +48,14 @@ export interface AgentHooksDeps {
  * chat handler sets per-request (it needs the InjectableStream which
  * only exists during streaming).
  */
-export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & { requestApproval?: (tool: ToolCallContext) => Promise<boolean> } {
+export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & {
+  requestApproval?: (tool: ToolCallContext) => Promise<boolean>;
+} {
   const autoApprove = deps.spec.tools?.autoApprove || [];
 
-  const hooks: IAgentHooks & { requestApproval?: (tool: ToolCallContext) => Promise<boolean> } = {
+  const hooks: IAgentHooks & {
+    requestApproval?: (tool: ToolCallContext) => Promise<boolean>;
+  } = {
     beforeToolCall: async (tool, _invocation) => {
       if (isAutoApproved(tool.toolName, autoApprove)) {
         return true;
@@ -77,17 +84,32 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & { requestA
 
         if (!usage) return;
 
-        const conversation = await adapter.getConversation(invocation.conversationId);
+        const conversation = await adapter.getConversation(
+          invocation.conversationId,
+        );
         if (!conversation) return;
 
-        const agentSpec = await deps.configLoader.loadAgent(invocation.agentSlug);
+        const agentSpec = await deps.configLoader.loadAgent(
+          invocation.agentSlug,
+        );
         const modelId = agentSpec.model || deps.appConfig.defaultModel;
-        const cost = await calculateCost(modelId, usage, deps.modelCatalog, deps.appConfig, deps.logger);
+        const cost = await calculateCost(
+          modelId,
+          usage,
+          deps.modelCatalog,
+          deps.appConfig,
+          deps.logger,
+        );
 
         // Get existing stats
         const existingStats = (conversation.metadata?.stats as any) || {
-          inputTokens: 0, outputTokens: 0, totalTokens: 0,
-          contextTokens: 0, turns: 0, toolCalls: 0, estimatedCost: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          contextTokens: 0,
+          turns: 0,
+          toolCalls: 0,
+          estimatedCost: null,
         };
 
         const fixedTokens = deps.agentFixedTokens.get(invocation.agentSlug);
@@ -95,8 +117,10 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & { requestA
         const mcpServerTokens = fixedTokens?.mcpServerTokens || 0;
 
         // Calculate new token totals
-        const newOutputTokens = existingStats.outputTokens + (usage.completionTokens || 0);
-        const newInputTokens = existingStats.inputTokens + (usage.promptTokens || 0);
+        const newOutputTokens =
+          existingStats.outputTokens + (usage.completionTokens || 0);
+        const newInputTokens =
+          existingStats.inputTokens + (usage.promptTokens || 0);
 
         // Estimate user message tokens from latest message
         const messages = await adapter.getMessages(
@@ -104,18 +128,26 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & { requestA
           invocation.conversationId,
         );
         const userMessages = messages.filter((m: any) => m.role === 'user');
-        const existingUserTokens = existingStats.tokenBreakdown?.userMessageTokens || 0;
+        const existingUserTokens =
+          existingStats.tokenBreakdown?.userMessageTokens || 0;
 
         let newUserTokens = 0;
         const latest = userMessages[userMessages.length - 1];
         if (latest) {
           const parts = (latest as any).parts || [];
-          const text = parts.filter((p: any) => p.type === 'text').map((p: any) => p.text || '').join('');
+          const text = parts
+            .filter((p: any) => p.type === 'text')
+            .map((p: any) => p.text || '')
+            .join('');
           newUserTokens = Math.ceil(text.length / 4);
         }
 
         const userMessageTokens = existingUserTokens + newUserTokens;
-        const contextTokens = systemPromptTokens + mcpServerTokens + userMessageTokens + newOutputTokens;
+        const contextTokens =
+          systemPromptTokens +
+          mcpServerTokens +
+          userMessageTokens +
+          newOutputTokens;
 
         const updatedStats = {
           inputTokens: newInputTokens,
@@ -124,29 +156,61 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & { requestA
           contextTokens,
           turns: existingStats.turns + 1,
           toolCalls: existingStats.toolCalls + toolCallCount,
-          estimatedCost: cost !== null && existingStats.estimatedCost !== null
-            ? existingStats.estimatedCost + cost
-            : null,
-          tokenBreakdown: { systemPromptTokens, mcpServerTokens, userMessageTokens, assistantMessageTokens: newOutputTokens },
+          estimatedCost:
+            cost !== null && existingStats.estimatedCost !== null
+              ? existingStats.estimatedCost + cost
+              : null,
+          tokenBreakdown: {
+            systemPromptTokens,
+            mcpServerTokens,
+            userMessageTokens,
+            assistantMessageTokens: newOutputTokens,
+          },
         };
 
         // Per-model stats
-        const modelStats = { ...(conversation.metadata?.modelStats || {}) } as Record<string, any>;
-        const ms = modelStats[modelId] || { inputTokens: 0, outputTokens: 0, totalTokens: 0, turns: 0, toolCalls: 0, estimatedCost: null };
+        const modelStats = {
+          ...(conversation.metadata?.modelStats || {}),
+        } as Record<string, any>;
+        const ms = modelStats[modelId] || {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          turns: 0,
+          toolCalls: 0,
+          estimatedCost: null,
+        };
         modelStats[modelId] = {
           inputTokens: ms.inputTokens + (usage.promptTokens || 0),
           outputTokens: ms.outputTokens + (usage.completionTokens || 0),
-          totalTokens: ms.totalTokens + (usage.promptTokens || 0) + (usage.completionTokens || 0),
+          totalTokens:
+            ms.totalTokens +
+            (usage.promptTokens || 0) +
+            (usage.completionTokens || 0),
           turns: ms.turns + 1,
           toolCalls: ms.toolCalls + toolCallCount,
-          estimatedCost: cost !== null && ms.estimatedCost !== null ? ms.estimatedCost + cost : null,
+          estimatedCost:
+            cost !== null && ms.estimatedCost !== null
+              ? ms.estimatedCost + cost
+              : null,
         };
 
         await adapter.updateConversation(invocation.conversationId, {
-          metadata: { ...conversation.metadata, stats: updatedStats, modelStats },
+          metadata: {
+            ...conversation.metadata,
+            stats: updatedStats,
+            modelStats,
+          },
         });
 
-        await enrichLastMessage(adapter, invocation, modelId, usage, cost, deps);
+        await enrichLastMessage(
+          adapter,
+          invocation,
+          modelId,
+          usage,
+          cost,
+          deps,
+        );
       } catch (error) {
         deps.logger.error('Failed to update conversation stats', { error });
       }
@@ -176,36 +240,55 @@ async function enrichLastMessage(
 
     const models = await deps.modelCatalog?.listModels();
     const modelInfo = models?.find((m: any) => m.modelId === modelId);
-    const pricing = await deps.modelCatalog?.getModelPricing(deps.appConfig.region);
-    const pricingInfo = pricing?.find((p: any) =>
-      p.modelId === modelId || modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
+    const pricing = await deps.modelCatalog?.getModelPricing(
+      deps.appConfig.region,
+    );
+    const pricingInfo = pricing?.find(
+      (p: any) =>
+        p.modelId === modelId ||
+        modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
     );
 
-    await adapter.removeLastMessage(`agent:${invocation.agentSlug}`, invocation.conversationId!);
-    await adapter.addMessage(last, `agent:${invocation.agentSlug}`, invocation.conversationId!, {
-      model: modelId,
-      modelMetadata: modelInfo ? {
-        capabilities: {
-          inputModalities: modelInfo.inputModalities,
-          outputModalities: modelInfo.outputModalities,
-          supportsStreaming: modelInfo.responseStreamingSupported,
+    await adapter.removeLastMessage(
+      `agent:${invocation.agentSlug}`,
+      invocation.conversationId!,
+    );
+    await adapter.addMessage(
+      last,
+      `agent:${invocation.agentSlug}`,
+      invocation.conversationId!,
+      {
+        model: modelId,
+        modelMetadata: modelInfo
+          ? {
+              capabilities: {
+                inputModalities: modelInfo.inputModalities,
+                outputModalities: modelInfo.outputModalities,
+                supportsStreaming: modelInfo.responseStreamingSupported,
+              },
+              pricing: pricingInfo
+                ? {
+                    inputTokenPrice: pricingInfo.inputTokenPrice,
+                    outputTokenPrice: pricingInfo.outputTokenPrice,
+                    currency: 'USD',
+                    region: deps.appConfig.region,
+                  }
+                : undefined,
+            }
+          : undefined,
+        usage: {
+          inputTokens: usage.promptTokens || 0,
+          outputTokens: usage.completionTokens || 0,
+          totalTokens:
+            (usage.promptTokens || 0) + (usage.completionTokens || 0),
+          estimatedCost: cost,
         },
-        pricing: pricingInfo ? {
-          inputTokenPrice: pricingInfo.inputTokenPrice,
-          outputTokenPrice: pricingInfo.outputTokenPrice,
-          currency: 'USD',
-          region: deps.appConfig.region,
-        } : undefined,
-      } : undefined,
-      usage: {
-        inputTokens: usage.promptTokens || 0,
-        outputTokens: usage.completionTokens || 0,
-        totalTokens: (usage.promptTokens || 0) + (usage.completionTokens || 0),
-        estimatedCost: cost,
       },
-    });
+    );
   } catch (error) {
-    deps.logger.error('Failed to enrich message with model metadata', { error });
+    deps.logger.error('Failed to enrich message with model metadata', {
+      error,
+    });
   }
 }
 
@@ -225,17 +308,24 @@ async function calculateCost(
 
   try {
     const pricing = await modelCatalog.getModelPricing(appConfig.region);
-    const match = pricing.find((p: any) =>
-      p.modelId === modelId || modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
+    const match = pricing.find(
+      (p: any) =>
+        p.modelId === modelId ||
+        modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
     );
     if (match) {
-      return (inputTokens / 1000) * (match.inputTokenPrice || 0) +
-             (outputTokens / 1000) * (match.outputTokenPrice || 0);
+      return (
+        (inputTokens / 1000) * (match.inputTokenPrice || 0) +
+        (outputTokens / 1000) * (match.outputTokenPrice || 0)
+      );
     }
     logger.warn('No pricing found for model, cost unavailable', { modelId });
     return null;
   } catch (error) {
-    logger.warn('Failed to fetch pricing, cost unavailable', { modelId, error });
+    logger.warn('Failed to fetch pricing, cost unavailable', {
+      modelId,
+      error,
+    });
     return null;
   }
 }

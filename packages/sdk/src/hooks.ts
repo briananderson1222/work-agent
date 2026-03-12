@@ -8,8 +8,8 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { resolveAgentName } from './agentResolver';
 import { _getApiBase, _getPluginName } from './api';
-import { useProjectsQuery, useProjectQuery } from './queries';
 import { SDKContext } from './providers';
+import { useProjectQuery, useProjectsQuery } from './queries';
 import type { AgentSummary } from './types';
 
 // SDK Context Access
@@ -55,15 +55,13 @@ export function useResolveAgent(agentSlug: string) {
 // Layout Management
 export function useLayouts() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.layouts)
-    throw new Error('LayoutsContext not available');
+  if (!sdk?.contexts?.layouts) throw new Error('LayoutsContext not available');
   return sdk.contexts.layouts.useLayouts();
 }
 
 export function useLayout(slug: string, enabled = true) {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.layouts)
-    throw new Error('LayoutsContext not available');
+  if (!sdk?.contexts?.layouts) throw new Error('LayoutsContext not available');
   return sdk.contexts.layouts.useLayout(slug, enabled);
 }
 
@@ -155,18 +153,21 @@ export function useApiBase() {
   return sdk.contexts.config.useApiBase();
 }
 
+const fallbackAuth = {
+  useAuth: () => ({
+    status: 'missing' as const,
+    user: null,
+    expiresAt: null,
+    provider: '',
+    renew: async () => {},
+    isRenewing: false,
+  }),
+};
+
 export function useAuth() {
   const sdk = useContext(SDKContext);
-  if (!sdk?.contexts?.auth)
-    return {
-      status: 'missing' as const,
-      user: null,
-      expiresAt: null,
-      provider: '',
-      renew: async () => {},
-      isRenewing: false,
-    };
-  return sdk.contexts.auth.useAuth();
+  const authContext = sdk?.contexts?.auth ?? fallbackAuth;
+  return authContext.useAuth();
 }
 
 export function useConfig() {
@@ -224,7 +225,11 @@ export function useNotifications() {
       priority?: 'low' | 'normal' | 'high' | 'urgent';
       scheduledAt?: string;
       ttl?: number;
-      actions?: Array<{ id: string; label: string; variant?: 'primary' | 'secondary' | 'danger' }>;
+      actions?: Array<{
+        id: string;
+        label: string;
+        variant?: 'primary' | 'secondary' | 'danger';
+      }>;
       metadata?: Record<string, unknown>;
       dedupeTag?: string;
     }) => {
@@ -233,7 +238,8 @@ export function useNotifications() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: 'sdk', ...opts }),
       });
-      if (!res.ok) throw new Error(`Failed to schedule notification: ${res.statusText}`);
+      if (!res.ok)
+        throw new Error(`Failed to schedule notification: ${res.statusText}`);
       return res.json();
     },
     /** Dismiss a notification */

@@ -12,9 +12,9 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
-import { createLogger } from '../utils/logger.js';
-import { type FSWatcher, watch } from 'chokidar';
 import type { PluginOverrides } from '@stallion-ai/shared';
+import { type FSWatcher, watch } from 'chokidar';
+import { createLogger } from '../utils/logger.js';
 import type {
   ACPConfig,
   AgentMetadata,
@@ -100,7 +100,10 @@ export class ConfigLoader {
     if (!data.systemPrompt) {
       data.systemPrompt = DEFAULT_SYSTEM_PROMPT;
       if (!data.templateVariables?.some((v: any) => v.key === 'AGENT_NAME')) {
-        data.templateVariables = [...(data.templateVariables || []), ...DEFAULT_TEMPLATE_VARIABLES];
+        data.templateVariables = [
+          ...(data.templateVariables || []),
+          ...DEFAULT_TEMPLATE_VARIABLES,
+        ];
       }
       await this.saveAppConfig(data);
     }
@@ -298,7 +301,9 @@ export class ConfigLoader {
         );
 
         // Plugin agents use 'pluginName:agentSlug' format
-        const pluginName = entry.name.includes(':') ? entry.name.split(':')[0] : undefined;
+        const pluginName = entry.name.includes(':')
+          ? entry.name.split(':')[0]
+          : undefined;
 
         agents.push({
           slug: entry.name,
@@ -489,7 +494,12 @@ export class ConfigLoader {
    * Load tool definition
    */
   async loadIntegration(id: string): Promise<ToolDef> {
-    const path = join(this.projectHomeDir, 'integrations', id, 'integration.json');
+    const path = join(
+      this.projectHomeDir,
+      'integrations',
+      id,
+      'integration.json',
+    );
 
     if (!existsSync(path)) {
       throw new Error(`Tool '${id}' not found at ${path}`);
@@ -516,7 +526,7 @@ export class ConfigLoader {
   async deleteIntegration(id: string): Promise<void> {
     const integrationDir = join(this.projectHomeDir, 'integrations', id);
     if (existsSync(integrationDir)) {
-      rmSync(integrationDir, { recursive: true, force: true });
+      await rm(integrationDir, { recursive: true, force: true });
     }
   }
 
@@ -536,7 +546,11 @@ export class ConfigLoader {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
 
-      const integrationPath = join(integrationsDir, entry.name, 'integration.json');
+      const integrationPath = join(
+        integrationsDir,
+        entry.name,
+        'integration.json',
+      );
       if (!existsSync(integrationPath)) continue;
 
       try {
@@ -548,7 +562,6 @@ export class ConfigLoader {
           description: def.description,
           transport: def.transport,
           source: def.command || def.endpoint,
-          plugin: def.plugin,
         });
       } catch (error) {
         logger.error('Failed to load tool', { tool: entry.name, error });
@@ -572,9 +585,12 @@ export class ConfigLoader {
       try {
         const spec = await this.loadAgent(entry.name);
         for (const toolId of spec.tools?.mcpServers || []) {
-          (map[toolId] ??= []).push(spec.name || entry.name);
+          if (!map[toolId]) map[toolId] = [];
+          map[toolId].push(spec.name || entry.name);
         }
-      } catch { /* skip broken agents */ }
+      } catch {
+        /* skip broken agents */
+      }
     }
     return map;
   }
@@ -696,7 +712,10 @@ export class ConfigLoader {
   /**
    * Save layout configuration
    */
-  async saveLayout(slug: string, config: StandaloneLayoutConfig): Promise<void> {
+  async saveLayout(
+    slug: string,
+    config: StandaloneLayoutConfig,
+  ): Promise<void> {
     validator.validateLayoutConfig(config);
 
     const layoutDir = join(this.projectHomeDir, 'layouts', slug);
@@ -758,7 +777,12 @@ export class ConfigLoader {
    * Check if tool exists
    */
   async toolExists(id: string): Promise<boolean> {
-    const path = join(this.projectHomeDir, 'integrations', id, 'integration.json');
+    const path = join(
+      this.projectHomeDir,
+      'integrations',
+      id,
+      'integration.json',
+    );
     return existsSync(path);
   }
 

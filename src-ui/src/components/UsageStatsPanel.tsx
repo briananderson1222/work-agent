@@ -55,7 +55,9 @@ export function UsageStatsPanel() {
     return (
       <div className="usage-stats-error">
         <div className="usage-stats-error-icon">⚠️</div>
-        <div className="usage-stats-error-message">Error: {(error as Error)?.message ?? String(error)}</div>
+        <div className="usage-stats-error-message">
+          Error: {(error as Error)?.message ?? String(error)}
+        </div>
         <button onClick={refresh} className="usage-stats-error-button">
           Retry
         </button>
@@ -563,7 +565,8 @@ function DrillDownModal({
                 {modelInfo?.outputCostPer1kTokens && (
                   <div>
                     <strong>Output Cost:</strong> $
-                    {(modelInfo.outputCostPer1kTokens ?? 0).toFixed(4)}/1K tokens
+                    {(modelInfo.outputCostPer1kTokens ?? 0).toFixed(4)}/1K
+                    tokens
                   </div>
                 )}
                 {modelInfo?.supportsStreaming !== undefined && (

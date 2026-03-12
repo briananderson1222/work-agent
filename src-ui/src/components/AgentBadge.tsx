@@ -37,9 +37,7 @@ export function AgentBadge({
       title={title}
     >
       {isAcp && <span className="agent-badge__namespace">kiro-cli</span>}
-      {isLayout && (
-        <span className="agent-badge__namespace">{namespace}</span>
-      )}
+      {isLayout && <span className="agent-badge__namespace">{namespace}</span>}
       <span className="agent-badge__name">{displayName}</span>
     </span>
   );

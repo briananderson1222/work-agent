@@ -5,7 +5,12 @@
  */
 
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type NotificationStatus = 'pending' | 'delivered' | 'dismissed' | 'expired' | 'actioned';
+export type NotificationStatus =
+  | 'pending'
+  | 'delivered'
+  | 'dismissed'
+  | 'expired'
+  | 'actioned';
 
 export interface NotificationAction {
   id: string;

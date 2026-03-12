@@ -8,13 +8,17 @@
  * Returns null when voice is not supported in this browser.
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { useAllActiveChats, useSendMessage } from '../contexts/ActiveChatsContext';
+import {
+  useAllActiveChats,
+  useSendMessage,
+} from '../contexts/ActiveChatsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useSTT } from '../hooks/useSTT';
 import './GlobalVoiceButton.css';
 
 const isMobile = () =>
-  typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+  typeof window !== 'undefined' &&
+  window.matchMedia('(max-width: 768px)').matches;
 
 export function GlobalVoiceButton() {
   const stt = useSTT();
@@ -35,10 +39,16 @@ export function GlobalVoiceButton() {
 
       // Find first non-busy session (keyed by sessionId)
       const entries = Object.entries(activeChats);
-      const entry = entries.find(([, s]) => s.status !== 'sending') ?? entries[0];
+      const entry =
+        entries.find(([, s]) => s.status !== 'sending') ?? entries[0];
       if (!entry) return;
       const [sessionId, session] = entry;
-      sendMessage(sessionId, session.agentSlug ?? '', session.conversationId, text);
+      sendMessage(
+        sessionId,
+        session.agentSlug ?? '',
+        session.conversationId,
+        text,
+      );
     }
   }, [stt.state, stt.transcript, activeChats, sendMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -84,7 +94,13 @@ export function GlobalVoiceButton() {
       onPointerLeave={handlePointerUp}
     >
       {isListening && mobile && <span className="gvb__pulse" aria-hidden />}
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden
+      >
         <rect x="9" y="2" width="6" height="12" rx="3" />
         <path
           d="M5 11a7 7 0 0 0 14 0"
@@ -93,8 +109,24 @@ export function GlobalVoiceButton() {
           strokeWidth="2"
           strokeLinecap="round"
         />
-        <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <line x1="8" y1="22" x2="16" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <line
+          x1="12"
+          y1="18"
+          x2="12"
+          y2="22"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <line
+          x1="8"
+          y1="22"
+          x2="16"
+          y2="22"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
       </svg>
     </button>
   );

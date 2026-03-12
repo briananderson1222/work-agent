@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useConnections } from './ConnectionsContext';
 import type { ConnectionStatus } from '../core/types';
+import { useConnections } from './ConnectionsContext';
 
 export interface UseConnectionStatusOptions {
   /** Function that returns a Promise<boolean> indicating server health */

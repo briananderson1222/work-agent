@@ -42,15 +42,18 @@ class NavigationStore {
   lastProjectLayout: string | null;
 
   constructor() {
-    this.lastLayout = typeof window !== 'undefined'
-      ? localStorage.getItem(LAST_LAYOUT_KEY)
-      : null;
-    this.lastProject = typeof window !== 'undefined'
-      ? localStorage.getItem(LAST_PROJECT_KEY)
-      : null;
-    this.lastProjectLayout = typeof window !== 'undefined'
-      ? localStorage.getItem(LAST_PROJECT_LAYOUT_KEY)
-      : null;
+    this.lastLayout =
+      typeof window !== 'undefined'
+        ? localStorage.getItem(LAST_LAYOUT_KEY)
+        : null;
+    this.lastProject =
+      typeof window !== 'undefined'
+        ? localStorage.getItem(LAST_PROJECT_KEY)
+        : null;
+    this.lastProjectLayout =
+      typeof window !== 'undefined'
+        ? localStorage.getItem(LAST_PROJECT_LAYOUT_KEY)
+        : null;
     this.state = this.parseUrl();
 
     // Listen for browser navigation
@@ -125,9 +128,7 @@ class NavigationStore {
     let selectedLayout = params.get('layout');
     let activeTab = params.get('tab'); // Fallback to query param for backward compatibility
 
-    const layoutMatch = pathname.match(
-      /^\/layouts?\/([^/]+)(?:\/([^/]+))?/,
-    );
+    const layoutMatch = pathname.match(/^\/layouts?\/([^/]+)(?:\/([^/]+))?/);
     if (layoutMatch) {
       selectedLayout = layoutMatch[1];
       if (layoutMatch[2]) {
@@ -138,7 +139,9 @@ class NavigationStore {
     // Extract project and layout from path
     let selectedProject: string | null = null;
     let selectedProjectLayout: string | null = null;
-    const projectMatch = pathname.match(/^\/projects\/([^/]+)(?:\/layouts\/([^/]+))?/);
+    const projectMatch = pathname.match(
+      /^\/projects\/([^/]+)(?:\/layouts\/([^/]+))?/,
+    );
     if (projectMatch) {
       selectedProject = projectMatch[1];
       if (projectMatch[2]) selectedProjectLayout = projectMatch[2];
@@ -233,7 +236,9 @@ class NavigationStore {
   setStandaloneLayout(slug: string | null) {
     if (slug) {
       this.lastLayout = slug;
-      try { localStorage.setItem(LAST_LAYOUT_KEY, slug); } catch {}
+      try {
+        localStorage.setItem(LAST_LAYOUT_KEY, slug);
+      } catch {}
       this.navigate(`/layouts/${slug}`);
     } else {
       this.navigate('/');

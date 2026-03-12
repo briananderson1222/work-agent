@@ -82,10 +82,7 @@ export function getLayoutIcon(layout: IconEntity) {
   return getIcon(layout);
 }
 
-export function getLayoutIconStyle(
-  layout: IconEntity,
-  size: number = 48,
-) {
+export function getLayoutIconStyle(layout: IconEntity, size: number = 48) {
   return getIconStyle(layout, size);
 }
 

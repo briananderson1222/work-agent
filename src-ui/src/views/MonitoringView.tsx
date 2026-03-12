@@ -7,7 +7,6 @@ import {
   useSearchAutocomplete,
 } from '../hooks/useSearchAutocomplete';
 
-
 export function MonitoringView() {
   const { stats, events, clearEvents, setTimeRange } = useMonitoring();
   const { showToast } = useToast();
@@ -841,7 +840,9 @@ export function MonitoringView() {
                 const activeCount = stats?.agents.length || 0;
                 const historicalSlugs = [
                   ...new Set(
-                    filteredEvents.map((e) => e.agentSlug).filter((s): s is string => !!s),
+                    filteredEvents
+                      .map((e) => e.agentSlug)
+                      .filter((s): s is string => !!s),
                   ),
                 ];
                 const historicalCount = historicalSlugs.filter(
@@ -957,7 +958,9 @@ export function MonitoringView() {
             {(() => {
               const historicalSlugs = [
                 ...new Set(
-                  filteredEvents.map((e) => e.agentSlug).filter((s): s is string => !!s),
+                  filteredEvents
+                    .map((e) => e.agentSlug)
+                    .filter((s): s is string => !!s),
                 ),
               ].filter((slug) => !stats?.agents.some((a) => a.slug === slug));
 
@@ -1734,8 +1737,7 @@ export function MonitoringView() {
                                     </>
                                   )}
 
-                                  {event.usage?.outputTokens !==
-                                    undefined && (
+                                  {event.usage?.outputTokens !== undefined && (
                                     <>
                                       <div
                                         style={{

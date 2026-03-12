@@ -1,7 +1,7 @@
 import {
   _setApiBase,
-  _setProviderFunctions,
   _setLayoutContext,
+  _setProviderFunctions,
   SDKProvider,
   useLayoutsQuery,
 } from '@stallion-ai/sdk';
@@ -37,10 +37,7 @@ interface SDKAdapterProps {
  * SDKAdapter - Provides SDK context to plugin components
  * Injects core app contexts into the SDK for plugin consumption
  */
-export function SDKAdapter({
-  children,
-  layout,
-}: SDKAdapterProps) {
+export function SDKAdapter({ children, layout }: SDKAdapterProps) {
   // Get API base from the single source of truth
   const { apiBase } = useApiBase();
 
@@ -61,7 +58,7 @@ export function SDKAdapter({
     return () => {
       _setLayoutContext(undefined);
     };
-  }, [apiBase, layout]);
+  }, []);
 
   // Get all the core contexts
   const agents = useAgents();

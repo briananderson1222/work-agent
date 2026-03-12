@@ -42,13 +42,26 @@ export function useSchedulerEvents(enabled = true) {
             ? ` (${evt.duration_secs.toFixed(1)}s)`
             : '';
           showToast(`✓ Job '${evt.job}' completed${dur}`, undefined, 8000, [
-            { label: 'View Output', onClick: () => navigate('/schedule', { job: evt.job, run: evt.id || null }), variant: 'primary' },
+            {
+              label: 'View Output',
+              onClick: () =>
+                navigate('/schedule', { job: evt.job, run: evt.id || null }),
+              variant: 'primary',
+            },
           ]);
         } else if (evt.event === 'job.failed') {
           runningRef.current.delete(evt.job);
           showToast(
-            `✗ Job '${evt.job}' failed: ${evt.error || 'unknown error'}`, undefined, 8000, [
-              { label: 'View Output', onClick: () => navigate('/schedule', { job: evt.job, run: evt.id || null }), variant: 'secondary' },
+            `✗ Job '${evt.job}' failed: ${evt.error || 'unknown error'}`,
+            undefined,
+            8000,
+            [
+              {
+                label: 'View Output',
+                onClick: () =>
+                  navigate('/schedule', { job: evt.job, run: evt.id || null }),
+                variant: 'secondary',
+              },
             ],
           );
         }
@@ -194,7 +207,8 @@ export function usePreviewSchedule(cron: string | null) {
   const { query } = useSchedulerFetch();
   return useQuery({
     queryKey: ['scheduler', 'preview', cron],
-    queryFn: () => query<any[]>(`/jobs/preview-schedule?cron=${encodeURIComponent(cron!)}`),
+    queryFn: () =>
+      query<any[]>(`/jobs/preview-schedule?cron=${encodeURIComponent(cron!)}`),
     enabled: !!cron && cron.trim().length > 0,
     staleTime: 60_000,
   });

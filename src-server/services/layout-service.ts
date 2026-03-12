@@ -3,12 +3,12 @@
  */
 
 import type { ConfigLoader } from '../domain/config-loader.js';
-import { layoutOps } from '../telemetry/metrics.js';
 import type {
   StandaloneLayoutConfig,
   StandaloneLayoutMetadata,
   WorkflowMetadata,
 } from '../domain/types.js';
+import { layoutOps } from '../telemetry/metrics.js';
 
 export class LayoutService {
   constructor(
@@ -24,7 +24,9 @@ export class LayoutService {
     return this.configLoader.loadLayout(slug);
   }
 
-  async createLayout(config: StandaloneLayoutConfig): Promise<StandaloneLayoutConfig> {
+  async createLayout(
+    config: StandaloneLayoutConfig,
+  ): Promise<StandaloneLayoutConfig> {
     await this.configLoader.createLayout(config);
     layoutOps.add(1, { op: 'create' });
     return config;

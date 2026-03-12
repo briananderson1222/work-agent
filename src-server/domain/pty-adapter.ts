@@ -4,7 +4,9 @@ export interface IPtyProcess {
   resize(cols: number, rows: number): void;
   kill(signal?: string): void;
   onData(cb: (data: string) => void): () => void;
-  onExit(cb: (event: { exitCode: number; signal: number | null }) => void): () => void;
+  onExit(
+    cb: (event: { exitCode: number; signal: number | null }) => void,
+  ): () => void;
 }
 
 export interface IPtyAdapter {

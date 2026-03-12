@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 interface DailyStats {
@@ -42,7 +42,9 @@ export function ActivityTimeline() {
   }>({
     queryKey: ['analytics-usage', fromDate, toDate],
     queryFn: async () => {
-      const r = await fetch(`${apiBase}/api/analytics/usage?from=${fromDate}&to=${toDate}`);
+      const r = await fetch(
+        `${apiBase}/api/analytics/usage?from=${fromDate}&to=${toDate}`,
+      );
       const d = await r.json();
       return d.data;
     },
@@ -162,7 +164,8 @@ export function ActivityTimeline() {
               <strong>{(rs?.totalMessages ?? 0).toLocaleString()} msgs</strong>
             </span>
             <span>
-              Avg/Day: <strong>{((rs?.avgPerDay ?? 0) ?? 0).toFixed(1)} msgs</strong>
+              Avg/Day:{' '}
+              <strong>{(rs?.avgPerDay ?? 0 ?? 0).toFixed(1)} msgs</strong>
             </span>
             {(rs?.totalCost ?? 0) > 0 && (
               <span>
@@ -206,7 +209,9 @@ export function ActivityTimeline() {
                 marginBottom: '0.25rem',
               }}
             >
-              ({hoverDay.messages} messages · ${(hoverDay.cost ?? 0).toFixed(2)})</div>
+              ({hoverDay.messages} messages · ${(hoverDay.cost ?? 0).toFixed(2)}
+              )
+            </div>
             {Object.entries(hoverDay.byAgent)
               .sort(([, a], [, b]) => b - a)
               .map(([agent, count]) => (

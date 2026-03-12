@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import type { KnowledgeService } from '../services/knowledge-service.js';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
+import type { KnowledgeService } from '../services/knowledge-service.js';
 
 export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   const app = new Hono<{ Variables: { slug: string } }>();
@@ -26,9 +26,13 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
       const slug = c.get('slug');
       const docs = await knowledgeService.listDocuments(slug);
       const totalChunks = docs.reduce((sum, d) => sum + d.chunkCount, 0);
-      const lastIndexed = docs.length > 0
-        ? docs.reduce((latest, d) => d.createdAt > latest ? d.createdAt : latest, docs[0].createdAt)
-        : null;
+      const lastIndexed =
+        docs.length > 0
+          ? docs.reduce(
+              (latest, d) => (d.createdAt > latest ? d.createdAt : latest),
+              docs[0].createdAt,
+            )
+          : null;
       return c.json({
         success: true,
         data: {
@@ -47,8 +51,16 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   app.post('/upload', async (c) => {
     try {
       const { filename, content } = await c.req.json();
-      if (!filename || !content) return c.json({ success: false, error: 'filename and content required' }, 400);
-      const data = await knowledgeService.uploadDocument(c.get('slug'), filename, content);
+      if (!filename || !content)
+        return c.json(
+          { success: false, error: 'filename and content required' },
+          400,
+        );
+      const data = await knowledgeService.uploadDocument(
+        c.get('slug'),
+        filename,
+        content,
+      );
       return c.json({ success: true, data }, 201);
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -58,8 +70,13 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   // Scan project directories and index files
   app.post('/scan', async (c) => {
     try {
-      const { extensions } = (await c.req.json().catch(() => ({}))) as { extensions?: string[] };
-      const data = await knowledgeService.scanDirectories(c.get('slug'), extensions);
+      const { extensions } = (await c.req.json().catch(() => ({}))) as {
+        extensions?: string[];
+      };
+      const data = await knowledgeService.scanDirectories(
+        c.get('slug'),
+        extensions,
+      );
       return c.json({ success: true, data });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -70,8 +87,13 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   app.post('/search', async (c) => {
     try {
       const { query, topK } = await c.req.json();
-      if (!query) return c.json({ success: false, error: 'query required' }, 400);
-      const data = await knowledgeService.searchDocuments(c.get('slug'), query, topK);
+      if (!query)
+        return c.json({ success: false, error: 'query required' }, 400);
+      const data = await knowledgeService.searchDocuments(
+        c.get('slug'),
+        query,
+        topK,
+      );
       return c.json({ success: true, data });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -81,7 +103,10 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   // Delete document
   app.delete('/:docId', async (c) => {
     try {
-      await knowledgeService.deleteDocument(c.get('slug'), c.req.param('docId'));
+      await knowledgeService.deleteDocument(
+        c.get('slug'),
+        c.req.param('docId'),
+      );
       return c.json({ success: true });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -113,13 +138,18 @@ export function createCrossProjectKnowledgeRoutes(
   app.post('/search', async (c) => {
     try {
       const { query, topK = 5 } = await c.req.json();
-      if (!query) return c.json({ success: false, error: 'query required' }, 400);
+      if (!query)
+        return c.json({ success: false, error: 'query required' }, 400);
 
       const projects = storageAdapter.listProjects();
       const allResults: Array<{ projectSlug: string; results: any[] }> = [];
 
       for (const project of projects) {
-        const results = await knowledgeService.searchDocuments(project.slug, query, topK);
+        const results = await knowledgeService.searchDocuments(
+          project.slug,
+          query,
+          topK,
+        );
         if (results.length > 0) {
           allResults.push({ projectSlug: project.slug, results });
         }

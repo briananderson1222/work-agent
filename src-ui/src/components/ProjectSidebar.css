@@ -8,7 +8,10 @@
   width: 240px;
   min-width: 240px;
   max-width: 240px;
-  transition: width 0.15s ease, min-width 0.15s ease, max-width 0.15s ease;
+  transition:
+    width 0.15s ease,
+    min-width 0.15s ease,
+    max-width 0.15s ease;
 }
 
 .sidebar--collapsed {

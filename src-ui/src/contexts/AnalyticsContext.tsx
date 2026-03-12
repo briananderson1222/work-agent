@@ -3,8 +3,7 @@ import {
   useInvalidateQuery,
   useUsageQuery,
 } from '@stallion-ai/sdk';
-import React from 'react';
-import { createContext, useCallback, useContext } from 'react';
+import React, { createContext, useCallback, useContext } from 'react';
 import { useApiBase } from './ApiBaseContext';
 
 const AnalyticsContext = createContext<{

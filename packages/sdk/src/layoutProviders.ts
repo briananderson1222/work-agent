@@ -35,11 +35,7 @@ export function _setProviderFunctions(fns: {
     metadata: ProviderMetadata,
     factory: () => any,
   ) => void;
-  configureProvider: (
-    layout: string,
-    type: string,
-    providerId: string,
-  ) => void;
+  configureProvider: (layout: string, type: string, providerId: string) => void;
 }) {
   _getProvider = fns.getProvider;
   _hasProvider = fns.hasProvider;

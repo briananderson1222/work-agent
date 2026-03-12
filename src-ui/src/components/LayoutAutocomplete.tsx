@@ -55,9 +55,7 @@ export function LayoutAutocomplete({
       onSelect={(item) => onSelect(item.metadata)}
       onClose={onClose}
       emptyMessage="No layouts found"
-      renderIcon={(item) => (
-        <LayoutIcon layout={item.metadata} size={32} />
-      )}
+      renderIcon={(item) => <LayoutIcon layout={item.metadata} size={32} />}
     />
   );
 }

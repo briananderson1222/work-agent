@@ -1,12 +1,12 @@
-import { log } from '@/utils/logger';
 import { FullScreenError } from '@stallion-ai/sdk';
+import { log } from '@/utils/logger';
 import { LayoutHeader } from '../components/LayoutHeader';
 import { pluginRegistry } from '../core/PluginRegistry';
 import type {
   AgentQuickPrompt,
   AgentSummary,
-  StandaloneLayoutConfig,
   LayoutTab,
+  StandaloneLayoutConfig,
 } from '../types';
 
 export interface AgentLayoutProps {
@@ -20,21 +20,26 @@ export interface AgentLayoutProps {
   onSendToChat?: (text: string, agent?: string) => void;
 }
 
-export type AgentLayoutComponent = (
-  props: AgentLayoutProps,
-) => JSX.Element;
+export type AgentLayoutComponent = (props: AgentLayoutProps) => JSX.Element;
 
 // Core layout components (not plugins)
 const coreRegistry: Record<string, AgentLayoutComponent> = {};
 const loggedComponents = new Set<string>();
 
-const DefaultLayout: AgentLayoutComponent = ({
-  layout,
-  onShowChat,
-}) => (
+const DefaultLayout: AgentLayoutComponent = ({ layout: _layout }) => (
   <div className="workspace-default">
     <div className="workspace-default__empty">
-      <svg className="workspace-default__icon" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        className="workspace-default__icon"
+        width="48"
+        height="48"
+        viewBox="0 0 48 48"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <rect x="6" y="10" width="36" height="28" rx="4" />
         <path d="M6 18h36" />
         <circle cx="14" cy="14" r="1.5" fill="currentColor" stroke="none" />
@@ -42,8 +47,12 @@ const DefaultLayout: AgentLayoutComponent = ({
         <circle cx="26" cy="14" r="1.5" fill="currentColor" stroke="none" />
         <path d="M16 28l4-4 3 3 5-5 4 4" opacity="0.5" />
       </svg>
-      <h3 className="workspace-default__title">{workspace?.name || 'Layout'}</h3>
-      <p className="workspace-default__desc">Start a conversation or schedule an automated job to get things moving.</p>
+      <h3 className="workspace-default__title">
+        {workspace?.name || 'Layout'}
+      </h3>
+      <p className="workspace-default__desc">
+        Start a conversation or schedule an automated job to get things moving.
+      </p>
       <div className="workspace-default__actions">
         <button
           type="button"
@@ -160,6 +169,12 @@ export function LayoutRenderer({
     );
   } catch (error) {
     log.api('Error rendering layout:', error);
-    return <FullScreenError title="Error loading layout" description="Something unexpected happened while rendering this layout." onRetry={() => window.location.reload()} />;
+    return (
+      <FullScreenError
+        title="Error loading layout"
+        description="Something unexpected happened while rendering this layout."
+        onRetry={() => window.location.reload()}
+      />
+    );
   }
 }

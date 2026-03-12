@@ -12,10 +12,10 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useConfig, useConfigActions } from '../contexts/ConfigContext';
 import { useMessageContextContext } from '../contexts/MessageContextContext';
 import { useVoiceProviderContext } from '../contexts/VoiceProviderContext';
-import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useCloseShortcut } from '../hooks/useCloseShortcut';
 import type { FeatureSettings } from '../hooks/useFeatureSettings';
 import { useFeatureSettings } from '../hooks/useFeatureSettings';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import type { AppConfig, NavigationView } from '../types';
 import './SettingsView.css';
 
@@ -48,9 +48,7 @@ function MobilePairingSection() {
         }}
       >
         {isDetecting ? (
-          <div
-            style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
-          >
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
             Detecting local IP…
           </div>
         ) : (
@@ -64,9 +62,9 @@ function MobilePairingSection() {
               maxWidth: 320,
             }}
           >
-            Showing localhost — your device may not be able to reach
-            this address. Make sure both devices are on the same network and
-            use your computer's LAN IP.
+            Showing localhost — your device may not be able to reach this
+            address. Make sure both devices are on the same network and use your
+            computer's LAN IP.
           </div>
         )}
         <span className="form-help">
@@ -97,20 +95,36 @@ function EnvironmentStatus({ apiBase }: { apiBase: string }) {
       const data = await r.json();
       return data.prerequisites || [];
     },
+    enabled: !!apiBase,
   });
 
   useEffect(() => {
-    if (prerequisites.some((p: any) => p.category === 'required' && p.status !== 'installed')) {
+    if (!Array.isArray(prerequisites)) {
+      console.warn(
+        '[EnvironmentStatus] prerequisites is not an array:',
+        typeof prerequisites,
+        prerequisites,
+      );
+      return;
+    }
+    if (
+      prerequisites.some(
+        (p: any) => p.category === 'required' && p.status !== 'installed',
+      )
+    ) {
       setExpanded(true);
     }
   }, [prerequisites]);
 
-  if (loading || prerequisites.length === 0) return null;
+  if (loading || !Array.isArray(prerequisites) || prerequisites.length === 0)
+    return null;
 
   const allRequiredMet = prerequisites
     .filter((p: any) => p.category === 'required')
     .every((p: any) => p.status === 'installed');
-  const missingCount = prerequisites.filter((p: any) => p.status !== 'installed').length;
+  const missingCount = prerequisites.filter(
+    (p: any) => p.status !== 'installed',
+  ).length;
 
   const toggleGuide = (id: string) =>
     setGuideOpen((prev) => {
@@ -144,10 +158,18 @@ function EnvironmentStatus({ apiBase }: { apiBase: string }) {
     <div key={p.id}>
       <div
         className="settings__env-item"
-        style={{ cursor: p.status !== 'installed' && p.installGuide ? 'pointer' : 'default' }}
-        onClick={() => p.status !== 'installed' && p.installGuide && toggleGuide(p.id)}
+        style={{
+          cursor:
+            p.status !== 'installed' && p.installGuide ? 'pointer' : 'default',
+        }}
+        onClick={() =>
+          p.status !== 'installed' && p.installGuide && toggleGuide(p.id)
+        }
       >
-        <span className="settings__env-status" style={{ color: iconColor(p.status) }}>
+        <span
+          className="settings__env-status"
+          style={{ color: iconColor(p.status) }}
+        >
           {icon(p.status)}
         </span>
         <span>
@@ -180,11 +202,11 @@ function EnvironmentStatus({ apiBase }: { apiBase: string }) {
   return (
     <>
       <div className={stripClass}>
-        <span className="settings__env-icon">
-          {allRequiredMet ? '●' : '○'}
-        </span>
+        <span className="settings__env-icon">{allRequiredMet ? '●' : '○'}</span>
         <span className="settings__env-label">
-          {allRequiredMet ? 'Environment Ready' : `${missingCount} issue${missingCount !== 1 ? 's' : ''} to resolve`}
+          {allRequiredMet
+            ? 'Environment Ready'
+            : `${missingCount} issue${missingCount !== 1 ? 's' : ''} to resolve`}
         </span>
         <button
           type="button"
@@ -224,7 +246,9 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-      const res = await fetch(`${apiBase}/api/system/core-update`, { signal: controller.signal });
+      const res = await fetch(`${apiBase}/api/system/core-update`, {
+        signal: controller.signal,
+      });
       const data = await res.json();
       if (data.error) {
         setMessage(data.error);
@@ -232,7 +256,11 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
         setStatus(data);
       }
     } catch (e: any) {
-      setMessage(e.name === 'AbortError' ? 'Timed out — could not reach git remote' : e.message);
+      setMessage(
+        e.name === 'AbortError'
+          ? 'Timed out — could not reach git remote'
+          : e.message,
+      );
     } finally {
       clearTimeout(timeout);
       setChecking(false);
@@ -243,7 +271,9 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
     setUpdating(true);
     setMessage(null);
     try {
-      const res = await fetch(`${apiBase}/api/system/core-update`, { method: 'POST' });
+      const res = await fetch(`${apiBase}/api/system/core-update`, {
+        method: 'POST',
+      });
       const data = await res.json();
       setMessage(data.success ? data.message : data.error || 'Update failed');
       if (data.success) check();
@@ -272,7 +302,9 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
             onClick={update}
             disabled={updating}
           >
-            {updating ? 'Updating…' : `Update (${status.behind} commit${status.behind !== 1 ? 's' : ''} behind)`}
+            {updating
+              ? 'Updating…'
+              : `Update (${status.behind} commit${status.behind !== 1 ? 's' : ''} behind)`}
           </button>
         )}
       </div>
@@ -289,7 +321,9 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
           {status.updateAvailable && (
             <>
               <span>·</span>
-              <span style={{ color: 'var(--success-text)' }}>Latest: {status.remoteHash}</span>
+              <span style={{ color: 'var(--success-text)' }}>
+                Latest: {status.remoteHash}
+              </span>
             </>
           )}
           {!status.updateAvailable && status.ahead > 0 && (
@@ -303,7 +337,13 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
           {!status.updateAvailable && !status.ahead && status.currentHash && (
             <>
               <span>·</span>
-              <span style={{ color: status.noUpstream ? 'var(--text-muted)' : 'var(--success-text)' }}>
+              <span
+                style={{
+                  color: status.noUpstream
+                    ? 'var(--text-muted)'
+                    : 'var(--success-text)',
+                }}
+              >
                 {status.noUpstream ? 'No upstream configured' : 'Up to date ✓'}
               </span>
             </>
@@ -313,7 +353,11 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
       {message && (
         <div
           className="settings__update-msg"
-          style={{ color: message.includes('Restart') ? 'var(--success-text)' : 'var(--error-text)' }}
+          style={{
+            color: message.includes('Restart')
+              ? 'var(--success-text)'
+              : 'var(--error-text)',
+          }}
         >
           {message}
         </div>
@@ -327,7 +371,15 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
 
 /* ── Section wrapper ── */
 
-function Section({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
+function Section({
+  icon,
+  title,
+  children,
+}: {
+  icon: string;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="settings__section">
       <div className="settings__section-head">
@@ -351,23 +403,27 @@ const FEATURE_META: Array<{
   {
     key: 'voiceInputEnabled',
     label: 'Voice input',
-    description: 'Show the microphone button for speech-to-text input in chat and the global voice button.',
+    description:
+      'Show the microphone button for speech-to-text input in chat and the global voice button.',
   },
   {
     key: 'mobilePairingEnabled',
     label: 'Mobile pairing & network discovery',
-    description: 'Show QR code and LAN discovery for connecting mobile devices to this server.',
+    description:
+      'Show QR code and LAN discovery for connecting mobile devices to this server.',
     privacyNote: 'Detects your local IP address via WebRTC when enabled.',
   },
   {
     key: 'ttsReadbackEnabled',
     label: 'Read agent responses aloud (TTS)',
-    description: "Automatically reads the latest assistant response via the selected TTS provider after each reply.",
+    description:
+      'Automatically reads the latest assistant response via the selected TTS provider after each reply.',
   },
   {
     key: 'offlineQueueEnabled',
     label: 'Offline command queue',
-    description: 'Save messages in IndexedDB when the server is unreachable; auto-sends them when connectivity returns.',
+    description:
+      'Save messages in IndexedDB when the server is unreachable; auto-sends them when connectivity returns.',
   },
 ];
 
@@ -387,15 +443,34 @@ function FeatureToggle({
   onToggle: (key: keyof FeatureSettings) => void;
 }) {
   return (
-    <div className="settings__feature-toggle" onClick={() => onToggle(featureKey)}>
-      <Toggle checked={checked} onChange={() => onToggle(featureKey)} size="sm" />
+    <div
+      className="settings__feature-toggle"
+      onClick={() => onToggle(featureKey)}
+    >
+      <Toggle
+        checked={checked}
+        onChange={() => onToggle(featureKey)}
+        size="sm"
+      />
       <div>
         <div style={{ fontWeight: 500, marginBottom: 2 }}>{label}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            lineHeight: 1.5,
+          }}
+        >
           {description}
         </div>
         {privacyNote && (
-          <div style={{ fontSize: 11, color: 'var(--color-warning, #eab308)', marginTop: 3 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--color-warning, #eab308)',
+              marginTop: 3,
+            }}
+          >
             {privacyNote}
           </div>
         )}
@@ -441,7 +516,13 @@ function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
         </button>
       )}
       {notifs.error && (
-        <div style={{ fontSize: 12, color: 'var(--error-text, #ef4444)', marginTop: 4 }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--error-text, #ef4444)',
+            marginTop: 4,
+          }}
+        >
           {notifs.error}
         </div>
       )}
@@ -449,11 +530,18 @@ function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
   );
 }
 
-function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
+function VoiceFeaturesSection() {
   const { settings, toggle } = useFeatureSettings();
-  const { availableSTT, availableTTS, activeSTT, activeTTS, setSTTProvider, setTTSProvider } =
-    useVoiceProviderContext();
-  const { providers: contextProviders, toggleProvider } = useMessageContextContext();
+  const {
+    availableSTT,
+    availableTTS,
+    activeSTT,
+    activeTTS,
+    setSTTProvider,
+    setTTSProvider,
+  } = useVoiceProviderContext();
+  const { providers: contextProviders, toggleProvider } =
+    useMessageContextContext();
 
   return (
     <div className="form-group">
@@ -472,7 +560,8 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
         >
           {availableSTT.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}{p.isSupported ? '' : ' (not available)'}
+              {p.name}
+              {p.isSupported ? '' : ' (not available)'}
             </option>
           ))}
           {availableSTT.length === 0 && (
@@ -480,7 +569,8 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
           )}
         </select>
         <div className="voice-provider-section__hint">
-          Using WisprFlow? Focus the chat input and press your hotkey — it injects text naturally.
+          Using WisprFlow? Focus the chat input and press your hotkey — it
+          injects text naturally.
         </div>
       </div>
 
@@ -497,7 +587,8 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
         >
           {availableTTS.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}{p.isSupported ? '' : ' (not available)'}
+              {p.name}
+              {p.isSupported ? '' : ' (not available)'}
             </option>
           ))}
           {availableTTS.length === 0 && (
@@ -509,11 +600,13 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
       {/* Context providers */}
       {contextProviders.length > 0 && (
         <div className="context-provider-section">
-          <div className="context-provider-section__label">
-            Message Context
-          </div>
+          <div className="context-provider-section__label">Message Context</div>
           {contextProviders.map((p) => (
-            <div key={p.id} className="settings__feature-toggle" onClick={() => toggleProvider(p.id)}>
+            <div
+              key={p.id}
+              className="settings__feature-toggle"
+              onClick={() => toggleProvider(p.id)}
+            >
               <Toggle
                 checked={p.enabled}
                 onChange={() => toggleProvider(p.id)}
@@ -522,7 +615,13 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
               <div>
                 <div style={{ fontWeight: 500, marginBottom: 2 }}>{p.name}</div>
                 {p.description && (
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.5,
+                    }}
+                  >
                     {p.description}
                   </div>
                 )}
@@ -548,8 +647,8 @@ function VoiceFeaturesSection({ apiBase }: { apiBase: string }) {
       </div>
       {settings.mobilePairingEnabled && <MobilePairingSection />}
       <span className="form-help" style={{ marginTop: 8, display: 'block' }}>
-        Voice provider selection and context settings are saved in this browser only.
-        Install plugins to add ElevenLabs or Nova Sonic providers.
+        Voice provider selection and context settings are saved in this browser
+        only. Install plugins to add ElevenLabs or Nova Sonic providers.
       </span>
     </div>
   );
@@ -560,18 +659,30 @@ export function SettingsView({
   onSaved,
   onNavigate,
 }: SettingsViewProps) {
-  const { apiBase: currentApiBase, setApiBase, resetToDefault, isCustom } = useApiBase();
+  const {
+    apiBase: currentApiBase,
+    setApiBase,
+    resetToDefault,
+    isCustom,
+  } = useApiBase();
   const configData = useConfig();
   const { updateConfig } = useConfigActions();
   const invalidate = useInvalidateQuery();
 
-  const [config, setConfig] = useState<AppConfig>((configData as AppConfig) || {});
-  const [originalConfig, setOriginalConfig] = useState<AppConfig>((configData as AppConfig) || {});
+  const [config, setConfig] = useState<AppConfig>(
+    (configData as AppConfig) || {},
+  );
+  const [originalConfig, setOriginalConfig] = useState<AppConfig>(
+    (configData as AppConfig) || {},
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [testStatus, setTestStatus] = useState<
+    'idle' | 'testing' | 'success' | 'failed'
+  >('idle');
   const [showResetModal, setShowResetModal] = useState(false);
-  const { settings: featureSettings, toggle: toggleFeature } = useFeatureSettings();
+  const { settings: featureSettings, toggle: toggleFeature } =
+    useFeatureSettings();
 
   useEffect(() => {
     if (configData) {
@@ -642,10 +753,14 @@ export function SettingsView({
         {/* ── AI & Models ── */}
         <Section icon="◆" title="AI & Models">
           <div className="settings__field">
-            <label className="settings__field-label" htmlFor="defaultModel">Default Model</label>
+            <label className="settings__field-label" htmlFor="defaultModel">
+              Default Model
+            </label>
             <ModelSelector
               value={config.defaultModel || ''}
-              onChange={(modelId) => setConfig({ ...config, defaultModel: modelId })}
+              onChange={(modelId) =>
+                setConfig({ ...config, defaultModel: modelId })
+              }
               placeholder="Select a model…"
             />
             <span className="settings__field-hint">
@@ -654,16 +769,22 @@ export function SettingsView({
           </div>
 
           <div className="settings__field">
-            <label className="settings__field-label" htmlFor="systemPrompt">Global System Prompt</label>
+            <label className="settings__field-label" htmlFor="systemPrompt">
+              Global System Prompt
+            </label>
             <textarea
               id="systemPrompt"
               value={config.systemPrompt || ''}
-              onChange={(e) => setConfig({ ...config, systemPrompt: e.target.value })}
+              onChange={(e) =>
+                setConfig({ ...config, systemPrompt: e.target.value })
+              }
               placeholder="Global instructions prepended to all agent prompts…"
               rows={6}
             />
             <span className="settings__field-hint">
-              Agents can override this with their own instructions. Supports template variables like {'{{date}}'}, {'{{time}}'}, or custom variables below.
+              Agents can override this with their own instructions. Supports
+              template variables like {'{{date}}'}, {'{{time}}'}, or custom
+              variables below.
             </span>
           </div>
 
@@ -688,7 +809,12 @@ export function SettingsView({
                       const updated = [...(config.templateVariables || [])];
                       updated[index] = {
                         ...variable,
-                        type: e.target.value as 'static' | 'date' | 'time' | 'datetime' | 'custom',
+                        type: e.target.value as
+                          | 'static'
+                          | 'date'
+                          | 'time'
+                          | 'datetime'
+                          | 'custom',
                       };
                       setConfig({ ...config, templateVariables: updated });
                     }}
@@ -716,7 +842,10 @@ export function SettingsView({
                       value={variable.format || ''}
                       onChange={(e) => {
                         const updated = [...(config.templateVariables || [])];
-                        updated[index] = { ...variable, format: e.target.value };
+                        updated[index] = {
+                          ...variable,
+                          format: e.target.value,
+                        };
                         setConfig({ ...config, templateVariables: updated });
                       }}
                       placeholder="Format (optional)"
@@ -726,7 +855,9 @@ export function SettingsView({
                     type="button"
                     className="settings__var-remove"
                     onClick={() => {
-                      const updated = (config.templateVariables || []).filter((_, i) => i !== index);
+                      const updated = (config.templateVariables || []).filter(
+                        (_, i) => i !== index,
+                      );
                       setConfig({ ...config, templateVariables: updated });
                     }}
                   >
@@ -751,8 +882,16 @@ export function SettingsView({
             <div className="settings__var-ref">
               <strong>Built-in (always available):</strong>
               <ul>
-                <li><code>{'{{date}}'}</code> Full date · <code>{'{{time}}'}</code> Current time · <code>{'{{datetime}}'}</code> Combined</li>
-                <li><code>{'{{iso_date}}'}</code> ISO · <code>{'{{year}}'}</code> <code>{'{{month}}'}</code> <code>{'{{day}}'}</code> <code>{'{{weekday}}'}</code></li>
+                <li>
+                  <code>{'{{date}}'}</code> Full date ·{' '}
+                  <code>{'{{time}}'}</code> Current time ·{' '}
+                  <code>{'{{datetime}}'}</code> Combined
+                </li>
+                <li>
+                  <code>{'{{iso_date}}'}</code> ISO · <code>{'{{year}}'}</code>{' '}
+                  <code>{'{{month}}'}</code> <code>{'{{day}}'}</code>{' '}
+                  <code>{'{{weekday}}'}</code>
+                </li>
               </ul>
             </div>
           </div>
@@ -761,7 +900,9 @@ export function SettingsView({
         {/* ── Appearance ── */}
         <Section icon="◐" title="Appearance">
           <div className="settings__field">
-            <label className="settings__field-label" htmlFor="chatFontSize">Chat Font Size</label>
+            <label className="settings__field-label" htmlFor="chatFontSize">
+              Chat Font Size
+            </label>
             <div className="settings__range-row">
               <input
                 id="chatFontSize"
@@ -770,12 +911,19 @@ export function SettingsView({
                 max="24"
                 value={config.defaultChatFontSize || 14}
                 onChange={(e) =>
-                  setConfig({ ...config, defaultChatFontSize: parseInt(e.target.value, 10) })
+                  setConfig({
+                    ...config,
+                    defaultChatFontSize: parseInt(e.target.value, 10),
+                  })
                 }
               />
-              <span className="settings__range-value">{config.defaultChatFontSize || 14}px</span>
+              <span className="settings__range-value">
+                {config.defaultChatFontSize || 14}px
+              </span>
             </div>
-            <span className="settings__field-hint">Font size for chat messages (10–24px).</span>
+            <span className="settings__field-hint">
+              Font size for chat messages (10–24px).
+            </span>
           </div>
         </Section>
 
@@ -789,7 +937,8 @@ export function SettingsView({
             <div>
               <div className="settings__toggle-label">Push notifications</div>
               <div className="settings__toggle-desc">
-                Browser push notifications for tool approvals and high-priority alerts
+                Browser push notifications for tool approvals and high-priority
+                alerts
               </div>
             </div>
           </label>
@@ -801,7 +950,9 @@ export function SettingsView({
         {/* ── Connection ── */}
         <Section icon="◇" title="Connection">
           <div className="settings__field">
-            <label className="settings__field-label" htmlFor="apiBase">Backend API Base URL</label>
+            <label className="settings__field-label" htmlFor="apiBase">
+              Backend API Base URL
+            </label>
             <div className="settings__conn-row">
               <input
                 id="apiBase"
@@ -811,14 +962,23 @@ export function SettingsView({
                 placeholder="http://localhost:3141"
               />
               {isCustom && (
-                <button type="button" className="settings__conn-reset" onClick={resetToDefault}>
+                <button
+                  type="button"
+                  className="settings__conn-reset"
+                  onClick={resetToDefault}
+                >
                   Reset
                 </button>
               )}
             </div>
             <span className="settings__field-hint">
               Changes take effect immediately.
-              {isCustom && <span style={{ color: 'var(--warning-text)' }}> Using custom URL.</span>}
+              {isCustom && (
+                <span style={{ color: 'var(--warning-text)' }}>
+                  {' '}
+                  Using custom URL.
+                </span>
+              )}
             </span>
             <button
               type="button"
@@ -846,7 +1006,9 @@ export function SettingsView({
           </div>
 
           <div className="settings__field">
-            <label className="settings__field-label" htmlFor="region">AWS Region</label>
+            <label className="settings__field-label" htmlFor="region">
+              AWS Region
+            </label>
             <input
               id="region"
               type="text"
@@ -854,11 +1016,13 @@ export function SettingsView({
               onChange={(e) => setConfig({ ...config, region: e.target.value })}
               placeholder="us-east-1"
             />
-            <span className="settings__field-hint">Region for Bedrock API calls.</span>
+            <span className="settings__field-hint">
+              Region for Bedrock API calls.
+            </span>
           </div>
         </Section>
 
-        <VoiceFeaturesSection apiBase={currentApiBase} />
+        <VoiceFeaturesSection />
 
         {/* ── System ── */}
         <Section icon="⚙" title="System">
@@ -868,11 +1032,15 @@ export function SettingsView({
           </div>
 
           <div className="settings__field">
-            <label className="settings__field-label" htmlFor="logLevel">Log Level</label>
+            <label className="settings__field-label" htmlFor="logLevel">
+              Log Level
+            </label>
             <select
               id="logLevel"
               value={config.logLevel || 'info'}
-              onChange={(e) => setConfig({ ...config, logLevel: e.target.value })}
+              onChange={(e) =>
+                setConfig({ ...config, logLevel: e.target.value })
+              }
             >
               <option value="error">Error</option>
               <option value="warn">Warning</option>
@@ -880,19 +1048,29 @@ export function SettingsView({
               <option value="debug">Debug</option>
               <option value="trace">Trace</option>
             </select>
-            <span className="settings__field-hint">Logging verbosity. Higher levels include more detail.</span>
+            <span className="settings__field-hint">
+              Logging verbosity. Higher levels include more detail.
+            </span>
           </div>
 
           <div className="settings__danger">
-            <button type="button" className="settings__danger-btn" onClick={() => setShowResetModal(true)}>
+            <button
+              type="button"
+              className="settings__danger-btn"
+              onClick={() => setShowResetModal(true)}
+            >
               Reset to Defaults
             </button>
-            <span className="settings__field-hint">Restore all settings to factory defaults. Cannot be undone.</span>
+            <span className="settings__field-hint">
+              Restore all settings to factory defaults. Cannot be undone.
+            </span>
           </div>
         </Section>
 
         <div className="settings__build">
-          {typeof __BUILD_HASH__ !== 'undefined' ? `build ${__BUILD_HASH__}` : ''}
+          {typeof __BUILD_HASH__ !== 'undefined'
+            ? `build ${__BUILD_HASH__}`
+            : ''}
         </div>
       </div>
 

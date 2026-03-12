@@ -17,7 +17,12 @@ export interface TerminalSessionState {
 export type TerminalEvent =
   | { type: 'data'; sessionId: string; data: string }
   | { type: 'started'; sessionId: string; pid: number }
-  | { type: 'exited'; sessionId: string; exitCode: number; signal: number | null }
+  | {
+      type: 'exited';
+      sessionId: string;
+      exitCode: number;
+      signal: number | null;
+    }
   | { type: 'activity'; sessionId: string; hasRunningSubprocess: boolean };
 
 export interface TerminalSessionSnapshot {

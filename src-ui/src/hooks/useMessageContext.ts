@@ -5,6 +5,7 @@
 import { useMessageContextContext } from '../contexts/MessageContextContext';
 
 export function useMessageContext() {
-  const { providers, toggleProvider, getComposedContext } = useMessageContextContext();
+  const { providers, toggleProvider, getComposedContext } =
+    useMessageContextContext();
   return { providers, toggleProvider, getComposedContext };
 }

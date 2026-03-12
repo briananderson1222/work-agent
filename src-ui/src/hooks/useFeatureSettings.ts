@@ -58,16 +58,13 @@ export function useFeatureSettings() {
     });
   }, []);
 
-  const toggle = useCallback(
-    (key: keyof FeatureSettings) => {
-      setSettings((prev) => {
-        const next = { ...prev, [key]: !prev[key] };
-        save(next);
-        return next;
-      });
-    },
-    [],
-  );
+  const toggle = useCallback((key: keyof FeatureSettings) => {
+    setSettings((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      save(next);
+      return next;
+    });
+  }, []);
 
   return { settings, update, toggle };
 }

@@ -4,8 +4,14 @@
  */
 
 @keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Main Container ── */
@@ -14,7 +20,7 @@
   flex-direction: column;
   height: 100vh;
   background: var(--bg-primary);
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   animation: page-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -33,20 +39,29 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 100%
+  );
   border-bottom: 1px solid var(--border-primary);
   box-shadow: var(--shadow-sm);
   position: relative;
 }
 
 .editor__header::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border-primary), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--border-primary),
+    transparent
+  );
 }
 
 .editor__header-left {
@@ -56,7 +71,7 @@
 }
 
 .editor__header-meta {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 500;
@@ -132,7 +147,7 @@
 }
 
 .editor__section-title {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
@@ -140,7 +155,7 @@
 }
 
 .editor__section-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.15em;
@@ -175,7 +190,7 @@
 }
 
 .editor__tag {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   font-weight: 500;
   padding: 6px 12px;
@@ -264,7 +279,7 @@
 }
 
 .editor__expandable-header::after {
-  content: '›';
+  content: "›";
   font-size: 16px;
   color: var(--text-muted);
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -282,13 +297,19 @@
 }
 
 @keyframes slide-down {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Step Count Badge ── */
 .editor__step-count {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   font-weight: 600;
   color: var(--text-muted);
@@ -303,7 +324,7 @@
 .step-indicator {
   display: inline-flex;
   align-items: center;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
@@ -323,7 +344,7 @@
 .editor input[type="password"],
 .editor input[type="url"],
 .editor select {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   padding: 12px 16px;
   border: 1px solid var(--border-primary);
@@ -343,7 +364,7 @@
 }
 
 .editor textarea {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 13px;
   line-height: 1.5;
   padding: 16px;
@@ -365,7 +386,7 @@
 
 /* ── Button Variants ── */
 .editor__btn-save {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
   padding: 12px 24px;
@@ -385,7 +406,7 @@
 }
 
 .editor__btn-delete {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 500;
   padding: 12px 24px;
@@ -405,7 +426,7 @@
 }
 
 .editor__btn-add {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 500;
   padding: 12px 16px;
@@ -421,7 +442,7 @@
 }
 
 .editor__btn-add::before {
-  content: '+';
+  content: "+";
   font-size: 16px;
   font-weight: 300;
 }
@@ -437,7 +458,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -451,7 +472,7 @@
 }
 
 .editor__plugin-badge::before {
-  content: '🔌';
+  content: "🔌";
   font-size: 0.7rem;
 }
 
@@ -469,7 +490,8 @@
   gap: 1rem;
   padding: 0.75rem 1.5rem;
   background: color-mix(in srgb, var(--accent-yellow) 8%, var(--bg-secondary));
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-yellow) 25%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--accent-yellow) 25%, transparent);
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
@@ -485,7 +507,7 @@
 }
 
 .editor__unlock-btn {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 0.75rem;
   font-weight: 600;
   padding: 0.3rem 0.75rem;
@@ -507,7 +529,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.6rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -520,7 +542,7 @@
 }
 
 .page__card-plugin-badge::before {
-  content: '🔒';
+  content: "🔒";
   font-size: 0.6rem;
 }
 
@@ -592,7 +614,7 @@
 }
 
 .editor-textarea--mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 12px;
 }
 
@@ -777,7 +799,7 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -832,7 +854,7 @@
 }
 
 .workspace-editor__label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -864,8 +886,8 @@
 .workspace-editor__error {
   margin: 12px 24px;
   padding: 10px 14px;
-  background: var(--error-bg, rgba(255,59,48,0.08));
-  border: 1px solid var(--error-border, rgba(255,59,48,0.3));
+  background: var(--error-bg, rgba(255, 59, 48, 0.08));
+  border: 1px solid var(--error-border, rgba(255, 59, 48, 0.3));
   border-radius: 6px;
   color: var(--error-text);
   font-size: 13px;
@@ -983,7 +1005,7 @@
 }
 
 .workspace-editor__item-meta {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   color: var(--text-muted);
 }
@@ -1095,7 +1117,7 @@
 
 .prompt-editor__input {
   width: 100%;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   padding: 10px 14px;
   border: 1px solid var(--border-primary);
@@ -1114,7 +1136,7 @@
 .prompt-editor__content {
   width: 100%;
   min-height: 300px;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
   font-size: 13px;
   line-height: 1.6;
   padding: 16px;
@@ -1131,13 +1153,15 @@
 .prompt-editor__content:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 2px color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.2),
+    0 0 0 2px color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 .prompt-editor__description {
   width: 100%;
   min-height: 80px;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.5;
   padding: 10px 14px;
@@ -1156,7 +1180,7 @@
 }
 
 .prompt-editor__unsaved {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   color: var(--accent-yellow, #f5a623);
   opacity: 0.8;
@@ -1166,7 +1190,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   color: var(--text-muted);
 }
@@ -1206,7 +1230,9 @@
   text-align: left;
   font-family: inherit;
   color: var(--text-primary);
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .template-card:hover {
@@ -1252,74 +1278,144 @@
 
 /* ═══ Agent Editor — Lock Banner ═══ */
 .editor__lock-banner {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 10px 24px;
-  background: color-mix(in srgb, var(--color-warning, #eab308) 10%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-warning, #eab308) 25%, transparent);
-  font-size: 0.8rem; color: var(--color-warning, #eab308);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 24px;
+  background: color-mix(
+    in srgb,
+    var(--color-warning, #eab308) 10%,
+    transparent
+  );
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-warning, #eab308) 25%, transparent);
+  font-size: 0.8rem;
+  color: var(--color-warning, #eab308);
 }
 .editor__lock-btn {
-  padding: 4px 12px; font-size: 0.75rem; font-weight: 500;
-  background: transparent; color: var(--color-warning, #eab308);
-  border: 1px solid color-mix(in srgb, var(--color-warning, #eab308) 40%, transparent);
-  border-radius: 4px; cursor: pointer; white-space: nowrap;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--color-warning, #eab308);
+  border: 1px solid
+    color-mix(in srgb, var(--color-warning, #eab308) 40%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
 }
-.editor__lock-btn:hover { background: color-mix(in srgb, var(--color-warning, #eab308) 15%, transparent); }
+.editor__lock-btn:hover {
+  background: color-mix(
+    in srgb,
+    var(--color-warning, #eab308) 15%,
+    transparent
+  );
+}
 
 /* ═══ Agent Editor — Guardrails Grid ═══ */
 .editor__guardrails-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
-.editor__guardrails-item .editor-label { margin-bottom: 4px; }
+.editor__guardrails-item .editor-label {
+  margin-bottom: 4px;
+}
 
 /* ═══ Agent Editor — Tools Grouped ═══ */
 .editor__tools-empty {
-  font-size: 0.8rem; color: var(--text-muted); padding: 12px 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 12px 0;
 }
 .editor__tools-link {
-  background: none; border: none; color: var(--accent-primary);
-  cursor: pointer; font: inherit; padding: 0; text-decoration: underline;
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
 }
 .editor__tools-grouped {
-  display: flex; flex-direction: column; gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 .editor__tools-server {
-  border: 1px solid var(--border-primary); border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
 }
 .editor__tools-server-header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 8px 12px;
-  background: var(--bg-secondary); border-bottom: 1px solid var(--border-primary);
-  font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
-  text-transform: uppercase; letter-spacing: 0.03em;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 .editor__tools-server-count {
-  font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: 0;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
 }
 .editor__tools-list {
-  display: flex; flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 .editor__tool-item {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 8px 12px; cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
   border-bottom: 1px solid var(--border-primary);
   transition: background 0.1s;
 }
-.editor__tool-item:last-child { border-bottom: none; }
-.editor__tool-item:hover { background: var(--bg-secondary); }
-.editor__tool-item--active { background: color-mix(in srgb, var(--accent-primary) 5%, transparent); }
-.editor__tool-info { flex: 1; min-width: 0; }
+.editor__tool-item:last-child {
+  border-bottom: none;
+}
+.editor__tool-item:hover {
+  background: var(--bg-secondary);
+}
+.editor__tool-item--active {
+  background: color-mix(in srgb, var(--accent-primary) 5%, transparent);
+}
+.editor__tool-info {
+  flex: 1;
+  min-width: 0;
+}
 .editor__tool-name {
-  font-size: 0.8rem; font-weight: 500; color: var(--text-primary);
-  display: flex; align-items: center; gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .editor__tool-desc {
-  font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .editor__tool-badge {
-  font-size: 0.6rem; font-weight: 600; padding: 1px 5px;
-  border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .editor__tool-badge--auto {
   background: color-mix(in srgb, var(--success-text) 15%, transparent);

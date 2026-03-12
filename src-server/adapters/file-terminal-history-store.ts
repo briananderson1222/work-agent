@@ -1,13 +1,14 @@
-import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { ITerminalHistoryStore } from '../domain/terminal-history-store.js';
 
 export class FileTerminalHistoryStore implements ITerminalHistoryStore {
   private baseDir: string;
 
   constructor(baseDir?: string) {
-    this.baseDir = baseDir ?? join(homedir(), '.stallion-ai', 'terminal-history');
+    this.baseDir =
+      baseDir ?? join(homedir(), '.stallion-ai', 'terminal-history');
   }
 
   private filePath(sessionId: string): string {

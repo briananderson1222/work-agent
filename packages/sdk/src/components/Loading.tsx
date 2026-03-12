@@ -1,5 +1,5 @@
 // biome-ignore lint/correctness/noUnusedImports: React needed for classic JSX transform
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import './FullScreen.css';
 import { errorQuips, loadingPhrases, loadingTips } from './phrases';
 
@@ -19,14 +19,23 @@ function injectStyles() {
 
 const sizes = { sm: 10, md: 16, lg: 24 } as const;
 
-export function Spinner({ size = 'md', color }: { size?: 'sm' | 'md' | 'lg'; color?: string }) {
+export function Spinner({
+  size = 'md',
+  color,
+}: {
+  size?: 'sm' | 'md' | 'lg';
+  color?: string;
+}) {
   injectStyles();
   const px = sizes[size];
   const bw = size === 'sm' ? 1.5 : 2;
   return (
     <span
       style={{
-        display: 'inline-block', width: px, height: px, borderRadius: '50%',
+        display: 'inline-block',
+        width: px,
+        height: px,
+        borderRadius: '50%',
         border: `${bw}px solid var(--border-primary, #333)`,
         borderTopColor: color || 'var(--accent-primary, #4a9eff)',
         animation: 'wa-spin 0.7s linear infinite',
@@ -37,15 +46,25 @@ export function Spinner({ size = 'md', color }: { size?: 'sm' | 'md' | 'lg'; col
 }
 
 /* ── LoadingState (inline, unchanged) ── */
-export function LoadingState({ message = 'Loading...', size = 'md' }: { message?: string; size?: 'sm' | 'md' }) {
+export function LoadingState({
+  message = 'Loading...',
+  size = 'md',
+}: {
+  message?: string;
+  size?: 'sm' | 'md';
+}) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      gap: size === 'sm' ? '0.4rem' : '0.5rem',
-      padding: size === 'sm' ? '0.75rem' : '2rem',
-      color: 'var(--text-secondary, #999)',
-      fontSize: size === 'sm' ? '0.8rem' : '0.85rem',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: size === 'sm' ? '0.4rem' : '0.5rem',
+        padding: size === 'sm' ? '0.75rem' : '2rem',
+        color: 'var(--text-secondary, #999)',
+        fontSize: size === 'sm' ? '0.8rem' : '0.85rem',
+      }}
+    >
       <Spinner size={size === 'sm' ? 'sm' : 'md'} />
       <span>{message}</span>
     </div>
@@ -87,8 +106,8 @@ export function FullScreenLoader({
   const cycle = useCallback(() => {
     setFading(true);
     setTimeout(() => {
-      setPhraseIdx(i => (i + 1) % shuffledPhrases.length);
-      setTipIdx(i => (i + 1) % shuffledTips.length);
+      setPhraseIdx((i) => (i + 1) % shuffledPhrases.length);
+      setTipIdx((i) => (i + 1) % shuffledTips.length);
       setFading(false);
     }, 350);
   }, [shuffledPhrases.length, shuffledTips.length]);
@@ -148,7 +167,9 @@ export function FullScreenError({
   secondaryAction?: { label: string; onClick: () => void };
   showLogo?: boolean;
 }) {
-  const [quip] = useState(() => errorQuips[Math.floor(Math.random() * errorQuips.length)]);
+  const [quip] = useState(
+    () => errorQuips[Math.floor(Math.random() * errorQuips.length)],
+  );
 
   return (
     <div className="fs-screen fs-screen--error">
@@ -169,7 +190,10 @@ export function FullScreenError({
             </button>
           )}
           {secondaryAction && (
-            <button className="fs-btn fs-btn--secondary" onClick={secondaryAction.onClick}>
+            <button
+              className="fs-btn fs-btn--secondary"
+              onClick={secondaryAction.onClick}
+            >
               {secondaryAction.label}
             </button>
           )}

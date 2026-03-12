@@ -20,9 +20,7 @@ export function NotificationsPage() {
   return (
     <div className="notifications-page">
       <div className="notifications-page__header">
-        <h1 className="notifications-page__title">
-          Notifications
-        </h1>
+        <h1 className="notifications-page__title">Notifications</h1>
         {history.length > 0 && (
           <button
             onClick={() => {

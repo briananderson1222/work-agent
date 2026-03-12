@@ -29,10 +29,20 @@ export function useDragResize({
     const handleMouseMove = (e: MouseEvent) => {
       if (direction === 'horizontal' && setWidth) {
         const newWidth = window.innerWidth - e.clientX;
-        setWidth(Math.max(minWidth, Math.min(newWidth, window.innerWidth * maxWidthPercent)));
+        setWidth(
+          Math.max(
+            minWidth,
+            Math.min(newWidth, window.innerWidth * maxWidthPercent),
+          ),
+        );
       } else {
         const newHeight = window.innerHeight - e.clientY;
-        setHeight(Math.max(minHeight, Math.min(newHeight, window.innerHeight - maxHeightOffset)));
+        setHeight(
+          Math.max(
+            minHeight,
+            Math.min(newHeight, window.innerHeight - maxHeightOffset),
+          ),
+        );
       }
     };
 
@@ -45,5 +55,15 @@ export function useDragResize({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, setIsDragging, setHeight, setWidth, direction, minHeight, maxHeightOffset, minWidth, maxWidthPercent]);
+  }, [
+    isDragging,
+    setIsDragging,
+    setHeight,
+    setWidth,
+    direction,
+    minHeight,
+    maxHeightOffset,
+    minWidth,
+    maxWidthPercent,
+  ]);
 }

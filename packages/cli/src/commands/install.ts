@@ -1,10 +1,29 @@
 import { execSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { type PluginManifest, buildPlugin, copyPluginIntegrations } from '@stallion-ai/shared';
 import {
-  AGENTS_DIR, PLUGINS_DIR, PROJECT_HOME, LAYOUTS_DIR,
-  extractPluginName, isGitUrl, lookupDepInRegistries, parseGitSource, readManifest,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { join, resolve } from 'node:path';
+import {
+  buildPlugin,
+  copyPluginIntegrations,
+  type PluginManifest,
+} from '@stallion-ai/shared';
+import {
+  AGENTS_DIR,
+  extractPluginName,
+  isGitUrl,
+  LAYOUTS_DIR,
+  lookupDepInRegistries,
+  PLUGINS_DIR,
+  PROJECT_HOME,
+  parseGitSource,
+  readManifest,
 } from './helpers.js';
 
 export function preview(source: string): void {
@@ -20,7 +39,9 @@ export function preview(source: string): void {
     if (isGitUrl(source)) {
       const { url, branch } = parseGitSource(source);
       try {
-        execSync(`git clone --depth 1 --branch ${branch} ${url} ${tempDir}`, { stdio: 'pipe' });
+        execSync(`git clone --depth 1 --branch ${branch} ${url} ${tempDir}`, {
+          stdio: 'pipe',
+        });
       } catch {
         rmSync(tempDir, { recursive: true, force: true });
         mkdirSync(tempDir, { recursive: true });
@@ -28,7 +49,8 @@ export function preview(source: string): void {
       }
     } else {
       const sourcePath = resolve(source);
-      if (!existsSync(sourcePath)) throw new Error(`Source not found: ${sourcePath}`);
+      if (!existsSync(sourcePath))
+        throw new Error(`Source not found: ${sourcePath}`);
       cpSync(sourcePath, tempDir, { recursive: true });
     }
 
@@ -45,7 +67,10 @@ export function preview(source: string): void {
         conflicts.push({ type: 'agent', id: slug });
       }
     }
-    if (manifest.layout && existsSync(join(LAYOUTS_DIR, manifest.layout.slug, 'layout.json'))) {
+    if (
+      manifest.layout &&
+      existsSync(join(LAYOUTS_DIR, manifest.layout.slug, 'layout.json'))
+    ) {
       conflicts.push({ type: 'layout', id: manifest.layout.slug });
     }
 
@@ -65,13 +90,21 @@ export function preview(source: string): void {
     if (manifest.agents?.length) {
       for (const a of manifest.agents) {
         const slug = `${manifest.name}:${a.slug}`;
-        const conflict = conflicts.find(c => c.type === 'agent' && c.id === slug);
-        console.log(`    agent:${slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`);
+        const conflict = conflicts.find(
+          (c) => c.type === 'agent' && c.id === slug,
+        );
+        console.log(
+          `    agent:${slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`,
+        );
       }
     }
     if (manifest.layout) {
-      const conflict = conflicts.find(c => c.type === 'layout' && c.id === manifest.layout!.slug);
-      console.log(`    layout:${manifest.layout.slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`);
+      const conflict = conflicts.find(
+        (c) => c.type === 'layout' && c.id === manifest.layout!.slug,
+      );
+      console.log(
+        `    layout:${manifest.layout.slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`,
+      );
     }
     for (const p of manifest.providers || []) {
       console.log(`    provider:${p.type}`);
@@ -87,23 +120,32 @@ export function preview(source: string): void {
       for (const dep of manifest.dependencies) {
         const installed = existsSync(join(PLUGINS_DIR, dep.id, 'plugin.json'));
         const source = dep.source || lookupDepInRegistries(dep.id);
-        console.log(`    ${dep.id}${installed ? ' ✓ installed' : source ? ` → ${source}` : ' ⚠ no source found'}`);
+        console.log(
+          `    ${dep.id}${installed ? ' ✓ installed' : source ? ` → ${source}` : ' ⚠ no source found'}`,
+        );
       }
     }
     if (conflicts.length) {
-      console.log(`\n  ⚠ ${conflicts.length} conflict(s) detected — use --skip to exclude`);
+      console.log(
+        `\n  ⚠ ${conflicts.length} conflict(s) detected — use --skip to exclude`,
+      );
     }
     console.log(`\n  Install with: stallion install ${source}`);
     if (conflicts.length) {
-      const skipArgs = conflicts.map(c => `${c.type}:${c.id}`).join(',');
-      console.log(`  Skip conflicts: stallion install ${source} --skip=${skipArgs}`);
+      const skipArgs = conflicts.map((c) => `${c.type}:${c.id}`).join(',');
+      console.log(
+        `  Skip conflicts: stallion install ${source} --skip=${skipArgs}`,
+      );
     }
   } finally {
     if (existsSync(tempDir)) rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
-export async function install(source: string, skipList: string[] = []): Promise<void> {
+export async function install(
+  source: string,
+  skipList: string[] = [],
+): Promise<void> {
   console.log(`📦 Installing plugin from ${source}...`);
   const skipSet = new Set(skipList);
   const pluginName = extractPluginName(source);
@@ -115,7 +157,9 @@ export async function install(source: string, skipList: string[] = []): Promise<
     const { url, branch } = parseGitSource(source);
     mkdirSync(pluginDir, { recursive: true });
     try {
-      execSync(`git clone --depth 1 --branch ${branch} ${url} ${pluginDir}`, { stdio: 'inherit' });
+      execSync(`git clone --depth 1 --branch ${branch} ${url} ${pluginDir}`, {
+        stdio: 'inherit',
+      });
     } catch {
       rmSync(pluginDir, { recursive: true, force: true });
       mkdirSync(pluginDir, { recursive: true });
@@ -131,7 +175,10 @@ export async function install(source: string, skipList: string[] = []): Promise<
 
   if (existsSync(join(pluginDir, 'package.json'))) {
     try {
-      execSync('npm install --production --ignore-scripts', { cwd: pluginDir, stdio: 'pipe' });
+      execSync('npm install --production --ignore-scripts', {
+        cwd: pluginDir,
+        stdio: 'pipe',
+      });
     } catch {}
   }
 
@@ -162,7 +209,9 @@ export async function install(source: string, skipList: string[] = []): Promise<
           console.error(`  ✗ Dep: ${dep.id} — ${e.message}`);
         }
       } else {
-        console.error(`  ✗ Dep: ${dep.id} — no source found (not in any installed plugin registry)`);
+        console.error(
+          `  ✗ Dep: ${dep.id} — no source found (not in any installed plugin registry)`,
+        );
       }
     }
   }
@@ -172,7 +221,10 @@ export async function install(source: string, skipList: string[] = []): Promise<
     console.log('  ✓ Plugin built');
   }
 
-  const copied = copyPluginIntegrations(finalDir, join(PROJECT_HOME, 'integrations'));
+  const copied = copyPluginIntegrations(
+    finalDir,
+    join(PROJECT_HOME, 'integrations'),
+  );
   for (const id of copied) {
     console.log(`  ✓ Tool: ${id}`);
   }
@@ -202,29 +254,47 @@ export async function install(source: string, skipList: string[] = []): Promise<
       mkdirSync(targetDir, { recursive: true });
       const layoutConfig = JSON.parse(readFileSync(sourcePath, 'utf-8'));
       layoutConfig.plugin = manifest.name;
-      writeFileSync(join(targetDir, 'layout.json'), JSON.stringify(layoutConfig, null, 2));
+      writeFileSync(
+        join(targetDir, 'layout.json'),
+        JSON.stringify(layoutConfig, null, 2),
+      );
       console.log(`  ✓ Layout: ${manifest.layout.slug}`);
 
       // Auto-apply layout to project
       const projectsDir = join(PROJECT_HOME, 'projects');
       if (existsSync(projectsDir)) {
         const projectSlugs = readdirSync(projectsDir, { withFileTypes: true })
-          .filter(d => d.isDirectory() && existsSync(join(projectsDir, d.name, 'project.json')))
-          .map(d => d.name);
+          .filter(
+            (d) =>
+              d.isDirectory() &&
+              existsSync(join(projectsDir, d.name, 'project.json')),
+          )
+          .map((d) => d.name);
 
         let targetProject = projectSlugs.length === 1 ? projectSlugs[0] : null;
 
         // If --project flag was passed, use that
-        const projectFlag = process.argv.find(a => a.startsWith('--project='));
+        const projectFlag = process.argv.find((a) =>
+          a.startsWith('--project='),
+        );
         if (projectFlag) targetProject = projectFlag.split('=')[1];
 
         if (targetProject) {
           const layoutsDir = join(projectsDir, targetProject, 'layouts');
           mkdirSync(layoutsDir, { recursive: true });
           // Check if already applied
-          const existing = existsSync(layoutsDir) && readdirSync(layoutsDir).some(f => {
-            try { return JSON.parse(readFileSync(join(layoutsDir, f), 'utf-8')).slug === layoutConfig.slug; } catch { return false; }
-          });
+          const existing =
+            existsSync(layoutsDir) &&
+            readdirSync(layoutsDir).some((f) => {
+              try {
+                return (
+                  JSON.parse(readFileSync(join(layoutsDir, f), 'utf-8'))
+                    .slug === layoutConfig.slug
+                );
+              } catch {
+                return false;
+              }
+            });
           if (!existing) {
             const layout = {
               id: crypto.randomUUID(),
@@ -234,24 +304,40 @@ export async function install(source: string, skipList: string[] = []): Promise<
               slug: layoutConfig.slug,
               icon: layoutConfig.icon,
               description: layoutConfig.description,
-              config: { plugin: manifest.name, tabs: layoutConfig.tabs, globalPrompts: layoutConfig.globalPrompts, defaultAgent: layoutConfig.defaultAgent, availableAgents: layoutConfig.availableAgents, requiredProviders: layoutConfig.requiredProviders },
+              config: {
+                plugin: manifest.name,
+                tabs: layoutConfig.tabs,
+                globalPrompts: layoutConfig.globalPrompts,
+                defaultAgent: layoutConfig.defaultAgent,
+                availableAgents: layoutConfig.availableAgents,
+                requiredProviders: layoutConfig.requiredProviders,
+              },
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             };
-            writeFileSync(join(layoutsDir, `${layoutConfig.slug}.json`), JSON.stringify(layout, null, 2));
+            writeFileSync(
+              join(layoutsDir, `${layoutConfig.slug}.json`),
+              JSON.stringify(layout, null, 2),
+            );
             console.log(`  ✓ Layout applied to project: ${targetProject}`);
           }
         } else if (projectSlugs.length > 1) {
-          console.log(`  ℹ Multiple projects found. Use --project=<slug> to apply layout, or add via UI.`);
+          console.log(
+            `  ℹ Multiple projects found. Use --project=<slug> to apply layout, or add via UI.`,
+          );
           console.log(`    Projects: ${projectSlugs.join(', ')}`);
         }
       }
     }
   }
 
-  console.log(`\n✅ Installed ${manifest.displayName} (${manifest.name}@${manifest.version})`);
+  console.log(
+    `\n✅ Installed ${manifest.displayName} (${manifest.name}@${manifest.version})`,
+  );
   if (manifest.providers?.length) {
-    console.log(`   Providers: ${manifest.providers.map((p) => p.type).join(', ')}`);
+    console.log(
+      `   Providers: ${manifest.providers.map((p) => p.type).join(', ')}`,
+    );
   }
 }
 
@@ -278,7 +364,7 @@ export function list(): void {
 
   // Dedup by manifest name (in case folder name differs)
   const seen = new Set<string>();
-  const unique = plugins.filter(m => {
+  const unique = plugins.filter((m) => {
     if (seen.has(m.name)) return false;
     seen.add(m.name);
     return true;
@@ -288,16 +374,22 @@ export function list(): void {
   for (const m of unique) {
     console.log(`  ${m.displayName || m.name} (${m.name}@${m.version})`);
     if (m.agents?.length) {
-      console.log(`    Agents: ${m.agents.map(a => `${m.name}:${a.slug}`).join(', ')}`);
+      console.log(
+        `    Agents: ${m.agents.map((a) => `${m.name}:${a.slug}`).join(', ')}`,
+      );
     }
     if (m.layout) {
       console.log(`    Layout: ${m.layout.slug}`);
     }
     if (m.providers?.length) {
-      console.log(`    Providers: ${m.providers.map(p => p.type).join(', ')}`);
+      console.log(
+        `    Providers: ${m.providers.map((p) => p.type).join(', ')}`,
+      );
     }
     if (m.dependencies?.length) {
-      console.log(`    Dependencies: ${m.dependencies.map(d => d.id).join(', ')}`);
+      console.log(
+        `    Dependencies: ${m.dependencies.map((d) => d.id).join(', ')}`,
+      );
     }
     if (m.tools?.required?.length) {
       console.log(`    Tools: ${m.tools.required.join(', ')}`);
@@ -377,7 +469,9 @@ export function registry(registryUrl?: string): void {
     mkdirSync(PROJECT_HOME, { recursive: true });
     let config: Record<string, unknown> = {};
     if (existsSync(configPath)) {
-      try { config = JSON.parse(readFileSync(configPath, 'utf-8')); } catch {}
+      try {
+        config = JSON.parse(readFileSync(configPath, 'utf-8'));
+      } catch {}
     }
     config.registryUrl = registryUrl;
     writeFileSync(configPath, JSON.stringify(config, null, 2));
@@ -387,7 +481,10 @@ export function registry(registryUrl?: string): void {
 
   console.log(`📋 Fetching registry from ${url}...\n`);
   try {
-    const result = execSync(`curl -sf "${url}"`, { encoding: 'utf-8', timeout: 15000 });
+    const result = execSync(`curl -sf "${url}"`, {
+      encoding: 'utf-8',
+      timeout: 15000,
+    });
     const manifest = JSON.parse(result);
     const plugins = manifest.plugins || [];
 
@@ -406,7 +503,9 @@ export function registry(registryUrl?: string): void {
     console.log('Available Plugins:\n');
     for (const p of plugins) {
       const status = installed.has(p.id) ? ' [installed]' : '';
-      console.log(`  ${p.displayName || p.id} (${p.id}@${p.version || '?'})${status}`);
+      console.log(
+        `  ${p.displayName || p.id} (${p.id}@${p.version || '?'})${status}`,
+      );
       if (p.description) console.log(`    ${p.description}`);
     }
     console.log(`\n  Install with: stallion install <source>`);

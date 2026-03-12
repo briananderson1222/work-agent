@@ -79,11 +79,16 @@ export function useSessionManagementViewModel(
           agentContext,
           agentIcon: agent.icon,
           // Normalize title — some conversations store message objects instead of strings
-          title: typeof conv.title === 'string'
-            ? conv.title
-            : Array.isArray(conv.title)
-              ? (conv.title[0]?.content?.[0]?.text || conv.title[0]?.content || 'Untitled')
-              : conv.title ? String(conv.title) : undefined,
+          title:
+            typeof conv.title === 'string'
+              ? conv.title
+              : Array.isArray(conv.title)
+                ? conv.title[0]?.content?.[0]?.text ||
+                  conv.title[0]?.content ||
+                  'Untitled'
+                : conv.title
+                  ? String(conv.title)
+                  : undefined,
         };
       });
       allConversations.push(...agentConvos);

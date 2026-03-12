@@ -1,10 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { Terminal } from '@xterm/xterm';
+import { useEffect, useRef, useState } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
-export function TerminalPanel({ projectSlug, workingDir }: { projectSlug: string; workingDir: string }) {
+export function TerminalPanel({
+  projectSlug,
+  workingDir,
+}: {
+  projectSlug: string;
+  workingDir: string;
+}) {
   const { apiBase } = useApiBase();
   const containerRef = useRef<HTMLDivElement>(null);
   const [wsError, setWsError] = useState(false);
@@ -65,14 +71,16 @@ export function TerminalPanel({ projectSlug, workingDir }: { projectSlug: string
       ws = new WebSocket(`ws://localhost:${port}`);
 
       ws.onopen = () => {
-        ws!.send(JSON.stringify({
-          type: 'open',
-          projectSlug,
-          terminalId: 'default',
-          cwd: workingDir,
-          cols: terminal.cols,
-          rows: terminal.rows,
-        }));
+        ws!.send(
+          JSON.stringify({
+            type: 'open',
+            projectSlug,
+            terminalId: 'default',
+            cwd: workingDir,
+            cols: terminal.cols,
+            rows: terminal.rows,
+          }),
+        );
       };
 
       ws.onmessage = (event) => {
@@ -86,7 +94,9 @@ export function TerminalPanel({ projectSlug, workingDir }: { projectSlug: string
           } else if (msg.type === 'exited') {
             terminal.write('\r\n[terminal exited]\r\n');
           }
-        } catch { /* ignore malformed */ }
+        } catch {
+          /* ignore malformed */
+        }
       };
 
       ws.onerror = () => {
@@ -105,7 +115,14 @@ export function TerminalPanel({ projectSlug, workingDir }: { projectSlug: string
     const observer = new ResizeObserver(() => {
       fitAddon.fit();
       if (ws?.readyState === WebSocket.OPEN && sessionId) {
-        ws.send(JSON.stringify({ type: 'resize', sessionId, cols: terminal.cols, rows: terminal.rows }));
+        ws.send(
+          JSON.stringify({
+            type: 'resize',
+            sessionId,
+            cols: terminal.cols,
+            rows: terminal.rows,
+          }),
+        );
       }
     });
     if (containerRef.current) observer.observe(containerRef.current);
@@ -123,7 +140,12 @@ export function TerminalPanel({ projectSlug, workingDir }: { projectSlug: string
     return <CommandExecutor workingDir={workingDir} />;
   }
 
-  return <div ref={containerRef} style={{ height: '100%', width: '100%', background: '#1a1a2e' }} />;
+  return (
+    <div
+      ref={containerRef}
+      style={{ height: '100%', width: '100%', background: '#1a1a2e' }}
+    />
+  );
 }
 
 // ─── Fallback: REST-based command executor ────────────────────────────────────
@@ -133,58 +155,139 @@ function CommandExecutor({ workingDir }: { workingDir: string }) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [histIdx, setHistIdx] = useState(-1);
-  const [lines, setLines] = useState<{ text: string; type: 'cmd' | 'out' | 'err' }[]>([]);
+  const [lines, setLines] = useState<
+    { text: string; type: 'cmd' | 'out' | 'err' }[]
+  >([]);
   const [running, setRunning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [lines]);
+  useEffect(() => {
+    scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
+  }, []);
 
   const run = async () => {
     const cmd = input.trim();
     if (!cmd || !workingDir) return;
-    setHistory(h => [cmd, ...h.slice(0, 49)]);
+    setHistory((h) => [cmd, ...h.slice(0, 49)]);
     setHistIdx(-1);
-    setLines(l => [...l, { text: `$ ${cmd}`, type: 'cmd' }]);
+    setLines((l) => [...l, { text: `$ ${cmd}`, type: 'cmd' }]);
     setInput('');
     setRunning(true);
     try {
       const res = await fetch(`${apiBase}/api/coding/exec`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: cmd, cwd: workingDir }),
       });
       const json = await res.json();
       const d = json.data ?? {};
-      if (d.stdout) setLines(l => [...l, { text: d.stdout, type: 'out' }]);
-      if (d.stderr) setLines(l => [...l, { text: d.stderr, type: 'err' }]);
+      if (d.stdout) setLines((l) => [...l, { text: d.stdout, type: 'out' }]);
+      if (d.stderr) setLines((l) => [...l, { text: d.stderr, type: 'err' }]);
     } catch (e: any) {
-      setLines(l => [...l, { text: e.message, type: 'err' }]);
+      setLines((l) => [...l, { text: e.message, type: 'err' }]);
     }
     setRunning(false);
   };
 
-  useEffect(() => { if (!running) inputRef.current?.focus(); }, [running]);
+  useEffect(() => {
+    if (!running) inputRef.current?.focus();
+  }, [running]);
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') { run(); return; }
-    if (e.key === 'ArrowUp') { e.preventDefault(); const next = Math.min(histIdx + 1, history.length - 1); setHistIdx(next); if (history[next]) setInput(history[next]); }
-    if (e.key === 'ArrowDown') { e.preventDefault(); const next = histIdx - 1; setHistIdx(next); setInput(next < 0 ? '' : history[next] ?? ''); }
-    if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); setLines([]); }
+    if (e.key === 'Enter') {
+      run();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = Math.min(histIdx + 1, history.length - 1);
+      setHistIdx(next);
+      if (history[next]) setInput(history[next]);
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = histIdx - 1;
+      setHistIdx(next);
+      setInput(next < 0 ? '' : (history[next] ?? ''));
+    }
+    if (e.key === 'l' && e.ctrlKey) {
+      e.preventDefault();
+      setLines([]);
+    }
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1a1a2e', fontFamily: 'monospace', fontSize: '12px' }}
-      onClick={() => inputRef.current?.focus()}>
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#1a1a2e',
+        fontFamily: 'monospace',
+        fontSize: '12px',
+      }}
+      onClick={() => inputRef.current?.focus()}
+    >
+      <div
+        ref={scrollRef}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '8px 12px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all',
+        }}
+      >
         {lines.map((l, i) => (
-          <div key={i} style={{ color: l.type === 'cmd' ? '#7ec8e3' : l.type === 'err' ? '#f44336' : '#b0b0b0', lineHeight: '1.5' }}>{l.text}</div>
+          <div
+            key={i}
+            style={{
+              color:
+                l.type === 'cmd'
+                  ? '#7ec8e3'
+                  : l.type === 'err'
+                    ? '#f44336'
+                    : '#b0b0b0',
+              lineHeight: '1.5',
+            }}
+          >
+            {l.text}
+          </div>
         ))}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '4px 12px 8px', gap: '6px', flexShrink: 0 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '4px 12px 8px',
+          gap: '6px',
+          flexShrink: 0,
+        }}
+      >
         <span style={{ color: '#7ec8e3' }}>$</span>
-        <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKey}
-          placeholder={workingDir ? (running ? 'Running...' : 'Type a command...') : 'No working directory'}
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#e0e0e0', fontFamily: 'inherit', fontSize: 'inherit' }} />
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={onKey}
+          placeholder={
+            workingDir
+              ? running
+                ? 'Running...'
+                : 'Type a command...'
+              : 'No working directory'
+          }
+          style={{
+            flex: 1,
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            color: '#e0e0e0',
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+          }}
+        />
       </div>
     </div>
   );

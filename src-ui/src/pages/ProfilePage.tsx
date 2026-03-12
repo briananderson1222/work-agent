@@ -6,9 +6,9 @@ import { InsightsDashboard } from '../components/InsightsDashboard';
 import { UsageStatsPanel } from '../components/UsageStatsPanel';
 import { UserDetailModal } from '../components/UserDetailModal';
 import { UserIcon } from '../components/UserIcon';
-import { pluginRegistry } from '../core/PluginRegistry';
 import { useAnalytics } from '../contexts/AnalyticsContext';
 import { useAuth } from '../contexts/AuthContext';
+import { pluginRegistry } from '../core/PluginRegistry';
 import './ProfilePage.css';
 import '../views/page-layout.css';
 
@@ -34,10 +34,7 @@ export function ProfilePage() {
             <AuthStatusBadge expanded />
           </div>
           <div className="profile-hero-content">
-            <UserIcon
-              size={120}
-              className="profile-card__avatar"
-            />
+            <UserIcon size={120} className="profile-card__avatar" />
             <div className="profile-hero-info">
               <div>
                 <div className="profile-card__info">
@@ -78,9 +75,7 @@ export function ProfilePage() {
                     )}
                   </div>
                   {user?.title && (
-                    <span className="profile-card__detail">
-                      {user.title}
-                    </span>
+                    <span className="profile-card__detail">{user.title}</span>
                   )}
                   {user?.email && (
                     <span className="profile-card__detail--muted">

@@ -7,7 +7,8 @@ import type { FileTreeService } from '../services/file-tree-service.js';
 function validatePath(raw: string | undefined): string {
   if (!raw) throw new Error('path required');
   const resolved = resolve(raw);
-  if (!existsSync(resolved)) throw new Error(`Directory not found: ${resolved}`);
+  if (!existsSync(resolved))
+    throw new Error(`Directory not found: ${resolved}`);
   return resolved;
 }
 
@@ -17,8 +18,12 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   app.get('/files', (c) => {
     try {
       const dir = validatePath(c.req.query('path'));
-      const depth = c.req.query('depth') ? Number(c.req.query('depth')) : undefined;
-      const maxEntries = c.req.query('maxEntries') ? Number(c.req.query('maxEntries')) : undefined;
+      const depth = c.req.query('depth')
+        ? Number(c.req.query('depth'))
+        : undefined;
+      const maxEntries = c.req.query('maxEntries')
+        ? Number(c.req.query('maxEntries'))
+        : undefined;
       const data = fileTreeService.listDirectory(dir, { depth, maxEntries });
       return c.json({ success: true, data });
     } catch (e: any) {
@@ -30,7 +35,8 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
     try {
       const dir = validatePath(c.req.query('path'));
       const query = c.req.query('query');
-      if (!query) return c.json({ success: false, error: 'query required' }, 400);
+      if (!query)
+        return c.json({ success: false, error: 'query required' }, 400);
       const data = fileTreeService.searchFiles(dir, query);
       return c.json({ success: true, data });
     } catch (e: any) {
@@ -52,10 +58,19 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   app.get('/git/status', (c) => {
     try {
       const dir = validatePath(c.req.query('path'));
-      const branchOut = execSync('git rev-parse --abbrev-ref HEAD', { cwd: dir, encoding: 'utf-8' });
-      const statusOut = execSync('git status --porcelain', { cwd: dir, encoding: 'utf-8' });
+      const branchOut = execSync('git rev-parse --abbrev-ref HEAD', {
+        cwd: dir,
+        encoding: 'utf-8',
+      });
+      const statusOut = execSync('git status --porcelain', {
+        cwd: dir,
+        encoding: 'utf-8',
+      });
       const changes = statusOut.split('\n').filter((l) => l.trim().length > 0);
-      return c.json({ success: true, data: { branch: branchOut.trim(), changes } });
+      return c.json({
+        success: true,
+        data: { branch: branchOut.trim(), changes },
+      });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 400);
     }
@@ -74,11 +89,22 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   app.get('/git/branches', (c) => {
     try {
       const dir = validatePath(c.req.query('path'));
-      const raw = execSync('git branch -a --format="%(refname:short)|%(objectname:short)|%(committerdate:relative)|%(HEAD)"', { cwd: dir, encoding: 'utf-8' });
-      const branches = raw.split('\n').filter(l => l.trim()).map(line => {
-        const [name, sha, date, head] = line.split('|');
-        return { name: name.trim(), sha, date, current: head?.trim() === '*' };
-      });
+      const raw = execSync(
+        'git branch -a --format="%(refname:short)|%(objectname:short)|%(committerdate:relative)|%(HEAD)"',
+        { cwd: dir, encoding: 'utf-8' },
+      );
+      const branches = raw
+        .split('\n')
+        .filter((l) => l.trim())
+        .map((line) => {
+          const [name, sha, date, head] = line.split('|');
+          return {
+            name: name.trim(),
+            sha,
+            date,
+            current: head?.trim() === '*',
+          };
+        });
       return c.json({ success: true, data: branches });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 400);
@@ -88,12 +114,28 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
   app.post('/exec', async (c) => {
     try {
       const { command, cwd } = await c.req.json();
-      if (!command) return c.json({ success: false, error: 'command required' }, 400);
+      if (!command)
+        return c.json({ success: false, error: 'command required' }, 400);
       const dir = validatePath(cwd);
-      const result = execSync(command, { cwd: dir, encoding: 'utf-8', timeout: 30000, maxBuffer: 1024 * 1024 });
-      return c.json({ success: true, data: { stdout: result, stderr: '', exitCode: 0 } });
+      const result = execSync(command, {
+        cwd: dir,
+        encoding: 'utf-8',
+        timeout: 30000,
+        maxBuffer: 1024 * 1024,
+      });
+      return c.json({
+        success: true,
+        data: { stdout: result, stderr: '', exitCode: 0 },
+      });
     } catch (e: any) {
-      return c.json({ success: true, data: { stdout: e.stdout ?? '', stderr: e.stderr ?? e.message, exitCode: e.status ?? 1 } });
+      return c.json({
+        success: true,
+        data: {
+          stdout: e.stdout ?? '',
+          stderr: e.stderr ?? e.message,
+          exitCode: e.status ?? 1,
+        },
+      });
     }
   });
 

@@ -28,7 +28,11 @@
   user-select: none;
   background: var(--vo-idle-bg);
   color: var(--text-muted);
-  transition: background 0.15s, outline 0.15s, transform 0.2s, z-index 0s;
+  transition:
+    background 0.15s,
+    outline 0.15s,
+    transform 0.2s,
+    z-index 0s;
   outline: 2px solid transparent;
   z-index: 1;
 }
@@ -63,6 +67,13 @@
 }
 
 @keyframes voice-orb-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50%       { transform: scale(1.4); opacity: 0.2; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0.2;
+  }
 }

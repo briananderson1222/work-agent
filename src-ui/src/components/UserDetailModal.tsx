@@ -22,10 +22,17 @@ export function UserDetailModal({
 }) {
   const { apiBase } = useApiBase();
 
-  const { data: person, isLoading: loading, error: queryError, refetch } = useQuery({
+  const {
+    data: person,
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useQuery({
     queryKey: ['user', alias],
     queryFn: async () => {
-      const r = await fetch(`${apiBase}/api/users/${encodeURIComponent(alias)}`);
+      const r = await fetch(
+        `${apiBase}/api/users/${encodeURIComponent(alias)}`,
+      );
       const data = await r.json();
       if (data.error && !data.name) throw new Error(data.error);
       return data;

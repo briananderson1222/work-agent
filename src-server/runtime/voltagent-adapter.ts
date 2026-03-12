@@ -7,14 +7,14 @@
 
 import {
   Agent,
+  createHooks,
   type MCPConfiguration,
   Memory,
   type Tool,
-  createHooks,
 } from '@voltagent/core';
-import type { AgentSpec, } from '../domain/types.js';
-import type { ConfigLoader } from '../domain/config-loader.js';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import type { ConfigLoader } from '../domain/config-loader.js';
+import type { AgentSpec } from '../domain/types.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import * as MCPManager from './mcp-manager.js';
@@ -45,11 +45,25 @@ export interface CreateAgentOptions {
   configLoader: ConfigLoader;
   mcpConfigs: Map<string, MCPConfiguration>;
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>;
-  integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }>;
-  toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>;
+  integrationMetadata: Map<
+    string,
+    { type: string; transport?: string; toolCount?: number }
+  >;
+  toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  >;
   toolNameReverseMapping: Map<string, string>;
   approvalRegistry: ApprovalRegistry;
-  agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }>;
+  agentFixedTokens: Map<
+    string,
+    { systemPromptTokens: number; mcpServerTokens: number }
+  >;
   memoryAdapters: Map<string, FileMemoryAdapter>;
   logger: any;
 }
@@ -59,15 +73,29 @@ export interface CreateAgentOptions {
 class VoltAgentWrapper implements IAgent {
   constructor(private inner: Agent) {}
 
-  get id() { return this.inner.name; }
-  get name() { return this.inner.name; }
-  get model() { return this.inner.model; }
+  get id() {
+    return this.inner.name;
+  }
+  get name() {
+    return this.inner.name;
+  }
+  get model() {
+    return this.inner.model;
+  }
 
   /** VoltAgent compat — server-core routes call these on registered agents */
-  getFullState() { return (this.inner as any).getFullState(); }
-  getTools() { return (this.inner as any).getTools?.() ?? []; }
-  isTelemetryConfigured() { return (this.inner as any).isTelemetryConfigured?.() ?? false; }
-  getToolsForApi() { return (this.inner as any).getToolsForApi?.() ?? this.getTools(); }
+  getFullState() {
+    return (this.inner as any).getFullState();
+  }
+  getTools() {
+    return (this.inner as any).getTools?.() ?? [];
+  }
+  isTelemetryConfigured() {
+    return (this.inner as any).isTelemetryConfigured?.() ?? false;
+  }
+  getToolsForApi() {
+    return (this.inner as any).getToolsForApi?.() ?? this.getTools();
+  }
 
   async generateText(prompt: string, options?: any): Promise<IGenerateResult> {
     const result = await this.inner.generateText(prompt, options);
@@ -84,7 +112,10 @@ class VoltAgentWrapper implements IAgent {
     };
   }
 
-  async generateObject(prompt: string, options?: any): Promise<IGenerateResult> {
+  async generateObject(
+    prompt: string,
+    options?: any,
+  ): Promise<IGenerateResult> {
     return this.inner.generateObject(prompt, options);
   }
 
@@ -94,7 +125,9 @@ class VoltAgentWrapper implements IAgent {
   }
 
   /** Access the underlying VoltAgent Agent (for framework-specific operations) */
-  get raw(): Agent { return this.inner; }
+  get raw(): Agent {
+    return this.inner;
+  }
 }
 
 // ── IAgentFramework implementation ─────────────────────
@@ -132,7 +165,11 @@ export class VoltAgentFramework {
     // Calculate fixed token counts
     const systemPromptTokens = Math.ceil((spec.prompt?.length || 0) / 4);
     const toolsJson = JSON.stringify(
-      tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
+      tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      })),
     );
     const mcpServerTokens = Math.ceil(toolsJson.length / 4);
     const fixedTokens = { systemPromptTokens, mcpServerTokens };
@@ -145,7 +182,8 @@ export class VoltAgentFramework {
     const _autoApprove = spec.tools?.autoApprove || [];
     const hooks = createHooks({
       onToolStart: async ({ tool, context }) => {
-        const currentCount = (context.context.get('toolCallCount') as number) || 0;
+        const currentCount =
+          (context.context.get('toolCallCount') as number) || 0;
         context.context.set('toolCallCount', currentCount + 1);
         sharedHooks?.afterToolCall?.(
           { toolName: tool.name, toolCallId: '', toolArgs: {} },
@@ -153,10 +191,11 @@ export class VoltAgentFramework {
           { agentSlug: slug },
         );
       },
-      onEnd: async ({ context, output, agent: voltAgent }) => {
+      onEnd: async ({ context, output }) => {
         if (!context.conversationId || !output) return;
         const usage = 'usage' in output ? output.usage : undefined;
-        const toolCallCount = (context.context.get('toolCallCount') as number) || 0;
+        const toolCallCount =
+          (context.context.get('toolCallCount') as number) || 0;
         await sharedHooks?.afterInvocation?.({
           invocation: {
             agentSlug: slug,
@@ -164,11 +203,13 @@ export class VoltAgentFramework {
             userId: context.userId,
             traceId: (context as any).traceId,
           },
-          usage: usage ? {
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            totalTokens: usage.totalTokens,
-          } : undefined,
+          usage: usage
+            ? {
+                promptTokens: usage.promptTokens,
+                completionTokens: usage.completionTokens,
+                totalTokens: usage.totalTokens,
+              }
+            : undefined,
           toolCallCount,
         });
       },
@@ -182,12 +223,13 @@ export class VoltAgentFramework {
       memory,
       tools: tools as Tool<any>[],
       hooks,
-      ...((spec.maxTurns || config.appConfig.defaultMaxTurns)
+      ...(spec.maxTurns || config.appConfig.defaultMaxTurns
         ? { maxTurns: spec.maxTurns || config.appConfig.defaultMaxTurns }
         : {}),
       ...(spec.guardrails && {
         temperature: spec.guardrails.temperature,
-        maxOutputTokens: spec.guardrails.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
+        maxOutputTokens:
+          spec.guardrails.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
         topP: spec.guardrails.topP,
         maxSteps: spec.guardrails.maxSteps,
       }),
@@ -207,7 +249,16 @@ export class VoltAgentFramework {
   async loadTools(
     slug: string,
     spec: AgentSpec,
-    opts: Pick<CreateAgentOptions, 'configLoader' | 'mcpConfigs' | 'mcpConnectionStatus' | 'integrationMetadata' | 'toolNameMapping' | 'toolNameReverseMapping' | 'logger'>,
+    opts: Pick<
+      CreateAgentOptions,
+      | 'configLoader'
+      | 'mcpConfigs'
+      | 'mcpConnectionStatus'
+      | 'integrationMetadata'
+      | 'toolNameMapping'
+      | 'toolNameReverseMapping'
+      | 'logger'
+    >,
   ): Promise<ITool[]> {
     return MCPManager.loadAgentTools(
       slug,
@@ -226,7 +277,10 @@ export class VoltAgentFramework {
     // MCP cleanup handled by runtime (it owns the maps)
   }
 
-  async createModel(spec: AgentSpec, config: AgentCreationConfig): Promise<any> {
+  async createModel(
+    spec: AgentSpec,
+    config: AgentCreationConfig,
+  ): Promise<any> {
     const modelId = spec.model || config.appConfig.defaultModel;
     const resolvedModel = config.modelCatalog
       ? await config.modelCatalog.resolveModelId(modelId)
@@ -238,7 +292,11 @@ export class VoltAgentFramework {
   }
 
   async createTempAgent(opts: {
-    name: string; instructions: string; model: any; tools?: ITool[]; maxSteps?: number;
+    name: string;
+    instructions: string;
+    model: any;
+    tools?: ITool[];
+    maxSteps?: number;
   }): Promise<IAgent> {
     const agent = new Agent({
       name: opts.name,

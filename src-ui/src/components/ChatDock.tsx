@@ -44,7 +44,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   } = useNavigation();
   const agents = useAgents();
   const { projects } = useProjects();
-  const { projectSlug: activeProject, projectName: activeProjectName } = useActiveProject();
+  const { projectSlug: activeProject, projectName: activeProjectName } =
+    useActiveProject();
   const availableModels = useModels();
   const appConfig = useConfig();
   const defaultFontSize =
@@ -272,7 +273,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         <NewChatModal
           agents={agents}
           onSelect={(agent) => {
-            openChatForAgent(agent, activeProject ?? undefined, activeProjectName ?? undefined);
+            openChatForAgent(
+              agent,
+              activeProject ?? undefined,
+              activeProjectName ?? undefined,
+            );
             setShowNewChatModal(false);
           }}
           onClose={() => setShowNewChatModal(false)}

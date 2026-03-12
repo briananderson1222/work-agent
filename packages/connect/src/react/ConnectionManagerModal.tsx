@@ -1,8 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import type { DiscoveredServer, SavedConnection } from '../core/types';
 import { ConnectionStatusDot } from './ConnectionStatusDot';
-import { QRScanner } from './QRScanner';
 import { useConnections } from './ConnectionsContext';
+import { QRScanner } from './QRScanner';
 import { useNetworkDiscovery } from './useNetworkDiscovery';
 
 export interface ConnectionManagerModalProps {
@@ -37,7 +37,9 @@ export function ConnectionManagerModal({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
-  const [healthMap, setHealthMap] = useState<Record<string, boolean | null>>({});
+  const [healthMap, setHealthMap] = useState<Record<string, boolean | null>>(
+    {},
+  );
   const { scanning, discovered, scan } = useNetworkDiscovery();
 
   const checkOne = useCallback(
@@ -158,7 +160,12 @@ export function ConnectionManagerModal({
         {panel === 'list' && (
           <>
             <div
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                marginBottom: 16,
+              }}
             >
               {connections.length === 0 && (
                 <p
@@ -239,7 +246,10 @@ export function ConnectionManagerModal({
                       checkOne(conn);
                     }}
                   >
-                    <ConnectionStatusDot status={statusForConn(conn)} size={8} />
+                    <ConnectionStatusDot
+                      status={statusForConn(conn)}
+                      size={8}
+                    />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
@@ -294,7 +304,10 @@ export function ConnectionManagerModal({
                           removeConnection(conn.id);
                         }}
                         title="Remove"
-                        style={{ ...iconBtnStyle, color: 'var(--error-text, #ef4444)' }}
+                        style={{
+                          ...iconBtnStyle,
+                          color: 'var(--error-text, #ef4444)',
+                        }}
                       >
                         ×
                       </button>
@@ -321,7 +334,10 @@ export function ConnectionManagerModal({
               </button>
               <button
                 type="button"
-                onClick={() => { setPanel('discover'); scan(); }}
+                onClick={() => {
+                  setPanel('discover');
+                  scan();
+                }}
                 style={{ ...secondaryBtnStyle, flex: 1 }}
               >
                 Discover
@@ -372,10 +388,7 @@ export function ConnectionManagerModal({
         )}
 
         {panel === 'scan' && (
-          <QRScanner
-            onScan={handleScan}
-            onCancel={() => setPanel('list')}
-          />
+          <QRScanner onScan={handleScan} onCancel={() => setPanel('list')} />
         )}
 
         {panel === 'discover' && (
@@ -419,7 +432,9 @@ function DiscoverPanel({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {scanning ? (
           <>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary, #999)' }}>
+            <span
+              style={{ fontSize: 13, color: 'var(--text-secondary, #999)' }}
+            >
               Scanning local network…
             </span>
             <ScanSpinner />
@@ -461,7 +476,9 @@ function DiscoverPanel({
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{server.name}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>
+                    {server.name}
+                  </div>
                   <div
                     style={{
                       fontSize: 11,
@@ -497,7 +514,12 @@ function DiscoverPanel({
                   <button
                     type="button"
                     onClick={() => onAdd(server)}
-                    style={{ ...primaryBtnStyle, padding: '6px 14px', fontSize: 12, flexShrink: 0 }}
+                    style={{
+                      ...primaryBtnStyle,
+                      padding: '6px 14px',
+                      fontSize: 12,
+                      flexShrink: 0,
+                    }}
                   >
                     Add
                   </button>

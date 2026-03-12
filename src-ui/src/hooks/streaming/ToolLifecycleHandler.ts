@@ -9,7 +9,12 @@ import {
   createResult,
   getTextFromParts,
 } from './stateHelpers';
-import type { ContentPart, HandlerResult, StreamEvent, StreamState } from './types';
+import type {
+  ContentPart,
+  HandlerResult,
+  StreamEvent,
+  StreamState,
+} from './types';
 
 export class ToolLifecycleHandler extends StreamEventHandler {
   canHandle(event: StreamEvent): boolean {

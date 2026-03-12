@@ -4,9 +4,9 @@ import {
   useCreateChatSession,
   useOpenConversation,
 } from '../contexts/ActiveChatsContext';
+import type { AgentData } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import type { AgentData } from '../contexts/AgentsContext';
 
 interface DerivedSession {
   id: string;
@@ -64,12 +64,24 @@ export function useChatDockActions({
 
   const openChatForAgent = useCallback(
     (agent: AgentData, projectSlug?: string, projectName?: string) => {
-      const sessionId = createChatSession(agent.slug, agent.name, undefined, projectSlug, projectName);
+      const sessionId = createChatSession(
+        agent.slug,
+        agent.name,
+        undefined,
+        projectSlug,
+        projectName,
+      );
       setActiveSessionId(sessionId);
       setActiveChat(sessionId);
       setDockState(true, isDockMaximized);
     },
-    [createChatSession, setActiveSessionId, setActiveChat, setDockState, isDockMaximized],
+    [
+      createChatSession,
+      setActiveSessionId,
+      setActiveChat,
+      setDockState,
+      isDockMaximized,
+    ],
   );
 
   const openConversation = useCallback(

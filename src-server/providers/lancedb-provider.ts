@@ -1,10 +1,16 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { IVectorDbProvider, VectorDocument, VectorSearchResult } from './types.js';
+import type {
+  IVectorDbProvider,
+  VectorDocument,
+  VectorSearchResult,
+} from './types.js';
 
 function cosineSimilarity(a: number[], b: number[]): number {
-  let dot = 0, normA = 0, normB = 0;
+  let dot = 0,
+    normA = 0,
+    normB = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
     normA += a[i] * a[i];
@@ -24,7 +30,11 @@ function loadDocs(dataDir: string, namespace: string): VectorDocument[] {
   return JSON.parse(readFileSync(file, 'utf-8')) as VectorDocument[];
 }
 
-function saveDocs(dataDir: string, namespace: string, docs: VectorDocument[]): void {
+function saveDocs(
+  dataDir: string,
+  namespace: string,
+  docs: VectorDocument[],
+): void {
   writeFileSync(vectorsFile(dataDir, namespace), JSON.stringify(docs), 'utf-8');
 }
 
@@ -33,7 +43,9 @@ export class LanceDBProvider implements IVectorDbProvider {
   readonly displayName = 'File-based Vector Store';
   private dataDir: string;
 
-  constructor({ dataDir = '.stallion-ai/vectordb' }: { dataDir?: string } = {}) {
+  constructor({
+    dataDir = '.stallion-ai/vectordb',
+  }: { dataDir?: string } = {}) {
     this.dataDir = dataDir;
   }
 
@@ -58,13 +70,27 @@ export class LanceDBProvider implements IVectorDbProvider {
 
   async deleteDocuments(namespace: string, docIds: string[]): Promise<void> {
     const idSet = new Set(docIds);
-    saveDocs(this.dataDir, namespace, loadDocs(this.dataDir, namespace).filter((d) => !idSet.has(d.id)));
+    saveDocs(
+      this.dataDir,
+      namespace,
+      loadDocs(this.dataDir, namespace).filter((d) => !idSet.has(d.id)),
+    );
   }
 
-  async search(namespace: string, query: number[], topK: number, threshold = 0): Promise<VectorSearchResult[]> {
+  async search(
+    namespace: string,
+    query: number[],
+    topK: number,
+    threshold = 0,
+  ): Promise<VectorSearchResult[]> {
     const docs = loadDocs(this.dataDir, namespace);
     return docs
-      .map((d) => ({ id: d.id, text: d.text, score: cosineSimilarity(query, d.vector), metadata: d.metadata }))
+      .map((d) => ({
+        id: d.id,
+        text: d.text,
+        score: cosineSimilarity(query, d.vector),
+        metadata: d.metadata,
+      }))
       .filter((r) => r.score >= threshold)
       .sort((a, b) => b.score - a.score)
       .slice(0, topK);

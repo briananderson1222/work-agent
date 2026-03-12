@@ -6,29 +6,28 @@
  * This file adds the provider *interfaces* that plugins implement.
  */
 
-import type { ToolDef } from '../domain/types.js';
-import type { AppConfig } from '../domain/types.js';
+import type { AppConfig, ToolDef } from '../domain/types.js';
 
 // Re-export data types from shared so existing server imports still work
 export type {
-  RegistryItem,
-  InstallResult,
   AuthStatus,
-  RenewResult,
-  UserIdentity,
-  UserDetailVM,
+  InstallResult,
   Prerequisite,
+  RegistryItem,
+  RenewResult,
+  UserDetailVM,
+  UserIdentity,
 } from '@stallion-ai/shared';
 
 import type {
-  RegistryItem,
-  InstallResult,
   AuthStatus,
-  RenewResult,
-  UserIdentity,
-  UserDetailVM,
+  InstallResult,
   Prerequisite,
+  RegistryItem,
+  RenewResult,
   ScheduleNotificationOpts,
+  UserDetailVM,
+  UserIdentity,
 } from '@stallion-ai/shared';
 
 // ── Provider Interfaces (server-only, not in shared) ───
@@ -82,7 +81,12 @@ export interface ISettingsProvider {
 
 // ── Scheduler Provider ─────────────────────────────────
 
-export type SchedulerCapability = 'artifacts' | 'notifications' | 'daemon' | 'working-dir' | 'command';
+export type SchedulerCapability =
+  | 'artifacts'
+  | 'notifications'
+  | 'daemon'
+  | 'working-dir'
+  | 'command';
 
 export interface SchedulerFormField {
   key: string;
@@ -130,7 +134,13 @@ export interface AddJobOpts {
 }
 
 export interface SchedulerProviderStats {
-  jobs: { name: string; total: number; successes: number; failures: number; success_rate: number }[];
+  jobs: {
+    name: string;
+    total: number;
+    successes: number;
+    failures: number;
+    success_rate: number;
+  }[];
 }
 
 export interface SchedulerProviderStatus {
@@ -146,7 +156,10 @@ export interface ISchedulerProvider {
 
   listJobs(): Promise<SchedulerJob[]>;
   addJob(opts: AddJobOpts): Promise<string>;
-  editJob(target: string, opts: Record<string, string | boolean>): Promise<string>;
+  editJob(
+    target: string,
+    opts: Record<string, string | boolean>,
+  ): Promise<string>;
   removeJob(target: string): Promise<void>;
   runJob(target: string): Promise<string>;
   enableJob(target: string): Promise<void>;
@@ -251,7 +264,12 @@ export interface IVectorDbProvider {
   namespaceExists(namespace: string): Promise<boolean>;
   addDocuments(namespace: string, docs: VectorDocument[]): Promise<void>;
   deleteDocuments(namespace: string, docIds: string[]): Promise<void>;
-  search(namespace: string, query: number[], topK: number, threshold?: number): Promise<VectorSearchResult[]>;
+  search(
+    namespace: string,
+    query: number[],
+    topK: number,
+    threshold?: number,
+  ): Promise<VectorSearchResult[]>;
   count(namespace: string): Promise<number>;
 }
 

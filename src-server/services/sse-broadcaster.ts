@@ -15,7 +15,11 @@ export class SSEBroadcaster {
   broadcast(event: Record<string, unknown>): void {
     const data = JSON.stringify(event);
     for (const send of this.clients) {
-      try { send(data); } catch { this.clients.delete(send); }
+      try {
+        send(data);
+      } catch {
+        this.clients.delete(send);
+      }
     }
   }
 }

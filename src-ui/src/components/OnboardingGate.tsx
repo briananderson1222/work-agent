@@ -7,11 +7,13 @@
 import { ConnectionManagerModal, useConnections } from '@stallion-ai/connect';
 import { FullScreenError, FullScreenLoader } from '@stallion-ai/sdk';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { useSystemStatus, verifyBedrock } from '../hooks/useSystemStatus';
 import { useBranding } from '../hooks/useBranding';
+import { useSystemStatus, verifyBedrock } from '../hooks/useSystemStatus';
 
 function checkServerHealth(url: string): Promise<boolean> {
-  return fetch(`${url}/api/system/status`).then((r) => r.ok).catch(() => false);
+  return fetch(`${url}/api/system/status`)
+    .then((r) => r.ok)
+    .catch(() => false);
 }
 
 export function OnboardingGate({ children }: { children: ReactNode }) {
@@ -125,7 +127,21 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
           /* Path selection */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <PathCard
-              icon={<svg viewBox="0 0 16 16" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2a4 4 0 014 4c0 1.5-.8 2.8-2 3.5V11H6V9.5A4 4 0 018 2z" /><path d="M6 13h4M7 15h2" /></svg>}
+              icon={
+                <svg
+                  viewBox="0 0 16 16"
+                  width="28"
+                  height="28"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M8 2a4 4 0 014 4c0 1.5-.8 2.8-2 3.5V11H6V9.5A4 4 0 018 2z" />
+                  <path d="M6 13h4M7 15h2" />
+                </svg>
+              }
               title="AWS Bedrock"
               description="Use AWS credentials to access foundation models directly. Required for creating custom agents."
               onClick={() => setPath('bedrock')}
@@ -136,7 +152,21 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
               }
             />
             <PathCard
-              icon={<svg viewBox="0 0 16 16" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2v3M10 2v3M4 5h8a1 1 0 011 1v7a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" /><path d="M6 14v-3h4v3" /></svg>}
+              icon={
+                <svg
+                  viewBox="0 0 16 16"
+                  width="28"
+                  height="28"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 2v3M10 2v3M4 5h8a1 1 0 011 1v7a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
+                  <path d="M6 14v-3h4v3" />
+                </svg>
+              }
               title="ACP (kiro-cli)"
               description="Connect to kiro-cli or other ACP-compatible agents. Chat works immediately once connected."
               onClick={() => setPath('acp')}

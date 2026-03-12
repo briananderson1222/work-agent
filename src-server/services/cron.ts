@@ -3,7 +3,11 @@
  * Extracted from BuiltinScheduler for reuse across services.
  */
 
-export function parseCronField(field: string, min: number, max: number): number[] {
+export function parseCronField(
+  field: string,
+  min: number,
+  max: number,
+): number[] {
   const values = new Set<number>();
   for (const part of field.split(',')) {
     const [rangeStr, stepStr] = part.split('/');
@@ -22,8 +26,11 @@ export function parseCronField(field: string, min: number, max: number): number[
 
 export function cronMatches(cron: string, date: Date): boolean {
   const [min, hour, dom, mon, dow] = cron.trim().split(/\s+/);
-  const m = date.getUTCMinutes(), h = date.getUTCHours();
-  const d = date.getUTCDate(), mo = date.getUTCMonth() + 1, w = date.getUTCDay();
+  const m = date.getUTCMinutes(),
+    h = date.getUTCHours();
+  const d = date.getUTCDate(),
+    mo = date.getUTCMonth() + 1,
+    w = date.getUTCDay();
   return (
     parseCronField(min, 0, 59).includes(m) &&
     parseCronField(hour, 0, 23).includes(h) &&
@@ -33,7 +40,11 @@ export function cronMatches(cron: string, date: Date): boolean {
   );
 }
 
-export function nextCronTimes(cron: string, count: number, after = new Date()): Date[] {
+export function nextCronTimes(
+  cron: string,
+  count: number,
+  after = new Date(),
+): Date[] {
   const results: Date[] = [];
   const cursor = new Date(after);
   cursor.setUTCSeconds(0, 0);

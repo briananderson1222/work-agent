@@ -51,9 +51,12 @@ export const costEstimated = meter.createCounter('stallion.cost.estimated', {
 export const pluginInstalls = meter.createCounter('stallion.plugin.installs', {
   description: 'Plugin install events',
 });
-export const pluginUninstalls = meter.createCounter('stallion.plugin.uninstalls', {
-  description: 'Plugin uninstall events',
-});
+export const pluginUninstalls = meter.createCounter(
+  'stallion.plugin.uninstalls',
+  {
+    description: 'Plugin uninstall events',
+  },
+);
 export const pluginUpdates = meter.createCounter('stallion.plugin.updates', {
   description: 'Plugin update events',
 });
@@ -78,18 +81,27 @@ export const providerOps = meter.createCounter('stallion.provider.operations', {
 });
 
 // ── Notifications ──
-export const notificationOps = meter.createCounter('stallion.notification.operations', {
-  description: 'Notification schedule/deliver/dismiss events',
-});
+export const notificationOps = meter.createCounter(
+  'stallion.notification.operations',
+  {
+    description: 'Notification schedule/deliver/dismiss events',
+  },
+);
 
 // ── Scheduler ──
-export const schedulerJobRuns = meter.createCounter('stallion.scheduler.job.runs', {
-  description: 'Scheduler job executions',
-});
-export const schedulerJobDuration = meter.createHistogram('stallion.scheduler.job.duration', {
-  description: 'Scheduler job execution duration',
-  unit: 'ms',
-});
+export const schedulerJobRuns = meter.createCounter(
+  'stallion.scheduler.job.runs',
+  {
+    description: 'Scheduler job executions',
+  },
+);
+export const schedulerJobDuration = meter.createHistogram(
+  'stallion.scheduler.job.duration',
+  {
+    description: 'Scheduler job execution duration',
+    unit: 'ms',
+  },
+);
 
 // ── MCP lifecycle ──
 export const mcpLifecycle = meter.createCounter('stallion.mcp.lifecycle', {
@@ -97,19 +109,26 @@ export const mcpLifecycle = meter.createCounter('stallion.mcp.lifecycle', {
 });
 
 // ── Knowledge ──
-export const knowledgeOps = meter.createCounter('stallion.knowledge.operations', {
-  description: 'Knowledge query/index operations',
-});
+export const knowledgeOps = meter.createCounter(
+  'stallion.knowledge.operations',
+  {
+    description: 'Knowledge query/index operations',
+  },
+);
 
 export function registerObservableGauges(callbacks: {
   activeAgents: () => number;
   mcpConnections: () => number;
 }): void {
-  meter.createObservableGauge('stallion.agents.active', {
-    description: 'Number of active agents',
-  }).addCallback((obs) => obs.observe(callbacks.activeAgents()));
+  meter
+    .createObservableGauge('stallion.agents.active', {
+      description: 'Number of active agents',
+    })
+    .addCallback((obs) => obs.observe(callbacks.activeAgents()));
 
-  meter.createObservableGauge('stallion.mcp.connections', {
-    description: 'Number of MCP connections',
-  }).addCallback((obs) => obs.observe(callbacks.mcpConnections()));
+  meter
+    .createObservableGauge('stallion.mcp.connections', {
+      description: 'Number of MCP connections',
+    })
+    .addCallback((obs) => obs.observe(callbacks.mcpConnections()));
 }

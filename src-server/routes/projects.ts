@@ -2,20 +2,43 @@
  * Project Routes - project and layout management
  */
 
-import { Hono } from 'hono';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { ProjectService } from '../services/project-service.js';
 
 /** Scan installed plugins for available layout sources */
 function getAvailableLayouts(projectHomeDir: string) {
-  const results: Array<{ source: 'plugin' | 'builtin'; plugin?: string; name: string; slug: string; icon?: string; description?: string; type: string; tabCount?: number }> = [];
+  const results: Array<{
+    source: 'plugin' | 'builtin';
+    plugin?: string;
+    name: string;
+    slug: string;
+    icon?: string;
+    description?: string;
+    type: string;
+    tabCount?: number;
+  }> = [];
 
   // Built-in types
-  results.push({ source: 'builtin', name: 'Chat', slug: 'chat', icon: '💬', description: 'Chat layout with tabs and prompts', type: 'chat' });
-  results.push({ source: 'builtin', name: 'Coding', slug: 'coding', icon: '🔧', description: 'File tree, diff viewer, terminal, and chat', type: 'coding' });
+  results.push({
+    source: 'builtin',
+    name: 'Chat',
+    slug: 'chat',
+    icon: '💬',
+    description: 'Chat layout with tabs and prompts',
+    type: 'chat',
+  });
+  results.push({
+    source: 'builtin',
+    name: 'Coding',
+    slug: 'coding',
+    icon: '🔧',
+    description: 'File tree, diff viewer, terminal, and chat',
+    type: 'coding',
+  });
 
   // Scan plugins for layouts
   const pluginsDir = join(projectHomeDir, 'plugins');
@@ -27,10 +50,23 @@ function getAvailableLayouts(projectHomeDir: string) {
     try {
       const plugin = JSON.parse(readFileSync(pluginFile, 'utf-8'));
       if (!plugin.layout) continue;
-      const layoutFile = join(pluginsDir, entry.name, plugin.layout.source || 'layout.json');
+      const layoutFile = join(
+        pluginsDir,
+        entry.name,
+        plugin.layout.source || 'layout.json',
+      );
       // Also check the layouts dir (where install copies it)
-      const layoutDir = join(projectHomeDir, 'layouts', plugin.layout.slug, 'layout.json');
-      const layoutPath = existsSync(layoutFile) ? layoutFile : existsSync(layoutDir) ? layoutDir : null;
+      const layoutDir = join(
+        projectHomeDir,
+        'layouts',
+        plugin.layout.slug,
+        'layout.json',
+      );
+      const layoutPath = existsSync(layoutFile)
+        ? layoutFile
+        : existsSync(layoutDir)
+          ? layoutDir
+          : null;
       if (!layoutPath) continue;
       const layout = JSON.parse(readFileSync(layoutPath, 'utf-8'));
       results.push({
@@ -43,7 +79,9 @@ function getAvailableLayouts(projectHomeDir: string) {
         type: 'chat',
         tabCount: layout.tabs?.length,
       });
-    } catch { /* skip broken plugins */ }
+    } catch {
+      /* skip broken plugins */
+    }
   }
   return results;
 }
@@ -56,14 +94,32 @@ function readPluginLayout(projectHomeDir: string, pluginName: string) {
   const plugin = JSON.parse(readFileSync(pluginFile, 'utf-8'));
   if (!plugin.layout) return null;
 
-  const layoutDir = join(projectHomeDir, 'layouts', plugin.layout.slug, 'layout.json');
-  const layoutFile = join(projectHomeDir, 'plugins', pluginName, plugin.layout.source || 'layout.json');
-  const layoutPath = existsSync(layoutDir) ? layoutDir : existsSync(layoutFile) ? layoutFile : null;
+  const layoutDir = join(
+    projectHomeDir,
+    'layouts',
+    plugin.layout.slug,
+    'layout.json',
+  );
+  const layoutFile = join(
+    projectHomeDir,
+    'plugins',
+    pluginName,
+    plugin.layout.source || 'layout.json',
+  );
+  const layoutPath = existsSync(layoutDir)
+    ? layoutDir
+    : existsSync(layoutFile)
+      ? layoutFile
+      : null;
   if (!layoutPath) return null;
   return JSON.parse(readFileSync(layoutPath, 'utf-8'));
 }
 
-export function createProjectRoutes(projectService: ProjectService, storageAdapter: IStorageAdapter, projectHomeDir?: string) {
+export function createProjectRoutes(
+  projectService: ProjectService,
+  storageAdapter: IStorageAdapter,
+  projectHomeDir?: string,
+) {
   const app = new Hono();
 
   // List all projects
@@ -141,7 +197,9 @@ export function createProjectRoutes(projectService: ProjectService, storageAdapt
       // Auto-resolve workingDirectory for coding layouts from project's primary directory
       if (body.type === 'coding' && !body.config?.workingDirectory) {
         const project = storageAdapter.getProject(slug);
-        const primary = project.directories?.find((d: any) => d.role === 'primary');
+        const primary = project.directories?.find(
+          (d: any) => d.role === 'primary',
+        );
         if (primary) {
           body.config = { ...body.config, workingDirectory: primary.path };
         }
@@ -178,9 +236,14 @@ export function createProjectRoutes(projectService: ProjectService, storageAdapt
       }
 
       // Backfill workingDirectory for coding layouts missing it
-      if (layout.type === 'coding' && !(layout.config as any)?.workingDirectory) {
+      if (
+        layout.type === 'coding' &&
+        !(layout.config as any)?.workingDirectory
+      ) {
         const project = storageAdapter.getProject(slug);
-        const primary = project.directories?.find((d: any) => d.role === 'primary');
+        const primary = project.directories?.find(
+          (d: any) => d.role === 'primary',
+        );
         if (primary) {
           (layout.config as any).workingDirectory = primary.path;
         }
@@ -233,11 +296,16 @@ export function createProjectRoutes(projectService: ProjectService, storageAdapt
     try {
       const slug = c.req.param('slug');
       const { plugin: pluginName } = await c.req.json();
-      if (!pluginName) return c.json({ success: false, error: 'plugin name required' }, 400);
+      if (!pluginName)
+        return c.json({ success: false, error: 'plugin name required' }, 400);
 
       const homeDir = projectHomeDir || '.stallion-ai';
       const ws = readPluginLayout(homeDir, pluginName);
-      if (!ws) return c.json({ success: false, error: `Plugin '${pluginName}' has no layout` }, 404);
+      if (!ws)
+        return c.json(
+          { success: false, error: `Plugin '${pluginName}' has no layout` },
+          404,
+        );
 
       const now = new Date().toISOString();
       const layout = {

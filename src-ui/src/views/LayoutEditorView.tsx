@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
+import { LayoutIcon } from '../components/LayoutIcon';
 import type {
   AgentSummary,
-  StandaloneLayoutConfig,
   LayoutPrompt,
   LayoutTab,
+  StandaloneLayoutConfig,
 } from '../types';
-import { LayoutIcon } from '../components/LayoutIcon';
 import './editor-layout.css';
 
 export interface LayoutEditorViewProps {
@@ -72,7 +72,6 @@ export function LayoutEditorView({
   useEffect(() => {
     loadAgents();
     if (slug) loadLayout(slug);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, loadAgents, loadLayout]);
 
   // Keyboard shortcuts
@@ -91,9 +90,7 @@ export function LayoutEditorView({
     try {
       setIsSaving(true);
       setError(null);
-      const url = slug
-        ? `${apiBase}/layouts/${slug}`
-        : `${apiBase}/layouts`;
+      const url = slug ? `${apiBase}/layouts/${slug}` : `${apiBase}/layouts`;
       const method = slug ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -227,28 +224,35 @@ export function LayoutEditorView({
   };
 
   if (isLoading) {
-    return (
-      <div className="editor__loading">
-        Loading...
-      </div>
-    );
+    return <div className="editor__loading">Loading...</div>;
   }
 
   return (
-    <div className={`editor${isPlugin && isPluginLocked ? ' editor--locked' : ''}`}>
+    <div
+      className={`editor${isPlugin && isPluginLocked ? ' editor--locked' : ''}`}
+    >
       {/* Header */}
       <div className="management-view__header editor__header">
         <div className="editor__header-left">
-          <div className="management-view__header-label">{slug ? 'manage / edit layout' : 'manage / new layout'}</div>
+          <div className="management-view__header-label">
+            {slug ? 'manage / edit layout' : 'manage / new layout'}
+          </div>
           <h2 className="editor__header-meta">
             {slug ? 'Edit Layout' : 'New Layout'}
-            {isPlugin && <span className="editor__plugin-badge">{formData?.plugin}</span>}
+            {isPlugin && (
+              <span className="editor__plugin-badge">{formData?.plugin}</span>
+            )}
           </h2>
         </div>
         <div className="editor__header-actions">
           <button
             onClick={handleSave}
-            disabled={isSaving || !formData.name || !formData.slug || (isPlugin && isPluginLocked)}
+            disabled={
+              isSaving ||
+              !formData.name ||
+              !formData.slug ||
+              (isPlugin && isPluginLocked)
+            }
             style={{
               padding: '8px 16px',
               border: 'none',
@@ -257,7 +261,13 @@ export function LayoutEditorView({
               color: 'white',
               cursor: isSaving ? 'not-allowed' : 'pointer',
               fontSize: '14px',
-              opacity: isSaving || !formData.name || !formData.slug || (isPlugin && isPluginLocked) ? 0.5 : 1,
+              opacity:
+                isSaving ||
+                !formData.name ||
+                !formData.slug ||
+                (isPlugin && isPluginLocked)
+                  ? 0.5
+                  : 1,
             }}
           >
             {isSaving ? 'Saving...' : 'Save'}
@@ -276,9 +286,15 @@ export function LayoutEditorView({
         <div className="editor__lock-banner">
           <div className="editor__lock-banner-text">
             <span className="editor__lock-banner-icon">🔒</span>
-            <span>This layout is managed by the <strong>{formData?.plugin}</strong> plugin. Editing is locked to prevent accidental changes.</span>
+            <span>
+              This layout is managed by the <strong>{formData?.plugin}</strong>{' '}
+              plugin. Editing is locked to prevent accidental changes.
+            </span>
           </div>
-          <button className="editor__unlock-btn" onClick={() => setIsPluginLocked(false)}>
+          <button
+            className="editor__unlock-btn"
+            onClick={() => setIsPluginLocked(false)}
+          >
             Unlock Editing
           </button>
         </div>
@@ -305,9 +321,7 @@ export function LayoutEditorView({
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           {/* Basic Info */}
           <section className="editor__section" style={{ marginBottom: '32px' }}>
-            <h3 className="editor__section-header">
-              Basic Information
-            </h3>
+            <h3 className="editor__section-header">Basic Information</h3>
             <div style={{ display: 'grid', gap: '16px' }}>
               <div>
                 <label
@@ -403,7 +417,10 @@ export function LayoutEditorView({
                   style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
                 >
                   <LayoutIcon
-                    layout={{ name: formData.name || 'Layout', icon: formData.icon }}
+                    layout={{
+                      name: formData.name || 'Layout',
+                      icon: formData.icon,
+                    }}
                     size={48}
                   />
                   <div style={{ flex: 1 }}>

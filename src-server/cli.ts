@@ -10,7 +10,8 @@ import { StallionRuntime } from './runtime/stallion-runtime.js';
 
 async function main() {
   const runtime = new StallionRuntime({
-    projectHomeDir: process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai'),
+    projectHomeDir:
+      process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai'),
     logLevel: 'warn', // Less verbose for CLI
   });
 

@@ -19,14 +19,22 @@ export class ProviderService {
   }
 
   deleteProviderConnection(id: string): void {
-    const existing = this.storageAdapter.listProviderConnections().find(c => c.id === id);
+    const existing = this.storageAdapter
+      .listProviderConnections()
+      .find((c) => c.id === id);
     this.storageAdapter.deleteProviderConnection(id);
     providerOps.add(1, { op: 'remove', type: existing?.type ?? 'unknown' });
   }
 
-  async checkHealth(provider: ILLMProvider, providerType: string): Promise<boolean> {
-    const healthy = await provider.healthCheck?.() ?? false;
-    providerOps.add(1, { op: 'health', status: healthy ? 'healthy' : 'unhealthy' });
+  async checkHealth(
+    provider: ILLMProvider,
+    _providerType: string,
+  ): Promise<boolean> {
+    const healthy = (await provider.healthCheck?.()) ?? false;
+    providerOps.add(1, {
+      op: 'health',
+      status: healthy ? 'healthy' : 'unhealthy',
+    });
     return healthy;
   }
 
@@ -36,14 +44,20 @@ export class ProviderService {
     projectSlug?: string;
   }): Promise<{ providerId: string; model: string }> {
     if (opts.conversationProviderId && opts.conversationModel) {
-      return { providerId: opts.conversationProviderId, model: opts.conversationModel };
+      return {
+        providerId: opts.conversationProviderId,
+        model: opts.conversationModel,
+      };
     }
 
     if (opts.projectSlug) {
       try {
         const project = await this.storageAdapter.getProject(opts.projectSlug);
         if (project.defaultProviderId && project.defaultModel) {
-          return { providerId: project.defaultProviderId, model: project.defaultModel };
+          return {
+            providerId: project.defaultProviderId,
+            model: project.defaultModel,
+          };
         }
       } catch {}
     }

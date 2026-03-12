@@ -612,7 +612,10 @@ export class ACPConnection {
 
     // Prepend project working directory context if provided
     if (context?.cwd && context.cwd !== this.cwd) {
-      promptContent.unshift({ type: 'text' as const, text: `[Working directory: ${context.cwd}]` });
+      promptContent.unshift({
+        type: 'text' as const,
+        text: `[Working directory: ${context.cwd}]`,
+      });
     }
 
     // Get or create memory adapter for this ACP agent

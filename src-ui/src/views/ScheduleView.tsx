@@ -1,9 +1,18 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoadingState } from '@stallion-ai/sdk';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigation } from '../contexts/NavigationContext';
+import { AgentIcon } from '../components/AgentIcon';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Toggle } from '../components/Toggle';
+import { type AgentData, useAgents } from '../contexts/AgentsContext';
+import { useNavigation } from '../contexts/NavigationContext';
 import {
   useAddJob,
   useDeleteJob,
@@ -20,8 +29,6 @@ import {
   useSchedulerStatus,
   useToggleJob,
 } from '../hooks/useScheduler';
-import { useAgents, type AgentData } from '../contexts/AgentsContext';
-import { AgentIcon } from '../components/AgentIcon';
 import { SortHeader, TableFilter, useSortableTable } from './SortableTable';
 import './ScheduleView.css';
 import './page-layout.css';
@@ -51,7 +58,11 @@ function localTime(iso: string | null) {
   });
 }
 
-function _localizeSchedule(human: string | undefined, schedule: string, nextFire?: string): string {
+function _localizeSchedule(
+  human: string | undefined,
+  schedule: string,
+  nextFire?: string,
+): string {
   if (!human) return schedule;
   const ref = nextFire ? new Date(nextFire) : new Date();
   const m = schedule.match(/^cron\s+(\d+)\s+(\d+)\s/);
@@ -112,13 +123,25 @@ const IconFile = () => (
   </svg>
 );
 const _IconPause = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+  >
     <circle cx="8" cy="8" r="5.5" />
     <path d="M6 10l4-4M6 6l4 4" />
   </svg>
 );
 const _IconResume = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+  >
     <circle cx="8" cy="8" r="5.5" />
     <path d="M8 4.5v3.5" />
   </svg>
@@ -152,7 +175,14 @@ const IconSpinner = () => (
   </svg>
 );
 const IconEdit = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M11.5 2.5l2 2-8 8H3.5v-2z" />
   </svg>
 );
@@ -176,7 +206,13 @@ function RateCell({ rate }: { rate: number | undefined }) {
 }
 
 /* ── Job Detail (inline) ── */
-function JobDetail({ name, autoOpenRun }: { name: string; autoOpenRun?: string | null }) {
+function JobDetail({
+  name,
+  autoOpenRun,
+}: {
+  name: string;
+  autoOpenRun?: string | null;
+}) {
   const { data: logs = [] } = useJobLogs(name);
   const fetchOutput = useFetchRunOutput();
   const openArtifact = useOpenArtifact();
@@ -213,7 +249,9 @@ function JobDetail({ name, autoOpenRun }: { name: string; autoOpenRun?: string |
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = (reversedLogs[viewIdx].output || 'output.txt').split('/').pop() || 'output.txt';
+    a.download =
+      (reversedLogs[viewIdx].output || 'output.txt').split('/').pop() ||
+      'output.txt';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -258,7 +296,9 @@ function JobDetail({ name, autoOpenRun }: { name: string; autoOpenRun?: string |
               >
                 {r.success ? '✓' : '✗'}
               </td>
-              <td>{r.durationSecs != null ? `${r.durationSecs.toFixed(1)}s` : '-'}</td>
+              <td>
+                {r.durationSecs != null ? `${r.durationSecs.toFixed(1)}s` : '-'}
+              </td>
               <td>{r.missedCount || '-'}</td>
               <td>{r.manual ? 'manual' : 'cron'}</td>
               <td>
@@ -275,11 +315,20 @@ function JobDetail({ name, autoOpenRun }: { name: string; autoOpenRun?: string |
         </tbody>
       </table>
       {viewIdx !== null && (
-        <div className="schedule__output-overlay" onClick={() => setViewIdx(null)}>
-          <div className="schedule__output-modal" onClick={e => e.stopPropagation()}>
+        <div
+          className="schedule__output-overlay"
+          onClick={() => setViewIdx(null)}
+        >
+          <div
+            className="schedule__output-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="schedule__modal-header">
               <h3>{name} — Run Output</h3>
-              <button className="schedule__modal-close" onClick={() => setViewIdx(null)}>
+              <button
+                className="schedule__modal-close"
+                onClick={() => setViewIdx(null)}
+              >
                 <IconX />
               </button>
             </div>
@@ -289,7 +338,9 @@ function JobDetail({ name, autoOpenRun }: { name: string; autoOpenRun?: string |
             <div className="schedule__modal-footer">
               <button
                 className="schedule__modal-cancel"
-                onClick={() => openArtifact.mutate(reversedLogs[viewIdx].output)}
+                onClick={() =>
+                  openArtifact.mutate(reversedLogs[viewIdx].output)
+                }
               >
                 Open File
               </button>
@@ -324,16 +375,22 @@ const CRON_SYNTAX = [
   { sym: '/', desc: 'step values' },
 ];
 
-function validateCronField(value: string, min: number, max: number): string | null {
+function validateCronField(
+  value: string,
+  min: number,
+  max: number,
+): string | null {
   if (!value || value.trim() === '') return 'required';
   if (value === '*') return null;
   for (const part of value.split(',')) {
     const [range, step] = part.split('/');
-    if (step && (Number.isNaN(+step) || +step < 1)) return `invalid step "${step}"`;
+    if (step && (Number.isNaN(+step) || +step < 1))
+      return `invalid step "${step}"`;
     if (range === '*') continue;
     if (range.includes('-')) {
       const [a, b] = range.split('-').map(Number);
-      if (Number.isNaN(a) || Number.isNaN(b)) return `"${range}" is not a valid range`;
+      if (Number.isNaN(a) || Number.isNaN(b))
+        return `"${range}" is not a valid range`;
       if (a < min || b > max) return `range must be ${min}-${max}`;
       if (a > b) return `${a} > ${b} in range`;
     } else {
@@ -345,7 +402,13 @@ function validateCronField(value: string, min: number, max: number): string | nu
   return null;
 }
 
-function CronEditor({ value, onChange }: { value: string; onChange: (cron: string) => void }) {
+function CronEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (cron: string) => void;
+}) {
   const parts = (value || '* * * * *').split(/\s+/);
   while (parts.length < 5) parts.push('*');
   const [active, setActive] = useState<number | null>(null);
@@ -357,20 +420,26 @@ function CronEditor({ value, onChange }: { value: string; onChange: (cron: strin
     onChange(next.join(' '));
   };
 
-  const errors = parts.map((p, i) => validateCronField(p, CRON_FIELDS[i].allowed[0], CRON_FIELDS[i].allowed[1]));
-  const hasError = errors.some(e => e !== null);
-  const activeErr = active !== null ? errors[active] : null;
+  const errors = parts.map((p, i) =>
+    validateCronField(p, CRON_FIELDS[i].allowed[0], CRON_FIELDS[i].allowed[1]),
+  );
+  const hasError = errors.some((e) => e !== null);
+  const _activeErr = active !== null ? errors[active] : null;
 
   return (
     <div className="cron-editor">
-      <div className={`cron-editor__fields ${hasError ? 'cron-editor__fields--error' : ''}`}>
+      <div
+        className={`cron-editor__fields ${hasError ? 'cron-editor__fields--error' : ''}`}
+      >
         {parts.map((p, i) => (
           <input
             key={i}
-            ref={el => { inputRefs.current[i] = el; }}
+            ref={(el) => {
+              inputRefs.current[i] = el;
+            }}
             className={`cron-editor__input ${errors[i] ? 'cron-editor__input--error' : ''}`}
             value={p}
-            onChange={e => setPart(i, e.target.value)}
+            onChange={(e) => setPart(i, e.target.value)}
             onFocus={() => setActive(i)}
             onBlur={() => setActive(null)}
           />
@@ -394,15 +463,19 @@ function CronEditor({ value, onChange }: { value: string; onChange: (cron: strin
           <div className="cron-editor__help">
             <table className="cron-editor__syntax">
               <tbody>
-                {CRON_SYNTAX.map(s => (
+                {CRON_SYNTAX.map((s) => (
                   <tr key={s.sym}>
                     <td className="cron-editor__sym">{s.sym}</td>
                     <td>{s.desc}</td>
                   </tr>
                 ))}
                 <tr className={err ? 'cron-editor__syntax--error' : ''}>
-                  <td className="cron-editor__sym">{field ? field.range : '—'}</td>
-                  <td>{err || (field ? 'allowed values' : 'select a field')}</td>
+                  <td className="cron-editor__sym">
+                    {field ? field.range : '—'}
+                  </td>
+                  <td>
+                    {err || (field ? 'allowed values' : 'select a field')}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -418,18 +491,46 @@ function cronToHuman(cron: string, referenceDate?: Date): string | null {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return null;
   // Bail if any field has invalid characters (only digits, *, /, -, , allowed)
-  if (parts.some(p => !/^[\d*,\-/]+$/.test(p))) return null;
+  if (parts.some((p) => !/^[\d*,\-/]+$/.test(p))) return null;
   const [min, hour, dom, mon, dow] = parts;
 
-  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const DAYS = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  const MONTHS = [
+    '',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
 
   // Format time in local timezone, using referenceDate to get correct DST offset
   const fmtTime = (h: string, m: string) => {
     const d = referenceDate ? new Date(referenceDate) : new Date();
     d.setUTCHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    const tz = d.toLocaleTimeString(undefined, { timeZoneName: 'short' }).split(' ').pop();
+    const time = d.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    const tz = d
+      .toLocaleTimeString(undefined, { timeZoneName: 'short' })
+      .split(' ')
+      .pop();
     return `${time} ${tz}`;
   };
 
@@ -437,13 +538,16 @@ function cronToHuman(cron: string, referenceDate?: Date): string | null {
     if (d === '*') return '';
     if (d === '1-5') return 'Monday through Friday';
     if (d === '0,6') return 'weekends';
-    return d.split(',').map(v => {
-      if (v.includes('-')) {
-        const [a, b] = v.split('-').map(Number);
-        return `${DAYS[a]} through ${DAYS[b]}`;
-      }
-      return DAYS[parseInt(v, 10)] || v;
-    }).join(', ');
+    return d
+      .split(',')
+      .map((v) => {
+        if (v.includes('-')) {
+          const [a, b] = v.split('-').map(Number);
+          return `${DAYS[a]} through ${DAYS[b]}`;
+        }
+        return DAYS[parseInt(v, 10)] || v;
+      })
+      .join(', ');
   };
 
   const fmtDom = (d: string) => {
@@ -453,26 +557,53 @@ function cronToHuman(cron: string, referenceDate?: Date): string | null {
 
   const fmtMon = (m: string) => {
     if (m === '*') return '';
-    return `in ${m.split(',').map(v => MONTHS[parseInt(v, 10)] || v).join(', ')}`;
+    return `in ${m
+      .split(',')
+      .map((v) => MONTHS[parseInt(v, 10)] || v)
+      .join(', ')}`;
   };
 
   try {
-    const time = (hour !== '*' && min !== '*') ? fmtTime(hour, min)
-      : hour === '*' && min === '*' ? 'every minute'
-      : hour === '*' && min !== '*' ? `every hour at :${/^\d+$/.test(min) ? min.padStart(2, '0') : min}`
-      : `at minute ${min} of every hour`;
+    const time =
+      hour !== '*' && min !== '*'
+        ? fmtTime(hour, min)
+        : hour === '*' && min === '*'
+          ? 'every minute'
+          : hour === '*' && min !== '*'
+            ? `every hour at :${/^\d+$/.test(min) ? min.padStart(2, '0') : min}`
+            : `at minute ${min} of every hour`;
     const dowStr = fmtDow(dow);
     const domStr = fmtDom(dom);
     const monStr = fmtMon(mon);
 
-    if (hour !== '*' && min !== '*' && dom === '*' && mon === '*' && dow === '*') return `Daily at ${time}`;
-    if (hour !== '*' && min !== '*' && dom === '*' && mon === '*' && dow === '1-5') return `Weekdays at ${time}`;
-    if (hour !== '*' && min !== '*' && dom === '*' && mon === '*' && dowStr) return `At ${time} on ${dowStr}`;
-    if (hour !== '*' && min !== '*' && domStr && mon === '*' && dow === '*') return `At ${time} ${domStr}`;
+    if (
+      hour !== '*' &&
+      min !== '*' &&
+      dom === '*' &&
+      mon === '*' &&
+      dow === '*'
+    )
+      return `Daily at ${time}`;
+    if (
+      hour !== '*' &&
+      min !== '*' &&
+      dom === '*' &&
+      mon === '*' &&
+      dow === '1-5'
+    )
+      return `Weekdays at ${time}`;
+    if (hour !== '*' && min !== '*' && dom === '*' && mon === '*' && dowStr)
+      return `At ${time} on ${dowStr}`;
+    if (hour !== '*' && min !== '*' && domStr && mon === '*' && dow === '*')
+      return `At ${time} ${domStr}`;
 
-    const pieces = [time, domStr, monStr, dowStr ? `on ${dowStr}` : ''].filter(Boolean);
+    const pieces = [time, domStr, monStr, dowStr ? `on ${dowStr}` : ''].filter(
+      Boolean,
+    );
     return pieces.join(' ') || null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /* ── Cron Preview ── */
@@ -483,30 +614,53 @@ function CronPreview({ cron }: { cron: string }) {
   const valid = data && Array.isArray(data) && data.length > 0;
   const human = cronToHuman(cron, valid ? new Date(data[0]) : undefined);
 
-  if (isLoading) return (
-    <div className="schedule__cron-preview">
-      <div className="schedule__cron-human schedule__cron-human--muted">{human || '--'}</div>
-      <span className="schedule__cron-label">Next fires:</span>
-      <span className="schedule__cron-time">...</span>
-    </div>
-  );
+  if (isLoading)
+    return (
+      <div className="schedule__cron-preview">
+        <div className="schedule__cron-human schedule__cron-human--muted">
+          {human || '--'}
+        </div>
+        <span className="schedule__cron-label">Next fires:</span>
+        <span className="schedule__cron-time">...</span>
+      </div>
+    );
 
   return (
     <div className="schedule__cron-preview">
-      <div className={`schedule__cron-human ${valid ? '' : 'schedule__cron-human--muted'}`}>{human || '--'}</div>
+      <div
+        className={`schedule__cron-human ${valid ? '' : 'schedule__cron-human--muted'}`}
+      >
+        {human || '--'}
+      </div>
       <span className="schedule__cron-label">Next fires:</span>
-      {valid
-        ? data.slice(0, 3).map((d: any, i: number) => (
-            <span key={i} className="schedule__cron-time">{new Date(d).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}</span>
-          ))
-        : <span className="schedule__cron-time">--</span>
-      }
+      {valid ? (
+        data.slice(0, 3).map((d: any, i: number) => (
+          <span key={i} className="schedule__cron-time">
+            {new Date(d).toLocaleString(undefined, {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+              timeZoneName: 'short',
+            })}
+          </span>
+        ))
+      ) : (
+        <span className="schedule__cron-time">--</span>
+      )}
     </div>
   );
 }
 
 /* ── Agent Picker ── */
-function AgentPicker({ value, onChange }: { value: string; onChange: (slug: string) => void }) {
+function AgentPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (slug: string) => void;
+}) {
   const agents = useAgents();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -517,20 +671,31 @@ function AgentPicker({ value, onChange }: { value: string; onChange: (slug: stri
   const filtered = useMemo(() => {
     if (!filter) return agents;
     const q = filter.toLowerCase();
-    return agents.filter((a) => a.name.toLowerCase().includes(q) || a.slug.toLowerCase().includes(q));
+    return agents.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) || a.slug.toLowerCase().includes(q),
+    );
   }, [agents, filter]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (triggerRef.current?.contains(e.target as Node) || dropRef.current?.contains(e.target as Node)) return;
+      if (
+        triggerRef.current?.contains(e.target as Node) ||
+        dropRef.current?.contains(e.target as Node)
+      )
+        return;
       setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   useEffect(() => {
     if (!open || !triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
@@ -543,10 +708,20 @@ function AgentPicker({ value, onChange }: { value: string; onChange: (slug: stri
     return (tc.available?.length || 0) + (tc.mcpServers?.length || 0);
   };
 
-  const select = (slug: string) => { onChange(slug); setOpen(false); setFilter(''); };
+  const select = (slug: string) => {
+    onChange(slug);
+    setOpen(false);
+    setFilter('');
+  };
 
   if (!agents.length) {
-    return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="agent slug" />;
+    return (
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="agent slug"
+      />
+    );
   }
 
   return (
@@ -554,67 +729,177 @@ function AgentPicker({ value, onChange }: { value: string; onChange: (slug: stri
       <div
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        style={{ padding: '0.5rem', border: '1px solid var(--border-primary)', borderRadius: '0.375rem', background: 'var(--bg-input)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)', minHeight: '2.25rem' }}
+        style={{
+          padding: '0.5rem',
+          border: '1px solid var(--border-primary)',
+          borderRadius: '0.375rem',
+          background: 'var(--bg-input)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          color: 'var(--text-primary)',
+          minHeight: '2.25rem',
+        }}
       >
         {selected && <AgentIcon agent={selected} size="small" />}
-        <span style={{ flex: 1 }}>{selected ? selected.name : value || 'Select agent…'}</span>
-        {selected && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{selected.model || 'default model'}</span>}
+        <span style={{ flex: 1 }}>
+          {selected ? selected.name : value || 'Select agent…'}
+        </span>
+        {selected && (
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+            {selected.model || 'default model'}
+          </span>
+        )}
         <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>▼</span>
       </div>
-      {open && pos && createPortal(
-        <div
-          ref={dropRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 10000, background: 'var(--bg-elevated)', border: '1px solid var(--border-primary)', borderRadius: '0.375rem', maxHeight: 280, overflow: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
-        >
-          {agents.length > 1 && (
-            <div style={{ padding: '0.375rem', borderBottom: '1px solid var(--border-primary)' }}>
-              <input
-                autoFocus
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter agents…"
-                onClick={(e) => e.stopPropagation()}
-                style={{ width: '100%', padding: '0.375rem 0.5rem', border: '1px solid var(--border-primary)', borderRadius: '0.25rem', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem', boxSizing: 'border-box' }}
-              />
-            </div>
-          )}
-          {filtered.map((a) => (
-            <div
-              key={a.slug}
-              onClick={() => select(a.slug)}
-              style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, background: a.slug === value ? 'var(--bg-highlight)' : undefined }}
-              onMouseEnter={(e) => { if (a.slug !== value) (e.currentTarget.style.background = 'var(--bg-hover)'); }}
-              onMouseLeave={(e) => { if (a.slug !== value) (e.currentTarget.style.background = ''); }}
-            >
-              <AgentIcon agent={a} size={28} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                  {a.name}
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 6, fontWeight: 400 }}>{a.slug}</span>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 1 }}>
-                  {a.model || 'default model'}{toolCount(a) > 0 ? ` · ${toolCount(a)} tools` : ''}
-                </div>
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={dropRef}
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              left: pos.left,
+              width: pos.width,
+              zIndex: 10000,
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-primary)',
+              borderRadius: '0.375rem',
+              maxHeight: 280,
+              overflow: 'auto',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}
+          >
+            {agents.length > 1 && (
+              <div
+                style={{
+                  padding: '0.375rem',
+                  borderBottom: '1px solid var(--border-primary)',
+                }}
+              >
+                <input
+                  autoFocus
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filter agents…"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    width: '100%',
+                    padding: '0.375rem 0.5rem',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '0.25rem',
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.8rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
-              {a.slug === value && <span style={{ color: 'var(--accent-primary)', fontSize: '0.8rem' }}>✓</span>}
-            </div>
-          ))}
-          {filtered.length === 0 && (
-            <div style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>No matching agents</div>
-          )}
-        </div>,
-        document.body,
-      )}
+            )}
+            {filtered.map((a) => (
+              <div
+                key={a.slug}
+                onClick={() => select(a.slug)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background:
+                    a.slug === value ? 'var(--bg-highlight)' : undefined,
+                }}
+                onMouseEnter={(e) => {
+                  if (a.slug !== value)
+                    e.currentTarget.style.background = 'var(--bg-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  if (a.slug !== value) e.currentTarget.style.background = '';
+                }}
+              >
+                <AgentIcon agent={a} size={28} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {a.name}
+                    <span
+                      style={{
+                        fontSize: '0.7rem',
+                        color: 'var(--text-muted)',
+                        marginLeft: 6,
+                        fontWeight: 400,
+                      }}
+                    >
+                      {a.slug}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '0.7rem',
+                      color: 'var(--text-muted)',
+                      marginTop: 1,
+                    }}
+                  >
+                    {a.model || 'default model'}
+                    {toolCount(a) > 0 ? ` · ${toolCount(a)} tools` : ''}
+                  </div>
+                </div>
+                {a.slug === value && (
+                  <span
+                    style={{
+                      color: 'var(--accent-primary)',
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    ✓
+                  </span>
+                )}
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div
+                style={{
+                  padding: '0.75rem',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.8rem',
+                  textAlign: 'center',
+                }}
+              >
+                No matching agents
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
 
 /* ── Job Form Modal (Add / Edit) ── */
-function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; prefill?: any; onClose: () => void; providers?: any[] }) {
+function JobFormModal({
+  job,
+  prefill,
+  onClose,
+  providers = [],
+}: {
+  job?: any;
+  prefill?: any;
+  onClose: () => void;
+  providers?: any[];
+}) {
   const isEdit = !!job;
   const addJob = useAddJob();
   const editJob = useEditJob();
-  const [selectedProvider, setSelectedProvider] = useState(job?.provider || providers[0]?.id || 'built-in');
+  const [selectedProvider, setSelectedProvider] = useState(
+    job?.provider || providers[0]?.id || 'built-in',
+  );
   const activeProvider = providers.find((p: any) => p.id === selectedProvider);
   const extraFields: any[] = activeProvider?.formFields || [];
   const init = prefill || {};
@@ -624,7 +909,9 @@ function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; pr
     cron: job?.schedule?.replace(/^cron\s+/, '') || init.cron || '* * * * *',
     prompt: job?.prompt || init.prompt || '',
     agent: job?.agent || init.agent || 'default',
-    ...Object.fromEntries(extraFields.map((f: any) => [f.key, job?.[f.key] || ''])),
+    ...Object.fromEntries(
+      extraFields.map((f: any) => [f.key, job?.[f.key] || '']),
+    ),
   });
   const [cronInput, setCronInput] = useState(form.cron);
 
@@ -633,16 +920,24 @@ function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; pr
     return () => clearTimeout(t);
   }, [form.cron]);
 
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm(f => ({ ...f, [field]: e.target.value }));
+  const set =
+    (field: string) =>
+    (
+      e: React.ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >,
+    ) =>
+      setForm((f) => ({ ...f, [field]: e.target.value }));
 
-  const setBool = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm(f => ({ ...f, [field]: e.target.checked }));
+  const _setBool =
+    (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm((f) => ({ ...f, [field]: e.target.checked }));
 
   const handleSubmit = () => {
     if (isEdit) {
       const opts: Record<string, string> = {};
-      if (form.cron && form.cron !== job.schedule?.replace(/^cron\s+/, '')) opts.cron = form.cron;
+      if (form.cron && form.cron !== job.schedule?.replace(/^cron\s+/, ''))
+        opts.cron = form.cron;
       if (form.prompt !== (job.prompt || '')) opts.prompt = form.prompt;
       if (form.agent !== (job.agent || '')) opts.agent = form.agent;
       for (const f of extraFields) {
@@ -651,14 +946,21 @@ function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; pr
       editJob.mutate({ target: job.name, ...opts }, { onSuccess: onClose });
     } else {
       if (!form.name.trim()) return;
-      addJob.mutate({
-        name: form.name,
-        provider: selectedProvider,
-        cron: form.cron || undefined,
-        prompt: form.prompt || undefined,
-        agent: form.agent || undefined,
-        ...Object.fromEntries(extraFields.map((f: any) => [f.key, form[f.key] || undefined]).filter(([, v]: any) => v)),
-      }, { onSuccess: onClose });
+      addJob.mutate(
+        {
+          name: form.name,
+          provider: selectedProvider,
+          cron: form.cron || undefined,
+          prompt: form.prompt || undefined,
+          agent: form.agent || undefined,
+          ...Object.fromEntries(
+            extraFields
+              .map((f: any) => [f.key, form[f.key] || undefined])
+              .filter(([, v]: any) => v),
+          ),
+        },
+        { onSuccess: onClose },
+      );
     }
   };
 
@@ -666,18 +968,25 @@ function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; pr
 
   return (
     <div className="schedule__modal-overlay" onClick={onClose}>
-      <div className="schedule__modal" onClick={e => e.stopPropagation()}>
+      <div className="schedule__modal" onClick={(e) => e.stopPropagation()}>
         <div className="schedule__modal-header">
           <h3>{isEdit ? `Edit: ${job.name}` : 'Add Job'}</h3>
-          <button className="schedule__modal-close" onClick={onClose}>&times;</button>
+          <button className="schedule__modal-close" onClick={onClose}>
+            &times;
+          </button>
         </div>
         <div className="schedule__modal-body">
           {!isEdit && providers.length > 1 && (
             <label className="schedule__field">
               <span className="schedule__field-label">Run with</span>
-              <select value={selectedProvider} onChange={(e) => setSelectedProvider(e.target.value)}>
+              <select
+                value={selectedProvider}
+                onChange={(e) => setSelectedProvider(e.target.value)}
+              >
                 {providers.map((p: any) => (
-                  <option key={p.id} value={p.id}>{p.displayName}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.displayName}
+                  </option>
                 ))}
               </select>
             </label>
@@ -685,40 +994,79 @@ function JobFormModal({ job, prefill, onClose, providers = [] }: { job?: any; pr
           {!isEdit && (
             <label className="schedule__field">
               <span className="schedule__field-label">Name</span>
-              <input value={form.name} onChange={set('name')} placeholder="my-daily-briefing" />
+              <input
+                value={form.name}
+                onChange={set('name')}
+                placeholder="my-daily-briefing"
+              />
             </label>
           )}
           <label className="schedule__field">
             <span className="schedule__field-label">Agent</span>
-            <AgentPicker value={form.agent} onChange={(v) => setForm(f => ({ ...f, agent: v }))} />
+            <AgentPicker
+              value={form.agent}
+              onChange={(v) => setForm((f) => ({ ...f, agent: v }))}
+            />
           </label>
           <label className="schedule__field">
             <span className="schedule__field-label">Prompt</span>
-            <textarea value={form.prompt} onChange={set('prompt')} rows={3} placeholder="What should the agent do?" />
+            <textarea
+              value={form.prompt}
+              onChange={set('prompt')}
+              rows={3}
+              placeholder="What should the agent do?"
+            />
           </label>
           <div className="schedule__form-divider" />
           <label className="schedule__field">
             <span className="schedule__field-label">Schedule</span>
-            <CronEditor value={form.cron} onChange={(v) => setForm(f => ({ ...f, cron: v }))} />
+            <CronEditor
+              value={form.cron}
+              onChange={(v) => setForm((f) => ({ ...f, cron: v }))}
+            />
             <CronPreview cron={cronInput} />
           </label>
           {extraFields.length > 0 && <div className="schedule__form-divider" />}
           {extraFields.map((f: any) => (
             <label key={f.key} className="schedule__field">
-              <span className="schedule__field-label">{f.label} {f.hint && <span className="schedule__field-hint">({f.hint})</span>}</span>
+              <span className="schedule__field-label">
+                {f.label}{' '}
+                {f.hint && (
+                  <span className="schedule__field-hint">({f.hint})</span>
+                )}
+              </span>
               {f.type === 'boolean' ? (
-                <Toggle checked={!!form[f.key]} onChange={(v) => setForm(prev => ({ ...prev, [f.key]: v }))} size="sm" />
+                <Toggle
+                  checked={!!form[f.key]}
+                  onChange={(v) => setForm((prev) => ({ ...prev, [f.key]: v }))}
+                  size="sm"
+                />
               ) : f.type === 'textarea' ? (
-                <textarea value={form[f.key] || ''} onChange={set(f.key)} rows={3} placeholder={f.placeholder} />
+                <textarea
+                  value={form[f.key] || ''}
+                  onChange={set(f.key)}
+                  rows={3}
+                  placeholder={f.placeholder}
+                />
               ) : (
-                <input value={form[f.key] || ''} onChange={set(f.key)} placeholder={f.placeholder} />
+                <input
+                  value={form[f.key] || ''}
+                  onChange={set(f.key)}
+                  placeholder={f.placeholder}
+                />
               )}
             </label>
           ))}
         </div>
         <div className="schedule__modal-footer">
-          <button className="schedule__modal-cancel" onClick={onClose}>Cancel</button>
-          <button className="schedule__modal-submit" onClick={handleSubmit} disabled={pending || (!isEdit && !form.name.trim())}>
+          <button className="schedule__modal-cancel" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="schedule__modal-submit"
+            onClick={handleSubmit}
+            disabled={pending || (!isEdit && !form.name.trim())}
+          >
             {pending ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Job'}
           </button>
         </div>
@@ -748,7 +1096,12 @@ export function ScheduleView() {
   const [editingJob, setEditingJob] = useState<any | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [prefill, setPrefill] = useState<any>(null);
-  const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; variant: 'danger' | 'warning'; onConfirm: () => void } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    variant: 'danger' | 'warning';
+    onConfirm: () => void;
+  } | null>(null);
   const deepLinked = useRef(false);
   const [autoOpenRun, setAutoOpenRun] = useState<string | null>(null);
 
@@ -775,7 +1128,10 @@ export function ScheduleView() {
 
   const enrichedJobs = jobs.map((job: any) => {
     const js = statsMap.get(job.name);
-    return { ...job, successRate: js ? (js.total > 0 ? js.success_rate : -1) : -1 };
+    return {
+      ...job,
+      successRate: js ? (js.total > 0 ? js.success_rate : -1) : -1,
+    };
   });
 
   const {
@@ -799,17 +1155,35 @@ export function ScheduleView() {
     return (
       <div className="schedule__setup">
         <div className="schedule__setup-header">
-          <div className="schedule__setup-icon">⏰</div>
+          <div className="schedule__setup-icon">
+            <svg
+              viewBox="0 0 24 24"
+              width="48"
+              height="48"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+              <line x1="4" y1="4" x2="20" y2="20" />
+            </svg>
+          </div>
           <h2 className="schedule__setup-title">Scheduler Unavailable</h2>
           <p className="schedule__setup-desc">
-            Could not connect to the scheduler service. Check that the server is running.
+            Could not connect to the scheduler service. Check that the server is
+            running.
           </p>
         </div>
       </div>
     );
   }
 
-  const daemonOk = !statusError && Object.values(status?.providers || {}).some((p: any) => p.running);
+  const daemonOk =
+    !statusError &&
+    Object.values(status?.providers || {}).some((p: any) => p.running);
   const totalRuns = stats?.summary?.totalRuns ?? 0;
   const successRate = stats?.summary?.successRate ?? -1;
 
@@ -822,7 +1196,12 @@ export function ScheduleView() {
           <p className="page__subtitle">Manage scheduled jobs and automation</p>
         </div>
         <div className="page__actions">
-          <button className="page__btn-primary" onClick={() => setShowAddForm(true)}>+ Add Job</button>
+          <button
+            className="page__btn-primary"
+            onClick={() => setShowAddForm(true)}
+          >
+            + Add Job
+          </button>
         </div>
       </div>
 
@@ -901,43 +1280,48 @@ export function ScheduleView() {
                           return d.getUTCHours();
                         };
                         return [
-                        {
-                          name: 'good-morning',
-                          label: '☀️ Morning Briefing',
-                          cron: `0 ${utcHour(8)} * * 1-5`,
-                          prompt:
-                            'Review my calendar and email for today. Summarize priorities, prep for meetings, and flag anything urgent.',
-                          meta: 'Weekdays · 8:00 AM',
-                        },
-                        {
-                          name: 'catch-up-emails',
-                          label: '📧 Email Catch-up',
-                          cron: `0 ${utcHour(12)} * * 1-5`,
-                          prompt:
-                            'Check my recent emails and summarize anything I need to respond to or follow up on.',
-                          meta: 'Weekdays · 12:00 PM',
-                        },
-                        {
-                          name: 'wrap-up-day',
-                          label: '🌙 End of Day Wrap',
-                          cron: `0 ${utcHour(17)} * * 1-5`,
-                          prompt:
-                            'Summarize what I accomplished today. Check for any customer meetings that need activity logging. Preview tomorrow.',
-                          meta: 'Weekdays · 5:00 PM',
-                        },
-                        {
-                          name: 'prep-week',
-                          label: '📋 Weekly Prep',
-                          cron: `0 ${utcHour(8)} * * 1`,
-                          prompt:
-                            'Prepare my weekly overview: key meetings, customer engagements, deadlines, and priorities for the week ahead.',
-                          meta: 'Mondays · 8:00 AM',
-                        },
-                      ];})().map((t) => (
+                          {
+                            name: 'good-morning',
+                            label: '☀️ Morning Briefing',
+                            cron: `0 ${utcHour(8)} * * 1-5`,
+                            prompt:
+                              'Review my calendar and email for today. Summarize priorities, prep for meetings, and flag anything urgent.',
+                            meta: 'Weekdays · 8:00 AM',
+                          },
+                          {
+                            name: 'catch-up-emails',
+                            label: '📧 Email Catch-up',
+                            cron: `0 ${utcHour(12)} * * 1-5`,
+                            prompt:
+                              'Check my recent emails and summarize anything I need to respond to or follow up on.',
+                            meta: 'Weekdays · 12:00 PM',
+                          },
+                          {
+                            name: 'wrap-up-day',
+                            label: '🌙 End of Day Wrap',
+                            cron: `0 ${utcHour(17)} * * 1-5`,
+                            prompt:
+                              'Summarize what I accomplished today. Check for any customer meetings that need activity logging. Preview tomorrow.',
+                            meta: 'Weekdays · 5:00 PM',
+                          },
+                          {
+                            name: 'prep-week',
+                            label: '📋 Weekly Prep',
+                            cron: `0 ${utcHour(8)} * * 1`,
+                            prompt:
+                              'Prepare my weekly overview: key meetings, customer engagements, deadlines, and priorities for the week ahead.',
+                            meta: 'Mondays · 8:00 AM',
+                          },
+                        ];
+                      })().map((t) => (
                         <button
                           key={t.name}
                           onClick={() => {
-                            setPrefill({ name: t.name, cron: t.cron, prompt: t.prompt });
+                            setPrefill({
+                              name: t.name,
+                              cron: t.cron,
+                              prompt: t.prompt,
+                            });
                             setShowAddForm(true);
                           }}
                           className="schedule__starter-btn"
@@ -945,14 +1329,13 @@ export function ScheduleView() {
                           <div className="schedule__starter-label">
                             {t.label}
                           </div>
-                          <div className="schedule__starter-meta">
-                            {t.meta}
-                          </div>
+                          <div className="schedule__starter-meta">{t.meta}</div>
                         </button>
                       ))}
                     </div>
                     <p className="schedule__starter-hint">
-                      Templates pre-fill the form — you choose the agent and schedule.
+                      Templates pre-fill the form — you choose the agent and
+                      schedule.
                     </p>
                   </div>
                 )}
@@ -1002,7 +1385,7 @@ export function ScheduleView() {
                       const running = isRunning(job.name);
                       return (
                         <Fragment key={job.id}>
-                        <tr
+                          <tr
                             data-testid={`job-row-${job.name}`}
                             className={`schedule__row ${isExpanded ? 'schedule__row--expanded' : ''}`}
                             onClick={() =>
@@ -1019,22 +1402,45 @@ export function ScheduleView() {
                             </td>
                             <td className="schedule__td schedule__td--schedule">
                               <div>{job.cron || '-'}</div>
-                              {job.cron && <div className="schedule__cron-human-inline">{cronToHuman(job.cron, job.nextRun ? new Date(job.nextRun) : undefined) || ''}</div>}
+                              {job.cron && (
+                                <div className="schedule__cron-human-inline">
+                                  {cronToHuman(
+                                    job.cron,
+                                    job.nextRun
+                                      ? new Date(job.nextRun)
+                                      : undefined,
+                                  ) || ''}
+                                </div>
+                              )}
                             </td>
-                            <td className="schedule__td" onClick={(e) => {
-                              e.stopPropagation();
-                              if (running) {
-                                setConfirmAction({
-                                  title: 'Cancel Running Job',
-                                  message: `Disabling '${job.name}' will cancel the currently running job. Continue?`,
-                                  variant: 'warning',
-                                  onConfirm: () => { toggleJob.mutate({ target: job.name, enabled: false }); setConfirmAction(null); },
-                                });
-                              } else {
-                                toggleJob.mutate({ target: job.name, enabled: !job.enabled });
-                              }
-                            }}>
-                              <span className={`schedule__status schedule__status--clickable`}>
+                            <td
+                              className="schedule__td"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (running) {
+                                  setConfirmAction({
+                                    title: 'Cancel Running Job',
+                                    message: `Disabling '${job.name}' will cancel the currently running job. Continue?`,
+                                    variant: 'warning',
+                                    onConfirm: () => {
+                                      toggleJob.mutate({
+                                        target: job.name,
+                                        enabled: false,
+                                      });
+                                      setConfirmAction(null);
+                                    },
+                                  });
+                                } else {
+                                  toggleJob.mutate({
+                                    target: job.name,
+                                    enabled: !job.enabled,
+                                  });
+                                }
+                              }}
+                            >
+                              <span
+                                className={`schedule__status schedule__status--clickable`}
+                              >
                                 <span
                                   className={`schedule__status-dot ${
                                     running
@@ -1107,7 +1513,10 @@ export function ScheduleView() {
                                       title: 'Delete Job',
                                       message: `Delete job "${job.name}"? This cannot be undone.`,
                                       variant: 'danger',
-                                      onConfirm: () => { deleteJob.mutate(job.name); setConfirmAction(null); },
+                                      onConfirm: () => {
+                                        deleteJob.mutate(job.name);
+                                        setConfirmAction(null);
+                                      },
                                     });
                                   }}
                                   className="schedule__action-btn schedule__action-btn--danger"
@@ -1130,25 +1539,69 @@ export function ScheduleView() {
                                       {job.openArtifact && (
                                         <button
                                           onClick={() =>
-                                            openArtifact.mutate(job.openArtifact)
+                                            openArtifact.mutate(
+                                              job.openArtifact,
+                                            )
                                           }
                                           className="page__btn-primary"
-                                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                                          style={{
+                                            fontSize: '0.75rem',
+                                            padding: '0.35rem 0.75rem',
+                                          }}
                                         >
                                           Open Latest Artifact
                                         </button>
                                       )}
                                     </div>
                                   </div>
-                                  {(job.description || job.prompt || job.command || job.agent) && (
+                                  {(job.description ||
+                                    job.prompt ||
+                                    job.command ||
+                                    job.agent) && (
                                     <div className="schedule__detail-meta">
-                                      {job.description && <div className="schedule__detail-desc">{job.description}</div>}
-                                      {job.agent && <div className="schedule__detail-field"><span className="schedule__detail-label">Agent</span><span className="schedule__detail-value">{job.agent}</span></div>}
-                                      {job.prompt && <div className="schedule__detail-field"><span className="schedule__detail-label">Prompt</span><span className="schedule__detail-value">{job.prompt}</span></div>}
-                                      {job.command && <div className="schedule__detail-field"><span className="schedule__detail-label">Command</span><code className="schedule__detail-code">{job.command}</code></div>}
+                                      {job.description && (
+                                        <div className="schedule__detail-desc">
+                                          {job.description}
+                                        </div>
+                                      )}
+                                      {job.agent && (
+                                        <div className="schedule__detail-field">
+                                          <span className="schedule__detail-label">
+                                            Agent
+                                          </span>
+                                          <span className="schedule__detail-value">
+                                            {job.agent}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {job.prompt && (
+                                        <div className="schedule__detail-field">
+                                          <span className="schedule__detail-label">
+                                            Prompt
+                                          </span>
+                                          <span className="schedule__detail-value">
+                                            {job.prompt}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {job.command && (
+                                        <div className="schedule__detail-field">
+                                          <span className="schedule__detail-label">
+                                            Command
+                                          </span>
+                                          <code className="schedule__detail-code">
+                                            {job.command}
+                                          </code>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
-                                  <JobDetail name={job.name} autoOpenRun={expanded === job.name ? autoOpenRun : null} />
+                                  <JobDetail
+                                    name={job.name}
+                                    autoOpenRun={
+                                      expanded === job.name ? autoOpenRun : null
+                                    }
+                                  />
                                 </div>
                               </td>
                             </tr>
@@ -1163,9 +1616,36 @@ export function ScheduleView() {
           </div>
         </>
       )}
-      {editingJob && <JobFormModal job={editingJob} onClose={() => setEditingJob(null)} providers={providers} />}
-      {showAddForm && <JobFormModal prefill={prefill} onClose={() => { setShowAddForm(false); setPrefill(null); }} providers={providers} />}
-      {confirmAction && <ConfirmModal isOpen title={confirmAction.title} message={confirmAction.message} variant={confirmAction.variant} confirmLabel={confirmAction.variant === 'danger' ? 'Delete' : 'Disable'} onConfirm={confirmAction.onConfirm} onCancel={() => setConfirmAction(null)} />}
+      {editingJob && (
+        <JobFormModal
+          job={editingJob}
+          onClose={() => setEditingJob(null)}
+          providers={providers}
+        />
+      )}
+      {showAddForm && (
+        <JobFormModal
+          prefill={prefill}
+          onClose={() => {
+            setShowAddForm(false);
+            setPrefill(null);
+          }}
+          providers={providers}
+        />
+      )}
+      {confirmAction && (
+        <ConfirmModal
+          isOpen
+          title={confirmAction.title}
+          message={confirmAction.message}
+          variant={confirmAction.variant}
+          confirmLabel={
+            confirmAction.variant === 'danger' ? 'Delete' : 'Disable'
+          }
+          onConfirm={confirmAction.onConfirm}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
     </div>
   );
 }

@@ -47,8 +47,14 @@ export function useChatDockState({
     } else {
       root.style.removeProperty('--chat-dock-width');
       const styles = getComputedStyle(root);
-      const headerHeight = parseInt(styles.getPropertyValue('--chat-dock-header-height'), 10);
-      const toolbarHeight = parseInt(styles.getPropertyValue('--app-toolbar-height'), 10);
+      const headerHeight = parseInt(
+        styles.getPropertyValue('--chat-dock-header-height'),
+        10,
+      );
+      const toolbarHeight = parseInt(
+        styles.getPropertyValue('--app-toolbar-height'),
+        10,
+      );
       const height = !isDockOpen
         ? headerHeight
         : isDockMaximized

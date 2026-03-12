@@ -7,7 +7,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export class JsonFileStore<T> {
-  constructor(private filePath: string, private fallback: T) {}
+  constructor(
+    private filePath: string,
+    private fallback: T,
+  ) {}
 
   read(): T {
     if (!existsSync(this.filePath)) return structuredClone(this.fallback);

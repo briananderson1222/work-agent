@@ -5,10 +5,11 @@
  * Uses node-canvas to emulate browser Canvas API (jsdom doesn't implement it).
  */
 // @vitest-environment node
-import { describe, it, expect } from 'vitest';
-import QRCode from 'qrcode';
-import jsQR from 'jsqr';
+
 import { createCanvas } from 'canvas'; // node-canvas — install as dev dep
+import jsQR from 'jsqr';
+import QRCode from 'qrcode';
+import { describe, expect, it } from 'vitest';
 
 const TEST_URL = 'http://192.168.1.42:3141';
 const SIZE = 256;

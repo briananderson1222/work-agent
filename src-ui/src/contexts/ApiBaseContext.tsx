@@ -2,8 +2,9 @@
  * ApiBaseContext — thin backward-compat wrapper over @stallion-ai/connect.
  * Consumers continue to call useApiBase() / <ApiBaseProvider> with the same API shape.
  */
-import { type ReactNode } from 'react';
+
 import { ConnectionsProvider, useConnections } from '@stallion-ai/connect';
+import { type ReactNode } from 'react';
 
 const DEFAULT_API_BASE =
   (window as Window & { __API_BASE__?: string }).__API_BASE__ ||

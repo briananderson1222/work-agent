@@ -1,5 +1,5 @@
 import { type RefObject, useEffect, useRef, useState } from 'react';
-import { useAgents, type AgentData } from '../contexts/AgentsContext';
+import { type AgentData, useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { ChatSession } from '../types';
@@ -13,7 +13,11 @@ interface ChatDockTabBarProps {
   focusSession: (id: string) => void;
   removeSession: (id: string) => void;
   openConversation: (conversationId: string, agentSlug: string) => void;
-  openChatForAgent: (agent: AgentData, projectSlug?: string, projectName?: string) => void;
+  openChatForAgent: (
+    agent: AgentData,
+    projectSlug?: string,
+    projectName?: string,
+  ) => void;
   updateChat: (id: string, updates: { title?: string }) => void;
   setShowSessionPicker: (show: boolean) => void;
   setShowNewChatModal: (show: boolean) => void;
@@ -34,10 +38,6 @@ export function ChatDockTabBar({
   updateChat,
   setShowSessionPicker,
   setShowNewChatModal,
-  projects,
-  projectFilter,
-  setProjectFilter,
-  selectedProject: _selectedProject,
 }: ChatDockTabBarProps) {
   const agents = useAgents();
   const availableModels = useModels();

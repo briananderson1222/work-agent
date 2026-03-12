@@ -5,12 +5,20 @@
 }
 
 .profile-page::before {
-  content: '';
+  content: "";
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(74, 158, 255, 0.06), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(167, 139, 250, 0.04), transparent);
+    radial-gradient(
+      ellipse 80% 50% at 50% -20%,
+      rgba(74, 158, 255, 0.06),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 80% 100%,
+      rgba(167, 139, 250, 0.04),
+      transparent
+    );
   pointer-events: none;
   z-index: -1;
 }
@@ -40,8 +48,11 @@
 /* Top hero card gets the accent treatment */
 .profile-container > .profile-card:first-child {
   padding: 2.5rem;
-  background:
-    linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 100%
+  );
   border: 1px solid var(--border-primary);
   border-radius: 14px;
   box-shadow:
@@ -50,27 +61,33 @@
 }
 
 .profile-container > .profile-card:first-child::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg,
+  background: linear-gradient(
+    90deg,
     var(--accent-primary),
     #a78bfa,
-    var(--accent-primary));
+    var(--accent-primary)
+  );
   opacity: 0.8;
 }
 
 .profile-container > .profile-card:first-child::after {
-  content: '';
+  content: "";
   position: absolute;
   top: -120px;
   right: -80px;
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, rgba(74, 158, 255, 0.04) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(74, 158, 255, 0.04) 0%,
+    transparent 70%
+  );
   pointer-events: none;
 }
 
@@ -100,8 +117,9 @@
     0 0 0 3px var(--bg-secondary),
     0 0 0 5px rgba(74, 158, 255, 0.25),
     0 8px 24px rgba(0, 0, 0, 0.2);
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.4s ease;
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s ease;
 }
 
 .profile-card:hover .profile-card__avatar {
@@ -151,7 +169,9 @@
   flex-wrap: wrap;
 }
 
-.profile-card__name { margin: 0; }
+.profile-card__name {
+  margin: 0;
+}
 
 .profile-card__alias {
   font-size: 14px;
@@ -165,11 +185,13 @@
   cursor: pointer;
   color: var(--text-muted);
   font-size: inherit;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   padding: 0;
   text-decoration: none;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
-  transition: color 0.2s, border-color 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .profile-card__alias-btn:hover {
@@ -187,10 +209,12 @@
   transition: opacity 0.15s;
 }
 
-.profile-card__copy-btn:hover { opacity: 0.7; }
+.profile-card__copy-btn:hover {
+  opacity: 0.7;
+}
 
 .profile-card__title {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -204,14 +228,14 @@
 }
 
 .profile-card__detail--muted {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.75rem;
   color: var(--text-muted);
   letter-spacing: 0.02em;
 }
 
 .profile-card__section-title {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.6rem;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -230,14 +254,16 @@
 }
 
 .profile-badge {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.75rem;
   font-weight: 500;
   padding: 0.35rem 0.85rem;
   border-radius: 8px;
   letter-spacing: 0.01em;
   backdrop-filter: blur(8px);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .profile-badge:hover {
@@ -272,9 +298,10 @@
 .profile-stats-grid > .profile-card {
   padding: 0;
   background: var(--bg-secondary);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.3s ease,
-              box-shadow 0.3s ease;
+  transition:
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .profile-stats-grid > .profile-card:hover {

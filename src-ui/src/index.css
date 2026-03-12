@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap");
 
 :root {
   --chat-dock-header-height: 55px;
@@ -228,7 +228,7 @@
 }
 
 body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg-primary);
@@ -356,7 +356,9 @@ body {
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .theme-toggle:hover {
@@ -772,7 +774,11 @@ body {
   margin: 0 0 1.5rem;
   line-height: 1.55;
 }
-.workspace-default__actions { display: flex; gap: 0.5rem; justify-content: center; }
+.workspace-default__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
 .workspace-default__btn {
   padding: 0.5rem 1.25rem;
   font-size: 0.8rem;
@@ -784,7 +790,9 @@ body {
   cursor: pointer;
   transition: opacity 0.15s;
 }
-.workspace-default__btn:hover { opacity: 0.85; }
+.workspace-default__btn:hover {
+  opacity: 0.85;
+}
 
 .chat-dock {
   position: fixed;
@@ -1395,7 +1403,7 @@ body {
   align-self: center;
   background: var(--bg-secondary);
   border: 1px solid var(--border-secondary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.9em;
   font-style: italic;
   max-width: 90%;
@@ -1571,7 +1579,7 @@ body {
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--overlay-bg-dark);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.9em;
 }
 
@@ -2040,7 +2048,7 @@ body {
 }
 
 .command-name {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-weight: 600;
   color: var(--accent-primary);
   font-size: 0.95em;
@@ -2150,14 +2158,14 @@ body {
 
 .management-view__header h2 {
   flex: 1;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .management-view__header-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0.15em;
@@ -2776,7 +2784,7 @@ body {
 }
 
 .tool-param code {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   font-weight: 600;
   color: var(--accent-primary);
@@ -2920,7 +2928,7 @@ body {
   border-radius: 8px;
   background: var(--bg-hover);
   color: var(--text-primary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 13px;
   line-height: 1.6;
   resize: none;
@@ -4130,7 +4138,7 @@ body {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 3px;
-  background: var(--bg-tertiary, rgba(0,0,0,0.06));
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.06));
   color: var(--text-muted);
 }
 
@@ -4328,7 +4336,7 @@ body {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 3px;
-  background: var(--bg-tertiary, rgba(0,0,0,0.06));
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.06));
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -4353,7 +4361,9 @@ body {
   font-size: 13px;
   color: var(--text-muted);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
   margin-bottom: 8px;
 }
 
@@ -4431,6 +4441,17 @@ body {
 
 .knowledge-section__clear-btn:hover {
   text-decoration: underline;
+}
+
+.project-dashboard__agent-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.project-dashboard__agent-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .project-dashboard__agent-meta {
@@ -4546,7 +4567,7 @@ body {
 }
 
 .chat-dock__session-project {
-  background: var(--bg-subtle, rgba(0,0,0,0.06));
+  background: var(--bg-subtle, rgba(0, 0, 0, 0.06));
   border-radius: 3px;
   padding: 1px 6px;
   font-size: 10px;
@@ -4740,7 +4761,10 @@ body {
   box-sizing: border-box;
 }
 
-.app__main--dock-right > .chat-dock .chat-dock__tab-actions .chat-dock__subtitle {
+.app__main--dock-right
+  > .chat-dock
+  .chat-dock__tab-actions
+  .chat-dock__subtitle {
   display: none;
 }
 
@@ -4930,7 +4954,7 @@ body {
 }
 
 .provider-overview__card-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.1em;

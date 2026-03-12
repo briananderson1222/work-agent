@@ -3,13 +3,16 @@
  * Uses JsonFileStore for persistence and EventBus for real-time delivery.
  */
 
-import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Notification, ScheduleNotificationOpts } from '@stallion-ai/shared';
+import { join } from 'node:path';
+import type {
+  Notification,
+  ScheduleNotificationOpts,
+} from '@stallion-ai/shared';
 import type { INotificationProvider } from '../providers/types.js';
+import { notificationOps } from '../telemetry/metrics.js';
 import type { EventBus } from './event-bus.js';
 import { JsonFileStore } from './json-store.js';
-import { notificationOps } from '../telemetry/metrics.js';
 
 export class NotificationService {
   private providers = new Map<string, INotificationProvider>();
@@ -29,8 +32,12 @@ export class NotificationService {
     this.providers.set(provider.id, provider);
   }
 
-  listProviders(): Array<{ id: string; displayName: string; categories: string[] }> {
-    return [...this.providers.values()].map(p => ({
+  listProviders(): Array<{
+    id: string;
+    displayName: string;
+    categories: string[];
+  }> {
+    return [...this.providers.values()].map((p) => ({
       id: p.id,
       displayName: p.displayName,
       categories: [...p.categories],
@@ -52,7 +59,10 @@ export class NotificationService {
   stop(): void {
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
-    if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 
   schedule(source: string, opts: ScheduleNotificationOpts): Notification {
@@ -61,9 +71,17 @@ export class NotificationService {
 
     // Dedupe by tag
     if (opts.dedupeTag) {
-      const existing = all.find(n => (n.metadata as any)?.dedupeTag === opts.dedupeTag && n.status !== 'dismissed');
+      const existing = all.find(
+        (n) =>
+          (n.metadata as any)?.dedupeTag === opts.dedupeTag &&
+          n.status !== 'dismissed',
+      );
       if (existing) {
-        Object.assign(existing, { title: opts.title, body: opts.body, updatedAt: now });
+        Object.assign(existing, {
+          title: opts.title,
+          body: opts.body,
+          updatedAt: now,
+        });
         this.store.write(all);
         return existing;
       }
@@ -91,9 +109,15 @@ export class NotificationService {
     this.store.write(all);
 
     if (notification.status === 'delivered') {
-      this.eventBus.emit('notification:delivered', notification as unknown as Record<string, unknown>);
+      this.eventBus.emit(
+        'notification:delivered',
+        notification as unknown as Record<string, unknown>,
+      );
       if (notification.ttl && notification.ttl > 0) {
-        this.timers.set(notification.id, setTimeout(() => this.expire(notification.id), notification.ttl));
+        this.timers.set(
+          notification.id,
+          setTimeout(() => this.expire(notification.id), notification.ttl),
+        );
       }
     } else {
       this.scheduleTimer(notification);
@@ -107,7 +131,7 @@ export class NotificationService {
     this.updateStatus(id, 'dismissed');
     this.clearTimer(id);
     this.eventBus.emit('notification:dismissed', { id });
-    const n = this.store.read().find(n => n.id === id);
+    const n = this.store.read().find((n) => n.id === id);
     if (n) {
       const provider = this.providers.get(n.source);
       provider?.handleDismiss?.(id);
@@ -115,7 +139,7 @@ export class NotificationService {
   }
 
   async action(id: string, actionId: string): Promise<void> {
-    const n = this.store.read().find(n => n.id === id);
+    const n = this.store.read().find((n) => n.id === id);
     if (!n) return;
     const provider = this.providers.get(n.source);
     await provider?.handleAction?.(id, actionId);
@@ -126,7 +150,7 @@ export class NotificationService {
 
   snooze(id: string, until: string): void {
     const all = this.store.read();
-    const n = all.find(n => n.id === id);
+    const n = all.find((n) => n.id === id);
     if (!n) return;
     notificationOps.add(1, { op: 'snooze' });
     n.status = 'pending';
@@ -140,8 +164,10 @@ export class NotificationService {
 
   list(opts?: { status?: string[]; category?: string[] }): Notification[] {
     let results = this.store.read();
-    if (opts?.status?.length) results = results.filter(n => opts.status!.includes(n.status));
-    if (opts?.category?.length) results = results.filter(n => opts.category!.includes(n.category));
+    if (opts?.status?.length)
+      results = results.filter((n) => opts.status!.includes(n.status));
+    if (opts?.category?.length)
+      results = results.filter((n) => opts.category!.includes(n.category));
     return results;
   }
 
@@ -155,22 +181,31 @@ export class NotificationService {
   private scheduleTimer(n: Notification): void {
     if (!n.scheduledAt) return;
     const delay = Math.max(0, new Date(n.scheduledAt).getTime() - Date.now());
-    this.timers.set(n.id, setTimeout(() => this.deliver(n.id), delay));
+    this.timers.set(
+      n.id,
+      setTimeout(() => this.deliver(n.id), delay),
+    );
   }
 
   private deliver(id: string): void {
     this.clearTimer(id);
     const all = this.store.read();
-    const n = all.find(n => n.id === id);
+    const n = all.find((n) => n.id === id);
     if (!n || n.status !== 'pending') return;
     notificationOps.add(1, { op: 'deliver' });
     n.status = 'delivered';
     n.deliveredAt = new Date().toISOString();
     n.updatedAt = n.deliveredAt;
     this.store.write(all);
-    this.eventBus.emit('notification:delivered', n as unknown as Record<string, unknown>);
+    this.eventBus.emit(
+      'notification:delivered',
+      n as unknown as Record<string, unknown>,
+    );
     if (n.ttl && n.ttl > 0) {
-      this.timers.set(id, setTimeout(() => this.expire(id), n.ttl));
+      this.timers.set(
+        id,
+        setTimeout(() => this.expire(id), n.ttl),
+      );
     }
   }
 
@@ -182,7 +217,7 @@ export class NotificationService {
 
   private updateStatus(id: string, status: Notification['status']): void {
     const all = this.store.read();
-    const n = all.find(n => n.id === id);
+    const n = all.find((n) => n.id === id);
     if (!n) return;
     n.status = status;
     n.updatedAt = new Date().toISOString();
@@ -191,7 +226,10 @@ export class NotificationService {
 
   private clearTimer(id: string): void {
     const t = this.timers.get(id);
-    if (t) { clearTimeout(t); this.timers.delete(id); }
+    if (t) {
+      clearTimeout(t);
+      this.timers.delete(id);
+    }
   }
 
   private async poll(): Promise<void> {
@@ -200,7 +238,9 @@ export class NotificationService {
       try {
         const items = await provider.poll();
         for (const opts of items) this.schedule(provider.id, opts);
-      } catch { /* provider poll failure is non-fatal */ }
+      } catch {
+        /* provider poll failure is non-fatal */
+      }
     }
   }
 }

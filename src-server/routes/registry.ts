@@ -58,11 +58,21 @@ export function createRegistryRoutes(
     const seen = new Set<string>();
     const items = raw
       .filter((i: any) => i.id && i.id.length > 2 && /^[a-z0-9]/.test(i.id))
-      .filter((i: any) => { if (seen.has(i.id)) return false; seen.add(i.id); return true; })
+      .filter((i: any) => {
+        if (seen.has(i.id)) return false;
+        seen.add(i.id);
+        return true;
+      })
       .map((i: any) => ({
         ...i,
-        displayName: (i.displayName || i.id).replace(/\s*\[.*?\]\s*/g, '').trim(),
-        description: (i.description || '').replace(/^#\s.*\n?/, '').replace(/\\n/g, ' ').trim() || undefined,
+        displayName: (i.displayName || i.id)
+          .replace(/\s*\[.*?\]\s*/g, '')
+          .trim(),
+        description:
+          (i.description || '')
+            .replace(/^#\s.*\n?/, '')
+            .replace(/\\n/g, ' ')
+            .trim() || undefined,
         source: i.source || 'AIM',
       }));
     return c.json({ success: true, data: items });

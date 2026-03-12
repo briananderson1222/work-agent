@@ -240,9 +240,20 @@ function ConnectionCard({
           <ConnectionIcon icon={conn.icon} size={32} />
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '16px', fontWeight: 600 }}>{conn.name}</span>
+              <span style={{ fontSize: '16px', fontWeight: 600 }}>
+                {conn.name}
+              </span>
               {isPlugin && (
-                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'color-mix(in srgb, var(--text-muted) 15%, transparent)', color: 'var(--text-muted)' }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    background:
+                      'color-mix(in srgb, var(--text-muted) 15%, transparent)',
+                    color: 'var(--text-muted)',
+                  }}
+                >
                   via plugin
                 </span>
               )}

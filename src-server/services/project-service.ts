@@ -14,7 +14,9 @@ export class ProjectService {
     return this.storageAdapter.getProject(slug);
   }
 
-  async createProject(config: Omit<ProjectConfig, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProjectConfig> {
+  async createProject(
+    config: Omit<ProjectConfig, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<ProjectConfig> {
     const now = new Date().toISOString();
     const project: ProjectConfig = {
       ...config,
@@ -27,9 +29,16 @@ export class ProjectService {
     return project;
   }
 
-  async updateProject(slug: string, updates: Partial<Omit<ProjectConfig, 'id' | 'slug' | 'createdAt'>>): Promise<ProjectConfig> {
+  async updateProject(
+    slug: string,
+    updates: Partial<Omit<ProjectConfig, 'id' | 'slug' | 'createdAt'>>,
+  ): Promise<ProjectConfig> {
     const existing = await this.storageAdapter.getProject(slug);
-    const updated: ProjectConfig = { ...existing, ...updates, updatedAt: new Date().toISOString() };
+    const updated: ProjectConfig = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
     await this.storageAdapter.saveProject(updated);
     projectOps.add(1, { op: 'update' });
     return updated;

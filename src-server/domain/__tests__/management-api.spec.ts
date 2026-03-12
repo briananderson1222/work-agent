@@ -8,8 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigLoader } from '../config-loader.js';
 import type { AgentSpec } from '../types.js';
 
-const createTempDir = () =>
-  mkdtempSync(join(tmpdir(), 'stallion-test-'));
+const createTempDir = () => mkdtempSync(join(tmpdir(), 'stallion-test-'));
 
 describe('Agent CRUD operations', () => {
   let tempDir: string;

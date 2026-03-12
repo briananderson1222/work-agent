@@ -1,5 +1,5 @@
-import { type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { type ReactNode } from 'react';
 import { useApiBase } from './ApiBaseContext';
 
 export interface ProjectMetadata {
@@ -15,7 +15,12 @@ export interface ProjectMetadata {
 }
 
 export interface ProjectConfig extends ProjectMetadata {
-  directories: Array<{ id: string; path: string; label?: string; role: 'primary' | 'reference' }>;
+  directories: Array<{
+    id: string;
+    path: string;
+    label?: string;
+    role: 'primary' | 'reference';
+  }>;
   defaultModel?: string;
   defaultEmbeddingProviderId?: string;
   defaultEmbeddingModel?: string;
@@ -31,7 +36,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function useProjects(): { projects: ProjectMetadata[]; isLoading: boolean } {
+export function useProjects(): {
+  projects: ProjectMetadata[];
+  isLoading: boolean;
+} {
   const { apiBase } = useApiBase();
   const { data, isLoading } = useQuery({
     queryKey: ['projects'],
@@ -45,7 +53,10 @@ export function useProjects(): { projects: ProjectMetadata[]; isLoading: boolean
   return { projects: data ?? [], isLoading };
 }
 
-export function useProject(slug: string): { project: ProjectConfig | undefined; isLoading: boolean } {
+export function useProject(slug: string): {
+  project: ProjectConfig | undefined;
+  isLoading: boolean;
+} {
   const { apiBase } = useApiBase();
   const { data, isLoading } = useQuery({
     queryKey: ['projects', slug],

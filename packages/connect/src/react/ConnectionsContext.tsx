@@ -81,8 +81,14 @@ export function ConnectionsProvider({
   const resolvedStore = store;
 
   const getAll = useCallback(() => resolvedStore.getAll(), [resolvedStore]);
-  const getActive = useCallback(() => resolvedStore.getActive(), [resolvedStore]);
-  const subscribe = useCallback((cb: () => void) => resolvedStore.subscribe(cb), [resolvedStore]);
+  const getActive = useCallback(
+    () => resolvedStore.getActive(),
+    [resolvedStore],
+  );
+  const subscribe = useCallback(
+    (cb: () => void) => resolvedStore.subscribe(cb),
+    [resolvedStore],
+  );
 
   const connections = useSyncExternalStore(subscribe, getAll);
   const activeConnection = useSyncExternalStore(subscribe, getActive);

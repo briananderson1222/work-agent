@@ -10,8 +10,8 @@ import { join } from 'node:path';
 import type { ToolDef } from '../domain/types.js';
 import type {
   IAgentRegistryProvider,
-  InstallResult,
   IIntegrationRegistryProvider,
+  InstallResult,
   RegistryItem,
 } from './types.js';
 

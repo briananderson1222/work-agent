@@ -97,9 +97,7 @@ export function LayoutHeader({
       {/* Tab-level header: Description, tab prompts, and controls */}
       <header className="workspace-dashboard__header workspace-header__tab-header">
         {description && (
-          <p className="workspace-header__description">
-            {description}
-          </p>
+          <p className="workspace-header__description">{description}</p>
         )}
         <div className="workspace-header__tab-actions">
           {tabActions?.map((action) => (
@@ -161,7 +159,9 @@ export function LayoutHeader({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }}
+              style={{
+                animation: loading ? 'spin 1s linear infinite' : 'none',
+              }}
             >
               <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
             </svg>

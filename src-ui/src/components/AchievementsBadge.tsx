@@ -7,7 +7,13 @@ export interface AchievementLink {
   icon?: string;
 }
 
-export function AchievementsBadge({ compact = false, links = [] }: { compact?: boolean; links?: AchievementLink[] }) {
+export function AchievementsBadge({
+  compact = false,
+  links = [],
+}: {
+  compact?: boolean;
+  links?: AchievementLink[];
+}) {
   const { achievements, loading } = useAnalytics();
 
   if (loading || !achievements.length) return null;
@@ -50,7 +56,13 @@ export function AchievementsBadge({ compact = false, links = [] }: { compact?: b
               }}
             >
               {link.icon && (
-                <img src={link.icon} alt="" width={14} height={14} style={{ borderRadius: 2 }} />
+                <img
+                  src={link.icon}
+                  alt=""
+                  width={14}
+                  height={14}
+                  style={{ borderRadius: 2 }}
+                />
               )}
               {link.label} ↗
             </a>
@@ -70,7 +82,11 @@ export function AchievementsBadge({ compact = false, links = [] }: { compact?: b
   );
 }
 
-function AchievementCard({ achievement }: { achievement: Record<string, any> }) {
+function AchievementCard({
+  achievement,
+}: {
+  achievement: Record<string, any>;
+}) {
   const progress = achievement.threshold
     ? Math.min((achievement.progress || 0) / achievement.threshold, 1)
     : 0;

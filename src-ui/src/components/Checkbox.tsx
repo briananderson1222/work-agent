@@ -11,7 +11,13 @@ interface CheckboxProps {
   children?: React.ReactNode;
 }
 
-export function Checkbox({ checked, onChange, id, disabled, children }: CheckboxProps) {
+export function Checkbox({
+  checked,
+  onChange,
+  id,
+  disabled,
+  children,
+}: CheckboxProps) {
   return (
     <label className={`cb${disabled ? ' cb--disabled' : ''}`}>
       <input
@@ -25,7 +31,14 @@ export function Checkbox({ checked, onChange, id, disabled, children }: Checkbox
       <span className="cb__box" aria-hidden="true">
         {checked && (
           <svg viewBox="0 0 12 12" className="cb__check">
-            <path d="M2.5 6l2.5 2.5 4.5-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M2.5 6l2.5 2.5 4.5-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         )}
       </span>

@@ -38,7 +38,7 @@ export const loadingTips = [
   'tip: you can connect multiple AI backends at once',
   'fun fact: the first AI program was written in 1951',
   'fun fact: "debugging" came from an actual moth in a computer',
-  'fun fact: the cloud is just someone else\'s computer',
+  "fun fact: the cloud is just someone else's computer",
 ];
 
 /** Friendly quips shown on error screens. */
@@ -47,6 +47,6 @@ export const errorQuips = [
   'the bits got lost, but we know the way back',
   'a brief intermission in our regularly scheduled program',
   'plot twist: the server took a coffee break',
-  'don\'t worry, your data is safe and sound',
+  "don't worry, your data is safe and sound",
   'sometimes the internet needs a moment',
 ];

@@ -5,7 +5,11 @@
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--text-primary) 0%,
+    var(--accent-primary) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -20,7 +24,7 @@
 }
 
 .schedule__loading::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -34,7 +38,9 @@
 }
 
 @keyframes loading-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Stat Cards ── */
@@ -49,7 +55,11 @@
   padding: 1rem 1.25rem;
   min-width: 140px;
   flex: 1;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 100%
+  );
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   border-left: 4px solid var(--border-primary);
@@ -60,51 +70,68 @@
 }
 
 .stat-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
 }
 
 .stat-card:hover {
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 100%
+  );
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .stat-card--success {
   border-left-color: var(--success-text);
-  background: linear-gradient(135deg, 
-    color-mix(in srgb, var(--success-text) 5%, var(--bg-secondary)) 0%, 
-    var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--success-text) 5%, var(--bg-secondary)) 0%,
+    var(--bg-secondary) 100%
+  );
 }
 
 .stat-card--error {
   border-left-color: var(--error-text);
-  background: linear-gradient(135deg, 
-    color-mix(in srgb, var(--error-text) 5%, var(--bg-secondary)) 0%, 
-    var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--error-text) 5%, var(--bg-secondary)) 0%,
+    var(--bg-secondary) 100%
+  );
 }
 
 .stat-card--warning {
   border-left-color: var(--warning-text);
-  background: linear-gradient(135deg, 
-    color-mix(in srgb, var(--warning-text) 5%, var(--bg-secondary)) 0%, 
-    var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warning-text) 5%, var(--bg-secondary)) 0%,
+    var(--bg-secondary) 100%
+  );
 }
 
 .stat-card--accent {
   border-left-color: var(--accent-primary);
-  background: linear-gradient(135deg, 
-    color-mix(in srgb, var(--accent-primary) 8%, var(--bg-secondary)) 0%, 
-    var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent-primary) 8%, var(--bg-secondary)) 0%,
+    var(--bg-secondary) 100%
+  );
 }
 
 .stat-card__label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.75rem;
   color: var(--text-secondary);
   font-weight: 500;
@@ -114,7 +141,7 @@
 }
 
 .stat-card__value {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -128,30 +155,39 @@
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 
+  box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.06),
     0 1px 4px rgba(0, 0, 0, 0.04);
   position: relative;
 }
 
 .schedule__table-wrap::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
 }
 
 .schedule__filter {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border-primary);
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 100%
+  );
 }
 
 .schedule__filter-input {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   padding: 0.35rem 0.6rem;
   font-size: 0.8rem;
   border-radius: 0.375rem;
@@ -175,7 +211,7 @@
 }
 
 .schedule__th {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   padding: 0.75rem 1rem;
   text-align: left;
   color: var(--text-secondary);
@@ -183,7 +219,11 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 100%
+  );
   border-bottom: 2px solid var(--border-primary);
 }
 
@@ -196,11 +236,15 @@
 
 .schedule__th--sortable:hover {
   color: var(--text-primary);
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 100%
+  );
 }
 
 .schedule__th--sortable::after {
-  content: '';
+  content: "";
   position: absolute;
   right: 8px;
   top: 50%;
@@ -271,10 +315,16 @@
   align-items: center;
   gap: 4px;
 }
-.schedule__status--clickable { cursor: pointer; }
-.schedule__status--clickable:hover { opacity: 0.7; }
+.schedule__status--clickable {
+  cursor: pointer;
+}
+.schedule__status--clickable:hover {
+  opacity: 0.7;
+}
 .schedule__cron-human-inline {
-  font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 .schedule__status-dot {
   width: 7px;
@@ -306,7 +356,11 @@
     opacity: 0.3;
   }
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* ── Success Rate Bar ── */
 .schedule__rate {
@@ -421,7 +475,7 @@
   align-items: baseline;
 }
 .schedule__detail-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   color: var(--text-muted);
   font-size: 0.7rem;
   text-transform: uppercase;
@@ -467,21 +521,35 @@
 }
 
 .schedule__output-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-  display: flex; align-items: center; justify-content: center; z-index: 9999;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
   backdrop-filter: blur(2px);
 }
 .schedule__output-modal {
-  background: var(--bg-primary); border-radius: 0.75rem;
-  width: 92vw; height: 90vh;
+  background: var(--bg-primary);
+  border-radius: 0.75rem;
+  width: 92vw;
+  height: 90vh;
   border: 1px solid var(--border-primary);
-  display: flex; flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 .schedule__output-modal-body {
-  margin: 0; padding: 1.25rem; flex: 1; overflow: auto;
-  font-size: 0.75rem; font-family: 'JetBrains Mono', monospace;
-  color: var(--text-primary); white-space: pre-wrap;
-  background: var(--bg-secondary); border-radius: 0;
+  margin: 0;
+  padding: 1.25rem;
+  flex: 1;
+  overflow: auto;
+  font-size: 0.75rem;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  background: var(--bg-secondary);
+  border-radius: 0;
 }
 
 /* ── Empty / Setup States ── */
@@ -501,8 +569,8 @@
   margin-bottom: 1.5rem;
 }
 .schedule__setup-icon {
-  font-size: 2rem;
   margin-bottom: 0.5rem;
+  color: var(--text-secondary);
 }
 .schedule__setup-title {
   margin: 0 0 0.5rem;
@@ -599,99 +667,197 @@
 
 /* ── Title Row ── */
 .schedule__title-row {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 1.5rem;
 }
-.schedule__title-row .schedule__title { margin-bottom: 0; }
-.schedule__add-btn {
-  padding: 0.4rem 1rem; font-size: 0.8rem; font-weight: 600;
-  background: var(--accent-primary); color: white; border: none;
-  border-radius: 0.375rem; cursor: pointer;
+.schedule__title-row .schedule__title {
+  margin-bottom: 0;
 }
-.schedule__add-btn:hover { opacity: 0.85; }
+.schedule__add-btn {
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+.schedule__add-btn:hover {
+  opacity: 0.85;
+}
 
 /* ── Job Form Modal ── */
 .schedule__modal-overlay {
-  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7);
-  display: flex; align-items: center; justify-content: center; z-index: 9999;
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   animation: modal-overlay-in 0.2s ease;
 }
-@keyframes modal-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
 .schedule__modal {
   background: var(--bg-primary);
   border-radius: 1rem;
-  max-width: 560px; width: 92%; max-height: 85vh;
+  max-width: 560px;
+  width: 92%;
+  max-height: 85vh;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex; flex-direction: column;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
   animation: modal-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes modal-slide-in {
-  from { opacity: 0; transform: translateY(12px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .schedule__modal-header {
   padding: 1.25rem 1.5rem 1rem;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .schedule__modal-header h3 {
-  font-size: 1.1rem; font-weight: 700; margin: 0;
-  letter-spacing: -0.02em; color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 .schedule__modal-close {
-  background: none; border: none; color: var(--text-muted); cursor: pointer;
-  font-size: 1.25rem; padding: 0.375rem; line-height: 1;
-  border-radius: 0.375rem; transition: all 0.15s;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.25rem;
+  padding: 0.375rem;
+  line-height: 1;
+  border-radius: 0.375rem;
+  transition: all 0.15s;
 }
-.schedule__modal-close:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+.schedule__modal-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
 
 .schedule__modal-body {
-  padding: 0 1.5rem 1rem; overflow-y: auto; flex: 1;
-  display: flex; flex-direction: column; gap: 1.25rem;
+  padding: 0 1.5rem 1rem;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .schedule__modal-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
-  display: flex; justify-content: flex-end; gap: 0.625rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.625rem;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 0 0 1rem 1rem;
 }
 .schedule__modal-cancel {
-  padding: 0.5rem 1.25rem; font-size: 0.8rem; font-weight: 500;
-  background: transparent; color: var(--text-secondary);
+  padding: 0.5rem 1.25rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.5rem; cursor: pointer; transition: all 0.15s;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s;
 }
-.schedule__modal-cancel:hover { color: var(--text-primary); border-color: rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.04); }
+.schedule__modal-cancel:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
 .schedule__modal-submit {
-  padding: 0.5rem 1.5rem; font-size: 0.8rem; font-weight: 600;
-  background: var(--accent-primary); color: white; border: none;
-  border-radius: 0.5rem; cursor: pointer; transition: all 0.15s;
+  padding: 0.5rem 1.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s;
   box-shadow: 0 1px 3px rgba(74, 158, 255, 0.3);
 }
-.schedule__modal-submit:disabled { opacity: 0.3; cursor: default; box-shadow: none; }
-.schedule__modal-submit:hover:not(:disabled) { background: #5aa8ff; box-shadow: 0 2px 8px rgba(74, 158, 255, 0.4); transform: translateY(-1px); }
-.schedule__modal-submit:active:not(:disabled) { transform: translateY(0); }
+.schedule__modal-submit:disabled {
+  opacity: 0.3;
+  cursor: default;
+  box-shadow: none;
+}
+.schedule__modal-submit:hover:not(:disabled) {
+  background: #5aa8ff;
+  box-shadow: 0 2px 8px rgba(74, 158, 255, 0.4);
+  transform: translateY(-1px);
+}
+.schedule__modal-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
 
 /* ── Form Fields ── */
-.schedule__field { display: flex; flex-direction: column; gap: 0.375rem; }
-.schedule__field-label {
-  font-size: 0.7rem; font-weight: 600; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.05em;
+.schedule__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
 }
-.schedule__field-hint { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.schedule__field-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.schedule__field-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .schedule__field input,
 .schedule__field textarea,
 .schedule__field select {
-  padding: 0.625rem 0.75rem; font-size: 0.85rem;
-  font-family: 'JetBrains Mono', 'SF Mono', monospace;
-  background: var(--bg-secondary); color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 0.5rem;
-  outline: none; resize: vertical; transition: border-color 0.15s, box-shadow 0.15s;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: "JetBrains Mono", "SF Mono", monospace;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  outline: none;
+  resize: vertical;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 .schedule__field input:focus,
 .schedule__field textarea:focus,
@@ -701,100 +867,185 @@
 }
 .schedule__field input::placeholder,
 .schedule__field textarea::placeholder {
-  color: var(--text-muted); opacity: 0.5;
+  color: var(--text-muted);
+  opacity: 0.5;
 }
 
 /* ── Divider between form sections ── */
 .schedule__form-divider {
-  height: 1px; background: rgba(255, 255, 255, 0.06);
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
   margin: 0.25rem 0;
 }
 
 /* ── Cron Preview ── */
 /* ── Cron Editor ── */
-.cron-editor { display: flex; flex-direction: column; gap: 0.625rem; }
+.cron-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
 .cron-editor__fields {
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 0.375rem;
-  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
   border: 2px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0.75rem; padding: 1rem 1.25rem;
-  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  font-family: "JetBrains Mono", "SF Mono", monospace;
   transition: border-color 0.2s;
 }
-.cron-editor__fields:focus-within { border-color: rgba(74, 158, 255, 0.3); }
-.cron-editor__fields--error { border-color: rgba(239, 68, 68, 0.5); }
-.cron-editor__input {
-  background: none; border: none; outline: none;
-  font-size: 1.75rem; font-weight: 500; font-family: inherit; text-align: center;
-  color: var(--text-primary); padding: 0.25rem 0;
-  border-bottom: 2px solid transparent;
-  width: 100%; min-width: 0;
-  transition: border-color 0.15s, color 0.15s;
+.cron-editor__fields:focus-within {
+  border-color: rgba(74, 158, 255, 0.3);
 }
-.cron-editor__input:focus { border-bottom-color: var(--accent-primary); color: #fff; }
-.cron-editor__input--error { color: var(--error-text); }
+.cron-editor__fields--error {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+.cron-editor__input {
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 1.75rem;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: center;
+  color: var(--text-primary);
+  padding: 0.25rem 0;
+  border-bottom: 2px solid transparent;
+  width: 100%;
+  min-width: 0;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.cron-editor__input:focus {
+  border-bottom-color: var(--accent-primary);
+  color: #fff;
+}
+.cron-editor__input--error {
+  color: var(--error-text);
+}
 .cron-editor__labels {
-  display: grid; grid-template-columns: repeat(5, 1fr);
-  gap: 0.375rem; font-size: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.375rem;
+  font-size: 0.7rem;
   padding: 0 1.25rem;
 }
 .cron-editor__label {
-  padding: 0.2rem 0; border-radius: 0.375rem; cursor: pointer;
-  color: var(--text-muted); transition: all 0.15s; font-weight: 500;
-  letter-spacing: 0.02em; text-align: center;
+  padding: 0.2rem 0;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-align: center;
 }
-.cron-editor__label:hover { color: var(--text-secondary); background: rgba(255,255,255,0.04); }
+.cron-editor__label:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+}
 .cron-editor__label--active {
   color: var(--text-primary);
 }
 .cron-editor__label--focused {
-  background: rgba(74, 158, 255, 0.15); color: var(--accent-primary);
+  background: rgba(74, 158, 255, 0.15);
+  color: var(--accent-primary);
   box-shadow: 0 0 0 1px rgba(74, 158, 255, 0.2);
 }
 .cron-editor__label--error {
-  background: rgba(239, 68, 68, 0.15); color: var(--error-text);
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error-text);
 }
 .cron-editor__help {
-  font-size: 0.7rem; color: var(--text-muted);
+  font-size: 0.7rem;
+  color: var(--text-muted);
   animation: cron-help-in 0.15s ease;
 }
 .cron-editor__error {
-  font-size: 0.75rem; color: var(--error-text); font-weight: 500;
-  text-align: center; animation: cron-help-in 0.15s ease;
+  font-size: 0.75rem;
+  color: var(--error-text);
+  font-weight: 500;
+  text-align: center;
+  animation: cron-help-in 0.15s ease;
 }
 .cron-editor__errors {
-  display: flex; flex-direction: column; gap: 0.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 .cron-editor__error-line {
-  font-size: 0.7rem; color: var(--error-text); text-align: center;
+  font-size: 0.7rem;
+  color: var(--error-text);
+  text-align: center;
 }
-@keyframes cron-help-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.cron-editor__syntax { margin: 0 auto; border-collapse: collapse; }
+@keyframes cron-help-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cron-editor__syntax {
+  margin: 0 auto;
+  border-collapse: collapse;
+}
 .cron-editor__syntax td {
   padding: 0.2rem 0.625rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 .cron-editor__sym {
-  font-family: 'JetBrains Mono', monospace; font-weight: 600;
-  text-align: center; color: var(--text-secondary);
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-secondary);
 }
-.cron-editor__syntax--error td { color: var(--error-text); }
-.cron-editor__syntax--error .cron-editor__sym { color: var(--error-text); }
+.cron-editor__syntax--error td {
+  color: var(--error-text);
+}
+.cron-editor__syntax--error .cron-editor__sym {
+  color: var(--error-text);
+}
 
 .schedule__cron-preview {
-  display: flex; flex-wrap: wrap; gap: 0.375rem; align-items: center;
-  font-size: 0.7rem; color: var(--text-muted); margin-top: 0.375rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.375rem;
 }
-.schedule__cron-preview--error { color: var(--error-text); }
+.schedule__cron-preview--error {
+  color: var(--error-text);
+}
 .schedule__cron-human {
-  width: 100%; font-size: 0.85rem; color: var(--accent-primary);
-  font-weight: 500; margin-bottom: 0.25rem;
+  width: 100%;
+  font-size: 0.85rem;
+  color: var(--accent-primary);
+  font-weight: 500;
+  margin-bottom: 0.25rem;
 }
-.schedule__cron-human--muted { color: var(--text-muted); }
-.schedule__cron-label { font-weight: 500; }
+.schedule__cron-human--muted {
+  color: var(--text-muted);
+}
+.schedule__cron-label {
+  font-weight: 500;
+}
 .schedule__cron-time {
-  background: rgba(255, 255, 255, 0.05); padding: 0.2rem 0.5rem;
-  border-radius: 0.375rem; font-family: 'JetBrains Mono', monospace;
-  font-size: 0.7rem; border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.375rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }

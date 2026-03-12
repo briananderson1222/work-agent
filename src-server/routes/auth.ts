@@ -1,4 +1,3 @@
-import { createLogger } from '../utils/logger.js';
 import { Hono } from 'hono';
 import {
   getAuthProvider,
@@ -6,6 +5,7 @@ import {
   getUserIdentityProvider,
 } from '../providers/registry.js';
 import type { UserIdentity } from '../providers/types.js';
+import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger({ name: 'auth' });
 

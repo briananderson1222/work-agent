@@ -15,11 +15,13 @@ export function useDockModePreference(layoutKey: string, preferred: DockMode) {
 
   useEffect(() => {
     prevMode.current = dockMode;
-    const override = sessionStorage.getItem(STORAGE_PREFIX + layoutKey) as DockMode | null;
+    const override = sessionStorage.getItem(
+      STORAGE_PREFIX + layoutKey,
+    ) as DockMode | null;
     setDockMode(override || preferred);
     return () => setDockMode(prevMode.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dockMode, layoutKey, preferred, setDockMode]);
 }
 
 /** Write a manual override for the current layout (called by ⌘⇧D handler). */

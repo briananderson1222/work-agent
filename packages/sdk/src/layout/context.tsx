@@ -1,7 +1,10 @@
 // biome-ignore lint/correctness/noUnusedImports: React needed for classic JSX transform
-import React from 'react';
-
-import { createContext, type ReactNode, useContext, useState } from 'react';
+import React, {
+  createContext,
+  type ReactNode,
+  useContext,
+  useState,
+} from 'react';
 
 interface LayoutContextConfig<T> {
   layoutSlug: string;

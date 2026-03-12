@@ -54,7 +54,10 @@ export interface IStorageAdapter {
   deleteProviderConnection(id: string): void;
 
   // Conversations
-  listConversations(projectSlug: string, opts?: { limit?: number; offset?: number }): ConversationRecord[];
+  listConversations(
+    projectSlug: string,
+    opts?: { limit?: number; offset?: number },
+  ): ConversationRecord[];
   getConversation(id: string): ConversationRecord | null;
   saveConversation(record: ConversationRecord): void;
   deleteConversation(id: string): void;

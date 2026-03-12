@@ -2,7 +2,9 @@ import { useInvalidateQuery, useModelsQuery } from '@stallion-ai/sdk';
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { log } from '@/utils/logger';
 
-const AppDataContext = createContext<{} | undefined>(undefined);
+const AppDataContext = createContext<Record<string, never> | undefined>(
+  undefined,
+);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   return (

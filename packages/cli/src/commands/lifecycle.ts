@@ -1,19 +1,32 @@
 import { execSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { resolveGitInfo } from '@stallion-ai/shared';
 import { CWD, PIDFILE } from './helpers.js';
 
 export function isRunning(): boolean {
   if (!existsSync(PIDFILE)) return false;
   const [pid] = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
-  try { process.kill(parseInt(pid, 10), 0); return true; } catch { return false; }
+  try {
+    process.kill(parseInt(pid, 10), 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function isInstalled(): boolean {
-  return existsSync(join(CWD, 'dist-server')) &&
-    existsSync(join(CWD, 'dist-ui'));
+  return (
+    existsSync(join(CWD, 'dist-server')) && existsSync(join(CWD, 'dist-ui'))
+  );
 }
 
 export interface StartOptions {
@@ -28,7 +41,9 @@ export function start(opts: StartOptions = {}): void {
   const { serverPort = 3141, uiPort = 3000, logFile, build, baseDir } = opts;
 
   if (isRunning()) {
-    console.log(`✓ Already running\n  UI:   http://localhost:${uiPort}\n  Stop: stallion stop`);
+    console.log(
+      `✓ Already running\n  UI:   http://localhost:${uiPort}\n  Stop: stallion stop`,
+    );
     return;
   }
 
@@ -46,16 +61,26 @@ export function start(opts: StartOptions = {}): void {
     serverStdio = ['ignore', fd, fd];
   }
 
-  const serverEnv: Record<string, string> = { ...process.env as any, PORT: String(serverPort) };
+  const serverEnv: Record<string, string> = {
+    ...(process.env as any),
+    PORT: String(serverPort),
+  };
   if (baseDir) serverEnv.STALLION_AI_DIR = baseDir;
 
   const serverProc = spawn('node', ['dist-server/index.js'], {
-    cwd: CWD, stdio: serverStdio, detached: true, env: serverEnv,
+    cwd: CWD,
+    stdio: serverStdio,
+    detached: true,
+    env: serverEnv,
   });
   serverProc.unref();
 
   const apiBase = `http://localhost:${serverPort}`;
-  const uiProc = spawn('node', ['-e', `
+  const uiProc = spawn(
+    'node',
+    [
+      '-e',
+      `
     const http=require('http'),fs=require('fs'),path=require('path');
     const dir=path.join(process.cwd(),'dist-ui');
     const mime={'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff','.ttf':'font/ttf','.map':'application/json'};
@@ -75,9 +100,15 @@ export function start(opts: StartOptions = {}): void {
         fs.createReadStream(p).pipe(res);
       }
     }).listen(${uiPort});
-  `], {
-    cwd: CWD, stdio: 'ignore', detached: true, env: { ...process.env },
-  });
+  `,
+    ],
+    {
+      cwd: CWD,
+      stdio: 'ignore',
+      detached: true,
+      env: { ...process.env },
+    },
+  );
   uiProc.unref();
 
   writeFileSync(PIDFILE, `${serverProc.pid} ${uiProc.pid}`);
@@ -90,7 +121,9 @@ export function start(opts: StartOptions = {}): void {
     console.log(`  ✓ UI:     http://localhost:${uiPort}`);
     console.log('\n  Stop with: stallion stop');
   } catch {
-    console.error(`Failed to start. Check that ports ${serverPort} and ${uiPort} are free.`);
+    console.error(
+      `Failed to start. Check that ports ${serverPort} and ${uiPort} are free.`,
+    );
     stop();
     process.exit(1);
   }
@@ -100,7 +133,9 @@ export function stop(): void {
   if (!existsSync(PIDFILE)) return;
   const pids = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
   for (const pid of pids) {
-    try { process.kill(parseInt(pid, 10)); } catch {}
+    try {
+      process.kill(parseInt(pid, 10));
+    } catch {}
   }
   rmSync(PIDFILE, { force: true });
   console.log('  ✓ Stopped');
@@ -171,8 +206,9 @@ export function shortcut(): void {
   const macosDir = join(appDir, 'Contents', 'MacOS');
   mkdirSync(macosDir, { recursive: true });
 
-  writeFileSync(join(appDir, 'Contents', 'Info.plist'),
-`<?xml version="1.0" encoding="UTF-8"?>
+  writeFileSync(
+    join(appDir, 'Contents', 'Info.plist'),
+    `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -184,15 +220,18 @@ export function shortcut(): void {
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSUIElement</key><true/>
 </dict>
-</plist>`);
+</plist>`,
+  );
 
   const stallionPath = join(CWD, 'stallion');
-  writeFileSync(join(macosDir, 'launch'),
-`#!/bin/bash
+  writeFileSync(
+    join(macosDir, 'launch'),
+    `#!/bin/bash
 "${stallionPath}" start &
 sleep 2
 open "http://localhost:3000"
-`);
+`,
+  );
   execSync(`chmod +x "${join(macosDir, 'launch')}"`);
 
   console.log('  ✓ Created ~/Applications/Stallion.app');
@@ -207,9 +246,16 @@ export function clean(force = false): void {
     console.log('   - Tool configurations\n');
 
     try {
-      const answer = execSync('read -p "Continue? [y/N] " -n 1 -r ans && echo $ans', {
-        stdio: ['inherit', 'pipe', 'inherit'], encoding: 'utf-8', shell: '/bin/bash',
-      }).trim().toLowerCase();
+      const answer = execSync(
+        'read -p "Continue? [y/N] " -n 1 -r ans && echo $ans',
+        {
+          stdio: ['inherit', 'pipe', 'inherit'],
+          encoding: 'utf-8',
+          shell: '/bin/bash',
+        },
+      )
+        .trim()
+        .toLowerCase();
       console.log('');
       if (answer !== 'y') {
         console.log('Cancelled.');

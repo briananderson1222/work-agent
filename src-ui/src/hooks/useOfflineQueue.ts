@@ -99,7 +99,9 @@ export function useOfflineQueue({
         return dbGetAll(db);
       })
       .then(setPending)
-      .catch(() => {/* IndexedDB may be unavailable (private mode) */});
+      .catch(() => {
+        /* IndexedDB may be unavailable (private mode) */
+      });
 
     return () => {
       dbRef.current?.close();

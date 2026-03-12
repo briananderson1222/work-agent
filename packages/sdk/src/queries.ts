@@ -175,12 +175,17 @@ export function useProjectQuery(slug: string, config?: QueryConfig<any>) {
 /**
  * Fetch layouts for a project
  */
-export function useProjectLayoutsQuery(projectSlug: string, config?: QueryConfig<any>) {
+export function useProjectLayoutsQuery(
+  projectSlug: string,
+  config?: QueryConfig<any>,
+) {
   return useApiQuery(
     ['projects', projectSlug, 'layouts'],
     async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/api/projects/${projectSlug}/layouts`);
+      const response = await fetch(
+        `${apiBase}/api/projects/${projectSlug}/layouts`,
+      );
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       return result.data;
@@ -194,7 +199,13 @@ export function useProjectLayoutsQuery(projectSlug: string, config?: QueryConfig
  */
 export function useCreateProjectMutation() {
   return useApiMutation(
-    async (data: { name: string; slug: string; description?: string; icon?: string; directories?: any[] }) => {
+    async (data: {
+      name: string;
+      slug: string;
+      description?: string;
+      icon?: string;
+      directories?: any[];
+    }) => {
       const apiBase = await _getApiBase();
       const response = await fetch(`${apiBase}/api/projects`, {
         method: 'POST',
@@ -236,7 +247,9 @@ export function useDeleteProjectMutation() {
   return useApiMutation(
     async (slug: string) => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/api/projects/${slug}`, { method: 'DELETE' });
+      const response = await fetch(`${apiBase}/api/projects/${slug}`, {
+        method: 'DELETE',
+      });
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       return result.data;
@@ -250,13 +263,21 @@ export function useDeleteProjectMutation() {
  */
 export function useCreateLayoutMutation(projectSlug: string) {
   return useApiMutation(
-    async (data: { name: string; slug: string; type: string; config?: Record<string, unknown> }) => {
+    async (data: {
+      name: string;
+      slug: string;
+      type: string;
+      config?: Record<string, unknown>;
+    }) => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/api/projects/${projectSlug}/layouts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      const response = await fetch(
+        `${apiBase}/api/projects/${projectSlug}/layouts`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        },
+      );
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       return result.data;

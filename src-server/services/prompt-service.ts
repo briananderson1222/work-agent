@@ -51,11 +51,19 @@ export class PromptService {
     return Promise.resolve(prompt);
   }
 
-  updatePrompt(id: string, updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'source'>>): Promise<Prompt> {
+  updatePrompt(
+    id: string,
+    updates: Partial<Omit<Prompt, 'id' | 'createdAt' | 'source'>>,
+  ): Promise<Prompt> {
     const prompts = load();
     const idx = prompts.findIndex((p) => p.id === id);
     if (idx === -1) throw new Error(`Prompt '${id}' not found`);
-    prompts[idx] = { ...prompts[idx], ...updates, id, updatedAt: new Date().toISOString() };
+    prompts[idx] = {
+      ...prompts[idx],
+      ...updates,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
     save(prompts);
     promptOps.add(1, { op: 'update' });
     return Promise.resolve(prompts[idx]);
@@ -76,6 +84,9 @@ export class PromptService {
   }
 
   listProviders(): Array<{ id: string; displayName: string }> {
-    return [...this.providers.values()].map((p) => ({ id: p.id, displayName: p.displayName }));
+    return [...this.providers.values()].map((p) => ({
+      id: p.id,
+      displayName: p.displayName,
+    }));
   }
 }

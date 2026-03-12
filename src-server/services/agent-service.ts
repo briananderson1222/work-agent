@@ -3,9 +3,10 @@
  */
 
 type Agent = any;
+
 import type { ConfigLoader } from '../domain/config-loader.js';
-import { agentOps } from '../telemetry/metrics.js';
 import type { AgentSpec } from '../domain/types.js';
+import { agentOps } from '../telemetry/metrics.js';
 
 export interface AgentMetadata {
   slug: string;
@@ -113,8 +114,7 @@ export class AgentService {
     slug: string,
   ): Promise<{ success: boolean; error?: string }> {
     // Check if any layouts reference this agent
-    const dependentLayouts =
-      await this.configLoader.getLayoutsUsingAgent(slug);
+    const dependentLayouts = await this.configLoader.getLayoutsUsingAgent(slug);
     if (dependentLayouts.length > 0) {
       return {
         success: false,

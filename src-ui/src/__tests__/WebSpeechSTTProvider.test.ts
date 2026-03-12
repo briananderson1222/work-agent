@@ -6,7 +6,7 @@
  * SpeechRecognition is mocked as a controllable event emitter so tests can
  * drive state transitions without real microphone access.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---- SpeechRecognition mock ------------------------------------------------
 type RecognitionHandler = ((e?: any) => void) | null;
@@ -41,14 +41,20 @@ function makeMockRec(): MockRec {
     start: vi.fn(),
     stop: vi.fn(),
     abort: vi.fn(),
-    _fireStart() { rec.onstart?.(); },
+    _fireStart() {
+      rec.onstart?.();
+    },
     _fireResult(transcript: string) {
       rec.onresult?.({
         results: [{ 0: { transcript }, length: 1 }],
       });
     },
-    _fireError() { rec.onerror?.(); },
-    _fireEnd() { rec.onend?.(); },
+    _fireError() {
+      rec.onerror?.();
+    },
+    _fireEnd() {
+      rec.onend?.();
+    },
   };
   return rec;
 }

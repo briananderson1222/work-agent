@@ -28,9 +28,18 @@ class WebSpeechTTSProvider extends ListenerManager implements TTSProvider {
     if (opts?.rate !== undefined) utt.rate = opts.rate;
     if (opts?.pitch !== undefined) utt.pitch = opts.pitch;
     if (opts?.volume !== undefined) utt.volume = opts.volume;
-    utt.onstart = () => { this._speaking = true; this._notify(); };
-    utt.onend = () => { this._speaking = false; this._notify(); };
-    utt.onerror = () => { this._speaking = false; this._notify(); };
+    utt.onstart = () => {
+      this._speaking = true;
+      this._notify();
+    };
+    utt.onend = () => {
+      this._speaking = false;
+      this._notify();
+    };
+    utt.onerror = () => {
+      this._speaking = false;
+      this._notify();
+    };
     window.speechSynthesis.speak(utt);
   }
 

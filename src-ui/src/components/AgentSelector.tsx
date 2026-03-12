@@ -50,13 +50,13 @@ export function AgentSelector({
     const handleClickOutside = (event: MouseEvent) => {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(event.target as Node)) {
-        close();
+        setIsOpen(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, close]);
+  }, [isOpen]);
 
   const agentOptions = useMemo(() => agents, [agents]);
 
@@ -132,8 +132,8 @@ export function AgentSelector({
                         {agent.name}
                       </span>
                       <span className="agent-selector__option-meta">
-                        {agent.model || 'Default model'}{' '}
-                        · {formatRelativeTime(agent.updatedAt)}
+                        {agent.model || 'Default model'} ·{' '}
+                        {formatRelativeTime(agent.updatedAt)}
                       </span>
                     </button>
                   </li>

@@ -1,25 +1,5 @@
 // Re-export all types
 
-// Core utilities
-export { ListenerManager, noopSubscribe } from './core/ListenerManager.js';
-
-// Voice + context provider interfaces and registries
-export type {
-  ConversationalOptions,
-  ConversationalSessionState,
-  ConversationalVoiceProvider,
-  ProviderCapability,
-  STTOptions,
-  STTProvider,
-  STTState,
-  TTSOptions,
-  TTSProvider,
-  VisibleOn,
-} from './voice/types.js';
-export { voiceRegistry } from './voice/registry.js';
-export type { ContextCapability, MessageContextProvider } from './context/types.js';
-export { contextRegistry } from './context/registry.js';
-
 // Re-export useQueryClient for contexts that need access to cache
 export { useQueryClient } from '@tanstack/react-query';
 export {
@@ -44,8 +24,22 @@ export {
 } from './api';
 export type { AutoSelectItem } from './components';
 // Re-export components
-export { AutoSelectModal, Button, FullScreenError, FullScreenLoader, LoadingState, Pill, Spinner } from './components';
-
+export {
+  AutoSelectModal,
+  Button,
+  FullScreenError,
+  FullScreenLoader,
+  LoadingState,
+  Pill,
+  Spinner,
+} from './components';
+export { contextRegistry } from './context/registry.js';
+export type {
+  ContextCapability,
+  MessageContextProvider,
+} from './context/types.js';
+// Core utilities
+export { ListenerManager, noopSubscribe } from './core/ListenerManager.js';
 // Re-export context hooks
 export {
   useActiveChatActions,
@@ -105,13 +99,26 @@ export {
   // Workflows
   useWorkflows,
 } from './hooks';
+// Re-export layout utilities
+export { createLayoutContext } from './layout/context';
+export type { ProviderMetadata } from './layoutProviders';
+// Re-export layout provider hooks (delegates to core app)
+export {
+  _setProviderFunctions,
+  configureProvider,
+  getActiveProviderId,
+  getProvider,
+  hasProvider,
+  registerProvider,
+} from './layoutProviders';
+export { NotificationsAPI } from './notifications/index.js';
 // Re-export components
 export {
+  LayoutNavigationProvider,
+  LayoutProvider,
   SDKContext,
   SDKProvider,
   useLayoutNavigation,
-  LayoutNavigationProvider,
-  LayoutProvider,
 } from './providers';
 // Re-export query hooks (plugins use these instead of raw React Query)
 export {
@@ -142,17 +149,17 @@ export {
 // Re-export query factories (for imperative fetching in commands)
 export { agentQueries } from './queryFactories';
 export * from './types';
-export { NotificationsAPI } from './notifications/index.js';
-
-// Re-export layout utilities
-export { createLayoutContext } from './layout/context';
-export type { ProviderMetadata } from './layoutProviders';
-// Re-export layout provider hooks (delegates to core app)
-export {
-  _setProviderFunctions,
-  configureProvider,
-  getActiveProviderId,
-  getProvider,
-  hasProvider,
-  registerProvider,
-} from './layoutProviders';
+export { voiceRegistry } from './voice/registry.js';
+// Voice + context provider interfaces and registries
+export type {
+  ConversationalOptions,
+  ConversationalSessionState,
+  ConversationalVoiceProvider,
+  ProviderCapability,
+  STTOptions,
+  STTProvider,
+  STTState,
+  TTSOptions,
+  TTSProvider,
+  VisibleOn,
+} from './voice/types.js';

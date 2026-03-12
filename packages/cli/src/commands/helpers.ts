@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { type PluginManifest, readPluginManifest } from '@stallion-ai/shared';
 
 export const PROJECT_HOME = join(homedir(), '.stallion-ai');
@@ -25,7 +25,10 @@ export function isGitUrl(source: string): boolean {
   );
 }
 
-export function parseGitSource(source: string): { url: string; branch: string } {
+export function parseGitSource(source: string): {
+  url: string;
+  branch: string;
+} {
   const [url, branch] = source.split('#');
   return { url, branch: branch || 'main' };
 }
@@ -49,7 +52,10 @@ export function lookupDepInRegistries(id: string): string | null {
     try {
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
       for (const p of manifest.providers || []) {
-        if (p.module?.endsWith('.json') && (p.type === 'agentRegistry' || p.type === 'toolRegistry')) {
+        if (
+          p.module?.endsWith('.json') &&
+          (p.type === 'agentRegistry' || p.type === 'toolRegistry')
+        ) {
           const regPath = join(PLUGINS_DIR, entry.name, p.module);
           if (!existsSync(regPath)) continue;
           const reg = JSON.parse(readFileSync(regPath, 'utf-8'));

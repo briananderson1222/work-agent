@@ -94,7 +94,8 @@ export function SessionConversationItem({
         <div className="session-item__title-row">
           {hasActiveChat && <span className="session-item__active-dot">●</span>}
           <span>
-            {(typeof conv.title === 'string' ? conv.title : 'Untitled') || 'Untitled'}{' '}
+            {(typeof conv.title === 'string' ? conv.title : 'Untitled') ||
+              'Untitled'}{' '}
             <span className="session-item__id">{getShortId(conv.id)}</span>
           </span>
         </div>

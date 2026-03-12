@@ -15,7 +15,11 @@ import type {
   ProjectMetadata,
   ProviderConnectionConfig,
 } from '@stallion-ai/shared';
-import type { IStorageAdapter, ConversationRecord, DocumentRecord } from './storage-adapter.js';
+import type {
+  ConversationRecord,
+  DocumentRecord,
+  IStorageAdapter,
+} from './storage-adapter.js';
 
 /**
  * Filesystem implementation of IStorageAdapter.
@@ -46,17 +50,21 @@ export class FileStorageAdapter implements IStorageAdapter {
         const layoutCount = existsSync(layoutsDir)
           ? readdirSync(layoutsDir).filter((f) => f.endsWith('.json')).length
           : 0;
-        return [{
-          id: config.id,
-          slug: config.slug,
-          name: config.name,
-          icon: config.icon,
-          description: config.description,
-          directoryCount: config.directories?.length ?? 0,
-          layoutCount,
-          hasKnowledge: existsSync(join(dir, e.name, 'documents', 'metadata.json')),
-          defaultProviderId: config.defaultProviderId,
-        } satisfies ProjectMetadata];
+        return [
+          {
+            id: config.id,
+            slug: config.slug,
+            name: config.name,
+            icon: config.icon,
+            description: config.description,
+            directoryCount: config.directories?.length ?? 0,
+            layoutCount,
+            hasKnowledge: existsSync(
+              join(dir, e.name, 'documents', 'metadata.json'),
+            ),
+            defaultProviderId: config.defaultProviderId,
+          } satisfies ProjectMetadata,
+        ];
       });
   }
 
@@ -69,7 +77,11 @@ export class FileStorageAdapter implements IStorageAdapter {
   saveProject(config: ProjectConfig): void {
     const dir = join(this.projectHomeDir, 'projects', config.slug);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'project.json'), JSON.stringify(config, null, 2), 'utf-8');
+    writeFileSync(
+      join(dir, 'project.json'),
+      JSON.stringify(config, null, 2),
+      'utf-8',
+    );
   }
 
   deleteProject(slug: string): void {
@@ -86,34 +98,60 @@ export class FileStorageAdapter implements IStorageAdapter {
     return readdirSync(dir)
       .filter((f) => f.endsWith('.json'))
       .flatMap((f) => {
-        const config: LayoutConfig = JSON.parse(readFileSync(join(dir, f), 'utf-8'));
-        return [{
-          id: config.id,
-          slug: config.slug,
-          projectSlug: config.projectSlug,
-          type: config.type,
-          name: config.name,
-          icon: config.icon,
-          description: config.description,
-        } satisfies LayoutMetadata];
+        const config: LayoutConfig = JSON.parse(
+          readFileSync(join(dir, f), 'utf-8'),
+        );
+        return [
+          {
+            id: config.id,
+            slug: config.slug,
+            projectSlug: config.projectSlug,
+            type: config.type,
+            name: config.name,
+            icon: config.icon,
+            description: config.description,
+          } satisfies LayoutMetadata,
+        ];
       });
   }
 
   getLayout(projectSlug: string, layoutSlug: string): LayoutConfig {
-    const p = join(this.projectHomeDir, 'projects', projectSlug, 'layouts', `${layoutSlug}.json`);
-    if (!existsSync(p)) throw new Error(`Layout '${layoutSlug}' not found in project '${projectSlug}'`);
+    const p = join(
+      this.projectHomeDir,
+      'projects',
+      projectSlug,
+      'layouts',
+      `${layoutSlug}.json`,
+    );
+    if (!existsSync(p))
+      throw new Error(
+        `Layout '${layoutSlug}' not found in project '${projectSlug}'`,
+      );
     return JSON.parse(readFileSync(p, 'utf-8'));
   }
 
   saveLayout(projectSlug: string, config: LayoutConfig): void {
     const dir = join(this.projectHomeDir, 'projects', projectSlug, 'layouts');
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, `${config.slug}.json`), JSON.stringify(config, null, 2), 'utf-8');
+    writeFileSync(
+      join(dir, `${config.slug}.json`),
+      JSON.stringify(config, null, 2),
+      'utf-8',
+    );
   }
 
   deleteLayout(projectSlug: string, layoutSlug: string): void {
-    const p = join(this.projectHomeDir, 'projects', projectSlug, 'layouts', `${layoutSlug}.json`);
-    if (!existsSync(p)) throw new Error(`Layout '${layoutSlug}' not found in project '${projectSlug}'`);
+    const p = join(
+      this.projectHomeDir,
+      'projects',
+      projectSlug,
+      'layouts',
+      `${layoutSlug}.json`,
+    );
+    if (!existsSync(p))
+      throw new Error(
+        `Layout '${layoutSlug}' not found in project '${projectSlug}'`,
+      );
     rmSync(p, { force: true });
   }
 
@@ -130,7 +168,11 @@ export class FileStorageAdapter implements IStorageAdapter {
 
   private writeProviders(providers: ProviderConnectionConfig[]): void {
     mkdirSync(join(this.projectHomeDir, 'config'), { recursive: true });
-    writeFileSync(this.providersPath, JSON.stringify(providers, null, 2), 'utf-8');
+    writeFileSync(
+      this.providersPath,
+      JSON.stringify(providers, null, 2),
+      'utf-8',
+    );
   }
 
   listProviderConnections(): ProviderConnectionConfig[] {
@@ -162,7 +204,12 @@ export class FileStorageAdapter implements IStorageAdapter {
   // ── Conversations ─────────────────────────────────────────────────
 
   private conversationsFile(projectSlug: string): string {
-    return join(this.projectHomeDir, 'projects', projectSlug, 'conversations.json');
+    return join(
+      this.projectHomeDir,
+      'projects',
+      projectSlug,
+      'conversations.json',
+    );
   }
 
   private readConversations(projectSlug: string): ConversationRecord[] {
@@ -171,13 +218,19 @@ export class FileStorageAdapter implements IStorageAdapter {
     return JSON.parse(readFileSync(f, 'utf-8'));
   }
 
-  private writeConversations(projectSlug: string, records: ConversationRecord[]): void {
+  private writeConversations(
+    projectSlug: string,
+    records: ConversationRecord[],
+  ): void {
     const f = this.conversationsFile(projectSlug);
     mkdirSync(join(f, '..'), { recursive: true });
     writeFileSync(f, JSON.stringify(records, null, 2), 'utf-8');
   }
 
-  listConversations(projectSlug: string, opts?: { limit?: number; offset?: number }): ConversationRecord[] {
+  listConversations(
+    projectSlug: string,
+    opts?: { limit?: number; offset?: number },
+  ): ConversationRecord[] {
     let records = this.readConversations(projectSlug);
     records.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     if (opts?.offset) records = records.slice(opts.offset);
@@ -207,10 +260,14 @@ export class FileStorageAdapter implements IStorageAdapter {
         const pFile = join(dir, entry.name, 'project.json');
         if (!existsSync(pFile)) continue;
         const p: { id: string } = JSON.parse(readFileSync(pFile, 'utf-8'));
-        if (p.id === record.projectId) { projectSlug = entry.name; break; }
+        if (p.id === record.projectId) {
+          projectSlug = entry.name;
+          break;
+        }
       }
     }
-    if (!projectSlug) throw new Error(`Project not found for id: ${record.projectId}`);
+    if (!projectSlug)
+      throw new Error(`Project not found for id: ${record.projectId}`);
     const records = this.readConversations(projectSlug);
     const idx = records.findIndex((r) => r.id === record.id);
     if (idx >= 0) records[idx] = record;
@@ -236,7 +293,13 @@ export class FileStorageAdapter implements IStorageAdapter {
   // ── Documents ─────────────────────────────────────────────────────
 
   private documentsFile(projectSlug: string): string {
-    return join(this.projectHomeDir, 'projects', projectSlug, 'documents', 'metadata.json');
+    return join(
+      this.projectHomeDir,
+      'projects',
+      projectSlug,
+      'documents',
+      'metadata.json',
+    );
   }
 
   private readDocuments(projectSlug: string): DocumentRecord[] {
@@ -277,10 +340,14 @@ export class FileStorageAdapter implements IStorageAdapter {
         const pFile = join(dir, entry.name, 'project.json');
         if (!existsSync(pFile)) continue;
         const p: { id: string } = JSON.parse(readFileSync(pFile, 'utf-8'));
-        if (p.id === record.projectId) { projectSlug = entry.name; break; }
+        if (p.id === record.projectId) {
+          projectSlug = entry.name;
+          break;
+        }
       }
     }
-    if (!projectSlug) throw new Error(`Project not found for id: ${record.projectId}`);
+    if (!projectSlug)
+      throw new Error(`Project not found for id: ${record.projectId}`);
     const records = this.readDocuments(projectSlug);
     const idx = records.findIndex((r) => r.id === record.id);
     if (idx >= 0) records[idx] = record;
@@ -316,7 +383,11 @@ export class FileStorageAdapter implements IStorageAdapter {
 
   private writeTemplates(templates: LayoutTemplate[]): void {
     mkdirSync(join(this.projectHomeDir, 'config'), { recursive: true });
-    writeFileSync(this.templatesPath, JSON.stringify(templates, null, 2), 'utf-8');
+    writeFileSync(
+      this.templatesPath,
+      JSON.stringify(templates, null, 2),
+      'utf-8',
+    );
   }
 
   listTemplates(): LayoutTemplate[] {

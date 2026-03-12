@@ -6,9 +6,14 @@
  * object registered so VoiceProviderContext can surface them in the UI.
  * Re-fetches when `apiBase` changes (i.e. connection switches).
  */
-import { useEffect } from 'react';
+
+import type {
+  ProviderCapability,
+  STTProvider,
+  TTSProvider,
+} from '@stallion-ai/sdk';
 import { ListenerManager, voiceRegistry } from '@stallion-ai/sdk';
-import type { ProviderCapability, STTProvider, TTSProvider } from '@stallion-ai/sdk';
+import { useEffect } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 interface CapabilitiesResponse {
@@ -21,7 +26,12 @@ interface CapabilitiesResponse {
 /** Shared base for server-backed provider stubs. */
 function makeStubBase(cap: ProviderCapability) {
   const lm = new ListenerManager();
-  return { id: cap.id, name: cap.name, isSupported: cap.configured, subscribe: lm.subscribe };
+  return {
+    id: cap.id,
+    name: cap.name,
+    isSupported: cap.configured,
+    subscribe: lm.subscribe,
+  };
 }
 
 /** Minimal stub STTProvider marking a server-backed provider. */
@@ -31,7 +41,9 @@ function makeServerSTTStub(cap: ProviderCapability): STTProvider {
     state: 'idle' as const,
     transcript: '',
     startListening() {
-      console.warn(`[stallion] STT provider "${cap.id}" requires a plugin bundle to activate`);
+      console.warn(
+        `[stallion] STT provider "${cap.id}" requires a plugin bundle to activate`,
+      );
     },
     stopListening() {},
   };
@@ -43,7 +55,9 @@ function makeServerTTSStub(cap: ProviderCapability): TTSProvider {
     ...makeStubBase(cap),
     speaking: false,
     speak() {
-      console.warn(`[stallion] TTS provider "${cap.id}" requires a plugin bundle to activate`);
+      console.warn(
+        `[stallion] TTS provider "${cap.id}" requires a plugin bundle to activate`,
+      );
     },
     cancel() {},
   };
@@ -79,9 +93,14 @@ export function useServerCapabilities(): void {
       })
       .catch((err: unknown) => {
         // Server may not support /capabilities yet — non-fatal
-        console.warn('[stallion] Failed to fetch /api/system/capabilities:', err);
+        console.warn(
+          '[stallion] Failed to fetch /api/system/capabilities:',
+          err,
+        );
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [apiBase]);
 }

@@ -90,7 +90,12 @@ export function EphemeralMessage({
           }}
         />
       ) : (
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownCodeComponents}>{textContent}</ReactMarkdown>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={markdownCodeComponents}
+        >
+          {textContent}
+        </ReactMarkdown>
       )}
       {msg.action && onAction && (
         <button

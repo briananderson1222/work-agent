@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import {
   existsSync,
   watch as fsWatch,
@@ -11,7 +12,6 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
-import { execSync } from 'node:child_process';
 import { extname, join } from 'node:path';
 import {
   buildPlugin,
@@ -20,10 +20,15 @@ import {
   type ToolCallResponse,
 } from '@stallion-ai/shared';
 import { MCPManager } from '@stallion-ai/shared/mcp';
+import {
+  CWD,
+  lookupDepInRegistries,
+  PLUGINS_DIR,
+  readManifest,
+} from '../commands/helpers.js';
+import { install } from '../commands/install.js';
 import { serializeSDKMock } from './sdk-mock.js';
 import { generateDevHTML } from './template.js';
-import { CWD, PLUGINS_DIR, readManifest, lookupDepInRegistries } from '../commands/helpers.js';
-import { install } from '../commands/install.js';
 
 export interface DevFlags {
   mcp?: boolean;
@@ -35,13 +40,20 @@ function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
     let data = '';
     req.on('data', (chunk: string) => (data += chunk));
     req.on('end', () => {
-      try { resolve(JSON.parse(data)); } catch { resolve({}); }
+      try {
+        resolve(JSON.parse(data));
+      } catch {
+        resolve({});
+      }
     });
     req.on('error', () => resolve({}));
   });
 }
 
-export async function startDevServer(port: number, flags: DevFlags = {}): Promise<void> {
+export async function startDevServer(
+  port: number,
+  flags: DevFlags = {},
+): Promise<void> {
   await buildPlugin(CWD, 'dev');
 
   const manifest = readManifest();
@@ -53,7 +65,9 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
       const depSource = dep.source || lookupDepInRegistries(dep.id);
       if (depSource) {
         console.log(`📦 Installing dependency: ${dep.id}...`);
-        try { install(depSource, []); } catch (e: any) {
+        try {
+          install(depSource, []);
+        } catch (e: any) {
           console.warn(`  ⚠ Dep ${dep.id} failed: ${e.message}`);
         }
       }
@@ -88,15 +102,22 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
     }
   });
   const agentInfo = agents
-    .map((a) => `${a.name}${a.model ? ` (${a.model.split(':')[0].split('.').pop()})` : ''}`)
+    .map(
+      (a) =>
+        `${a.name}${a.model ? ` (${a.model.split(':')[0].split('.').pop()})` : ''}`,
+    )
     .join(', ');
 
   const layoutSlug = layout?.slug || pluginName;
 
   // Build react + react-query from plugin's own node_modules
   const reactBundle = join(CWD, 'dist/.react-dev.js');
-  const pkgMtime = existsSync(join(CWD, 'package.json')) ? statSync(join(CWD, 'package.json')).mtimeMs : 0;
-  const bundleMtime = existsSync(reactBundle) ? statSync(reactBundle).mtimeMs : 0;
+  const pkgMtime = existsSync(join(CWD, 'package.json'))
+    ? statSync(join(CWD, 'package.json')).mtimeMs
+    : 0;
+  const bundleMtime = existsSync(reactBundle)
+    ? statSync(reactBundle).mtimeMs
+    : 0;
   if (!existsSync(reactBundle) || pkgMtime > bundleMtime) {
     const esbuildBin = existsSync(join(CWD, 'node_modules/.bin/esbuild'))
       ? join(CWD, 'node_modules/.bin/esbuild')
@@ -128,7 +149,9 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
     } catch (e: any) {
       console.warn('  ⚠ Could not build react bundle:', e.message);
     } finally {
-      try { rmSync(reactEntry); } catch {}
+      try {
+        rmSync(reactEntry);
+      } catch {}
     }
   }
 
@@ -161,7 +184,9 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
             },
           });
           await mcpManager.connectAll(Array.from(toolDefs.values()));
-          console.log(`   🔌 ${mcpManager.listTools().length} tools from ${toolDefs.size} MCP servers`);
+          console.log(
+            `   🔌 ${mcpManager.listTools().length} tools from ${toolDefs.size} MCP servers`,
+          );
         }
       } catch (err: any) {
         console.warn(`   ⚠ MCP setup failed: ${err.message}`);
@@ -177,7 +202,8 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
   if (existsSync(srcDir)) {
     fsWatch(srcDir, { recursive: true }, (_event, filename) => {
       if (!filename || filename.startsWith('.')) return;
-      if (!['.ts', '.tsx', '.js', '.jsx', '.css'].includes(extname(filename))) return;
+      if (!['.ts', '.tsx', '.js', '.jsx', '.css'].includes(extname(filename)))
+        return;
       if (rebuildTimer) clearTimeout(rebuildTimer);
       rebuildTimer = setTimeout(async () => {
         try {
@@ -210,11 +236,12 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
 
     // Tool list — matches core: GET /agents/:slug/tools
     if (/^\/agents\/[^/]+\/tools$/.test(url) && req.method === 'GET') {
-      const tools = mcpManager?.listTools().map((t) => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema,
-      })) || [];
+      const tools =
+        mcpManager?.listTools().map((t) => ({
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+        })) || [];
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(tools));
       return;
@@ -229,12 +256,20 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
 
       if (!mcpManager) {
         res.writeHead(503);
-        res.end(JSON.stringify({ success: false, error: 'MCP not connected' } satisfies ToolCallResponse));
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: 'MCP not connected',
+          } satisfies ToolCallResponse),
+        );
         return;
       }
 
       try {
-        const raw = await mcpManager.callTool(toolName, toolArgs as Record<string, unknown>);
+        const raw = await mcpManager.callTool(
+          toolName,
+          toolArgs as Record<string, unknown>,
+        );
         let response: unknown = raw;
         if (raw?.content?.[0]?.text) {
           try {
@@ -247,10 +282,20 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
           }
         }
         res.writeHead(200);
-        res.end(JSON.stringify({ success: true, response } satisfies ToolCallResponse));
+        res.end(
+          JSON.stringify({
+            success: true,
+            response,
+          } satisfies ToolCallResponse),
+        );
       } catch (err: any) {
         res.writeHead(400);
-        res.end(JSON.stringify({ success: false, error: err.message } satisfies ToolCallResponse));
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: err.message,
+          } satisfies ToolCallResponse),
+        );
       }
       return;
     }
@@ -279,11 +324,25 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
         const resp = await globalThis.fetch(targetUrl, {
           method: (body.method as string) || 'GET',
           headers: (body.headers as Record<string, string>) || {},
-          ...(body.body ? { body: typeof body.body === 'string' ? body.body : JSON.stringify(body.body) } : {}),
+          ...(body.body
+            ? {
+                body:
+                  typeof body.body === 'string'
+                    ? body.body
+                    : JSON.stringify(body.body),
+              }
+            : {}),
         });
         const text = await resp.text();
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, status: resp.status, contentType: resp.headers.get('content-type') || '', body: text }));
+        res.end(
+          JSON.stringify({
+            success: true,
+            status: resp.status,
+            contentType: resp.headers.get('content-type') || '',
+            body: text,
+          }),
+        );
       } catch (e: any) {
         res.writeHead(502, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: e.message }));
@@ -294,19 +353,30 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
     // Static files
     const reactDev = join(CWD, 'dist/.react-dev.js');
     if (url === '/react-dev.js' && existsSync(reactDev)) {
-      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' });
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript',
+        'Cache-Control': 'no-cache',
+      });
       res.end(readFileSync(reactDev));
       return;
     }
     if (url === '/bundle.js' && existsSync(bundleJs)) {
-      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' });
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript',
+        'Cache-Control': 'no-cache',
+      });
       res.end(readFileSync(bundleJs));
     } else if (
       (url === '/bundle.css' || url === '/bundle-dev.css') &&
       (existsSync(bundleCss) || existsSync(bundleCssFallback))
     ) {
-      res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' });
-      res.end(readFileSync(existsSync(bundleCss) ? bundleCss : bundleCssFallback));
+      res.writeHead(200, {
+        'Content-Type': 'text/css',
+        'Cache-Control': 'no-cache',
+      });
+      res.end(
+        readFileSync(existsSync(bundleCss) ? bundleCss : bundleCssFallback),
+      );
     } else {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(html);
@@ -317,7 +387,11 @@ export async function startDevServer(port: number, flags: DevFlags = {}): Promis
     console.log(`\n🔧 Plugin dev server running at http://localhost:${port}`);
     console.log(`   Plugin: ${name}`);
     console.log(`   Tabs: ${tabs.map((t) => t.label).join(', ') || 'none'}`);
-    console.log(useMCP && manifest.agents?.length ? '   MCP: connecting...' : '   MCP: off');
+    console.log(
+      useMCP && manifest.agents?.length
+        ? '   MCP: connecting...'
+        : '   MCP: off',
+    );
     console.log(`   Run 'stallion build' to rebuild after changes\n`);
   });
 

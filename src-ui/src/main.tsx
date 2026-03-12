@@ -1,5 +1,5 @@
-import * as ReactQuery from '@tanstack/react-query';
 import * as SDK from '@stallion-ai/sdk';
+import * as ReactQuery from '@tanstack/react-query';
 import debug from 'debug';
 import DOMPurify from 'dompurify';
 import React, * as ReactAll from 'react';
@@ -15,11 +15,14 @@ import { UserDetailModal } from './components/UserDetailModal';
   'react/jsx-dev-runtime': jsxRuntime,
   '@stallion-ai/sdk': SDK,
   '@tanstack/react-query': ReactQuery,
-  dompurify: Object.assign((dirty: string, cfg?: any) => DOMPurify.sanitize(dirty, cfg), {
-    ...DOMPurify,
-    default: DOMPurify,
-    __esModule: true,
-  }),
+  dompurify: Object.assign(
+    (dirty: string, cfg?: any) => DOMPurify.sanitize(dirty, cfg),
+    {
+      ...DOMPurify,
+      default: DOMPurify,
+      __esModule: true,
+    },
+  ),
   debug: Object.assign(debug, { default: debug, __esModule: true }),
   zod: zod,
   '@stallion-ai/components': { UserDetailModal },
@@ -27,8 +30,8 @@ import { UserDetailModal } from './components/UserDetailModal';
 
 import App from './App';
 import './index.css';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { _setApiBase } from '@stallion-ai/sdk';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NotificationContainer } from './components/NotificationContainer';
 import { OnboardingGate } from './components/OnboardingGate';
 import { ActiveChatsProvider } from './contexts/ActiveChatsContext';
@@ -37,6 +40,7 @@ import { ApiBaseProvider } from './contexts/ApiBaseContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ConversationsProvider } from './contexts/ConversationsContext';
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext';
+import { LayoutsProvider } from './contexts/LayoutsContext';
 import { MessageContextContext } from './contexts/MessageContextContext';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { PreviewProvider } from './contexts/PreviewContext';
@@ -45,7 +49,6 @@ import { SyntaxHighlighterProvider } from './contexts/SyntaxHighlighterContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { VoiceProviderContext } from './contexts/VoiceProviderContext';
 import { WorkflowsProvider } from './contexts/WorkflowsContext';
-import { LayoutsProvider } from './contexts/LayoutsContext';
 import { PermissionManager } from './core/PermissionManager';
 import { pluginRegistry } from './core/PluginRegistry';
 // Register default voice + context providers
@@ -80,11 +83,13 @@ const API_BASE = (() => {
   // Prefer the active connection URL from the connect system (stored in localStorage)
   try {
     const raw = localStorage.getItem('stallion-connect-connections');
-    const activeId = localStorage.getItem('stallion-connect-connections-active');
+    const activeId = localStorage.getItem(
+      'stallion-connect-connections-active',
+    );
     if (raw) {
       const connections = JSON.parse(raw);
       const active = activeId
-        ? connections.find((c: any) => c.id === activeId) ?? connections[0]
+        ? (connections.find((c: any) => c.id === activeId) ?? connections[0])
         : connections[0];
       if (active?.url) return active.url;
     }
@@ -106,38 +111,38 @@ pluginRegistry.initialize().then(() => {
       <QueryClientProvider client={queryClient}>
         <ApiBaseProvider>
           <SyntaxHighlighterProvider>
-          <AuthProvider>
-            <OnboardingGate>
-              <PermissionManager>
-                <NavigationProvider>
-                  <KeyboardShortcutsProvider>
-                    <ToastProvider>
-                      <LayoutsProvider>
-                        <WorkflowsProvider>
-                          <ConversationsProvider>
-                            <ActiveChatsProvider>
-                              <VoiceProviderContext>
-                                <MessageContextContext>
-                                  <StreamingProvider>
-                                    <AnalyticsProvider>
-                                      <PreviewProvider>
-                                        <App />
-                                        <NotificationContainer />
-                                      </PreviewProvider>
-                                    </AnalyticsProvider>
-                                  </StreamingProvider>
-                                </MessageContextContext>
-                              </VoiceProviderContext>
-                            </ActiveChatsProvider>
-                          </ConversationsProvider>
-                        </WorkflowsProvider>
-                      </LayoutsProvider>
-                    </ToastProvider>
-                  </KeyboardShortcutsProvider>
-                </NavigationProvider>
-              </PermissionManager>
-            </OnboardingGate>
-          </AuthProvider>
+            <AuthProvider>
+              <OnboardingGate>
+                <PermissionManager>
+                  <NavigationProvider>
+                    <KeyboardShortcutsProvider>
+                      <ToastProvider>
+                        <LayoutsProvider>
+                          <WorkflowsProvider>
+                            <ConversationsProvider>
+                              <ActiveChatsProvider>
+                                <VoiceProviderContext>
+                                  <MessageContextContext>
+                                    <StreamingProvider>
+                                      <AnalyticsProvider>
+                                        <PreviewProvider>
+                                          <App />
+                                          <NotificationContainer />
+                                        </PreviewProvider>
+                                      </AnalyticsProvider>
+                                    </StreamingProvider>
+                                  </MessageContextContext>
+                                </VoiceProviderContext>
+                              </ActiveChatsProvider>
+                            </ConversationsProvider>
+                          </WorkflowsProvider>
+                        </LayoutsProvider>
+                      </ToastProvider>
+                    </KeyboardShortcutsProvider>
+                  </NavigationProvider>
+                </PermissionManager>
+              </OnboardingGate>
+            </AuthProvider>
           </SyntaxHighlighterProvider>
         </ApiBaseProvider>
       </QueryClientProvider>

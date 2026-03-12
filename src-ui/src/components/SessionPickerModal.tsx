@@ -79,7 +79,6 @@ export function SessionPickerModal({
     if (isOpen) {
       loadConversations();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, loadConversations]);
 
   const formatDate = (dateStr: string) => {

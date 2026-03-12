@@ -1,5 +1,5 @@
-import { Toggle } from './Toggle';
 import type { DockMode } from '../types';
+import { Toggle } from './Toggle';
 
 interface ChatSettingsPanelProps {
   isOpen: boolean;

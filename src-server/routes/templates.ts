@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import type { LayoutTemplate } from '@stallion-ai/shared';
+import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 
 export function createTemplateRoutes(storageAdapter: IStorageAdapter) {

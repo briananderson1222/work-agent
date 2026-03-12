@@ -5,7 +5,7 @@
  *   <ReactMarkdown components={markdownComponents}>...</ReactMarkdown>
  */
 
-import { memo, useMemo, useState, useCallback } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useSyntaxHighlighter } from '../contexts/SyntaxHighlighterContext';
 
 const LANG_REGEX = /language-(\S+)/;
@@ -45,12 +45,29 @@ const HighlightedCode = memo(function HighlightedCode({
 
   return (
     <div style={{ position: 'relative', margin: '8px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 12px', background: '#161b22', borderRadius: '6px 6px 0 0', borderBottom: '1px solid #30363d' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 12px',
+          background: '#161b22',
+          borderRadius: '6px 6px 0 0',
+          borderBottom: '1px solid #30363d',
+        }}
+      >
         <span style={{ fontSize: '11px', color: '#8b949e' }}>{lang}</span>
         <button
           type="button"
           onClick={handleCopy}
-          style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '11px', padding: '2px 6px' }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#8b949e',
+            cursor: 'pointer',
+            fontSize: '11px',
+            padding: '2px 6px',
+          }}
         >
           {copied ? '✓ Copied' : 'Copy'}
         </button>
@@ -61,8 +78,24 @@ const HighlightedCode = memo(function HighlightedCode({
           dangerouslySetInnerHTML={{ __html: html }}
         />
       ) : (
-        <pre style={{ margin: 0, padding: '12px', background: '#0d1117', borderRadius: '0 0 6px 6px', overflowX: 'auto' }}>
-          <code style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e6edf3' }}>{code}</code>
+        <pre
+          style={{
+            margin: 0,
+            padding: '12px',
+            background: '#0d1117',
+            borderRadius: '0 0 6px 6px',
+            overflowX: 'auto',
+          }}
+        >
+          <code
+            style={{
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              color: '#e6edf3',
+            }}
+          >
+            {code}
+          </code>
         </pre>
       )}
     </div>

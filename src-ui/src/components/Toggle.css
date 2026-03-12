@@ -11,23 +11,46 @@
   transition: background 0.2s;
   flex-shrink: 0;
 }
-.toggle:disabled { opacity: 0.4; cursor: default; }
-.toggle--on { background: var(--accent-primary); }
+.toggle:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.toggle--on {
+  background: var(--accent-primary);
+}
 
 .toggle__thumb {
   display: block;
   background: #fff;
   border-radius: 50%;
   transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 /* md (default) — 36×20 */
-.toggle--md { width: 36px; height: 20px; }
-.toggle--md .toggle__thumb { width: 16px; height: 16px; margin: 2px; }
-.toggle--md.toggle--on .toggle__thumb { transform: translateX(16px); }
+.toggle--md {
+  width: 36px;
+  height: 20px;
+}
+.toggle--md .toggle__thumb {
+  width: 16px;
+  height: 16px;
+  margin: 2px;
+}
+.toggle--md.toggle--on .toggle__thumb {
+  transform: translateX(16px);
+}
 
 /* sm — 28×16 */
-.toggle--sm { width: 28px; height: 16px; }
-.toggle--sm .toggle__thumb { width: 12px; height: 12px; margin: 2px; }
-.toggle--sm.toggle--on .toggle__thumb { transform: translateX(12px); }
+.toggle--sm {
+  width: 28px;
+  height: 16px;
+}
+.toggle--sm .toggle__thumb {
+  width: 12px;
+  height: 12px;
+  margin: 2px;
+}
+.toggle--sm.toggle--on .toggle__thumb {
+  transform: translateX(12px);
+}

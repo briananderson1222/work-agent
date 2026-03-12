@@ -1,7 +1,5 @@
 // biome-ignore lint/correctness/noUnusedImports: React needed for classic JSX transform
-import React from 'react';
-
-import {
+import React, {
   createContext,
   type ReactNode,
   useCallback,

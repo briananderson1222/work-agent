@@ -1,18 +1,17 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-
-import { resolvePluginProviders } from '../resolver.js';
+import { join } from 'node:path';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { ConfigLoader } from '../../domain/config-loader.js';
 import {
-  registerProvider,
+  clearAll,
+  getBrandingProvider,
   getProvider,
   listProviders,
-  clearAll,
   registerBrandingProvider,
-  getBrandingProvider,
+  registerProvider,
 } from '../registry.js';
-import { ConfigLoader } from '../../domain/config-loader.js';
+import { resolvePluginProviders } from '../resolver.js';
 
 describe('Provider System', () => {
   let tempDir: string;
@@ -39,11 +38,14 @@ describe('Provider System', () => {
       const pluginsDir = join(tempDir, 'plugins');
       const pluginDir = join(pluginsDir, 'test-plugin');
       mkdirSync(pluginDir, { recursive: true });
-      
-      writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify({
-        name: 'test-plugin',
-        providers: [{ type: 'auth', module: './auth.js' }]
-      }));
+
+      writeFileSync(
+        join(pluginDir, 'plugin.json'),
+        JSON.stringify({
+          name: 'test-plugin',
+          providers: [{ type: 'auth', module: './auth.js' }],
+        }),
+      );
 
       const result = resolvePluginProviders(pluginsDir, {});
       expect(result.resolved).toHaveLength(1);
@@ -51,7 +53,7 @@ describe('Provider System', () => {
         pluginName: 'test-plugin',
         type: 'auth',
         module: './auth.js',
-        layout: undefined
+        layout: undefined,
       });
       expect(result.conflicts).toEqual([]);
     });
@@ -60,11 +62,14 @@ describe('Provider System', () => {
       const pluginsDir = join(tempDir, 'plugins');
       const pluginDir = join(pluginsDir, 'test-plugin');
       mkdirSync(pluginDir, { recursive: true });
-      
-      writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify({
-        name: 'test-plugin',
-        providers: [{ type: 'auth', module: './auth.js' }]
-      }));
+
+      writeFileSync(
+        join(pluginDir, 'plugin.json'),
+        JSON.stringify({
+          name: 'test-plugin',
+          providers: [{ type: 'auth', module: './auth.js' }],
+        }),
+      );
 
       const overrides = { 'test-plugin': { disabled: ['auth'] } };
       const result = resolvePluginProviders(pluginsDir, overrides);
@@ -74,20 +79,26 @@ describe('Provider System', () => {
 
     it('creates conflict for two plugins providing same singleton type', () => {
       const pluginsDir = join(tempDir, 'plugins');
-      
+
       const plugin1Dir = join(pluginsDir, 'plugin1');
       mkdirSync(plugin1Dir, { recursive: true });
-      writeFileSync(join(plugin1Dir, 'plugin.json'), JSON.stringify({
-        name: 'plugin1',
-        providers: [{ type: 'auth', module: './auth.js' }]
-      }));
+      writeFileSync(
+        join(plugin1Dir, 'plugin.json'),
+        JSON.stringify({
+          name: 'plugin1',
+          providers: [{ type: 'auth', module: './auth.js' }],
+        }),
+      );
 
       const plugin2Dir = join(pluginsDir, 'plugin2');
       mkdirSync(plugin2Dir, { recursive: true });
-      writeFileSync(join(plugin2Dir, 'plugin.json'), JSON.stringify({
-        name: 'plugin2',
-        providers: [{ type: 'auth', module: './auth.js' }]
-      }));
+      writeFileSync(
+        join(plugin2Dir, 'plugin.json'),
+        JSON.stringify({
+          name: 'plugin2',
+          providers: [{ type: 'auth', module: './auth.js' }],
+        }),
+      );
 
       const result = resolvePluginProviders(pluginsDir, {});
       expect(result.resolved).toEqual([]);
@@ -95,26 +106,32 @@ describe('Provider System', () => {
       expect(result.conflicts[0]).toEqual({
         type: 'auth',
         layout: '*',
-        candidates: ['plugin1', 'plugin2']
+        candidates: ['plugin1', 'plugin2'],
       });
     });
 
     it('resolves two plugins providing same additive type without conflict', () => {
       const pluginsDir = join(tempDir, 'plugins');
-      
+
       const plugin1Dir = join(pluginsDir, 'plugin1');
       mkdirSync(plugin1Dir, { recursive: true });
-      writeFileSync(join(plugin1Dir, 'plugin.json'), JSON.stringify({
-        name: 'plugin1',
-        providers: [{ type: 'onboarding', module: './onboarding.js' }]
-      }));
+      writeFileSync(
+        join(plugin1Dir, 'plugin.json'),
+        JSON.stringify({
+          name: 'plugin1',
+          providers: [{ type: 'onboarding', module: './onboarding.js' }],
+        }),
+      );
 
       const plugin2Dir = join(pluginsDir, 'plugin2');
       mkdirSync(plugin2Dir, { recursive: true });
-      writeFileSync(join(plugin2Dir, 'plugin.json'), JSON.stringify({
-        name: 'plugin2',
-        providers: [{ type: 'onboarding', module: './onboarding.js' }]
-      }));
+      writeFileSync(
+        join(plugin2Dir, 'plugin.json'),
+        JSON.stringify({
+          name: 'plugin2',
+          providers: [{ type: 'onboarding', module: './onboarding.js' }],
+        }),
+      );
 
       const result = resolvePluginProviders(pluginsDir, {});
       expect(result.resolved).toHaveLength(2);
@@ -125,10 +142,13 @@ describe('Provider System', () => {
       const pluginsDir = join(tempDir, 'plugins');
       const pluginDir = join(pluginsDir, 'test-plugin');
       mkdirSync(pluginDir, { recursive: true });
-      
-      writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify({
-        name: 'test-plugin'
-      }));
+
+      writeFileSync(
+        join(pluginDir, 'plugin.json'),
+        JSON.stringify({
+          name: 'test-plugin',
+        }),
+      );
 
       const result = resolvePluginProviders(pluginsDir, {});
       expect(result.resolved).toEqual([]);
@@ -140,7 +160,7 @@ describe('Provider System', () => {
     it('registerProvider + getProvider round-trip for singleton type', () => {
       const mockProvider = { test: 'value' };
       registerProvider('auth', mockProvider);
-      
+
       const retrieved = getProvider('auth');
       expect(retrieved).toBe(mockProvider);
     });
@@ -153,10 +173,10 @@ describe('Provider System', () => {
     it('getProvider with layout scoping', () => {
       const globalProvider = { scope: 'global' };
       const layoutProvider = { scope: 'layout' };
-      
+
       registerProvider('auth', globalProvider);
       registerProvider('auth', layoutProvider, { layout: 'test-ws' });
-      
+
       expect(getProvider('auth')).toBe(globalProvider);
       expect(getProvider('auth', 'test-ws')).toBe(layoutProvider);
       expect(getProvider('auth', 'other-ws')).toBe(globalProvider);
@@ -165,10 +185,10 @@ describe('Provider System', () => {
     it('listProviders returns all entries for additive types', () => {
       const provider1 = { id: 1 };
       const provider2 = { id: 2 };
-      
+
       registerProvider('onboarding', provider1, { source: 'plugin1' });
       registerProvider('onboarding', provider2, { source: 'plugin2' });
-      
+
       const entries = listProviders('onboarding');
       expect(entries).toHaveLength(2);
       expect(entries[0].provider).toBe(provider1);
@@ -178,12 +198,12 @@ describe('Provider System', () => {
     it('clearAll resets both stores', () => {
       registerProvider('auth', { test: 'singleton' });
       registerProvider('onboarding', { test: 'additive' });
-      
+
       expect(getProvider('auth')).not.toBeNull();
       expect(listProviders('onboarding')).toHaveLength(1);
-      
+
       clearAll();
-      
+
       expect(getProvider('auth')).toBeNull();
       expect(listProviders('onboarding')).toHaveLength(0);
     });
@@ -191,7 +211,7 @@ describe('Provider System', () => {
     it('backward-compat: registerBrandingProvider + getBrandingProvider', () => {
       const mockBranding = { getAppName: () => Promise.resolve('Test App') };
       registerBrandingProvider(mockBranding);
-      
+
       const retrieved = getBrandingProvider();
       expect(retrieved).toBe(mockBranding);
     });
@@ -219,13 +239,13 @@ describe('Provider System', () => {
 
     it('savePluginOverrides + loadPluginOverrides round-trip', async () => {
       const testOverrides = {
-        'plugin1': { disabled: ['auth', 'branding'] },
-        'plugin2': { disabled: ['onboarding'] }
+        plugin1: { disabled: ['auth', 'branding'] },
+        plugin2: { disabled: ['onboarding'] },
       };
-      
+
       await configLoader.savePluginOverrides(testOverrides);
       const loaded = await configLoader.loadPluginOverrides();
-      
+
       expect(loaded).toEqual(testOverrides);
     });
   });

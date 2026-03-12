@@ -11,7 +11,15 @@ export function LayoutIcon({ layout, size = 24, style }: LayoutIconProps) {
   const baseStyle = getLayoutIconStyle(layout, size);
 
   return (
-    <div style={{ ...baseStyle, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', overflow: 'hidden', ...style }}>
+    <div
+      style={{
+        ...baseStyle,
+        background: 'var(--bg-tertiary)',
+        color: 'var(--text-primary)',
+        overflow: 'hidden',
+        ...style,
+      }}
+    >
       {icon.isUrl ? (
         <img
           src={icon.display}

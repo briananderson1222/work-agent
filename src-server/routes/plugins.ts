@@ -14,11 +14,11 @@ import {
 } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Hono } from 'hono';
 import {
   buildPlugin as buildPluginBundle,
   copyPluginIntegrations,
 } from '@stallion-ai/shared';
+import { Hono } from 'hono';
 import {
   getAgentRegistryProvider,
   getIntegrationRegistryProvider,
@@ -32,7 +32,11 @@ import {
   processInstallPermissions,
   revokeAllGrants,
 } from '../services/plugin-permissions.js';
-import { pluginInstalls, pluginUninstalls, pluginUpdates } from '../telemetry/metrics.js';
+import {
+  pluginInstalls,
+  pluginUninstalls,
+  pluginUpdates,
+} from '../telemetry/metrics.js';
 
 export function createPluginRoutes(
   projectHomeDir: string,
@@ -54,7 +58,9 @@ export function createPluginRoutes(
     for (const entry of readdirSync(pluginsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       try {
-        const manifest = JSON.parse(readFileSync(join(pluginsDir, entry.name, 'plugin.json'), 'utf-8'));
+        const manifest = JSON.parse(
+          readFileSync(join(pluginsDir, entry.name, 'plugin.json'), 'utf-8'),
+        );
         if (manifest.name === name) {
           const path = join(pluginsDir, entry.name, 'dist', file);
           return existsSync(path) ? path : null;
@@ -150,7 +156,9 @@ export function createPluginRoutes(
 
   // ── Fetch source to temp dir (shared by preview + install) ──
 
-  async function fetchSource(source: string): Promise<{ tempDir: string; tempName: string } | { error: string }> {
+  async function fetchSource(
+    source: string,
+  ): Promise<{ tempDir: string; tempName: string } | { error: string }> {
     const isGit =
       source.startsWith('git@') ||
       source.endsWith('.git') ||
@@ -171,12 +179,16 @@ export function createPluginRoutes(
       if (branch) cloneArgs.push('--branch', branch);
       cloneArgs.push(url, tempDir);
       try {
-        execSync(['git', ...cloneArgs].map((a) => `"${a}"`).join(' '), { timeout: 30000 });
+        execSync(['git', ...cloneArgs].map((a) => `"${a}"`).join(' '), {
+          timeout: 30000,
+        });
       } catch {
         rmSync(tempDir, { recursive: true, force: true });
         mkdirSync(tempDir, { recursive: true });
         try {
-          execSync(`git clone --depth 1 "${url}" "${tempDir}"`, { timeout: 30000 });
+          execSync(`git clone --depth 1 "${url}" "${tempDir}"`, {
+            timeout: 30000,
+          });
         } catch (e: any) {
           rmSync(tempDir, { recursive: true, force: true });
           return { error: `Failed to clone: ${e.message}` };
@@ -203,13 +215,23 @@ export function createPluginRoutes(
   }
 
   /** Detect conflicts between a manifest and what's already installed */
-  function detectConflicts(manifest: any): Array<{ type: string; id: string; existingSource?: string }> {
-    const conflicts: Array<{ type: string; id: string; existingSource?: string }> = [];
+  function detectConflicts(
+    manifest: any,
+  ): Array<{ type: string; id: string; existingSource?: string }> {
+    const conflicts: Array<{
+      type: string;
+      id: string;
+      existingSource?: string;
+    }> = [];
 
     for (const agent of manifest.agents || []) {
       const slug = `${manifest.name}:${agent.slug}`;
       if (existsSync(join(agentsDir, slug, 'agent.json'))) {
-        conflicts.push({ type: 'agent', id: slug, existingSource: 'installed' });
+        conflicts.push({
+          type: 'agent',
+          id: slug,
+          existingSource: 'installed',
+        });
       }
     }
 
@@ -219,7 +241,11 @@ export function createPluginRoutes(
         try {
           const existing = JSON.parse(readFileSync(layoutDir, 'utf-8'));
           if (existing.plugin && existing.plugin !== manifest.name) {
-            conflicts.push({ type: 'layout', id: manifest.layout.slug, existingSource: existing.plugin });
+            conflicts.push({
+              type: 'layout',
+              id: manifest.layout.slug,
+              existingSource: existing.plugin,
+            });
           }
         } catch {
           conflicts.push({ type: 'layout', id: manifest.layout.slug });
@@ -234,8 +260,22 @@ export function createPluginRoutes(
   async function resolveDependencies(
     manifest: any,
     seen: Set<string> = new Set(),
-  ): Promise<Array<{ id: string; source?: string; status: 'installed' | 'will-install' | 'missing'; components?: Array<{ type: string; id: string }>; git?: { hash: string; branch: string; remote?: string } }>> {
-    const deps: Array<{ id: string; source?: string; status: 'installed' | 'will-install' | 'missing'; components?: Array<{ type: string; id: string }>; git?: { hash: string; branch: string; remote?: string } }> = [];
+  ): Promise<
+    Array<{
+      id: string;
+      source?: string;
+      status: 'installed' | 'will-install' | 'missing';
+      components?: Array<{ type: string; id: string }>;
+      git?: { hash: string; branch: string; remote?: string };
+    }>
+  > {
+    const deps: Array<{
+      id: string;
+      source?: string;
+      status: 'installed' | 'will-install' | 'missing';
+      components?: Array<{ type: string; id: string }>;
+      git?: { hash: string; branch: string; remote?: string };
+    }> = [];
     if (!manifest.dependencies?.length) return deps;
 
     for (const dep of manifest.dependencies) {
@@ -250,36 +290,56 @@ export function createPluginRoutes(
       const depDir = join(pluginsDir, dep.id);
       if (existsSync(join(depDir, 'plugin.json'))) {
         status = 'installed';
-        try { depManifest = JSON.parse(readFileSync(join(depDir, 'plugin.json'), 'utf-8')); } catch {}
+        try {
+          depManifest = JSON.parse(
+            readFileSync(join(depDir, 'plugin.json'), 'utf-8'),
+          );
+        } catch {}
         depGit = getGitInfo(depDir);
       } else if (dep.source) {
         status = 'will-install';
         const result = await fetchSource(dep.source);
         if (!('error' in result)) {
-          try { depManifest = JSON.parse(readFileSync(join(result.tempDir, 'plugin.json'), 'utf-8')); } catch {}
+          try {
+            depManifest = JSON.parse(
+              readFileSync(join(result.tempDir, 'plugin.json'), 'utf-8'),
+            );
+          } catch {}
           depGit = getGitInfo(result.tempDir);
           rmSync(result.tempDir, { recursive: true, force: true });
         }
       } else {
         try {
           const available = await getAgentRegistryProvider().listAvailable();
-          if (available.find(a => a.id === dep.id)) status = 'will-install';
+          if (available.find((a) => a.id === dep.id)) status = 'will-install';
         } catch {}
       }
 
       // Extract components from the dependency manifest
       const components: Array<{ type: string; id: string }> = [];
       if (depManifest) {
-        for (const a of depManifest.agents || []) components.push({ type: 'agent', id: `${depManifest.name}:${a.slug}` });
-        if (depManifest.layout) components.push({ type: 'layout', id: depManifest.layout.slug });
-        for (const p of depManifest.providers || []) components.push({ type: 'provider', id: p.type });
+        for (const a of depManifest.agents || [])
+          components.push({
+            type: 'agent',
+            id: `${depManifest.name}:${a.slug}`,
+          });
+        if (depManifest.layout)
+          components.push({ type: 'layout', id: depManifest.layout.slug });
+        for (const p of depManifest.providers || [])
+          components.push({ type: 'provider', id: p.type });
       }
 
-      deps.push({ id: dep.id, source: dep.source, status, components: components.length ? components : undefined, git: depGit });
+      deps.push({
+        id: dep.id,
+        source: dep.source,
+        status,
+        components: components.length ? components : undefined,
+        git: depGit,
+      });
 
       // Recurse into transitive deps
       if (depManifest) {
-        deps.push(...await resolveDependencies(depManifest, seen));
+        deps.push(...(await resolveDependencies(depManifest, seen)));
       }
     }
 
@@ -287,7 +347,10 @@ export function createPluginRoutes(
   }
 
   /** Install a single dependency by id/source */
-  async function installDependency(dep: { id: string; source?: string }): Promise<{ success: boolean; error?: string }> {
+  async function installDependency(dep: {
+    id: string;
+    source?: string;
+  }): Promise<{ success: boolean; error?: string }> {
     // Already installed
     if (existsSync(join(pluginsDir, dep.id, 'plugin.json'))) {
       return { success: true };
@@ -304,7 +367,9 @@ export function createPluginRoutes(
       await buildPlugin(targetDir, dep.id);
       // Recurse into transitive deps
       try {
-        const depManifest = JSON.parse(readFileSync(join(targetDir, 'plugin.json'), 'utf-8'));
+        const depManifest = JSON.parse(
+          readFileSync(join(targetDir, 'plugin.json'), 'utf-8'),
+        );
         for (const transitive of depManifest.dependencies || []) {
           await installDependency(transitive);
         }
@@ -320,7 +385,9 @@ export function createPluginRoutes(
         const depDir = join(pluginsDir, dep.id);
         if (existsSync(join(depDir, 'plugin.json'))) {
           try {
-            const depManifest = JSON.parse(readFileSync(join(depDir, 'plugin.json'), 'utf-8'));
+            const depManifest = JSON.parse(
+              readFileSync(join(depDir, 'plugin.json'), 'utf-8'),
+            );
             for (const transitive of depManifest.dependencies || []) {
               await installDependency(transitive);
             }
@@ -335,15 +402,33 @@ export function createPluginRoutes(
   }
 
   /** Extract git info from a directory (if it's a git repo) */
-  function getGitInfo(dir: string): { hash: string; branch: string; remote?: string } | undefined {
+  function getGitInfo(
+    dir: string,
+  ): { hash: string; branch: string; remote?: string } | undefined {
     if (!existsSync(join(dir, '.git'))) return undefined;
     try {
-      const hash = execSync('git rev-parse --short HEAD', { cwd: dir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-      const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: dir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+      const hash = execSync('git rev-parse --short HEAD', {
+        cwd: dir,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+        cwd: dir,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
       let remote: string | undefined;
-      try { remote = execSync('git remote get-url origin', { cwd: dir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim(); } catch {}
+      try {
+        remote = execSync('git remote get-url origin', {
+          cwd: dir,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+      } catch {}
       return { hash, branch, remote };
-    } catch { return undefined; }
+    } catch {
+      return undefined;
+    }
   }
 
   // ── Preview / validate plugin before install ─────────
@@ -351,28 +436,64 @@ export function createPluginRoutes(
   app.post('/preview', async (c) => {
     try {
       const { source } = await c.req.json();
-      if (!source) return c.json({ valid: false, error: 'source is required', components: [], conflicts: [] }, 400);
+      if (!source)
+        return c.json(
+          {
+            valid: false,
+            error: 'source is required',
+            components: [],
+            conflicts: [],
+          },
+          400,
+        );
 
       const result = await fetchSource(source);
-      if ('error' in result) return c.json({ valid: false, error: result.error, components: [], conflicts: [] });
+      if ('error' in result)
+        return c.json({
+          valid: false,
+          error: result.error,
+          components: [],
+          conflicts: [],
+        });
 
       const { tempDir } = result;
       try {
-        const manifest = JSON.parse(await readFile(join(tempDir, 'plugin.json'), 'utf-8'));
+        const manifest = JSON.parse(
+          await readFile(join(tempDir, 'plugin.json'), 'utf-8'),
+        );
         const conflicts = detectConflicts(manifest);
-        const _conflictIds = new Set(conflicts.map(c => `${c.type}:${c.id}`));
+        const _conflictIds = new Set(conflicts.map((c) => `${c.type}:${c.id}`));
 
-        const components: Array<{ type: string; id: string; detail?: string; conflict?: typeof conflicts[0] }> = [];
+        const components: Array<{
+          type: string;
+          id: string;
+          detail?: string;
+          conflict?: (typeof conflicts)[0];
+        }> = [];
 
         for (const agent of manifest.agents || []) {
           const slug = `${manifest.name}:${agent.slug}`;
-          const conflict = conflicts.find(c => c.type === 'agent' && c.id === slug);
-          components.push({ type: 'agent', id: slug, detail: agent.source, conflict });
+          const conflict = conflicts.find(
+            (c) => c.type === 'agent' && c.id === slug,
+          );
+          components.push({
+            type: 'agent',
+            id: slug,
+            detail: agent.source,
+            conflict,
+          });
         }
 
         if (manifest.layout) {
-          const conflict = conflicts.find(c => c.type === 'layout' && c.id === manifest.layout.slug);
-          components.push({ type: 'layout', id: manifest.layout.slug, detail: manifest.layout.source, conflict });
+          const conflict = conflicts.find(
+            (c) => c.type === 'layout' && c.id === manifest.layout.slug,
+          );
+          components.push({
+            type: 'layout',
+            id: manifest.layout.slug,
+            detail: manifest.layout.source,
+            conflict,
+          });
         }
 
         for (const p of manifest.providers || []) {
@@ -380,20 +501,36 @@ export function createPluginRoutes(
         }
 
         for (const toolId of manifest.integrations?.required || []) {
-          const installed = existsSync(join(projectHomeDir, 'integrations', toolId, 'integration.json'));
-          components.push({ type: 'tool', id: toolId, detail: installed ? 'already installed' : 'will install' });
+          const installed = existsSync(
+            join(projectHomeDir, 'integrations', toolId, 'integration.json'),
+          );
+          components.push({
+            type: 'tool',
+            id: toolId,
+            detail: installed ? 'already installed' : 'will install',
+          });
         }
 
         // Resolve dependencies
         const dependencies = await resolveDependencies(manifest);
         const git = getGitInfo(tempDir);
 
-        return c.json({ valid: true, manifest, components, conflicts, dependencies, git });
+        return c.json({
+          valid: true,
+          manifest,
+          components,
+          conflicts,
+          dependencies,
+          git,
+        });
       } finally {
         rmSync(tempDir, { recursive: true, force: true });
       }
     } catch (e: any) {
-      return c.json({ valid: false, error: e.message, components: [], conflicts: [] }, 500);
+      return c.json(
+        { valid: false, error: e.message, components: [], conflicts: [] },
+        500,
+      );
     }
   });
 
@@ -409,7 +546,8 @@ export function createPluginRoutes(
       const skipSet = new Set<string>(skip || []);
 
       const result = await fetchSource(source);
-      if ('error' in result) return c.json({ success: false, error: result.error }, 400);
+      if ('error' in result)
+        return c.json({ success: false, error: result.error }, 400);
 
       const { tempDir, tempName } = result;
 
@@ -420,10 +558,15 @@ export function createPluginRoutes(
       const pluginDir = join(pluginsDir, pluginName);
 
       // Resolve dependencies first
-      const depResults: Array<{ id: string; status: string; error?: string }> = [];
+      const depResults: Array<{ id: string; status: string; error?: string }> =
+        [];
       for (const dep of manifest.dependencies || []) {
         const result = await installDependency(dep);
-        depResults.push({ id: dep.id, status: result.success ? 'installed' : 'failed', error: result.error });
+        depResults.push({
+          id: dep.id,
+          status: result.success ? 'installed' : 'failed',
+          error: result.error,
+        });
       }
 
       // Move to canonical directory (removes old version if exists)
@@ -457,7 +600,10 @@ export function createPluginRoutes(
           mkdirSync(layoutDir, { recursive: true });
           const layoutConfig = JSON.parse(readFileSync(src, 'utf-8'));
           layoutConfig.plugin = pluginName;
-          writeFileSync(join(layoutDir, 'layout.json'), JSON.stringify(layoutConfig, null, 2));
+          writeFileSync(
+            join(layoutDir, 'layout.json'),
+            JSON.stringify(layoutConfig, null, 2),
+          );
           installedLayoutSlug = manifest.layout.slug;
         }
       }
@@ -466,7 +612,10 @@ export function createPluginRoutes(
       await buildPlugin(pluginDir, pluginName);
 
       // Copy bundled tool configs from plugin
-      const copied = copyPluginIntegrations(pluginDir, join(projectHomeDir, 'integrations'));
+      const copied = copyPluginIntegrations(
+        pluginDir,
+        join(projectHomeDir, 'integrations'),
+      );
       for (const id of copied) {
         logger.info(`Copied tool config: ${id}`);
       }
@@ -477,7 +626,12 @@ export function createPluginRoutes(
           (p: any) => !skipSet.has(`provider:${p.type}`),
         );
         if (activeProviders.length > 0) {
-          await loadProviders(pluginsDir, manifest.name, { ...manifest, providers: activeProviders }, logger);
+          await loadProviders(
+            pluginsDir,
+            manifest.name,
+            { ...manifest, providers: activeProviders },
+            logger,
+          );
         }
       }
 
@@ -527,7 +681,11 @@ export function createPluginRoutes(
       );
 
       // Notify UI that a plugin was installed (triggers agent reload + plugin registry refresh)
-      eventBus?.emit('plugins:installed', { name: pluginName, agents: manifest.agents?.map((a: any) => `${pluginName}:${a.slug}`) || [] });
+      eventBus?.emit('plugins:installed', {
+        name: pluginName,
+        agents:
+          manifest.agents?.map((a: any) => `${pluginName}:${a.slug}`) || [],
+      });
       pluginInstalls.add(1, { plugin: pluginName });
 
       return c.json({
@@ -537,7 +695,9 @@ export function createPluginRoutes(
           displayName: manifest.displayName,
           version: manifest.version,
           hasBundle: existsSync(join(pluginDir, 'dist', 'bundle.js')),
-          agents: (manifest.agents || []).map((a: any) => ({ slug: `${manifest.name}:${a.slug}` })),
+          agents: (manifest.agents || []).map((a: any) => ({
+            slug: `${manifest.name}:${a.slug}`,
+          })),
         },
         layout: installedLayoutSlug ? { slug: installedLayoutSlug } : undefined,
         tools: toolResults,
@@ -800,23 +960,38 @@ export function createPluginRoutes(
       if (!existsSync(pluginsDir)) return c.json({ success: true, loaded: 0 });
 
       const { clearAll } = await import('../providers/registry.js');
-      const { resolvePluginProviders } = await import('../providers/resolver.js');
+      const { resolvePluginProviders } = await import(
+        '../providers/resolver.js'
+      );
       const { ConfigLoader } = await import('../domain/config-loader.js');
 
       const configLoader = new ConfigLoader({ projectHomeDir });
       const overrides = await configLoader.loadPluginOverrides();
 
       clearAll();
-      const { resolved, conflicts } = resolvePluginProviders(pluginsDir, overrides);
+      const { resolved, conflicts } = resolvePluginProviders(
+        pluginsDir,
+        overrides,
+      );
 
       for (const conflict of conflicts) {
-        logger.warn('Provider conflict on reload', { type: conflict.type, candidates: conflict.candidates });
+        logger.warn('Provider conflict on reload', {
+          type: conflict.type,
+          candidates: conflict.candidates,
+        });
       }
 
       let loaded = 0;
       for (const entry of resolved) {
-        loaded += await loadProviders(pluginsDir, entry.pluginName, 
-          { providers: [{ type: entry.type, module: entry.module }], displayName: entry.pluginName }, logger);
+        loaded += await loadProviders(
+          pluginsDir,
+          entry.pluginName,
+          {
+            providers: [{ type: entry.type, module: entry.module }],
+            displayName: entry.pluginName,
+          },
+          logger,
+        );
       }
 
       return c.json({ success: true, loaded });
@@ -943,10 +1118,18 @@ async function loadProviders(
 
     try {
       // JSON files for registry types → auto-wrap with JsonManifestRegistryProvider
-      if (modulePath.endsWith('.json') && (p.type === 'agentRegistry' || p.type === 'integrationRegistry')) {
-        const { JsonManifestRegistryProvider } = await import('../providers/json-manifest-registry.js');
+      if (
+        modulePath.endsWith('.json') &&
+        (p.type === 'agentRegistry' || p.type === 'integrationRegistry')
+      ) {
+        const { JsonManifestRegistryProvider } = await import(
+          '../providers/json-manifest-registry.js'
+        );
         const { dirname } = await import('node:path');
-        const instance = new JsonManifestRegistryProvider(modulePath, dirname(pluginsDir));
+        const instance = new JsonManifestRegistryProvider(
+          modulePath,
+          dirname(pluginsDir),
+        );
         if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
         else registerIntegrationRegistryProvider(instance);
         loaded++;
@@ -959,18 +1142,34 @@ async function loadProviders(
       const instance = typeof factory === 'function' ? factory() : factory;
 
       if (p.type === 'auth') registerAuthProvider(instance);
-      else if (p.type === 'userIdentity') registerUserIdentityProvider(instance);
-      else if (p.type === 'userDirectory') registerUserDirectoryProvider(instance);
-      else if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-      else if (p.type === 'integrationRegistry') registerIntegrationRegistryProvider(instance);
-      else if (p.type === 'onboarding') registerOnboardingProvider(instance, manifest.displayName || pluginName);
+      else if (p.type === 'userIdentity')
+        registerUserIdentityProvider(instance);
+      else if (p.type === 'userDirectory')
+        registerUserDirectoryProvider(instance);
+      else if (p.type === 'agentRegistry')
+        registerAgentRegistryProvider(instance);
+      else if (p.type === 'integrationRegistry')
+        registerIntegrationRegistryProvider(instance);
+      else if (p.type === 'onboarding')
+        registerOnboardingProvider(
+          instance,
+          manifest.displayName || pluginName,
+        );
       else if (p.type === 'branding') registerBrandingProvider(instance);
       else if (p.type === 'settings') registerSettingsProvider(instance);
-      else registerProvider(p.type, instance, { layout: p.layout, source: pluginName });
+      else
+        registerProvider(p.type, instance, {
+          layout: p.layout,
+          source: pluginName,
+        });
 
       loaded++;
     } catch (e: any) {
-      logger.error('Failed to load provider', { plugin: pluginName, type: p.type, error: e.message });
+      logger.error('Failed to load provider', {
+        plugin: pluginName,
+        type: p.type,
+        error: e.message,
+      });
     }
   }
 

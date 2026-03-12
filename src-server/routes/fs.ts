@@ -1,7 +1,7 @@
-import { Hono } from 'hono';
 import { readdir } from 'node:fs/promises';
-import { resolve, } from 'node:path';
 import { homedir } from 'node:os';
+import { resolve } from 'node:path';
+import { Hono } from 'hono';
 
 export function createFsRoutes() {
   const app = new Hono();
@@ -10,13 +10,13 @@ export function createFsRoutes() {
     try {
       const pathParam = c.req.query('path') || '~';
       const resolvedPath = pathParam === '~' ? homedir() : resolve(pathParam);
-      
+
       const entries = await readdir(resolvedPath, { withFileTypes: true });
       const directories = entries
-        .filter(entry => entry.isDirectory())
-        .map(entry => ({
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => ({
           name: entry.name,
-          isDirectory: true
+          isDirectory: true,
         }))
         .sort((a, b) => {
           const aStartsWithDot = a.name.startsWith('.');
@@ -29,7 +29,7 @@ export function createFsRoutes() {
 
       return c.json({
         path: resolvedPath,
-        entries: directories
+        entries: directories,
       });
     } catch {
       return c.json({ error: 'Path not found or permission denied' }, 404);
