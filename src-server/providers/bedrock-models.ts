@@ -50,43 +50,59 @@ export class BedrockModelCatalog {
   async listModels(): Promise<BedrockModel[]> {
     if (this.modelsCache) return this.modelsCache;
 
-    const command = new ListFoundationModelsCommand({});
-    const response = await this.bedrockClient.send(command);
+    try {
+      const command = new ListFoundationModelsCommand({});
+      const response = await this.bedrockClient.send(command);
 
-    this.modelsCache = (response.modelSummaries || []).map((model) => ({
-      modelId: model.modelId!,
-      modelArn: model.modelArn!,
-      modelName: model.modelName!,
-      providerName: model.providerName!,
-      inputModalities: model.inputModalities || [],
-      outputModalities: model.outputModalities || [],
-      responseStreamingSupported: model.responseStreamingSupported || false,
-      customizationsSupported: model.customizationsSupported || [],
-      inferenceTypesSupported: model.inferenceTypesSupported || [],
-    }));
+      this.modelsCache = (response.modelSummaries || []).map((model) => ({
+        modelId: model.modelId!,
+        modelArn: model.modelArn!,
+        modelName: model.modelName!,
+        providerName: model.providerName!,
+        inputModalities: model.inputModalities || [],
+        outputModalities: model.outputModalities || [],
+        responseStreamingSupported: model.responseStreamingSupported || false,
+        customizationsSupported: model.customizationsSupported || [],
+        inferenceTypesSupported: model.inferenceTypesSupported || [],
+      }));
+    } catch (error: any) {
+      // If credentials are missing or invalid, return empty array instead of failing
+      if (error.name === 'CredentialsProviderError' || error.$metadata?.httpStatusCode === 403) {
+        return [];
+      }
+      throw error;
+    }
 
-    return this.modelsCache;
+    return this.modelsCache || [];
   }
 
   async listInferenceProfiles(): Promise<InferenceProfile[]> {
     if (this.profilesCache) return this.profilesCache;
 
-    const command = new ListInferenceProfilesCommand({});
-    const response = await this.bedrockClient.send(command);
+    try {
+      const command = new ListInferenceProfilesCommand({});
+      const response = await this.bedrockClient.send(command);
 
-    const profiles = (response.inferenceProfileSummaries || []).map(
-      (profile) => ({
-        inferenceProfileId: profile.inferenceProfileId!,
-        inferenceProfileArn: profile.inferenceProfileArn!,
-        inferenceProfileName: profile.inferenceProfileName!,
-        type: profile.type!,
-        status: profile.status!,
-        models: profile.models || [],
-      }),
-    );
+      const profiles = (response.inferenceProfileSummaries || []).map(
+        (profile) => ({
+          inferenceProfileId: profile.inferenceProfileId!,
+          inferenceProfileArn: profile.inferenceProfileArn!,
+          inferenceProfileName: profile.inferenceProfileName!,
+          type: profile.type!,
+          status: profile.status!,
+          models: profile.models || [],
+        }),
+      );
 
-    this.profilesCache = profiles;
-    return profiles;
+      this.profilesCache = profiles;
+      return profiles;
+    } catch (error: any) {
+      // If credentials are missing or invalid, return empty array instead of failing
+      if (error.name === 'CredentialsProviderError' || error.$metadata?.httpStatusCode === 403) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   async getModelPricing(region: string = 'us-east-1'): Promise<ModelPricing[]> {
@@ -194,20 +210,24 @@ export class BedrockModelCatalog {
       return modelId;
     }
 
-    // Check if this model requires inference profile
-    const model = await this.getModelInfo(modelId);
-    if (
-      model?.inferenceTypesSupported?.length === 1 &&
-      model.inferenceTypesSupported[0] === 'INFERENCE_PROFILE'
-    ) {
-      // Find corresponding inference profile (default to us. prefix)
-      const profiles = await this.listInferenceProfiles();
-      const profile = profiles.find(
-        (p) => p.inferenceProfileId === `us.${modelId}`,
-      );
-      if (profile) {
-        return profile.inferenceProfileId;
+    try {
+      // Check if this model requires inference profile
+      const model = await this.getModelInfo(modelId);
+      if (
+        model?.inferenceTypesSupported?.length === 1 &&
+        model.inferenceTypesSupported[0] === 'INFERENCE_PROFILE'
+      ) {
+        // Find corresponding inference profile (default to us. prefix)
+        const profiles = await this.listInferenceProfiles();
+        const profile = profiles.find(
+          (p) => p.inferenceProfileId === `us.${modelId}`,
+        );
+        if (profile) {
+          return profile.inferenceProfileId;
+        }
       }
+    } catch {
+      // If we can't look up the model (e.g., no credentials), just return the ID as-is
     }
 
     return modelId;

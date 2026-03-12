@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import './telemetry.js';
 
 /**
@@ -5,10 +6,8 @@ import './telemetry.js';
  * Main entry point
  */
 
-import './telemetry.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-// import 'dotenv/config';
 import { StallionRuntime } from './runtime/stallion-runtime.js';
 
 async function main() {
