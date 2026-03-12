@@ -219,14 +219,29 @@ export class TerminalService {
     for (const [sessionId, entry] of this.sessions) {
       if (entry.status !== 'running' || entry.pid == null) continue;
       try {
-        execSync(`pgrep -P ${entry.pid}`, { stdio: 'ignore' });
-        if (!entry.hasRunningSubprocess) {
-          entry.hasRunningSubprocess = true;
-          this.emit({
-            type: 'activity',
-            sessionId,
-            hasRunningSubprocess: true,
-          });
+        // Windows: use tasklist to check for child processes
+        // Unix/Linux: use pgrep
+        if (process.platform === 'win32') {
+          const { stdout } = execSync(`tasklist /FI "PID eq ${entry.pid}" /FO CSV`, { stdio: 'pipe' });
+          const hasChildProcess = stdout.trim().length > 0;
+          if (!entry.hasRunningSubprocess && hasChildProcess) {
+            entry.hasRunningSubprocess = true;
+            this.emit({
+              type: 'activity',
+              sessionId,
+              hasRunningSubprocess: true,
+            });
+          }
+        } else {
+          execSync(`pgrep -P ${entry.pid}`, { stdio: 'ignore' });
+          if (!entry.hasRunningSubprocess) {
+            entry.hasRunningSubprocess = true;
+            this.emit({
+              type: 'activity',
+              sessionId,
+              hasRunningSubprocess: true,
+            });
+          }
         }
       } catch {
         if (entry.hasRunningSubprocess) {
