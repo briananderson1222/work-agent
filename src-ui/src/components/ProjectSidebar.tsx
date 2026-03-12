@@ -238,7 +238,7 @@ export function ProjectSidebar() {
   const { selectedProject, selectedLayout, navigate } = useNavigation();
   const { appName } = useBranding();
   const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(STORAGE_KEY) === 'true',
+    () => localStorage.getItem(STORAGE_KEY) !== 'false',
   );
 
   const toggleCollapse = () => {
