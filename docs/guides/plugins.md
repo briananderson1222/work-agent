@@ -1,16 +1,16 @@
 # Plugin Development
 
-Plugins are the product — the core provides the foundation. A plugin can contribute workspace UIs, agents, MCP tools, and provider implementations (auth, branding, agent registry, etc.). The SDK (`@stallion-ai/sdk`) is what plugin developers use to interact with Stallion from plugin UI code.
+Plugins are the product — the core provides the foundation. A plugin can contribute layout UIs, agents, MCP tools, and provider implementations (auth, branding, agent registry, etc.). The SDK (`@stallion-ai/sdk`) is what plugin developers use to interact with Stallion from plugin UI code.
 
 ## Plugin Types
 
 | Type | What it provides |
 |------|-----------------|
-| `workspace` | A full workspace UI with tabs, agents, and optional providers |
-| `agent` | Agents only — no workspace UI |
+| `workspace` | A full layout UI with tabs, agents, and optional providers |
+| `agent` | Agents only — no layout UI |
 | `tool` | Provider implementations only (auth, branding, registry, etc.) |
 
-A single plugin can combine all three — e.g., a workspace plugin that also registers an auth provider.
+A single plugin can combine all three — e.g., a layout plugin that also registers an auth provider.
 
 ## Directory Structure
 
@@ -18,7 +18,7 @@ A single plugin can combine all three — e.g., a workspace plugin that also reg
 my-plugin/
 ├── plugin.json              # Manifest (required)
 ├── package.json             # Node package
-├── workspace.json           # Workspace config (tabs, prompts)
+├── layout.json              # Layout config (tabs, prompts)
 ├── src/
 │   └── index.tsx            # UI entry point — exports `components` map
 ├── agents/                  # Agent configs (optional)
@@ -49,17 +49,17 @@ All fields:
   "agents": [
     { "slug": "assistant", "source": "./agents/assistant/agent.json" }
   ],
-  "workspace": {
-    "slug": "my-workspace",
-    "source": "./workspace.json"
+  "layout": {
+    "slug": "my-layout",
+    "source": "./layout.json"
   },
-  "workspaces": [
-    { "slug": "ws-a", "source": "./workspaces/a.json" },
-    { "slug": "ws-b", "source": "./workspaces/b.json" }
+  "layouts": [
+    { "slug": "layout-a", "source": "./layouts/a.json" },
+    { "slug": "layout-b", "source": "./layouts/b.json" }
   ],
   "providers": [
     { "type": "auth", "module": "./providers/auth.js" },
-    { "type": "branding", "module": "./providers/branding.js", "workspace": "my-workspace" }
+    { "type": "branding", "module": "./providers/branding.js", "layout": "my-layout" }
   ],
   "tools": {
     "required": ["my-mcp-tool"]
@@ -80,12 +80,12 @@ All fields:
 | `sdkVersion` | string | no | Semver range of `@stallion-ai/sdk` required |
 | `displayName` | string | no | Human-readable name shown in UI |
 | `description` | string | no | Short description |
-| `entrypoint` | string | no | Path to UI entry point (workspace plugins only) |
+| `entrypoint` | string | no | Path to UI entry point (layout plugins only) |
 | `capabilities` | string[] | no | Declared capabilities, e.g. `["chat", "navigation"]` |
 | `permissions` | string[] | no | Permissions the plugin needs (see Permissions) |
 | `agents` | array | no | Agent configs to install |
-| `workspace` | object | no | Single workspace config to install |
-| `workspaces` | array | no | Multiple workspace configs to install |
+| `layout` | object | no | Single layout config to install |
+| `layouts` | array | no | Multiple layout configs to install |
 | `providers` | array | no | Server-side provider modules to load |
 | `tools.required` | string[] | no | MCP tool IDs that must be installed |
 | `dependencies` | array | no | Other plugins this plugin depends on |
@@ -93,14 +93,14 @@ All fields:
 ### Provider Entry Fields
 
 ```json
-{ "type": "auth", "module": "./providers/auth.js", "workspace": "my-workspace" }
+{ "type": "auth", "module": "./providers/auth.js", "layout": "my-layout" }
 ```
 
 | Field | Description |
 |-------|-------------|
 | `type` | Provider type: `auth`, `branding`, `userIdentity`, `userDirectory`, `agentRegistry`, `toolRegistry`, `onboarding`, `settings` |
 | `module` | Path to the JS module (relative to plugin root) |
-| `workspace` | Optional — scope this provider to a specific workspace slug |
+| `layout` | Optional — scope this provider to a specific layout slug |
 
 ### Dependency Entry Fields
 
@@ -113,14 +113,14 @@ All fields:
 | `id` | Plugin name (must match the dependency's `plugin.json` `name`) |
 | `source` | Git URL or local path to install from if not already installed |
 
-## workspace.json
+## layout.json
 
 ```json
 {
-  "name": "My Workspace",
-  "slug": "my-workspace",
+  "name": "My Layout",
+  "slug": "my-layout",
   "icon": "🚀",
-  "description": "My workspace description",
+  "description": "My layout description",
   "availableAgents": ["my-plugin:assistant"],
   "defaultAgent": "my-plugin:assistant",
   "tabs": [
@@ -140,16 +140,16 @@ Agent slugs in `availableAgents` use the format `<plugin-name>:<agent-slug>`.
 ## Entry Point (src/index.tsx)
 
 ```tsx
-import { useAgents, useAuth, useNavigation, type WorkspaceComponentProps } from '@stallion-ai/sdk';
+import { useAgents, useAuth, useNavigation, type LayoutComponentProps } from '@stallion-ai/sdk';
 
-function Main({ workspace, activeTab, onShowChat, onLaunchPrompt }: WorkspaceComponentProps) {
+function Main({ layout, activeTab, onShowChat, onLaunchPrompt }: LayoutComponentProps) {
   const agents = useAgents();
   const { status, provider, user } = useAuth();
   const { setDockState } = useNavigation();
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h1>{workspace?.name}</h1>
+      <h1>{layout?.name}</h1>
       <button onClick={() => { setDockState(true); onShowChat?.(); }}>
         Open Chat
       </button>
@@ -157,7 +157,7 @@ function Main({ workspace, activeTab, onShowChat, onLaunchPrompt }: WorkspaceCom
   );
 }
 
-function Settings(props: WorkspaceComponentProps) {
+function Settings(props: LayoutComponentProps) {
   return <div>Settings</div>;
 }
 
@@ -169,8 +169,8 @@ export const components = {
 export default Main;
 ```
 
-- Export a `components` map — keys match workspace.json tab `component` fields
-- Components receive `WorkspaceComponentProps`: `{ workspace, activeTab, onShowChat, onLaunchPrompt }`
+- Export a `components` map — keys match layout.json tab `component` fields
+- Components receive `LayoutComponentProps`: `{ layout, activeTab, onShowChat, onLaunchPrompt }`
 - Use any hook from `@stallion-ai/sdk`
 - `@tanstack/react-query` hooks share the host's QueryClient
 
@@ -218,14 +218,12 @@ const profile = await lookup('jdoe');
 ### Navigation
 
 ```tsx
-import { useNavigation, useWorkspace, useWorkspaces } from '@stallion-ai/sdk';
+import { useNavigation } from '@stallion-ai/sdk';
 
-const { setDockState } = useNavigation();
+const { setDockState, setLayout } = useNavigation();
 setDockState(true);   // open chat dock
 setDockState(false);  // close chat dock
-
-const workspace = useWorkspace();       // current workspace
-const workspaces = useWorkspaces();     // all workspaces
+setLayout('my-project', 'my-layout');  // navigate to a project layout
 ```
 
 ### Config
@@ -265,7 +263,9 @@ For data fetching, prefer the pre-built query hooks over raw `useQuery`:
 import {
   useAgentsQuery,
   useConfigQuery,
-  useWorkspacesQuery,
+  useProjectsQuery,
+  useProjectLayoutsQuery,
+  useLayoutsQuery,
   useConversationsQuery,
   useModelsQuery,
   useStatsQuery,
@@ -305,15 +305,15 @@ const result = await serverFetch({
 // result: { success, status, contentType, body }
 ```
 
-### Workspace Providers
+### Layout Providers
 
-Register and access workspace-scoped providers from plugin UI:
+Register and access layout-scoped providers from plugin UI:
 
 ```tsx
 import { registerProvider, getProvider, hasProvider } from '@stallion-ai/sdk';
 
 // Register a client-side provider
-registerProvider('myService', myServiceInstance, { workspace: 'my-workspace' });
+registerProvider('myService', myServiceInstance, { layout: 'my-layout' });
 
 // Access a provider
 const svc = getProvider('myService');
@@ -479,7 +479,7 @@ Plugins can declare dependencies on other plugins. The server resolves and insta
 - If `source` is provided and the dependency isn't installed, it's cloned and installed automatically
 - If no `source`, the server tries the configured registry
 - Dependencies are resolved recursively (cycle detection included)
-- `stallion preview <source>` shows dependency resolution status before install
+- `./stallion preview <source>` shows dependency resolution status before install
 
 ## Installation Flow
 
@@ -487,19 +487,19 @@ Plugins can declare dependencies on other plugins. The server resolves and insta
 
 ```bash
 # Install from git URL
-stallion install git@github.com:org/my-plugin.git
+./stallion install git@github.com:org/my-plugin.git
 
 # Install from git URL at a specific branch
-stallion install git@github.com:org/my-plugin.git#my-branch
+./stallion install git@github.com:org/my-plugin.git#my-branch
 
 # Install from local path
-stallion install /path/to/my-plugin
+./stallion install /path/to/my-plugin
 
 # Preview before installing (validate + show components/conflicts)
-stallion preview git@github.com:org/my-plugin.git
+./stallion preview git@github.com:org/my-plugin.git
 
 # Skip specific components during install
-stallion install git@github.com:org/my-plugin.git --skip=agent:my-plugin:assistant,workspace:my-workspace
+./stallion install git@github.com:org/my-plugin.git --skip=agent:my-plugin:assistant,layout:my-layout
 ```
 
 ### API
@@ -540,15 +540,15 @@ GET /api/plugins/check-updates
 3. Dependencies are resolved and installed recursively
 4. Plugin is moved to `~/.stallion-ai/plugins/<name>/`
 5. Agents are copied to `~/.stallion-ai/agents/<plugin>:<slug>/`
-6. Workspace config is written to `~/.stallion-ai/workspaces/<slug>/workspace.json`
-7. Plugin is built (`stallion build` / esbuild)
-8. Bundled tool configs are copied to `~/.stallion-ai/tools/`
+6. Layout config is written to `~/.stallion-ai/layouts/<slug>/layout.json`
+7. Plugin is built (`./stallion build` / esbuild)
+8. Bundled tool configs are copied to `~/.stallion-ai/integrations/`
 9. Providers are loaded into the server
 10. Passive permissions are auto-granted; active/trusted permissions are returned as `pendingConsent`
 
 ## Build System
 
-Workspace plugins (with `entrypoint`) are built automatically by the server using esbuild. No custom build script needed.
+Layout plugins (with `entrypoint`) are built automatically by the server using esbuild. No custom build script needed.
 
 ### package.json
 
@@ -558,11 +558,11 @@ Workspace plugins (with `entrypoint`) are built automatically by the server usin
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "stallion build",
-    "dev": "stallion dev"
+    "build": "./stallion build",
+    "dev": "./stallion dev"
   },
   "peerDependencies": {
-    "@stallion-ai/sdk": "^0.3.0",
+    "@stallion-ai/sdk": "^0.4.0",
     "react": "^18.0.0 || ^19.0.0"
   }
 }
@@ -593,19 +593,19 @@ Build produces `dist/bundle.js` (and optionally `dist/bundle.css`). Do not commi
 ### 1. Scaffold
 
 ```bash
-stallion init my-workspace
-cd my-workspace
+./stallion init my-plugin
+cd my-plugin
 ```
 
-This creates the full plugin structure with a working entry point, workspace config, and agent.
+This creates the full plugin structure with a working entry point, layout config, and agent.
 
 ### 2. Dev Server
 
 ```bash
-stallion dev              # starts on port 4200
-stallion dev 3000         # custom port
-stallion dev --no-mcp     # disable MCP tool connections
-stallion dev --tools-dir=./tools  # custom tools directory
+./stallion dev              # starts on port 4200
+./stallion dev 3000         # custom port
+./stallion dev --no-mcp     # disable MCP tool connections
+./stallion dev --tools-dir=./tools  # custom tools directory
 ```
 
 The dev server:
@@ -624,7 +624,7 @@ Dependencies declared in `plugin.json` are auto-installed from `~/.stallion-ai/p
 ### 3. Build
 
 ```bash
-stallion build
+./stallion build
 ```
 
 Produces `dist/bundle.js` (production, no sourcemaps).
@@ -632,7 +632,7 @@ Produces `dist/bundle.js` (production, no sourcemaps).
 ### 4. Install Locally for Testing
 
 ```bash
-stallion install .
+./stallion install .
 ```
 
 Installs the current directory as a plugin into the running Stallion instance.
@@ -640,12 +640,12 @@ Installs the current directory as a plugin into the running Stallion instance.
 ### 5. Plugin Management
 
 ```bash
-stallion list             # list installed plugins
-stallion info my-plugin   # show plugin details
-stallion update my-plugin # git pull + rebuild
-stallion remove my-plugin # uninstall
-stallion preview <source> # validate before installing
-stallion registry [url]   # browse or set registry URL
+./stallion list             # list installed plugins
+./stallion info my-plugin   # show plugin details
+./stallion update my-plugin # git pull + rebuild
+./stallion remove my-plugin # uninstall
+./stallion preview <source> # validate before installing
+./stallion registry [url]   # browse or set registry URL
 ```
 
 ## Agent Config (agent.json)
@@ -716,26 +716,26 @@ Plugins can inject external links into the host UI:
 
 | Example | Type | What it shows |
 |---------|------|---------------|
-| `examples/demo-workspace/` | workspace | Full workspace with agents, tabs, SDK hooks |
-| `examples/minimal-workspace/` | workspace | Minimal entry point, no agents |
+| `examples/demo-layout/` | workspace | Full layout with agents, tabs, SDK hooks |
+| `examples/minimal-layout/` | workspace | Minimal entry point, no agents |
 | `examples/custom-branding/` | tool | Branding provider only |
 | `examples/elevenlabs-voice/` | tool | STT/TTS voice provider |
 | `examples/nova-sonic-voice/` | tool | Nova Sonic voice provider |
 | `examples/meeting-transcription/` | tool | Context provider for meeting transcription |
 
-### Minimal Workspace (examples/minimal-workspace)
+### Minimal Layout (examples/minimal-layout)
 
 ```tsx
-import { useAgents, useNavigation, useToast, type WorkspaceComponentProps } from '@stallion-ai/sdk';
+import { useAgents, useNavigation, useToast, type LayoutComponentProps } from '@stallion-ai/sdk';
 
-export default function Main({ workspace, onShowChat }: WorkspaceComponentProps) {
+export default function Main({ layout, onShowChat }: LayoutComponentProps) {
   const agents = useAgents();
   const { setDockState } = useNavigation();
   const { showToast } = useToast();
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h1>{workspace?.name}</h1>
+      <h1>{layout?.name}</h1>
       <button onClick={() => { setDockState(true); showToast({ type: 'info', message: 'Chat opened' }); }}>
         Open Chat
       </button>
@@ -743,7 +743,7 @@ export default function Main({ workspace, onShowChat }: WorkspaceComponentProps)
   );
 }
 
-export const components = { 'minimal-workspace-main': Main };
+export const components = { 'minimal-layout-main': Main };
 ```
 
 ### Custom Branding (examples/custom-branding)

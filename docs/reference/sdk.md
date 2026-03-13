@@ -8,7 +8,7 @@ The SDK wraps core app contexts and exposes them through stable React hooks, UI 
 
 ## Setup
 
-Plugins are automatically wrapped in `SDKProvider` by the runtime. No manual setup required. For workspace plugins, use `WorkspaceProvider` instead — it also sets the workspace context for agent resolution.
+Plugins are automatically wrapped in `SDKProvider` by the runtime. No manual setup required. For layout plugins, use `LayoutProvider` instead — it also sets the layout context for agent resolution.
 
 ```tsx
 // Core app wraps your plugin automatically:
@@ -16,10 +16,10 @@ Plugins are automatically wrapped in `SDKProvider` by the runtime. No manual set
   <YourPlugin />
 </SDKProvider>
 
-// Workspace plugins use WorkspaceProvider:
-<WorkspaceProvider sdk={sdkContextValue} workspace={workspaceConfig}>
+// Workspace plugins use LayoutProvider:
+<LayoutProvider sdk={sdkContextValue} layout={layoutConfig}>
   <YourWorkspacePlugin />
-</WorkspaceProvider>
+</LayoutProvider>
 ```
 
 ---
@@ -49,7 +49,7 @@ const agent = useAgent('my-agent');
 
 #### `useResolveAgent(agentSlug: string): string`
 
-Resolves a short agent name to a fully-qualified slug using the current workspace context. Returns the slug unchanged if it already contains `:`.
+Resolves a short agent name to a fully-qualified slug using the current layout context. Returns the slug unchanged if it already contains `:`.
 
 ```tsx
 const resolved = useResolveAgent('my-agent'); // → 'sa-agent:my-agent'
@@ -59,13 +59,13 @@ const resolved = useResolveAgent('my-agent'); // → 'sa-agent:my-agent'
 
 ### Workspace Hooks
 
-#### `useWorkspaces(): WorkspaceConfig[]`
+#### `useLayouts(): LayoutConfig[]`
 
-Returns all workspaces.
+Returns all layouts.
 
-#### `useWorkspace(slug: string, enabled?: boolean): WorkspaceConfig | undefined`
+#### `useWorkspace(slug: string, enabled?: boolean): LayoutConfig | undefined`
 
-Returns a single workspace by slug. Pass `enabled: false` to skip fetching.
+Returns a single layout by slug. Pass `enabled: false` to skip fetching.
 
 ---
 
@@ -114,7 +114,7 @@ Returns the current state of a specific chat session (loading, messages, etc.).
 
 #### `useSendToChat(agentSlug: string): (message: string) => void`
 
-Convenience hook. Returns a function that creates a session, opens the dock, and sends a message — all in one call. Resolves short agent names via workspace context.
+Convenience hook. Returns a function that creates a session, opens the dock, and sends a message — all in one call. Resolves short agent names via layout context.
 
 ```tsx
 const sendToChat = useSendToChat('my-agent');
@@ -174,7 +174,7 @@ Returns all configured models.
 
 #### `useAvailableModels(): Model[]`
 
-Returns models available for the current user/workspace.
+Returns models available for the current user/layout.
 
 ---
 
@@ -304,13 +304,13 @@ Fetches available Bedrock models.
 
 Fetches model capabilities. Returns `[]` on 401 (credentials not configured).
 
-### `useWorkspaceQuery(slug: string, config?)`
+### `useLayoutQuery(slug: string, config?)`
 
-Fetches a single workspace.
+Fetches a single layout.
 
-### `useWorkspacesQuery(config?)`
+### `useLayoutsQuery(config?)`
 
-Fetches all workspaces.
+Fetches all layouts.
 
 ### `useConversationsQuery(agentSlug: string | undefined, config?)`
 
@@ -585,29 +585,29 @@ Injects the SDK context into a plugin tree. Used by the runtime — plugins don'
 </SDKProvider>
 ```
 
-### `WorkspaceProvider`
+### `LayoutProvider`
 
-Wraps a workspace plugin with SDK context and sets the workspace for agent resolution.
+Wraps a layout plugin with SDK context and sets the layout for agent resolution.
 
 ```tsx
-<WorkspaceProvider sdk={sdkContextValue} workspace={workspaceConfig}>
+<LayoutProvider sdk={sdkContextValue} layout={layoutConfig}>
   {children}
-</WorkspaceProvider>
+</LayoutProvider>
 ```
 
-### `WorkspaceNavigationProvider`
+### `LayoutNavigationProvider`
 
-Manages per-tab URL hash state for workspace plugins with multiple tabs. Persists state to `sessionStorage` and restores it on tab switch.
+Manages per-tab URL hash state for layout plugins with multiple tabs. Persists state to `sessionStorage` and restores it on tab switch.
 
 ```tsx
-<WorkspaceNavigationProvider workspaceSlug="my-workspace" activeTabId={activeTab}>
+<LayoutNavigationProvider layoutSlug="my-layout" activeTabId={activeTab}>
   {children}
-</WorkspaceNavigationProvider>
+</LayoutNavigationProvider>
 ```
 
 #### `useWorkspaceNavigation()`
 
-Must be called inside `WorkspaceNavigationProvider`.
+Must be called inside `LayoutNavigationProvider`.
 
 ```ts
 {
@@ -623,12 +623,12 @@ Must be called inside `WorkspaceNavigationProvider`.
 
 Utilities for working with agent slugs.
 
-### `resolveAgentName(agentName: string, workspace?: WorkspaceConfig): string`
+### `resolveAgentName(agentName: string, layout?: LayoutConfig): string`
 
-Resolves a short agent name to a fully-qualified `namespace:name` slug using workspace context. Returns the name unchanged if it already contains `:` or no match is found.
+Resolves a short agent name to a fully-qualified `namespace:name` slug using layout context. Returns the name unchanged if it already contains `:` or no match is found.
 
 ```ts
-resolveAgentName('my-agent'); // → 'sa-agent:my-agent' (if in workspace context)
+resolveAgentName('my-agent'); // → 'sa-agent:my-agent' (if in layout context)
 resolveAgentName('sa-agent:my-agent'); // → 'sa-agent:my-agent' (unchanged)
 ```
 
@@ -804,37 +804,37 @@ interface ContextCapability {
 
 ## Workspace Providers
 
-Plugin-defined data providers scoped to a workspace (e.g. a CRM data source).
+Plugin-defined data providers scoped to a layout (e.g. a CRM data source).
 
 ### `registerProvider(id, metadata, factory)`
 
-Registers a provider. Called by workspace plugins on load.
+Registers a provider. Called by layout plugins on load.
 
 ```ts
-registerProvider('my-crm', { workspace: 'sales', type: 'crm' }, () => new MyCRMProvider());
+registerProvider('my-crm', { layout: 'sales', type: 'crm' }, () => new MyCRMProvider());
 ```
 
-### `getProvider<T>(workspace, type): T`
+### `getProvider<T>(layout, type): T`
 
-Returns the active provider instance for a workspace/type pair.
+Returns the active provider instance for a layout/type pair.
 
-### `hasProvider(workspace, type): boolean`
+### `hasProvider(layout, type): boolean`
 
-Returns `true` if a provider is configured for the workspace/type.
+Returns `true` if a provider is configured for the layout/type.
 
-### `getActiveProviderId(workspace, type): string | null`
+### `getActiveProviderId(layout, type): string | null`
 
 Returns the ID of the active provider.
 
-### `configureProvider(workspace, type, providerId)`
+### `configureProvider(layout, type, providerId)`
 
-Sets the active provider for a workspace/type (used by plugins to set defaults).
+Sets the active provider for a layout/type (used by plugins to set defaults).
 
 ### `ProviderMetadata`
 
 ```ts
 interface ProviderMetadata {
-  workspace: string;
+  layout: string;
   type: string;
 }
 ```
@@ -878,11 +878,11 @@ const noopSubscribe: (fn: () => void) => () => void
 
 ### `createWorkspaceContext<T>(config)`
 
-Factory for typed workspace-scoped React context with optional `sessionStorage` persistence.
+Factory for typed layout-scoped React context with optional `sessionStorage` persistence.
 
 ```ts
 interface WorkspaceContextConfig<T> {
-  workspaceSlug: string;
+  layoutSlug: string;
   initialState: T;
   persist?: boolean; // default: true
 }
@@ -892,7 +892,7 @@ Returns `{ Provider, useWorkspaceContext }`.
 
 ```tsx
 const { Provider, useWorkspaceContext } = createWorkspaceContext({
-  workspaceSlug: 'my-workspace',
+  layoutSlug: 'my-layout',
   initialState: { selectedId: null as string | null },
 });
 
@@ -914,7 +914,7 @@ Core types re-exported from `@stallion-ai/shared` plus SDK-specific types.
 
 ### Shared types (from `@stallion-ai/shared`)
 
-`AgentSpec`, `AgentSummary` (SDK), `AgentMetadata`, `AgentUIConfig`, `AgentGuardrails`, `AgentTools`, `AgentQuickPrompt`, `WorkspaceConfig`, `WorkspaceMetadata`, `WorkspaceTab`, `WorkspacePrompt`, `PluginManifest`, `SlashCommand`, `SlashCommandParam`, `ToolDef`, `ToolMetadata`, `ToolPermissions`, `ToolCallResponse`, `ConversationStats`
+`AgentSpec`, `AgentSummary` (SDK), `AgentMetadata`, `AgentUIConfig`, `AgentGuardrails`, `AgentTools`, `AgentQuickPrompt`, `LayoutConfig`, `WorkspaceMetadata`, `WorkspaceTab`, `WorkspacePrompt`, `PluginManifest`, `SlashCommand`, `SlashCommandParam`, `ToolDef`, `ToolMetadata`, `ToolPermissions`, `ToolCallResponse`, `ConversationStats`
 
 ### SDK-specific types
 
@@ -993,9 +993,9 @@ interface InvokeResult {
   toolCalls?: any[];
 }
 
-interface WorkspaceComponentProps {
+interface LayoutComponentProps {
   agent?: AgentSummary;
-  workspace?: WorkspaceConfig;
+  layout?: LayoutConfig;
   activeTab?: WorkspaceTab;
   onLaunchPrompt?: (prompt: AgentQuickPrompt) => void;
   onLaunchWorkflow?: (workflowId: string) => void;
@@ -1004,6 +1004,6 @@ interface WorkspaceComponentProps {
   onSendToChat?: (text: string, agent?: string) => void;
 }
 
-type WorkspaceComponent = (props: WorkspaceComponentProps) => ReactElement;
+type WorkspaceComponent = (props: LayoutComponentProps) => ReactElement;
 type EventHandler<T = any> = (event: T) => void;
 ```

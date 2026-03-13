@@ -145,7 +145,7 @@ The `InjectableStream` wrapper ensures approval events are emitted in the correc
 
 ### Data Layer Architecture
 
-All workspace data flows through typed abstractions:
+All layout data flows through typed abstractions:
 
 ```
 Provider Interface (contract)  →  Provider Impl (plugin)        →  ViewModel (UI shape)
@@ -161,7 +161,7 @@ Provider Interface (contract)  →  Provider Impl (plugin)        →  ViewModel
 - Provider implementations map raw responses to ViewModels via mapper functions (e.g., `mapAccount`, `mapInsight`)
 - Hooks in `data/index.ts` wrap providers with React Query — components use hooks, not providers directly
 - **No `as any` in new code** — use proper ViewModel types. Existing `any` usage in Calendar.tsx, CRM.tsx, StallionContext.tsx is tech debt to be migrated
-- Core app (`src-ui/src/`) never imports from workspace providers — use SDK abstractions (`useAuth`, `useNavigation`, etc.)
+- Core app (`src-ui/src/`) never imports from layout providers — use SDK abstractions (`useAuth`, `useNavigation`, etc.)
 - The CRM page has a legacy local `Account` type that should be migrated to `AccountVM`
 
 ### Core Boundaries
@@ -176,7 +176,7 @@ Provider Interface (contract)  →  Provider Impl (plugin)        →  ViewModel
 
 ### Cross-Tab Navigation
 
-Plugins must use SDK hooks for navigating between workspace tabs — never use raw `sessionStorage`, `window.history.pushState`, or `window.dispatchEvent` directly.
+Plugins must use SDK hooks for navigating between layout tabs — never use raw `sessionStorage`, `window.history.pushState`, or `window.dispatchEvent` directly.
 
 ```typescript
 import { useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
@@ -196,13 +196,13 @@ const accountId = params.get('selectedAccount');
 
 **Rules:**
 - `setTabState(tabId, state)` writes to sessionStorage + syncs URL hash
-- `setWorkspaceTab(workspaceSlug, tabId)` handles client-side URL navigation
+- `setLayoutTab(layoutSlug, tabId)` handles client-side URL navigation
 - Receiving tab reads state via `getTabState(tabId)` in a `useEffect` triggered by `activeTab`
 - State format is URL search params string (e.g., `'event=abc&date=2026-01-01'`)
 
-### ⛔ NEVER run long-lived processes via the test-workspace.sh script from execute_bash
+### ⛔ NEVER run long-lived processes via the test-layout.sh script from execute_bash
 
-The `test-workspace.sh` script uses `wait` and is designed for interactive terminals. Instead, start the server and UI directly as background processes:
+The `test-layout.sh` script uses `wait` and is designed for interactive terminals. Instead, start the server and UI directly as background processes:
 
 ```bash
 # From execute_bash:
@@ -212,7 +212,7 @@ VITE_API_BASE=http://localhost:3142 npm run dev:ui -- --port 5174 > /tmp/stallio
 sleep 8  # wait for startup
 ```
 
-For interactive use in a terminal, `./scripts/test-workspace.sh` works as-is.
+For interactive use in a terminal, `./scripts/test-layout.sh` works as-is.
 
 ### Testing with Playwright
 
@@ -220,13 +220,13 @@ Never start dev servers (or any long-running process) from `execute_bash` — it
 
 ```bash
 # Terminal 1: start test instance
-./scripts/test-workspace.sh
+./scripts/test-layout.sh
 
 # Terminal 2: run tests (once "ready" appears)
 npx playwright test tests/schedule.spec.ts --reporter=list
 ```
 
-See `scripts/test-workspace.sh` for details. The script starts the backend on port 3142 and UI on port 5174, waits for readiness, then opens for Playwright validation.
+See `scripts/test-layout.sh` for details. The script starts the backend on port 3142 and UI on port 5174, waits for readiness, then opens for Playwright validation.
 
 ### Debugging
 
@@ -281,7 +281,7 @@ Never hardcode ACP connection prefixes (e.g., `startsWith('kiro-')`). Use `agent
 ### Plugin Workflow
 
 ```bash
-stallion remove my-workspace
-stallion install ./examples/my-workspace
+stallion remove my-layout
+stallion install ./examples/my-layout
 npm run dev:ui
 ```

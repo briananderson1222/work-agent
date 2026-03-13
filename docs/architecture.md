@@ -93,7 +93,7 @@ graph TB
 | `ApprovalRegistry` | `src-server/services/approval-registry.ts` | Holds pending tool-approval promises; resolved by the `/tool-approval/:id` endpoint |
 | `AgentService` | `src-server/services/agent-service.ts` | CRUD operations for agent config files |
 | `MCPService` | `src-server/services/mcp-service.ts` | Service-layer wrapper around MCPManager for route handlers |
-| `WorkspaceService` | `src-server/services/workspace-service.ts` | Workspace and workflow file management |
+| `LayoutService` | `src-server/services/layout-service.ts` | Workspace and workflow file management |
 | `SchedulerService` | `src-server/services/scheduler-service.ts` | Cron-based agent invocation scheduling |
 | `EventBus` | `src-server/services/event-bus.ts` | In-process pub/sub for SSE fan-out to connected clients |
 | `ConfigLoader` | `src-server/domain/config-loader.ts` | Reads/writes agent YAML, app config, ACP config; watches for file changes |
@@ -261,7 +261,7 @@ Abort is handled via `AbortController` — the pipeline checks the signal before
 | **ACP connections** | Any CLI that implements the Agent Client Protocol can be connected via `/acp/connections` |
 | **Voice providers** | Plugins register `STTProvider`, `TTSProvider`, or `ConversationalVoiceProvider` via `voiceRegistry` (SDK) |
 | **Context providers** | Plugins register `MessageContextProvider` via `contextRegistry` (SDK) to inject context into chat messages |
-| **Workspace providers** | Plugins register workspace-level data providers via `registerProvider` (SDK) |
+| **Workspace providers** | Plugins register layout-level data providers via `registerProvider` (SDK) |
 | **Scheduler** | Agents can be invoked on a cron schedule via `POST /scheduler/jobs` |
 
 ---
@@ -272,7 +272,7 @@ Abort is handled via `AbortController` — the pipeline checks the signal before
 The runtime, HTTP API, streaming pipeline, MCP lifecycle, ACP bridge, analytics, telemetry, and all provider interfaces. Runs on Node.js, built with esbuild to `dist-server/index.js`. Exposes a REST + SSE API on port 3141 (configurable).
 
 ### `packages/sdk/` — `@stallion-ai/sdk`
-The plugin UI contract. Exports React hooks (`useAgents`, `useConversations`, `useSendMessage`, `useToolApproval`, etc.), query factories, API client functions (`streamMessage`, `invoke`, `callTool`), UI primitives (`Button`, `Spinner`, `Pill`), voice/context registries, and workspace provider utilities. Plugins import from here — never from the server directly.
+The plugin UI contract. Exports React hooks (`useAgents`, `useConversations`, `useSendMessage`, `useToolApproval`, etc.), query factories, API client functions (`streamMessage`, `invoke`, `callTool`), UI primitives (`Button`, `Spinner`, `Pill`), voice/context registries, and layout provider utilities. Plugins import from here — never from the server directly.
 
 ### `packages/connect/` — `@stallion-ai/connect`
 Multi-host connection management for mobile and remote scenarios. Exports `ConnectionStore`, `ConnectionsProvider`, `useConnectionStatus`, `useHostUrl`, `QRDisplay`, `QRScanner`, and `ConnectionManagerModal`. Handles server discovery, QR-based pairing, and connection persistence via a pluggable `StorageAdapter`.

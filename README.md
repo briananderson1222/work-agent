@@ -1,12 +1,12 @@
 # Stallion
 
-A local-first AI agent system with a pluggable workspace architecture. Built on [VoltAgent](https://voltagent.dev) and Amazon Bedrock.
+A local-first AI agent system with a pluggable project architecture. Built on Amazon Bedrock.
 
 ## Overview
 
-Stallion is a desktop-ready platform for running multiple AI agents with MCP tool integration. The core platform is generic — all domain-specific functionality (auth, user identity, workspace UI) is delivered through **plugins**.
+Stallion is a desktop-ready platform for running multiple AI agents with MCP tool integration. The core platform is generic — all domain-specific functionality (auth, user identity, layout UI) is delivered through **plugins**.
 
-- **Plugin system** — Install workspace plugins from git repos or local paths. No rebuild needed.
+- **Plugin system** — Install plugins from git repos or local paths. No rebuild needed.
 - **Provider interfaces** — Pluggable auth, user identity, and user directory. Core ships with sensible defaults (OS username, always-valid auth).
 - **Agent management** — Define agents with system prompts, models, tools, and guardrails in JSON files.
 - **MCP tool orchestration** — Automatic MCP server lifecycle management with allow-lists.
@@ -24,7 +24,7 @@ Stallion is a desktop-ready platform for running multiple AI agents with MCP too
 
 ```bash
 git clone <repo-url>
-cd work-agent
+cd stallion
 ./stallion start
 ```
 
@@ -50,7 +50,7 @@ All runtime data lives in `~/.stallion-ai/`:
 │   ├── app.json          # Model settings, system prompt, template vars
 │   └── acp.json          # ACP connection configs
 ├── agents/               # Agent definitions (JSON + memory)
-├── workspaces/           # Workspace configs
+├── layouts/              # Layout configs
 ├── plugins/              # Installed plugin source
 └── analytics/            # Usage data
 ```
@@ -59,20 +59,20 @@ Set `STALLION_AI_DIR` to override the default location.
 
 ## Plugin System
 
-Plugins extend Stallion with workspace UIs, agents, and providers. A plugin is a directory with a `plugin.json` manifest:
+Plugins extend Stallion with layout UIs, agents, and providers. A plugin is a directory with a `plugin.json` manifest:
 
 ```json
 {
-  "name": "my-workspace",
+  "name": "my-plugin",
   "version": "1.0.0",
   "type": "workspace",
-  "displayName": "My Workspace",
+  "displayName": "My Plugin",
   "agents": [
     { "slug": "assistant", "source": "./agents/assistant/agent.json" }
   ],
-  "workspace": {
-    "slug": "my-ws",
-    "source": "./workspace.json"
+  "layout": {
+    "slug": "my-layout",
+    "source": "./layout.json"
   },
   "providers": [
     { "type": "auth", "module": "./providers/my-auth.js" }
@@ -91,19 +91,19 @@ From the CLI:
 
 ```bash
 # Preview what a plugin contains before installing
-./stallion preview git@github.com:org/my-workspace.git
+./stallion preview git@github.com:org/my-plugin.git
 
 # Install (resolves dependencies automatically)
-./stallion install git@github.com:org/my-workspace.git
+./stallion install git@github.com:org/my-plugin.git
 
 # Skip specific components
-./stallion install git@github.com:org/my-workspace.git --skip=workspace:my-ws
+./stallion install git@github.com:org/my-plugin.git --skip=layout:my-layout
 
 # List installed plugins
 ./stallion list
 
 # Remove a plugin
-./stallion remove my-workspace
+./stallion remove my-plugin
 ```
 
 ### Plugin Dependencies
@@ -159,21 +159,21 @@ Plugins ship pre-built IIFE bundles. The core loads them at runtime via `<script
 
 ### Creating a Plugin
 
-Use the CLI to scaffold a new workspace:
+Use the CLI to scaffold a new plugin:
 
 ```bash
-./stallion init my-workspace
-cd my-workspace
+./stallion init my-plugin
+cd my-plugin
 ./stallion build
 ```
 
 Or manually:
 
-1. Create a directory with `plugin.json`, `workspace.json`, and a `src/index.tsx`
-2. Build with esbuild (see `examples/demo-workspace/build.sh` for reference)
+1. Create a directory with `plugin.json`, `layout.json, and a `src/index.tsx`
+2. Build with esbuild (see `examples/demo-layout/ ` for reference)
 3. Install with the CLI
 
-See `examples/demo-workspace/` for a minimal working example.
+See `examples/demo-layout/` for a minimal working example.
 
 ### Developing Plugins Locally
 
@@ -222,10 +222,10 @@ Providers are declared in `plugin.json` and loaded when the server starts. For r
 ## Project Structure
 
 ```
-├── src-server/           # Node.js backend (Hono + VoltAgent)
+├── src-server/           # Node.js backend (Hono + Strands)
 │   ├── providers/        # Provider interfaces, registry, defaults
 │   ├── routes/           # API routes (agents, chat, plugins, auth, etc.)
-│   ├── runtime/          # VoltAgent runtime wrapper
+│   ├── runtime/          # Agent framework adapters
 │   ├── domain/           # Config validation, agent management
 │   ├── index.ts          # Server entry point
 │   └── cli.ts            # Interactive CLI mode

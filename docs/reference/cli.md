@@ -111,7 +111,7 @@ stallion shortcut
 
 ### `install <source>`
 
-Install a plugin from a git URL or local path. Clones/copies the plugin to `~/.stallion-ai/plugins/<name>`, installs npm dependencies, builds the plugin bundle, registers agents and workspaces, and copies tool configs.
+Install a plugin from a git URL or local path. Clones/copies the plugin to `~/.stallion-ai/plugins/<name>`, installs npm dependencies, builds the plugin bundle, registers agents and layouts, and copies tool configs.
 
 Dependencies declared in `plugin.json` are resolved and installed automatically.
 
@@ -122,7 +122,7 @@ stallion install <source> [--skip=<components>] [--clean]
 | Argument/Flag | Description |
 |---------------|-------------|
 | `<source>` | Git URL (https or ssh) or local path. Append `#<branch>` to target a specific branch. |
-| `--skip=<components>` | Comma-separated list of components to skip, e.g. `agent:myplugin:chat,workspace:main` |
+| `--skip=<components>` | Comma-separated list of components to skip, e.g. `agent:myplugin:chat,layout:main` |
 | `--clean` | Wipe `~/.stallion-ai` before installing |
 
 ```bash
@@ -151,7 +151,7 @@ Output includes suggested `--skip` flags if conflicts are detected.
 
 ### `list`
 
-List all installed plugins with their agents, workspaces, providers, and dependencies.
+List all installed plugins with their agents, layouts, providers, and dependencies.
 
 ```
 stallion list
@@ -163,7 +163,7 @@ stallion list
 
 ### `remove <name>`
 
-Remove an installed plugin by its manifest name. Also removes its registered agents and workspace.
+Remove an installed plugin by its manifest name. Also removes its registered agents and layout.
 
 ```
 stallion remove <name>
@@ -175,7 +175,7 @@ stallion remove my-plugin
 
 ### `info <name>`
 
-Show details for an installed plugin: version, agents, and workspace.
+Show details for an installed plugin: version, agents, and layout.
 
 ```
 stallion info <name>

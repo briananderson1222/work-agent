@@ -31,7 +31,7 @@ Global settings applied across all agents and sessions.
 | `templateVariables` | array | `[]` | Named variables available for `{{key}}` substitution in prompts |
 | `defaultChatFontSize` | number | `14` | Chat UI font size in pixels (10–24) |
 | `registryUrl` | string | — | URL for the plugin registry |
-| `runtime` | `"voltagent"` \| `"strands"` | `"voltagent"` | Agent framework runtime |
+| `runtime` | `"voltagent"` \| `"strands"` | `"strands"` | Agent framework runtime |
 | `gitRemote` | string | — | Git remote URL, resolved on first build for update checks |
 
 ### templateVariables

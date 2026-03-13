@@ -15,7 +15,7 @@ This document describes all REST API endpoints available in Stallion.
 
 - [Agent Management](#agent-management)
 - [Tool Management](#tool-management)
-- [Workspace Management](#workspace-management)
+- [Layout Management](#layout-management)
 - [Workflow Management](#workflow-management)
 - [Conversation Management](#conversation-management)
 - [Configuration](#configuration)
@@ -109,7 +109,7 @@ GET /api/agents
 **Custom endpoint** that returns enriched agent data including configuration, tools, and metadata.
 
 **Status**: In use  
-**Used by**: `AgentsContext.tsx`, agent selector, workspace views
+**Used by**: `AgentsContext.tsx`, agent selector, layout views
 
 **Response**:
 ```json
@@ -142,7 +142,7 @@ GET /api/agents
 }
 ```
 
-**Used by**: `AgentsContext.tsx`, agent selector, workspace views
+**Used by**: `AgentsContext.tsx`, agent selector, layout views
 
 ---
 
@@ -218,11 +218,11 @@ DELETE /agents/:slug
 }
 ```
 
-**Error** (if agent is referenced by workspaces):
+**Error** (if agent is referenced by layouts):
 ```json
 {
   "success": false,
-  "error": "Cannot delete agent 'my-agent' - it is referenced by workspaces: my-workspace"
+  "error": "Cannot delete agent 'my-agent' - it is referenced by layouts: my-layout"
 }
 ```
 
@@ -457,11 +457,11 @@ Returns Q Developer CLI agents from `~/.aws/amazonq/cli-agents.json`.
 
 ---
 
-## Workspace Management
+## Layout Management
 
 ### List All Workspaces
 ```http
-GET /workspaces
+GET /layouts
 ```
 
 **Response**:
@@ -471,7 +471,7 @@ GET /workspaces
   "data": [
     {
       "name": "My Workspace",
-      "slug": "my-workspace",
+      "slug": "my-layout",
       "icon": "💼",
       "description": "Workspace description",
       "tabs": [
@@ -487,37 +487,37 @@ GET /workspaces
 }
 ```
 
-**Used by**: `WorkspacesContext.tsx`, workspace selector
+**Used by**: `LayoutsContext.tsx`, layout selector
 
 ---
 
 ### Get Workspace
 ```http
-GET /workspaces/:slug
+GET /layouts/:slug
 ```
 
 **Response**:
 ```json
 {
   "success": true,
-  "data": { /* workspace config */ }
+  "data": { /* layout config */ }
 }
 ```
 
-**Used by**: `WorkspacesContext.tsx`, workspace view
+**Used by**: `LayoutsContext.tsx`, layout view
 
 ---
 
 ### Create Workspace
 ```http
-POST /workspaces
+POST /layouts
 ```
 
 **Request Body**:
 ```json
 {
   "name": "My Workspace",
-  "slug": "my-workspace",
+  "slug": "my-layout",
   "icon": "💼",
   "description": "Workspace description",
   "tabs": [
@@ -542,36 +542,36 @@ POST /workspaces
 ```json
 {
   "success": true,
-  "data": { /* created workspace */ }
+  "data": { /* created layout */ }
 }
 ```
 
-**Used by**: `WorkspacesContext.tsx`, workspace editor
+**Used by**: `LayoutsContext.tsx`, layout editor
 
 ---
 
 ### Update Workspace
 ```http
-PUT /workspaces/:slug
+PUT /layouts/:slug
 ```
 
-**Request Body**: Partial workspace configuration
+**Request Body**: Partial layout configuration
 
 **Response**:
 ```json
 {
   "success": true,
-  "data": { /* updated workspace */ }
+  "data": { /* updated layout */ }
 }
 ```
 
-**Used by**: `WorkspacesContext.tsx`, workspace editor
+**Used by**: `LayoutsContext.tsx`, layout editor
 
 ---
 
 ### Delete Workspace
 ```http
-DELETE /workspaces/:slug
+DELETE /layouts/:slug
 ```
 
 **Response**:
@@ -581,7 +581,7 @@ DELETE /workspaces/:slug
 }
 ```
 
-**Used by**: `WorkspacesContext.tsx`, workspace management
+**Used by**: `LayoutsContext.tsx`, layout management
 
 ---
 
@@ -619,7 +619,7 @@ GET /agents/:slug/workflows/:workflowId
 {
   "success": true,
   "data": {
-    "content": "import { andThen } from '@voltagent/core';\n\nexport default andThen(() => 'Hello');"
+    "content": "import { Agent } from '@strands-agents/sdk';\n\nexport default andThen(() => 'Hello');"
   }
 }
 ```
@@ -637,7 +637,7 @@ POST /agents/:slug/workflows
 ```json
 {
   "filename": "new-workflow.ts",
-  "content": "import { andThen } from '@voltagent/core';\n\nexport default andThen(() => 'Hello');"
+  "content": "import { Agent } from '@strands-agents/sdk';\n\nexport default andThen(() => 'Hello');"
 }
 ```
 
@@ -1242,7 +1242,7 @@ Status: `401`
 **Status**: In use  
 **Used by**: 
 - Dashboard widgets, background data fetching
-- `stallion-workspace/CRM.tsx` (activity description generation)
+- `stallion-layout/CRM.tsx` (activity description generation)
 - `AgentEditorView.tsx` (prompt generation with `default` agent)
 
 **Tip**: Use the `default` agent for simple text generation without tools:
@@ -1320,7 +1320,7 @@ Execute a tool and apply a JavaScript transformation function.
 }
 ```
 
-**Used by**: Stallion workspace, custom data transformations
+**Used by**: Stallion layout, custom data transformations
 
 ---
 
@@ -1441,7 +1441,7 @@ Triggered when error message contains:
 | Context | Endpoints Used |
 |---------|---------------|
 | `AgentsContext` | `/api/agents`, `/agents/:slug`, `/agents` (POST/PUT/DELETE) |
-| `WorkspacesContext` | `/workspaces`, `/workspaces/:slug` (GET/POST/PUT/DELETE) |
+| `LayoutsContext` | `/layouts`, `/layouts/:slug` (GET/POST/PUT/DELETE) |
 | `ConversationsContext` | `/agents/:slug/conversations`, `/agents/:slug/conversations/:id/messages`, `/agents/:slug/tools` |
 | `StatsContext` | `/agents/:slug/conversations/:id/stats` |
 | `ConfigContext` | `/config/app` (GET/PUT) |
@@ -1833,7 +1833,7 @@ Fetches a plugin from a git URL or local path, validates it, and returns manifes
 POST /plugins/install
 ```
 
-Installs a plugin from a git URL or local path, including agents, workspace config, providers, tools, and dependencies.
+Installs a plugin from a git URL or local path, including agents, layout config, providers, tools, and dependencies.
 
 **Request Body**:
 ```json
@@ -1907,7 +1907,7 @@ Updates a plugin via `git pull` (git-installed) or registry reinstall.
 DELETE /plugins/:name
 ```
 
-Removes a plugin, its agents, workspace config, and permission grants. Conversation memory is preserved.
+Removes a plugin, its agents, layout config, and permission grants. Conversation memory is preserved.
 
 **Response**:
 ```json

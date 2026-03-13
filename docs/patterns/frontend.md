@@ -24,7 +24,7 @@ The frontend uses a 4-layer architecture for data management. **All new data fet
                             ↑
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 2: Query Hooks (SDK)                                 │
-│  - useAgentsQuery, useWorkspacesQuery, useTransformTool     │
+│  - useAgentsQuery, useLayoutsQuery, useTransformTool     │
 │  - Wraps React Query with consistent config                 │
 │  - Lives in packages/sdk/src/queries.ts                     │
 └─────────────────────────────────────────────────────────────┘
@@ -50,7 +50,7 @@ packages/sdk/src/
 src-ui/src/
 ├── components/          # Shared UI components
 ├── contexts/            # React contexts (wired to SDK)
-├── workspaces/          # Installed plugins
+├── layouts/             # Installed plugins
 └── ...
 
 examples/my-plugin/
@@ -134,7 +134,7 @@ export function useTransformTool<T>(
 
 **Available SDK Query Hooks:**
 - `useAgentsQuery` - All agents
-- `useWorkspacesQuery` - All workspaces
+- `useLayoutsQuery` - All layouts
 - `useConversationsQuery(agentSlug)` - Conversations for agent
 - `useModelsQuery` - Bedrock models
 - `useConfigQuery` - App configuration
@@ -276,8 +276,8 @@ import { useAgents } from '@/contexts/AgentsContext';
 // Agent/Workspace data
 useAgents()              // All agents
 useAgent(slug)           // Single agent
-useWorkspaces()          // All workspaces
-useWorkspace(slug)       // Single workspace
+useLayouts()          // All layouts
+useLayout(slug)       // Single layout
 
 // Chat operations
 useCreateChatSession()   // Create new chat
@@ -299,7 +299,7 @@ useModels()              // Available models
 ```typescript
 // Pre-built queries
 useAgentsQuery()
-useWorkspacesQuery()
+useLayoutsQuery()
 useConversationsQuery(agentSlug)
 useModelsQuery()
 useStatsQuery(agentSlug, conversationId)
@@ -359,10 +359,10 @@ useApiMutation(mutationFn, options)
 ## Plugin Development Workflow
 
 ```bash
-# 1. Make changes in examples/my-workspace/
+# 1. Make changes in examples/my-layout/
 # 2. Remove and reinstall
-stallion remove my-workspace
-stallion install ./examples/my-workspace
+stallion remove my-layout
+stallion install ./examples/my-layout
 
 # 3. Test
 npm run dev:ui
@@ -497,7 +497,7 @@ import type {
 import {
   readPluginManifest,     // parse plugin.json
   readAgentSpec,          // parse agent JSON
-  readWorkspaceConfig,    // parse workspace JSON
+  readLayoutConfig,    // parse layout JSON
   readToolDef,            // parse tool.json
   listToolIds,            // list tool IDs from a tools/ dir
   resolvePluginTools,     // resolve all tools declared by a plugin
@@ -515,4 +515,4 @@ import {
 
 ### Do not redefine shared types
 
-If you need a type that describes an agent, workspace, tool, or plugin — check `@stallion-ai/shared` first. Adding duplicate type definitions in `src-server`, `packages/sdk`, or plugins causes drift and breaks the contract between layers.
+If you need a type that describes an agent, layout, tool, or plugin — check `@stallion-ai/shared` first. Adding duplicate type definitions in `src-server`, `packages/sdk`, or plugins causes drift and breaks the contract between layers.

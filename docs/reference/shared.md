@@ -226,14 +226,14 @@ interface ToolMetadata {
 
 ---
 
-## workspace types
+## Layout Types
 
-### `WorkspaceConfig`
+### `LayoutConfig`
 
-Full workspace definition loaded from a workspace JSON file.
+Full layout definition loaded from a layout JSON file.
 
 ```ts
-interface WorkspaceConfig {
+interface LayoutConfig {
   name: string;
   slug: string;
   icon?: string;
@@ -478,9 +478,9 @@ const tool = readToolDef('/project/.stallion-ai/tools', 'my-mcp-server');
 
 Reads an agent JSON file at the given path.
 
-### `readWorkspaceConfig(path: string): WorkspaceConfig`
+### `readLayoutConfig(path: string): LayoutConfig`
 
-Reads a workspace JSON file at the given path.
+Reads a layout JSON file at the given path.
 
 ### `resolvePluginTools(pluginDir: string, toolsDir: string): Map<string, ToolDef>`
 

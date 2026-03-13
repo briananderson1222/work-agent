@@ -48,7 +48,7 @@ POST /api/agents/default/chat
 
 | Endpoint | Method | Status | Used By |
 |----------|--------|--------|---------|
-| `/api/agents` | GET | ✅ in-use | `AgentsContext.tsx`, `AgentEditorView.tsx`, `WorkspaceEditorView.tsx` |
+| `/api/agents` | GET | ✅ in-use | `AgentsContext.tsx`, `AgentEditorView.tsx`, `LayoutEditorView.tsx` |
 | `/agents` | POST | ✅ in-use | `AgentsContext.tsx` (create agent) |
 | `/agents/:slug` | PUT | ✅ in-use | `AgentsContext.tsx` (update agent) |
 | `/agents/:slug` | DELETE | ✅ in-use | `AgentsContext.tsx` (delete agent) |
@@ -68,15 +68,15 @@ POST /api/agents/default/chat
 
 > **Update**: `ToolManagementView.tsx` uses `/tools` (GET), `/agents` (GET), `/agents/:slug/tools` (GET and POST), making tool management 3/7 in use rather than 1/7.
 
-### Workspace Management (5/5)
+### Layout Management (5/5)
 
 | Endpoint | Method | Status | Used By |
 |----------|--------|--------|---------|
-| `/workspaces` | GET | ✅ in-use | `WorkspacesContext.tsx`, `WorkspaceView.tsx` |
-| `/workspaces/:slug` | GET | ✅ in-use | `WorkspacesContext.tsx`, `WorkspaceEditorView.tsx` |
-| `/workspaces` | POST | ✅ in-use | `WorkspacesContext.tsx`, `WorkspaceView.tsx` |
-| `/workspaces/:slug` | PUT | ✅ in-use | `WorkspacesContext.tsx` |
-| `/workspaces/:slug` | DELETE | ✅ in-use | `WorkspacesContext.tsx` |
+| `/layouts` | GET | ✅ in-use | `LayoutsContext.tsx`, `LayoutView.tsx` |
+| `/layouts/:slug` | GET | ✅ in-use | `LayoutsContext.tsx`, `LayoutEditorView.tsx` |
+| `/layouts` | POST | ✅ in-use | `LayoutsContext.tsx`, `LayoutView.tsx` |
+| `/layouts/:slug` | PUT | ✅ in-use | `LayoutsContext.tsx` |
+| `/layouts/:slug` | DELETE | ✅ in-use | `LayoutsContext.tsx` |
 
 ### Workflow Management (1/5)
 
@@ -138,8 +138,8 @@ POST /api/agents/default/chat
 |----------|--------|--------|---------|
 | `/api/agents/:slug/chat` | POST | ✅ in-use | `ConversationsContext.tsx` (primary chat SSE stream) |
 | `/agents/:slug/invoke` | POST | ✅ in-use | `AgentEditorView.tsx` (prompt generation via `default` agent) |
-| `/agents/:slug/tools/:toolName` | POST | ✅ in-use | `stallion-workspace` (direct tool calls) |
-| `/agents/:slug/invoke/transform` | POST | ✅ in-use | `stallion-workspace` (tool + transform) |
+| `/agents/:slug/tools/:toolName` | POST | ✅ in-use | `stallion-layout` (direct tool calls) |
+| `/agents/:slug/invoke/transform` | POST | ✅ in-use | `stallion-layout` (tool + transform) |
 | `/agents/:slug/invoke/stream` | POST | ⚪ not-in-use | Not used yet |
 
 ### Model Capabilities (Legacy) (0/2)
@@ -292,7 +292,7 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 ### Most Used Endpoint Categories
 
 1. **Scheduler** - 15/16 endpoints (94%) — `ScheduleView.tsx` + `useScheduler.ts` hooks
-2. **Workspace Management** - 5/5 endpoints (100%)
+2. **Layout Management** - 5/5 endpoints (100%)
 3. **Analytics** - 4/4 endpoints (100%, including DELETE)
 4. **Configuration** - 2/2 endpoints (100%)
 5. **Events (SSE)** - 1/1 (100%)
@@ -317,7 +317,7 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 | React Context | Endpoints Used |
 |---------------|----------------|
 | `AgentsContext` | `/api/agents`, `/agents` (POST/PUT/DELETE) |
-| `WorkspacesContext` | `/workspaces` (GET/POST/PUT/DELETE), `/workspaces/:slug` |
+| `LayoutsContext` | `/layouts` (GET/POST/PUT/DELETE), `/layouts/:slug` |
 | `ConversationsContext` | `/agents/:slug/conversations`, `/agents/:slug/conversations/:id/messages`, `/agents/:slug/tools`, `/api/agents/:slug/chat` |
 | `ActiveChatsContext` | `/agents/:slug/conversations` |
 | `StatsContext` | `/agents/:slug/conversations/:id/stats` |
@@ -356,8 +356,8 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 | `ACPConnectionsSection.tsx` | `/acp/connections` (GET/POST/PUT/DELETE) |
 | `UserDetailModal.tsx` | `/api/users/:alias` |
 | `OnboardingGate.tsx` / `Header.tsx` | `/api/system/status` |
-| `WorkspaceView.tsx` | `/workspaces` (POST) |
-| `WorkspaceEditorView.tsx` | `/api/agents`, `/workspaces/:slug` |
+| `LayoutView.tsx` | `/layouts` (POST) |
+| `LayoutEditorView.tsx` | `/api/agents`, `/layouts/:slug` |
 
 ---
 

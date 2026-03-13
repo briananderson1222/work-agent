@@ -20,12 +20,12 @@
 - `PUT /agents/:slug/tools/aliases` - Update aliases
 - `GET /q-agents` - Q Developer agents
 
-#### Workspace Management (5)
-- `GET /workspaces` - List workspaces
-- `GET /workspaces/:slug` - Get workspace
-- `POST /workspaces` - Create workspace
-- `PUT /workspaces/:slug` - Update workspace
-- `DELETE /workspaces/:slug` - Delete workspace
+#### Layout Management (5)
+- `GET /layouts` - List layouts
+- `GET /layouts/:slug` - Get layout
+- `POST /layouts` - Create layout
+- `PUT /layouts/:slug` - Update layout
+- `DELETE /layouts/:slug` - Delete layout
 
 #### Workflow Management (5)
 - `GET /agents/:slug/workflows/files` - List workflows
@@ -159,7 +159,7 @@
 |----------|-------|
 | Agent Management | 5 |
 | Tool Management | 7 |
-| Workspace Management | 5 |
+| Layout Management | 5 |
 | Workflow Management | 5 |
 | Conversation Management | 6 |
 | Configuration | 2 |
@@ -190,7 +190,7 @@
 | Context | Endpoints |
 |---------|-----------|
 | `AgentsContext` | `/api/agents`, `/agents/:slug` (CRUD) |
-| `WorkspacesContext` | `/workspaces` (CRUD) |
+| `LayoutsContext` | `/layouts` (CRUD) |
 | `ConversationsContext` | `/agents/:slug/conversations/*`, `/api/agents/:slug/chat` |
 | `StatsContext` | `/agents/:slug/conversations/:id/stats` |
 | `ConfigContext` | `/config/app` |

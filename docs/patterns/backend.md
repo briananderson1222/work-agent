@@ -27,7 +27,7 @@ src-server/
 │   ├── scheduler.ts
 │   ├── system.ts
 │   ├── tools.ts
-│   └── workspaces.ts
+│   └── layouts.ts
 ├── services/            # Business logic services
 │   ├── acp-bridge.ts
 │   ├── agent-service.ts
@@ -37,7 +37,7 @@ src-server/
 │   ├── mcp-service.ts
 │   ├── plugin-permissions.ts
 │   ├── scheduler-service.ts
-│   └── workspace-service.ts
+│   └── layout-service.ts
 ├── adapters/            # Storage adapters
 ├── providers/           # LLM providers (Bedrock)
 ├── domain/              # Types and config loading
@@ -148,8 +148,8 @@ app.route('/tools', toolRoutes);
 Group related endpoints in the same file:
 
 ```typescript
-// routes/workspaces.ts - includes workflow routes
-export function createWorkspaceRoutes(deps) { /* workspace CRUD */ }
+// routes/layouts.ts - includes workflow routes
+export function createWorkspaceRoutes(deps) { /* layout CRUD */ }
 export function createWorkflowRoutes(deps) { /* workflow operations */ }
 ```
 
@@ -195,9 +195,9 @@ export class AgentService {
 
   async deleteAgent(slug: string): Promise<void> {
     // Check dependencies
-    const dependentWorkspaces = await this.configLoader.getWorkspacesUsingAgent(slug);
-    if (dependentWorkspaces.length > 0) {
-      throw new Error(`Cannot delete: used by workspaces: ${dependentWorkspaces.join(', ')}`);
+    const dependentLayouts = await this.configLoader.getWorkspacesUsingAgent(slug);
+    if (dependentLayouts.length > 0) {
+      throw new Error(`Cannot delete: used by layouts: ${dependentLayouts.join(', ')}`);
     }
     
     // Cleanup runtime state
@@ -458,7 +458,7 @@ this.logger.info('[Chat Endpoint] Processing request', {
 
 When extracting code from `stallion-runtime.ts`:
 
-1. **Identify the domain** - agents, tools, workspaces, monitoring, etc.
+1. **Identify the domain** - agents, tools, layouts, monitoring, etc.
 2. **Create route file** - `routes/<domain>.ts`
 3. **Create service if needed** - `services/<domain>-service.ts`
 4. **Extract route handlers** - Move HTTP handling to route file
