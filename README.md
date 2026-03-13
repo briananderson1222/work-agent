@@ -25,16 +25,19 @@ Stallion is a desktop-ready platform for running multiple AI agents with MCP too
 ```bash
 git clone <repo-url>
 cd work-agent
-npm install
-npm run build
-npm run start:server
+./stallion start
 ```
 
-The server starts on `http://localhost:3141`. Open the UI at `http://localhost:3141` or run the dev servers separately:
+Dependencies are installed automatically on first run. The server starts on `http://localhost:3141` with the UI bundled.
+
+Use `./stallion --help` to see all available commands.
+
+For development:
 
 ```bash
-npm run dev:server   # Backend on :3141
-npm run dev:ui       # Frontend on :5173
+./stallion start --clean --force   # Wipe and rebuild from scratch
+./stallion stop                    # Stop running processes
+./stallion doctor                  # Check prerequisites
 ```
 
 ### Data Directory
@@ -88,19 +91,19 @@ From the CLI:
 
 ```bash
 # Preview what a plugin contains before installing
-stallion preview git@github.com:org/my-workspace.git
+./stallion preview git@github.com:org/my-workspace.git
 
 # Install (resolves dependencies automatically)
-stallion install git@github.com:org/my-workspace.git
+./stallion install git@github.com:org/my-workspace.git
 
 # Skip specific components
-stallion install git@github.com:org/my-workspace.git --skip=workspace:my-ws
+./stallion install git@github.com:org/my-workspace.git --skip=workspace:my-ws
 
 # List installed plugins
-stallion list
+./stallion list
 
 # Remove a plugin
-stallion remove my-workspace
+./stallion remove my-workspace
 ```
 
 ### Plugin Dependencies
@@ -146,8 +149,8 @@ The registry manifest format:
 Browse registries from the CLI:
 
 ```bash
-stallion registry              # Browse configured registry
-stallion registry <url>        # Set a remote registry URL
+./stallion registry              # Browse configured registry
+./stallion registry <url>        # Set a remote registry URL
 ```
 
 ### Plugin Bundles
@@ -159,9 +162,9 @@ Plugins ship pre-built IIFE bundles. The core loads them at runtime via `<script
 Use the CLI to scaffold a new workspace:
 
 ```bash
-stallion init my-workspace
+./stallion init my-workspace
 cd my-workspace
-stallion build
+./stallion build
 ```
 
 Or manually:
