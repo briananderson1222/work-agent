@@ -18,8 +18,12 @@ WORKDIR /app
 COPY --from=build /app/dist-server ./dist-server
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+USER appuser
 ENV PORT=3141
 EXPOSE 3141
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://localhost:3141/health').then(r=>{if(!r.ok)throw r})" || exit 1
 CMD ["node", "dist-server/index.js"]
 
 # ── Stage 4: Production UI ──
