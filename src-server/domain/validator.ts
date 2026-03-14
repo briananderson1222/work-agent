@@ -35,7 +35,7 @@ export class SchemaValidator {
   private validators: Map<string, ValidateFunction>;
 
   constructor() {
-    this.ajv = new Ajv({ allErrors: true, verbose: true });
+    this.ajv = new Ajv({ allErrors: false, verbose: true });
     this.validators = new Map();
 
     // Load schemas from files (relative to working directory)
