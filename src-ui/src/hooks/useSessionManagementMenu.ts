@@ -1,6 +1,7 @@
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useToast } from '../contexts/ToastContext';
 import { log } from '../utils/logger';
 
 interface Conversation {
@@ -43,6 +44,7 @@ export function useSessionManagementMenu({
   onDelete,
 }: UseSessionManagementMenuOptions) {
   const { apiBase } = useApiBase();
+  const { showToast } = useToast();
   const invalidate = useInvalidateQuery();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -123,15 +125,15 @@ export function useSessionManagementMenu({
       } else {
         const errorData = await response.json().catch(() => ({}));
         log.api('Delete failed:', errorData);
-        alert(
+        showToast(
           `Failed to delete conversation: ${errorData.error || 'Unknown error'}`,
         );
       }
     } catch (error) {
       log.api('Failed to delete conversation:', error);
-      alert('Failed to delete conversation. Check console for details.');
+      showToast('Failed to delete conversation. Check console for details.');
     }
-  }, [apiBase, deleteConfirm, invalidate, sessions, onDelete]);
+  }, [apiBase, deleteConfirm, invalidate, sessions, onDelete, showToast]);
 
   const clearAll = useCallback(
     async (conversations: Conversation[]) => {
@@ -159,10 +161,10 @@ export function useSessionManagementMenu({
         });
       } catch (error) {
         log.api('Failed to clear all conversations:', error);
-        alert('Failed to clear all conversations. Check console for details.');
+        showToast('Failed to clear all conversations. Check console for details.');
       }
     },
-    [apiBase, agents, invalidate, sessions, onDelete],
+    [apiBase, agents, invalidate, sessions, onDelete, showToast],
   );
 
   const startRename = useCallback((conv: Conversation) => {

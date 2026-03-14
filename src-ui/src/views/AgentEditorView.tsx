@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
+import { useToast } from '../contexts/ToastContext';
 import { AgentIcon } from '../components/AgentIcon';
 import { Checkbox } from '../components/Checkbox';
 import { ImportPromptsModal } from '../components/ImportPromptsModal';
@@ -50,6 +51,7 @@ export function AgentEditorView({
   onSaved,
 }: AgentEditorViewProps) {
   useModels();
+  const { showToast } = useToast();
   const appConfig = useConfig();
   const [currentStep, setCurrentStep] = useState<FormStep>(
     initialTab || 'basic',
@@ -321,7 +323,7 @@ export function AgentEditorView({
       // If test successful, show available tools count
       if (data.data?.toolCount) {
         setError(null);
-        alert(`MCP connection successful! Found ${data.data.toolCount} tools.`);
+        showToast(`MCP connection successful! Found ${data.data.toolCount} tools.`);
       }
     } catch (err: any) {
       setConnectionTestResult('failed');
