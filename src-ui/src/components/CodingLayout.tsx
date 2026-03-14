@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -499,7 +500,7 @@ function FileContentViewer({
         ) : highlighted ? (
           <div
             style={{ fontSize: '11px', lineHeight: '1.6' }}
-            dangerouslySetInnerHTML={{ __html: highlighted }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlighted) }}
           />
         ) : (
           <pre

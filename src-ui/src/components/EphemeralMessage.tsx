@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { markdownCodeComponents } from './HighlightedCodeBlock';
@@ -84,7 +85,7 @@ export function EphemeralMessage({
         <div
           ref={(el) => {
             if (el && !el.dataset.initialized) {
-              el.innerHTML = msg.content;
+              el.innerHTML = DOMPurify.sanitize(msg.content);
               el.dataset.initialized = 'true';
             }
           }}
