@@ -78,7 +78,10 @@ registerCommand(
 
             const isAutoApproved = autoApproveList.some((pattern: string) => {
               if (pattern.includes('*')) {
-                const regex = new RegExp(`^${pattern.replace(/\*/g, '.*')}$`);
+                const escaped = pattern
+                  .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                  .replace(/\*/g, '.*');
+                const regex = new RegExp(`^${escaped}$`);
                 return regex.test(toolOriginalName);
               }
               return pattern === toolOriginalName;

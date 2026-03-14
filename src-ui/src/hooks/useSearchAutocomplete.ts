@@ -133,7 +133,8 @@ export function parseSearchQuery(query: string, filterKeys: string[]) {
   let textQuery = query;
 
   for (const key of filterKeys) {
-    const regex = new RegExp(`(?:^|\\s)(${key}:(\\S+))`, 'g');
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?:^|\\s)(${escaped}:(\\S+))`, 'g');
     const matches = [...query.matchAll(regex)];
     if (matches.length > 0) {
       filters[key] = matches.map((m) => m[2]);

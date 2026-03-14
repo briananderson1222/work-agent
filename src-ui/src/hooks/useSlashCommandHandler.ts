@@ -57,8 +57,9 @@ export function useSlashCommandHandler() {
 
         params.forEach((param: any, idx: number) => {
           const value = args[idx] || param.default || '';
+          const escaped = param.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           expandedPrompt = expandedPrompt.replace(
-            new RegExp(`{{${param.name}}}`, 'g'),
+            new RegExp(`{{${escaped}}}`, 'g'),
             value,
           );
         });
