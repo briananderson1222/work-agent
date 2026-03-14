@@ -16,13 +16,15 @@ jobs:
   generate-manifest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Generate update manifest
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         with:
           script: |
-            const tag = context.payload.release?.tag_name || '${{ github.event.inputs.tag }}';
+            const tag = context.payload.release?.tag_name || process.env.INPUT_TAG;
             const release = await github.rest.repos.getReleaseByTag({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -73,13 +75,13 @@ jobs:
             core.info('Generated manifest: ' + JSON.stringify(manifest, null, 2));
 
       - name: Upload manifest to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           tag_name: ${{ github.event.release.tag_name || github.event.inputs.tag }}
           files: updates/update-manifest.json
 
       - name: Publish to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@e9c66a37f080288a11235e32cbe2dc5fb3a679cc # v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./updates
