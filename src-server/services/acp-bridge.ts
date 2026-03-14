@@ -1202,7 +1202,6 @@ export class ACPConnection {
     const id = `term-${++this.terminalCounter}`;
     const proc = spawn(params.command, params.args || [], {
       cwd: params.cwd || this.cwd,
-      shell: true,
       env: {
         ...process.env,
         ...(params.env
