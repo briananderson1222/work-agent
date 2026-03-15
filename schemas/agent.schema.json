@@ -171,6 +171,13 @@
       },
       "additionalProperties": false
     },
+    "skills": {
+      "type": "array",
+      "description": "Skill names to enable for this agent",
+      "items": {
+        "type": "string"
+      }
+    },
     "commands": {
       "type": "object",
       "description": "Custom slash commands for the agent",

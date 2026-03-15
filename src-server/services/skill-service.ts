@@ -106,10 +106,21 @@ async function scanDirectory(dir: string, depth = 0): Promise<void> {
  * Build the skill catalog + behavioral instructions for system prompt injection.
  * Returns empty string if no skills are loaded.
  */
-export function getSkillCatalogPrompt(): string {
+export function getSkillCatalogPrompt(skillNames?: string[]): string {
   if (registry.size === 0) return '';
 
-  const entries = Array.from(registry.values()).map((s) => ({
+  // If skillNames provided, filter to only those skills. Empty array = no skills.
+  if (skillNames !== undefined) {
+    if (skillNames.length === 0) return '';
+  }
+
+  const allSkills = Array.from(registry.values());
+  const filtered = skillNames !== undefined
+    ? allSkills.filter((s) => skillNames.includes(s.name))
+    : allSkills;
+  if (filtered.length === 0) return '';
+
+  const entries = filtered.map((s) => ({
     name: s.name,
     description: s.description,
     resources: s.resources.map((r) => r.name),
@@ -126,15 +137,17 @@ export function getSkillCatalogPrompt(): string {
  * Build the activate_skill tool definition for registration with the agent framework.
  * Returns null if no skills are loaded.
  */
-export function getSkillTool(): {
+export function getSkillTool(skillNames?: string[]): {
   name: string;
   description: string;
   parameters: object;
   execute: (input: any) => Promise<any>;
 } | null {
-  if (registry.size === 0) return null;
-
-  const skills = Array.from(registry.values());
+  const allSkills = Array.from(registry.values());
+  const skills = skillNames !== undefined
+    ? allSkills.filter((s) => skillNames.includes(s.name))
+    : allSkills;
+  if (skills.length === 0) return null;
   const schema = toReadToolSchema(skills, { toolName: 'activate_skill' });
 
   return {

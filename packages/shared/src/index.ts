@@ -80,6 +80,7 @@ export interface AgentSpec {
     debugStreaming?: boolean;
   };
   tools?: AgentTools;
+  skills?: string[];
   commands?: Record<string, SlashCommand>;
   ui?: AgentUIConfig;
 }

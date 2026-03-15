@@ -48,6 +48,7 @@ interface AgentFormData {
     autoApprove: string[];
   };
   icon: string;
+  skills: string[];
 }
 
 const EMPTY_FORM: AgentFormData = {
@@ -61,6 +62,7 @@ const EMPTY_FORM: AgentFormData = {
   maxSteps: '',
   tools: { mcpServers: [], available: [], autoApprove: [] },
   icon: '',
+  skills: [],
 };
 
 function slugify(name: string): string {
@@ -92,6 +94,7 @@ function formFromAgent(agent: any): AgentFormData {
       autoApprove: agent.toolsConfig?.autoApprove || [],
     },
     icon: agent.icon || '',
+    skills: agent.skills || [],
   };
 }
 
@@ -141,6 +144,14 @@ export function AgentsView({
   >({});
   const [_toolsConfig, setToolsConfig] = useState<any>(null);
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
+  const { data: availableSkills = [] } = useQuery<any[]>({
+    queryKey: ['skills'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/skills`);
+      const json = await res.json();
+      return json.data ?? [];
+    },
+  });
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -273,6 +284,7 @@ export function AgentsView({
         maxSteps: form.maxSteps ? parseInt(form.maxSteps, 10) : undefined,
         tools: form.tools.mcpServers.length > 0 ? form.tools : undefined,
         icon: form.icon || undefined,
+        skills: form.skills.length > 0 ? form.skills : undefined,
       };
       if (isCreating) {
         await createAgent(payload as any);
@@ -956,6 +968,46 @@ export function AgentsView({
                                 </div>
                               );
                             })()
+                          )}
+                        </div>
+
+                        {/* Skills */}
+                        <div className="editor-field">
+                          <div className="editor-label-row">
+                            <label className="editor-label">Skills</label>
+                          </div>
+                          {availableSkills.length === 0 ? (
+                            <div className="editor__tools-empty">
+                              No skills installed. Install skills from the registry to get started.
+                            </div>
+                          ) : (
+                            <div className="editor__tools-grid">
+                              {availableSkills.map((skill: any) => {
+                                const enabled = form.skills.includes(skill.name);
+                                return (
+                                  <label key={skill.name} className={`editor__tool-toggle ${enabled ? 'editor__tool-toggle--on' : ''}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={enabled}
+                                      disabled={locked}
+                                      onChange={() => {
+                                        if (locked) return;
+                                        setForm((f) => ({
+                                          ...f,
+                                          skills: enabled
+                                            ? f.skills.filter((s: string) => s !== skill.name)
+                                            : [...f.skills, skill.name],
+                                        }));
+                                      }}
+                                    />
+                                    <span className="editor__tool-name">{skill.name}</span>
+                                    {skill.description && (
+                                      <span className="editor__tool-desc">{skill.description}</span>
+                                    )}
+                                  </label>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
                       </div>

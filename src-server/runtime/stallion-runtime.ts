@@ -499,16 +499,10 @@ export class StallionRuntime {
     const defaultInstructions = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : this.replaceTemplateVariables(DEFAULT_SYSTEM_PROMPT);
-    const skillCatalog = SkillService.getSkillCatalogPrompt();
-    const defaultPrompt = skillCatalog
-      ? `${defaultInstructions}\n\n${skillCatalog}`
-      : defaultInstructions;
-    const skillTool = SkillService.getSkillTool();
     const defaultAgent = await this.framework.createTempAgent({
       name: 'default',
-      instructions: defaultPrompt,
+      instructions: defaultInstructions,
       model: defaultModel,
-      tools: skillTool ? [skillTool as any] : undefined,
     });
     agents.default = defaultAgent as any;
     this.activeAgents.set('default', defaultAgent as any);
@@ -2898,7 +2892,7 @@ export class StallionRuntime {
     const processedSystemPrompt = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : '';
-    const skillCatalog = SkillService.getSkillCatalogPrompt();
+    const skillCatalog = SkillService.getSkillCatalogPrompt(spec.skills);
     const instructions = [processedSystemPrompt, processedPrompt, skillCatalog]
       .filter(Boolean)
       .join('\n\n');
@@ -2951,8 +2945,8 @@ export class StallionRuntime {
     this.memoryAdapters.set(agentSlug, bundle.memoryAdapter);
     const agentTools = bundle.tools as Tool<any>[];
 
-    // Register activate_skill tool if skills are available
-    const skillTool = SkillService.getSkillTool();
+    // Register activate_skill tool if agent has skills assigned
+    const skillTool = SkillService.getSkillTool(spec.skills);
     if (skillTool) {
       agentTools.push(skillTool as Tool<any>);
     }
