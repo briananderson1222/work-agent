@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -69,6 +69,41 @@ interface MessageBubbleProps {
 
 type RatingValue = 'thumbs_up' | 'thumbs_down' | null;
 
+const ThumbUpIcon = ({ filled }: { filled: boolean }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M7 10v12" /><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+  </svg>
+);
+
+const ThumbDownIcon = ({ filled }: { filled: boolean }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 14V2" /><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+  </svg>
+);
+
+/** Cache ratings per session to avoid re-fetching for every message. */
+let ratingsCache: { apiBase: string; data: Map<string, RatingValue>; ts: number } | null = null;
+
+async function loadRatingsCache(apiBase: string): Promise<Map<string, RatingValue>> {
+  const now = Date.now();
+  if (ratingsCache && ratingsCache.apiBase === apiBase && now - ratingsCache.ts < 30_000) {
+    return ratingsCache.data;
+  }
+  const res = await fetch(`${apiBase}/api/feedback/ratings`);
+  if (!res.ok) return new Map();
+  const json = await res.json();
+  const map = new Map<string, RatingValue>();
+  for (const r of json.data || []) {
+    map.set(`${r.conversationId}:${r.messageIndex}`, r.rating);
+  }
+  ratingsCache = { apiBase, data: map, ts: now };
+  return map;
+}
+
+function invalidateRatingsCache() {
+  ratingsCache = null;
+}
+
 function MessageRating({
   conversationId,
   messageIndex,
@@ -83,13 +118,22 @@ function MessageRating({
   const { apiBase } = useApiBase();
   const [rating, setRating] = useState<RatingValue>(null);
 
+  // Load existing rating on mount
+  useEffect(() => {
+    loadRatingsCache(apiBase).then((map) => {
+      const existing = map.get(`${conversationId}:${messageIndex}`);
+      if (existing) setRating(existing);
+    }).catch(() => {});
+  }, [apiBase, conversationId, messageIndex]);
+
   const handleRate = useCallback(
     async (value: RatingValue) => {
       const newRating = rating === value ? null : value;
+      const prevRating = rating;
       setRating(newRating);
       try {
         if (newRating) {
-          await fetch(`${apiBase}/api/feedback/rate`, {
+          const res = await fetch(`${apiBase}/api/feedback/rate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -100,15 +144,18 @@ function MessageRating({
               rating: newRating,
             }),
           });
+          if (!res.ok) throw new Error();
         } else {
-          await fetch(`${apiBase}/api/feedback/rate`, {
+          const res = await fetch(`${apiBase}/api/feedback/rate`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ conversationId, messageIndex }),
           });
+          if (!res.ok) throw new Error();
         }
+        invalidateRatingsCache();
       } catch {
-        /* soft-fail */
+        setRating(prevRating); // revert on failure
       }
     },
     [apiBase, agentSlug, conversationId, messageIndex, messagePreview, rating],
@@ -121,14 +168,14 @@ function MessageRating({
         onClick={() => handleRate('thumbs_up')}
         title="Good response"
       >
-        👍
+        <ThumbUpIcon filled={rating === 'thumbs_up'} />
       </button>
       <button
         className={`message__rating-btn${rating === 'thumbs_down' ? ' message__rating-btn--active' : ''}`}
         onClick={() => handleRate('thumbs_down')}
         title="Bad response"
       >
-        👎
+        <ThumbDownIcon filled={rating === 'thumbs_down'} />
       </button>
     </span>
   );

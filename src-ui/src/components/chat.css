@@ -416,27 +416,33 @@
 }
 
 .message__rating-btn {
-  padding: 1px 3px;
+  padding: 3px 4px;
   background: none;
   border: 1px solid transparent;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.75rem;
   line-height: 1;
+  color: var(--text-muted);
   opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
   transition:
     opacity 0.15s,
-    border-color 0.15s;
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .message__rating-btn:hover {
   opacity: 1;
   border-color: var(--border-primary);
+  color: var(--text-primary);
 }
 
 .message__rating-btn--active {
   opacity: 1;
   border-color: var(--accent-primary);
+  color: var(--accent-primary);
   background: var(--bg-secondary);
 }
 
