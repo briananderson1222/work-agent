@@ -17,15 +17,25 @@ export class ProjectService {
   async createProject(
     config: Omit<ProjectConfig, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<ProjectConfig> {
+    // Derive name from working directory basename if not provided
+    let name = config.name;
+    if ((!name || name === 'Untitled') && config.workingDirectory) {
+      const basename = config.workingDirectory.split('/').filter(Boolean).pop();
+      if (basename) {
+        name = basename.charAt(0).toUpperCase() + basename.slice(1);
+      }
+    }
+
     const now = new Date().toISOString();
     const project: ProjectConfig = {
       ...config,
+      name: name || config.name,
       id: randomUUID(),
       createdAt: now,
       updatedAt: now,
     };
     await this.storageAdapter.saveProject(project);
-    projectOps.add(1, { operation: 'create' });
+    projectOps.add(1, { operation: 'create', project: project.slug || project.id });
     return project;
   }
 
@@ -40,12 +50,12 @@ export class ProjectService {
       updatedAt: new Date().toISOString(),
     };
     await this.storageAdapter.saveProject(updated);
-    projectOps.add(1, { operation: 'update' });
+    projectOps.add(1, { operation: 'update', project: slug });
     return updated;
   }
 
   deleteProject(slug: string): void {
     this.storageAdapter.deleteProject(slug);
-    projectOps.add(1, { operation: 'delete' });
+    projectOps.add(1, { operation: 'delete', project: slug });
   }
 }

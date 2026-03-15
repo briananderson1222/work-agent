@@ -34,20 +34,26 @@ const registry = new Map<string, ResolvedSkill>();
  */
 export async function discoverSkills(
   projectHomeDir: string,
+  projectSlug?: string,
 ): Promise<void> {
   registry.clear();
 
   const dirs = [
-    join(projectHomeDir, 'skills'),
-    join(projectHomeDir, 'plugins'), // scan plugin-shipped skills
+    join(projectHomeDir, 'skills'), // global skills
+    join(projectHomeDir, 'plugins'), // plugin-shipped skills
   ];
+
+  // Project-scoped skills take precedence
+  if (projectSlug) {
+    dirs.unshift(join(projectHomeDir, 'projects', projectSlug, 'skills'));
+  }
 
   for (const dir of dirs) {
     if (!existsSync(dir)) continue;
     await scanDirectory(dir);
   }
 
-  logger.info('Skills discovered', { count: registry.size });
+  logger.info('Skills discovered', { count: registry.size, projectSlug });
 }
 
 async function scanDirectory(dir: string, depth = 0): Promise<void> {

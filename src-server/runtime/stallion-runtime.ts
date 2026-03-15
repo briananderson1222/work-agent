@@ -414,8 +414,13 @@ export class StallionRuntime {
     // Load plugin providers
     await this.loadPluginProviders();
 
-    // Discover Agent Skills (scans skills/ and plugins/ directories)
-    await SkillService.discoverSkills(this.configLoader.getProjectHomeDir());
+    // Discover Agent Skills (scans project skills/, global skills/, and plugins/)
+    const projects = this.storageAdapter?.listProjects() || [];
+    const activeProject = projects[0]?.slug;
+    await SkillService.discoverSkills(
+      this.configLoader.getProjectHomeDir(),
+      activeProject,
+    );
 
     // Initialize usage aggregator
     this.usageAggregator = new UsageAggregator(
