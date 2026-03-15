@@ -210,6 +210,8 @@ export class ACPConnection {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private shuttingDown = false;
+  private lastActivityAt: number = Date.now();
+  private hasBeenViewed: boolean = false;
 
   // Per-prompt SSE writer — set during handleChat, used by Client callbacks
   private activeWriter: ((chunk: any) => Promise<void>) | null = null;
@@ -307,7 +309,7 @@ export class ACPConnection {
         initResult.agentCapabilities?.promptCapabilities || {};
 
       // Try to resume previous session, fall back to new session
-      let sessionResult: SessionResult;
+      let sessionResult: SessionResult = { sessionId: '' };
 
       // Pre-create adapters so findPreviousSessionId can scan conversation metadata
       // We don't know modes yet, but we can scan for existing agent dirs for this connection
@@ -316,31 +318,51 @@ export class ACPConnection {
       const previousSessionId = await this.findPreviousSessionId();
 
       if (previousSessionId && initResult.agentCapabilities?.loadSession) {
-        try {
-          // Save modes from new session creation first (load doesn't return modes)
-          const tempSession = (await this.connection.newSession({
-            cwd: this.cwd,
-            mcpServers: [],
-          })) as SessionResult;
-          if (tempSession.modes?.availableModes) {
-            this.modes = tempSession.modes.availableModes;
-            this.currentModeId =
-              tempSession.modes.currentModeId || this.modes[0]?.id || null;
+        // Save modes from new session creation first (load doesn't return modes)
+        const tempSession = (await this.connection.newSession({
+          cwd: this.cwd,
+          mcpServers: [],
+        })) as SessionResult;
+        if (tempSession.modes?.availableModes) {
+          this.modes = tempSession.modes.availableModes;
+          this.currentModeId =
+            tempSession.modes.currentModeId || this.modes[0]?.id || null;
+        }
+        const delays = [500, 1000, 2000];
+        let resumed = false;
+        for (let attempt = 0; attempt < delays.length; attempt++) {
+          try {
+            await this.connection.loadSession({
+              sessionId: previousSessionId,
+              cwd: this.cwd,
+              mcpServers: [],
+            });
+            sessionResult = { sessionId: previousSessionId };
+            this.logger.info('[ACPBridge] Resumed session', {
+              sessionId: previousSessionId,
+              attempt: attempt + 1,
+            });
+            resumed = true;
+            break;
+          } catch (err: any) {
+            this.logger.warn('[ACPBridge] Resume attempt failed', {
+              attempt: attempt + 1,
+              maxAttempts: delays.length,
+              error: err.message,
+            });
+            this.eventBus?.emit('acp:resume-retry', {
+              id: this.config.id,
+              attempt: attempt + 1,
+              maxAttempts: delays.length,
+            });
+            if (attempt < delays.length - 1) {
+              await new Promise((r) => setTimeout(r, delays[attempt]));
+            }
           }
-          // Now load the previous session to restore kiro-cli's context
-          await this.connection.loadSession({
-            sessionId: previousSessionId,
-            cwd: this.cwd,
-            mcpServers: [],
-          });
-          sessionResult = { sessionId: previousSessionId };
-          this.logger.info('[ACPBridge] Resumed previous session', {
-            sessionId: previousSessionId,
-          });
-        } catch (err: any) {
-          this.logger.warn(
-            '[ACPBridge] Failed to resume session, creating new',
-            { error: err.message },
+        }
+        if (!resumed) {
+          this.logger.info(
+            '[ACPBridge] All resume attempts failed, creating fresh session',
           );
           sessionResult = (await this.connection.newSession({
             cwd: this.cwd,
@@ -422,6 +444,30 @@ export class ACPConnection {
       this.connection !== null &&
       this.sessionId !== null
     );
+  }
+
+  private touchActivity(): void {
+    this.lastActivityAt = Date.now();
+    this.hasBeenViewed = true;
+  }
+
+  isIdle(): boolean {
+    if (this.status !== 'connected') return false;
+    if (this.activeWriter) return false;
+    const elapsed = Date.now() - this.lastActivityAt;
+    const timeout = this.hasBeenViewed ? 5 * 60_000 : 60_000;
+    return elapsed > timeout;
+  }
+
+  async cullSession(): Promise<void> {
+    this.logger.info(`[ACP:${this.prefix}] Culling idle session`, {
+      sessionId: this.sessionId,
+      idleMs: Date.now() - this.lastActivityAt,
+      viewed: this.hasBeenViewed,
+    });
+    this.cleanup();
+    this.status = 'disconnected';
+    this.eventBus?.emit('acp:status', { id: this.config.id, status: 'culled' });
   }
 
   getStatus(): {
@@ -527,6 +573,16 @@ export class ACPConnection {
     options: any,
     context?: { cwd?: string },
   ): Promise<Response> {
+    this.touchActivity();
+
+    if (this.status === 'disconnected' && !this.shuttingDown) {
+      this.logger.info(`[ACP:${this.prefix}] Auto-restarting culled session`);
+      const started = await this.start();
+      if (!started) {
+        return c.json({ success: false, error: 'ACP failed to restart' }, 503);
+      }
+    }
+
     if (!this.connection || !this.sessionId) {
       return c.json({ success: false, error: 'ACP not connected' }, 503);
     }
@@ -674,6 +730,42 @@ export class ACPConnection {
       this.responseAccumulator = '';
       this.responseParts = [];
 
+      // Waiting detection — emit if no output for 60s
+      let lastOutputAt = Date.now();
+      let waitingEmitted = false;
+      const STALE_THRESHOLD_MS = 60_000;
+      const POLL_INTERVAL_MS = 5_000;
+
+      const trackedWrite = async (chunk: any) => {
+        if (
+          chunk.type === 'text-delta' ||
+          chunk.type === 'tool-call' ||
+          chunk.type === 'tool-result' ||
+          chunk.type === 'reasoning-delta'
+        ) {
+          lastOutputAt = Date.now();
+          if (waitingEmitted) {
+            waitingEmitted = false;
+            await write({ type: 'waiting-cleared' });
+          }
+        }
+        return write(chunk);
+      };
+      this.activeWriter = trackedWrite;
+
+      const waitingTimer = setInterval(async () => {
+        if (!this.activeWriter) return;
+        const elapsed = Date.now() - lastOutputAt;
+        if (elapsed >= STALE_THRESHOLD_MS) {
+          waitingEmitted = true;
+          try {
+            await write({ type: 'waiting', elapsedMs: elapsed });
+          } catch {
+            /* stream may be closed */
+          }
+        }
+      }, POLL_INTERVAL_MS);
+
       // Wire up cancel
       let cancelled = false;
       const abortHandler = () => {
@@ -781,6 +873,21 @@ export class ACPConnection {
         await write({ type: 'finish', finishReason: reason });
         await streamWriter.write('data: [DONE]\n\n');
       } catch (error: any) {
+        // Mark in-progress tool calls as failed
+        for (const part of this.responseParts) {
+          if (part.type === 'tool-invocation' && part.state === 'call') {
+            part.state = 'error';
+            part.result = 'Tool call interrupted — agent session ended unexpectedly';
+            if (this.activeWriter) {
+              await this.activeWriter({
+                type: 'tool-result',
+                toolCallId: part.toolCallId,
+                error: 'Tool call interrupted — agent session ended unexpectedly',
+              });
+            }
+          }
+        }
+
         // Save partial response if we have one
         if (
           adapter &&
@@ -815,6 +922,7 @@ export class ACPConnection {
         }
         await streamWriter.write('data: [DONE]\n\n');
       } finally {
+        clearInterval(waitingTimer);
         c.req.raw.signal?.removeEventListener('abort', abortHandler);
         this.activeWriter = null;
         this.responseAccumulator = '';
@@ -977,6 +1085,7 @@ export class ACPConnection {
   private async handleSessionUpdate(
     params: SessionNotification,
   ): Promise<void> {
+    this.lastActivityAt = Date.now();
     const update = params.update as SessionUpdate;
 
     switch (update.sessionUpdate) {
@@ -1461,6 +1570,12 @@ export class ACPConnection {
   }
 
   private cleanup(): void {
+    const cancelled = this.approvalRegistry.cancelAll();
+    if (cancelled > 0) {
+      this.logger.info(
+        `[ACP:${this.prefix}] Cancelled ${cancelled} pending approvals on cleanup`,
+      );
+    }
     for (const [, term] of Array.from(this.terminals)) {
       term.process.kill();
     }
@@ -1516,6 +1631,7 @@ function simpleDiff(oldText: string, newText: string): string {
  */
 export class ACPManager {
   private connections = new Map<string, ACPConnection>();
+  private cullTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private approvalRegistry: ApprovalRegistry,
@@ -1532,6 +1648,15 @@ export class ACPManager {
   /** Start connections for all enabled configs */
   async startAll(configs: ACPConnectionConfig[]): Promise<void> {
     await Promise.all(configs.map((cfg) => this.addConnection(cfg)));
+    this.cullTimer = setInterval(() => this.sweepIdleSessions(), 30_000);
+  }
+
+  private async sweepIdleSessions(): Promise<void> {
+    for (const conn of this.connections.values()) {
+      if (conn.isIdle()) {
+        await conn.cullSession();
+      }
+    }
   }
 
   /** Add and start a single connection */
@@ -1564,6 +1689,10 @@ export class ACPManager {
 
   /** Shutdown all connections */
   async shutdown(): Promise<void> {
+    if (this.cullTimer) {
+      clearInterval(this.cullTimer);
+      this.cullTimer = null;
+    }
     await Promise.all(
       Array.from(this.connections.values()).map((c) => c.shutdown()),
     );

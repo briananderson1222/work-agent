@@ -12,6 +12,7 @@ import { createNoOpResult } from './streaming/stateHelpers';
 import { TextDeltaHandler } from './streaming/TextDeltaHandler';
 import { ToolApprovalHandler } from './streaming/ToolApprovalHandler';
 import { ToolLifecycleHandler } from './streaming/ToolLifecycleHandler';
+import { WaitingHandler } from './streaming/WaitingHandler';
 import type { HandlerContext, StreamState } from './streaming/types';
 import { useToolApproval } from './useToolApproval';
 
@@ -43,6 +44,7 @@ export function useStreamingMessage(
 
       // Create handlers (order matters - first match wins)
       const handlers = [
+        new WaitingHandler(context),
         new StepHandler(context),
         new ReasoningHandler(context),
         new ToolApprovalHandler(context),

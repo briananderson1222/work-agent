@@ -62,6 +62,10 @@ export class FeedbackService {
   private store: JsonFileStore<FeedbackStore>;
   private timer: ReturnType<typeof setInterval> | null = null;
   private analyzeFn: AnalyzeCallback | null = null;
+  private maxReinforce = 25;
+  private maxAvoid = 25;
+  private lastAnalyzedAt: number | null = null;
+  private isAnalyzing = false;
 
   constructor(dataDir: string) {
     this.store = new JsonFileStore<FeedbackStore>(
@@ -147,6 +151,36 @@ export class FeedbackService {
     return this.store.read().summary;
   }
 
+  hasAnalyzeCallback(): boolean {
+    return this.analyzeFn !== null;
+  }
+
+  setMaxBehaviors(reinforce: number, avoid: number): void {
+    this.maxReinforce = Math.max(1, Math.min(reinforce, 50));
+    this.maxAvoid = Math.max(1, Math.min(avoid, 50));
+  }
+
+  getStatus(): {
+    lastAnalyzedAt: number | null;
+    nextAnalysisAt: number | null;
+    isAnalyzing: boolean;
+    analyzeCallbackAvailable: boolean;
+    totalRatings: number;
+    pendingAnalysis: number;
+  } {
+    const data = this.store.read();
+    return {
+      lastAnalyzedAt: this.lastAnalyzedAt,
+      nextAnalysisAt: this.lastAnalyzedAt
+        ? this.lastAnalyzedAt + ANALYSIS_INTERVAL_MS
+        : null,
+      isAnalyzing: this.isAnalyzing,
+      analyzeCallbackAvailable: this.analyzeFn !== null,
+      totalRatings: data.ratings.length,
+      pendingAnalysis: data.ratings.filter((r) => !r.analyzedAt).length,
+    };
+  }
+
   // ── Guidelines (for prompt injection) ──────────────
 
   /**
@@ -198,12 +232,16 @@ ${avoid || '(none identified yet)'}
   /** Manually trigger the full pipeline. */
   async runAnalysisPipeline(): Promise<FeedbackSummary | null> {
     if (!this.analyzeFn) return null;
+    this.isAnalyzing = true;
     try {
       feedbackOps.add(1, { operation: 'analyze' });
       await this.runMiniAnalysis();
       await this.runFullAnalysis();
+      this.lastAnalyzedAt = Date.now();
     } catch {
       // soft-fail — never block the server
+    } finally {
+      this.isAnalyzing = false;
     }
     return this.store.read().summary;
   }
@@ -290,7 +328,7 @@ ${disliked.map((a, i) => `  <analysis index="${i + 1}">${escapeXml(a)}</analysis
 </disliked>
 </feedback>
 
-Identify the TOP ${MAX_REINFORCE} behaviors users LIKED and TOP ${MAX_AVOID} behaviors users DISLIKED.
+Identify the TOP ${this.maxReinforce} behaviors users LIKED and TOP ${this.maxAvoid} behaviors users DISLIKED.
 Each behavior should be a concise, actionable phrase. Rank by frequency.
 
 Respond with ONLY JSON: {"reinforce": ["behavior 1", ...], "avoid": ["behavior 1", ...]}`;
@@ -303,8 +341,8 @@ Respond with ONLY JSON: {"reinforce": ["behavior 1", ...], "avoid": ["behavior 1
       };
 
       data.summary = {
-        reinforce: (result.reinforce || []).slice(0, MAX_REINFORCE),
-        avoid: (result.avoid || []).slice(0, MAX_AVOID),
+        reinforce: (result.reinforce || []).slice(0, this.maxReinforce),
+        avoid: (result.avoid || []).slice(0, this.maxAvoid),
         analyzedCount: analyzed.length,
         updatedAt: new Date().toISOString(),
       };

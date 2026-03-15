@@ -446,6 +446,51 @@
   background: var(--bg-secondary);
 }
 
+.message__rating-expand {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  max-width: 0;
+  transition: max-width 0.2s ease;
+  vertical-align: middle;
+}
+
+.message__rating-expand--open {
+  max-width: 160px;
+}
+
+.message__rating-reason {
+  width: 150px;
+  font-size: 0.7rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-family: inherit;
+  outline: none;
+}
+
+.message__rating-reason:focus {
+  border-color: var(--accent-primary);
+}
+
+.message__rating-reason-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-style: italic;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 .message__model-badge {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.64em;
@@ -712,4 +757,24 @@
 .workspace-header__refresh-btn:disabled {
   opacity: 0.5;
   cursor: wait;
+}
+
+/* Waiting detection badge (ACP stale output) */
+.message__waiting-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin-top: 8px;
+  font-size: 0.7rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: #e5534b;
+  background: rgba(229, 83, 75, 0.1);
+  border-radius: 4px;
+  animation: pulse-waiting 2s ease-in-out infinite;
+}
+
+@keyframes pulse-waiting {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }

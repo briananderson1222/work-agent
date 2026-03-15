@@ -82,9 +82,9 @@ const ThumbDownIcon = ({ filled }: { filled: boolean }) => (
 );
 
 /** Cache ratings per session to avoid re-fetching for every message. */
-let ratingsCache: { apiBase: string; data: Map<string, RatingValue>; ts: number } | null = null;
+let ratingsCache: { apiBase: string; data: Map<string, { rating: RatingValue; reason?: string }>; ts: number } | null = null;
 
-async function loadRatingsCache(apiBase: string): Promise<Map<string, RatingValue>> {
+async function loadRatingsCache(apiBase: string): Promise<Map<string, { rating: RatingValue; reason?: string }>> {
   const now = Date.now();
   if (ratingsCache && ratingsCache.apiBase === apiBase && now - ratingsCache.ts < 30_000) {
     return ratingsCache.data;
@@ -92,9 +92,9 @@ async function loadRatingsCache(apiBase: string): Promise<Map<string, RatingValu
   const res = await fetch(`${apiBase}/api/feedback/ratings`);
   if (!res.ok) return new Map();
   const json = await res.json();
-  const map = new Map<string, RatingValue>();
+  const map = new Map<string, { rating: RatingValue; reason?: string }>();
   for (const r of json.data || []) {
-    map.set(`${r.conversationId}:${r.messageIndex}`, r.rating);
+    map.set(`${r.conversationId}:${r.messageIndex}`, { rating: r.rating, reason: r.reason });
   }
   ratingsCache = { apiBase, data: map, ts: now };
   return map;
@@ -117,22 +117,25 @@ function MessageRating({
 }) {
   const { apiBase } = useApiBase();
   const [rating, setRating] = useState<RatingValue>(null);
+  const [showReasonInput, setShowReasonInput] = useState(false);
+  const [reasonText, setReasonText] = useState('');
+  const [savedReason, setSavedReason] = useState<string | undefined>(undefined);
 
   // Load existing rating on mount
   useEffect(() => {
     loadRatingsCache(apiBase).then((map) => {
       const existing = map.get(`${conversationId}:${messageIndex}`);
-      if (existing) setRating(existing);
+      if (existing) {
+        setRating(existing.rating);
+        if (existing.reason) setSavedReason(existing.reason);
+      }
     }).catch(() => {});
   }, [apiBase, conversationId, messageIndex]);
 
-  const handleRate = useCallback(
-    async (value: RatingValue) => {
-      const newRating = rating === value ? null : value;
-      const prevRating = rating;
-      setRating(newRating);
+  const submitRating = useCallback(
+    async (value: RatingValue, reason?: string) => {
       try {
-        if (newRating) {
+        if (value) {
           const res = await fetch(`${apiBase}/api/feedback/rate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -141,7 +144,8 @@ function MessageRating({
               conversationId,
               messageIndex,
               messagePreview,
-              rating: newRating,
+              rating: value,
+              ...(reason ? { reason } : {}),
             }),
           });
           if (!res.ok) throw new Error();
@@ -155,11 +159,40 @@ function MessageRating({
         }
         invalidateRatingsCache();
       } catch {
-        setRating(prevRating); // revert on failure
+        // handled by caller
+        throw new Error('rate failed');
       }
     },
-    [apiBase, agentSlug, conversationId, messageIndex, messagePreview, rating],
+    [apiBase, agentSlug, conversationId, messageIndex, messagePreview],
   );
+
+  const handleRate = useCallback(
+    async (value: RatingValue) => {
+      const newRating = rating === value ? null : value;
+      const prevRating = rating;
+      setRating(newRating);
+      if (newRating === 'thumbs_down') {
+        setShowReasonInput(true);
+        try { await submitRating(newRating); } catch { setRating(prevRating); }
+      } else {
+        setShowReasonInput(false);
+        setReasonText('');
+        try { await submitRating(newRating); } catch { setRating(prevRating); }
+      }
+    },
+    [rating, submitRating],
+  );
+
+  const handleReasonSubmit = useCallback(async () => {
+    if (!reasonText.trim()) { setShowReasonInput(false); return; }
+    const reason = reasonText.trim();
+    try {
+      await submitRating(rating, reason);
+      setSavedReason(reason);
+    } catch { /* keep input open */ }
+    setShowReasonInput(false);
+    setReasonText('');
+  }, [rating, reasonText, submitRating]);
 
   return (
     <span className="message__rating">
@@ -177,6 +210,22 @@ function MessageRating({
       >
         <ThumbDownIcon filled={rating === 'thumbs_down'} />
       </button>
+      <span className={`message__rating-expand${showReasonInput ? ' message__rating-expand--open' : ''}`}>
+        {showReasonInput ? (
+          <input
+            className="message__rating-reason"
+            placeholder="Why? (optional)"
+            maxLength={100}
+            value={reasonText}
+            autoFocus
+            onChange={(e) => setReasonText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleReasonSubmit(); if (e.key === 'Escape') { setShowReasonInput(false); setReasonText(''); } }}
+            onBlur={handleReasonSubmit}
+          />
+        ) : savedReason ? (
+          <span className="message__rating-reason-label" title={savedReason}>{savedReason}</span>
+        ) : null}
+      </span>
     </span>
   );
 }

@@ -588,10 +588,12 @@ export class StallionRuntime {
     // Start periodic health checks (every 60 seconds)
     this.startHealthChecks();
 
-    // Start feedback analysis loop (uses default agent for LLM calls)
+    // Start feedback analysis loop (uses first available agent for LLM calls)
     this.feedbackService.setAnalyzeCallback(async (prompt: string) => {
-      const agent = this.activeAgents.get('default');
-      if (!agent) throw new Error('No default agent for feedback analysis');
+      const agent =
+        this.activeAgents.get('default') ||
+        this.activeAgents.values().next().value;
+      if (!agent) throw new Error('No agents available for feedback analysis');
       const result = await agent.generateText(prompt);
       return result.text;
     });
@@ -2349,6 +2351,29 @@ export class StallionRuntime {
             // Generate trace ID for this request (before streamText so it's available in message metadata)
             const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
             operationContext.traceId = traceId;
+
+            // Inject conversation-scoped negative ratings so the agent sees immediate feedback
+            if (operationContext.conversationId) {
+              const negativeRatings = this.feedbackService
+                .getRatings()
+                .filter(
+                  (r) =>
+                    r.conversationId === operationContext.conversationId &&
+                    r.rating === 'thumbs_down',
+                );
+              if (negativeRatings.length > 0) {
+                const ratingLines = negativeRatings
+                  .map(
+                    (r) =>
+                      `- Message #${r.messageIndex} was rated negatively${r.reason ? `: "${r.reason}"` : ''}`,
+                  )
+                  .join('\n');
+                const block = `<conversation_feedback>\nThe user has flagged these responses in this conversation:\n${ratingLines}\nAdjust your approach accordingly.\n</conversation_feedback>`;
+                ragContext = ragContext
+                  ? `${ragContext}\n\n${block}`
+                  : block;
+              }
+            }
 
             // Inject RAG context into the input for Bedrock path
             let finalInput = input;

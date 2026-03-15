@@ -70,6 +70,16 @@ export class ApprovalRegistry {
     return this.pending.has(approvalId);
   }
 
+  cancelAll(): number {
+    let count = 0;
+    for (const [_id, entry] of this.pending) {
+      entry.resolve(false);
+      count++;
+    }
+    this.pending.clear();
+    return count;
+  }
+
   /** Generate a unique approval ID */
   static generateId(prefix = 'approval'): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

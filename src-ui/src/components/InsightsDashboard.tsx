@@ -34,6 +34,13 @@ interface FeedbackSummary {
   updatedAt: string;
 }
 
+interface FeedbackStatus {
+  lastAnalyzedAt?: string;
+  nextAnalysisAt?: string;
+  isAnalyzing: boolean;
+  analyzeCallbackAvailable: boolean;
+}
+
 type Tab = 'usage' | 'feedback';
 
 // ── Shared Styles ──────────────────────────────────────
@@ -293,9 +300,10 @@ function FeedbackTab() {
   const [ratings, setRatings] = useState<MessageRating[]>([]);
   const [summary, setSummary] = useState<FeedbackSummary | null>(null);
   const [filter, setFilter] = useState<
-    'all' | 'thumbs_up' | 'thumbs_down' | 'pending'
+    'all' | 'thumbs_up' | 'thumbs_down' | 'pending' | 'no_reason'
   >('all');
   const [analyzing, setAnalyzing] = useState(false);
+  const [status, setStatus] = useState<FeedbackStatus | null>(null);
 
   const refresh = useCallback(() => {
     fetch(`${apiBase}/api/feedback/ratings`)
@@ -306,15 +314,22 @@ function FeedbackTab() {
       .then((r) => r.json())
       .then((r) => setSummary(r.data?.summary || null))
       .catch(() => {});
+    fetch(`${apiBase}/api/feedback/status`)
+      .then((r) => r.json())
+      .then((r) => setStatus(r.data || null))
+      .catch(() => {});
   }, [apiBase]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  const noReason = ratings.filter((r) => !r.reason).length;
+
   const filtered = ratings.filter((r) => {
     if (filter === 'all') return true;
     if (filter === 'pending') return !r.analyzedAt;
+    if (filter === 'no_reason') return !r.reason;
     return r.rating === filter;
   });
 
@@ -333,9 +348,36 @@ function FeedbackTab() {
     refresh();
   };
 
+  const handleDelete = async (r: MessageRating) => {
+    await fetch(`${apiBase}/api/feedback/rate`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId: r.conversationId, messageIndex: r.messageIndex }),
+    });
+    refresh();
+  };
+
   const liked = ratings.filter((r) => r.rating === 'thumbs_up').length;
   const disliked = ratings.filter((r) => r.rating === 'thumbs_down').length;
   const pending = ratings.filter((r) => !r.analyzedAt).length;
+
+  const relativeTime = (iso?: string) => {
+    if (!iso) return null;
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.round(diff / 60_000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    return `${Math.round(mins / 60)} hr ago`;
+  };
+
+  const relativeIn = (iso?: string) => {
+    if (!iso) return null;
+    const diff = new Date(iso).getTime() - Date.now();
+    const mins = Math.round(diff / 60_000);
+    if (mins <= 0) return 'soon';
+    if (mins < 60) return `in ${mins} min`;
+    return `in ${Math.round(mins / 60)} hr`;
+  };
 
   return (
     <div
@@ -357,6 +399,7 @@ function FeedbackTab() {
               ['thumbs_up', `👍 Liked (${liked})`],
               ['thumbs_down', `👎 Disliked (${disliked})`],
               ['pending', `⏳ Pending (${pending})`],
+              ['no_reason', `💭 No Reason (${noReason})`],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -392,14 +435,35 @@ function FeedbackTab() {
                   background: 'var(--bg-secondary)',
                   borderRadius: 8,
                   border: '1px solid var(--border-primary)',
+                  position: 'relative',
                 }}
               >
+                <button
+                  onClick={() => handleDelete(r)}
+                  title="Delete rating"
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.7rem',
+                    lineHeight: 1,
+                    padding: '2px 4px',
+                    borderRadius: 3,
+                  }}
+                >
+                  ✕
+                </button>
                 <div
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     marginBottom: 4,
+                    paddingRight: 20,
                   }}
                 >
                   <span style={{ fontSize: '0.75rem' }}>
@@ -474,7 +538,7 @@ function FeedbackTab() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '1rem',
+            marginBottom: '0.5rem',
           }}
         >
           <div style={sectionLabel}>Learned Behaviors</div>
@@ -491,6 +555,17 @@ function FeedbackTab() {
             </button>
           </div>
         </div>
+
+        {status && (
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {status.isAnalyzing && (
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-primary)', animation: 'pulse 1s ease-in-out infinite' }} />
+            )}
+            {status.lastAnalyzedAt
+              ? `Last analyzed: ${relativeTime(status.lastAnalyzedAt)}${status.nextAnalysisAt ? ` · Next: ${relativeIn(status.nextAnalysisAt)}` : ''}`
+              : 'Not yet analyzed'}
+          </div>
+        )}
 
         {!summary ? (
           <div
