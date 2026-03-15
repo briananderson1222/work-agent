@@ -36,6 +36,7 @@ export class MetadataHandler implements StreamHandler {
       conversationId?: string;
       userId?: string;
       traceId?: string;
+      plugin?: string;
     },
   ) {}
 
@@ -64,7 +65,7 @@ export class MetadataHandler implements StreamHandler {
         break;
       case 'tool-call':
         this.stats.toolCalls++;
-        otelToolCalls.add(1, { tool: chunk.toolName || 'unknown' });
+        otelToolCalls.add(1, { tool: chunk.toolName || 'unknown', plugin: this.context?.plugin || '' });
         if (chunk.toolCallId) {
           this.toolStartTimes.set(chunk.toolCallId, {
             start: performance.now(),
@@ -78,6 +79,7 @@ export class MetadataHandler implements StreamHandler {
           if (entry) {
             otelToolDuration.record(performance.now() - entry.start, {
               tool: entry.tool,
+              plugin: this.context?.plugin || '',
             });
             this.toolStartTimes.delete(chunk.toolCallId);
           }

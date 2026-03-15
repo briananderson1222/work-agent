@@ -104,6 +104,7 @@ export function createStreamingPipeline(
     conversationId: string | undefined;
     userId: string | undefined;
     traceId: string;
+    plugin?: string;
   },
 ): StreamPipeline {
   const pipeline = new StreamPipeline(abortSignal);

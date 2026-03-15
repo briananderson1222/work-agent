@@ -9,6 +9,7 @@ import {
   _setLayoutContext as _setLayoutContextResolver,
   resolveAgentName,
 } from './agentResolver';
+import { telemetry } from './telemetry';
 import type { StandaloneLayoutConfig } from './types';
 
 // Internal context for API configuration
@@ -106,30 +107,38 @@ export async function sendMessage(
   content: string,
   options: SendMessageOptions = {},
 ): Promise<any> {
-  const apiBase = await _getApiBase();
-  const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(
-    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/text`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        input: content,
-        options: {
-          model: options.model,
-          conversationId: options.conversationId,
-          userId: options.userId,
-        },
-        attachments: options.attachments,
-      }),
-    },
-  );
+  const start = performance.now();
+  try {
+    const apiBase = await _getApiBase();
+    const resolvedAgent = _resolveAgent(agentSlug);
+    const response = await fetch(
+      `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/text`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+        body: JSON.stringify({
+          input: content,
+          options: {
+            model: options.model,
+            conversationId: options.conversationId,
+            userId: options.userId,
+          },
+          attachments: options.attachments,
+        }),
+      },
+    );
 
-  if (!response.ok) {
-    throw new Error(`Failed to send message: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Failed to send message: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    telemetry.track('sdk.sendMessage', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    return result;
+  } catch (err) {
+    telemetry.track('sdk.sendMessage', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    throw err;
   }
-
-  return response.json();
 }
 
 /**
@@ -140,53 +149,61 @@ export async function streamMessage(
   content: string,
   options: StreamMessageOptions = {},
 ): Promise<void> {
-  const apiBase = await _getApiBase();
-  const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(
-    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/stream`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        input: content,
-        options: {
-          model: options.model,
-          conversationId: options.conversationId,
-          userId: options.userId,
-        },
-        attachments: options.attachments,
-      }),
-    },
-  );
-
-  if (!response.ok) {
-    const error = new Error(`Failed to stream message: ${response.statusText}`);
-    options.onError?.(error);
-    throw error;
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('Response body is not readable');
-  }
-
-  const decoder = new TextDecoder();
-
+  const start = performance.now();
   try {
-    while (true) {
-      const { done, value } = await reader.read();
+    const apiBase = await _getApiBase();
+    const resolvedAgent = _resolveAgent(agentSlug);
+    const response = await fetch(
+      `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/stream`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+        body: JSON.stringify({
+          input: content,
+          options: {
+            model: options.model,
+            conversationId: options.conversationId,
+            userId: options.userId,
+          },
+          attachments: options.attachments,
+        }),
+      },
+    );
 
-      if (done) {
-        options.onComplete?.();
-        break;
-      }
-
-      const chunk = decoder.decode(value, { stream: true });
-      options.onChunk?.(chunk);
+    if (!response.ok) {
+      const error = new Error(`Failed to stream message: ${response.statusText}`);
+      options.onError?.(error);
+      throw error;
     }
-  } catch (error) {
-    options.onError?.(error as Error);
-    throw error;
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Response body is not readable');
+    }
+
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          options.onComplete?.();
+          break;
+        }
+
+        const chunk = decoder.decode(value, { stream: true });
+        options.onChunk?.(chunk);
+      }
+    } catch (error) {
+      options.onError?.(error as Error);
+      throw error;
+    }
+
+    telemetry.track('sdk.streamMessage', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+  } catch (err) {
+    telemetry.track('sdk.streamMessage', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    throw err;
   }
 }
 
@@ -198,31 +215,39 @@ export async function invokeAgent(
   content: string,
   options: SendMessageOptions & { schema?: any } = {},
 ): Promise<any> {
-  const apiBase = await _getApiBase();
-  const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(
-    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/invoke`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        input: content,
-        schema: options.schema,
-        options: {
-          model: options.model,
-          conversationId: options.conversationId,
-          userId: options.userId,
-        },
-        attachments: options.attachments,
-      }),
-    },
-  );
+  const start = performance.now();
+  try {
+    const apiBase = await _getApiBase();
+    const resolvedAgent = _resolveAgent(agentSlug);
+    const response = await fetch(
+      `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/invoke`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+        body: JSON.stringify({
+          input: content,
+          schema: options.schema,
+          options: {
+            model: options.model,
+            conversationId: options.conversationId,
+            userId: options.userId,
+          },
+          attachments: options.attachments,
+        }),
+      },
+    );
 
-  if (!response.ok) {
-    throw new Error(`Failed to invoke agent: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Failed to invoke agent: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    telemetry.track('sdk.invokeAgent', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    return result;
+  } catch (err) {
+    telemetry.track('sdk.invokeAgent', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    throw err;
   }
-
-  return response.json();
 }
 
 /**
@@ -237,27 +262,34 @@ export async function callTool(
   toolName: string,
   toolArgs: any = {},
 ): Promise<any> {
-  const apiBase = await _getApiBase();
-  const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(
-    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tools/${encodeURIComponent(toolName)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(toolArgs),
-    },
-  );
+  const start = performance.now();
+  try {
+    const apiBase = await _getApiBase();
+    const resolvedAgent = _resolveAgent(agentSlug);
+    const response = await fetch(
+      `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tools/${encodeURIComponent(toolName)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+        body: JSON.stringify(toolArgs),
+      },
+    );
 
-  if (!response.ok) {
-    throw new Error(`Tool call failed: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Tool call failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Tool call failed');
+    }
+
+    telemetry.track('sdk.callTool', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    return data.response;
+  } catch (err) {
+    telemetry.track('sdk.callTool', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    throw err;
   }
-
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Tool call failed');
-  }
-
-  return data.response;
 }
 
 /** @deprecated Use callTool instead — transformTool will be removed */
@@ -273,7 +305,7 @@ export async function transformTool(
     `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tool/${encodeURIComponent(toolName)}`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
       body: JSON.stringify({
         toolArgs,
         transform: transformFn,
@@ -308,23 +340,30 @@ export interface InvokeOptions {
  * No agent needed - lightweight endpoint
  */
 export async function invoke(options: InvokeOptions): Promise<any> {
-  const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/invoke`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(options),
-  });
+  const start = performance.now();
+  try {
+    const apiBase = await _getApiBase();
+    const response = await fetch(`${apiBase}/invoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+      body: JSON.stringify(options),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Failed to invoke: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Failed to invoke: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Invoke failed');
+    }
+
+    telemetry.track('sdk.invoke', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    return data.response;
+  } catch (err) {
+    telemetry.track('sdk.invoke', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    throw err;
   }
-
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Invoke failed');
-  }
-
-  return data.response;
 }
 
 /**
@@ -332,7 +371,9 @@ export async function invoke(options: InvokeOptions): Promise<any> {
  */
 export async function fetchAgents(): Promise<any[]> {
   const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/agents`);
+  const response = await fetch(`${apiBase}/agents`, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch agents: ${response.statusText}`);
@@ -346,7 +387,9 @@ export async function fetchAgents(): Promise<any[]> {
  */
 export async function fetchLayouts(): Promise<any[]> {
   const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/layouts`);
+  const response = await fetch(`${apiBase}/layouts`, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch layouts: ${response.statusText}`);
@@ -365,7 +408,9 @@ export async function fetchConversations(agentSlug?: string): Promise<any[]> {
     ? `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/conversations`
     : `${apiBase}/conversations`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch conversations: ${response.statusText}`);
@@ -383,6 +428,7 @@ export async function fetchConversationMessages(
   const apiBase = await _getApiBase();
   const response = await fetch(
     `${apiBase}/conversations/${conversationId}/messages`,
+    { headers: { 'x-stallion-plugin': _getPluginName() } },
   );
 
   if (!response.ok) {
@@ -397,7 +443,9 @@ export async function fetchConversationMessages(
  */
 export async function fetchConfig(): Promise<any> {
   const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/config/app`);
+  const response = await fetch(`${apiBase}/config/app`, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch config: ${response.statusText}`);

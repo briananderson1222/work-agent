@@ -148,6 +148,7 @@ export {
 } from './queries';
 // Re-export query factories (for imperative fetching in commands)
 export { agentQueries } from './queryFactories';
+export { telemetry } from './telemetry';
 export * from './types';
 export { voiceRegistry } from './voice/registry.js';
 // Voice + context provider interfaces and registries
