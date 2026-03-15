@@ -34,6 +34,7 @@ import { stream as honoStream } from 'hono/streaming';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ACPConnectionConfig } from '../domain/types.js';
 import { acpOps } from '../telemetry/metrics.js';
+import { resolveHomeDir } from '../utils/paths.js';
 import { ApprovalRegistry } from './approval-registry.js';
 
 interface ACPMode {
@@ -1399,7 +1400,7 @@ export class ACPConnection {
   private preCreateAdaptersFromDisk(): void {
     if (!this.memoryAdapters || !this.createMemoryAdapter) return;
     try {
-      const agentsDir = join(this.cwd, '.stallion-ai', 'agents');
+      const agentsDir = join(resolveHomeDir(), 'agents');
       if (!existsSync(agentsDir)) return;
       for (const dir of readdirSync(agentsDir) as string[]) {
         if (

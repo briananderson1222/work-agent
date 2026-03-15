@@ -110,7 +110,7 @@ function readPluginLayout(projectHomeDir: string, pluginName: string) {
 export function createProjectRoutes(
   projectService: ProjectService,
   storageAdapter: IStorageAdapter,
-  projectHomeDir?: string,
+  projectHomeDir: string,
 ) {
   const app = new Hono();
 
@@ -272,7 +272,7 @@ export function createProjectRoutes(
 
   app.get('/layouts/available', (c) => {
     try {
-      const homeDir = projectHomeDir || '.stallion-ai';
+      const homeDir = projectHomeDir;
       return c.json({ success: true, data: getAvailableLayouts(homeDir) });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -288,7 +288,7 @@ export function createProjectRoutes(
       if (!pluginName)
         return c.json({ success: false, error: 'plugin name required' }, 400);
 
-      const homeDir = projectHomeDir || '.stallion-ai';
+      const homeDir = projectHomeDir;
       const ws = readPluginLayout(homeDir, pluginName);
       if (!ws)
         return c.json(

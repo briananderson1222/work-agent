@@ -35,12 +35,14 @@ import {
   chatDuration,
   chatErrors,
   chatRequests,
+  costEstimated,
   registerObservableGauges,
   tokensInput,
   tokensOutput,
   tracer,
 } from '../telemetry/metrics.js';
 import { createLogger } from '../utils/logger.js';
+import { estimateCost, findModelPricing } from '../utils/pricing.js';
 import { createAgentHooks } from './agent-hooks.js';
 import * as ConversationManager from './conversation-manager.js';
 import * as MCPManager from './mcp-manager.js';
@@ -107,6 +109,7 @@ import { createProviderRoutes } from '../routes/providers.js';
 import { createRegistryRoutes } from '../routes/registry.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createSystemRoutes } from '../routes/system.js';
+import { createTelemetryRoutes } from '../routes/telemetry-events.js';
 import { createTemplateRoutes } from '../routes/templates.js';
 import { createToolRoutes } from '../routes/tools.js';
 import { ACPManager } from '../services/acp-bridge.js';
@@ -115,6 +118,7 @@ import { ApprovalRegistry } from '../services/approval-registry.js';
 import { FeedbackService } from '../services/feedback-service.js';
 import { FileTreeService } from '../services/file-tree-service.js';
 import { KnowledgeService } from '../services/knowledge-service.js';
+import * as SkillService from '../services/skill-service.js';
 import { LayoutService } from '../services/layout-service.js';
 import {
   createLLMProviderFromConfig,
@@ -129,6 +133,7 @@ import { SchedulerService } from '../services/scheduler-service.js';
 import { TerminalService } from '../services/terminal-service.js';
 import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
 import { isAuthError } from '../utils/auth-errors.js';
+import { resolveHomeDir } from '../utils/paths.js';
 import { InjectableStream } from './streaming/InjectableStream.js';
 
 export interface StallionRuntimeOptions {
@@ -217,8 +222,7 @@ export class StallionRuntime {
   constructor(options: StallionRuntimeOptions = {}) {
     const projectHomeDir =
       options.projectHomeDir ||
-      process.env.STALLION_AI_DIR ||
-      join(homedir(), '.stallion-ai');
+      resolveHomeDir();
     this.port = options.port || 3141;
     this.eventLogPath = `${projectHomeDir}/monitoring`;
 
@@ -363,6 +367,12 @@ export class StallionRuntime {
     // Load app configuration
     this.appConfig = await this.configLoader.loadAppConfig();
 
+    // Apply feature flags from STALLION_FEATURES env var
+    const features = (process.env.STALLION_FEATURES || '').split(',').filter(Boolean);
+    if (features.includes('strands-runtime')) {
+      this.appConfig.runtime = 'strands';
+    }
+
     // Select agent framework based on config
     const runtime = this.appConfig.runtime || 'voltagent';
     this.framework =
@@ -403,6 +413,9 @@ export class StallionRuntime {
 
     // Load plugin providers
     await this.loadPluginProviders();
+
+    // Discover Agent Skills (scans skills/ and plugins/ directories)
+    await SkillService.discoverSkills(this.configLoader.getProjectHomeDir());
 
     // Initialize usage aggregator
     this.usageAggregator = new UsageAggregator(
@@ -475,10 +488,16 @@ export class StallionRuntime {
     const defaultInstructions = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : this.replaceTemplateVariables(DEFAULT_SYSTEM_PROMPT);
+    const skillCatalog = SkillService.getSkillCatalogPrompt();
+    const defaultPrompt = skillCatalog
+      ? `${defaultInstructions}\n\n${skillCatalog}`
+      : defaultInstructions;
+    const skillTool = SkillService.getSkillTool();
     const defaultAgent = await this.framework.createTempAgent({
       name: 'default',
-      instructions: defaultInstructions,
+      instructions: defaultPrompt,
       model: defaultModel,
+      tools: skillTool ? [skillTool as any] : undefined,
     });
     agents.default = defaultAgent as any;
     this.activeAgents.set('default', defaultAgent as any);
@@ -673,6 +692,9 @@ export class StallionRuntime {
     // Analytics endpoints
     app.route('/api/analytics', createAnalyticsRoutes(this.usageAggregator));
 
+    // Plugin telemetry endpoints
+    app.route('/api/telemetry', createTelemetryRoutes(this.logger));
+
     // Auth endpoints
     app.route('/api/auth', createAuthRoutes());
 
@@ -701,6 +723,11 @@ export class StallionRuntime {
         await this.acpBridge.startAll(acpConfig.connections);
       }),
     );
+
+    // Skills endpoint
+    app.get('/api/skills', (c) => {
+      return c.json({ success: true, data: SkillService.listSkills() });
+    });
 
     // Custom endpoint for enriched agent list (use /api prefix to avoid VoltAgent routes)
     app.get('/api/agents', async (c) => {
@@ -1185,7 +1212,7 @@ export class StallionRuntime {
     // Notification service
     const notificationService = new NotificationService(
       this.eventBus,
-      join(homedir(), '.stallion-ai'),
+      this.configLoader.getProjectHomeDir(),
       60_000,
     );
     for (const { provider } of getNotificationProviders()) {
@@ -1870,6 +1897,7 @@ export class StallionRuntime {
     // Custom chat endpoint with elicitation - use different path to avoid VoltAgent conflicts
     app.post('/api/agents/:slug/chat', async (c) => {
       const slug = c.req.param('slug');
+      const plugin = c.req.header('x-stallion-plugin') || '';
 
       try {
         const { input, options = {}, projectSlug } = await c.req.json();
@@ -2415,6 +2443,7 @@ export class StallionRuntime {
                 conversationId: operationContext.conversationId,
                 userId: operationContext.userId,
                 traceId,
+                plugin,
               },
             );
 
@@ -2556,26 +2585,35 @@ export class StallionRuntime {
             }
 
             // Log metrics for historical tracking
+            const inputTokens = usage?.promptTokens || usage?.inputTokens || 0;
+            const outputTokens = usage?.completionTokens || usage?.outputTokens || 0;
+            let estimatedCost = 0;
+            if (usage && this.modelCatalog) {
+              try {
+                const modelId = modelOverride || this.agentSpecs.get(slug)?.model || this.appConfig.invokeModel;
+                const p = await findModelPricing(this.modelCatalog, modelId, this.appConfig.region);
+                estimatedCost = estimateCost(p, inputTokens, outputTokens);
+              } catch (_e) { /* pricing lookup is best-effort */ }
+            }
+
             this.metricsLog.push({
               timestamp: Date.now(),
               agentSlug: slug,
               event: 'completion',
               conversationId: operationContext.conversationId,
               messageCount: 2,
-              cost: 0, // TODO: Calculate from usage
+              cost: estimatedCost,
             });
 
             // Record OTel metrics
-            chatRequests.add(1, { agent: slug });
-            chatDuration.record(Date.now() - chatStartMs, { agent: slug });
+            chatRequests.add(1, { agent: slug, plugin });
+            chatDuration.record(Date.now() - chatStartMs, { agent: slug, plugin });
             if (usage) {
-              tokensInput.add(usage.promptTokens || usage.inputTokens || 0, {
-                agent: slug,
-              });
-              tokensOutput.add(
-                usage.completionTokens || usage.outputTokens || 0,
-                { agent: slug },
-              );
+              tokensInput.add(inputTokens, { agent: slug, plugin });
+              tokensOutput.add(outputTokens, { agent: slug, plugin });
+            }
+            if (estimatedCost > 0) {
+              costEstimated.add(estimatedCost, { agent: slug, plugin });
             }
 
             // Close OTel span
@@ -2596,7 +2634,7 @@ export class StallionRuntime {
         });
       } catch (error: any) {
         this.logger.error('Chat error', { error });
-        chatErrors.add(1, { agent: slug });
+        chatErrors.add(1, { agent: slug, plugin });
         const isCredentialError =
           error.message?.includes('credential') ||
           error.message?.includes('accessKeyId') ||
@@ -2849,9 +2887,10 @@ export class StallionRuntime {
     const processedSystemPrompt = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : '';
-    const instructions = processedSystemPrompt
-      ? `${processedSystemPrompt}\n\n${processedPrompt}`
-      : processedPrompt;
+    const skillCatalog = SkillService.getSkillCatalogPrompt();
+    const instructions = [processedSystemPrompt, processedPrompt, skillCatalog]
+      .filter(Boolean)
+      .join('\n\n');
 
     const memoryAdapter = new FileMemoryAdapter({
       projectHomeDir: this.configLoader.getProjectHomeDir(),
@@ -2899,11 +2938,19 @@ export class StallionRuntime {
 
     // Unpack bundle into runtime state
     this.memoryAdapters.set(agentSlug, bundle.memoryAdapter);
-    this.agentTools.set(agentSlug, bundle.tools as Tool<any>[]);
+    const agentTools = bundle.tools as Tool<any>[];
+
+    // Register activate_skill tool if skills are available
+    const skillTool = SkillService.getSkillTool();
+    if (skillTool) {
+      agentTools.push(skillTool as Tool<any>);
+    }
+
+    this.agentTools.set(agentSlug, agentTools);
     this.agentFixedTokens.set(agentSlug, bundle.fixedTokens);
     this.agentHooksMap.set(agentSlug, hooks);
 
-    for (const tool of bundle.tools) {
+    for (const tool of agentTools) {
       if (!this.globalToolRegistry.has(tool.name)) {
         this.globalToolRegistry.set(tool.name, tool as Tool<any>);
       }

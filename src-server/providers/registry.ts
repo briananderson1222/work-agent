@@ -21,6 +21,7 @@ import type {
   IUserDirectoryProvider,
   IUserIdentityProvider,
 } from './types.js';
+import { resolveHomeDir } from '../utils/paths.js';
 
 // ── Generic Store ──────────────────────────────────────
 
@@ -157,9 +158,8 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
   function readDiskIntegrations(): import('@stallion-ai/shared').RegistryItem[] {
     const { existsSync, readdirSync, readFileSync } = require('node:fs');
     const { join } = require('node:path');
-    const { homedir } = require('node:os');
     const dir = join(
-      process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai'),
+      resolveHomeDir(),
       'integrations',
     );
     if (!existsSync(dir)) return [];

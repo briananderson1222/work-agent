@@ -3,15 +3,13 @@
  */
 
 import 'dotenv/config';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { StallionRuntime } from './runtime/stallion-runtime.js';
+import { resolveHomeDir } from './utils/paths.js';
 
 async function main() {
   const runtime = new StallionRuntime({
-    projectHomeDir:
-      process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai'),
+    projectHomeDir: resolveHomeDir(),
     logLevel: 'warn', // Less verbose for CLI
   });
 

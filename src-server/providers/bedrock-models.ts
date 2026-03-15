@@ -227,7 +227,30 @@ export class BedrockModelCatalog {
         }
       }
     } catch {
-      // If we can't look up the model (e.g., no credentials), just return the ID as-is
+      // API lookup failed — try fuzzy profile match
+    }
+
+    // Fallback: search inference profiles for a fuzzy match
+    // Handles cases where model ID has date/version suffixes that don't match profile IDs
+    try {
+      const prefixed = `us.${modelId}`;
+      const profiles = await this.listInferenceProfiles();
+      // Exact match first
+      const exact = profiles.find((p) => p.inferenceProfileId === prefixed);
+      if (exact) return exact.inferenceProfileId;
+      // Fuzzy: strip date/version suffix and find a profile that starts with the base
+      const base = modelId.replace(/-\d{8}-v\d+:\d+$/, '');
+      const fuzzy = profiles.find(
+        (p) => p.inferenceProfileId === `us.${base}`,
+      );
+      if (fuzzy) return fuzzy.inferenceProfileId;
+    } catch {
+      // Profile lookup failed too
+    }
+
+    // Last resort: known providers get us. prefix
+    if (modelId.match(/^(anthropic|meta|amazon|mistral|cohere|ai21)\./)) {
+      return `us.${modelId}`;
     }
 
     return modelId;

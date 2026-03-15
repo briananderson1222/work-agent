@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { IPromptRegistryProvider, Prompt } from '../providers/types.js';
 import { promptOps } from '../telemetry/metrics.js';
+import { resolveHomeDir } from '../utils/paths.js';
 
-const PROMPTS_DIR = join(homedir(), '.stallion-ai', 'prompts');
+const PROMPTS_DIR = join(resolveHomeDir(), 'prompts');
 const PROMPTS_FILE = join(PROMPTS_DIR, 'prompts.json');
 
 function load(): Prompt[] {
@@ -47,7 +47,7 @@ export class PromptService {
     };
     prompts.push(prompt);
     save(prompts);
-    promptOps.add(1, { operation: 'create' });
+    promptOps.add(1, { operation: 'create', prompt: opts.name });
     return Promise.resolve(prompt);
   }
 
@@ -65,7 +65,7 @@ export class PromptService {
       updatedAt: new Date().toISOString(),
     };
     save(prompts);
-    promptOps.add(1, { operation: 'update' });
+    promptOps.add(1, { operation: 'update', prompt: prompts[idx].name });
     return Promise.resolve(prompts[idx]);
   }
 
@@ -73,9 +73,10 @@ export class PromptService {
     const prompts = load();
     const idx = prompts.findIndex((p) => p.id === id);
     if (idx === -1) throw new Error(`Prompt '${id}' not found`);
+    const deleted = prompts[idx];
     prompts.splice(idx, 1);
     save(prompts);
-    promptOps.add(1, { operation: 'delete' });
+    promptOps.add(1, { operation: 'delete', prompt: deleted.name });
     return Promise.resolve();
   }
 

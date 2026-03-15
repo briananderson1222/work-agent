@@ -14,12 +14,11 @@ import type {
 } from '@stallion-ai/shared';
 
 export async function migrateToProject(projectHomeDir: string): Promise<void> {
-  const stallionDir = join(projectHomeDir, '.stallion-ai');
-  const projectsDir = join(stallionDir, 'projects');
+  const projectsDir = join(projectHomeDir, 'projects');
 
   if (existsSync(projectsDir)) return;
 
-  const layoutsDir = join(stallionDir, 'layouts');
+  const layoutsDir = join(projectHomeDir, 'layouts');
   const standaloneLayouts: StandaloneLayoutConfig[] = [];
 
   if (existsSync(layoutsDir)) {

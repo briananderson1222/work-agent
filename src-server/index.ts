@@ -6,14 +6,12 @@ import './telemetry.js';
  * Main entry point
  */
 
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { StallionRuntime } from './runtime/stallion-runtime.js';
+import { resolveHomeDir } from './utils/paths.js';
 
 async function main() {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3141;
-  const projectHomeDir =
-    process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai');
+  const projectHomeDir = resolveHomeDir();
 
   const runtime = new StallionRuntime({
     projectHomeDir,

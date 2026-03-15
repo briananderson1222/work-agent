@@ -86,6 +86,7 @@ async function main() {
       let logFile: string | undefined;
       let buildFlag = false;
       let baseDir: string | undefined;
+      let features: string | undefined;
       for (const arg of args) {
         if (arg.startsWith('--port='))
           serverPort = parseInt(arg.split('=')[1], 10);
@@ -95,8 +96,9 @@ async function main() {
         else if (arg === '--log') logFile = '/tmp/stallion-server.log';
         else if (arg === '--build') buildFlag = true;
         else if (arg.startsWith('--base=')) baseDir = arg.split('=')[1];
+        else if (arg.startsWith('--features=')) features = arg.split('=')[1];
       }
-      start({ serverPort, uiPort, logFile, build: buildFlag, baseDir });
+      start({ serverPort, uiPort, logFile, build: buildFlag, baseDir, features });
       break;
     }
     case 'stop':
@@ -146,6 +148,7 @@ Usage:
     --base=<dir>          Data directory (default: ~/.stallion-ai)
     --port=<n>            Server port (default: 3141)
     --ui-port=<n>         UI port (default: 3000)
+    --features=<flags>    Comma-separated feature flags (e.g. strands-runtime)
   stallion stop                 Stop running application
   stallion upgrade              Pull latest + rebuild (keeps plugins)
 

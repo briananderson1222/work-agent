@@ -4,8 +4,8 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { resolveHomeDir } from '../utils/paths.js';
 import type {
   AddJobOpts,
   ISchedulerProvider,
@@ -25,7 +25,7 @@ import { SSEBroadcaster } from './sse-broadcaster.js';
 
 export { nextCronTimes } from './cron.js';
 
-const DATA_DIR = join(homedir(), '.stallion-ai', 'scheduler');
+const DATA_DIR = join(resolveHomeDir(), 'scheduler');
 const JOBS_FILE = join(DATA_DIR, 'jobs.json');
 const LOGS_DIR = join(DATA_DIR, 'logs');
 

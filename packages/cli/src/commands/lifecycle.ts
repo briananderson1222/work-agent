@@ -10,7 +10,7 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { resolveGitInfo } from '@stallion-ai/shared';
-import { CWD, PIDFILE } from './helpers.js';
+import { CWD, PIDFILE, PROJECT_HOME } from './helpers.js';
 
 export function isRunning(): boolean {
   if (!existsSync(PIDFILE)) return false;
@@ -35,10 +35,11 @@ export interface StartOptions {
   logFile?: string;
   build?: boolean;
   baseDir?: string;
+  features?: string;
 }
 
 export function start(opts: StartOptions = {}): void {
-  const { serverPort = 3141, uiPort = 3000, logFile, build, baseDir } = opts;
+  const { serverPort = 3141, uiPort = 3000, logFile, build, baseDir, features } = opts;
 
   if (isRunning()) {
     console.log(
@@ -66,6 +67,7 @@ export function start(opts: StartOptions = {}): void {
     PORT: String(serverPort),
   };
   if (baseDir) serverEnv.STALLION_AI_DIR = baseDir;
+  if (features) serverEnv.STALLION_FEATURES = features;
 
   const serverProc = spawn('node', ['dist-server/index.js'], {
     cwd: CWD,
@@ -268,7 +270,7 @@ export function clean(force = false): void {
   }
 
   stop();
-  rmSync(join(homedir(), '.stallion-ai'), { recursive: true, force: true });
+  rmSync(PROJECT_HOME, { recursive: true, force: true });
   rmSync(join(CWD, 'dist-server'), { recursive: true, force: true });
   rmSync(join(CWD, 'dist-ui'), { recursive: true, force: true });
   console.log('  ✓ Cleaned');

@@ -21,6 +21,7 @@ import {
   type AgentStreamEvent,
   BedrockModel,
   BeforeToolCallEvent,
+  FunctionTool,
   McpClient,
   Agent as StrandsAgent,
 } from '@strands-agents/sdk';
@@ -115,6 +116,7 @@ function mapStreamEvent(event: AgentStreamEvent): IStreamChunk | null {
 class StrandsAgentWrapper implements IAgent {
   private strandsAgent: StrandsAgent;
   private memory: IMemory | null;
+  private tools: ITool[];
   /** Accumulated usage from the last stream — read by AfterInvocationEvent hook */
   _lastStreamUsage: {
     promptTokens?: number;
@@ -122,6 +124,8 @@ class StrandsAgentWrapper implements IAgent {
   } | null = null;
   /** Mutable invocation context — updated per-request so hooks see conversationId/userId */
   _invocationCtx: InvocationContext;
+  /** Tool-use IDs denied by the approval flow — checked by FunctionTool wrappers */
+  _deniedToolUseIds = new Set<string>();
 
   constructor(
     strandsAgent: StrandsAgent,
@@ -130,9 +134,11 @@ class StrandsAgentWrapper implements IAgent {
     public readonly model: any,
     memory: IMemory | null,
     invocationCtx: InvocationContext,
+    tools: ITool[] = [],
   ) {
     this.strandsAgent = strandsAgent;
     this.memory = memory;
+    this.tools = tools;
     this._invocationCtx = invocationCtx;
   }
 
@@ -143,13 +149,13 @@ class StrandsAgentWrapper implements IAgent {
       name: this.name,
       status: 'idle',
       model: this.model,
-      tools: [],
+      tools: this.tools,
       subAgents: [],
       memory: this.memory,
     };
   }
   getTools() {
-    return [];
+    return this.tools;
   }
   isTelemetryConfigured() {
     return false;
@@ -274,8 +280,25 @@ class StrandsAgentWrapper implements IAgent {
     prompt: string,
     _options?: any,
   ): Promise<IGenerateResult> {
-    // Strands has structuredOutputSchema on the Agent config, but for ad-hoc
-    // calls we just invoke and parse
+    // Use structuredOutputSchema if provided for native structured output
+    const schema = _options?.structuredOutputSchema;
+    if (schema) {
+      const tempAgent = new StrandsAgent({
+        model: this.strandsAgent.model,
+        systemPrompt: (this.strandsAgent as any).systemPrompt,
+        tools: [],
+        structuredOutputSchema: schema,
+      });
+      const result = await tempAgent.invoke(prompt);
+      const text = result.toString();
+      return {
+        object: result.structuredOutput ?? JSON.parse(text),
+        text,
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      };
+    }
+
+    // Fallback: invoke and parse JSON from response
     const result = await this.strandsAgent.invoke(prompt);
     const text = result.toString();
     let object: any;
@@ -304,6 +327,8 @@ class StrandsAgentWrapper implements IAgent {
 
 export class StrandsFramework {
   private mcpClients: Map<string, McpClient> = new Map();
+  /** Track which MCP clients belong to which agent slug */
+  private agentMcpClients: Map<string, string[]> = new Map();
 
   async createAgent(
     slug: string,
@@ -340,13 +365,34 @@ export class StrandsFramework {
     );
     const mcpServerTokens = Math.ceil(toolsJson.length / 4);
 
-    // Create Strands Agent — pass McpClient instances directly so the SDK
-    // registers tools with proper toolSpec and handles execution natively
-    const mcpClients = Array.from(this.mcpClients.values());
+    // Shared denial set — BeforeToolCallEvent adds IDs, FunctionTool wrappers check them
+    const deniedToolUseIds = new Set<string>();
+
+    // Create FunctionTool wrappers instead of passing McpClient directly.
+    // This gives us control over execution — we can deny tools the user rejected.
+    const functionTools: FunctionTool[] = [];
+    for (const tool of tools) {
+      functionTools.push(
+        new FunctionTool({
+          name: tool.name,
+          description: tool.description || '',
+          inputSchema: tool.parameters as any,
+          callback: async (input: unknown, toolContext: any) => {
+            const toolUseId = toolContext?.toolUse?.toolUseId;
+            if (toolUseId && deniedToolUseIds.has(toolUseId)) {
+              deniedToolUseIds.delete(toolUseId);
+              return `Tool '${tool.name}' was denied by the user.`;
+            }
+            return tool.execute(input);
+          },
+        }),
+      );
+    }
+
     const strandsAgent = new StrandsAgent({
       model,
       systemPrompt: opts.processedPrompt,
-      tools: mcpClients,
+      tools: functionTools,
     });
 
     // Wire runtime-provided hooks into Strands' native hook system
@@ -365,9 +411,9 @@ export class StrandsFramework {
           invocationCtx,
         );
         if (!approved) {
-          // Strands doesn't have a built-in deny mechanism on BeforeToolCallEvent,
-          // so we override the tool input to signal denial
-          (event as any)._denied = true;
+          // Mark this toolUseId as denied — the FunctionTool wrapper will
+          // check this set and return a denial message instead of executing.
+          deniedToolUseIds.add(event.toolUse.toolUseId);
         }
       });
     }
@@ -398,7 +444,9 @@ export class StrandsFramework {
       model,
       opts.memoryAdapter as unknown as IMemory,
       invocationCtx,
+      tools,
     );
+    wrapper._deniedToolUseIds = deniedToolUseIds;
 
     {
       const memoryAdapter = opts.memoryAdapter;
@@ -430,15 +478,34 @@ export class StrandsFramework {
             });
             for (const msg of delta) {
               const role = msg.role || 'assistant';
-              const textParts = (msg.content || [])
-                .filter((b: any) => b.text !== undefined)
-                .map((b: any) => ({
-                  type: 'text' as const,
-                  text: b.text || '',
-                }));
-              if (textParts.length) {
+              // Map ALL Strands content block types to UIMessage parts
+              const parts: any[] = [];
+              for (const block of msg.content || []) {
+                if (block.text !== undefined) {
+                  parts.push({ type: 'text' as const, text: block.text || '' });
+                } else if (block.reasoningText !== undefined || block.type === 'reasoningBlock') {
+                  parts.push({ type: 'reasoning' as const, text: block.reasoningText || block.text || '' });
+                } else if (block.type === 'toolUseBlock') {
+                  parts.push({
+                    type: 'tool-invocation' as const,
+                    toolInvocation: {
+                      toolCallId: block.toolUseId,
+                      toolName: block.name,
+                      args: block.input,
+                      state: 'result',
+                    },
+                  });
+                } else if (block.type === 'toolResultBlock') {
+                  parts.push({
+                    type: 'tool-result' as const,
+                    toolCallId: block.toolUseId,
+                    result: block.content,
+                  });
+                }
+              }
+              if (parts.length) {
                 await memoryAdapter.addMessage(
-                  { id: crypto.randomUUID(), role, parts: textParts },
+                  { id: crypto.randomUUID(), role, parts },
                   ctx.userId || '',
                   ctx.conversationId,
                   { model: resolvedModel },
@@ -487,6 +554,7 @@ export class StrandsFramework {
     if (!spec.tools?.mcpServers?.length) return [];
 
     const allTools: ITool[] = [];
+    const agentClientIds: string[] = [];
 
     for (const toolId of spec.tools.mcpServers) {
       try {
@@ -549,6 +617,7 @@ export class StrandsFramework {
           transport: toolDef.transport,
           toolCount: mcpTools.length,
         });
+        agentClientIds.push(toolId);
 
         opts.logger.info('Strands MCP tools loaded', {
           agent: slug,
@@ -568,6 +637,9 @@ export class StrandsFramework {
       }
     }
 
+    // Track which clients belong to this agent
+    this.agentMcpClients.set(slug, agentClientIds);
+
     // Apply available filter
     const available = spec.tools.available || ['*'];
     if (!available.includes('*')) {
@@ -584,7 +656,18 @@ export class StrandsFramework {
     return allTools;
   }
 
-  async destroyAgent(_slug: string): Promise<void> {}
+  async destroyAgent(slug: string): Promise<void> {
+    const clientIds = this.agentMcpClients.get(slug);
+    if (!clientIds) return;
+    for (const id of clientIds) {
+      const client = this.mcpClients.get(id);
+      if (client) {
+        await client.disconnect().catch(() => {});
+        this.mcpClients.delete(id);
+      }
+    }
+    this.agentMcpClients.delete(slug);
+  }
 
   async createModel(
     spec: AgentSpec,
@@ -611,10 +694,20 @@ export class StrandsFramework {
     tools?: ITool[];
     maxSteps?: number;
   }): Promise<IAgent> {
+    // Wrap ITool objects as FunctionTool instances for Strands compatibility
+    const strandsTools = (opts.tools || []).map(
+      (t) =>
+        new FunctionTool({
+          name: t.name,
+          description: t.description || '',
+          inputSchema: t.parameters as any,
+          callback: async (input: unknown) => t.execute(input),
+        }),
+    );
     const agent = new StrandsAgent({
       model: opts.model,
       systemPrompt: opts.instructions,
-      tools: (opts.tools || []) as any[],
+      tools: strandsTools,
     });
     return new StrandsAgentWrapper(
       agent,
@@ -623,6 +716,7 @@ export class StrandsFramework {
       opts.model,
       null,
       { agentSlug: opts.name },
+      opts.tools,
     );
   }
 

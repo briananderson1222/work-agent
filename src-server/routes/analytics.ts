@@ -106,13 +106,3 @@ export function createAnalyticsRoutes(
 
   return app;
 }
-
-// Legacy default export for backward compatibility
-import { join } from 'node:path';
-import { UsageAggregator as UA } from '../analytics/usage-aggregator.js';
-
-const projectHomeDir =
-  process.env.STALLION_AI_DIR || join(process.cwd(), '.stallion-ai');
-const aggregator = new UA(projectHomeDir);
-
-export default createAnalyticsRoutes(aggregator);

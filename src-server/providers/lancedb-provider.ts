@@ -6,6 +6,7 @@ import type {
   VectorDocument,
   VectorSearchResult,
 } from './types.js';
+import { resolveHomeDir } from '../utils/paths.js';
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0,
@@ -44,7 +45,7 @@ export class LanceDBProvider implements IVectorDbProvider {
   private dataDir: string;
 
   constructor({
-    dataDir = '.stallion-ai/vectordb',
+    dataDir = join(resolveHomeDir(), 'vectordb'),
   }: { dataDir?: string } = {}) {
     this.dataDir = dataDir;
   }

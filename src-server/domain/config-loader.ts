@@ -15,6 +15,7 @@ import { basename, extname, join, resolve } from 'node:path';
 import type { PluginOverrides } from '@stallion-ai/shared';
 import { type FSWatcher, watch } from 'chokidar';
 import { createLogger } from '../utils/logger.js';
+import { resolveHomeDir } from '../utils/paths.js';
 import type {
   ACPConfig,
   AgentMetadata,
@@ -55,7 +56,7 @@ export class ConfigLoader {
   private listeners: Map<string, Set<(data: unknown) => void>>;
 
   constructor(options: ConfigLoaderOptions = {}) {
-    this.projectHomeDir = resolve(options.projectHomeDir || '.stallion-ai');
+    this.projectHomeDir = resolve(options.projectHomeDir || resolveHomeDir());
     this.listeners = new Map();
 
     if (options.watchFiles) {
