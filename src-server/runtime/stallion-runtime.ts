@@ -36,6 +36,7 @@ import {
   chatErrors,
   chatRequests,
   costEstimated,
+  feedbackOps,
   registerObservableGauges,
   tokensInput,
   tokensOutput,
@@ -2372,6 +2373,7 @@ export class StallionRuntime {
                 ragContext = ragContext
                   ? `${ragContext}\n\n${block}`
                   : block;
+                feedbackOps.add(negativeRatings.length, { operation: 'inject-conversation' });
               }
             }
 

@@ -33,7 +33,7 @@ import type { Context } from 'hono';
 import { stream as honoStream } from 'hono/streaming';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ACPConnectionConfig } from '../domain/types.js';
-import { acpOps } from '../telemetry/metrics.js';
+import { acpOps, approvalOps } from '../telemetry/metrics.js';
 import { resolveHomeDir } from '../utils/paths.js';
 import { ApprovalRegistry } from './approval-registry.js';
 
@@ -350,6 +350,7 @@ export class ACPConnection {
               maxAttempts: delays.length,
               error: err.message,
             });
+            acpOps.add(1, { operation: 'resume-retry', attempt: String(attempt + 1) });
             this.eventBus?.emit('acp:resume-retry', {
               id: this.config.id,
               attempt: attempt + 1,
@@ -364,6 +365,7 @@ export class ACPConnection {
           this.logger.info(
             '[ACPBridge] All resume attempts failed, creating fresh session',
           );
+          acpOps.add(1, { operation: 'resume-failed' });
           sessionResult = (await this.connection.newSession({
             cwd: this.cwd,
             mcpServers: [],
@@ -465,6 +467,7 @@ export class ACPConnection {
       idleMs: Date.now() - this.lastActivityAt,
       viewed: this.hasBeenViewed,
     });
+    acpOps.add(1, { operation: 'cull', viewed: String(this.hasBeenViewed) });
     this.cleanup();
     this.status = 'disconnected';
     this.eventBus?.emit('acp:status', { id: this.config.id, status: 'culled' });
@@ -758,6 +761,7 @@ export class ACPConnection {
         const elapsed = Date.now() - lastOutputAt;
         if (elapsed >= STALE_THRESHOLD_MS) {
           waitingEmitted = true;
+          acpOps.add(1, { operation: 'waiting-detected' });
           try {
             await write({ type: 'waiting', elapsedMs: elapsed });
           } catch {
@@ -886,6 +890,10 @@ export class ACPConnection {
               });
             }
           }
+        }
+        const failedCount = this.responseParts.filter(p => p.type === 'tool-invocation' && p.state === 'error').length;
+        if (failedCount > 0) {
+          acpOps.add(failedCount, { operation: 'tool-interrupted' });
         }
 
         // Save partial response if we have one
@@ -1575,6 +1583,7 @@ export class ACPConnection {
       this.logger.info(
         `[ACP:${this.prefix}] Cancelled ${cancelled} pending approvals on cleanup`,
       );
+      approvalOps.add(cancelled, { operation: 'cancel-cleanup' });
     }
     for (const [, term] of Array.from(this.terminals)) {
       term.process.kill();

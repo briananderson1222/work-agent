@@ -333,7 +333,7 @@ export function AgentsView({
         onDeselect={handleDeselect}
         onSearch={setSearch}
         searchPlaceholder="Search agents..."
-        onAdd={bedrockReady ? handleNew : undefined}
+        onAdd={handleNew}
         addLabel="+ New Agent"
         emptyIcon="⬡"
         emptyTitle="No agent selected"
@@ -681,6 +681,179 @@ export function AgentsView({
                     </div>
                   </div>
 
+                  {/* Integrations & Tools */}
+                  <div className="agent-editor__section">
+                    <div className="editor-field">
+                      <div className="editor-label-row">
+                        <label className="editor-label">Integrations</label>
+                        <button
+                          type="button"
+                          className="editor-enrich-btn"
+                          onClick={() =>
+                            onNavigate({ type: 'integrations' })
+                          }
+                        >
+                          Manage Integrations →
+                        </button>
+                      </div>
+                      {availableTools.length === 0 ? (
+                        <div className="editor__tools-empty">
+                          No integrations available.{' '}
+                          <button
+                            type="button"
+                            className="editor__tools-link"
+                            onClick={() =>
+                              onNavigate({ type: 'integrations' })
+                            }
+                          >
+                            Install integrations
+                          </button>{' '}
+                          to get started.
+                        </div>
+                      ) : (
+                        (() => {
+                          const enabledServers = new Set(
+                            form.tools.mcpServers,
+                          );
+
+                          const toggleIntegration = (id: string) => {
+                            if (locked) return;
+                            setForm((f) => {
+                              const servers = new Set(f.tools.mcpServers);
+                              const avail = [...f.tools.available];
+                              if (servers.has(id)) {
+                                servers.delete(id);
+                                return {
+                                  ...f,
+                                  tools: {
+                                    ...f.tools,
+                                    mcpServers: [...servers],
+                                    available: avail.filter(
+                                      (p) => !p.startsWith(`${id}_`),
+                                    ),
+                                  },
+                                };
+                              } else {
+                                servers.add(id);
+                                avail.push(`${id}_*`);
+                                return {
+                                  ...f,
+                                  tools: {
+                                    ...f.tools,
+                                    mcpServers: [...servers],
+                                    available: avail,
+                                  },
+                                };
+                              }
+                            });
+                          };
+
+                          const sorted = [...availableTools].sort(
+                            (a, b) => {
+                              const aOn = enabledServers.has(a.id) ? 0 : 1;
+                              const bOn = enabledServers.has(b.id) ? 0 : 1;
+                              return aOn - bOn;
+                            },
+                          );
+
+                          return (
+                            <div className="editor__tools-grouped">
+                              {sorted.map((integration) => {
+                                const enabled = enabledServers.has(
+                                  integration.id,
+                                );
+                                const hasWildcard =
+                                  form.tools.available.includes(
+                                    `${integration.id}_*`,
+                                  );
+                                return (
+                                  <div
+                                    key={integration.id}
+                                    className={`editor__tools-server${enabled ? '' : ' editor__tools-server--disabled'}`}
+                                  >
+                                    <div
+                                      className="editor__tools-server-header"
+                                      onClick={() =>
+                                        toggleIntegration(integration.id)
+                                      }
+                                      style={{
+                                        cursor: locked
+                                          ? 'default'
+                                          : 'pointer',
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={enabled}
+                                        onChange={() => {}}
+                                        disabled={locked}
+                                      />
+                                      <span className="editor__tools-server-name">
+                                        {integration.displayName ||
+                                          integration.id}
+                                      </span>
+                                      {enabled && hasWildcard && (
+                                        <span className="editor__tools-server-count">
+                                          all tools
+                                        </span>
+                                      )}
+                                      {enabled && !hasWildcard && (
+                                        <span className="editor__tools-server-count">
+                                          selective
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Skills */}
+                  <div className="agent-editor__section">
+                    <div className="editor-field">
+                      <div className="editor-label-row">
+                        <label className="editor-label">Skills</label>
+                      </div>
+                      {availableSkills.length === 0 ? (
+                        <div className="editor__tools-empty">
+                          No skills installed. Install skills from the registry to get started.
+                        </div>
+                      ) : (
+                        <div className="editor__tools-grid">
+                          {availableSkills.map((skill: any) => {
+                            const enabled = form.skills.includes(skill.name);
+                            return (
+                              <label key={skill.name} className={`editor__tool-toggle ${enabled ? 'editor__tool-toggle--on' : ''}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={enabled}
+                                  disabled={locked}
+                                  onChange={() => {
+                                    if (locked) return;
+                                    setForm((f) => ({
+                                      ...f,
+                                      skills: enabled
+                                        ? f.skills.filter((s: string) => s !== skill.name)
+                                        : [...f.skills, skill.name],
+                                    }));
+                                  }}
+                                />
+                                <span className="editor__tool-name">{skill.name}</span>
+                                {skill.description && (
+                                  <span className="editor__tool-desc">{skill.description}</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Advanced section */}
                   <div className="agent-editor__section">
                     <button
@@ -842,174 +1015,6 @@ export function AgentsView({
                           />
                         </div>
 
-                        {/* Integrations & Tools */}
-                        <div className="editor-field">
-                          <div className="editor-label-row">
-                            <label className="editor-label">Integrations</label>
-                            <button
-                              type="button"
-                              className="editor-enrich-btn"
-                              onClick={() =>
-                                onNavigate({ type: 'integrations' })
-                              }
-                            >
-                              Manage Integrations →
-                            </button>
-                          </div>
-                          {availableTools.length === 0 ? (
-                            <div className="editor__tools-empty">
-                              No integrations available.{' '}
-                              <button
-                                type="button"
-                                className="editor__tools-link"
-                                onClick={() =>
-                                  onNavigate({ type: 'integrations' })
-                                }
-                              >
-                                Install integrations
-                              </button>{' '}
-                              to get started.
-                            </div>
-                          ) : (
-                            (() => {
-                              const enabledServers = new Set(
-                                form.tools.mcpServers,
-                              );
-
-                              const toggleIntegration = (id: string) => {
-                                if (locked) return;
-                                setForm((f) => {
-                                  const servers = new Set(f.tools.mcpServers);
-                                  const avail = [...f.tools.available];
-                                  if (servers.has(id)) {
-                                    servers.delete(id);
-                                    return {
-                                      ...f,
-                                      tools: {
-                                        ...f.tools,
-                                        mcpServers: [...servers],
-                                        available: avail.filter(
-                                          (p) => !p.startsWith(`${id}_`),
-                                        ),
-                                      },
-                                    };
-                                  } else {
-                                    servers.add(id);
-                                    avail.push(`${id}_*`);
-                                    return {
-                                      ...f,
-                                      tools: {
-                                        ...f.tools,
-                                        mcpServers: [...servers],
-                                        available: avail,
-                                      },
-                                    };
-                                  }
-                                });
-                              };
-
-                              const sorted = [...availableTools].sort(
-                                (a, b) => {
-                                  const aOn = enabledServers.has(a.id) ? 0 : 1;
-                                  const bOn = enabledServers.has(b.id) ? 0 : 1;
-                                  return aOn - bOn;
-                                },
-                              );
-
-                              return (
-                                <div className="editor__tools-grouped">
-                                  {sorted.map((integration) => {
-                                    const enabled = enabledServers.has(
-                                      integration.id,
-                                    );
-                                    const hasWildcard =
-                                      form.tools.available.includes(
-                                        `${integration.id}_*`,
-                                      );
-                                    return (
-                                      <div
-                                        key={integration.id}
-                                        className={`editor__tools-server${enabled ? '' : ' editor__tools-server--disabled'}`}
-                                      >
-                                        <div
-                                          className="editor__tools-server-header"
-                                          onClick={() =>
-                                            toggleIntegration(integration.id)
-                                          }
-                                          style={{
-                                            cursor: locked
-                                              ? 'default'
-                                              : 'pointer',
-                                          }}
-                                        >
-                                          <Checkbox
-                                            checked={enabled}
-                                            onChange={() => {}}
-                                            disabled={locked}
-                                          />
-                                          <span className="editor__tools-server-name">
-                                            {integration.displayName ||
-                                              integration.id}
-                                          </span>
-                                          {enabled && hasWildcard && (
-                                            <span className="editor__tools-server-count">
-                                              all tools
-                                            </span>
-                                          )}
-                                          {enabled && !hasWildcard && (
-                                            <span className="editor__tools-server-count">
-                                              selective
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()
-                          )}
-                        </div>
-
-                        {/* Skills */}
-                        <div className="editor-field">
-                          <div className="editor-label-row">
-                            <label className="editor-label">Skills</label>
-                          </div>
-                          {availableSkills.length === 0 ? (
-                            <div className="editor__tools-empty">
-                              No skills installed. Install skills from the registry to get started.
-                            </div>
-                          ) : (
-                            <div className="editor__tools-grid">
-                              {availableSkills.map((skill: any) => {
-                                const enabled = form.skills.includes(skill.name);
-                                return (
-                                  <label key={skill.name} className={`editor__tool-toggle ${enabled ? 'editor__tool-toggle--on' : ''}`}>
-                                    <input
-                                      type="checkbox"
-                                      checked={enabled}
-                                      disabled={locked}
-                                      onChange={() => {
-                                        if (locked) return;
-                                        setForm((f) => ({
-                                          ...f,
-                                          skills: enabled
-                                            ? f.skills.filter((s: string) => s !== skill.name)
-                                            : [...f.skills, skill.name],
-                                        }));
-                                      }}
-                                    />
-                                    <span className="editor__tool-name">{skill.name}</span>
-                                    {skill.description && (
-                                      <span className="editor__tool-desc">{skill.description}</span>
-                                    )}
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
                       </div>
                     )}
                   </div>

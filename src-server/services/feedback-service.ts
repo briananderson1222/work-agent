@@ -123,7 +123,7 @@ export class FeedbackService {
     }
 
     this.store.write(data);
-    feedbackOps.add(1, { operation: 'rate', rating: params.rating });
+    feedbackOps.add(1, { operation: 'rate', rating: params.rating, agent: params.agentSlug });
     return entry;
   }
 
@@ -235,9 +235,17 @@ ${avoid || '(none identified yet)'}
     this.isAnalyzing = true;
     try {
       feedbackOps.add(1, { operation: 'analyze' });
+      const analyzeStart = Date.now();
       await this.runMiniAnalysis();
       await this.runFullAnalysis();
       this.lastAnalyzedAt = Date.now();
+      const summary = this.store.read().summary;
+      feedbackOps.add(1, {
+        operation: 'analyze-complete',
+        reinforceCount: String(summary?.reinforce.length || 0),
+        avoidCount: String(summary?.avoid.length || 0),
+        durationMs: String(Date.now() - analyzeStart),
+      });
     } catch {
       // soft-fail — never block the server
     } finally {
