@@ -801,6 +801,7 @@ export class StallionRuntime {
                     icon: spec.icon,
                     commands: spec.commands,
                     toolsConfig: spec.tools,
+                    skills: spec.skills,
                     updatedAt: metadata.updatedAt,
                   };
                 } catch (_error) {
