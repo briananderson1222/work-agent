@@ -176,6 +176,18 @@ export const registryOps = meter.createCounter('stallion.registry.operations', {
   description: 'Registry install/uninstall events',
 });
 
+// ── Skills ──
+export const skillDiscoveries = meter.createCounter('stallion.skill.discoveries', {
+  description: 'Skill discovery events',
+});
+export const skillActivations = meter.createCounter('stallion.skill.activations', {
+  description: 'Skill activation events',
+});
+export const skillActivationDuration = meter.createHistogram('stallion.skill.activation.duration', {
+  description: 'Skill activation duration',
+  unit: 'ms',
+});
+
 export function registerObservableGauges(callbacks: {
   activeAgents: () => number;
   mcpConnections: () => number;

@@ -4,10 +4,12 @@
  */
 
 import { Hono } from 'hono';
+import { join } from 'node:path';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import {
   getAgentRegistryProvider,
   getIntegrationRegistryProvider,
+  getSkillRegistryProvider,
 } from '../providers/registry.js';
 import { registryOps } from '../telemetry/metrics.js';
 
@@ -32,9 +34,9 @@ export function createRegistryRoutes(
   });
 
   app.post('/agents/install', async (c) => {
-    registryOps.add(1, { operation: 'install-agent' });
     const { id } = await c.req.json();
     if (!id) return c.json({ success: false, error: 'id is required' }, 400);
+    registryOps.add(1, { operation: 'install-agent', item: id });
 
     const result = await getAgentRegistryProvider().install(id);
     if (result.success) {
@@ -45,7 +47,7 @@ export function createRegistryRoutes(
   });
 
   app.delete('/agents/:id', async (c) => {
-    registryOps.add(1, { operation: 'uninstall-agent' });
+    registryOps.add(1, { operation: 'uninstall-agent', item: c.req.param('id') });
     const result = await getAgentRegistryProvider().uninstall(
       c.req.param('id'),
     );
@@ -91,9 +93,9 @@ export function createRegistryRoutes(
   });
 
   app.post('/integrations/install', async (c) => {
-    registryOps.add(1, { operation: 'install-integration' });
     const { id } = await c.req.json();
     if (!id) return c.json({ success: false, error: 'id is required' }, 400);
+    registryOps.add(1, { operation: 'install-integration', item: id });
 
     const result = await getIntegrationRegistryProvider().install(id);
     if (!result.success) return c.json(result, 500);
@@ -108,7 +110,7 @@ export function createRegistryRoutes(
   });
 
   app.delete('/integrations/:id', async (c) => {
-    registryOps.add(1, { operation: 'uninstall-integration' });
+    registryOps.add(1, { operation: 'uninstall-integration', item: c.req.param('id') });
     const id = c.req.param('id');
     const result = await getIntegrationRegistryProvider().uninstall(id);
     return c.json(result, result.success ? 200 : 500);
@@ -117,6 +119,33 @@ export function createRegistryRoutes(
   app.post('/integrations/sync', async (c) => {
     await getIntegrationRegistryProvider().sync();
     return c.json({ success: true });
+  });
+
+  // ── Skill Registry ──────────────────────────────────────
+
+  app.get('/skills', async (c) => {
+    registryOps.add(1, { operation: 'list-skills' });
+    const provider = getSkillRegistryProvider();
+    if (!provider) return c.json({ success: true, data: [] });
+    const items = await provider.listAvailable();
+    return c.json({ success: true, data: items });
+  });
+
+  app.post('/skills/install', async (c) => {
+    const { id } = await c.req.json();
+    if (!id) return c.json({ success: false, error: 'id is required' }, 400);
+    registryOps.add(1, { operation: 'install-skill', item: id });
+    const { installSkill } = await import('../services/skill-service.js');
+    const result = await installSkill(id, configLoader.getProjectHomeDir());
+    return c.json(result, result.success ? 200 : 500);
+  });
+
+  app.delete('/skills/:id', async (c) => {
+    const id = c.req.param('id');
+    registryOps.add(1, { operation: 'uninstall-skill', item: id });
+    const { uninstallSkill } = await import('../services/skill-service.js');
+    const result = await uninstallSkill(id, configLoader.getProjectHomeDir());
+    return c.json(result, result.success ? 200 : 500);
   });
 
   return app;

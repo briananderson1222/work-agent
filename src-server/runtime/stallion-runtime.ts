@@ -417,6 +417,12 @@ export class StallionRuntime {
     // Discover Agent Skills (scans project skills/, global skills/, and plugins/)
     const projects = this.storageAdapter?.listProjects() || [];
     const activeProject = projects[0]?.slug;
+
+    // Register default skill registry (Anthropic's official skills repo)
+    const { GitHubSkillRegistryProvider } = await import('../providers/github-skill-registry.js');
+    const { registerSkillRegistryProvider } = await import('../providers/registry.js');
+    registerSkillRegistryProvider(new GitHubSkillRegistryProvider());
+
     await SkillService.discoverSkills(
       this.configLoader.getProjectHomeDir(),
       activeProject,

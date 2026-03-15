@@ -49,6 +49,13 @@ export interface IIntegrationRegistryProvider {
   installByCommand?(command: string): Promise<InstallResult>;
 }
 
+export interface ISkillRegistryProvider {
+  listAvailable(): Promise<RegistryItem[]>;
+  listInstalled(): Promise<RegistryItem[]>;
+  install(id: string, targetDir: string): Promise<InstallResult>;
+  uninstall(id: string, targetDir: string): Promise<InstallResult>;
+}
+
 export interface IAuthProvider {
   getStatus(): Promise<AuthStatus>;
   renew(): Promise<RenewResult>;
@@ -353,4 +360,5 @@ export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
   vectorDbProvider: 'additive',
   layoutType: 'additive',
   notification: 'additive',
+  skillRegistry: 'additive',
 };

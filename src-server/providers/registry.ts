@@ -18,6 +18,7 @@ import type {
   IIntegrationRegistryProvider,
   IOnboardingProvider,
   ISettingsProvider,
+  ISkillRegistryProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
 } from './types.js';
@@ -48,7 +49,8 @@ export function registerProvider(
     type === 'onboarding' ||
     type === 'agentRegistry' ||
     type === 'integrationRegistry' ||
-    type === 'notification'
+    type === 'notification' ||
+    type === 'skillRegistry'
   ) {
     if (!additiveStore.has(type)) additiveStore.set(type, []);
     additiveStore.get(type)!.push({ provider, source });
@@ -263,6 +265,19 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
       };
     },
   };
+}
+
+// ── Skill Registry ─────────────────────────────────────
+
+export function registerSkillRegistryProvider(
+  provider: ISkillRegistryProvider,
+) {
+  registerProvider('skillRegistry', provider);
+}
+
+export function getSkillRegistryProvider(): ISkillRegistryProvider | null {
+  const entries = listProviders('skillRegistry');
+  return entries.length > 0 ? (entries[0].provider as ISkillRegistryProvider) : null;
 }
 
 // ── Onboarding ─────────────────────────────────────────

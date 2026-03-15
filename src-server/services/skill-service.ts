@@ -9,8 +9,8 @@
  */
 
 import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir, readFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { join, extname } from 'node:path';
 import {
   type ResolvedSkill,
   type SkillResource,
@@ -22,6 +22,7 @@ import {
   extractResourceLinks,
 } from 'agent-skills-ts-sdk';
 import { createLogger } from '../utils/logger.js';
+import { skillDiscoveries, skillActivations, skillActivationDuration } from '../telemetry/metrics.js';
 
 const logger = createLogger({ name: 'skills' });
 
@@ -54,6 +55,7 @@ export async function discoverSkills(
   }
 
   logger.info('Skills discovered', { count: registry.size, projectSlug });
+  skillDiscoveries.add(1, { count: registry.size, projectSlug: projectSlug || 'global' });
 }
 
 async function scanDirectory(dir: string, depth = 0): Promise<void> {
@@ -140,13 +142,29 @@ export function getSkillTool(): {
     description: schema.description,
     parameters: schema.parametersJsonSchema,
     execute: async (input: any) => {
+      const start = Date.now();
       const result = handleSkillRead(skills, {
         name: input.name,
         resource: input.resource,
       });
+      skillActivations.add(1, { skill: input.name || 'unknown' });
+      skillActivationDuration.record(Date.now() - start, { skill: input.name || 'unknown' });
       if (!result.ok) {
         return { error: (result as any).error };
       }
+
+      // If this is a tier-2 activation (no resource specified), enrich with metadata
+      const skill = registry.get(input.name);
+      if (skill && !input.resource) {
+        const scriptTools = getScriptToolDefs(skill);
+        const allowedTools = getAllowedTools(skill);
+        return {
+          content: (result as any).content,
+          ...(scriptTools.length > 0 && { scriptTools }),
+          ...(allowedTools && { allowedTools }),
+        };
+      }
+
       return { content: (result as any).content };
     },
   };
@@ -163,4 +181,91 @@ export function listSkills(): Array<{ name: string; description: string }> {
 
 export function getSkillCount(): number {
   return registry.size;
+}
+
+// ── Dynamic Script Tools (Tier 3) ──────────────────────
+
+const SCRIPT_EXTS = new Set(['.py', '.sh', '.js', '.ts']);
+
+/**
+ * Build tool definitions for scripts bundled with a skill.
+ * These are returned alongside the skill body so the agent knows
+ * executable scripts are available.
+ */
+function getScriptToolDefs(skill: ResolvedSkill): Array<{ name: string; description: string; path: string }> {
+  return skill.resources
+    .filter((r) => r.path.startsWith('scripts/') && SCRIPT_EXTS.has(extname(r.path)))
+    .map((r) => ({
+      name: `${skill.name}/${r.name}`,
+      description: `Script from ${skill.name} skill: ${r.name}`,
+      path: r.path,
+    }));
+}
+
+/**
+ * Parse allowed-tools from skill frontmatter.
+ */
+function getAllowedTools(skill: ResolvedSkill): string | undefined {
+  // Re-parse frontmatter to get allowed-tools (not stored in ResolvedSkill)
+  const location = skill.location;
+  if (!location || !existsSync(location)) return undefined;
+  try {
+    const { parseFrontmatter } = require('agent-skills-ts-sdk');
+    const content = require('node:fs').readFileSync(location, 'utf-8');
+    const { metadata } = parseFrontmatter(content);
+    return metadata['allowed-tools'] || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// ── Install / Uninstall ────────────────────────────────
+
+/**
+ * Install a skill from a registry provider into the project skills directory.
+ */
+export async function installSkill(
+  name: string,
+  projectHomeDir: string,
+  projectSlug?: string,
+): Promise<{ success: boolean; message: string }> {
+  const { getSkillRegistryProvider } = await import('../providers/registry.js');
+  const provider = getSkillRegistryProvider();
+  if (!provider) return { success: false, message: 'No skill registry configured' };
+
+  const targetDir = projectSlug
+    ? join(projectHomeDir, 'projects', projectSlug, 'skills')
+    : join(projectHomeDir, 'skills');
+
+  await mkdir(targetDir, { recursive: true });
+  const result = await provider.install(name, targetDir);
+
+  if (result.success) {
+    // Re-discover skills to pick up the new one
+    await discoverSkills(projectHomeDir, projectSlug);
+  }
+
+  return result;
+}
+
+/**
+ * Uninstall a skill from the project skills directory.
+ */
+export async function uninstallSkill(
+  name: string,
+  projectHomeDir: string,
+  projectSlug?: string,
+): Promise<{ success: boolean; message: string }> {
+  const targetDir = projectSlug
+    ? join(projectHomeDir, 'projects', projectSlug, 'skills', name)
+    : join(projectHomeDir, 'skills', name);
+
+  if (!existsSync(targetDir)) return { success: false, message: `Skill '${name}' not found` };
+
+  await rm(targetDir, { recursive: true, force: true });
+
+  // Re-discover skills
+  await discoverSkills(projectHomeDir, projectSlug);
+
+  return { success: true, message: `Removed ${name}` };
 }
