@@ -359,6 +359,30 @@ export class StallionRuntime {
   }
 
   /**
+   * Re-discover skills and rebuild all agents so skill assignments take effect.
+   */
+  async reloadSkillsAndAgents(): Promise<void> {
+    const projects = this.storageAdapter?.listProjects() || [];
+    const activeProject = projects[0]?.slug;
+    await SkillService.discoverSkills(
+      this.configLoader.getProjectHomeDir(),
+      activeProject,
+    );
+
+    // Rebuild all non-default agents so they pick up skill changes
+    const agentMetadataList = await this.configLoader.listAgents();
+    for (const meta of agentMetadataList) {
+      try {
+        const agent = await this.createVoltAgentInstance(meta.slug);
+        this.activeAgents.set(meta.slug, agent);
+        this.logger.info('Agent rebuilt with updated skills', { agent: meta.slug });
+      } catch (error) {
+        this.logger.error('Failed to rebuild agent', { agent: meta.slug, error });
+      }
+    }
+  }
+
+  /**
    * Initialize the runtime
    */
   async initialize(): Promise<void> {
@@ -722,11 +746,14 @@ export class StallionRuntime {
     // Package registry endpoints (browse/install agents and tools)
     app.route(
       '/api/registry',
-      createRegistryRoutes(this.configLoader, async () => {
-        // Restart ACP connections to pick up newly installed agents as modes
-        const acpConfig = await this.configLoader.loadACPConfig();
-        await this.acpBridge.startAll(acpConfig.connections);
-      }),
+      createRegistryRoutes(
+        this.configLoader,
+        async () => {
+          const acpConfig = await this.configLoader.loadACPConfig();
+          await this.acpBridge.startAll(acpConfig.connections);
+        },
+        () => this.reloadSkillsAndAgents(),
+      ),
     );
 
     // Skills endpoint

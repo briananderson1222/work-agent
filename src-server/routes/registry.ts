@@ -16,6 +16,7 @@ import { registryOps } from '../telemetry/metrics.js';
 export function createRegistryRoutes(
   configLoader: ConfigLoader,
   refreshACPModes: () => Promise<void>,
+  reloadSkills?: () => Promise<void>,
 ) {
   const app = new Hono();
 
@@ -137,6 +138,7 @@ export function createRegistryRoutes(
     registryOps.add(1, { operation: 'install-skill', item: id });
     const { installSkill } = await import('../services/skill-service.js');
     const result = await installSkill(id, configLoader.getProjectHomeDir());
+    if (result.success && reloadSkills) await reloadSkills().catch(() => {});
     return c.json(result, result.success ? 200 : 500);
   });
 
@@ -145,6 +147,7 @@ export function createRegistryRoutes(
     registryOps.add(1, { operation: 'uninstall-skill', item: id });
     const { uninstallSkill } = await import('../services/skill-service.js');
     const result = await uninstallSkill(id, configLoader.getProjectHomeDir());
+    if (result.success && reloadSkills) await reloadSkills().catch(() => {});
     return c.json(result, result.success ? 200 : 500);
   });
 
