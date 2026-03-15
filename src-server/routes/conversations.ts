@@ -87,10 +87,22 @@ export function createConversationRoutes(
         return c.json({ success: true, data: [] });
       }
 
-      const messages = await adapter.getMessages(
+      // Try with the standard userId format first, fall back to scanning
+      let messages = await adapter.getMessages(
         `agent:${slug}`,
         conversationId,
       );
+      if (messages.length === 0) {
+        // Conversation may have been created with a different userId (e.g. auth alias)
+        // The adapter's findConversationLocation will scan all agent dirs
+        const conversation = await adapter.getConversation(conversationId);
+        if (conversation) {
+          messages = await adapter.getMessages(
+            conversation.userId,
+            conversationId,
+          );
+        }
+      }
 
       return c.json({ success: true, data: messages });
     } catch (error: any) {

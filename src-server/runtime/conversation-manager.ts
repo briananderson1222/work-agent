@@ -70,7 +70,13 @@ export async function getConversationStats(
     throw new Error('Invalid agent slug');
   }
 
-  const spec = await configLoader.loadAgent(slug);
+  let spec: any;
+  try {
+    spec = await configLoader.loadAgent(slug);
+  } catch {
+    // Default/temp agents don't have agent.json on disk — use minimal defaults
+    spec = { prompt: '', model: appConfig.defaultModel };
+  }
   const modelId = spec.model || appConfig.defaultModel;
 
   // Calculate base stats from system prompt and tools

@@ -531,6 +531,12 @@ export class StallionRuntime {
     });
     agents.default = defaultAgent as any;
     this.activeAgents.set('default', defaultAgent as any);
+    // Register memory adapter for default agent so conversations persist
+    const defaultMemoryAdapter = new FileMemoryAdapter({
+      projectHomeDir: this.configLoader.getProjectHomeDir(),
+      usageAggregator: this.usageAggregator,
+    });
+    this.memoryAdapters.set('default', defaultMemoryAdapter);
     this.agentMetadataMap.set('default', {
       slug: 'default',
       name: 'Default Agent',
@@ -2240,6 +2246,8 @@ export class StallionRuntime {
           let requestTraceId = '';
           let isNewConversation = false;
           let result: any;
+          let memory: any = null;
+          let memoryAdapter: any = null;
           const chatStartMs = Date.now();
           const chatSpan = tracer.startSpan('stallion.chat', {
             attributes: { 'stallion.agent': slug },
@@ -2325,21 +2333,25 @@ export class StallionRuntime {
             });
 
             // Ensure conversation exists before streaming
-            const memory = agent.getMemory();
+            memory = agent.getMemory();
+            memoryAdapter = this.memoryAdapters.get(slug);
+            const isFileBackedAgent = this.agentSpecs.has(slug);
+            // For file-backed agents, VoltAgent's memory uses our FileMemoryAdapter.
+            // For temp agents (default), VoltAgent uses InMemoryStorageAdapter — use our adapter directly.
+            const conversationStorage = isFileBackedAgent ? memory : memoryAdapter;
             if (
-              memory &&
+              conversationStorage &&
               operationContext.conversationId &&
               operationContext.userId
             ) {
-              const existing = await memory.getConversation(
+              const existing = await conversationStorage.getConversation(
                 operationContext.conversationId,
               );
               if (!existing) {
-                // Use provided title or generate from first 50 chars of user message
                 const title =
                   operationContext.title ||
                   (input.length > 50 ? `${input.substring(0, 50)}...` : input);
-                await memory.createConversation({
+                await conversationStorage.createConversation({
                   id: operationContext.conversationId,
                   resourceId: slug,
                   userId: operationContext.userId,
@@ -2583,6 +2595,36 @@ export class StallionRuntime {
 
             // Set agent status to idle
             this.agentStatus.set(slug, 'idle');
+
+            // Persist messages for temp agents (e.g. default) that use VoltAgent's
+            // InMemoryStorageAdapter instead of our FileMemoryAdapter.
+            // VoltAgent always creates an in-memory adapter even without explicit memory,
+            // so messages are lost on restart. We manually persist via our adapter.
+            const isFileBackedAgent = this.agentSpecs.has(slug);
+            if (!isFileBackedAgent && memoryAdapter && conversationId && accumulatedText) {
+              try {
+                const userText = typeof input === 'string' ? input : (
+                  Array.isArray(input)
+                    ? input.find((m: any) => m.role === 'user')?.parts?.find((p: any) => p.type === 'text')?.text || ''
+                    : ''
+                );
+                if (userText) {
+                  await memoryAdapter.addMessage(
+                    { id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: userText }] },
+                    operationContext.userId || 'default-user',
+                    conversationId,
+                  );
+                }
+                await memoryAdapter.addMessage(
+                  { id: crypto.randomUUID(), role: 'assistant', parts: [{ type: 'text', text: accumulatedText }] },
+                  operationContext.userId || 'default-user',
+                  conversationId,
+                  { model: modelOverride || this.agentSpecs.get(slug)?.model },
+                );
+              } catch (e) {
+                this.logger.error('Failed to persist messages for temp agent', { error: e });
+              }
+            }
 
             // Add final text output to artifacts (excluding reasoning text)
             const finalOutput = accumulatedText
