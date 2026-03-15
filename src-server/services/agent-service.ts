@@ -87,7 +87,7 @@ export class AgentService {
     const { slug, spec } = await this.configLoader.createAgent(
       body as AgentSpec,
     );
-    agentOps.add(1, { operation: 'create' });
+    agentOps.add(1, { operation: 'create', agent: slug });
     return { slug, spec };
   }
 
@@ -107,7 +107,7 @@ export class AgentService {
     );
 
     const result = await this.configLoader.updateAgent(slug, filtered);
-    agentOps.add(1, { operation: 'update' });
+    agentOps.add(1, { operation: 'update', agent: slug });
     return result;
   }
 
@@ -129,7 +129,7 @@ export class AgentService {
     }
 
     await this.configLoader.deleteAgent(slug);
-    agentOps.add(1, { operation: 'delete' });
+    agentOps.add(1, { operation: 'delete', agent: slug });
     return { success: true };
   }
 

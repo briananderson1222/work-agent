@@ -35,7 +35,7 @@ export function createConversationRoutes(
   // Update conversation (e.g., title)
   app.patch('/:slug/conversations/:conversationId', async (c) => {
     try {
-      conversationOps.add(1, { operation: 'update' });
+      conversationOps.add(1, { operation: 'update', agent: c.req.param('slug') });
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);
@@ -57,7 +57,7 @@ export function createConversationRoutes(
   // Delete conversation
   app.delete('/:slug/conversations/:conversationId', async (c) => {
     try {
-      conversationOps.add(1, { operation: 'delete' });
+      conversationOps.add(1, { operation: 'delete', agent: c.req.param('slug') });
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);
@@ -78,7 +78,7 @@ export function createConversationRoutes(
   // Get messages for a conversation
   app.get('/:slug/conversations/:conversationId/messages', async (c) => {
     try {
-      conversationOps.add(1, { operation: 'messages' });
+      conversationOps.add(1, { operation: 'messages', agent: c.req.param('slug') });
       const slug = c.req.param('slug');
       const conversationId = c.req.param('conversationId');
       const adapter = memoryAdapters.get(slug);

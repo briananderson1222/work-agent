@@ -38,13 +38,13 @@ export class LayoutService {
     updates: Partial<StandaloneLayoutConfig>,
   ): Promise<StandaloneLayoutConfig> {
     const result = await this.configLoader.updateLayout(slug, updates);
-    layoutOps.add(1, { operation: 'update' });
+    layoutOps.add(1, { operation: 'update', layout: slug });
     return result;
   }
 
   async deleteLayout(slug: string): Promise<void> {
     await this.configLoader.deleteLayout(slug);
-    layoutOps.add(1, { operation: 'delete' });
+    layoutOps.add(1, { operation: 'delete', layout: slug });
   }
 
   // Workflow management (workflows are per-agent but related to layout functionality)

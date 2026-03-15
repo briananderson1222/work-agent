@@ -14,6 +14,7 @@ import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
+import { estimateCost, findModelPricing } from '../utils/pricing.js';
 import { isAutoApproved } from './tool-executor.js';
 import type {
   IAgentHooks,
@@ -240,14 +241,7 @@ async function enrichLastMessage(
 
     const models = await deps.modelCatalog?.listModels();
     const modelInfo = models?.find((m: any) => m.modelId === modelId);
-    const pricing = await deps.modelCatalog?.getModelPricing(
-      deps.appConfig.region,
-    );
-    const pricingInfo = pricing?.find(
-      (p: any) =>
-        p.modelId === modelId ||
-        modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
-    );
+    const pricingInfo = await findModelPricing(deps.modelCatalog, modelId, deps.appConfig.region);
 
     await adapter.removeLastMessage(
       `agent:${invocation.agentSlug}`,
@@ -314,10 +308,7 @@ async function calculateCost(
         modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
     );
     if (match) {
-      return (
-        (inputTokens / 1000) * (match.inputTokenPrice || 0) +
-        (outputTokens / 1000) * (match.outputTokenPrice || 0)
-      );
+      return estimateCost(match, inputTokens, outputTokens);
     }
     logger.warn('No pricing found for model, cost unavailable', { modelId });
     return null;
