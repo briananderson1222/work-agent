@@ -5,7 +5,7 @@ import {
   useLayoutQuery,
   useLayoutsQuery,
 } from '@stallion-ai/sdk';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import {
   useCreateChatSession,
@@ -146,6 +146,7 @@ export function LayoutView({
 
   const [refreshKey, setRefreshKey] = useState(0);
   const queryClient = useQueryClient();
+  const isFetching = useIsFetching();
 
   // Wrap slash command handler to match useSendMessage signature
   const handleSlashCommand = useCallback(
@@ -201,27 +202,27 @@ export function LayoutView({
   );
 
   const handleRefresh = useCallback(() => {
-    if (!isProjectMode) {
-      // Clear sessionStorage keys for this layout
-      const prefix = `layout:${selectedLayout}`;
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key?.startsWith(prefix)) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+    // Clear layout-scoped sessionStorage (context state + tab navigation hashes)
+    const slug = isProjectMode ? layoutSlug : selectedLayout;
+    const prefixes = [`layout:${slug}`, `layout-${slug}-tab-`];
+    if (isProjectMode && projectSlug) {
+      prefixes.push(`layout:${projectSlug}:${slug}`);
     }
 
-    // Invalidate React Query cache for active tab data
-    queryClient.invalidateQueries({ queryKey: ['calendar'] });
-    queryClient.invalidateQueries({ queryKey: ['crm'] });
-    queryClient.invalidateQueries({ queryKey: ['user'] });
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && prefixes.some((p) => key.startsWith(p))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => sessionStorage.removeItem(key));
 
-    // Increment refresh key to force remount
+    // Invalidate all active React Query caches — only mounted queries refetch
+    queryClient.invalidateQueries();
+
     setRefreshKey((prev) => prev + 1);
-  }, [isProjectMode, selectedLayout, queryClient]);
+  }, [isProjectMode, projectSlug, layoutSlug, selectedLayout, queryClient]);
 
   const { data: allLayouts = [] } = useLayoutsQuery();
 
@@ -301,6 +302,7 @@ export function LayoutView({
           onShowChat={() => setDockState(true)}
           refreshKey={refreshKey}
           onRefresh={handleRefresh}
+          loading={isFetching > 0}
         />
       </LayoutNavigationProvider>
     </SDKAdapter>

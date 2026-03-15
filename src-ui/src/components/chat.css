@@ -600,6 +600,7 @@
   color: var(--accent-primary);
 }
 
+.workspace-dashboard__header,
 .workspace-header__tab-header {
   display: flex;
   align-items: center;
