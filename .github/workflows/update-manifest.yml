@@ -3,6 +3,7 @@ name: Update Manifest
 on:
   release:
     types: [published]
+  # checkov:skip=CKV_GHA_7:Manifest generation requires release tag input
   workflow_dispatch:
     inputs:
       tag:

@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows: [Build Android]
     types: [completed]
+  # checkov:skip=CKV_GHA_7:Test workflow accepts optional run_id to reference prior build
   workflow_dispatch:
     inputs:
       run_id:
