@@ -3,6 +3,7 @@ import {
   existsSync,
   watch as fsWatch,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -101,12 +102,6 @@ export async function startDevServer(
       return { slug: a.slug, name: a.slug };
     }
   });
-  const agentInfo = agents
-    .map(
-      (a) =>
-        `${a.name}${a.model ? ` (${a.model.split(':')[0].split('.').pop()})` : ''}`,
-    )
-    .join(', ');
 
   const layoutSlug = layout?.slug || pluginName;
 
@@ -157,11 +152,49 @@ export async function startDevServer(
     }
   }
 
+  // Build registry info for dev Plugin Info page
+  const promptsSource = manifest.prompts?.source;
+  let promptEntries: Array<{id: string; name: string; icon?: string; requires?: string[]}> = [];
+  if (promptsSource) {
+    const promptsDir = join(CWD, promptsSource);
+    if (existsSync(promptsDir)) {
+      promptEntries = readdirSync(promptsDir).filter((f: string) => f.endsWith('.md')).map((f: string) => {
+        const raw = readFileSync(join(promptsDir, f), 'utf-8');
+        const match = raw.match(/^---\n([\s\S]*?)\n---/);
+        const meta: Record<string, any> = {};
+        if (match) {
+          let curKey: string | null = null;
+          for (const line of match[1].split('\n')) {
+            const colon = line.indexOf(':');
+            if (colon > 0 && !line.match(/^\s*-/)) {
+              const k = line.slice(0, colon).trim();
+              const v = line.slice(colon + 1).trim();
+              if (v) meta[k] = v.replace(/['"]/g, '');
+              else curKey = k;
+            } else if (curKey && line.trim().startsWith('- ')) {
+              if (!Array.isArray(meta[curKey])) meta[curKey] = [];
+              meta[curKey].push(line.trim().slice(2).replace(/['"]/g, ''));
+            }
+          }
+        }
+        return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires };
+      });
+    }
+  }
+
+  const registryJson = JSON.stringify({
+    agents: agents.map(a => ({ slug: a.slug, name: a.name, model: a.model })),
+    prompts: promptEntries,
+    actions: (layout as any)?.actions || [],
+    dependencies: manifest.dependencies || [],
+    layouts: layout ? [{ slug: layout.slug, name: layout.name, icon: layout.icon, tabs: tabs.length }] : [],
+  });
+
   const html = generateDevHTML({
     name: name!,
     pluginName: pluginName!,
     tabsJson,
-    agentInfo,
+    registryJson,
     layoutSlug,
     sdkMockJs: serializeSDKMock({ layoutSlug }),
   });
