@@ -191,10 +191,26 @@ export async function startDevServer(
     }
   }
 
+  // Scan integrations directory for MCP server configs
+  const integrationsDir = join(CWD, 'integrations');
+  const integrations: Array<{id: string; displayName: string; description?: string; command?: string}> = [];
+  if (existsSync(integrationsDir)) {
+    for (const dir of readdirSync(integrationsDir)) {
+      const cfgPath = join(integrationsDir, dir, 'integration.json');
+      if (existsSync(cfgPath)) {
+        try {
+          const cfg = JSON.parse(readFileSync(cfgPath, 'utf-8'));
+          integrations.push({ id: cfg.id || dir, displayName: cfg.displayName || dir, description: cfg.description, command: cfg.command });
+        } catch {}
+      }
+    }
+  }
+
   const registryJson = JSON.stringify({
     agents,
     prompts: promptEntries,
     actions: (layout as any)?.actions || [],
+    integrations,
     dependencies: manifest.dependencies || [],
     layouts: layout ? [{ slug: layout.slug, name: layout.name, icon: layout.icon, tabs: tabs.length }] : [],
   });

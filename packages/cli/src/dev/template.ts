@@ -184,9 +184,22 @@ window.__stallion_ai_shared = {
       }}),
       h(Section,{title:'ACTIONS',items:reg.actions,render:function(a,i){
         var href=a.type==='external'?a.data:a.type==='internal'?'#'+a.data:null;
+        var linked=null;
+        if(a.type==='prompt'){
+          var found=reg.prompts&&reg.prompts.find(function(p){return p.id===a.data.split(':').pop()});
+          linked=found?h('span',{style:{color:'var(--accent-acp)',fontSize:11}},'✓ linked'):h('span',{style:{color:'#ef4444',fontSize:11}},'✗ not found');
+        }
         return h(DetailRow,{key:i,icon:a.icon||'⚡',name:a.label,badge:a.type},
           h(KV,{k:'type',v:a.type}),
-          h(KV,{k:'data',v:a.data,href:href})
+          h(KV,{k:'data',v:a.data,href:href}),
+          linked&&h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},'prompt'),linked)
+        );
+      }}),
+      h(Section,{title:'INTEGRATIONS',items:reg.integrations,render:function(ig){
+        return h(DetailRow,{key:ig.id,icon:'🔧',name:ig.displayName,badge:ig.id},
+          h(KV,{k:'id',v:ig.id}),
+          ig.description&&h(KV,{k:'description',v:ig.description}),
+          ig.command&&h(KV,{k:'command',v:ig.command})
         );
       }}),
       h(Section,{title:'DEPENDENCIES',items:reg.dependencies,render:function(d){
