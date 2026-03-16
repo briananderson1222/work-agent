@@ -145,15 +145,8 @@ export function LayoutHeader({
       <header className="workspace-dashboard__header workspace-header__tab-header">
         {description && <p className="workspace-header__description">{description}</p>}
         <div className="workspace-header__tab-actions">
-          {tabActions?.map((action) => (
-            <button
-              key={action.id}
-              onClick={() => onTabPromptSelect?.(action)}
-              type="button"
-              className="workspace-header__action-btn"
-            >
-              {action.label}
-            </button>
+          {tabActions?.map((action: any) => (
+            <ActionButton key={action.id || action.data} action={action} onLaunch={(a) => onTabPromptSelect?.(a as any)} />
           ))}
           {tabPrompts && tabPrompts.length > 0 && (
             <div className="workspace-header__dropdown">

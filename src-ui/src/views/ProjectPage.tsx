@@ -10,6 +10,7 @@ import './ProjectPage.css';
 interface DocMeta {
   id: string;
   filename: string;
+  source?: 'upload' | 'directory-scan';
   chunkCount: number;
   createdAt: string;
 }
@@ -18,6 +19,16 @@ interface KnowledgeStatus {
   documentCount: number;
   totalChunks: number;
   lastIndexed: string | null;
+}
+
+interface ConversationRecord {
+  id: string;
+  projectId: string;
+  title: string;
+  agentSlug: string;
+  layoutId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface AvailableLayout {
@@ -30,9 +41,17 @@ interface AvailableLayout {
   type: string;
 }
 
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
+}
+
 export function ProjectPage({ slug }: { slug: string }) {
   const { apiBase } = useApiBase();
-  const { setLayout, navigate } = useNavigation();
+  const { setLayout, setConversation, navigate } = useNavigation();
   const qc = useQueryClient();
 
   const { data: project, isLoading } = useQuery<ProjectConfig>({
@@ -65,6 +84,17 @@ export function ProjectPage({ slug }: { slug: string }) {
       );
       const json = await res.json();
       return json.success ? json.data : null;
+    },
+  });
+
+  const { data: conversations = [] } = useQuery<ConversationRecord[]>({
+    queryKey: ['project-conversations', slug],
+    queryFn: async () => {
+      const res = await fetch(
+        `${apiBase}/api/projects/${slug}/conversations?limit=10`,
+      );
+      const json = await res.json();
+      return json.success ? json.data : [];
     },
   });
 
@@ -113,6 +143,26 @@ export function ProjectPage({ slug }: { slug: string }) {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await fetch(
+        `${apiBase}/api/projects/${slug}/knowledge/bulk-delete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        },
+      );
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+    },
+    onSuccess: () => {
+      setSelectedDocs(new Set());
+      qc.invalidateQueries({ queryKey: ['knowledge', slug] });
+      qc.invalidateQueries({ queryKey: ['knowledge-status', slug] });
+    },
+  });
+
   // ── Inline working directory edit ──
   const [editingDir, setEditingDir] = useState(false);
   const [dirDraft, setDirDraft] = useState('');
@@ -134,6 +184,82 @@ export function ProjectPage({ slug }: { slug: string }) {
       setEditingDir(false);
     },
   });
+
+  // ── Directory scan with confirmation ──
+  const [showScanDialog, setShowScanDialog] = useState(false);
+  const [scanInclude, setScanInclude] = useState('');
+  const [scanExclude, setScanExclude] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{
+    indexed: number;
+    skipped: number;
+  } | null>(null);
+
+  async function handleScan() {
+    setScanning(true);
+    setScanResult(null);
+    setShowScanDialog(false);
+    try {
+      const body: Record<string, unknown> = {};
+      const inc = scanInclude
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const exc = scanExclude
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (inc.length) body.includePatterns = inc;
+      if (exc.length) body.excludePatterns = exc;
+      const res = await fetch(
+        `${apiBase}/api/projects/${slug}/knowledge/scan`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      );
+      const json = await res.json();
+      if (json.success) setScanResult(json.data);
+      qc.invalidateQueries({ queryKey: ['knowledge', slug] });
+      qc.invalidateQueries({ queryKey: ['knowledge-status', slug] });
+    } catch {
+      /* ignore */
+    }
+    setScanning(false);
+  }
+
+  // ── Bulk selection ──
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+
+  function toggleDoc(id: string) {
+    setSelectedDocs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllInGroup(groupDocs: DocMeta[]) {
+    const ids = groupDocs.map((d) => d.id);
+    const allSelected = ids.every((id) => selectedDocs.has(id));
+    setSelectedDocs((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }
+
+  // ── Collapsible sections ──
+  const [dirOpen, setDirOpen] = useState(true);
+  const [uploadOpen, setUploadOpen] = useState(true);
+
+  const dirDocs = docs.filter((d) => d.source === 'directory-scan');
+  const uploadDocs = docs.filter((d) => d.source !== 'directory-scan');
 
   // ── Add layout modal ──
   const [showAddLayout, setShowAddLayout] = useState(false);
@@ -181,13 +307,18 @@ export function ProjectPage({ slug }: { slug: string }) {
     setAdding(null);
   }
 
+  function handleConversationClick(conv: ConversationRecord) {
+    const layoutSlug = conv.layoutId || (layouts as any[])[0]?.slug;
+    if (layoutSlug) {
+      setLayout(slug, layoutSlug);
+      setTimeout(() => setConversation(conv.id), 100);
+    }
+  }
+
   if (isLoading || !project) {
     return (
       <div className="project-page">
-        <div
-          className="project-page__inner"
-          style={{ color: 'var(--text-muted)', fontSize: '14px' }}
-        >
+        <div className="project-page__inner project-page__loading">
           Loading…
         </div>
       </div>
@@ -203,8 +334,22 @@ export function ProjectPage({ slug }: { slug: string }) {
             {project.icon && (
               <span className="project-page__icon">{project.icon}</span>
             )}
-            <div>
+            <div className="project-page__identity-info">
               <h2 className="project-page__name">{project.name}</h2>
+              {!editingDir && (
+                <button
+                  className="project-page__dir-display"
+                  onClick={() => {
+                    setDirDraft(project.workingDirectory ?? '');
+                    setEditingDir(true);
+                  }}
+                >
+                  <span className="project-page__dir-path">
+                    {project.workingDirectory || 'Set working directory…'}
+                  </span>
+                  <span className="project-page__dir-edit-icon">✎</span>
+                </button>
+              )}
               {project.description && (
                 <p className="project-page__desc">{project.description}</p>
               )}
@@ -218,7 +363,34 @@ export function ProjectPage({ slug }: { slug: string }) {
           </button>
         </div>
 
-        {/* Layout cards — the hero */}
+        {/* Working directory edit — full width below header */}
+        {editingDir && (
+          <div className="project-page__dir-inline">
+            <PathAutocomplete
+              apiBase={apiBase}
+              value={dirDraft}
+              onChange={setDirDraft}
+              onSubmit={() => saveDirMutation.mutate(dirDraft)}
+              placeholder="/path/to/project"
+              className="project-page__dir-input"
+            />
+            <button
+              className="project-page__dir-save"
+              onClick={() => saveDirMutation.mutate(dirDraft)}
+              disabled={saveDirMutation.isPending}
+            >
+              {saveDirMutation.isPending ? '…' : '✓'}
+            </button>
+            <button
+              className="project-page__dir-cancel"
+              onClick={() => setEditingDir(false)}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Layout cards */}
         <div className="project-page__layouts">
           <div className="project-page__section-header">
             <span className="project-page__section-label">Open</span>
@@ -229,7 +401,6 @@ export function ProjectPage({ slug }: { slug: string }) {
               + Add
             </button>
           </div>
-
           <div className="project-page__cards">
             {(layouts as any[]).length > 0 ? (
               (layouts as any[]).map((layout: any) => (
@@ -243,11 +414,17 @@ export function ProjectPage({ slug }: { slug: string }) {
                       {layout.icon}
                     </span>
                   )}
-                  <span className="project-page__card-name">{layout.name}</span>
+                  <span className="project-page__card-name">
+                    {layout.name}
+                  </span>
                   {layout.description && (
-                    <span className="project-page__card-desc">{layout.description}</span>
+                    <span className="project-page__card-desc">
+                      {layout.description}
+                    </span>
                   )}
-                  <span className="project-page__card-type">{layout.type}</span>
+                  <span className="project-page__card-type">
+                    {layout.type}
+                  </span>
                 </button>
               ))
             ) : (
@@ -261,137 +438,315 @@ export function ProjectPage({ slug }: { slug: string }) {
           </div>
         </div>
 
-        {/* Details row */}
-        <div className="project-page__details">
-          <div className="project-page__detail-card">
-            <div className="project-page__detail-label">Working Directory</div>
-            {editingDir ? (
-              <div className="project-page__dir-edit">
-                <PathAutocomplete
-                  apiBase={apiBase}
-                  value={dirDraft}
-                  onChange={setDirDraft}
-                  placeholder="/path/to/project"
-                />
-                <div className="project-page__dir-edit-actions">
-                  <button
-                    className="project-page__add-btn"
-                    onClick={() => saveDirMutation.mutate(dirDraft)}
-                    disabled={saveDirMutation.isPending}
-                  >
-                    {saveDirMutation.isPending ? 'Saving…' : 'Save'}
-                  </button>
-                  <button
-                    className="project-page__add-btn"
-                    onClick={() => setEditingDir(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                className="project-page__detail-editable"
-                onClick={() => {
-                  setDirDraft(project.workingDirectory ?? '');
-                  setEditingDir(true);
-                }}
-              >
-                {project.workingDirectory ? (
-                  <span className="project-page__detail-value">
-                    {project.workingDirectory}
-                  </span>
-                ) : (
-                  <span className="project-page__detail-empty">
-                    Click to set working directory
-                  </span>
-                )}
-                <span className="project-page__detail-edit-icon">✎</span>
-              </button>
-            )}
-          </div>
-          <div className="project-page__detail-card">
-            <div className="project-page__detail-label">Knowledge</div>
-            {knowledgeStatus && knowledgeStatus.totalChunks > 0 ? (
-              <div className="project-page__detail-stats">
-                <span className="project-page__detail-stat">
-                  📄 {knowledgeStatus.documentCount} docs
-                </span>
-                <span className="project-page__detail-stat">
-                  🧩 {knowledgeStatus.totalChunks} chunks
-                </span>
-              </div>
-            ) : (
-              <div className="project-page__detail-empty">
-                No documents yet — drop files below
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Drop zone + documents */}
-        <div className="project-page__section-header">
-          <span className="project-page__section-label">Documents</span>
-          {docs.length > 0 && (
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              {docs.length} files
+        {/* ── Knowledge & Documents ── */}
+        <div className="project-page__knowledge">
+          <div className="project-page__section-header">
+            <span className="project-page__section-label">
+              Knowledge & Documents
             </span>
-          )}
-        </div>
-
-        <div
-          className={`project-page__dropzone${dragOver ? ' project-page__dropzone--active' : ''}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".txt,.md,.json,.csv,.html,.ts,.tsx,.js,.py,.yaml,.yml,.toml,.xml,.sql,.sh,.css"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              if (e.target.files) uploadFiles(e.target.files);
-              e.target.value = '';
-            }}
-          />
-          <div className="project-page__dropzone-icon">
-            {uploading ? '⏳' : '📎'}
-          </div>
-          <div className="project-page__dropzone-text">
-            {uploading
-              ? 'Uploading…'
-              : dragOver
-                ? 'Drop files here'
-                : 'Drop files here or click to browse'}
-          </div>
-          <div className="project-page__dropzone-hint">
-            .md .txt .json .ts .py .yaml and more
-          </div>
-        </div>
-
-        {docs.length > 0 && (
-          <div className="project-page__docs">
-            {docs.map((doc) => (
-              <div key={doc.id} className="project-page__doc">
-                <span className="project-page__doc-name">{doc.filename}</span>
-                <span className="project-page__doc-badge">
-                  {doc.chunkCount} chunks
+            <div className="project-page__knowledge-actions">
+              {knowledgeStatus && knowledgeStatus.totalChunks > 0 && (
+                <span className="project-page__knowledge-stats">
+                  {knowledgeStatus.documentCount} docs ·{' '}
+                  {knowledgeStatus.totalChunks} chunks
+                  {knowledgeStatus.lastIndexed &&
+                    ` · ${timeAgo(knowledgeStatus.lastIndexed)}`}
                 </span>
+              )}
+              {selectedDocs.size > 0 && (
                 <button
-                  className="project-page__doc-remove"
-                  onClick={() => deleteMutation.mutate(doc.id)}
-                  title="Remove"
+                  className="project-page__add-btn project-page__add-btn--danger"
+                  onClick={() =>
+                    bulkDeleteMutation.mutate([...selectedDocs])
+                  }
+                  disabled={bulkDeleteMutation.isPending}
                 >
-                  ×
+                  {bulkDeleteMutation.isPending
+                    ? 'Deleting…'
+                    : `Delete ${selectedDocs.size} selected`}
+                </button>
+              )}
+              {project.workingDirectory && (
+                <button
+                  className="project-page__add-btn"
+                  onClick={() => setShowScanDialog(true)}
+                  disabled={scanning}
+                >
+                  {scanning ? '⟳ Scanning…' : '⟳ Index directory'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {scanResult && (
+            <div className="project-page__scan-result">
+              ✓ Indexed {scanResult.indexed} files, skipped{' '}
+              {scanResult.skipped}
+            </div>
+          )}
+
+          {/* Directory-scanned files */}
+          {dirDocs.length > 0 && (
+            <div className="project-page__doc-group">
+              <button
+                className="project-page__doc-group-header"
+                onClick={() => setDirOpen((o) => !o)}
+              >
+                <span className="project-page__doc-group-chevron">
+                  {dirOpen ? '▾' : '▸'}
+                </span>
+                <span className="project-page__doc-group-icon">📁</span>
+                <span className="project-page__doc-group-label">
+                  Directory Index
+                </span>
+                <span className="project-page__doc-group-count">
+                  {dirDocs.length} files
+                </span>
+                <input
+                  type="checkbox"
+                  className="project-page__doc-group-check"
+                  checked={dirDocs.every((d) => selectedDocs.has(d.id))}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    toggleAllInGroup(dirDocs);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Select all"
+                />
+              </button>
+              {dirOpen && (
+                <div className="project-page__doc-group-body">
+                  <div className="project-page__doc-group-meta">
+                    From: {project.workingDirectory}
+                  </div>
+                  {dirDocs.map((doc) => (
+                    <div key={doc.id} className="project-page__doc">
+                      <input
+                        type="checkbox"
+                        checked={selectedDocs.has(doc.id)}
+                        onChange={() => toggleDoc(doc.id)}
+                        className="project-page__doc-check"
+                      />
+                      <span className="project-page__doc-name">
+                        {doc.filename}
+                      </span>
+                      <span className="project-page__doc-badge">
+                        {doc.chunkCount} chunks
+                      </span>
+                      <button
+                        className="project-page__doc-remove"
+                        onClick={() => deleteMutation.mutate(doc.id)}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Uploaded files */}
+          <div className="project-page__doc-group">
+            <button
+              className="project-page__doc-group-header"
+              onClick={() => setUploadOpen((o) => !o)}
+            >
+              <span className="project-page__doc-group-chevron">
+                {uploadOpen ? '▾' : '▸'}
+              </span>
+              <span className="project-page__doc-group-icon">📎</span>
+              <span className="project-page__doc-group-label">
+                Uploaded Documents
+              </span>
+              {uploadDocs.length > 0 && (
+                <>
+                  <span className="project-page__doc-group-count">
+                    {uploadDocs.length} files
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="project-page__doc-group-check"
+                    checked={
+                      uploadDocs.length > 0 &&
+                      uploadDocs.every((d) => selectedDocs.has(d.id))
+                    }
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      toggleAllInGroup(uploadDocs);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    title="Select all"
+                  />
+                </>
+              )}
+            </button>
+            {uploadOpen && (
+              <div className="project-page__doc-group-body">
+                <div className="project-page__doc-group-meta">
+                  Stored in vector database (LanceDB) — not on the filesystem
+                </div>
+
+                {/* Drop zone */}
+                <div
+                  className={`project-page__dropzone${dragOver ? ' project-page__dropzone--active' : ''}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".txt,.md,.json,.csv,.html,.ts,.tsx,.js,.py,.yaml,.yml,.toml,.xml,.sql,.sh,.css"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      if (e.target.files) uploadFiles(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                  <div className="project-page__dropzone-icon">
+                    {uploading ? '⏳' : '📎'}
+                  </div>
+                  <div className="project-page__dropzone-text">
+                    {uploading
+                      ? 'Uploading…'
+                      : dragOver
+                        ? 'Drop files here'
+                        : 'Drop files here or click to browse'}
+                  </div>
+                  <div className="project-page__dropzone-hint">
+                    .md .txt .json .ts .py .yaml and more
+                  </div>
+                </div>
+
+                {uploadDocs.map((doc) => (
+                  <div key={doc.id} className="project-page__doc">
+                    <input
+                      type="checkbox"
+                      checked={selectedDocs.has(doc.id)}
+                      onChange={() => toggleDoc(doc.id)}
+                      className="project-page__doc-check"
+                    />
+                    <span className="project-page__doc-name">
+                      {doc.filename}
+                    </span>
+                    <span className="project-page__doc-badge">
+                      {doc.chunkCount} chunks
+                    </span>
+                    <button
+                      className="project-page__doc-remove"
+                      onClick={() => deleteMutation.mutate(doc.id)}
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Conversations */}
+        {conversations.length > 0 && (
+          <div className="project-page__conversations">
+            <div className="project-page__section-header">
+              <span className="project-page__section-label">
+                Recent Conversations
+              </span>
+            </div>
+            <div className="project-page__conversation-list">
+              {conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  className="project-page__conversation-item"
+                  onClick={() => handleConversationClick(conv)}
+                >
+                  <span className="project-page__conversation-title">
+                    {conv.title || 'Untitled'}
+                  </span>
+                  <span className="project-page__conversation-agent">
+                    {conv.agentSlug}
+                  </span>
+                  <span className="project-page__conversation-time">
+                    {timeAgo(conv.updatedAt)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Scan Confirmation Dialog */}
+        {showScanDialog && (
+          <div
+            className="project-page__modal-overlay"
+            onClick={() => setShowScanDialog(false)}
+          >
+            <div
+              className="project-page__modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="project-page__modal-title">
+                Index Working Directory
+              </h3>
+              <div className="project-page__scan-warning">
+                ⚠ This will scan and index files from your working directory
+                into the project's vector database. Files are chunked and
+                embedded for semantic search.
+              </div>
+              <div className="project-page__scan-path">
+                📁 {project.workingDirectory}
+              </div>
+              <div className="project-page__scan-fields">
+                <label className="project-page__scan-label">
+                  Include patterns
+                  <span className="project-page__scan-hint">
+                    comma-separated globs, e.g. src/**, docs/**
+                  </span>
+                  <input
+                    className="project-page__scan-input"
+                    type="text"
+                    value={scanInclude}
+                    onChange={(e) => setScanInclude(e.target.value)}
+                    placeholder="Leave empty to include all"
+                  />
+                </label>
+                <label className="project-page__scan-label">
+                  Exclude patterns
+                  <span className="project-page__scan-hint">
+                    comma-separated globs, e.g. **/*.test.ts, dist/**
+                  </span>
+                  <input
+                    className="project-page__scan-input"
+                    type="text"
+                    value={scanExclude}
+                    onChange={(e) => setScanExclude(e.target.value)}
+                    placeholder="node_modules, .git, dist already excluded"
+                  />
+                </label>
+              </div>
+              <div className="project-page__scan-actions">
+                <button
+                  className="project-page__add-btn"
+                  onClick={() => setShowScanDialog(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="project-page__add-btn project-page__add-btn--primary"
+                  onClick={handleScan}
+                >
+                  Index Files
                 </button>
               </div>
-            ))}
+            </div>
           </div>
         )}
 

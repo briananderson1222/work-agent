@@ -131,7 +131,7 @@ export function LayoutRenderer({
             description={activeTab?.description || layout.description || ''}
             tabActions={activeTab?.actions}
             tabPrompts={activeTab?.prompts}
-            onTabPromptSelect={onLaunchPrompt}
+            onTabPromptSelect={onLaunchPrompt ? (action) => onLaunchPrompt({ id: action.data || action.id, label: action.label, prompt: action.type === 'inline-prompt' ? action.data : (action.prompt || action.label) }) : undefined}
             onRefresh={onRefresh}
             loading={loading}
           />

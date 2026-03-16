@@ -82,7 +82,7 @@ export function PathAutocomplete({
     } else if (e.key === 'Tab') {
       e.preventDefault();
       if (selectedIdx >= 0) pick(suggestions[selectedIdx]);
-      else if (suggestions.length === 1) pick(suggestions[0]);
+      else if (suggestions.length > 0) pick(suggestions[0]);
     } else if (e.key === 'Enter') {
       if (selectedIdx >= 0) {
         e.preventDefault();

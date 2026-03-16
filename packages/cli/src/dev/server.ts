@@ -84,34 +84,6 @@ export async function startDevServer(
   const layoutPath = manifest.layout?.source
     ? join(CWD, manifest.layout.source)
     : null;
-  const layout: StandaloneLayoutConfig | null =
-    layoutPath && existsSync(layoutPath)
-      ? JSON.parse(readFileSync(layoutPath, 'utf-8'))
-      : null;
-  const tabs = layout?.tabs || [];
-  const tabsJson = JSON.stringify(tabs);
-
-  // Read agent info for dev header
-  const agents = (manifest.agents || []).map((a: any) => {
-    try {
-      const agentPath = join(CWD, a.source);
-      if (!existsSync(agentPath)) return { slug: a.slug, name: a.slug };
-      const agentSpec = JSON.parse(readFileSync(agentPath, 'utf-8'));
-      return {
-        slug: a.slug,
-        name: agentSpec.name,
-        model: agentSpec.model,
-        prompt: agentSpec.prompt,
-        mcpServers: agentSpec.tools?.mcpServers || [],
-        guardrails: agentSpec.guardrails,
-        _source: a.source,
-      };
-    } catch {
-      return { slug: a.slug, name: a.slug };
-    }
-  });
-
-  const layoutSlug = layout?.slug || pluginName;
 
   // Build react + react-query from plugin's own node_modules
   const reactBundle = join(CWD, 'dist/.react-dev.js');
@@ -160,73 +132,161 @@ export async function startDevServer(
     }
   }
 
-  // Build registry info for dev Plugin Info page
-  const promptsSource = manifest.prompts?.source;
-  let promptEntries: Array<{id: string; name: string; icon?: string; requires?: string[]}> = [];
-  if (promptsSource) {
-    const promptsDir = join(CWD, promptsSource);
-    if (existsSync(promptsDir)) {
-      promptEntries = readdirSync(promptsDir).filter((f: string) => f.endsWith('.md')).map((f: string) => {
-        const raw = readFileSync(join(promptsDir, f), 'utf-8');
-        const match = raw.match(/^---\n([\s\S]*?)\n---/);
-        const meta: Record<string, any> = {};
-        if (match) {
-          let curKey: string | null = null;
-          for (const line of match[1].split('\n')) {
-            const colon = line.indexOf(':');
-            if (colon > 0 && !line.match(/^\s*-/)) {
-              const k = line.slice(0, colon).trim();
-              const v = line.slice(colon + 1).trim();
-              if (v) meta[k] = v.replace(/['"]/g, '');
-              else curKey = k;
-            } else if (curKey && line.trim().startsWith('- ')) {
-              if (!Array.isArray(meta[curKey])) meta[curKey] = [];
-              meta[curKey].push(line.trim().slice(2).replace(/['"]/g, ''));
+  // ── Config-driven HTML generation (re-run on config file changes) ──
+  function regenerateHTML(): { html: string; layout: StandaloneLayoutConfig | null; layoutSlug: string } {
+    const layout: StandaloneLayoutConfig | null =
+      layoutPath && existsSync(layoutPath)
+        ? JSON.parse(readFileSync(layoutPath, 'utf-8'))
+        : null;
+    const tabs = layout?.tabs || [];
+    const tabsJson = JSON.stringify(tabs);
+
+    const agents = (manifest.agents || []).map((a: any) => {
+      try {
+        const agentPath = join(CWD, a.source);
+        if (!existsSync(agentPath)) return { slug: a.slug, name: a.slug };
+        const agentSpec = JSON.parse(readFileSync(agentPath, 'utf-8'));
+        return {
+          slug: a.slug,
+          name: agentSpec.name,
+          model: agentSpec.model,
+          prompt: agentSpec.prompt,
+          mcpServers: agentSpec.tools?.mcpServers || [],
+          guardrails: agentSpec.guardrails,
+          _source: a.source,
+        };
+      } catch {
+        return { slug: a.slug, name: a.slug };
+      }
+    });
+
+    const layoutSlug = layout?.slug || pluginName!;
+
+    const promptsSource = manifest.prompts?.source;
+    let promptEntries: Array<{id: string; name: string; icon?: string; requires?: string[]}> = [];
+    if (promptsSource) {
+      const promptsDir = join(CWD, promptsSource);
+      if (existsSync(promptsDir)) {
+        promptEntries = readdirSync(promptsDir).filter((f: string) => f.endsWith('.md')).map((f: string) => {
+          const raw = readFileSync(join(promptsDir, f), 'utf-8');
+          const match = raw.match(/^---\n([\s\S]*?)\n---/);
+          const meta: Record<string, any> = {};
+          if (match) {
+            let curKey: string | null = null;
+            for (const line of match[1].split('\n')) {
+              const colon = line.indexOf(':');
+              if (colon > 0 && !line.match(/^\s*-/)) {
+                const k = line.slice(0, colon).trim();
+                const v = line.slice(colon + 1).trim();
+                if (v) meta[k] = v.replace(/['"]/g, '');
+                else curKey = k;
+              } else if (curKey && line.trim().startsWith('- ')) {
+                if (!Array.isArray(meta[curKey])) meta[curKey] = [];
+                meta[curKey].push(line.trim().slice(2).replace(/['"]/g, ''));
+              }
             }
           }
-        }
-        const bodyMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
-        const content = bodyMatch ? bodyMatch[1].trim() : raw.trim();
-        return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires, content, _source: manifest.prompts.source + '/' + f };
-      });
-    }
-  }
-
-  // Scan integrations directory for MCP server configs
-  const integrationsDir = join(CWD, 'integrations');
-  const integrations: Array<Record<string, any>> = [];
-  if (existsSync(integrationsDir)) {
-    for (const dir of readdirSync(integrationsDir)) {
-      const cfgPath = join(integrationsDir, dir, 'integration.json');
-      if (existsSync(cfgPath)) {
-        try {
-          const cfg = JSON.parse(readFileSync(cfgPath, 'utf-8'));
-          cfg._source = 'integrations/' + dir + '/integration.json';
-          integrations.push(cfg);
-        } catch {}
+          const bodyMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+          const content = bodyMatch ? bodyMatch[1].trim() : raw.trim();
+          return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires, content, _source: manifest.prompts!.source + '/' + f };
+        });
       }
     }
+
+    const integrationsDir = join(CWD, 'integrations');
+    const integrations: Array<Record<string, any>> = [];
+    if (existsSync(integrationsDir)) {
+      for (const dir of readdirSync(integrationsDir)) {
+        const cfgPath = join(integrationsDir, dir, 'integration.json');
+        if (existsSync(cfgPath)) {
+          try {
+            const cfg = JSON.parse(readFileSync(cfgPath, 'utf-8'));
+            cfg._source = 'integrations/' + dir + '/integration.json';
+            integrations.push(cfg);
+          } catch {}
+        }
+      }
+    }
+
+    // Scan dependency plugins for their registries
+    const depRegistries: Record<string, any> = {};
+    for (const dep of manifest.dependencies || []) {
+      const depDir = join(PLUGINS_DIR, dep.id);
+      const depManifestPath = join(depDir, 'plugin.json');
+      if (!existsSync(depManifestPath)) continue;
+      try {
+        const depManifest = JSON.parse(readFileSync(depManifestPath, 'utf-8'));
+        const depAgents = (depManifest.agents || []).map((a: any) => {
+          try {
+            const ap = join(depDir, a.source);
+            if (!existsSync(ap)) return { slug: a.slug, name: a.slug };
+            const spec = JSON.parse(readFileSync(ap, 'utf-8'));
+            return { slug: a.slug, name: spec.name, model: spec.model, prompt: spec.prompt, mcpServers: spec.tools?.mcpServers || [], guardrails: spec.guardrails, _source: join(depDir, a.source) };
+          } catch { return { slug: a.slug, name: a.slug }; }
+        });
+        const depIntDir = join(depDir, 'integrations');
+        const depIntegrations: Array<Record<string, any>> = [];
+        if (existsSync(depIntDir)) {
+          for (const d of readdirSync(depIntDir)) {
+            const cp = join(depIntDir, d, 'integration.json');
+            if (existsSync(cp)) { try { const c = JSON.parse(readFileSync(cp, 'utf-8')); c._source = cp; depIntegrations.push(c); } catch {} }
+          }
+        }
+        let depPrompts: any[] = [];
+        if (depManifest.prompts?.source) {
+          const dpDir = join(depDir, depManifest.prompts.source);
+          if (existsSync(dpDir)) {
+            depPrompts = readdirSync(dpDir).filter((f: string) => f.endsWith('.md')).map((f: string) => {
+              const raw = readFileSync(join(dpDir, f), 'utf-8');
+              const m = raw.match(/^---\n([\s\S]*?)\n---/);
+              const meta: Record<string, any> = {};
+              if (m) { for (const line of m[1].split('\n')) { const c = line.indexOf(':'); if (c > 0 && !line.match(/^\s*-/)) { const k = line.slice(0, c).trim(); const v = line.slice(c + 1).trim(); if (v) meta[k] = v.replace(/['"]/g, ''); } } }
+              const bm = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+              return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires, content: bm ? bm[1].trim() : raw.trim(), _source: join(dpDir, f) };
+            });
+          }
+        }
+        const depLayoutPath = depManifest.layout?.source ? join(depDir, depManifest.layout.source) : null;
+        const depLayout = depLayoutPath && existsSync(depLayoutPath) ? JSON.parse(readFileSync(depLayoutPath, 'utf-8')) : null;
+        depRegistries[dep.id] = {
+          name: depManifest.displayName || depManifest.name,
+          _dir: depDir,
+          agents: depAgents,
+          integrations: depIntegrations,
+          prompts: depPrompts,
+          actions: depLayout?.actions || [],
+          layouts: depLayout ? [{ slug: depLayout.slug, name: depLayout.name, icon: depLayout.icon, tabs: depLayout.tabs || [], _source: depLayoutPath }] : [],
+          dependencies: depManifest.dependencies || [],
+          providers: (depManifest.providers || []).map((p: any) => ({ type: p.type, module: p.module, _source: join(depDir, p.module) })),
+        };
+      } catch {}
+    }
+
+    const registryJson = JSON.stringify({
+      agents,
+      prompts: promptEntries,
+      actions: (layout as any)?.actions || [],
+      integrations,
+      dependencies: manifest.dependencies || [],
+      depRegistries,
+      layouts: layout ? [{ slug: layout.slug, name: layout.name, icon: layout.icon, tabs: tabs, _source: manifest.layout?.source }] : [],
+      _actionSource: manifest.layout?.source,
+      _cwd: CWD,
+    });
+
+    const html = generateDevHTML({
+      name: name!,
+      pluginName: pluginName!,
+      tabsJson,
+      registryJson,
+      layoutSlug,
+      sdkMockJs: serializeSDKMock({ layoutSlug }),
+    });
+
+    return { html, layout, layoutSlug };
   }
 
-  const registryJson = JSON.stringify({
-    agents,
-    prompts: promptEntries,
-    actions: (layout as any)?.actions || [],
-    integrations,
-    dependencies: manifest.dependencies || [],
-    layouts: layout ? [{ slug: layout.slug, name: layout.name, icon: layout.icon, tabs: tabs.length, _source: manifest.layout?.source }] : [],
-    _actionSource: manifest.layout?.source,
-    _cwd: CWD,
-  });
-
-  const html = generateDevHTML({
-    name: name!,
-    pluginName: pluginName!,
-    tabsJson,
-    registryJson,
-    layoutSlug,
-    sdkMockJs: serializeSDKMock({ layoutSlug }),
-  });
+  let { html, layout, layoutSlug } = regenerateHTML();
 
   // ── MCP setup ──
   let mcpManager: MCPManager | null = null;
@@ -281,6 +341,35 @@ export async function startDevServer(
     });
   }
 
+  // Watch config files (layout, prompts, agents) — regenerate HTML + reload
+  let configTimer: ReturnType<typeof setTimeout> | null = null;
+  const configDirs: string[] = [];
+  if (layoutPath) configDirs.push(layoutPath);
+  if (manifest.prompts?.source) {
+    const pd = join(CWD, manifest.prompts.source);
+    if (existsSync(pd)) configDirs.push(pd);
+  }
+  for (const a of manifest.agents || []) {
+    const ap = join(CWD, a.source);
+    if (existsSync(ap)) configDirs.push(ap);
+  }
+  for (const target of configDirs) {
+    const isDir = existsSync(target) && statSync(target).isDirectory();
+    fsWatch(target, isDir ? { recursive: true } : {}, (_event, filename) => {
+      if (configTimer) clearTimeout(configTimer);
+      configTimer = setTimeout(() => {
+        try {
+          const label = filename || target.replace(CWD + '/', '');
+          console.log(`\n♻️  ${label} changed — regenerating config...`);
+          ({ html, layout, layoutSlug } = regenerateHTML());
+          for (const res of reloadClients) res.write('data: reload\n\n');
+        } catch (err: any) {
+          console.error(`   Config reload failed: ${err.message}`);
+        }
+      }, 200);
+    });
+  }
+
   // ── HTTP Server ──
   const server = createServer(async (req, res) => {
     const url = (req.url || '/').split('?')[0];
@@ -290,11 +379,12 @@ export async function startDevServer(
       const params = new URLSearchParams(req.url.split('?')[1]);
       const relPath = params.get('path');
       if (relPath) {
-        const absPath = join(CWD, relPath);
-        if (existsSync(absPath) && absPath.startsWith(CWD)) {
+        const absPath = relPath.startsWith('/') ? relPath : join(CWD, relPath);
+        const allowed = absPath.startsWith(CWD) || absPath.startsWith(join(PLUGINS_DIR, ''));
+        if (allowed && existsSync(absPath)) {
           const content = readFileSync(absPath, 'utf-8');
           const ext = relPath.split('.').pop() || '';
-          const mime: Record<string, string> = { json: 'application/json', md: 'text/markdown', ts: 'text/plain', tsx: 'text/plain' };
+          const mime: Record<string, string> = { json: 'application/json', md: 'text/markdown', ts: 'text/plain', tsx: 'text/plain', js: 'text/plain' };
           res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain', 'Cache-Control': 'no-cache' });
           res.end(content);
           return;
@@ -468,6 +558,7 @@ export async function startDevServer(
   });
 
   server.listen(port, () => {
+    const tabs = layout?.tabs || [];
     console.log(`\n🔧 Plugin dev server running at http://localhost:${port}`);
     console.log(`   Plugin: ${name}`);
     console.log(`   Tabs: ${tabs.map((t) => t.label).join(', ') || 'none'}`);
@@ -476,7 +567,10 @@ export async function startDevServer(
         ? '   MCP: connecting...'
         : '   MCP: off',
     );
-    console.log(`   Run 'stallion build' to rebuild after changes\n`);
+    if (configDirs.length > 0) {
+      console.log(`   Watching: src/ + ${configDirs.map(d => d.replace(CWD + '/', '')).join(', ')}`);
+    }
+    console.log('');
   });
 
   const cleanup = async () => {
