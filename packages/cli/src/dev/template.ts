@@ -57,6 +57,8 @@ body{margin:0;font-family:system-ui;background:var(--bg-primary);color:var(--tex
 .info-kv{display:flex;gap:8px;padding:4px 0;font-size:13px}
 .info-kv-key{color:var(--text-muted);min-width:100px;font-family:'SF Mono',Menlo,monospace;font-size:11px}
 .info-kv-val{color:var(--text-primary);font-family:'SF Mono',Menlo,monospace;font-size:11px;word-break:break-all}
+.info-kv-link{color:var(--accent-primary);text-decoration:none}
+.info-kv-link:hover{text-decoration:underline}
 .info-prompt-block{margin-top:8px}
 .info-prompt-pre{margin:0;padding:12px;background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:4px;font-size:12px;font-family:'SF Mono',Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;color:var(--text-secondary);line-height:1.5}
 </style>
@@ -124,7 +126,18 @@ window.__stallion_ai_shared = {
     );
   }
 
-  function KV(props){return h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},props.k),h('span',{className:'info-kv-val'},props.v))}
+  function KV(props){
+    var val=props.href
+      ?h('a',{className:'info-kv-val info-kv-link',href:props.href,target:'_blank',rel:'noopener noreferrer',onClick:function(e){e.stopPropagation()}},props.v)
+      :h('span',{className:'info-kv-val'},props.v);
+    return h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},props.k),val);
+  }
+
+  function gitToHttps(src){
+    if(!src)return null;
+    var m=src.match(/^git@([^:]+):(.+?)(\\.git)?$/);
+    return m?'https://'+m[1].replace(/^ssh\\./,'')+'/'+m[2]:src.match(/^https?:/)?src:null;
+  }
 
   function Section(props){
     return h('div',{className:'info-section'},
@@ -170,14 +183,16 @@ window.__stallion_ai_shared = {
         );
       }}),
       h(Section,{title:'ACTIONS',items:reg.actions,render:function(a,i){
+        var href=a.type==='external'?a.data:a.type==='internal'?'#'+a.data:null;
         return h(DetailRow,{key:i,icon:a.icon||'⚡',name:a.label,badge:a.type},
           h(KV,{k:'type',v:a.type}),
-          h(KV,{k:'data',v:a.data})
+          h(KV,{k:'data',v:a.data,href:href})
         );
       }}),
       h(Section,{title:'DEPENDENCIES',items:reg.dependencies,render:function(d){
+        var href=gitToHttps(d.source);
         return h(DetailRow,{key:d.id,icon:'🔌',name:d.id,badge:'dep'},
-          h(KV,{k:'source',v:d.source||'local'})
+          h(KV,{k:'source',v:d.source||'local',href:href})
         );
       }})
     );
