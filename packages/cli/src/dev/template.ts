@@ -238,19 +238,17 @@ window.__stallion_ai_shared = {
         );
       }}),
       h(Section,{title:'AGENTS',items:reg.agents,render:function(a){
-        return h(DetailRow,{key:a.slug,icon:'🤖',name:a.name,badge:a.model?a.model.split('.').pop():''},
-          h(KV,{k:'slug',v:a.slug}),
+        return h(CardItem,{key:a.slug,icon:'🤖',name:a.name,badge:a.model?a.model.split('.').pop():'',sub:a.slug+(a.mcpServers&&a.mcpServers.length?' · '+a.mcpServers.join(', '):'')},
           a.model&&h(KV,{k:'model',v:a.model}),
-          a.mcpServers&&a.mcpServers.length&&h(KV,{k:'integrations',v:a.mcpServers.join(', ')}),
           a.guardrails&&h(KV,{k:'maxTokens',v:String(a.guardrails.maxTokens||'')}),
           a.guardrails&&h(KV,{k:'temperature',v:String(a.guardrails.temperature||'')}),
-          a.prompt&&h('div',{className:'info-prompt-block'},h('div',{className:'info-kv-key',style:{marginBottom:4}},'system prompt'),h('pre',{className:'info-prompt-pre'},a.prompt)),
+          a.prompt&&h('pre',{className:'info-prompt-pre',style:{margin:'4px 0 8px'}},a.prompt),
           h(SourceLink,{path:a._source})
         );
       }}),
       h(Section,{title:'DEPENDENCIES',items:reg.dependencies,render:function(d){
         var href=gitToHttps(d.source);
-        return h(DetailRow,{key:d.id,icon:'🔌',name:d.id,badge:'dep'},
+        return h(CardItem,{key:d.id,icon:'🔌',name:d.id,sub:d.source||'local'},
           h(KV,{k:'source',v:d.source||'local',href:href})
         );
       }})
