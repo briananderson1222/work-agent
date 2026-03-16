@@ -285,6 +285,26 @@ export async function startDevServer(
   const server = createServer(async (req, res) => {
     const url = (req.url || '/').split('?')[0];
 
+    // Serve source files for dev inspection
+    if (req.url?.startsWith('/api/open-file?')) {
+      const params = new URLSearchParams(req.url.split('?')[1]);
+      const relPath = params.get('path');
+      if (relPath) {
+        const absPath = join(CWD, relPath);
+        if (existsSync(absPath) && absPath.startsWith(CWD)) {
+          const content = readFileSync(absPath, 'utf-8');
+          const ext = relPath.split('.').pop() || '';
+          const mime: Record<string, string> = { json: 'application/json', md: 'text/markdown', ts: 'text/plain', tsx: 'text/plain' };
+          res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain', 'Cache-Control': 'no-cache' });
+          res.end(content);
+          return;
+        }
+      }
+      res.writeHead(404);
+      res.end('Not found');
+      return;
+    }
+
     // SSE reload
     if (url === '/api/reload') {
       res.writeHead(200, {

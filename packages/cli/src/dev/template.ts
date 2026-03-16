@@ -152,7 +152,7 @@ window.__stallion_ai_shared = {
 
   function SourceLink(props){
     if(!props.path)return null;
-    var href='file://'+registry._cwd+'/'+props.path;
+    var href='/api/open-file?path='+encodeURIComponent(props.path);
     return h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},'source'),h('a',{className:'info-kv-val info-kv-link',href:href,onClick:function(e){e.stopPropagation()}},props.path));
   }
 
