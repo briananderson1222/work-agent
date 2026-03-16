@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useSessionManagementMenu } from '../hooks/useSessionManagementMenu';
 import { useSessionManagementViewModel } from '../hooks/useSessionManagementViewModel';
 import { ConfirmModal } from './ConfirmModal';
@@ -50,6 +51,7 @@ export function SessionManagementMenu({
   onOpenConversation,
 }: SessionManagementMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const { dockMode } = useNavigation();
   const [panelBounds, setPanelBounds] = useState({
     top: 0,
     bottom: 0,
@@ -67,7 +69,7 @@ export function SessionManagementMenu({
   useEffect(() => {
     if (menu.isOpen) menu.setIsOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menu.isOpen, menu.setIsOpen]);
+  }, [dockMode]);
 
   const { conversations, loading } = useSessionManagementViewModel(
     agents,
