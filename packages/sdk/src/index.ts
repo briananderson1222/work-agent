@@ -141,6 +141,7 @@ export {
   useProjectLayoutsQuery,
   useProjectQuery,
   useProjectsQuery,
+  usePromptsQuery,
   useStatsQuery,
   useTransformTool,
   useUpdateProjectMutation,

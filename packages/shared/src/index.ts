@@ -239,14 +239,21 @@ export interface LayoutMetadata {
   tabCount?: number;
 }
 
+export interface LayoutAction {
+  type: 'prompt' | 'inline-prompt' | 'external' | 'internal';
+  label: string;
+  icon?: string;
+  data: string;
+}
+
 export interface LayoutTab {
   id: string;
   label: string;
   component: string;
   icon?: string;
   description?: string;
-  actions?: LayoutPrompt[];
-  prompts?: LayoutPrompt[];
+  actions?: LayoutAction[];
+  prompts?: LayoutAction[];
 }
 
 export interface LayoutPrompt {
@@ -291,7 +298,7 @@ export interface StandaloneLayoutConfig {
   availableAgents?: string[];
   defaultAgent?: string;
   tabs: LayoutTab[];
-  globalPrompts?: LayoutPrompt[];
+  actions?: LayoutAction[];
 }
 
 export interface StandaloneLayoutMetadata {

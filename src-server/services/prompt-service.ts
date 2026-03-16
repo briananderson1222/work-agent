@@ -80,6 +80,13 @@ export class PromptService {
     return Promise.resolve();
   }
 
+  registerPluginPrompts(prompts: Prompt[]): void {
+    const existing = load();
+    const sources = new Set(prompts.map(p => p.source));
+    const filtered = existing.filter(p => !p.source || !sources.has(p.source));
+    save([...filtered, ...prompts]);
+  }
+
   addProvider(provider: IPromptRegistryProvider): void {
     this.providers.set(provider.id, provider);
   }

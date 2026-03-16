@@ -123,8 +123,10 @@ export function LayoutRenderer({
             }))}
             activeTabId={activeTabId}
             onTabChange={onTabChange}
+            actions={layout.actions}
             layoutPrompts={layout.globalPrompts}
             onLayoutPromptSelect={onLaunchPrompt}
+            onLaunchAction={onLaunchPrompt ? (action) => onLaunchPrompt({ id: action.data, label: action.label, prompt: action.type === 'inline-prompt' ? action.data : action.label }) : undefined}
             title={activeTab?.label || layout.name}
             description={activeTab?.description || layout.description || ''}
             tabActions={activeTab?.actions}

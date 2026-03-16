@@ -413,6 +413,23 @@ export function useConfigQuery(config?: QueryConfig<any>) {
 }
 
 /**
+ * Fetch all registered prompts
+ */
+export function usePromptsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['prompts'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/prompts`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    config,
+  );
+}
+
+/**
  * Fetch conversations for an agent
  */
 export function useConversationsQuery(

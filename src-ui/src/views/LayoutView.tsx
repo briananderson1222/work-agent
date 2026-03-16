@@ -108,6 +108,7 @@ export function LayoutView({
           prompts: t.prompts,
         })),
         globalPrompts: layoutData.config?.globalPrompts ?? [],
+        actions: layoutData.config?.actions,
         defaultAgent: layoutData.config?.defaultAgent,
         availableAgents: layoutData.config?.availableAgents,
       }

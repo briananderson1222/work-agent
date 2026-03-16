@@ -608,6 +608,18 @@ export function createPluginRoutes(
         }
       }
 
+      // Scan and register plugin prompts
+      if (manifest.prompts?.source) {
+        const { scanPromptDir } = await import('../services/prompt-scanner.js');
+        const promptsDir = join(pluginDir, manifest.prompts.source);
+        const scanned = scanPromptDir(promptsDir, pluginName);
+        if (scanned.length > 0) {
+          const { PromptService } = await import('../services/prompt-service.js');
+          new PromptService().registerPluginPrompts(scanned);
+          logger.info(`Registered ${scanned.length} prompts from ${pluginName}`);
+        }
+      }
+
       // Build plugin (if build script exists)
       await buildPlugin(pluginDir, pluginName);
 

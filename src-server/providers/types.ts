@@ -310,6 +310,8 @@ export interface Prompt {
   tags?: string[];
   agent?: string;
   source?: string;
+  requires?: string[];
+  icon?: string;
   createdAt: string;
   updatedAt: string;
 }
