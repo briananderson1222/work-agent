@@ -135,11 +135,12 @@ export function LayoutView({
   // Set active tab via NavigationContext
   const setActiveTabId = useCallback(
     (tabId: string) => {
-      if (selectedLayout) {
-        setLayoutTab(selectedLayout, tabId);
+      const slug = selectedLayout || layoutSlug;
+      if (slug) {
+        setLayoutTab(slug, tabId);
       }
     },
-    [selectedLayout, setLayoutTab],
+    [selectedLayout, layoutSlug, setLayoutTab],
   );
 
   // Auto-select first tab if none is active
