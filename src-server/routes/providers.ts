@@ -2,6 +2,7 @@
  * Provider Connection Routes
  */
 
+import { randomUUID } from 'node:crypto';
 import type { ProviderConnectionConfig } from '@stallion-ai/shared';
 import { Hono } from 'hono';
 import { BedrockLLMProvider } from '../providers/bedrock-llm-provider.js';
@@ -36,6 +37,7 @@ export function createProviderRoutes(providerService: ProviderService) {
   app.post('/', async (c) => {
     try {
       const body = (await c.req.json()) as ProviderConnectionConfig;
+      if (!body.id) body.id = randomUUID();
       await providerService.saveProviderConnection(body);
       return c.json({ success: true, data: body }, 201);
     } catch (error: any) {

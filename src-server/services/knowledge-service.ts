@@ -17,6 +17,7 @@ import { knowledgeOps } from '../telemetry/metrics.js';
 export interface DocumentMeta {
   id: string;
   filename: string;
+  source: 'upload' | 'directory-scan';
   chunkCount: number;
   createdAt: string;
 }
@@ -128,6 +129,7 @@ export class KnowledgeService {
     projectSlug: string,
     filename: string,
     content: string,
+    source: 'upload' | 'directory-scan' = 'upload',
   ): Promise<DocumentMeta> {
     const ns = `project-${projectSlug}`;
     if (!(await this.vectorDb.namespaceExists(ns))) {
@@ -156,6 +158,7 @@ export class KnowledgeService {
     const meta: DocumentMeta = {
       id: docId,
       filename,
+      source,
       chunkCount: chunks.length,
       createdAt: new Date().toISOString(),
     };
@@ -226,6 +229,8 @@ export class KnowledgeService {
   async scanDirectories(
     projectSlug: string,
     extensions?: string[],
+    includePatterns?: string[],
+    excludePatterns?: string[],
   ): Promise<{ indexed: number; skipped: number }> {
     if (!this.storageAdapter)
       throw new Error('Storage adapter required for directory scanning');
@@ -247,7 +252,15 @@ export class KnowledgeService {
     } else {
       const files = this.collectFiles(dirPath, allowedExts);
 
-      for (const filePath of files) {
+      // Apply include/exclude glob patterns
+      const filtered = this.applyPatterns(
+        files,
+        dirPath,
+        includePatterns,
+        excludePatterns,
+      );
+
+      for (const filePath of filtered) {
         try {
           const content = readFileSync(filePath, 'utf-8');
           if (content.length === 0 || content.length > 500_000) {
@@ -255,7 +268,12 @@ export class KnowledgeService {
             continue;
           }
           const relPath = relative(dirPath, filePath);
-          await this.uploadDocument(projectSlug, relPath, content);
+          await this.uploadDocument(
+            projectSlug,
+            relPath,
+            content,
+            'directory-scan',
+          );
           indexed++;
         } catch {
           skipped++;
@@ -264,6 +282,38 @@ export class KnowledgeService {
     }
 
     return { indexed, skipped };
+  }
+
+  private applyPatterns(
+    files: string[],
+    basePath: string,
+    includePatterns?: string[],
+    excludePatterns?: string[],
+  ): string[] {
+    if (!includePatterns?.length && !excludePatterns?.length) return files;
+
+    return files.filter((f) => {
+      const rel = relative(basePath, f);
+      if (includePatterns?.length) {
+        const included = includePatterns.some((p) => this.globMatch(rel, p));
+        if (!included) return false;
+      }
+      if (excludePatterns?.length) {
+        const excluded = excludePatterns.some((p) => this.globMatch(rel, p));
+        if (excluded) return false;
+      }
+      return true;
+    });
+  }
+
+  /** Simple glob matching: supports * and ** */
+  private globMatch(path: string, pattern: string): boolean {
+    const regex = pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*\*/g, '{{GLOBSTAR}}')
+      .replace(/\*/g, '[^/]*')
+      .replace(/{{GLOBSTAR}}/g, '.*');
+    return new RegExp(`^${regex}$`).test(path);
   }
 
   private collectFiles(

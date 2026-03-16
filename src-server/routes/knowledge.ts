@@ -70,12 +70,17 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   // Scan project directories and index files
   app.post('/scan', async (c) => {
     try {
-      const { extensions } = (await c.req.json().catch(() => ({}))) as {
-        extensions?: string[];
-      };
+      const { extensions, includePatterns, excludePatterns } =
+        (await c.req.json().catch(() => ({}))) as {
+          extensions?: string[];
+          includePatterns?: string[];
+          excludePatterns?: string[];
+        };
       const data = await knowledgeService.scanDirectories(
         c.get('slug'),
         extensions,
+        includePatterns,
+        excludePatterns,
       );
       return c.json({ success: true, data });
     } catch (e: any) {
@@ -95,6 +100,28 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
         topK,
       );
       return c.json({ success: true, data });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 500);
+    }
+  });
+
+  // Bulk delete documents
+  app.post('/bulk-delete', async (c) => {
+    try {
+      const { ids } = (await c.req.json()) as { ids: string[] };
+      if (!ids?.length)
+        return c.json({ success: false, error: 'ids array required' }, 400);
+      const slug = c.get('slug');
+      let deleted = 0;
+      for (const id of ids) {
+        try {
+          await knowledgeService.deleteDocument(slug, id);
+          deleted++;
+        } catch {
+          /* skip missing */
+        }
+      }
+      return c.json({ success: true, data: { deleted } });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
     }
