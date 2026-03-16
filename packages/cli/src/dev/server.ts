@@ -92,12 +92,19 @@ export async function startDevServer(
   const tabsJson = JSON.stringify(tabs);
 
   // Read agent info for dev header
-  const agents = (manifest.agents || []).map((a) => {
+  const agents = (manifest.agents || []).map((a: any) => {
     try {
       const agentPath = join(CWD, a.source);
       if (!existsSync(agentPath)) return { slug: a.slug, name: a.slug };
       const agentSpec = JSON.parse(readFileSync(agentPath, 'utf-8'));
-      return { slug: a.slug, name: agentSpec.name, model: agentSpec.model };
+      return {
+        slug: a.slug,
+        name: agentSpec.name,
+        model: agentSpec.model,
+        prompt: agentSpec.prompt,
+        mcpServers: agentSpec.tools?.mcpServers || [],
+        guardrails: agentSpec.guardrails,
+      };
     } catch {
       return { slug: a.slug, name: a.slug };
     }
@@ -177,13 +184,15 @@ export async function startDevServer(
             }
           }
         }
-        return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires };
+        const bodyMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+        const content = bodyMatch ? bodyMatch[1].trim() : raw.trim();
+        return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires, content };
       });
     }
   }
 
   const registryJson = JSON.stringify({
-    agents: agents.map(a => ({ slug: a.slug, name: a.name, model: a.model })),
+    agents,
     prompts: promptEntries,
     actions: (layout as any)?.actions || [],
     dependencies: manifest.dependencies || [],

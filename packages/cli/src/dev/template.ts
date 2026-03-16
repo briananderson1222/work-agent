@@ -35,18 +35,30 @@ body{margin:0;font-family:system-ui;background:var(--bg-primary);color:var(--tex
 .info-section-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border-primary)}
 .info-section-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);font-family:monospace}
 .info-section-count{font-size:10px;padding:1px 6px;border-radius:10px;background:var(--bg-tertiary);color:var(--text-muted);font-family:monospace}
-.info-grid{display:grid;gap:6px}
-.info-row{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border-primary);border-left:3px solid var(--border-primary);border-radius:0 4px 4px 0;transition:border-color .15s}
-.info-row:hover{border-left-color:var(--accent-primary)}
-.info-row-icon{font-size:1rem;text-align:center}
-.info-row-body{min-width:0}
-.info-row-name{font-size:13px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.info-row-meta{font-size:11px;color:var(--text-muted);font-family:monospace;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.info-row-badge{font-size:10px;padding:2px 7px;border-radius:3px;border:1px solid var(--border-primary);color:var(--text-muted);font-family:monospace;white-space:nowrap}
-.info-row-open{font-size:12px;color:var(--accent-primary);text-decoration:none;cursor:pointer;font-family:monospace;font-weight:600;padding:3px 8px;border:1px solid var(--accent-primary);border-radius:3px;white-space:nowrap}
-.info-row-open:hover{background:var(--bg-highlight)}
-.info-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent-acp);margin-right:6px;flex-shrink:0}
 .info-empty{color:var(--text-muted);font-size:12px;font-style:italic;padding:6px 12px;font-family:monospace}
+.info-layouts{display:flex;gap:12px;margin-bottom:2rem;flex-wrap:wrap}
+.info-layout-card{display:flex;align-items:center;gap:16px;padding:20px 24px;background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:8px;text-decoration:none;color:var(--text-primary);flex:1;min-width:240px;transition:border-color .15s,background .15s}
+.info-layout-card:hover{border-color:var(--accent-primary);background:var(--bg-hover)}
+.info-layout-icon{font-size:2rem}
+.info-layout-body{flex:1}
+.info-layout-name{font-weight:600;font-size:1.1rem}
+.info-layout-meta{font-size:12px;color:var(--text-muted);margin-top:2px;font-family:'SF Mono',Menlo,monospace}
+.info-layout-arrow{font-size:1.2rem;color:var(--accent-primary);opacity:0.5;transition:opacity .15s}
+.info-layout-card:hover .info-layout-arrow{opacity:1}
+.info-item{border:1px solid var(--border-primary);border-radius:6px;margin-bottom:6px;overflow:hidden;background:var(--bg-primary)}
+.info-item--open{background:var(--bg-secondary)}
+.info-item-header{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none}
+.info-item-header:hover{background:var(--bg-hover)}
+.info-item-icon{width:24px;text-align:center;flex-shrink:0}
+.info-item-name{flex:1;font-weight:500}
+.info-item-badge{font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid var(--border-primary);color:var(--text-muted);font-family:'SF Mono',Menlo,monospace}
+.info-item-chevron{color:var(--text-muted);font-size:11px;width:16px;text-align:center}
+.info-item-detail{padding:0 14px 14px;border-top:1px solid var(--border-primary)}
+.info-kv{display:flex;gap:8px;padding:4px 0;font-size:13px}
+.info-kv-key{color:var(--text-muted);min-width:100px;font-family:'SF Mono',Menlo,monospace;font-size:11px}
+.info-kv-val{color:var(--text-primary);font-family:'SF Mono',Menlo,monospace;font-size:11px;word-break:break-all}
+.info-prompt-block{margin-top:8px}
+.info-prompt-pre{margin:0;padding:12px;background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:4px;font-size:12px;font-family:'SF Mono',Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;color:var(--text-secondary);line-height:1.5}
 </style>
 <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'dark');</script>
 </head><body>
@@ -97,16 +109,22 @@ window.__stallion_ai_shared = {
 
   function h(t,p){var a=Array.prototype.slice.call(arguments,2);return React.createElement.apply(React,[t,p].concat(a))}
 
-  function InfoRow(props){
-    return h('div',{className:'info-row'},
-      h('div',{className:'info-row-icon'},props.icon),
-      h('div',{className:'info-row-body'},
-        h('div',{className:'info-row-name'},h('span',{className:'info-dot'}),props.name),
-        props.meta&&h('div',{className:'info-row-meta'},props.meta)
+  function DetailRow(props){
+    var ref=React.useState(false),open=ref[0],setOpen=ref[1];
+    return h('div',{className:'info-item'+(open?' info-item--open':''),onClick:function(){setOpen(!open)}},
+      h('div',{className:'info-item-header'},
+        h('span',{className:'info-item-icon'},props.icon),
+        h('span',{className:'info-item-name'},props.name),
+        props.badge&&h('span',{className:'info-item-badge'},props.badge),
+        h('span',{className:'info-item-chevron'},open?'▾':'▸')
       ),
-      props.action||h('span',{className:'info-row-badge'},props.badge)
+      open&&h('div',{className:'info-item-detail'},
+        props.children
+      )
     );
   }
+
+  function KV(props){return h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},props.k),h('span',{className:'info-kv-val'},props.v))}
 
   function Section(props){
     return h('div',{className:'info-section'},
@@ -114,11 +132,9 @@ window.__stallion_ai_shared = {
         h('span',{className:'info-section-title'},props.title),
         h('span',{className:'info-section-count'},String(props.items?props.items.length:0))
       ),
-      h('div',{className:'info-grid'},
-        (!props.items||!props.items.length)
-          ?h('div',{className:'info-empty'},'none registered')
-          :props.items.map(props.render)
-      )
+      (!props.items||!props.items.length)
+        ?h('div',{className:'info-empty'},'none registered')
+        :props.items.map(props.render)
     );
   }
 
@@ -126,21 +142,43 @@ window.__stallion_ai_shared = {
     bc.textContent='';
     var reg=registry;
     return h('div',{className:'info-wrap'},
-      h(Section,{title:'Agents',items:reg.agents,render:function(a){
-        return h(InfoRow,{key:a.slug,icon:'🤖',name:a.name,meta:a.slug+(a.model?' · '+a.model:''),badge:'agent'});
+      reg.layouts&&reg.layouts.length?h('div',{className:'info-layouts'},reg.layouts.map(function(l){
+        return h('a',{key:l.slug,className:'info-layout-card',href:'#/layout/'+l.slug},
+          h('div',{className:'info-layout-icon'},l.icon||'🖼'),
+          h('div',{className:'info-layout-body'},
+            h('div',{className:'info-layout-name'},l.name),
+            h('div',{className:'info-layout-meta'},l.tabs+' tabs')
+          ),
+          h('span',{className:'info-layout-arrow'},'→')
+        );
+      })):null,
+      h(Section,{title:'AGENTS',items:reg.agents,render:function(a){
+        return h(DetailRow,{key:a.slug,icon:'🤖',name:a.name,badge:a.model?a.model.split('.').pop():''},
+          h(KV,{k:'slug',v:a.slug}),
+          a.model&&h(KV,{k:'model',v:a.model}),
+          a.mcpServers&&a.mcpServers.length&&h(KV,{k:'integrations',v:a.mcpServers.join(', ')}),
+          a.guardrails&&h(KV,{k:'maxTokens',v:String(a.guardrails.maxTokens||'')}),
+          a.guardrails&&h(KV,{k:'temperature',v:String(a.guardrails.temperature||'')}),
+          a.prompt&&h('div',{className:'info-prompt-block'},h('div',{className:'info-kv-key',style:{marginBottom:4}},'system prompt'),h('pre',{className:'info-prompt-pre'},a.prompt))
+        );
       }}),
-      h(Section,{title:'Prompts',items:reg.prompts,render:function(p){
-        return h(InfoRow,{key:p.id,icon:p.icon||'📋',name:p.name,meta:p.id+(p.requires?' · requires: '+p.requires.join(', '):''),badge:'prompt'});
+      h(Section,{title:'PROMPTS',items:reg.prompts,render:function(p){
+        return h(DetailRow,{key:p.id,icon:p.icon||'📋',name:p.name,badge:p.requires?p.requires.length+' deps':''},
+          h(KV,{k:'id',v:p.id}),
+          p.requires&&p.requires.length&&h(KV,{k:'requires',v:p.requires.join(', ')}),
+          p.content&&h('div',{className:'info-prompt-block'},h('div',{className:'info-kv-key',style:{marginBottom:4}},'prompt content'),h('pre',{className:'info-prompt-pre'},p.content))
+        );
       }}),
-      h(Section,{title:'Actions',items:reg.actions,render:function(a,i){
-        return h(InfoRow,{key:i,icon:a.icon||'⚡',name:a.label,meta:a.type+': '+a.data,badge:a.type});
+      h(Section,{title:'ACTIONS',items:reg.actions,render:function(a,i){
+        return h(DetailRow,{key:i,icon:a.icon||'⚡',name:a.label,badge:a.type},
+          h(KV,{k:'type',v:a.type}),
+          h(KV,{k:'data',v:a.data})
+        );
       }}),
-      h(Section,{title:'Dependencies',items:reg.dependencies,render:function(d){
-        return h(InfoRow,{key:d.id,icon:'🔌',name:d.id,meta:d.source||'local',badge:'dep'});
-      }}),
-      h(Section,{title:'Layouts',items:reg.layouts,render:function(l){
-        return h(InfoRow,{key:l.slug,icon:l.icon||'🖼',name:l.name,meta:l.slug+' · '+l.tabs+' tabs',
-          action:h('a',{className:'info-row-open',href:'#/layout/'+l.slug},'Open →')});
+      h(Section,{title:'DEPENDENCIES',items:reg.dependencies,render:function(d){
+        return h(DetailRow,{key:d.id,icon:'🔌',name:d.id,badge:'dep'},
+          h(KV,{k:'source',v:d.source||'local'})
+        );
       }})
     );
   }
