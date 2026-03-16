@@ -59,6 +59,7 @@ body{margin:0;font-family:system-ui;background:var(--bg-primary);color:var(--tex
 .info-kv-val{color:var(--text-primary);font-family:'SF Mono',Menlo,monospace;font-size:11px;word-break:break-all}
 .info-kv-link{color:var(--accent-primary);text-decoration:none}
 .info-kv-link:hover{text-decoration:underline}
+.info-kv-source{opacity:0.5;font-style:italic}
 .info-prompt-block{margin-top:8px}
 .info-prompt-pre{margin:0;padding:12px;background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:4px;font-size:12px;font-family:'SF Mono',Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;color:var(--text-secondary);line-height:1.5}
 </style>
@@ -133,6 +134,11 @@ window.__stallion_ai_shared = {
     return h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},props.k),val);
   }
 
+  function SourceLink(props){
+    if(!props.path)return null;
+    return h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},'source'),h('span',{className:'info-kv-val info-kv-source'},props.path));
+  }
+
   function gitToHttps(src){
     if(!src)return null;
     var m=src.match(/^git@([^:]+):(.+?)(\\.git)?$/);
@@ -172,14 +178,16 @@ window.__stallion_ai_shared = {
           a.mcpServers&&a.mcpServers.length&&h(KV,{k:'integrations',v:a.mcpServers.join(', ')}),
           a.guardrails&&h(KV,{k:'maxTokens',v:String(a.guardrails.maxTokens||'')}),
           a.guardrails&&h(KV,{k:'temperature',v:String(a.guardrails.temperature||'')}),
-          a.prompt&&h('div',{className:'info-prompt-block'},h('div',{className:'info-kv-key',style:{marginBottom:4}},'system prompt'),h('pre',{className:'info-prompt-pre'},a.prompt))
+          a.prompt&&h('div',{className:'info-prompt-block'},h('div',{className:'info-kv-key',style:{marginBottom:4}},'system prompt'),h('pre',{className:'info-prompt-pre'},a.prompt)),
+          h(SourceLink,{path:a._source})
         );
       }}),
       h(Section,{title:'PROMPTS',items:reg.prompts,render:function(p){
         return h(DetailRow,{key:p.id,icon:p.icon||'📋',name:p.name,badge:p.requires?p.requires.length+' deps':''},
           h(KV,{k:'id',v:p.id}),
           p.requires&&p.requires.length&&h(KV,{k:'requires',v:p.requires.join(', ')}),
-          p.content&&h('div',{className:'info-prompt-block'},h('div',{className:'info-kv-key',style:{marginBottom:4}},'prompt content'),h('pre',{className:'info-prompt-pre'},p.content))
+          p.content&&h('div',{className:'info-prompt-block'},h('div',{className:'info-kv-key',style:{marginBottom:4}},'prompt content'),h('pre',{className:'info-prompt-pre'},p.content)),
+          h(SourceLink,{path:p._source})
         );
       }}),
       h(Section,{title:'ACTIONS',items:reg.actions,render:function(a,i){
@@ -192,14 +200,21 @@ window.__stallion_ai_shared = {
         return h(DetailRow,{key:i,icon:a.icon||'⚡',name:a.label,badge:a.type},
           h(KV,{k:'type',v:a.type}),
           h(KV,{k:'data',v:a.data,href:href}),
-          linked&&h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},'prompt'),linked)
+          linked&&h('div',{className:'info-kv'},h('span',{className:'info-kv-key'},'prompt'),linked),
+          h(SourceLink,{path:reg._actionSource})
         );
       }}),
       h(Section,{title:'INTEGRATIONS',items:reg.integrations,render:function(ig){
-        return h(DetailRow,{key:ig.id,icon:'🔧',name:ig.displayName,badge:ig.id},
+        var keys=Object.keys(ig).filter(function(k){return k!=='_source'&&k!=='id'&&k!=='displayName'});
+        return h(DetailRow,{key:ig.id,icon:'🔧',name:ig.displayName||ig.id,badge:ig.id},
           h(KV,{k:'id',v:ig.id}),
-          ig.description&&h(KV,{k:'description',v:ig.description}),
-          ig.command&&h(KV,{k:'command',v:ig.command})
+          keys.map(function(k){
+            var v=ig[k];
+            if(v===null||v===undefined)return null;
+            var display=typeof v==='object'?JSON.stringify(v):String(v);
+            return h(KV,{key:k,k:k,v:display});
+          }),
+          h(SourceLink,{path:ig._source})
         );
       }}),
       h(Section,{title:'DEPENDENCIES',items:reg.dependencies,render:function(d){

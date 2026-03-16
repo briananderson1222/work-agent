@@ -104,6 +104,7 @@ export async function startDevServer(
         prompt: agentSpec.prompt,
         mcpServers: agentSpec.tools?.mcpServers || [],
         guardrails: agentSpec.guardrails,
+        _source: a.source,
       };
     } catch {
       return { slug: a.slug, name: a.slug };
@@ -186,21 +187,22 @@ export async function startDevServer(
         }
         const bodyMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
         const content = bodyMatch ? bodyMatch[1].trim() : raw.trim();
-        return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires, content };
+        return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires, content, _source: manifest.prompts.source + '/' + f };
       });
     }
   }
 
   // Scan integrations directory for MCP server configs
   const integrationsDir = join(CWD, 'integrations');
-  const integrations: Array<{id: string; displayName: string; description?: string; command?: string}> = [];
+  const integrations: Array<Record<string, any>> = [];
   if (existsSync(integrationsDir)) {
     for (const dir of readdirSync(integrationsDir)) {
       const cfgPath = join(integrationsDir, dir, 'integration.json');
       if (existsSync(cfgPath)) {
         try {
           const cfg = JSON.parse(readFileSync(cfgPath, 'utf-8'));
-          integrations.push({ id: cfg.id || dir, displayName: cfg.displayName || dir, description: cfg.description, command: cfg.command });
+          cfg._source = 'integrations/' + dir + '/integration.json';
+          integrations.push(cfg);
         } catch {}
       }
     }
@@ -212,7 +214,8 @@ export async function startDevServer(
     actions: (layout as any)?.actions || [],
     integrations,
     dependencies: manifest.dependencies || [],
-    layouts: layout ? [{ slug: layout.slug, name: layout.name, icon: layout.icon, tabs: tabs.length }] : [],
+    layouts: layout ? [{ slug: layout.slug, name: layout.name, icon: layout.icon, tabs: tabs.length, _source: manifest.layout?.source }] : [],
+    _actionSource: manifest.layout?.source,
   });
 
   const html = generateDevHTML({
