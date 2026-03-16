@@ -256,9 +256,12 @@ export function LayoutView({
     );
   }
 
-  // Project layout failed — project likely doesn't exist, redirect to root
+  // Project layout failed — layout doesn't exist, redirect to project page
   if (isProjectMode && effectiveError && !effectiveLoading) {
-    navigate('/');
+    try {
+      localStorage.removeItem('lastProjectLayout');
+    } catch {}
+    navigate(`/projects/${projectSlug}`);
     return <FullScreenLoader label="layout" />;
   }
 
