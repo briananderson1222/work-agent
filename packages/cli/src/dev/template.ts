@@ -41,16 +41,20 @@ ${sdkMockJs}
 </script>
 <script src="/react-dev.js"></script>
 <script>
-var require = globalThis.require = function(m) {
-  if (m === 'react') return window.React;
-  if (m === 'react/jsx-runtime') return window.__jsx;
-  if (m === 'react/jsx-dev-runtime') return window.__jsxDev;
-  if (m === 'react-dom' || m === 'react-dom/client') return window.ReactDOM;
-  if (m === '@tanstack/react-query') return window.__stallion_ai_rq;
-  var s = window.__stallion_ai_sdk_mock;
-  if (m === '@stallion-ai/sdk') return Object.assign({}, s, {default:s, __esModule:true});
-  if (m === '@stallion-ai/components') return new Proxy({}, {get: function() { return function() { return null; }; }});
-  throw new Error('Unknown external: ' + m);
+// Bridge: populate __stallion_ai_shared so the plugin bundle's own require shim finds them
+var __sdkMock = window.__stallion_ai_sdk_mock;
+window.__stallion_ai_shared = {
+  'react': window.React,
+  'react/jsx-runtime': window.__jsx,
+  'react/jsx-dev-runtime': window.__jsxDev,
+  'react-dom': window.ReactDOM,
+  'react-dom/client': window.ReactDOM,
+  '@tanstack/react-query': window.__stallion_ai_rq,
+  '@stallion-ai/sdk': Object.assign({}, __sdkMock, {default:__sdkMock, __esModule:true}),
+  '@stallion-ai/components': new Proxy({}, {get: function() { return function() { return null; }; }}),
+  'dompurify': {sanitize:function(s){return s},default:{sanitize:function(s){return s}}},
+  'debug': function(){return function(){}},
+  'zod': window.__stallion_ai_zod
 };
 </script>
 <script src="/bundle.js"></script>

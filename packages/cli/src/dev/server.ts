@@ -134,11 +134,13 @@ export async function startDevServer(
         `import * as JSX from 'react/jsx-runtime';`,
         `import * as JSXD from 'react/jsx-dev-runtime';`,
         `import * as RQ from '@tanstack/react-query';`,
+        `import * as Zod from 'zod';`,
         `window.React = React;`,
         `window.ReactDOM = {...ReactDOM, ...C};`,
         `window.__jsx = JSX;`,
         `window.__jsxDev = JSXD;`,
         `window.__stallion_ai_rq = RQ;`,
+        `window.__stallion_ai_zod = Zod;`,
       ].join('\n'),
     );
     try {
@@ -167,7 +169,7 @@ export async function startDevServer(
   // ── MCP setup ──
   let mcpManager: MCPManager | null = null;
   const useMCP = flags.mcp !== false;
-  const toolsDir = flags.toolsDir || join(CWD, 'tools');
+  const toolsDir = flags.toolsDir || join(CWD, 'integrations');
 
   if (useMCP && manifest.agents?.length) {
     (async () => {

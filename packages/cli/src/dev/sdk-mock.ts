@@ -17,7 +17,7 @@ var __p={},__pc={};
 // Standalone functions (not hooks) — also exposed on the mock object for the shim
 var __devApiBase='';
 function __callTool(slug,tool,args){return fetch('/agents/'+encodeURIComponent(slug)+'/tools/'+encodeURIComponent(tool),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args||{})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error||'Tool call failed');return d.response})}
-function __transformTool(slug,tool,args,transform){return fetch('/agents/'+encodeURIComponent(slug)+'/tool/'+encodeURIComponent(tool),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({toolArgs:args,transform:transform})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error||'Transform failed');return d.response})}
+function __transformTool(slug,tool,args,transform){return fetch('/agents/'+encodeURIComponent(slug)+'/tools/'+encodeURIComponent(tool),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args||{})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error||'Transform failed');return d.response})}
 function __invokeAgent(slug,prompt){window.__devToast&&window.__devToast('→ agent('+slug+'): '+prompt.slice(0,100));return Promise.resolve({text:'[mock]',toolCalls:[]})}
 function __invoke(opts){window.__devToast&&window.__devToast('invoke: '+JSON.stringify(opts).slice(0,120));return Promise.resolve({})}
 function __serverFetch(url,opts){return fetch('/api/plugins/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,method:opts&&opts.method,headers:opts&&opts.headers,body:opts&&opts.body})}).then(function(r){return r.json()}).then(function(d){if(!d.success)throw new Error(d.error);return d})}
@@ -49,7 +49,7 @@ window.__stallion_ai_sdk_mock={
   getProvider:function(ws,type){var pid=__pc[ws+'/'+type];if(!pid||!__p[pid])return null;var e=__p[pid];if(!e.instance)e.instance=typeof e.factory==='function'?e.factory():e.factory;return e.instance},
   getActiveProviderId:function(ws,type){return __pc[ws+'/'+type]||null},
   // Layout context factory
-  createLayoutContext:function(opts){var init=(opts&&opts.initialState)||{};var R=window.React;var Ctx=R.createContext({state:init,setState:noop});return{Provider:function(p){return R.createElement(Ctx.Provider,{value:{state:init,setState:noop}},p.children)},useLayoutContext:function(){return R.useContext(Ctx)}}},
+  createLayoutContext:function(opts){var init=(opts&&opts.initialState)||{};var R=window.React;var _state=Object.assign({},init);var _listeners=[];function _set(partial){Object.assign(_state,partial);_listeners.forEach(function(l){l()});}var Ctx=R.createContext({state:_state,setState:_set});return{Provider:function(p){var ref=R.useState(0),tick=ref[1];R.useEffect(function(){var l=function(){tick(function(n){return n+1})};_listeners.push(l);return function(){_listeners=_listeners.filter(function(x){return x!==l})}},[]);return R.createElement(Ctx.Provider,{value:{state:_state,setState:_set}},p.children)},useLayoutContext:function(){return R.useContext(Ctx)}}},
   // Components
   Button:function(props){return window.React.createElement('button',{onClick:props.onClick,disabled:props.disabled,className:'layout-dashboard__btn'+(props.variant?' layout-dashboard__btn--'+props.variant:''),style:props.style},props.children)},
 };`;
