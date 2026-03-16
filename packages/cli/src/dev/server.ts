@@ -216,6 +216,7 @@ export async function startDevServer(
     dependencies: manifest.dependencies || [],
     layouts: layout ? [{ slug: layout.slug, name: layout.name, icon: layout.icon, tabs: tabs.length, _source: manifest.layout?.source }] : [],
     _actionSource: manifest.layout?.source,
+    _cwd: CWD,
   });
 
   const html = generateDevHTML({
