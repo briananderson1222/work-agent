@@ -63,7 +63,7 @@ const sections = [
     desc: 'Quick prompts and saved workflows',
   },
   {
-    type: 'integrations' as const,
+    type: 'connections-tools' as const,
     idx: '04',
     icon: <IconTool />,
     label: 'Integrations',

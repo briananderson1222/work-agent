@@ -29,7 +29,9 @@ import { setAuthCallback } from './lib/apiClient';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import type { DockMode, NavigationView } from './types';
+import { AgentsHub } from './views/AgentsHub';
 import { AgentsView } from './views/AgentsView';
+import { ConnectionsHub } from './views/ConnectionsHub';
 import { IntegrationsView } from './views/IntegrationsView';
 import { LayoutsView } from './views/LayoutsView';
 import { LayoutView } from './views/LayoutView';
@@ -41,6 +43,7 @@ import { PromptsView } from './views/PromptsView';
 import { ProviderSettingsView } from './views/ProviderSettingsView';
 import { ScheduleView } from './views/ScheduleView';
 import { SettingsView } from './views/SettingsView';
+import { SkillsView } from './views/SkillsView';
 import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 
@@ -91,8 +94,12 @@ function App() {
     const path = window.location.pathname;
 
     if (path === '/agents' || path.startsWith('/agents/')) {
-      if (path.endsWith('/edit') || path === '/agents/new')
-        return { type: 'agents' };
+      if (path === '/agents/new')
+        return { type: 'agent-new' };
+      if (path.endsWith('/edit')) {
+        const slug = path.split('/')[2];
+        return { type: 'agent-edit', slug };
+      }
       if (path.endsWith('/tools')) {
         const slug = path.split('/')[2];
         return { type: 'agent-tools', slug };
@@ -100,6 +107,10 @@ function App() {
       if (path.endsWith('/workflows')) {
         const slug = path.split('/')[2];
         return { type: 'workflows', slug };
+      }
+      if (path !== '/agents') {
+        const slug = path.split('/')[2];
+        if (slug) return { type: 'agent-edit', slug };
       }
       return { type: 'agents' };
     }
@@ -109,14 +120,31 @@ function App() {
       return { type: 'layouts' };
     if (path === '/prompts' || path.startsWith('/prompts/'))
       return { type: 'prompts' };
+    if (path === '/skills' || path.startsWith('/skills/'))
+      return { type: 'skills' };
     if (path === '/plugins' || path.startsWith('/plugins/'))
       return { type: 'plugins' };
+    if (path === '/connections') return { type: 'connections' };
+    if (path === '/connections/providers')
+      return { type: 'connections-providers' };
+    if (path.startsWith('/connections/providers/')) {
+      const id = path.split('/')[3];
+      if (id) return { type: 'connections-provider-edit', id };
+    }
+    if (path === '/connections/tools') return { type: 'connections-tools' };
+    if (path.startsWith('/connections/tools/')) {
+      const id = path.split('/')[3];
+      if (id) return { type: 'connections-tool-edit', id };
+    }
+    if (path === '/connections/knowledge')
+      return { type: 'connections-knowledge' };
+    // Legacy redirects
     if (path === '/integrations' || path.startsWith('/integrations/'))
-      return { type: 'integrations' };
-    if (path === '/providers') return { type: 'providers' };
+      return { type: 'connections-tools' };
+    if (path === '/providers') return { type: 'connections-providers' };
     if (path.startsWith('/providers/')) {
       const id = path.split('/')[2];
-      if (id) return { type: 'provider-edit', id };
+      if (id) return { type: 'connections-provider-edit', id };
     }
     if (path === '/monitoring') return { type: 'monitoring' };
     if (path === '/schedule') return { type: 'schedule' };
@@ -129,10 +157,11 @@ function App() {
     if (path.startsWith('/manage/prompts')) return { type: 'prompts' };
     if (path.startsWith('/manage/plugins')) return { type: 'plugins' };
     if (path.startsWith('/manage/integrations'))
-      return { type: 'integrations' };
-    if (path.startsWith('/manage/providers')) return { type: 'providers' };
+      return { type: 'connections-tools' };
+    if (path.startsWith('/manage/providers'))
+      return { type: 'connections-providers' };
     // Legacy /tools redirect
-    if (path === '/tools') return { type: 'integrations' };
+    if (path === '/tools') return { type: 'connections-tools' };
     // Legacy /sys/* redirects
     if (path === '/sys/monitoring') return { type: 'monitoring' };
     if (path === '/sys/schedule') return { type: 'schedule' };
@@ -194,14 +223,22 @@ function App() {
         navigate('/agents');
       } else if (view.type === 'prompts') {
         navigate('/prompts');
+      } else if (view.type === 'skills') {
+        navigate('/skills');
       } else if (view.type === 'plugins') {
         navigate('/plugins');
-      } else if (view.type === 'integrations') {
-        navigate('/integrations');
-      } else if (view.type === 'providers') {
-        navigate('/providers');
-      } else if (view.type === 'provider-edit') {
-        navigate(`/providers/${view.id}`);
+      } else if (view.type === 'connections') {
+        navigate('/connections');
+      } else if (view.type === 'connections-providers') {
+        navigate('/connections/providers');
+      } else if (view.type === 'connections-provider-edit') {
+        navigate(`/connections/providers/${view.id}`);
+      } else if (view.type === 'connections-tools') {
+        navigate('/connections/tools');
+      } else if (view.type === 'connections-tool-edit') {
+        navigate(`/connections/tools/${view.id}`);
+      } else if (view.type === 'connections-knowledge') {
+        navigate('/connections/knowledge');
       } else if (view.type === 'profile') {
         navigate('/profile');
       } else if (view.type === 'notifications') {
@@ -212,8 +249,12 @@ function App() {
         navigate('/monitoring');
       } else if (view.type === 'schedule') {
         navigate('/schedule');
-      } else if (view.type === 'agent-new' || view.type === 'agent-edit') {
-        navigate('/agents');
+      } else if (view.type === 'agent-new') {
+        navigate('/agents/new');
+      } else if (view.type === 'agent-edit' && 'slug' in view) {
+        navigate(`/agents/${view.slug}`);
+      } else if (view.type === 'agent-detail' && 'slug' in view) {
+        navigate(`/agents/${view.slug}`);
       } else if (view.type === 'agent-tools' && 'slug' in view) {
         navigate(`/agents/${view.slug}/tools`);
       } else if (view.type === 'workflows' && 'slug' in view) {
@@ -249,6 +290,15 @@ function App() {
 
       // Primary routes
       if (path === '/agents' || path.startsWith('/agents/')) {
+        if (path === '/agents/new') {
+          setCurrentView({ type: 'agent-new' });
+          return;
+        }
+        if (path.startsWith('/agents/') && path.endsWith('/edit')) {
+          const slug = path.split('/')[2];
+          setCurrentView({ type: 'agent-edit', slug });
+          return;
+        }
         if (path.startsWith('/agents/') && path.endsWith('/tools')) {
           const slug = path.split('/')[2];
           setCurrentView({ type: 'agent-tools', slug });
@@ -258,6 +308,13 @@ function App() {
           const slug = path.split('/')[2];
           setCurrentView({ type: 'workflows', slug });
           return;
+        }
+        if (path !== '/agents') {
+          const slug = path.split('/')[2];
+          if (slug) {
+            setCurrentView({ type: 'agent-edit', slug });
+            return;
+          }
         }
         setCurrentView({ type: 'agents' });
         return;
@@ -274,22 +331,57 @@ function App() {
         setCurrentView({ type: 'prompts' });
         return;
       }
+      if (path === '/skills' || path.startsWith('/skills/')) {
+        setCurrentView({ type: 'skills' });
+        return;
+      }
       if (path === '/plugins' || path.startsWith('/plugins/')) {
         setCurrentView({ type: 'plugins' });
         return;
       }
+      if (path === '/connections') {
+        setCurrentView({ type: 'connections' });
+        return;
+      }
+      if (path === '/connections/providers') {
+        setCurrentView({ type: 'connections-providers' });
+        return;
+      }
+      if (path.startsWith('/connections/providers/')) {
+        const id = path.split('/')[3];
+        if (id) {
+          setCurrentView({ type: 'connections-provider-edit', id });
+          return;
+        }
+      }
+      if (path === '/connections/tools') {
+        setCurrentView({ type: 'connections-tools' });
+        return;
+      }
+      if (path.startsWith('/connections/tools/')) {
+        const id = path.split('/')[3];
+        if (id) {
+          setCurrentView({ type: 'connections-tool-edit', id });
+          return;
+        }
+      }
+      if (path === '/connections/knowledge') {
+        setCurrentView({ type: 'connections-knowledge' });
+        return;
+      }
+      // Legacy redirects
       if (path === '/integrations' || path.startsWith('/integrations/')) {
-        setCurrentView({ type: 'integrations' });
+        setCurrentView({ type: 'connections-tools' });
         return;
       }
       if (path === '/providers') {
-        setCurrentView({ type: 'providers' });
+        setCurrentView({ type: 'connections-providers' });
         return;
       }
       if (path.startsWith('/providers/')) {
         const id = path.split('/')[2];
         if (id) {
-          setCurrentView({ type: 'provider-edit', id });
+          setCurrentView({ type: 'connections-provider-edit', id });
           return;
         }
       }
@@ -325,7 +417,7 @@ function App() {
       }
       // Legacy /tools path
       if (path === '/tools') {
-        setCurrentView({ type: 'integrations' });
+        setCurrentView({ type: 'connections-tools' });
         return;
       }
       // Legacy /sys/* paths
@@ -621,28 +713,10 @@ function App() {
         {currentView.type === 'layouts' && <LayoutsView />}
 
         {currentView.type === 'agents' && (
-          <AgentsView
-            agents={agents}
-            apiBase={API_BASE}
-            availableModels={availableModels}
-            defaultModel={appConfig?.defaultModel}
-            bedrockReady={!!systemStatus?.bedrock.credentialsFound}
-            onNavigate={navigateToView}
-          />
+          <AgentsHub onNavigate={navigateToView} />
         )}
-        {currentView.type === 'prompts' && <PromptsView />}
-        {currentView.type === 'plugins' && <PluginManagementView />}
-        {currentView.type === 'integrations' && <IntegrationsView />}
-        {currentView.type === 'providers' && (
-          <ProviderSettingsView onNavigate={navigateToView} />
-        )}
-        {currentView.type === 'provider-edit' && (
-          <ProviderSettingsView
-            selectedProviderId={currentView.id}
-            onNavigate={navigateToView}
-          />
-        )}
-        {(currentView.type === 'agent-new' ||
+        {(currentView.type === 'agent-detail' ||
+          currentView.type === 'agent-new' ||
           currentView.type === 'agent-edit') && (
           <AgentsView
             agents={agents}
@@ -652,6 +726,25 @@ function App() {
             bedrockReady={!!systemStatus?.bedrock.credentialsFound}
             onNavigate={navigateToView}
           />
+        )}
+        {currentView.type === 'skills' && <SkillsView />}
+        {currentView.type === 'prompts' && <PromptsView />}
+        {currentView.type === 'plugins' && <PluginManagementView />}
+        {currentView.type === 'connections' && (
+          <ConnectionsHub onNavigate={navigateToView} />
+        )}
+        {currentView.type === 'connections-providers' && (
+          <ProviderSettingsView onNavigate={navigateToView} />
+        )}
+        {currentView.type === 'connections-provider-edit' && (
+          <ProviderSettingsView
+            selectedProviderId={currentView.id}
+            onNavigate={navigateToView}
+          />
+        )}
+        {(currentView.type === 'connections-tools' ||
+          currentView.type === 'connections-tool-edit') && (
+          <IntegrationsView />
         )}
         {(currentView.type === 'layout-new' ||
           currentView.type === 'layout-edit') && <LayoutsView />}

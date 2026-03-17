@@ -320,8 +320,8 @@ export function IntegrationsView() {
   return (
     <>
       <SplitPaneLayout
-        label="integrations"
-        title="Integrations"
+        label="connections / tools"
+        title="Tool Servers"
         subtitle="MCP server connections"
         items={items}
         loading={isLoading}
@@ -336,9 +336,9 @@ export function IntegrationsView() {
           setEditForm(null);
         }}
         onSearch={() => {}}
-        searchPlaceholder="Search integrations..."
+        searchPlaceholder="Search tool servers..."
         onAdd={handleNew}
-        addLabel="+ Add Integration"
+        addLabel="+ Add Tool Server"
         sidebarActions={
           <button
             className="split-pane__add-btn"

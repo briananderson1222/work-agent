@@ -1,0 +1,148 @@
+/* ── Agents Hub ─────────────────────────────────────────────────── */
+
+.agents-hub {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+.agents-hub__inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 3rem;
+}
+
+/* ── Page header ────────────────────────────────────────────────── */
+
+.agents-hub__header {
+  margin-bottom: 2rem;
+}
+
+.agents-hub__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.agents-hub__subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ── Sections ───────────────────────────────────────────────────── */
+
+.agents-hub__section {
+  margin-bottom: 2rem;
+}
+
+.agents-hub__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.agents-hub__section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.agents-hub__add-btn {
+  background: none;
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.agents-hub__add-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* ── Cards grid ─────────────────────────────────────────────────── */
+
+.agents-hub__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.agents-hub__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: inherit;
+}
+
+.agents-hub__card:hover {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-secondary));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.agents-hub__card-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.agents-hub__card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agents-hub__card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agents-hub__card-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  align-self: flex-start;
+}
+
+/* ── Empty state ────────────────────────────────────────────────── */
+
+.agents-hub__empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  border: 2px dashed var(--border-secondary);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  grid-column: 1 / -1;
+}
+
+.agents-hub__empty-card:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}

@@ -162,15 +162,8 @@ export interface TemplateVariable {
 
 export type NavigationView =
   | { type: 'standalone-layout' }
-  | { type: 'layouts' }
   | { type: 'agents' }
-  | { type: 'prompts' }
-  | { type: 'plugins' }
-  | { type: 'integrations' }
-  | { type: 'monitoring' }
-  | { type: 'schedule' }
-  | { type: 'profile' }
-  | { type: 'notifications' }
+  | { type: 'agent-detail'; slug: string }
   | { type: 'agent-new' }
   | {
       type: 'agent-edit';
@@ -179,15 +172,27 @@ export type NavigationView =
     }
   | { type: 'agent-tools'; slug: string }
   | { type: 'workflows'; slug: string }
+  | { type: 'skills' }
+  | { type: 'prompts' }
+  | { type: 'connections' }
+  | { type: 'connections-providers' }
+  | { type: 'connections-provider-edit'; id: string }
+  | { type: 'connections-tools' }
+  | { type: 'connections-tool-edit'; id: string }
+  | { type: 'connections-knowledge' }
+  | { type: 'plugins' }
+  | { type: 'monitoring' }
+  | { type: 'schedule' }
   | { type: 'settings' }
-  | { type: 'layout-new' }
-  | { type: 'layout-edit'; slug: string }
+  | { type: 'profile' }
+  | { type: 'notifications' }
   | { type: 'project'; slug: string }
   | { type: 'project-new' }
   | { type: 'project-edit'; slug: string }
   | { type: 'layout'; projectSlug: string; layoutSlug: string }
-  | { type: 'providers' }
-  | { type: 'provider-edit'; id: string };
+  | { type: 'layouts' }
+  | { type: 'layout-new' }
+  | { type: 'layout-edit'; slug: string };
 
 export type DockMode = 'bottom' | 'right' | 'bottom-inline';
 

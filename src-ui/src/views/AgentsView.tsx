@@ -690,7 +690,7 @@ export function AgentsView({
                           type="button"
                           className="editor-enrich-btn"
                           onClick={() =>
-                            onNavigate({ type: 'integrations' })
+                            onNavigate({ type: 'connections-tools' })
                           }
                         >
                           Manage Integrations →
@@ -703,7 +703,7 @@ export function AgentsView({
                             type="button"
                             className="editor__tools-link"
                             onClick={() =>
-                              onNavigate({ type: 'integrations' })
+                              onNavigate({ type: 'connections-tools' })
                             }
                           >
                             Install integrations
