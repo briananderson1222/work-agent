@@ -16,7 +16,8 @@ export class JsonFileStore<T> {
     if (!existsSync(this.filePath)) return structuredClone(this.fallback);
     try {
       return JSON.parse(readFileSync(this.filePath, 'utf-8'));
-    } catch {
+    } catch (e) {
+      console.debug('Failed to read JSON store file, using fallback:', this.filePath, e);
       return structuredClone(this.fallback);
     }
   }

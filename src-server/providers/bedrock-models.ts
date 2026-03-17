@@ -226,7 +226,8 @@ export class BedrockModelCatalog {
           return profile.inferenceProfileId;
         }
       }
-    } catch {
+    } catch (e) {
+      console.debug('Failed to resolve model via inference profile lookup:', e);
       // API lookup failed — try fuzzy profile match
     }
 
@@ -244,7 +245,8 @@ export class BedrockModelCatalog {
         (p) => p.inferenceProfileId === `us.${base}`,
       );
       if (fuzzy) return fuzzy.inferenceProfileId;
-    } catch {
+    } catch (e) {
+      console.debug('Failed to resolve model via fuzzy profile match:', e);
       // Profile lookup failed too
     }
 

@@ -308,7 +308,8 @@ class StrandsAgentWrapper implements IAgent {
         .replace(/```\n?/g, '')
         .trim();
       object = JSON.parse(cleaned);
-    } catch {
+    } catch (e) {
+      console.debug('Failed to parse JSON from agent response:', e);
       object = { raw: text };
     }
     return {

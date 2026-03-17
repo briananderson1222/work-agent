@@ -246,7 +246,8 @@ ${avoid || '(none identified yet)'}
         avoidCount: String(summary?.avoid.length || 0),
         durationMs: String(Date.now() - analyzeStart),
       });
-    } catch {
+    } catch (e) {
+      console.debug('Failed to run feedback analysis pipeline:', e);
       // soft-fail — never block the server
     } finally {
       this.isAnalyzing = false;
@@ -299,7 +300,8 @@ Respond with ONLY a JSON array: [{"index": 1, "analysis": "..."}, ...]`;
         }
       }
       this.store.write(data);
-    } catch {
+    } catch (e) {
+      console.debug('Failed to run mini feedback analysis:', e);
       // soft-fail
     }
   }
@@ -355,7 +357,8 @@ Respond with ONLY JSON: {"reinforce": ["behavior 1", ...], "avoid": ["behavior 1
         updatedAt: new Date().toISOString(),
       };
       this.store.write(data);
-    } catch {
+    } catch (e) {
+      console.debug('Failed to run full feedback analysis:', e);
       // soft-fail
     }
   }

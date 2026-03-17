@@ -2,7 +2,7 @@ import 'dotenv/config';
 import './telemetry.js';
 
 /**
- * Stallion - VoltAgent-based local-first AI agent system
+ * Stallion AI — local-first AI agent system
  * Main entry point
  */
 
@@ -23,11 +23,10 @@ async function main() {
     await runtime.initialize();
 
     console.log('\\n═══════════════════════════════════════════════════');
-    console.log('  WORK AGENT SYSTEM STARTED');
+    console.log('  STALLION AI STARTED');
     console.log('═══════════════════════════════════════════════════');
     console.log(`  ✓ HTTP Server:  http://localhost:${port}`);
     console.log(`  ✓ Swagger UI:   http://localhost:${port}/ui`);
-    console.log('  ✓ VoltOps:      https://console.voltagent.dev');
     console.log('');
     console.log('  Loaded agents:', runtime.listAgents().join(', '));
     console.log('═══════════════════════════════════════════════════\\n');

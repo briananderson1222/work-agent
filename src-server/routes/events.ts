@@ -48,7 +48,8 @@ export function createEventRoutes({
         await new Promise((_, reject) => {
           stream.onAbort(() => reject(new Error('aborted')));
         });
-      } catch {
+      } catch (e) {
+        logger.debug('SSE client disconnected', { error: e });
         /* client disconnected */
       }
 

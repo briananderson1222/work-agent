@@ -70,9 +70,10 @@ export class AgentService {
             toolsConfig: spec.tools,
             updatedAt: metadata.updatedAt,
           } as EnrichedAgent;
-        } catch {
+        } catch (e) {
           this.logger.warn('Agent spec not found, skipping', {
             agent: metadata.slug,
+            error: e,
           });
           return null;
         }

@@ -64,7 +64,8 @@ export class FileTreeService {
     let entries: string[];
     try {
       entries = readdirSync(current);
-    } catch {
+    } catch (e) {
+      console.debug('Failed to read directory:', current, e);
       return;
     }
     for (const name of entries) {
@@ -73,7 +74,8 @@ export class FileTreeService {
       let stat: ReturnType<typeof statSync>;
       try {
         stat = statSync(fullPath);
-      } catch {
+      } catch (e) {
+        console.debug('Failed to stat file:', fullPath, e);
         continue;
       }
       const isDir = stat.isDirectory();

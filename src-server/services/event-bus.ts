@@ -23,7 +23,8 @@ export class EventBus {
     for (const fn of this.listeners) {
       try {
         fn(evt);
-      } catch {
+      } catch (e) {
+        console.debug('Failed to deliver event to listener, removing:', event, e);
         this.listeners.delete(fn);
       }
     }

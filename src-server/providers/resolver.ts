@@ -47,7 +47,8 @@ export function resolvePluginProviders(
     let manifest: PluginManifest;
     try {
       manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
-    } catch {
+    } catch (e) {
+      console.debug('Failed to parse plugin manifest:', manifestPath, e);
       continue;
     }
 

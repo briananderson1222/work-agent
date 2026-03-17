@@ -238,7 +238,8 @@ export class NotificationService {
       try {
         const items = await provider.poll();
         for (const opts of items) this.schedule(provider.id, opts);
-      } catch {
+      } catch (e) {
+        console.debug('Failed to poll notification provider:', provider.id, e);
         /* provider poll failure is non-fatal */
       }
     }

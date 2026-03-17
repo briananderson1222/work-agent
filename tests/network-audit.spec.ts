@@ -12,11 +12,11 @@ test('network audit - detect duplicate tool calls', async ({ page }) => {
   // Listen for all requests to tool call endpoints
   page.on('request', async (request) => {
     const url = request.url();
-    if (url.includes('/agents/') && url.includes('/tool/')) {
+    if (url.includes('/agents/') && url.includes('/tools/')) {
       try {
         const body = request.postData() ? JSON.parse(request.postData()!) : {};
         // Extract tool name from URL: /agents/{slug}/tools/{toolName}
-        const urlMatch = url.match(/\/tool\/([^/?]+)/);
+        const urlMatch = url.match(/\/tools\/([^/?]+)/);
         const toolName = urlMatch ? decodeURIComponent(urlMatch[1]) : 'unknown';
         capturedRequests.push({
           url,

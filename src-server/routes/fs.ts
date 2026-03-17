@@ -31,7 +31,8 @@ export function createFsRoutes() {
         path: resolvedPath,
         entries: directories,
       });
-    } catch {
+    } catch (e) {
+      console.debug('Failed to browse directory:', e);
       return c.json({ error: 'Path not found or permission denied' }, 404);
     }
   });

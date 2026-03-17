@@ -589,7 +589,8 @@ export class ConfigLoader {
           if (!map[toolId]) map[toolId] = [];
           map[toolId].push(spec.name || entry.name);
         }
-      } catch {
+      } catch (e) {
+        logger.debug('Failed to load agent for tool map', { agent: entry.name, error: e });
         /* skip broken agents */
       }
     }

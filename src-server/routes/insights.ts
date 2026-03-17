@@ -77,7 +77,7 @@ export function createInsightsRoutes(monitoringDir: string) {
             if (!toolUsage[tool]) toolUsage[tool] = { calls: 0, errors: 0 };
             toolUsage[tool].errors++;
           }
-        } catch {}
+        } catch (e) { console.debug('Failed to parse insights event line:', e); }
       }
     }
 

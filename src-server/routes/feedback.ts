@@ -4,13 +4,14 @@
 
 import { Hono } from 'hono';
 import type { FeedbackService } from '../services/feedback-service.js';
+import { rateSchema, validate } from './schemas.js';
 
 export function createFeedbackRoutes(feedbackService: FeedbackService) {
   const app = new Hono();
 
   // Rate a message
-  app.post('/rate', async (c) => {
-    const body = await c.req.json();
+  app.post('/rate', validate(rateSchema), async (c) => {
+    const body = c.get('body');
     const {
       agentSlug,
       conversationId,
@@ -72,7 +73,8 @@ export function createFeedbackRoutes(feedbackService: FeedbackService) {
           body.maxAvoid || 25,
         );
       }
-    } catch {
+    } catch (e) {
+      console.debug('Failed to parse feedback analyze request body:', e);
       /* no body is fine */
     }
     const summary = await feedbackService.runAnalysisPipeline();

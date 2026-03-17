@@ -20,7 +20,6 @@ export {
   invokeAgent,
   sendMessage,
   streamMessage,
-  transformTool,
 } from './api';
 export type { AutoSelectItem } from './components';
 // Re-export components
@@ -146,7 +145,6 @@ export {
   useProjectsQuery,
   usePromptsQuery,
   useStatsQuery,
-  useTransformTool,
   useUpdateProjectMutation,
   useUsageQuery,
 } from './queries';

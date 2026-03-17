@@ -4,11 +4,18 @@
 
 import { Hono } from 'hono';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import * as ConversationManager from '../runtime/conversation-manager.js';
 import { conversationOps } from '../telemetry/metrics.js';
+import { contextActionSchema, validate } from './schemas.js';
 
 export function createConversationRoutes(
   memoryAdapters: Map<string, FileMemoryAdapter>,
   logger: any,
+  agentFixedTokens?: number,
+  agentTools?: any[],
+  configLoader?: any,
+  appConfig?: any,
+  modelCatalog?: any,
 ) {
   const app = new Hono();
 
@@ -107,6 +114,33 @@ export function createConversationRoutes(
       return c.json({ success: true, data: messages });
     } catch (error: any) {
       logger.error('Failed to load messages', { error });
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
+  // Manage conversation context (summarize, trim, etc.)
+  app.post('/:slug/conversations/:conversationId/context', validate(contextActionSchema), async (c) => {
+    try {
+      const slug = c.req.param('slug');
+      const conversationId = c.req.param('conversationId');
+      const { action, content } = c.get('body');
+      const result = await ConversationManager.manageConversationContext(slug, conversationId, action, content, memoryAdapters);
+      return c.json(result);
+    } catch (error: any) {
+      logger.error('Failed to manage conversation context', { error });
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
+  // Get conversation token/stats
+  app.get('/:slug/conversations/:conversationId/stats', async (c) => {
+    try {
+      const slug = c.req.param('slug');
+      const conversationId = c.req.param('conversationId');
+      const data = await ConversationManager.getConversationStats(slug, conversationId, memoryAdapters, agentFixedTokens, agentTools, configLoader, appConfig, modelCatalog, logger);
+      return c.json({ success: true, data });
+    } catch (error: any) {
+      logger.error('Failed to get conversation stats', { error });
       return c.json({ success: false, error: error.message }, 500);
     }
   });

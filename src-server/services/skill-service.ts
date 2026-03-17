@@ -8,13 +8,14 @@
  *   Tier 3 (resources): scripts/references/assets loaded when referenced
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { readdir, readFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import {
   type ResolvedSkill,
   type SkillResource,
   handleSkillRead,
+  parseFrontmatter,
   parseSkillContent,
   toDisclosureInstructions,
   toDisclosurePrompt,
@@ -223,11 +224,11 @@ function getAllowedTools(skill: ResolvedSkill): string | undefined {
   const location = skill.location;
   if (!location || !existsSync(location)) return undefined;
   try {
-    const { parseFrontmatter } = require('agent-skills-ts-sdk');
-    const content = require('node:fs').readFileSync(location, 'utf-8');
+    const content = readFileSync(location, 'utf-8');
     const { metadata } = parseFrontmatter(content);
     return metadata['allowed-tools'] || undefined;
-  } catch {
+  } catch (e) {
+    logger.debug('Failed to parse skill frontmatter for allowed-tools', { location, error: e });
     return undefined;
   }
 }

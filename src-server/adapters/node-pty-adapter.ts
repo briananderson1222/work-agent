@@ -25,10 +25,10 @@ function ensureSpawnHelper(): void {
       if (existsSync(p)) {
         try {
           chmodSync(p, 0o755);
-        } catch {}
+        } catch (e) { console.debug('Failed to chmod spawn-helper:', p, e); }
       }
     }
-  } catch {}
+  } catch (e) { console.debug('Failed to fix node-pty spawn-helper permissions:', e); }
 }
 
 function getNodePty(): Promise<typeof import('node-pty')> {

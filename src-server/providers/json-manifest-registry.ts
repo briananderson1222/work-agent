@@ -4,8 +4,8 @@
  * by fetching a remote JSON manifest.
  */
 
-import { execSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ToolDef } from '../domain/types.js';
 import type {
@@ -99,7 +99,8 @@ export class JsonManifestRegistryProvider
           version: manifest.version,
           installed: true,
         });
-      } catch {
+      } catch (e) {
+        console.debug('Failed to read installed plugin manifest:', entry.name, e);
         // Skip invalid manifests
       }
     }
@@ -126,9 +127,7 @@ export class JsonManifestRegistryProvider
       if (branch) cloneArgs.push('--branch', branch);
       cloneArgs.push(url, targetDir);
 
-      execSync(['git', ...cloneArgs].map((a) => `"${a}"`).join(' '), {
-        timeout: 30000,
-      });
+      execFileSync('git', cloneArgs, { timeout: 30000 });
     } else {
       throw new Error('Only git sources are supported');
     }
@@ -186,7 +185,7 @@ export class JsonManifestRegistryProvider
         return { success: false, message: `Plugin '${id}' not found` };
       }
 
-      execSync(`rm -rf "${targetDir}"`);
+      rmSync(targetDir, { recursive: true, force: true });
       return {
         success: true,
         message: `Plugin '${id}' uninstalled successfully`,

@@ -11,6 +11,9 @@ import {
   DefaultUserDirectoryProvider,
   DefaultUserIdentityProvider,
 } from './defaults.js';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 import type {
   IAgentRegistryProvider,
   IAuthProvider,
@@ -158,8 +161,6 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
 
   // Scan on-disk integrations (plugin-bundled + manually added)
   function readDiskIntegrations(): import('@stallion-ai/shared').RegistryItem[] {
-    const { existsSync, readdirSync, readFileSync } = require('node:fs');
-    const { join } = require('node:path');
     const dir = join(
       resolveHomeDir(),
       'integrations',
@@ -175,9 +176,9 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
         let commandExists = false;
         if (def.command) {
           try {
-            require('node:child_process').execSync(`which ${def.command}`, { stdio: 'pipe' });
+            execSync(`which ${def.command}`, { stdio: 'pipe' });
             commandExists = true;
-          } catch {}
+          } catch (e) { console.debug('Command not found for integration:', def.command, e); }
         }
         items.push({
           id: def.id || entry.name,
@@ -186,7 +187,7 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
           installed: true,
           status: commandExists ? 'connected' : 'missing binary',
         });
-      } catch {}
+      } catch (e) { console.debug('Failed to read integration definition:', entry.name, e); }
     }
     return items;
   }

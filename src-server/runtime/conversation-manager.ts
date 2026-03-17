@@ -73,7 +73,8 @@ export async function getConversationStats(
   let spec: any;
   try {
     spec = await configLoader.loadAgent(slug);
-  } catch {
+  } catch (e) {
+    console.debug('Failed to load agent spec, using defaults:', e);
     // Default/temp agents don't have agent.json on disk — use minimal defaults
     spec = { prompt: '', model: appConfig.defaultModel };
   }

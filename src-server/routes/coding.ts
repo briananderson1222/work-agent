@@ -1,4 +1,7 @@
-import { execSync } from 'node:child_process';
+import { exec as execCb, execFile as execFileCb } from 'node:child_process';
+import { promisify } from 'node:util';
+const exec = promisify(execCb);
+const execFile = promisify(execFileCb);
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Hono } from 'hono';
@@ -59,18 +62,18 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
     }
   });
 
-  app.get('/git/status', (c) => {
+  app.get('/git/status', async (c) => {
     codingOps.add(1, { operation: 'git-status' });
     try {
       const dir = validatePath(c.req.query('path'));
-      const branchOut = execSync('git rev-parse --abbrev-ref HEAD', {
+      const branchOut = (await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd: dir,
         encoding: 'utf-8',
-      });
-      const statusOut = execSync('git status --porcelain', {
+      })).stdout;
+      const statusOut = (await execFile('git', ['status', '--porcelain'], {
         cwd: dir,
         encoding: 'utf-8',
-      });
+      })).stdout;
       const changes = statusOut.split('\n').filter((l) => l.trim().length > 0);
       return c.json({
         success: true,
@@ -81,23 +84,24 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
     }
   });
 
-  app.get('/git/diff', (c) => {
+  app.get('/git/diff', async (c) => {
     try {
       const dir = validatePath(c.req.query('path'));
-      const diff = execSync('git diff', { cwd: dir, encoding: 'utf-8' });
+      const diff = (await execFile('git', ['diff'], { cwd: dir, encoding: 'utf-8' })).stdout;
       return c.json({ success: true, data: { diff } });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 400);
     }
   });
 
-  app.get('/git/branches', (c) => {
+  app.get('/git/branches', async (c) => {
     try {
       const dir = validatePath(c.req.query('path'));
-      const raw = execSync(
-        'git branch -a --format="%(refname:short)|%(objectname:short)|%(committerdate:relative)|%(HEAD)"',
+      const raw = (await execFile(
+        'git',
+        ['branch', '-a', '--format=%(refname:short)|%(objectname:short)|%(committerdate:relative)|%(HEAD)'],
         { cwd: dir, encoding: 'utf-8' },
-      );
+      )).stdout;
       const branches = raw
         .split('\n')
         .filter((l) => l.trim())
@@ -123,7 +127,7 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
       if (!command)
         return c.json({ success: false, error: 'command required' }, 400);
       const dir = validatePath(cwd);
-      const result = execSync(command, {
+      const result = await exec(command, {
         cwd: dir,
         encoding: 'utf-8',
         timeout: 30000,
@@ -131,7 +135,7 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
       });
       return c.json({
         success: true,
-        data: { stdout: result, stderr: '', exitCode: 0 },
+        data: { stdout: result.stdout, stderr: result.stderr, exitCode: 0 },
       });
     } catch (e: any) {
       return c.json({

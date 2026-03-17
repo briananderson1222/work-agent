@@ -283,7 +283,8 @@ export class KnowledgeService {
             'directory-scan',
           );
           indexed++;
-        } catch {
+        } catch (e) {
+          console.debug('Failed to index file during directory scan:', e);
           skipped++;
         }
       }
@@ -335,7 +336,8 @@ export class KnowledgeService {
       let entries: string[];
       try {
         entries = readdirSync(current);
-      } catch {
+      } catch (e) {
+        console.debug('Failed to read directory during knowledge scan:', current, e);
         return;
       }
       for (const name of entries) {
@@ -348,7 +350,8 @@ export class KnowledgeService {
           } else if (allowedExts.has(extname(name).toLowerCase())) {
             results.push(full);
           }
-        } catch {
+        } catch (e) {
+          console.debug('Failed to stat file during knowledge scan:', e);
           /* skip */
         }
       }

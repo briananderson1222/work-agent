@@ -11,6 +11,7 @@ import { OllamaEmbeddingProvider, OllamaLLMProvider } from '../providers/ollama-
 import { OpenAICompatEmbeddingProvider, OpenAICompatLLMProvider } from '../providers/openai-compat-provider.js';
 import type { IEmbeddingProvider, ILLMProvider, IVectorDbProvider } from '../providers/types.js';
 import type { ProviderService } from '../services/provider-service.js';
+import { providerSchema, validate } from './schemas.js';
 
 function createLLMProvider(
   conn: ProviderConnectionConfig,
@@ -46,9 +47,9 @@ export function createProviderRoutes(providerService: ProviderService) {
     }
   });
 
-  app.post('/', async (c) => {
+  app.post('/', validate(providerSchema), async (c) => {
     try {
-      const body = (await c.req.json()) as ProviderConnectionConfig;
+      const body = c.get('body') as ProviderConnectionConfig;
       if (!body.id) body.id = randomUUID();
       await providerService.saveProviderConnection(body);
       return c.json({ success: true, data: body }, 201);
@@ -57,9 +58,9 @@ export function createProviderRoutes(providerService: ProviderService) {
     }
   });
 
-  app.put('/:id', async (c) => {
+  app.put('/:id', validate(providerSchema.partial()), async (c) => {
     try {
-      const body = (await c.req.json()) as ProviderConnectionConfig;
+      const body = c.get('body') as ProviderConnectionConfig;
       await providerService.saveProviderConnection(body);
       return c.json({ success: true, data: body });
     } catch (error: any) {

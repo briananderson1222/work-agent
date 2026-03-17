@@ -29,7 +29,7 @@ export async function migrateToProject(projectHomeDir: string): Promise<void> {
       if (!existsSync(layoutFile)) continue;
       try {
         standaloneLayouts.push(JSON.parse(readFileSync(layoutFile, 'utf-8')));
-      } catch {}
+      } catch (e) { console.debug('Failed to parse layout file during migration:', layoutFile, e); }
     }
   }
 

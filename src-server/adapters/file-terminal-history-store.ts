@@ -19,7 +19,8 @@ export class FileTerminalHistoryStore implements ITerminalHistoryStore {
   async load(sessionId: string): Promise<string> {
     try {
       return await readFile(this.filePath(sessionId), 'utf8');
-    } catch {
+    } catch (e) {
+      console.debug('Failed to load terminal history:', sessionId, e);
       return '';
     }
   }

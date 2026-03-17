@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { userInfo } from 'node:os';
 import {
   getAuthProvider,
   getUserDirectoryProvider,
@@ -18,8 +19,7 @@ let cachedUser: UserIdentity | null = null;
 export function getCachedUser(): UserIdentity {
   if (!cachedUser) {
     // Synchronous fallback — kick off async resolution
-    const os = require('node:os');
-    cachedUser = { alias: os.userInfo().username };
+    cachedUser = { alias: userInfo().username };
     resolveUser().catch((e) =>
       logger.error('resolveUser failed', { error: e }),
     );
@@ -87,7 +87,8 @@ export function createAuthRoutes() {
       c.header('Content-Type', 'image/jpeg');
       c.header('Cache-Control', 'public, max-age=86400');
       return c.body(data);
-    } catch {
+    } catch (e) {
+      logger.debug('Failed to fetch badge photo', { id, error: e });
       return c.body(null, 502);
     }
   });
@@ -104,7 +105,8 @@ export function createUserRoutes() {
     if (!q) return c.json([]);
     try {
       return c.json(await getUserDirectoryProvider().searchPeople(q));
-    } catch {
+    } catch (e) {
+      logger.debug('Failed to search people directory', { q, error: e });
       return c.json([]);
     }
   });

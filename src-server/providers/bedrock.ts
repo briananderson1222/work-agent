@@ -36,7 +36,8 @@ export async function checkBedrockCredentials(): Promise<boolean> {
     const provider = fromNodeProviderChain();
     await provider();
     return true;
-  } catch {
+  } catch (e) {
+    console.debug('Failed to check Bedrock credentials:', e);
     return false;
   }
 }

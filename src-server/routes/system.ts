@@ -2,14 +2,18 @@
  * System status routes — unified readiness check for onboarding
  */
 
-import { execFile, execSync, spawn } from 'node:child_process';
+import { execFile, execFile as execFileCb, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+const execFileAsync = promisify(execFileCb);
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveGitInfo } from '@stallion-ai/shared';
 import { Hono } from 'hono';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
 import { getOnboardingProviders } from '../providers/registry.js';
+import * as SkillService from '../services/skill-service.js';
 
 interface SystemStatusDeps {
   getACPStatus: () => {
@@ -22,6 +26,8 @@ interface SystemStatusDeps {
     runtime?: string;
   };
   eventBus?: { emit: (event: string, data?: Record<string, unknown>) => void };
+  appConfig?: { runtime?: string };
+  port?: number;
 }
 
 export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
@@ -99,32 +105,29 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
       // Check if upstream is configured; auto-configure if origin exists
       let hasUpstream = false;
       try {
-        execSync(`git rev-parse --abbrev-ref ${branch}@{u}`, {
+        await execFileAsync('git', ['rev-parse', '--abbrev-ref', `${branch}@{u}`], {
           cwd: gitRoot,
           encoding: 'utf-8',
-          stdio: ['pipe', 'pipe', 'pipe'],
         });
         hasUpstream = true;
-      } catch {
+      } catch (e) {
+        console.debug('Failed to check upstream branch:', e);
         // Try to auto-configure tracking from origin
         try {
-          execSync('git remote get-url origin', {
+          await execFileAsync('git', ['remote', 'get-url', 'origin'], {
             cwd: gitRoot,
             encoding: 'utf-8',
-            stdio: ['pipe', 'pipe', 'pipe'],
           });
-          execSync(`git fetch origin ${branch} --quiet`, {
+          await execFileAsync('git', ['fetch', 'origin', branch, '--quiet'], {
             cwd: gitRoot,
             timeout: 15000,
-            stdio: ['pipe', 'pipe', 'pipe'],
           });
-          execSync(`git branch --set-upstream-to=origin/${branch} ${branch}`, {
+          await execFileAsync('git', ['branch', `--set-upstream-to=origin/${branch}`, branch], {
             cwd: gitRoot,
             encoding: 'utf-8',
-            stdio: ['pipe', 'pipe', 'pipe'],
           });
           hasUpstream = true;
-        } catch {}
+        } catch (e) { console.debug('Failed to auto-configure upstream:', e); }
       }
 
       if (!hasUpstream) {
@@ -138,27 +141,25 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         });
       }
 
-      execSync('git fetch --quiet', { cwd: gitRoot, timeout: 15000 });
+      await execFileAsync('git', ['fetch', '--quiet'], { cwd: gitRoot, timeout: 15000 });
 
-      const remoteHash = execSync('git rev-parse @{u}', {
+      const remoteHash = (await execFileAsync('git', ['rev-parse', '@{u}'], {
         cwd: gitRoot,
         encoding: 'utf-8',
-      })
-        .trim()
-        .substring(0, 7);
+      })).stdout.trim().substring(0, 7);
 
       const behind = parseInt(
-        execSync('git rev-list HEAD..@{u} --count', {
+        (await execFileAsync('git', ['rev-list', 'HEAD..@{u}', '--count'], {
           cwd: gitRoot,
           encoding: 'utf-8',
-        }).trim(),
+        })).stdout.trim(),
         10,
       );
       const ahead = parseInt(
-        execSync('git rev-list @{u}..HEAD --count', {
+        (await execFileAsync('git', ['rev-list', '@{u}..HEAD', '--count'], {
           cwd: gitRoot,
           encoding: 'utf-8',
-        }).trim(),
+        })).stdout.trim(),
         10,
       );
 
@@ -182,26 +183,22 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         dirname(fileURLToPath(import.meta.url)),
       );
 
-      execSync('git pull --ff-only', { cwd: gitRoot, timeout: 30000 });
+      await execFileAsync('git', ['pull', '--ff-only'], { cwd: gitRoot, timeout: 30000 });
 
       // Rebuild server and UI
-      execSync('npm run build:server', {
+      await execFileAsync('npm', ['run', 'build:server'], {
         cwd: gitRoot,
         timeout: 120000,
-        stdio: 'pipe',
       });
-      execSync('npm run build:ui', {
+      await execFileAsync('npm', ['run', 'build:ui'], {
         cwd: gitRoot,
         timeout: 120000,
-        stdio: 'pipe',
       });
 
-      const newHash = execSync('git rev-parse HEAD', {
+      const newHash = (await execFileAsync('git', ['rev-parse', 'HEAD'], {
         cwd: gitRoot,
         encoding: 'utf-8',
-      })
-        .trim()
-        .substring(0, 7);
+      })).stdout.trim().substring(0, 7);
 
       deps.eventBus?.emit('core:updated', { hash: newHash });
 
@@ -310,6 +307,31 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
       name: 'Project Stallion',
       port: Number(reqUrl.port) || 3141,
     });
+  });
+
+  app.get('/runtime', (c) => {
+    const cfg = deps.appConfig ?? deps.getAppConfig();
+    return c.json({ runtime: cfg.runtime || 'voltagent' });
+  });
+
+  app.get('/skills', (c) => {
+    return c.json({ success: true, data: SkillService.listSkills() });
+  });
+
+  app.get('/q-agents', (c) => {
+    try {
+      const qAgentsPath = join(homedir(), '.aws', 'amazonq', 'cli-agents.json');
+      if (!existsSync(qAgentsPath)) return c.json({ success: false, error: 'Q Developer agents file not found', agents: [] });
+      const agents = JSON.parse(readFileSync(qAgentsPath, 'utf-8'));
+      return c.json({ success: true, agents });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message, agents: [] });
+    }
+  });
+
+  app.get('/terminal-port', (c) => {
+    const port = deps.port ?? 0;
+    return c.json({ success: true, port: port + 1 });
   });
 
   return app;

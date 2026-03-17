@@ -87,7 +87,7 @@ export class TerminalService {
           env,
         });
         break;
-      } catch {}
+      } catch (e) { console.debug('Failed to spawn shell candidate:', candidate.shell, e); }
     }
 
     if (!proc) throw new Error('Failed to spawn PTY: no viable shell found');
@@ -247,7 +247,8 @@ export class TerminalService {
             });
           }
         }
-      } catch {
+      } catch (e) {
+        console.debug('Failed to poll subprocesses for terminal session:', sessionId, e);
         if (entry.hasRunningSubprocess) {
           entry.hasRunningSubprocess = false;
           this.emit({

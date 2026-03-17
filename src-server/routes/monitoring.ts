@@ -209,7 +209,8 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
 
         try {
           await streamWriter.write(`data: ${JSON.stringify(event)}\n\n`);
-        } catch {
+        } catch (e) {
+          console.debug('Failed to write monitoring event to stream:', e);
           // Client disconnected
         }
       };
@@ -221,7 +222,8 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
           await streamWriter.write(
             `data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`,
           );
-        } catch {
+        } catch (e) {
+          console.debug('Failed to write monitoring heartbeat, client disconnected:', e);
           clearInterval(interval);
           deps.monitoringEvents.off('event', eventHandler);
         }

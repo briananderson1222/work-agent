@@ -4,33 +4,13 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { _getApiBase, invokeAgent, transformTool } from './api';
+import { _getApiBase, invokeAgent } from './api';
 import { agentQueries } from './queryFactories';
 
 interface QueryConfig<_T> {
   staleTime?: number;
   gcTime?: number; // Renamed from cacheTime in React Query v5
   enabled?: boolean;
-}
-
-/**
- * Transform tool data using an agent
- * Auto-generates cache key from agent + tool + args
- */
-export function useTransformTool<T = any>(
-  agentSlug: string,
-  toolName: string,
-  toolArgs: any,
-  transformFn: string,
-  config?: QueryConfig<T>,
-) {
-  return useQuery({
-    queryKey: ['transform', agentSlug, toolName, toolArgs],
-    queryFn: () => transformTool(agentSlug, toolName, toolArgs, transformFn),
-    staleTime: config?.staleTime ?? 5 * 60 * 1000,
-    gcTime: config?.gcTime ?? 10 * 60 * 1000,
-    enabled: config?.enabled ?? true,
-  });
 }
 
 /**

@@ -292,38 +292,6 @@ export async function callTool(
   }
 }
 
-/** @deprecated Use callTool instead — transformTool will be removed */
-export async function transformTool(
-  agentSlug: string,
-  toolName: string,
-  toolArgs: any,
-  transformFn: string,
-): Promise<any> {
-  const apiBase = await _getApiBase();
-  const resolvedAgent = _resolveAgent(agentSlug);
-  const response = await fetch(
-    `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tool/${encodeURIComponent(toolName)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
-      body: JSON.stringify({
-        toolArgs,
-        transform: transformFn,
-      }),
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to transform tool: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Transform failed');
-  }
-
-  return data.response;
-}
 
 export interface InvokeOptions {
   prompt: string;

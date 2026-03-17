@@ -562,7 +562,8 @@ export class ACPConnection {
         ),
       ]);
       return (result as any)?.options || [];
-    } catch {
+    } catch (e) {
+      this.logger.debug('Failed to get command options', { error: e });
       return [];
     }
   }
@@ -628,7 +629,8 @@ export class ACPConnection {
     try {
       const { getCachedUser } = await import('../routes/auth.js');
       resolvedAlias = getCachedUser().alias || 'default';
-    } catch {
+    } catch (e) {
+      this.logger.debug('Failed to resolve user alias, using default', { error: e });
       /* fallback */
     }
     const userId = options.userId || `agent:${slug}:user:${resolvedAlias}`;
@@ -764,7 +766,8 @@ export class ACPConnection {
           acpOps.add(1, { operation: 'waiting-detected' });
           try {
             await write({ type: 'waiting', elapsedMs: elapsed });
-          } catch {
+          } catch (e) {
+            this.logger.debug('Failed to write waiting event to stream', { error: e });
             /* stream may be closed */
           }
         }
@@ -1461,7 +1464,8 @@ export class ACPConnection {
       return execSync(`which ${this.config.command}`, {
         encoding: 'utf-8',
       }).trim();
-    } catch {
+    } catch (e) {
+      this.logger.debug('Failed to find command on PATH', { command: this.config.command, error: e });
       return null;
     }
   }
@@ -1507,7 +1511,8 @@ export class ACPConnection {
           `[ACP:${this.prefix}] Detected model: ${this.detectedModel}`,
         );
       }
-    } catch {
+    } catch (e) {
+      this.logger.debug('Failed to detect model from CLI settings', { error: e });
       /* ignore */
     }
   }
@@ -1569,7 +1574,8 @@ export class ACPConnection {
             return sid;
           }
         }
-      } catch {
+      } catch (e) {
+        this.logger.debug('Failed to scan conversations for previous session', { slug, error: e });
         /* ignore */
       }
     }

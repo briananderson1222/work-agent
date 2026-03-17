@@ -118,7 +118,8 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
         try {
           await knowledgeService.deleteDocument(slug, id);
           deleted++;
-        } catch {
+        } catch (e) {
+          console.debug('Failed to delete knowledge document:', id, e);
           /* skip missing */
         }
       }

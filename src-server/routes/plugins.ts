@@ -2,7 +2,9 @@
  * Plugin Routes — list, serve, install, remove, and reload plugins
  */
 
-import { execSync } from 'node:child_process';
+import { execFile as execFileCb } from 'node:child_process';
+import { promisify } from 'node:util';
+const execFile = promisify(execFileCb);
 import {
   cpSync,
   existsSync,
@@ -65,7 +67,7 @@ export function createPluginRoutes(
           const path = join(pluginsDir, entry.name, 'dist', file);
           return existsSync(path) ? path : null;
         }
-      } catch {}
+      } catch (e) { logger.debug('Failed to read plugin manifest for bundle resolution', { error: e }); }
     }
     return null;
   }
@@ -105,23 +107,24 @@ export function createPluginRoutes(
         let git: { hash: string; branch: string; remote?: string } | undefined;
         if (isGit) {
           try {
-            const hash = execSync('git rev-parse --short HEAD', {
+            const { stdout: hash } = await execFile('git', ['rev-parse', '--short', 'HEAD'], {
               cwd: pluginDir,
               encoding: 'utf-8',
-            }).trim();
-            const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+            });
+            const { stdout: branch } = await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
               cwd: pluginDir,
               encoding: 'utf-8',
-            }).trim();
+            });
             let remote: string | undefined;
             try {
-              remote = execSync('git remote get-url origin', {
+              const { stdout: r } = await execFile('git', ['remote', 'get-url', 'origin'], {
                 cwd: pluginDir,
                 encoding: 'utf-8',
-              }).trim();
-            } catch {}
-            git = { hash, branch, remote };
-          } catch {}
+              });
+              remote = r.trim();
+            } catch (e) { logger.debug('Failed to get git remote URL', { error: e }); }
+            git = { hash: hash.trim(), branch: branch.trim(), remote };
+          } catch (e) { logger.debug('Failed to read git info for plugin', { plugin: entry.name, error: e }); }
         }
 
         const declared = manifest.permissions || [];
@@ -179,14 +182,13 @@ export function createPluginRoutes(
       if (branch) cloneArgs.push('--branch', branch);
       cloneArgs.push(url, tempDir);
       try {
-        execSync(['git', ...cloneArgs].map((a) => `"${a}"`).join(' '), {
-          timeout: 30000,
-        });
-      } catch {
+        await execFile('git', cloneArgs, { timeout: 30000 });
+      } catch (e) {
+        logger.debug('Failed to clone with branch, retrying without', { error: e });
         rmSync(tempDir, { recursive: true, force: true });
         mkdirSync(tempDir, { recursive: true });
         try {
-          execSync(`git clone --depth 1 "${url}" "${tempDir}"`, {
+          await execFile('git', ['clone', '--depth', '1', url, tempDir], {
             timeout: 30000,
           });
         } catch (e: any) {
@@ -247,7 +249,8 @@ export function createPluginRoutes(
               existingSource: existing.plugin,
             });
           }
-        } catch {
+        } catch (e) {
+          logger.debug('Failed to read existing layout manifest', { layout: manifest.layout.slug, error: e });
           conflicts.push({ type: 'layout', id: manifest.layout.slug });
         }
       }
@@ -294,8 +297,8 @@ export function createPluginRoutes(
           depManifest = JSON.parse(
             readFileSync(join(depDir, 'plugin.json'), 'utf-8'),
           );
-        } catch {}
-        depGit = getGitInfo(depDir);
+        } catch (e) { logger.debug('Failed to read installed dependency manifest', { dep: dep.id, error: e }); }
+        depGit = await getGitInfo(depDir);
       } else if (dep.source) {
         status = 'will-install';
         const result = await fetchSource(dep.source);
@@ -304,15 +307,15 @@ export function createPluginRoutes(
             depManifest = JSON.parse(
               readFileSync(join(result.tempDir, 'plugin.json'), 'utf-8'),
             );
-          } catch {}
-          depGit = getGitInfo(result.tempDir);
+          } catch (e) { logger.debug('Failed to read fetched dependency manifest', { dep: dep.id, error: e }); }
+          depGit = await getGitInfo(result.tempDir);
           rmSync(result.tempDir, { recursive: true, force: true });
         }
       } else {
         try {
           const available = await getAgentRegistryProvider().listAvailable();
           if (available.find((a) => a.id === dep.id)) status = 'will-install';
-        } catch {}
+        } catch (e) { logger.debug('Failed to check registry for dependency', { dep: dep.id, error: e }); }
       }
 
       // Extract components from the dependency manifest
@@ -373,7 +376,7 @@ export function createPluginRoutes(
         for (const transitive of depManifest.dependencies || []) {
           await installDependency(transitive);
         }
-      } catch {}
+      } catch (e) { logger.debug('Failed to read transitive dependencies after source install', { dep: dep.id, error: e }); }
       return { success: true };
     }
 
@@ -391,7 +394,7 @@ export function createPluginRoutes(
             for (const transitive of depManifest.dependencies || []) {
               await installDependency(transitive);
             }
-          } catch {}
+          } catch (e) { logger.debug('Failed to read transitive dependencies after registry install', { dep: dep.id, error: e }); }
         }
         return { success: true };
       }
@@ -402,31 +405,30 @@ export function createPluginRoutes(
   }
 
   /** Extract git info from a directory (if it's a git repo) */
-  function getGitInfo(
+  async function getGitInfo(
     dir: string,
-  ): { hash: string; branch: string; remote?: string } | undefined {
+  ): Promise<{ hash: string; branch: string; remote?: string } | undefined> {
     if (!existsSync(join(dir, '.git'))) return undefined;
     try {
-      const hash = execSync('git rev-parse --short HEAD', {
+      const { stdout: hash } = await execFile('git', ['rev-parse', '--short', 'HEAD'], {
         cwd: dir,
         encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim();
-      const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+      });
+      const { stdout: branch } = await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd: dir,
         encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim();
+      });
       let remote: string | undefined;
       try {
-        remote = execSync('git remote get-url origin', {
+        const { stdout: r } = await execFile('git', ['remote', 'get-url', 'origin'], {
           cwd: dir,
           encoding: 'utf-8',
-          stdio: ['pipe', 'pipe', 'pipe'],
-        }).trim();
-      } catch {}
-      return { hash, branch, remote };
-    } catch {
+        });
+        remote = r.trim();
+      } catch (e) { logger.debug('Failed to get git remote URL for plugin', { error: e }); }
+      return { hash: hash.trim(), branch: branch.trim(), remote };
+    } catch (e) {
+      logger.debug('Failed to get git info for plugin', { error: e });
       return undefined;
     }
   }
@@ -513,7 +515,7 @@ export function createPluginRoutes(
 
         // Resolve dependencies
         const dependencies = await resolveDependencies(manifest);
-        const git = getGitInfo(tempDir);
+        const git = await getGitInfo(tempDir);
 
         return c.json({
           valid: true,
@@ -649,9 +651,9 @@ export function createPluginRoutes(
           const def = JSON.parse(readFileSync(defPath, 'utf-8'));
           if (!def.command) continue;
           try {
-            execSync(`which ${def.command}`, { stdio: 'pipe' });
+            await execFile('which', [def.command]);
             continue;
-          } catch {}
+          } catch (e) { logger.debug('Command not found, will attempt auto-install', { command: def.command, error: e }); }
           const registry = getIntegrationRegistryProvider();
           if (registry.installByCommand) {
             const result = await registry.installByCommand(def.command);
@@ -713,7 +715,8 @@ export function createPluginRoutes(
               id: toolId,
               status: result.success ? 'installed-now' : 'missing',
             });
-          } catch {
+          } catch (e) {
+            logger.debug('Failed to install required tool', { toolId, error: e });
             toolResults.push({ id: toolId, status: 'missing' });
           }
         }
@@ -778,29 +781,30 @@ export function createPluginRoutes(
           if (!existsSync(gitDir) || !existsSync(manifestPath)) continue;
 
           try {
-            execSync('git fetch --quiet', {
+            await execFile('git', ['fetch', '--quiet'], {
               cwd: dir,
               timeout: 10000,
-              stdio: 'pipe',
             });
-            const _local = execSync('git rev-parse HEAD', {
+            const { stdout: _local } = await execFile('git', ['rev-parse', 'HEAD'], {
               cwd: dir,
               encoding: 'utf-8',
-            }).trim();
-            const behind = execSync('git rev-list --count HEAD..@{u}', {
+            });
+            const { stdout: behind } = await execFile('git', ['rev-list', '--count', 'HEAD..@{u}'], {
               cwd: dir,
               encoding: 'utf-8',
-            }).trim();
-            if (parseInt(behind, 10) > 0) {
+            });
+            if (parseInt(behind.trim(), 10) > 0) {
               const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+              const b = behind.trim();
               updates.push({
                 name: entry.name,
                 currentVersion: manifest.version || 'unknown',
-                latestVersion: `${behind} commit${behind === '1' ? '' : 's'} behind`,
+                latestVersion: `${b} commit${b === '1' ? '' : 's'} behind`,
                 source: 'git',
               });
             }
-          } catch {
+          } catch (e) {
+            logger.debug('Failed to check git updates for plugin', { plugin: entry.name, error: e });
             /* no remote tracking, skip */
           }
         }
@@ -825,7 +829,8 @@ export function createPluginRoutes(
             });
           }
         }
-      } catch {
+      } catch (e) {
+        logger.debug('Failed to check registry for plugin updates', { error: e });
         /* no registry configured, that's fine */
       }
 
@@ -851,7 +856,7 @@ export function createPluginRoutes(
       const gitDir = join(pluginDir, '.git');
       if (existsSync(gitDir)) {
         // Git update
-        execSync('git pull --ff-only', { cwd: pluginDir, timeout: 30000 });
+        await execFile('git', ['pull', '--ff-only'], { cwd: pluginDir, timeout: 30000 });
       } else {
         // Registry re-install
         const registryProvider = getAgentRegistryProvider();

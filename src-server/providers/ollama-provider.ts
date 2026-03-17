@@ -58,7 +58,8 @@ export class OllamaLLMProvider implements ILLMProvider {
           if (chunk.message?.content) {
             yield { type: 'text-delta', content: chunk.message.content };
           }
-        } catch {
+        } catch (e) {
+          console.debug('Failed to parse Ollama stream chunk:', e);
           /* skip malformed */
         }
       }
@@ -71,7 +72,8 @@ export class OllamaLLMProvider implements ILLMProvider {
     try {
       const res = await fetch(`${this.baseUrl}/api/tags`);
       return res.ok;
-    } catch {
+    } catch (e) {
+      console.debug('Failed to check Ollama LLM provider health:', e);
       return false;
     }
   }
@@ -109,7 +111,8 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
     try {
       const res = await fetch(`${this.baseUrl}/api/tags`);
       return res.ok;
-    } catch {
+    } catch (e) {
+      console.debug('Failed to check Ollama embedding provider health:', e);
       return false;
     }
   }

@@ -99,7 +99,8 @@ export class SchedulerService {
           totalRuns += j.total;
           totalSuccesses += j.successes;
         }
-      } catch {
+      } catch (e) {
+        console.debug('Failed to get stats from scheduler provider:', p.id, e);
         /* provider unavailable */
       }
     }
@@ -129,7 +130,8 @@ export class SchedulerService {
       try {
         const s = await p.getStatus();
         providers[p.id] = { ...s, id: p.id, displayName: p.displayName };
-      } catch {
+      } catch (e) {
+        console.debug('Failed to get status from scheduler provider:', p.id, e);
         /* provider unavailable */
       }
     }
@@ -199,7 +201,8 @@ export class SchedulerService {
     for (const p of this.providers.values()) {
       try {
         if (p.readRunFile) return await p.readRunFile(path);
-      } catch {
+      } catch (e) {
+        console.debug('Failed to read run file from scheduler provider:', p.id, e);
         /* not this provider */
       }
     }

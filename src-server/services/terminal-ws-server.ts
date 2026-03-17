@@ -30,7 +30,8 @@ export class TerminalWebSocketServer {
         let msg: Record<string, unknown>;
         try {
           msg = JSON.parse(raw.toString());
-        } catch {
+        } catch (e) {
+          console.debug('Failed to parse WebSocket message:', e);
           ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
           return;
         }

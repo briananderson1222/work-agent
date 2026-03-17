@@ -71,7 +71,8 @@ function getAvailableLayouts(projectHomeDir: string) {
         type: 'chat',
         tabCount: layout.tabs?.length,
       });
-    } catch {
+    } catch (e) {
+      console.debug('Failed to read plugin layout for available layouts:', entry.name, e);
       /* skip broken plugins */
     }
   }

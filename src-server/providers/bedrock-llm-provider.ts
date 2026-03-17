@@ -43,7 +43,8 @@ export class BedrockLLMProvider implements ILLMProvider {
           supportsTools: m.inferenceTypesSupported?.includes('ON_DEMAND'),
           supportsVision: m.inputModalities?.includes('IMAGE'),
         }));
-    } catch {
+    } catch (e) {
+      console.debug('Failed to list Bedrock foundation models, using fallback list:', e);
       // Fallback: return common models
       return [
         {
@@ -109,7 +110,8 @@ export class BedrockLLMProvider implements ILLMProvider {
       const creds = fromNodeProviderChain();
       await creds();
       return true;
-    } catch {
+    } catch (e) {
+      console.debug('Failed to check Bedrock credentials:', e);
       return false;
     }
   }

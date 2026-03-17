@@ -17,7 +17,8 @@ export class SSEBroadcaster {
     for (const send of this.clients) {
       try {
         send(data);
-      } catch {
+      } catch (e) {
+        console.debug('Failed to broadcast SSE event, removing client:', e);
         this.clients.delete(send);
       }
     }

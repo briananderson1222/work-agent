@@ -46,7 +46,8 @@ function readGrants(projectHomeDir: string): GrantsFile {
   if (!existsSync(p)) return {};
   try {
     return JSON.parse(readFileSync(p, 'utf-8'));
-  } catch {
+  } catch (e) {
+    console.debug('Failed to read plugin grants file:', p, e);
     return {};
   }
 }
