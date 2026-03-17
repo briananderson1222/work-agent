@@ -121,7 +121,7 @@ export function ProviderSettingsView({
       qc.invalidateQueries({ queryKey: ['providers'] });
       setIsNew(false);
       setError(null);
-      onNavigate({ type: 'provider-edit', id: saved.id });
+      onNavigate({ type: 'connections-provider-edit', id: saved.id });
     },
     onError: (err: Error) => setError(err.message),
   });
@@ -138,7 +138,7 @@ export function ProviderSettingsView({
       qc.invalidateQueries({ queryKey: ['providers'] });
       setForm(null);
       setIsNew(false);
-      onNavigate({ type: 'providers' });
+      onNavigate({ type: 'connections-providers' });
     },
     onError: (err: Error) => setError(err.message),
   });
@@ -164,7 +164,7 @@ export function ProviderSettingsView({
 
   function handleSelect(id: string) {
     setShowTypePicker(false);
-    onNavigate({ type: 'provider-edit', id });
+    onNavigate({ type: 'connections-provider-edit', id });
   }
 
   function handleAddWithType(type: ProviderConnection['type'], name: string) {
@@ -179,7 +179,7 @@ export function ProviderSettingsView({
     });
     setShowTypePicker(false);
     setError(null);
-    onNavigate({ type: 'provider-edit', id });
+    onNavigate({ type: 'connections-provider-edit', id });
   }
 
   function setField<K extends keyof Omit<ProviderConnection, 'id'>>(
@@ -396,10 +396,10 @@ export function ProviderSettingsView({
 
   return (
     <SplitPaneLayout
-      label={selectedProviderId ? 'Providers / Edit' : 'Providers'}
+      label={selectedProviderId ? 'Connections / Providers / Edit' : 'Connections / Providers'}
       breadcrumbLinks={
         selectedProviderId
-          ? { providers: () => onNavigate({ type: 'providers' }) }
+          ? { 'connections / providers': () => onNavigate({ type: 'connections-providers' }) }
           : undefined
       }
       title="Provider Connections"
@@ -408,7 +408,7 @@ export function ProviderSettingsView({
       loading={isLoading}
       selectedId={selectedProviderId ?? null}
       onSelect={handleSelect}
-      onDeselect={() => onNavigate({ type: 'providers' })}
+      onDeselect={() => onNavigate({ type: 'connections-providers' })}
       onSearch={setSearch}
       searchPlaceholder="Search providers…"
       onAdd={() => setShowTypePicker(true)}

@@ -2,8 +2,9 @@
  * System status routes — unified readiness check for onboarding
  */
 
-import { execFile, execSync } from 'node:child_process';
-import { dirname } from 'node:path';
+import { execFile, execSync, spawn } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveGitInfo } from '@stallion-ai/shared';
 import { Hono } from 'hono';
@@ -117,14 +118,11 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
             timeout: 15000,
             stdio: ['pipe', 'pipe', 'pipe'],
           });
-          execSync(
-            `git branch --set-upstream-to=origin/${branch} ${branch}`,
-            {
-              cwd: gitRoot,
-              encoding: 'utf-8',
-              stdio: ['pipe', 'pipe', 'pipe'],
-            },
-          );
+          execSync(`git branch --set-upstream-to=origin/${branch} ${branch}`, {
+            cwd: gitRoot,
+            encoding: 'utf-8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+          });
           hasUpstream = true;
         } catch {}
       }
@@ -186,6 +184,18 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
 
       execSync('git pull --ff-only', { cwd: gitRoot, timeout: 30000 });
 
+      // Rebuild server and UI
+      execSync('npm run build:server', {
+        cwd: gitRoot,
+        timeout: 120000,
+        stdio: 'pipe',
+      });
+      execSync('npm run build:ui', {
+        cwd: gitRoot,
+        timeout: 120000,
+        stdio: 'pipe',
+      });
+
       const newHash = execSync('git rev-parse HEAD', {
         cwd: gitRoot,
         encoding: 'utf-8',
@@ -195,10 +205,42 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
 
       deps.eventBus?.emit('core:updated', { hash: newHash });
 
+      // Schedule graceful self-restart after response is sent
+      const port = process.env.PORT || '3141';
+      const pidFile = join(gitRoot, '.stallion.pids');
+
+      setTimeout(() => {
+        const serverEnv: Record<string, string> = {
+          ...(process.env as any),
+          PORT: port,
+        };
+        const child = spawn('node', ['dist-server/index.js'], {
+          cwd: gitRoot,
+          stdio: 'ignore',
+          detached: true,
+          env: serverEnv,
+        });
+        child.unref();
+
+        // Update PIDFILE — preserve UI PID, replace server PID
+        if (existsSync(pidFile)) {
+          const pids = readFileSync(pidFile, 'utf-8').trim().split(' ');
+          const uiPid = pids[1] || '';
+          writeFileSync(pidFile, `${child.pid} ${uiPid}`);
+        }
+
+        logger.info('Core restart: new server spawned', {
+          pid: child.pid,
+          hash: newHash,
+        });
+        process.exit(0);
+      }, 500);
+
       return c.json({
         success: true,
         hash: newHash,
-        message: `Updated to ${newHash}. Restart to apply.`,
+        message: `Updated to ${newHash}. Server restarting…`,
+        restarting: true,
       });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);

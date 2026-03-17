@@ -267,6 +267,8 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
     }
   };
 
+  const [restarting, setRestarting] = useState(false);
+
   const update = async () => {
     setUpdating(true);
     setMessage(null);
@@ -275,11 +277,33 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
         method: 'POST',
       });
       const data = await res.json();
-      setMessage(data.success ? data.message : data.error || 'Update failed');
-      if (data.success) check();
+      if (data.success && data.restarting) {
+        setRestarting(true);
+        setMessage('Updated — server restarting…');
+        // Poll until server is back
+        const poll = setInterval(async () => {
+          try {
+            const r = await fetch(`${apiBase}/api/system/status`, {
+              signal: AbortSignal.timeout(2000),
+            });
+            if (r.ok) {
+              clearInterval(poll);
+              setRestarting(false);
+              setUpdating(false);
+              setMessage(null);
+              check();
+            }
+          } catch {
+            /* still restarting */
+          }
+        }, 1500);
+      } else {
+        setMessage(data.success ? data.message : data.error || 'Update failed');
+        if (data.success) check();
+        setUpdating(false);
+      }
     } catch (e: any) {
       setMessage(e.message);
-    } finally {
       setUpdating(false);
     }
   };
@@ -300,11 +324,13 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
             type="button"
             className="settings__update-btn settings__update-btn--apply"
             onClick={update}
-            disabled={updating}
+            disabled={updating || restarting}
           >
-            {updating
-              ? 'Updating…'
-              : `Update (${status.behind} commit${status.behind !== 1 ? 's' : ''} behind)`}
+            {restarting
+              ? 'Restarting…'
+              : updating
+                ? 'Updating…'
+                : `Update (${status.behind} commit${status.behind !== 1 ? 's' : ''} behind)`}
           </button>
         )}
       </div>
@@ -354,16 +380,19 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
         <div
           className="settings__update-msg"
           style={{
-            color: message.includes('Restart')
-              ? 'var(--success-text)'
-              : 'var(--error-text)',
+            color: restarting
+              ? 'var(--warning-text)'
+              : message.includes('Updated')
+                ? 'var(--success-text)'
+                : 'var(--error-text)',
           }}
         >
           {message}
         </div>
       )}
       <span className="settings__field-hint">
-        Pull latest changes from the git remote. Requires a server restart.
+        Pull latest changes from the git remote. Server restarts automatically
+        after update.
       </span>
     </div>
   );
