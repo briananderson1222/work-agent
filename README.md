@@ -177,19 +177,40 @@ See `examples/demo-layout/` for a minimal working example.
 
 ### Developing Plugins Locally
 
-Plugins that import `@stallion-ai/shared` should declare it as a `peerDependency` — stallion provides it at build time automatically. Never use `file:` paths in your plugin's `package.json`.
-
-For local development against an unreleased version of `@stallion-ai/shared`:
+Plugins import `@stallion-ai/sdk` for hooks and components, and use `@stallion-ai/cli` for building and running. Both should be linked for local development.
 
 ```bash
-# In stallion-new/packages/shared — register the global link
-npm link
+# In stallion — link the SDK and CLI globally
+cd packages/sdk && npm link && cd ../..
+cd packages/cli && npm link && cd ../..
 
-# In your plugin repo — use the linked version
-npm link @stallion-ai/shared
+# In your plugin repo — link the SDK
+cd /path/to/my-plugin
+npm link @stallion-ai/sdk
 ```
 
-This creates a symlink that works regardless of directory layout and doesn't pollute your `package.json`.
+After linking, run the CLI from your plugin directory:
+
+```bash
+# Dev server with hot reload and MCP
+npx @stallion-ai/cli dev
+
+# Build the plugin
+npx @stallion-ai/cli build
+
+# Install into the runtime
+npx @stallion-ai/cli install /path/to/my-plugin
+```
+
+The `@stallion-ai/sdk` link is required for the dev server — it bundles the SDK's shared components (LayoutHeader, AuthStatusBadge) into the dev preview so what you see matches production.
+
+If you modify the SDK, rebuild it and restart the dev server:
+
+```bash
+cd packages/sdk && npm run build
+```
+
+The npm link symlink picks up the new dist automatically.
 
 ## Packages
 
