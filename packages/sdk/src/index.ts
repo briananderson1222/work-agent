@@ -25,10 +25,13 @@ export {
 export type { AutoSelectItem } from './components';
 // Re-export components
 export {
+  ActionButton,
+  AuthStatusBadge,
   AutoSelectModal,
   Button,
   FullScreenError,
   FullScreenLoader,
+  LayoutHeader,
   LoadingState,
   Pill,
   Spinner,

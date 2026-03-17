@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState } from 'react';
+import { useAuth } from '../hooks';
 
 export function AuthStatusBadge({
   inline,

@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useNavigation } from '../contexts/NavigationContext';
+import React, { useState } from 'react';
+import { useNavigation } from '../hooks';
 import { AuthStatusBadge } from './AuthStatusBadge';
-import './chat.css';
+import './LayoutHeader.css';
 
 interface LayoutTab {
   id: string;
@@ -41,7 +41,7 @@ interface LayoutHeaderProps {
   loading?: boolean;
 }
 
-function ActionButton({ action, onLaunch }: { action: LayoutAction; onLaunch: (a: LayoutAction) => void }) {
+export function ActionButton({ action, onLaunch }: { action: LayoutAction; onLaunch: (a: LayoutAction) => void }) {
   const { navigate } = useNavigation();
 
   if (action.type === 'external') {

@@ -1,6 +1,6 @@
 import { FullScreenError } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
-import { LayoutHeader } from '../components/LayoutHeader';
+import { LayoutHeader } from '@stallion-ai/sdk';
 import { pluginRegistry } from '../core/PluginRegistry';
 import type {
   AgentQuickPrompt,

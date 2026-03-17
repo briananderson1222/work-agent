@@ -93,12 +93,13 @@ export async function startDevServer(
   const bundleMtime = existsSync(reactBundle)
     ? statSync(reactBundle).mtimeMs
     : 0;
+  const esbuildBin = existsSync(join(CWD, 'node_modules/.bin/esbuild'))
+    ? join(CWD, 'node_modules/.bin/esbuild')
+    : existsSync(join(CWD, '../../node_modules/.bin/esbuild'))
+      ? join(CWD, '../../node_modules/.bin/esbuild')
+      : 'esbuild';
+
   if (!existsSync(reactBundle) || pkgMtime > bundleMtime) {
-    const esbuildBin = existsSync(join(CWD, 'node_modules/.bin/esbuild'))
-      ? join(CWD, 'node_modules/.bin/esbuild')
-      : existsSync(join(CWD, '../../node_modules/.bin/esbuild'))
-        ? join(CWD, '../../node_modules/.bin/esbuild')
-        : 'esbuild';
     const reactEntry = join(CWD, 'dist/.react-entry.mjs');
     writeFileSync(
       reactEntry,
@@ -120,7 +121,7 @@ export async function startDevServer(
     );
     try {
       execSync(
-        `${esbuildBin} ${reactEntry} --bundle --format=iife --outfile=${reactBundle} --define:process.env.NODE_ENV=\\"development\\"`,
+        `${esbuildBin} ${reactEntry} --bundle --format=iife --outfile=${reactBundle} --loader:.tsx=tsx --jsx=automatic --define:process.env.NODE_ENV=\\"development\\"`,
         { stdio: 'pipe', cwd: CWD },
       );
     } catch (e: any) {
@@ -129,6 +130,23 @@ export async function startDevServer(
       try {
         rmSync(reactEntry);
       } catch {}
+    }
+  }
+
+  // Build SDK components bundle (externalizes React — uses the one from react-dev.js)
+  const sdkBundle = join(CWD, 'dist/.sdk-dev.js');
+  const sdkEntry = join(CWD, 'dist/.sdk-entry.mjs');
+  if (!existsSync(sdkBundle) || pkgMtime > bundleMtime) {
+    writeFileSync(sdkEntry, `import { SDKProvider, LayoutHeader, AuthStatusBadge, ActionButton } from '@stallion-ai/sdk';\nwindow.__stallion_sdk = { SDKProvider, LayoutHeader, AuthStatusBadge, ActionButton };\n`);
+    try {
+      execSync(
+        `${esbuildBin} ${sdkEntry} --bundle --format=iife --outfile=${sdkBundle} --loader:.tsx=tsx --jsx=automatic --external:react --external:react-dom --external:react/jsx-runtime --define:process.env.NODE_ENV=\\"development\\" --global-name=__sdkTmp`,
+        { stdio: 'pipe', cwd: CWD },
+      );
+    } catch (e: any) {
+      console.warn('  ⚠ Could not build SDK bundle:', e.message);
+    } finally {
+      try { rmSync(sdkEntry); } catch {}
     }
   }
 
@@ -532,6 +550,23 @@ export async function startDevServer(
         'Cache-Control': 'no-cache',
       });
       res.end(readFileSync(reactDev));
+      return;
+    }
+    if (url === '/sdk-dev.js' && existsSync(sdkBundle)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript',
+        'Cache-Control': 'no-cache',
+      });
+      res.end(readFileSync(sdkBundle));
+      return;
+    }
+    const sdkCss = join(CWD, 'dist/.sdk-dev.css');
+    if (url === '/sdk-dev.css' && existsSync(sdkCss)) {
+      res.writeHead(200, {
+        'Content-Type': 'text/css',
+        'Cache-Control': 'no-cache',
+      });
+      res.end(readFileSync(sdkCss));
       return;
     }
     if (url === '/bundle.js' && existsSync(bundleJs)) {

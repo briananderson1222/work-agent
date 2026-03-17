@@ -271,7 +271,7 @@ export interface ProviderConnectionConfig {
   name: string;
   config: Record<string, unknown>;
   enabled: boolean;
-  capabilities: ('llm' | 'embedding')[];
+  capabilities: ('llm' | 'embedding' | 'vectordb')[];
 }
 
 // ── Layout Template ────────────────────────────────────────────────
@@ -802,5 +802,18 @@ function ensurePluginDeps(pluginDir: string): void {
       ? devRoot
       : resolve(__shared_dir, '..', 'packages', 'shared');
     symlinkSync(sharedRoot, sharedLink);
+  }
+
+  // Also symlink @stallion-ai/sdk if it exists alongside shared
+  const sdkLink = join(pluginDir, 'node_modules', '@stallion-ai', 'sdk');
+  if (!existsSync(sdkLink)) {
+    const devRoot = resolve(__shared_dir, '..');
+    const sdkRoot = existsSync(join(devRoot, '..', 'sdk', 'src', 'index.ts'))
+      ? resolve(devRoot, '..', 'sdk')
+      : null;
+    if (sdkRoot) {
+      try { unlinkSync(sdkLink); } catch {}
+      symlinkSync(sdkRoot, sdkLink);
+    }
   }
 }

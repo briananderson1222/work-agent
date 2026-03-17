@@ -13,6 +13,7 @@ export function generateDevHTML(opts: DevTemplateOptions): string {
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${name} — Dev Preview</title>
 <link rel="stylesheet" href="/bundle.css">
+<link rel="stylesheet" href="/sdk-dev.css">
 <style>
 body{margin:0;font-family:system-ui;background:var(--bg-primary);color:var(--text-primary)}
 :root,[data-theme="dark"]{--bg-primary:#1a1a1a;--bg-secondary:#242424;--bg-tertiary:#2a2a2a;--bg-elevated:#333;--bg-hover:#2a2a2a;--bg-highlight:#1e3a5f;--bg-modal:#242424;--bg-input:#1a1a1a;--text-primary:#e0e0e0;--text-secondary:#d0d0d0;--text-muted:#999;--text-tertiary:#9c9c9c;--border-primary:#333;--border-dashed:#444;--accent-primary:#4a9eff;--accent-acp:#22c55e;--color-bg:var(--bg-primary);--color-bg-secondary:var(--bg-secondary);--color-border:var(--border-primary);--color-text:var(--text-primary);--color-text-secondary:var(--text-secondary);--color-primary:var(--accent-primary);--color-bg-hover:var(--bg-hover)}
@@ -93,6 +94,8 @@ body{margin:0;font-family:system-ui;background:var(--bg-primary);color:var(--tex
 ${sdkMockJs}
 </script>
 <script src="/react-dev.js"></script>
+<script>window.require=function(m){if(m==='react')return window.React;if(m==='react-dom')return window.ReactDOM;if(m==='react/jsx-runtime')return window.__jsx;throw new Error('require not available: '+m)}</script>
+<script src="/sdk-dev.js"></script>
 <script>
 var __sdkMock = window.__stallion_ai_sdk_mock;
 window.__stallion_ai_shared = {
@@ -314,6 +317,21 @@ window.__stallion_ai_shared = {
     );
   }
 
+  var __sdkComponents = window.__stallion_sdk || {};
+  var SDKProvider = __sdkComponents.SDKProvider;
+  var LayoutHeader = __sdkComponents.LayoutHeader;
+
+  // Build SDK context value for dev mode (mirrors real app's context injection)
+  var __devSDKContext = {
+    apiBase: '',
+    contexts: {
+      navigation: { useNavigation: __sdkMock.useNavigation },
+      auth: { useAuth: __sdkMock.useAuth },
+      toast: { useToast: __sdkMock.useToast },
+    },
+    hooks: {}
+  };
+
   function LayoutView(props){
     var slug=props.slug;
     var layout=registry.layouts&&registry.layouts.find(function(l){return l.slug===slug});
@@ -324,10 +342,27 @@ window.__stallion_ai_shared = {
     var comps=plugin.components||{};
     var td=tabs.find(function(t){return t.id===activeTab});
     var C=td?comps[td.component]:null;
+    var globalActions=registry.actions||[];
+    var tabActions=(td&&td.actions)||[];
+
+    function handleAction(a){
+      if(a.type==='external'){window.open(a.data,'_blank');return}
+      window.__devToast('Prompt: '+(a.label||a.data||'action'));
+    }
+
     return React.createElement(React.Fragment,null,
-      h('div',{className:'dev-tabs'},tabs.map(function(t){
-        return h('button',{key:t.id,className:'dev-tab'+(activeTab===t.id?' active':''),onClick:function(){setActiveTab(t.id)}},t.label);
-      })),
+      h(LayoutHeader,{
+        layoutName:layoutName,
+        tabs:tabs.map(function(t){return{id:t.id,label:t.label,icon:t.icon}}),
+        activeTabId:activeTab,
+        onTabChange:setActiveTab,
+        actions:globalActions,
+        onLaunchAction:handleAction,
+        title:td?td.label:layoutName,
+        description:'',
+        tabActions:tabActions,
+        onTabPromptSelect:handleAction
+      }),
       h('div',{className:'dev-tab-content'},
         C?h(EB,{key:activeTab},h(C,{onShowChat:noop}))
          :h('div',{style:{padding:'2rem',color:'var(--text-muted)'}},'No component: '+(td?td.component:activeTab))
@@ -421,9 +456,7 @@ window.__stallion_ai_shared = {
       ),
       // Providers
       depReg.providers&&depReg.providers.length>0&&h(Section,{title:'PROVIDERS',items:depReg.providers,render:function(p,i){
-        return h(CardItem,{key:i,icon:'',name:p.type,badge:'provider',sub:p.module},
-          h(SourceLink,{path:p._source})
-        );
+        return h(CardItem,{key:i,icon:'',name:p.type,badge:'provider',sub:h('a',{className:'info-kv-link',href:'/api/open-file?path='+encodeURIComponent(p._source||p.module),onClick:function(e){e.stopPropagation()}},p.module)});
       }}),
       // Dependencies
       h(Section,{title:'DEPENDENCIES',items:depReg.dependencies,render:function(d){
@@ -455,7 +488,9 @@ window.__stallion_ai_shared = {
       :inner;
   }
 
-  ReactDOM.createRoot(document.getElementById('root')).render(h(DevShell,null));
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(SDKProvider,{value:__devSDKContext},h(DevShell,null))
+  );
 })();
 </script>
 <script>(function(){var es=new EventSource('/api/reload');es.onmessage=function(e){if(e.data==='reload')location.reload()}})()</script>

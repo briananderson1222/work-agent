@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AchievementsBadge } from '../components/AchievementsBadge';
 import { ActivityTimeline } from '../components/ActivityTimeline';
-import { AuthStatusBadge } from '../components/AuthStatusBadge';
+import { AuthStatusBadge } from '@stallion-ai/sdk';
 import { InsightsDashboard } from '../components/InsightsDashboard';
 import { UsageStatsPanel } from '../components/UsageStatsPanel';
 import { UserDetailModal } from '../components/UserDetailModal';
