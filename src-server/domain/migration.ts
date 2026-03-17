@@ -12,6 +12,7 @@ import type {
   ProjectConfig,
   StandaloneLayoutConfig,
 } from '@stallion-ai/shared';
+import { FileStorageAdapter } from './file-storage-adapter.js';
 
 export async function migrateToProject(projectHomeDir: string): Promise<void> {
   const projectsDir = join(projectHomeDir, 'projects');
@@ -75,5 +76,20 @@ export async function migrateToProject(projectHomeDir: string): Promise<void> {
       JSON.stringify(layout, null, 2),
       'utf-8',
     );
+  }
+
+  // Seed default LanceDB provider connection if none exists
+  const storageAdapter = new FileStorageAdapter(projectHomeDir);
+  const existing = storageAdapter.listProviderConnections();
+  const hasVectorDb = existing.some(c => c.capabilities.includes('vectordb'));
+  if (!hasVectorDb) {
+    storageAdapter.saveProviderConnection({
+      id: 'lancedb-builtin',
+      type: 'lancedb',
+      name: 'LanceDB (built-in)',
+      config: { dataDir: `${projectHomeDir}/vectordb` },
+      enabled: true,
+      capabilities: ['vectordb'] as ('llm' | 'embedding' | 'vectordb')[],
+    });
   }
 }

@@ -614,9 +614,13 @@ export function createPluginRoutes(
         const promptsDir = join(pluginDir, manifest.prompts.source);
         const scanned = scanPromptDir(promptsDir, pluginName);
         if (scanned.length > 0) {
-          const { PromptService } = await import('../services/prompt-service.js');
+          const { PromptService } = await import(
+            '../services/prompt-service.js'
+          );
           new PromptService().registerPluginPrompts(scanned);
-          logger.info(`Registered ${scanned.length} prompts from ${pluginName}`);
+          logger.info(
+            `Registered ${scanned.length} prompts from ${pluginName}`,
+          );
         }
       }
 
@@ -866,6 +870,16 @@ export function createPluginRoutes(
 
       // Re-copy tool configs
       copyPluginIntegrations(pluginDir, join(projectHomeDir, 'integrations'));
+
+      // Hot-reload providers (mirrors install route)
+      if (manifest.providers?.length) {
+        await loadProviders(
+          pluginsDir,
+          manifest.name || name,
+          manifest,
+          logger,
+        );
+      }
 
       // Emit SSE event
       eventBus?.emit('plugins:updated', { name, version: manifest.version });

@@ -27,6 +27,16 @@ const DATA_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
       );
     }
   },
+  'plugins:updates-available': (data) => {
+    const count = data.count as number | undefined;
+    if (count && count > 0) {
+      toastStore.show(
+        `${count} plugin update${count > 1 ? 's' : ''} available`,
+        undefined,
+        10000,
+      );
+    }
+  },
 };
 
 const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
