@@ -2,10 +2,22 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Bootstrap: ensure deps are installed, then delegate to CLI
+# Bootstrap: ensure deps are installed
 if [ ! -d "$SCRIPT_DIR/node_modules" ]; then
   echo "🐎 First run — installing dependencies..."
   npm install --prefix "$SCRIPT_DIR"
+fi
+
+# --link: register SDK and CLI as global npm links for plugin development
+if [ "$1" = "--link" ]; then
+  echo "🔗 Linking @stallion-ai/sdk and @stallion-ai/cli globally..."
+  (cd "$SCRIPT_DIR/packages/sdk" && npm link)
+  (cd "$SCRIPT_DIR/packages/cli" && npm link)
+  echo ""
+  echo "Done. In your plugin repo, run:"
+  echo "  npm link @stallion-ai/sdk"
+  echo "  npx @stallion-ai/cli dev"
+  exit 0
 fi
 
 exec npx tsx "$SCRIPT_DIR/packages/cli/src/cli.ts" "$@"
