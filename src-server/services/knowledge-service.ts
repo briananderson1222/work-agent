@@ -119,8 +119,8 @@ function saveMeta(
 
 export class KnowledgeService {
   constructor(
-    private vectorDb: IVectorDbProvider,
-    private embeddingProvider: IEmbeddingProvider | null,
+    private resolveVectorDb: () => IVectorDbProvider | null,
+    private resolveEmbedding: () => IEmbeddingProvider | null,
     private dataDir: string,
     private storageAdapter?: IStorageAdapter,
   ) {}
@@ -131,17 +131,20 @@ export class KnowledgeService {
     content: string,
     source: 'upload' | 'directory-scan' = 'upload',
   ): Promise<DocumentMeta> {
+    const vectorDb = this.resolveVectorDb();
+    if (!vectorDb) throw new Error('No vector DB provider configured');
     const ns = `project-${projectSlug}`;
-    if (!(await this.vectorDb.namespaceExists(ns))) {
-      await this.vectorDb.createNamespace(ns);
+    if (!(await vectorDb.namespaceExists(ns))) {
+      await vectorDb.createNamespace(ns);
     }
 
     const chunks = chunkText(content);
     const docId = crypto.randomUUID();
 
+    const embeddingProvider = this.resolveEmbedding();
     let vectors: number[][];
-    if (this.embeddingProvider && chunks.length > 0) {
-      vectors = await this.embeddingProvider.embed(chunks);
+    if (embeddingProvider && chunks.length > 0) {
+      vectors = await embeddingProvider.embed(chunks);
     } else {
       vectors = chunks.map(() => []);
     }
@@ -153,7 +156,7 @@ export class KnowledgeService {
       metadata: { docId, filename, chunkIndex: i },
     }));
 
-    await this.vectorDb.addDocuments(ns, docs);
+    await vectorDb.addDocuments(ns, docs);
 
     const meta: DocumentMeta = {
       id: docId,
@@ -169,11 +172,14 @@ export class KnowledgeService {
   }
 
   async searchDocuments(projectSlug: string, query: string, topK = 5) {
+    const vectorDb = this.resolveVectorDb();
+    if (!vectorDb) return [];
     const ns = `project-${projectSlug}`;
-    if (!(await this.vectorDb.namespaceExists(ns))) return [];
-    if (!this.embeddingProvider) return [];
-    const [queryVector] = await this.embeddingProvider.embed([query]);
-    const results = await this.vectorDb.search(ns, queryVector, topK);
+    if (!(await vectorDb.namespaceExists(ns))) return [];
+    const embeddingProvider = this.resolveEmbedding();
+    if (!embeddingProvider) return [];
+    const [queryVector] = await embeddingProvider.embed([query]);
+    const results = await vectorDb.search(ns, queryVector, topK);
     knowledgeOps.add(1, { op: 'query' });
     return results;
   }
@@ -205,6 +211,8 @@ export class KnowledgeService {
   }
 
   async deleteDocument(projectSlug: string, docId: string): Promise<void> {
+    const vectorDb = this.resolveVectorDb();
+    if (!vectorDb) throw new Error('No vector DB provider configured');
     const ns = `project-${projectSlug}`;
     const meta = loadMeta(this.dataDir, projectSlug);
     const doc = meta.find((d) => d.id === docId);
@@ -214,7 +222,7 @@ export class KnowledgeService {
       { length: doc.chunkCount },
       (_, i) => `${docId}:${i}`,
     );
-    await this.vectorDb.deleteDocuments(ns, chunkIds);
+    await vectorDb.deleteDocuments(ns, chunkIds);
     saveMeta(
       this.dataDir,
       projectSlug,

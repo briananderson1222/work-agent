@@ -78,7 +78,6 @@ import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
 import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { migrateToProject } from '../domain/migration.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
-import { LanceDBProvider } from '../providers/lancedb-provider.js';
 import {
   getNotificationProviders,
   listProviders,
@@ -106,7 +105,11 @@ import { createNotificationRoutes } from '../routes/notifications.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createProjectRoutes } from '../routes/projects.js';
 import { createPromptRoutes } from '../routes/prompts.js';
-import { createProviderRoutes } from '../routes/providers.js';
+import {
+  createEmbeddingProvider,
+  createProviderRoutes,
+  createVectorDbProvider,
+} from '../routes/providers.js';
 import { createRegistryRoutes } from '../routes/registry.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createSystemRoutes } from '../routes/system.js';
@@ -119,7 +122,6 @@ import { ApprovalRegistry } from '../services/approval-registry.js';
 import { FeedbackService } from '../services/feedback-service.js';
 import { FileTreeService } from '../services/file-tree-service.js';
 import { KnowledgeService } from '../services/knowledge-service.js';
-import * as SkillService from '../services/skill-service.js';
 import { LayoutService } from '../services/layout-service.js';
 import {
   createLLMProviderFromConfig,
@@ -131,6 +133,7 @@ import { ProjectService } from '../services/project-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import { ProviderService } from '../services/provider-service.js';
 import { SchedulerService } from '../services/scheduler-service.js';
+import * as SkillService from '../services/skill-service.js';
 import { TerminalService } from '../services/terminal-service.js';
 import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
 import { isAuthError } from '../utils/auth-errors.js';
@@ -221,9 +224,7 @@ export class StallionRuntime {
   private framework!: VoltAgentFramework | StrandsFramework;
 
   constructor(options: StallionRuntimeOptions = {}) {
-    const projectHomeDir =
-      options.projectHomeDir ||
-      resolveHomeDir();
+    const projectHomeDir = options.projectHomeDir || resolveHomeDir();
     this.port = options.port || 3141;
     this.eventLogPath = `${projectHomeDir}/monitoring`;
 
@@ -264,8 +265,8 @@ export class StallionRuntime {
       this.configLoader.loadAppConfig(),
     );
     this.knowledgeService = new KnowledgeService(
-      new LanceDBProvider({ dataDir: `${projectHomeDir}/vectordb` }),
-      null,
+      () => this.resolveVectorDbProvider(),
+      () => this.resolveEmbeddingProvider(),
       projectHomeDir,
       this.storageAdapter,
     );
@@ -376,9 +377,14 @@ export class StallionRuntime {
       try {
         const agent = await this.createVoltAgentInstance(meta.slug);
         this.activeAgents.set(meta.slug, agent);
-        this.logger.info('Agent rebuilt with updated skills', { agent: meta.slug });
+        this.logger.info('Agent rebuilt with updated skills', {
+          agent: meta.slug,
+        });
       } catch (error) {
-        this.logger.error('Failed to rebuild agent', { agent: meta.slug, error });
+        this.logger.error('Failed to rebuild agent', {
+          agent: meta.slug,
+          error,
+        });
       }
     }
   }
@@ -393,7 +399,9 @@ export class StallionRuntime {
     this.appConfig = await this.configLoader.loadAppConfig();
 
     // Apply feature flags from STALLION_FEATURES env var
-    const features = (process.env.STALLION_FEATURES || '').split(',').filter(Boolean);
+    const features = (process.env.STALLION_FEATURES || '')
+      .split(',')
+      .filter(Boolean);
     if (features.includes('strands-runtime')) {
       this.appConfig.runtime = 'strands';
     }
@@ -444,8 +452,12 @@ export class StallionRuntime {
     const activeProject = projects[0]?.slug;
 
     // Register default skill registry (Anthropic's official skills repo)
-    const { GitHubSkillRegistryProvider } = await import('../providers/github-skill-registry.js');
-    const { registerSkillRegistryProvider } = await import('../providers/registry.js');
+    const { GitHubSkillRegistryProvider } = await import(
+      '../providers/github-skill-registry.js'
+    );
+    const { registerSkillRegistryProvider } = await import(
+      '../providers/registry.js'
+    );
     registerSkillRegistryProvider(new GitHubSkillRegistryProvider());
 
     await SkillService.discoverSkills(
@@ -1199,6 +1211,7 @@ export class StallionRuntime {
       createCrossProjectKnowledgeRoutes(
         this.knowledgeService,
         this.storageAdapter,
+        this.providerService,
       ),
     );
     app.route('/api/coding', createCodingRoutes(this.fileTreeService));
@@ -2338,7 +2351,9 @@ export class StallionRuntime {
             const isFileBackedAgent = this.agentSpecs.has(slug);
             // For file-backed agents, VoltAgent's memory uses our FileMemoryAdapter.
             // For temp agents (default), VoltAgent uses InMemoryStorageAdapter — use our adapter directly.
-            const conversationStorage = isFileBackedAgent ? memory : memoryAdapter;
+            const conversationStorage = isFileBackedAgent
+              ? memory
+              : memoryAdapter;
             if (
               conversationStorage &&
               operationContext.conversationId &&
@@ -2382,10 +2397,10 @@ export class StallionRuntime {
                   )
                   .join('\n');
                 const block = `<conversation_feedback>\nThe user has flagged these responses in this conversation:\n${ratingLines}\nAdjust your approach accordingly.\n</conversation_feedback>`;
-                ragContext = ragContext
-                  ? `${ragContext}\n\n${block}`
-                  : block;
-                feedbackOps.add(negativeRatings.length, { operation: 'inject-conversation' });
+                ragContext = ragContext ? `${ragContext}\n\n${block}` : block;
+                feedbackOps.add(negativeRatings.length, {
+                  operation: 'inject-conversation',
+                });
               }
             }
 
@@ -2601,28 +2616,47 @@ export class StallionRuntime {
             // VoltAgent always creates an in-memory adapter even without explicit memory,
             // so messages are lost on restart. We manually persist via our adapter.
             const isFileBackedAgent = this.agentSpecs.has(slug);
-            if (!isFileBackedAgent && memoryAdapter && conversationId && accumulatedText) {
+            if (
+              !isFileBackedAgent &&
+              memoryAdapter &&
+              conversationId &&
+              accumulatedText
+            ) {
               try {
-                const userText = typeof input === 'string' ? input : (
-                  Array.isArray(input)
-                    ? input.find((m: any) => m.role === 'user')?.parts?.find((p: any) => p.type === 'text')?.text || ''
-                    : ''
-                );
+                const userText =
+                  typeof input === 'string'
+                    ? input
+                    : Array.isArray(input)
+                      ? input
+                          .find((m: any) => m.role === 'user')
+                          ?.parts?.find((p: any) => p.type === 'text')?.text ||
+                        ''
+                      : '';
                 if (userText) {
                   await memoryAdapter.addMessage(
-                    { id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: userText }] },
+                    {
+                      id: crypto.randomUUID(),
+                      role: 'user',
+                      parts: [{ type: 'text', text: userText }],
+                    },
                     operationContext.userId || 'default-user',
                     conversationId,
                   );
                 }
                 await memoryAdapter.addMessage(
-                  { id: crypto.randomUUID(), role: 'assistant', parts: [{ type: 'text', text: accumulatedText }] },
+                  {
+                    id: crypto.randomUUID(),
+                    role: 'assistant',
+                    parts: [{ type: 'text', text: accumulatedText }],
+                  },
                   operationContext.userId || 'default-user',
                   conversationId,
                   { model: modelOverride || this.agentSpecs.get(slug)?.model },
                 );
               } catch (e) {
-                this.logger.error('Failed to persist messages for temp agent', { error: e });
+                this.logger.error('Failed to persist messages for temp agent', {
+                  error: e,
+                });
               }
             }
 
@@ -2688,14 +2722,24 @@ export class StallionRuntime {
 
             // Log metrics for historical tracking
             const inputTokens = usage?.promptTokens || usage?.inputTokens || 0;
-            const outputTokens = usage?.completionTokens || usage?.outputTokens || 0;
+            const outputTokens =
+              usage?.completionTokens || usage?.outputTokens || 0;
             let estimatedCost = 0;
             if (usage && this.modelCatalog) {
               try {
-                const modelId = modelOverride || this.agentSpecs.get(slug)?.model || this.appConfig.invokeModel;
-                const p = await findModelPricing(this.modelCatalog, modelId, this.appConfig.region);
+                const modelId =
+                  modelOverride ||
+                  this.agentSpecs.get(slug)?.model ||
+                  this.appConfig.invokeModel;
+                const p = await findModelPricing(
+                  this.modelCatalog,
+                  modelId,
+                  this.appConfig.region,
+                );
                 estimatedCost = estimateCost(p, inputTokens, outputTokens);
-              } catch (_e) { /* pricing lookup is best-effort */ }
+              } catch (_e) {
+                /* pricing lookup is best-effort */
+              }
             }
 
             this.metricsLog.push({
@@ -2709,7 +2753,10 @@ export class StallionRuntime {
 
             // Record OTel metrics
             chatRequests.add(1, { agent: slug, plugin });
-            chatDuration.record(Date.now() - chatStartMs, { agent: slug, plugin });
+            chatDuration.record(Date.now() - chatStartMs, {
+              agent: slug,
+              plugin,
+            });
             if (usage) {
               tokensInput.add(inputTokens, { agent: slug, plugin });
               tokensOutput.add(outputTokens, { agent: slug, plugin });
@@ -3161,7 +3208,8 @@ export class StallionRuntime {
         continue;
       }
       try {
-        const mod = await import(modulePath);
+        const fileUrl = `file://${modulePath}?t=${Date.now()}`;
+        const mod = await import(fileUrl);
         const factory = mod.default || mod;
         const instance = typeof factory === 'function' ? factory() : factory;
 
@@ -3297,6 +3345,24 @@ export class StallionRuntime {
     }
 
     return result;
+  }
+
+  private resolveVectorDbProvider() {
+    const connections = this.providerService.listProviderConnections();
+    const conn = connections.find(
+      (c) => c.enabled && c.capabilities.includes('vectordb'),
+    );
+    if (!conn) return null;
+    return createVectorDbProvider(conn);
+  }
+
+  private resolveEmbeddingProvider() {
+    const connections = this.providerService.listProviderConnections();
+    const conn = connections.find(
+      (c) => c.enabled && c.capabilities.includes('embedding'),
+    );
+    if (!conn) return null;
+    return createEmbeddingProvider(conn);
   }
 
   /**

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { KnowledgeService } from '../services/knowledge-service.js';
+import type { ProviderService } from '../services/provider-service.js';
 
 export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   const app = new Hono<{ Variables: { slug: string } }>();
@@ -159,8 +160,37 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
 export function createCrossProjectKnowledgeRoutes(
   knowledgeService: KnowledgeService,
   storageAdapter: IStorageAdapter,
+  providerService: ProviderService,
 ) {
   const app = new Hono();
+
+  app.get('/status', async (c) => {
+    try {
+      const connections = providerService.listProviderConnections();
+      const vectorDbConn = connections.find(c => c.enabled && c.capabilities.includes('vectordb')) ?? null;
+      const embeddingConn = connections.find(c => c.enabled && c.capabilities.includes('embedding')) ?? null;
+
+      const projects = storageAdapter.listProjects();
+      let totalDocuments = 0;
+      let totalChunks = 0;
+      for (const project of projects) {
+        const docs = await knowledgeService.listDocuments(project.slug);
+        totalDocuments += docs.length;
+        totalChunks += docs.reduce((sum, d) => sum + d.chunkCount, 0);
+      }
+
+      return c.json({
+        success: true,
+        data: {
+          vectorDb: vectorDbConn ? { id: vectorDbConn.id, name: vectorDbConn.name, type: vectorDbConn.type, enabled: vectorDbConn.enabled } : null,
+          embedding: embeddingConn ? { id: embeddingConn.id, name: embeddingConn.name, type: embeddingConn.type, enabled: embeddingConn.enabled } : null,
+          stats: { totalDocuments, totalChunks, projectCount: projects.length },
+        },
+      });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 500);
+    }
+  });
 
   app.post('/search', async (c) => {
     try {

@@ -6,9 +6,10 @@ import { randomUUID } from 'node:crypto';
 import type { ProviderConnectionConfig } from '@stallion-ai/shared';
 import { Hono } from 'hono';
 import { BedrockLLMProvider } from '../providers/bedrock-llm-provider.js';
-import { OllamaLLMProvider } from '../providers/ollama-provider.js';
-import { OpenAICompatLLMProvider } from '../providers/openai-compat-provider.js';
-import type { ILLMProvider } from '../providers/types.js';
+import { LanceDBProvider } from '../providers/lancedb-provider.js';
+import { OllamaEmbeddingProvider, OllamaLLMProvider } from '../providers/ollama-provider.js';
+import { OpenAICompatEmbeddingProvider, OpenAICompatLLMProvider } from '../providers/openai-compat-provider.js';
+import type { IEmbeddingProvider, ILLMProvider, IVectorDbProvider } from '../providers/types.js';
 import type { ProviderService } from '../services/provider-service.js';
 
 function createLLMProvider(
@@ -19,6 +20,17 @@ function createLLMProvider(
     return new OpenAICompatLLMProvider(conn.config as any);
   if (conn.type === 'bedrock')
     return new BedrockLLMProvider(conn.config as any);
+  return null;
+}
+
+export function createVectorDbProvider(conn: ProviderConnectionConfig): IVectorDbProvider | null {
+  if (conn.type === 'lancedb') return new LanceDBProvider(conn.config as any);
+  return null;
+}
+
+export function createEmbeddingProvider(conn: ProviderConnectionConfig): IEmbeddingProvider | null {
+  if (conn.type === 'ollama') return new OllamaEmbeddingProvider(conn.config as any);
+  if (conn.type === 'openai-compat') return new OpenAICompatEmbeddingProvider(conn.config as any);
   return null;
 }
 
@@ -141,6 +153,36 @@ export function createProviderRoutes(providerService: ProviderService) {
 
       const models = await provider.listModels();
       return c.json({ success: true, data: models });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
+  app.post('/:id/test-embedding', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const connections = await providerService.listProviderConnections();
+      const conn = connections.find((p) => p.id === id);
+      if (!conn) return c.json({ success: false, error: 'Provider not found' }, 404);
+      const provider = createEmbeddingProvider(conn);
+      if (!provider) return c.json({ success: false, error: `No embedding implementation for type: ${conn.type}` }, 400);
+      const healthy = await provider.healthCheck?.() ?? true;
+      return c.json({ success: true, data: { healthy } });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
+  app.post('/:id/test-vectordb', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const connections = await providerService.listProviderConnections();
+      const conn = connections.find((p) => p.id === id);
+      if (!conn) return c.json({ success: false, error: 'Provider not found' }, 404);
+      const provider = createVectorDbProvider(conn);
+      if (!provider) return c.json({ success: false, error: `No vectordb implementation for type: ${conn.type}` }, 400);
+      const healthy = await provider.namespaceExists('__health-check').then(() => true).catch(() => false);
+      return c.json({ success: true, data: { healthy } });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
     }
