@@ -44,7 +44,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   } = useNavigation();
   const agents = useAgents();
   const { projects } = useProjects();
-  const { projectSlug: activeProject, projectName: activeProjectName } =
+  const { projectSlug: activeProject, projectName: activeProjectName, workingDirectory: activeWorkingDir } =
     useActiveProject();
   const availableModels = useModels();
   const appConfig = useConfig();
@@ -242,6 +242,14 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               setProjectFilter={setProjectFilter}
               selectedProject={selectedProject}
             />
+
+            {/* Working directory breadcrumb for project-scoped sessions */}
+            {activeSession?.projectSlug && activeWorkingDir && (
+              <div className="chat-dock__project-context">
+                <span className="chat-dock__project-badge">{activeSession.projectName || activeSession.projectSlug}</span>
+                <span className="chat-dock__project-dir">{activeWorkingDir}</span>
+              </div>
+            )}
 
             <div className="chat-dock__body">
               {activeSession ? (

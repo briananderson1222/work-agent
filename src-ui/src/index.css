@@ -986,6 +986,44 @@ body {
   font-weight: 600;
 }
 
+/* Project badge on session tabs */
+.chat-dock__tab-project {
+  font-size: 9px;
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-right: 4px;
+  flex-shrink: 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Project context breadcrumb between tabs and body */
+.chat-dock__project-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-primary));
+  border-bottom: 1px solid var(--border-primary);
+}
+.chat-dock__project-badge {
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+.chat-dock__project-dir {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chat-dock__tab-agent {
   font-size: 11px;
   color: var(--text-tertiary);

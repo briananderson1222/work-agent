@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
-import { useProjects } from '../contexts/ProjectsContext';
+import { useProject, useProjects } from '../contexts/ProjectsContext';
 
 /**
  * useActiveProject — single source of truth for the active project context.
@@ -13,14 +13,21 @@ import { useProjects } from '../contexts/ProjectsContext';
 export function useActiveProject(): {
   projectSlug: string | null;
   projectName: string | null;
+  workingDirectory: string | null;
 } {
   const { selectedProject, lastProject } = useNavigation();
   const { projects } = useProjects();
 
+  const slug = selectedProject || lastProject || null;
+  const { project } = useProject(slug ?? '');
+
   return useMemo(() => {
-    const slug = selectedProject || lastProject || null;
-    if (!slug) return { projectSlug: null, projectName: null };
-    const name = projects.find((p: any) => p.slug === slug)?.name ?? slug;
-    return { projectSlug: slug, projectName: name };
-  }, [selectedProject, lastProject, projects]);
+    if (!slug) return { projectSlug: null, projectName: null, workingDirectory: null };
+    const name = project?.name ?? projects.find((p: any) => p.slug === slug)?.name ?? slug;
+    return {
+      projectSlug: slug,
+      projectName: name,
+      workingDirectory: project?.workingDirectory ?? null,
+    };
+  }, [slug, project, projects]);
 }

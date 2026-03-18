@@ -72,17 +72,7 @@ export function SessionTab({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="chat-dock__tab-title">
           {session.projectName && (
-            <span
-              style={{
-                fontSize: '9px',
-                color: 'var(--text-muted)',
-                background: 'var(--bg-subtle, rgba(0,0,0,0.08))',
-                borderRadius: '3px',
-                padding: '0 3px',
-                marginRight: '4px',
-                flexShrink: 0,
-              }}
-            >
+            <span className="chat-dock__tab-project">
               {session.projectName}
             </span>
           )}

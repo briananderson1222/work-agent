@@ -142,6 +142,16 @@
   white-space: nowrap;
 }
 
+.sidebar__page-type {
+  font-size: 9px;
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
 .sidebar--collapsed .sidebar__project-name,
 .sidebar--collapsed .sidebar__chevron {
   display: none;
