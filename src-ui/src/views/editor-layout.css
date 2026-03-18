@@ -1460,3 +1460,100 @@
 .agents-acp-section {
   padding: 0 1.5rem 1.5rem;
 }
+
+/* ── Integration Form/Raw Toggle ── */
+.integration__mode-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.integration__mode-tab {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.integration__mode-tab:not(:last-child) {
+  border-right: 1px solid var(--border-primary);
+}
+
+.integration__mode-tab--active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.integration__mode-tab:hover:not(.integration__mode-tab--active) {
+  color: var(--text-secondary);
+}
+
+.integration__raw-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.integration__raw-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.integration__raw-hint code {
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.integration__raw-editor {
+  width: 100%;
+  min-height: 280px;
+  padding: 12px 14px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.integration__raw-editor:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.integration__raw-editor::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.integration__raw-error {
+  font-size: 12px;
+  color: var(--error-text, #ef4444);
+  padding: 6px 10px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 4px;
+  border-left: 2px solid var(--error-text, #ef4444);
+}
+
+/* ── Integration server name in agent editor ── */
+.editor__tools-server-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
