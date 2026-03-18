@@ -85,6 +85,8 @@ describe('ACPConnection', () => {
       mockLogger,
       '/tmp',
     );
+    // Mark as shutting down to skip auto-restart attempt
+    (conn as any).shuttingDown = true;
     const mockContext = { json: vi.fn().mockReturnValue('err') } as any;
     await conn.handleChat(mockContext, 'kiro-dev', 'hello', {});
     expect(mockContext.json).toHaveBeenCalledWith(
