@@ -29,15 +29,9 @@ All Hono route handlers use helpers from `src-server/routes/schemas.ts`:
 
 Always import from schemas. Never use raw `c.get('body')` or `c.req.param()`.
 
-## Internal Reference Audit
+## Clean Core
 
-Before pushing to public remotes, scan for internal references:
-
-```bash
-git diff origin/main..HEAD -- . | grep -iE '(amazon\.com|aws\.dev|@amazon|midway|phonetool|wiki\.amazon|code\.amazon|isengard|\.corp\.|\.aka\.)' | grep '^+' | grep -v '^+++'
-```
-
-If ANY matches found, fix before pushing.
+The core must remain vendor-neutral and free of organization-specific references. No hardcoded company domains, internal tool names, employee identifiers, or proprietary service URLs should appear in source code, configs, or comments. Before pushing, scan the diff for anything that couples the core to a specific organization and remove it. Default implementations should work for any user out of the box.
 
 ## Push & Monitor
 
