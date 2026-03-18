@@ -112,6 +112,19 @@ export function useServerEvents(handlers?: Record<string, EventHandler>) {
         });
       }
 
+      // Generic data:changed handler — invalidates specific query keys from server
+      es.addEventListener('data:changed', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          const keys = data.keys as string[] | undefined;
+          if (keys) {
+            for (const key of keys) {
+              queryClient.invalidateQueries({ queryKey: [key] });
+            }
+          }
+        } catch {}
+      });
+
       // Register custom handlers
       if (handlersRef.current) {
         for (const [event, handler] of Object.entries(handlersRef.current)) {

@@ -730,6 +730,27 @@ export class StallionRuntime {
       }),
     );
 
+    // Cache invalidation middleware — emit data:changed for mutating requests
+    app.use('*', async (c, next) => {
+      await next();
+      if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(c.req.method)) {
+        const path = c.req.path;
+        const keys: string[] = [];
+        if (path.startsWith('/agents')) keys.push('agents');
+        if (path.startsWith('/integrations')) keys.push('integrations');
+        if (path.includes('/prompts')) keys.push('prompts');
+        if (path.includes('/skills')) keys.push('skills');
+        if (path.includes('/providers')) keys.push('providers');
+        if (path.includes('/scheduler') || path.includes('/jobs')) keys.push('scheduler-jobs');
+        if (path.includes('/projects')) keys.push('projects');
+        if (path.includes('/knowledge')) keys.push('knowledge');
+        if (path.includes('/registry')) keys.push('skills', 'integrations', 'agents');
+        if (keys.length > 0) {
+          this.eventBus.emit('data:changed', { keys: [...new Set(keys)] });
+        }
+      }
+    });
+
     // Models capabilities and pricing endpoints
     app.route('/api/models', modelsRoute);
 
