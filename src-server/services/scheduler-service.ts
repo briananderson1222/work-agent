@@ -34,6 +34,10 @@ export class SchedulerService {
     this.providers.set(this.builtin.id, this.builtin);
   }
 
+  async stop(): Promise<void> {
+    await this.builtin.stop();
+  }
+
   /** Wire the chat function once the runtime is ready */
   setChatFn(fn: ChatFn) {
     this.builtin.setChatFn(fn);

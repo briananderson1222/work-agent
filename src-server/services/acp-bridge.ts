@@ -210,6 +210,7 @@ export class ACPConnection {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private shuttingDown = false;
+  private intentionalKill = false;
   private lastActivityAt: number = Date.now();
   private hasBeenViewed: boolean = false;
 
@@ -246,7 +247,9 @@ export class ACPConnection {
   async start(): Promise<boolean> {
     if (this.shuttingDown) return false;
     if (!this.config.enabled) return false;
+    if (this.proc) return false; // Already running
     this.status = 'connecting';
+    this.intentionalKill = false;
 
     const bin = await this.findCommand();
     if (!bin) {
@@ -265,6 +268,7 @@ export class ACPConnection {
 
       this.proc.on('exit', (code) => {
         this.logger.warn('[ACPBridge] kiro-cli exited', { code });
+        this.proc = null;
         this.connection = null;
         this.sessionId = null;
         this.modes = [];
@@ -275,7 +279,9 @@ export class ACPConnection {
           id: this.config.id,
           status: 'disconnected',
         });
-        this.scheduleReconnect();
+        if (!this.intentionalKill) {
+          this.scheduleReconnect();
+        }
       });
 
       const input = Writable.toWeb(this.proc.stdin!);
@@ -499,6 +505,7 @@ export class ACPConnection {
       this.reconnectAttempts >= this.maxReconnectAttempts
     )
       return;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
     this.reconnectAttempts++;
     this.logger.info('[ACPBridge] Scheduling reconnect', {
@@ -1595,7 +1602,12 @@ export class ACPConnection {
       term.process.kill();
     }
     this.terminals.clear();
-    this.proc?.kill();
+    this.intentionalKill = true;
+    if (this.proc) {
+      const p = this.proc;
+      p.kill('SIGTERM');
+      setTimeout(() => { try { p.kill('SIGKILL'); } catch {} }, 5000);
+    }
     this.proc = null;
     this.connection = null;
     this.sessionId = null;

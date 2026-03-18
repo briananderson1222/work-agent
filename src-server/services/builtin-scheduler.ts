@@ -54,6 +54,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = new Set<string>();
+  private runningJobs = new Map<string, Promise<void>>();
   private missed = new Map<string, number>();
   private sse = new SSEBroadcaster();
   private chatFn: ChatFn | null = null;
@@ -69,11 +70,16 @@ export class BuiltinScheduler implements ISchedulerProvider {
     this.tick();
   }
 
-  stop() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
+  async stop() {
+    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    await Promise.all(this.runningJobs.values());
+  }
+
+  private trackJob(name: string): () => void {
+    let resolve: () => void;
+    const p = new Promise<void>(r => { resolve = r; });
+    this.runningJobs.set(name, p);
+    return () => { this.runningJobs.delete(name); resolve!(); };
   }
 
   private tick() {
@@ -90,6 +96,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
   }
 
   private async executeJob(job: StoredJob) {
+    const done = this.trackJob(job.name);
     const id = `${job.name}-${Date.now()}`;
     const startedAt = new Date().toISOString();
     this.running.add(job.name);
@@ -159,6 +166,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
     } finally {
       this.missed.delete(job.name);
       this.running.delete(job.name);
+      done();
     }
   }
 

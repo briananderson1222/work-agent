@@ -61,6 +61,7 @@ const MAX_AVOID = 25;
 export class FeedbackService {
   private store: JsonFileStore<FeedbackStore>;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private initialTimer: ReturnType<typeof setTimeout> | null = null;
   private analyzeFn: AnalyzeCallback | null = null;
   private maxReinforce = 25;
   private maxAvoid = 25;
@@ -215,7 +216,7 @@ ${avoid || '(none identified yet)'}
   /** Start the periodic analysis loop. */
   start(): void {
     // Run once after a short delay (let agents initialize)
-    setTimeout(() => this.runAnalysisPipeline(), 5000);
+    this.initialTimer = setTimeout(() => this.runAnalysisPipeline(), 5000);
     this.timer = setInterval(
       () => this.runAnalysisPipeline(),
       ANALYSIS_INTERVAL_MS,
@@ -223,6 +224,7 @@ ${avoid || '(none identified yet)'}
   }
 
   stop(): void {
+    if (this.initialTimer) { clearTimeout(this.initialTimer); this.initialTimer = null; }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;

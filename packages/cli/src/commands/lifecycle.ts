@@ -133,14 +133,18 @@ export function start(opts: StartOptions = {}): void {
 
 export function stop(): void {
   if (!existsSync(PIDFILE)) return;
-  const pids = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
+  const pids = readFileSync(PIDFILE, 'utf-8').trim().split(' ').map(p => parseInt(p, 10));
   for (const pid of pids) {
-    try {
-      process.kill(parseInt(pid, 10));
-    } catch {}
+    try { process.kill(pid, 'SIGTERM'); } catch { continue; }
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      try { process.kill(pid, 0); } catch { break; }
+      execSync('sleep 0.2', { stdio: 'ignore' });
+    }
+    try { process.kill(pid, 'SIGKILL'); } catch {}
   }
   rmSync(PIDFILE, { force: true });
-  console.log('  ✓ Stopped');
+  console.log('  \u2713 Stopped');
 }
 
 export function doctor(): void {

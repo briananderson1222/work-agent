@@ -21,6 +21,7 @@ async function main() {
 
   try {
     await runtime.initialize();
+    let shuttingDown = false;
 
     console.log('\\n═══════════════════════════════════════════════════');
     console.log('  STALLION AI STARTED');
@@ -31,17 +32,23 @@ async function main() {
     console.log('  Loaded agents:', runtime.listAgents().join(', '));
     console.log('═══════════════════════════════════════════════════\\n');
 
-    // Handle graceful shutdown
-    process.on('SIGINT', async () => {
-      console.log('\\n\\nShutting down gracefully...');
+    const gracefulShutdown = async (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`\n\nShutting down gracefully (${signal})...`);
       await runtime.shutdown();
       process.exit(0);
-    });
+    };
 
-    process.on('SIGTERM', async () => {
-      console.log('\\n\\nShutting down gracefully...');
-      await runtime.shutdown();
-      process.exit(0);
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('unhandledRejection', (reason) => {
+      console.error('Unhandled rejection:', reason);
+      gracefulShutdown('unhandledRejection');
+    });
+    process.on('uncaughtException', (err) => {
+      console.error('Uncaught exception:', err);
+      gracefulShutdown('uncaughtException');
     });
   } catch (error) {
     console.error('Failed to start Stallion:', error);
