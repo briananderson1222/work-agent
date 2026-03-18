@@ -21,17 +21,17 @@ import {
 } from '../telemetry/metrics.js';
 import { estimateCost, findModelPricing } from '../utils/pricing.js';
 import type { RuntimeContext } from '../runtime/types.js';
-import { chatSchema, validate } from './schemas.js';
+import { chatSchema, validate, getBody, param } from './schemas.js';
 
 export function createChatRoutes(ctx: RuntimeContext) {
   const app = new Hono();
 
   app.post('/:slug/chat', validate(chatSchema), async (c) => {
-    const slug = c.req.param('slug');
+    const slug = param(c, 'slug');
     const plugin = c.req.header('x-stallion-plugin') || '';
 
     try {
-      const { input, options = {}, projectSlug } = c.get('body');
+      const { input, options = {}, projectSlug } = getBody(c);
 
       // ACP routing — delegate to kiro-cli if this is an ACP agent
       if (ctx.acpBridge.hasAgent(slug)) {

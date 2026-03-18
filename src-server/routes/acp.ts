@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { listProviders } from '../providers/registry.js';
 import type { RuntimeContext } from '../runtime/types.js';
-import { acpConnectionSchema, validate } from './schemas.js';
+import { acpConnectionSchema, getBody, param, validate } from './schemas.js';
 
 export function createACPRoutes(ctx: RuntimeContext) {
   const app = new Hono();
@@ -11,12 +11,12 @@ export function createACPRoutes(ctx: RuntimeContext) {
   });
 
   app.get('/commands/:slug', (c) => {
-    const slug = c.req.param('slug');
+    const slug = param(c, 'slug');
     return c.json({ success: true, data: ctx.acpBridge.getSlashCommands(slug) });
   });
 
   app.get('/commands/:slug/options', async (c) => {
-    const slug = c.req.param('slug');
+    const slug = param(c, 'slug');
     const partial = c.req.query('q') || '';
     const options = await ctx.acpBridge.getCommandOptions(slug, partial);
     return c.json({ success: true, data: options });
@@ -49,7 +49,7 @@ export function createACPRoutes(ctx: RuntimeContext) {
   });
 
   app.post('/connections', validate(acpConnectionSchema), async (c) => {
-    const body = c.get('body');
+    const body = getBody(c);
     if (!body.id || !body.command) {
       return c.json({ success: false, error: 'id and command are required' }, 400);
     }
@@ -72,8 +72,8 @@ export function createACPRoutes(ctx: RuntimeContext) {
   });
 
   app.put('/connections/:id', validate(acpConnectionSchema.partial()), async (c) => {
-    const id = c.req.param('id');
-    const body = c.get('body');
+    const id = param(c, 'id');
+    const body = getBody(c);
     const config = await ctx.configLoader.loadACPConfig();
     const idx = config.connections.findIndex((conn) => conn.id === id);
     if (idx === -1) return c.json({ success: false, error: 'Connection not found' }, 404);
@@ -85,7 +85,7 @@ export function createACPRoutes(ctx: RuntimeContext) {
   });
 
   app.delete('/connections/:id', async (c) => {
-    const id = c.req.param('id');
+    const id = param(c, 'id');
     const config = await ctx.configLoader.loadACPConfig();
     config.connections = config.connections.filter((conn) => conn.id !== id);
     await ctx.configLoader.saveACPConfig(config);

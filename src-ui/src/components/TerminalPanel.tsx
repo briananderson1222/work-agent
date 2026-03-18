@@ -59,7 +59,7 @@ export function TerminalPanel({
     const connectWs = async () => {
       let port: number;
       try {
-        const res = await fetch(`${apiBase}/api/coding/terminal-port`);
+        const res = await fetch(`${apiBase}/api/system/terminal-port`);
         const json = await res.json();
         port = json.port ?? json.data?.port;
         if (!port) throw new Error('no port');

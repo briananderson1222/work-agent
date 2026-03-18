@@ -4,14 +4,14 @@
 
 import { Hono } from 'hono';
 import type { FeedbackService } from '../services/feedback-service.js';
-import { rateSchema, validate } from './schemas.js';
+import { rateSchema, validate, getBody } from './schemas.js';
 
 export function createFeedbackRoutes(feedbackService: FeedbackService) {
   const app = new Hono();
 
   // Rate a message
   app.post('/rate', validate(rateSchema), async (c) => {
-    const body = c.get('body');
+    const body = getBody(c);
     const {
       agentSlug,
       conversationId,

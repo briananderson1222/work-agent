@@ -612,13 +612,6 @@ export class ConfigLoader {
     validator.validateLayoutConfig(data);
 
     // Validate agent references
-    for (const prompt of data.globalPrompts || []) {
-      if (prompt.agent && !(await this.agentExists(prompt.agent))) {
-        throw new Error(
-          `Layout '${slug}' references non-existent agent '${prompt.agent}'`,
-        );
-      }
-    }
     for (const tab of data.tabs || []) {
       for (const prompt of tab.prompts || []) {
         if (prompt.agent && !(await this.agentExists(prompt.agent))) {
@@ -738,17 +731,12 @@ export class ConfigLoader {
       try {
         const config = await this.loadLayout(layout.slug);
 
-        // Check global prompts
-        const hasGlobalRef = config.globalPrompts?.some(
-          (p) => p.agent === agentSlug,
-        );
-
         // Check tab prompts
         const hasTabRef = config.tabs.some((tab) =>
           tab.prompts?.some((p) => p.agent === agentSlug),
         );
 
-        if (hasGlobalRef || hasTabRef) {
+        if (hasTabRef) {
           using.push(layout.slug);
         }
       } catch (error) {

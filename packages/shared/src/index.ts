@@ -243,6 +243,7 @@ export interface LayoutAction {
   type: 'prompt' | 'inline-prompt' | 'external' | 'internal';
   label: string;
   icon?: string;
+  agent?: string;
   data: string;
 }
 

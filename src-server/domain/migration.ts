@@ -87,7 +87,6 @@ export async function runStartupMigrations(projectHomeDir: string): Promise<void
       description: sl.description,
       config: {
         tabs: sl.tabs,
-        globalPrompts: sl.globalPrompts,
         defaultAgent: sl.defaultAgent,
         availableAgents: sl.availableAgents,
       },

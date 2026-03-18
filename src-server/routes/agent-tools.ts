@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { RuntimeContext } from '../runtime/types.js';
-import { addToolSchema, updateAllowedSchema, updateAliasesSchema, validate } from './schemas.js';
+import { addToolSchema, updateAllowedSchema, updateAliasesSchema, validate, getBody, param } from './schemas.js';
 
 type ToolWithDescription = { description?: string; [key: string]: any };
 
@@ -11,7 +11,7 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
   // GET /:slug/tools
   app.get('/:slug/tools', async (c) => {
     try {
-      const slug = c.req.param('slug');
+      const slug = param(c, 'slug');
       if (!ctx.activeAgents.get(slug)) {
         return c.json({ success: false, error: 'Agent not found or not active' }, 404);
       }
@@ -43,8 +43,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
   // POST /:slug/tools
   app.post('/:slug/tools', validate(addToolSchema), async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const { toolId } = c.get('body');
+      const slug = param(c, 'slug');
+      const { toolId } = getBody(c);
       const agent = await ctx.configLoader.loadAgent(slug);
       const tools = agent.tools || { mcpServers: [], available: ['*'] };
       if (!tools.mcpServers.includes(toolId)) tools.mcpServers.push(toolId);
@@ -59,8 +59,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
   // DELETE /:slug/tools/:toolId
   app.delete('/:slug/tools/:toolId', async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const toolId = c.req.param('toolId');
+      const slug = param(c, 'slug');
+      const toolId = param(c, 'toolId');
       const agent = await ctx.configLoader.loadAgent(slug);
       const tools = agent.tools || { mcpServers: [] };
       tools.mcpServers = tools.mcpServers.filter((id: string) => id !== toolId);
@@ -75,8 +75,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
   // PUT /:slug/tools/allowed
   app.put('/:slug/tools/allowed', validate(updateAllowedSchema), async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const { allowed } = c.get('body');
+      const slug = param(c, 'slug');
+      const { allowed } = getBody(c);
       const agent = await ctx.configLoader.loadAgent(slug);
       const tools = agent.tools || { mcpServers: [] };
       tools.available = allowed;
@@ -91,8 +91,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
   // PUT /:slug/tools/aliases
   app.put('/:slug/tools/aliases', validate(updateAliasesSchema), async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const { aliases } = c.get('body');
+      const slug = param(c, 'slug');
+      const { aliases } = getBody(c);
       const agent = await ctx.configLoader.loadAgent(slug);
       const tools = agent.tools || { mcpServers: [] };
       tools.aliases = aliases;
@@ -106,7 +106,7 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
 
   // GET /:slug/health
   app.get('/:slug/health', async (c) => {
-    const slug = c.req.param('slug');
+    const slug = param(c, 'slug');
     const agent = ctx.activeAgents.get(slug);
 
     if (!agent) {

@@ -227,7 +227,7 @@ export class TerminalService {
             `powershell -NoProfile -Command "Get-Process -Id ${entry.pid} -ErrorAction SilentlyContinue"`,
             { stdio: 'pipe' },
           );
-          const hasChildProcess = psResult.stdout.trim().length > 0;
+          const hasChildProcess = psResult.toString().trim().length > 0;
           if (!entry.hasRunningSubprocess && hasChildProcess) {
             entry.hasRunningSubprocess = true;
             this.emit({

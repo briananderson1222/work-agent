@@ -111,7 +111,7 @@ export class AgentService {
     try {
       await this.configLoader.loadAgent(slug);
     } catch {
-      await this.configLoader.createAgent({ slug, name: filtered.name || slug, ...filtered } as AgentSpec);
+      await this.configLoader.createAgent({ slug, name: filtered.name || slug, ...filtered } as unknown as AgentSpec);
       agentOps.add(1, { operation: 'materialize', agent: slug });
       return this.configLoader.loadAgent(slug);
     }

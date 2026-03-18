@@ -6,13 +6,13 @@ import { Hono } from 'hono';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import * as ConversationManager from '../runtime/conversation-manager.js';
 import { conversationOps } from '../telemetry/metrics.js';
-import { contextActionSchema, validate } from './schemas.js';
+import { contextActionSchema, validate, getBody, param } from './schemas.js';
 
 export function createConversationRoutes(
   memoryAdapters: Map<string, FileMemoryAdapter>,
   logger: any,
-  agentFixedTokens?: number,
-  agentTools?: any[],
+  agentFixedTokens?: any,
+  agentTools?: any,
   configLoader?: any,
   appConfig?: any,
   modelCatalog?: any,
@@ -23,7 +23,7 @@ export function createConversationRoutes(
   app.get('/:slug/conversations', async (c) => {
     try {
       conversationOps.add(1, { operation: 'list' });
-      const slug = c.req.param('slug');
+      const slug = param(c, 'slug');
       const adapter = memoryAdapters.get(slug);
 
       if (!adapter) {
@@ -42,9 +42,9 @@ export function createConversationRoutes(
   // Update conversation (e.g., title)
   app.patch('/:slug/conversations/:conversationId', async (c) => {
     try {
-      conversationOps.add(1, { operation: 'update', agent: c.req.param('slug') });
-      const slug = c.req.param('slug');
-      const conversationId = c.req.param('conversationId');
+      conversationOps.add(1, { operation: 'update', agent: param(c, 'slug') });
+      const slug = param(c, 'slug');
+      const conversationId = param(c, 'conversationId');
       const adapter = memoryAdapters.get(slug);
 
       if (!adapter) {
@@ -64,9 +64,9 @@ export function createConversationRoutes(
   // Delete conversation
   app.delete('/:slug/conversations/:conversationId', async (c) => {
     try {
-      conversationOps.add(1, { operation: 'delete', agent: c.req.param('slug') });
-      const slug = c.req.param('slug');
-      const conversationId = c.req.param('conversationId');
+      conversationOps.add(1, { operation: 'delete', agent: param(c, 'slug') });
+      const slug = param(c, 'slug');
+      const conversationId = param(c, 'conversationId');
       const adapter = memoryAdapters.get(slug);
 
       if (!adapter) {
@@ -85,9 +85,9 @@ export function createConversationRoutes(
   // Get messages for a conversation
   app.get('/:slug/conversations/:conversationId/messages', async (c) => {
     try {
-      conversationOps.add(1, { operation: 'messages', agent: c.req.param('slug') });
-      const slug = c.req.param('slug');
-      const conversationId = c.req.param('conversationId');
+      conversationOps.add(1, { operation: 'messages', agent: param(c, 'slug') });
+      const slug = param(c, 'slug');
+      const conversationId = param(c, 'conversationId');
       const adapter = memoryAdapters.get(slug);
 
       if (!adapter) {
@@ -121,9 +121,9 @@ export function createConversationRoutes(
   // Manage conversation context (summarize, trim, etc.)
   app.post('/:slug/conversations/:conversationId/context', validate(contextActionSchema), async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const conversationId = c.req.param('conversationId');
-      const { action, content } = c.get('body');
+      const slug = param(c, 'slug');
+      const conversationId = param(c, 'conversationId');
+      const { action, content } = getBody(c);
       const result = await ConversationManager.manageConversationContext(slug, conversationId, action, content, memoryAdapters);
       return c.json(result);
     } catch (error: any) {
@@ -135,8 +135,8 @@ export function createConversationRoutes(
   // Get conversation token/stats
   app.get('/:slug/conversations/:conversationId/stats', async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const conversationId = c.req.param('conversationId');
+      const slug = param(c, 'slug');
+      const conversationId = param(c, 'conversationId');
       const data = await ConversationManager.getConversationStats(slug, conversationId, memoryAdapters, agentFixedTokens, agentTools, configLoader, appConfig, modelCatalog, logger);
       return c.json({ success: true, data });
     } catch (error: any) {

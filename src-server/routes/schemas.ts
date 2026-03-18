@@ -80,7 +80,20 @@ export function validate<T>(schema: z.ZodSchema<T>) {
     if (!result.success) {
       return c.json({ success: false, error: 'Validation failed', details: result.error.flatten() }, 400);
     }
-    c.set('body', result.data);
+    c.set('body' as never, result.data);
     await next();
   };
+}
+
+/** Retrieve the validated body set by `validate()`. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getBody(c: Context): any {
+  return (c.get as (key: string) => unknown)('body');
+}
+
+/** Get a required route param, throwing 400 if missing. */
+export function param(c: Context, name: string): string {
+  const v = c.req.param(name);
+  if (!v) throw new Error(`Missing param: ${name}`);
+  return v;
 }

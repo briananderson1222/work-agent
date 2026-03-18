@@ -4,7 +4,7 @@ import { DEFAULT_SYSTEM_PROMPT } from '../domain/config-loader.js';
 import type { AgentSpec } from '../domain/types.js';
 import type { RuntimeContext } from '../runtime/types.js';
 import { isAuthError } from '../utils/auth-errors.js';
-import { invokeSchema, invokeStreamSchema, toolApprovalSchema, globalInvokeSchema, validate } from './schemas.js';
+import { invokeSchema, invokeStreamSchema, toolApprovalSchema, globalInvokeSchema, validate, getBody, param } from './schemas.js';
 
 interface ToolResult {
   content?: Array<{ text: string }>;
@@ -36,8 +36,8 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
   // POST /agents/:slug/invoke — silent agent invocation
   app.post('/agents/:slug/invoke', validate(invokeSchema), async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const { input, model, tools: toolNames, schema } = c.get('body');
+      const slug = param(c, 'slug');
+      const { input, model, tools: toolNames, schema } = getBody(c);
 
       const agent = ctx.activeAgents.get(slug);
       if (!agent) return c.json({ success: false, error: 'Agent not found' }, 404);
@@ -91,8 +91,8 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
   app.post('/agents/:slug/tools/:toolName', async (c) => {
     const startTime = performance.now();
     try {
-      const slug = c.req.param('slug');
-      const toolName = c.req.param('toolName');
+      const slug = param(c, 'slug');
+      const toolName = param(c, 'toolName');
       const toolArgs = await c.req.json();
 
       let resolvedSlug = slug;
@@ -132,8 +132,8 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
   // POST /agents/:slug/invoke/stream
   app.post('/agents/:slug/invoke/stream', validate(invokeStreamSchema), async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const { prompt, model, tools: toolNames, maxSteps = 10, schema: schemaJson } = c.get('body');
+      const slug = param(c, 'slug');
+      const { prompt, model, tools: toolNames, maxSteps = 10, schema: schemaJson } = getBody(c);
 
       const agent = ctx.activeAgents.get(slug);
       if (!agent) return c.json({ success: false, error: 'Agent not found' }, 404);
@@ -194,8 +194,8 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
   // POST /tool-approval/:approvalId
   app.post('/tool-approval/:approvalId', validate(toolApprovalSchema), async (c) => {
     try {
-      const approvalId = c.req.param('approvalId');
-      const { approved } = c.get('body');
+      const approvalId = param(c, 'approvalId');
+      const { approved } = getBody(c);
 
       ctx.logger.info('[Approval Endpoint] Received approval response', { approvalId, approved });
 
@@ -222,7 +222,7 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         model,
         structureModel,
         system,
-      } = c.get('body');
+      } = getBody(c);
 
       const filteredTools =
         toolIds.length > 0

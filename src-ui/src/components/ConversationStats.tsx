@@ -422,7 +422,7 @@ export function ConversationStats({
                 {stats.turns > 0 && (
                   <div>
                     Per Turn: $
-                    {(stats.estimatedCost / stats.turns ?? 0).toFixed(4)}
+                    {(stats.estimatedCost / (stats.turns || 1)).toFixed(4)}
                   </div>
                 )}
               </div>
