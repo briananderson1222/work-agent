@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useAIEnrich } from '../hooks/useAIEnrich';
@@ -50,6 +51,17 @@ function promptToForm(p: Prompt): PromptForm {
   };
 }
 
+function parseFrontmatter(text: string): { name?: string; description?: string; content: string } {
+  const match = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!match) return { content: text };
+  const meta: Record<string, string> = {};
+  for (const line of match[1].split('\n')) {
+    const idx = line.indexOf(':');
+    if (idx > 0) meta[line.slice(0, idx).trim()] = line.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
+  }
+  return { name: meta.name, description: meta.description, content: match[2].trim() };
+}
+
 export function PromptsView() {
   const { apiBase } = useApiBase();
   const {
@@ -66,6 +78,8 @@ export function PromptsView() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   const { data: prompts = [], isLoading } = useQuery<Prompt[]>({
     queryKey: ['prompts'],
@@ -193,6 +207,25 @@ export function PromptsView() {
     };
   }
 
+  async function handleUpload(files: FileList) {
+    setUploading(true);
+    for (const file of Array.from(files)) {
+      if (!file.name.endsWith('.md')) continue;
+      const text = await file.text();
+      const parsed = parseFrontmatter(text);
+      const name = parsed.name || file.name.replace(/\.md$/, '').replace(/[^a-zA-Z0-9_-]/g, '-');
+      try {
+        await fetch(`${apiBase}/api/prompts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, content: parsed.content, description: parsed.description }),
+        });
+      } catch {}
+    }
+    queryClient.invalidateQueries({ queryKey: ['prompts'] });
+    setUploading(false);
+  }
+
   function handleSave() {
     if (isNew) {
       createMutation.mutate(buildPayload());
@@ -231,21 +264,42 @@ export function PromptsView() {
         emptyIcon="⌘"
         emptyTitle="No prompt selected"
         emptyDescription="Select a prompt or create a new one"
+        sidebarActions={
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }}
+            />
+            <button
+              className="split-pane__add-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              style={{ background: 'transparent', border: '1px solid var(--border-primary)', color: 'var(--text-secondary)' }}
+            >
+              {uploading ? 'Uploading…' : '↑ Upload .md'}
+            </button>
+          </>
+        }
       >
         {isEditing && (
           <div className="prompt-editor">
+            <DetailHeader
+              title={isNew ? 'New Prompt' : form.name || 'Edit Prompt'}
+              badge={dirty ? { label: 'unsaved', variant: 'warning' as const } : undefined}
+            >
+              {!isNew && selectedId && (
+                <button className="editor-btn editor-btn--danger" onClick={() => setShowDeleteModal(true)}>Delete</button>
+              )}
+              <button className="editor-btn editor-btn--primary" onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending || !form.name}>
+                {(createMutation.isPending || updateMutation.isPending) ? 'Saving…' : isNew ? 'Create' : 'Save'}
+              </button>
+            </DetailHeader>
             {/* Basic section */}
             <div className="editor__section">
-              <div className="editor__section-header">
-                <span className="editor__section-title">
-                  {isNew ? 'New Prompt' : form.name || 'Edit Prompt'}
-                </span>
-                {dirty && (
-                  <span className="prompt-editor__unsaved">
-                    unsaved changes
-                  </span>
-                )}
-              </div>
 
               <div className="editor-field">
                 <label className="editor-label">Name</label>
@@ -398,23 +452,6 @@ export function PromptsView() {
                   </span>
                 </div>
               )}
-              <div style={{ flex: 1 }} />
-              {!isNew && selectedId && (
-                <button
-                  className="editor-btn editor-btn--danger"
-                  onClick={() => setShowDeleteModal(true)}
-                  disabled={isSaving}
-                >
-                  Delete
-                </button>
-              )}
-              <button
-                className="editor-btn editor-btn--primary"
-                onClick={handleSave}
-                disabled={isSaving || !form.name || !form.content}
-              >
-                {isSaving ? 'Saving...' : 'Save'}
-              </button>
             </div>
           </div>
         )}
