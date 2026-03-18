@@ -50,6 +50,10 @@ Project layout navigation MUST go through `setLayout(projectSlug, layoutSlug)` f
 
 The root route (`/`) auto-selects in this priority: (1) last-viewed project+layout from localStorage, (2) first project's first layout, (3) standalone layout fallback.
 
+### Code quality & pushing
+
+Before pushing, run the full local CI pipeline (typecheck, biome lint, build, tests) and audit for internal references. Route handlers use `getBody(c)` and `param(c, 'name')` from `schemas.ts` for type safety. See [docs/guides/code-quality.md](docs/guides/code-quality.md) for the full checklist.
+
 ### Known issues
 
 - The ChatDock overlay intercepts pointer events on sidebar buttons near the bottom of the viewport. Use `element.dispatchEvent('click')` in Playwright tests to bypass.
@@ -79,6 +83,10 @@ The notification system follows the provider pattern. Core is abstract — it kn
 - `metadata` is opaque to core — plugins store domain-specific data, core just persists and delivers
 - `dedupeTag` prevents duplicate notifications without core knowing the domain
 - Tool-approval was NOT migrated — it's streaming-event-driven (ephemeral), not a scheduled notification
+
+### Windows compatibility
+
+All `spawn()` and `execSync()` calls MUST include `windowsHide: true` to prevent console windows flashing on Windows. Use `where` instead of `which` for command lookups (`process.platform === 'win32'`).
 
 ### Observability (OTel)
 
