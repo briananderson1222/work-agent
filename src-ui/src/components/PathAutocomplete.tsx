@@ -96,7 +96,11 @@ export function PathAutocomplete({
         setShow(false);
         onSubmit?.();
       }
-    } else if (e.key === 'Escape') setShow(false);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setShow(false);
+      inputRef.current?.blur();
+    }
   };
 
   return (
@@ -114,10 +118,6 @@ export function PathAutocomplete({
         onBlur={() =>
           setTimeout(() => {
             if (!pickingRef.current) {
-              // Accept current selected suggestion on blur
-              if (show && selectedIdx >= 0 && suggestions[selectedIdx]) {
-                pick(suggestions[selectedIdx]);
-              }
               setShow(false);
               onBlur?.();
             }
