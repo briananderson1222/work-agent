@@ -1,0 +1,211 @@
+/* ── Knowledge Connection View ──────────────────────────────────── */
+
+.knowledge-view {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+.knowledge-view__inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 3rem;
+}
+
+.knowledge-view__header {
+  margin-bottom: 2rem;
+}
+
+.knowledge-view__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.knowledge-view__desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ── Sections ───────────────────────────────────────────────────── */
+
+.knowledge-view__section {
+  margin-bottom: 2rem;
+}
+
+.knowledge-view__section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* ── Card ───────────────────────────────────────────────────────── */
+
+.knowledge-view__card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.knowledge-view__card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.knowledge-view__card-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+}
+
+.knowledge-view__card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.knowledge-view__card-type {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.knowledge-view__card-spacer {
+  flex: 1;
+}
+
+.knowledge-view__card-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Status ─────────────────────────────────────────────────────── */
+
+.knowledge-view__status {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.knowledge-view__status--enabled {
+  color: var(--success-text, #22c55e);
+  background: color-mix(in srgb, var(--success-text, #22c55e) 10%, transparent);
+}
+
+.knowledge-view__status--disabled {
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+}
+
+/* ── Field ──────────────────────────────────────────────────────── */
+
+.knowledge-view__field {
+  margin-bottom: 12px;
+}
+
+.knowledge-view__field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.knowledge-view__field-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 12px;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.knowledge-view__field-input:focus {
+  border-color: var(--accent-primary);
+}
+
+/* ── Actions ────────────────────────────────────────────────────── */
+
+.knowledge-view__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.knowledge-view__test-result {
+  font-size: 13px;
+  margin-left: 4px;
+}
+
+.knowledge-view__test-result--ok {
+  color: var(--success-text, #22c55e);
+}
+
+.knowledge-view__test-result--fail {
+  color: var(--error-text);
+}
+
+/* ── Stats ──────────────────────────────────────────────────────── */
+
+.knowledge-view__stats {
+  display: flex;
+  gap: 32px;
+}
+
+.knowledge-view__stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-view__stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.knowledge-view__stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Empty / Link ───────────────────────────────────────────────── */
+
+.knowledge-view__empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 16px 0;
+  margin: 0;
+}
+
+.knowledge-view__link {
+  color: var(--accent-primary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: inherit;
+  padding: 0;
+}
+
+.knowledge-view__link:hover {
+  text-decoration: underline;
+}

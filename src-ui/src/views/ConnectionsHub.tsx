@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { NavigationView } from '../types';
@@ -6,7 +7,7 @@ import './ConnectionsHub.css';
 
 interface ProviderConnection {
   id: string;
-  type: 'ollama' | 'openai-compat' | 'bedrock';
+  type: string;
   name: string;
   enabled: boolean;
   capabilities: ('llm' | 'embedding' | 'vectordb')[];
@@ -16,7 +17,7 @@ interface ToolServer {
   id: string;
   displayName?: string;
   description?: string;
-  transport: 'stdio' | 'sse' | 'streamable-http';
+  transport: string;
   kind?: string;
 }
 
@@ -26,10 +27,58 @@ interface KnowledgeStatus {
   stats: { totalDocuments: number; totalChunks: number; projectCount: number };
 }
 
-const PROVIDER_ICONS: Record<string, string> = {
-  bedrock: '☁️',
-  ollama: '🏠',
-  'openai-compat': '🔗',
+/* ── SVG Icons ── */
+
+function IconCloud() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+    </svg>
+  );
+}
+
+function IconServer() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="8" rx="2" />
+      <rect x="2" y="14" width="20" height="8" rx="2" />
+      <line x1="6" y1="6" x2="6.01" y2="6" />
+      <line x1="6" y1="18" x2="6.01" y2="18" />
+    </svg>
+  );
+}
+
+function IconLink() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
+function IconDatabase() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+    </svg>
+  );
+}
+
+function IconTool() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  );
+}
+
+const PROVIDER_ICONS: Record<string, () => ReactNode> = {
+  bedrock: IconCloud,
+  ollama: IconServer,
+  'openai-compat': IconLink,
 };
 
 export interface ConnectionsHubProps {
@@ -71,6 +120,10 @@ export function ConnectionsHub({ onNavigate: _onNavigate }: ConnectionsHubProps)
     },
   });
 
+  const modelProviders = providers.filter(
+    (p) => p.capabilities.includes('llm') || p.capabilities.includes('embedding'),
+  );
+
   return (
     <div className="connections-hub">
       <div className="connections-hub__inner">
@@ -84,25 +137,28 @@ export function ConnectionsHub({ onNavigate: _onNavigate }: ConnectionsHubProps)
           <div className="connections-hub__section-header">
             <span className="connections-hub__section-label">Model Providers</span>
             <button className="connections-hub__add-btn" onClick={() => navigate('/connections/providers')}>
-              + Add
+              Manage
             </button>
           </div>
           <div className="connections-hub__cards">
-            {providers.length > 0 ? (
-              providers.map((p) => (
-                <button
-                  key={p.id}
-                  className="connections-hub__card"
-                  onClick={() => navigate(`/connections/providers/${p.id}`)}
-                >
-                  <div className="connections-hub__card-header">
-                    <span className="connections-hub__card-icon">{PROVIDER_ICONS[p.type] ?? '🔌'}</span>
-                    <span className="connections-hub__card-name">{p.name}</span>
-                    <span className={`connections-hub__card-status connections-hub__card-status--${p.enabled ? 'enabled' : 'disabled'}`} />
-                  </div>
-                  <span className="connections-hub__card-type">{p.type}</span>
-                </button>
-              ))
+            {modelProviders.length > 0 ? (
+              modelProviders.map((p) => {
+                const Icon = PROVIDER_ICONS[p.type] ?? IconLink;
+                return (
+                  <button
+                    key={p.id}
+                    className="connections-hub__card"
+                    onClick={() => navigate(`/connections/providers/${p.id}`)}
+                  >
+                    <div className="connections-hub__card-header">
+                      <span className="connections-hub__card-icon"><Icon /></span>
+                      <span className="connections-hub__card-name">{p.name}</span>
+                      <span className={`connections-hub__card-status connections-hub__card-status--${p.enabled ? 'enabled' : 'disabled'}`} />
+                    </div>
+                    <span className="connections-hub__card-type">{p.type}</span>
+                  </button>
+                );
+              })
             ) : (
               <button className="connections-hub__empty-card" onClick={() => navigate('/connections/providers')}>
                 + Add a model provider to get started
@@ -116,14 +172,14 @@ export function ConnectionsHub({ onNavigate: _onNavigate }: ConnectionsHubProps)
           <div className="connections-hub__section-header">
             <span className="connections-hub__section-label">Knowledge</span>
             <button className="connections-hub__add-btn" onClick={() => navigate('/connections/knowledge')}>
-              + Add
+              Manage
             </button>
           </div>
           <div className="connections-hub__cards">
             {knowledge?.vectorDb ? (
               <button className="connections-hub__card" onClick={() => navigate('/connections/knowledge')}>
                 <div className="connections-hub__card-header">
-                  <span className="connections-hub__card-icon">🗄️</span>
+                  <span className="connections-hub__card-icon"><IconDatabase /></span>
                   <span className="connections-hub__card-name">{knowledge.vectorDb.name}</span>
                   <span className={`connections-hub__card-status connections-hub__card-status--${knowledge.vectorDb.enabled ? 'enabled' : 'disabled'}`} />
                 </div>
@@ -137,12 +193,11 @@ export function ConnectionsHub({ onNavigate: _onNavigate }: ConnectionsHubProps)
           </div>
           {knowledge ? (
             <p className="connections-hub__knowledge-summary">
-              {knowledge.embedding ? `Embedding: via ${knowledge.embedding.name} · ` : ''}
-              {knowledge.stats.totalDocuments} docs · {knowledge.stats.totalChunks} chunks
+              {knowledge.embedding ? `Embedding: via ${knowledge.embedding.name}` : ''}
+              {knowledge.embedding && knowledge.stats.totalDocuments > 0 ? ' · ' : ''}
+              {knowledge.stats.totalDocuments > 0 ? `${knowledge.stats.totalDocuments} docs · ${knowledge.stats.totalChunks} chunks` : ''}
             </p>
-          ) : (
-            <p className="connections-hub__knowledge-summary">Knowledge base not configured</p>
-          )}
+          ) : null}
         </div>
 
         {/* Tool Servers */}
@@ -150,7 +205,7 @@ export function ConnectionsHub({ onNavigate: _onNavigate }: ConnectionsHubProps)
           <div className="connections-hub__section-header">
             <span className="connections-hub__section-label">Tool Servers</span>
             <button className="connections-hub__add-btn" onClick={() => navigate('/connections/tools')}>
-              + Add
+              Manage
             </button>
           </div>
           <div className="connections-hub__cards">
@@ -162,7 +217,7 @@ export function ConnectionsHub({ onNavigate: _onNavigate }: ConnectionsHubProps)
                   onClick={() => navigate(`/connections/tools/${t.id}`)}
                 >
                   <div className="connections-hub__card-header">
-                    <span className="connections-hub__card-icon">⚙</span>
+                    <span className="connections-hub__card-icon"><IconTool /></span>
                     <span className="connections-hub__card-name">{t.displayName ?? t.id}</span>
                   </div>
                   <span className="connections-hub__card-type">{t.transport}</span>

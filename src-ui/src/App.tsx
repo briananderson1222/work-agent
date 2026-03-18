@@ -33,6 +33,7 @@ import { AgentsHub } from './views/AgentsHub';
 import { AgentsView } from './views/AgentsView';
 import { ConnectionsHub } from './views/ConnectionsHub';
 import { IntegrationsView } from './views/IntegrationsView';
+import { KnowledgeConnectionView } from './views/KnowledgeConnectionView';
 import { LayoutsView } from './views/LayoutsView';
 import { LayoutView } from './views/LayoutView';
 import { MonitoringView } from './views/MonitoringView';
@@ -745,6 +746,9 @@ function App() {
         {(currentView.type === 'connections-tools' ||
           currentView.type === 'connections-tool-edit') && (
           <IntegrationsView />
+        )}
+        {currentView.type === 'connections-knowledge' && (
+          <KnowledgeConnectionView />
         )}
         {(currentView.type === 'layout-new' ||
           currentView.type === 'layout-edit') && <LayoutsView />}
