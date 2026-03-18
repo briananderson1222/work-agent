@@ -40,8 +40,21 @@
 .agents-hub__section-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.agents-hub__section-chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 12px;
+  flex-shrink: 0;
 }
 
 .agents-hub__section-label {
@@ -50,6 +63,18 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
+}
+
+.agents-hub__section-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.agents-hub__section-spacer {
+  flex: 1;
 }
 
 .agents-hub__add-btn {
@@ -102,6 +127,12 @@
   line-height: 1;
 }
 
+.agents-hub__card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .agents-hub__card-name {
   font-size: 14px;
   font-weight: 600;
@@ -145,4 +176,10 @@
 .agents-hub__empty-card:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
+}
+
+/* ── ACP card variant ───────────────────────────────────────────── */
+
+.agents-hub__card--acp {
+  border-style: dashed;
 }

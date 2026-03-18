@@ -1,5 +1,6 @@
 import { useAgentsQuery } from '@stallion-ai/sdk';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { AgentIcon } from '../components/AgentIcon';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
@@ -26,13 +27,14 @@ interface AgentsHubProps {
 export function AgentsHub({ onNavigate }: AgentsHubProps) {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const { data: agents = [] } = useAgentsQuery();
 
   const { data: skills = [] } = useQuery<Skill[]>({
     queryKey: ['skills'],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/skills`);
+      const res = await fetch(`${apiBase}/api/system/skills`);
       const json = await res.json();
       return json.data ?? [];
     },
@@ -47,6 +49,12 @@ export function AgentsHub({ onNavigate }: AgentsHubProps) {
     },
   });
 
+  const localAgents = agents.filter((a: any) => a.source !== 'acp');
+  const acpAgents = agents.filter((a: any) => a.source === 'acp');
+
+  const toggle = (key: string) =>
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+
   return (
     <div className="agents-hub">
       <div className="agents-hub__inner">
@@ -59,116 +67,183 @@ export function AgentsHub({ onNavigate }: AgentsHubProps) {
 
         {/* Agents */}
         <div className="agents-hub__section">
-          <div className="agents-hub__section-header">
+          <button className="agents-hub__section-header" onClick={() => toggle('agents')}>
+            <span className="agents-hub__section-chevron">{collapsed.agents ? '▸' : '▾'}</span>
             <span className="agents-hub__section-label">Agents</span>
-            <button
+            {localAgents.length > 0 && (
+              <span className="agents-hub__section-count">{localAgents.length}</span>
+            )}
+            <span className="agents-hub__section-spacer" />
+            <span
               className="agents-hub__add-btn"
-              onClick={() => onNavigate({ type: 'agent-new' })}
+              onClick={(e) => { e.stopPropagation(); onNavigate({ type: 'agent-new' }); }}
+              role="button"
+              tabIndex={-1}
             >
               + New
-            </button>
-          </div>
-          <div className="agents-hub__cards">
-            {agents.length > 0 ? (
-              agents.map((agent: any) => (
+            </span>
+          </button>
+          {!collapsed.agents && (
+            <div className="agents-hub__cards">
+              {localAgents.length > 0 ? (
+                localAgents.map((agent: any) => (
+                  <button
+                    key={agent.slug}
+                    className="agents-hub__card"
+                    onClick={() => onNavigate({ type: 'agent-edit', slug: agent.slug })}
+                  >
+                    <div className="agents-hub__card-row">
+                      <AgentIcon agent={agent} size="small" />
+                      <span className="agents-hub__card-name">{agent.name}</span>
+                    </div>
+                    {agent.description && (
+                      <span className="agents-hub__card-desc">{agent.description}</span>
+                    )}
+                  </button>
+                ))
+              ) : (
                 <button
-                  key={agent.slug}
-                  className="agents-hub__card"
-                  onClick={() => onNavigate({ type: 'agent-edit', slug: agent.slug })}
+                  className="agents-hub__empty-card"
+                  onClick={() => onNavigate({ type: 'agent-new' })}
                 >
-                  <AgentIcon agent={agent} size="small" />
-                  <span className="agents-hub__card-name">{agent.name}</span>
-                  {agent.description && (
-                    <span className="agents-hub__card-desc">{agent.description}</span>
-                  )}
-                  {agent.source === 'acp' && (
-                    <span className="agents-hub__card-badge">ACP</span>
-                  )}
+                  Create your first agent
                 </button>
-              ))
-            ) : (
-              <button
-                className="agents-hub__empty-card"
-                onClick={() => onNavigate({ type: 'agent-new' })}
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ACP Agents */}
+        {acpAgents.length > 0 && (
+          <div className="agents-hub__section">
+            <button className="agents-hub__section-header" onClick={() => toggle('acp')}>
+              <span className="agents-hub__section-chevron">{collapsed.acp ? '▸' : '▾'}</span>
+              <span className="agents-hub__section-label">Connected Agents</span>
+              <span className="agents-hub__section-count">{acpAgents.length}</span>
+              <span className="agents-hub__section-spacer" />
+              <span
+                className="agents-hub__add-btn"
+                onClick={(e) => { e.stopPropagation(); navigate('/connections'); }}
+                role="button"
+                tabIndex={-1}
               >
-                Create your first agent
-              </button>
+                Manage
+              </span>
+            </button>
+            {!collapsed.acp && (
+              <div className="agents-hub__cards">
+                {acpAgents.map((agent: any) => (
+                  <button
+                    key={agent.slug}
+                    className="agents-hub__card agents-hub__card--acp"
+                    onClick={() => onNavigate({ type: 'agent-edit', slug: agent.slug })}
+                  >
+                    <div className="agents-hub__card-row">
+                      <AgentIcon agent={agent} size="small" />
+                      <span className="agents-hub__card-name">{agent.name}</span>
+                    </div>
+                    {agent.description && (
+                      <span className="agents-hub__card-desc">{agent.description}</span>
+                    )}
+                    <span className="agents-hub__card-badge">
+                      {agent.connectionName || 'ACP'}
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-        </div>
+        )}
 
         {/* Skills */}
         <div className="agents-hub__section">
-          <div className="agents-hub__section-header">
+          <button className="agents-hub__section-header" onClick={() => toggle('skills')}>
+            <span className="agents-hub__section-chevron">{collapsed.skills ? '▸' : '▾'}</span>
             <span className="agents-hub__section-label">Skills</span>
-            <button
+            {skills.length > 0 && (
+              <span className="agents-hub__section-count">{skills.length}</span>
+            )}
+            <span className="agents-hub__section-spacer" />
+            <span
               className="agents-hub__add-btn"
-              onClick={() => onNavigate({ type: 'skills' })}
+              onClick={(e) => { e.stopPropagation(); onNavigate({ type: 'skills' }); }}
+              role="button"
+              tabIndex={-1}
             >
               Browse
-            </button>
-          </div>
-          <div className="agents-hub__cards">
-            {skills.length > 0 ? (
-              skills.map((skill) => (
+            </span>
+          </button>
+          {!collapsed.skills && (
+            <div className="agents-hub__cards">
+              {skills.length > 0 ? (
+                skills.map((skill) => (
+                  <button
+                    key={skill.name}
+                    className="agents-hub__card"
+                    onClick={() => onNavigate({ type: 'skills' })}
+                  >
+                    <span className="agents-hub__card-icon">⚡</span>
+                    <span className="agents-hub__card-name">{skill.name}</span>
+                    <span className="agents-hub__card-desc">
+                      {skill.description ?? skill.source ?? ''}
+                    </span>
+                  </button>
+                ))
+              ) : (
                 <button
-                  key={skill.name}
-                  className="agents-hub__card"
+                  className="agents-hub__empty-card"
                   onClick={() => onNavigate({ type: 'skills' })}
                 >
-                  <span className="agents-hub__card-icon">⚡</span>
-                  <span className="agents-hub__card-name">{skill.name}</span>
-                  <span className="agents-hub__card-desc">
-                    {skill.description ?? skill.source ?? ''}
-                  </span>
+                  Install skills from plugins
                 </button>
-              ))
-            ) : (
-              <button
-                className="agents-hub__empty-card"
-                onClick={() => onNavigate({ type: 'skills' })}
-              >
-                Install skills from plugins
-              </button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Prompts */}
         <div className="agents-hub__section">
-          <div className="agents-hub__section-header">
+          <button className="agents-hub__section-header" onClick={() => toggle('prompts')}>
+            <span className="agents-hub__section-chevron">{collapsed.prompts ? '▸' : '▾'}</span>
             <span className="agents-hub__section-label">Prompts</span>
-            <button
+            {prompts.length > 0 && (
+              <span className="agents-hub__section-count">{prompts.length}</span>
+            )}
+            <span className="agents-hub__section-spacer" />
+            <span
               className="agents-hub__add-btn"
-              onClick={() => navigate('/prompts/new')}
+              onClick={(e) => { e.stopPropagation(); navigate('/prompts/new'); }}
+              role="button"
+              tabIndex={-1}
             >
               + New
-            </button>
-          </div>
-          <div className="agents-hub__cards">
-            {prompts.length > 0 ? (
-              prompts.map((prompt) => (
+            </span>
+          </button>
+          {!collapsed.prompts && (
+            <div className="agents-hub__cards">
+              {prompts.length > 0 ? (
+                prompts.map((prompt) => (
+                  <button
+                    key={prompt.id}
+                    className="agents-hub__card"
+                    onClick={() => navigate(`/prompts/${prompt.id}`)}
+                  >
+                    <span className="agents-hub__card-name">{prompt.name}</span>
+                    <span className="agents-hub__card-desc">
+                      {prompt.category ?? prompt.description ?? ''}
+                    </span>
+                  </button>
+                ))
+              ) : (
                 <button
-                  key={prompt.id}
-                  className="agents-hub__card"
-                  onClick={() => navigate(`/prompts/${prompt.id}`)}
+                  className="agents-hub__empty-card"
+                  onClick={() => navigate('/prompts/new')}
                 >
-                  <span className="agents-hub__card-icon">📝</span>
-                  <span className="agents-hub__card-name">{prompt.name}</span>
-                  <span className="agents-hub__card-desc">
-                    {prompt.category ?? prompt.description ?? ''}
-                  </span>
+                  Create your first prompt
                 </button>
-              ))
-            ) : (
-              <button
-                className="agents-hub__empty-card"
-                onClick={() => navigate('/prompts/new')}
-              >
-                Create your first prompt
-              </button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
