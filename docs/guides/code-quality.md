@@ -2,7 +2,7 @@
 
 ## Local CI Pipeline
 
-Run these in order before pushing — they mirror the GitHub CI:
+Run these in order before pushing — they mirror CI:
 
 ```bash
 cd packages/sdk && npm run build && cd ../connect && npm run build && cd ../..
@@ -31,29 +31,14 @@ Always import from schemas. Never use raw `c.get('body')` or `c.req.param()`.
 
 ## Internal Reference Audit
 
-Before pushing to GitHub, scan for internal references:
+Before pushing to public remotes, scan for internal references:
 
 ```bash
-git diff origin/main..HEAD -- . | grep -iE '(amazon\.com|aws\.dev|@amazon|midway|phonetool|wiki\.amazon|code\.amazon|isengard|gitlab\.aws|\.corp\.|\.aka\.)' | grep '^+' | grep -v '^+++'
+git diff origin/main..HEAD -- . | grep -iE '(amazon\.com|aws\.dev|@amazon|midway|phonetool|wiki\.amazon|code\.amazon|isengard|\.corp\.|\.aka\.)' | grep '^+' | grep -v '^+++'
 ```
 
 If ANY matches found, fix before pushing.
 
-## Push Sequence
+## Push & Monitor
 
-```bash
-git push origin main    # GitLab
-git push github main    # GitHub (public)
-```
-
-## Monitor CI
-
-```bash
-gh run list --repo briananderson1222/work-agent --limit 2
-```
-
-Both `CI` and `Publish Packages` must show `completed success`. If failed:
-
-```bash
-gh run view <run-id> --repo briananderson1222/work-agent --log-failed
-```
+Push to all configured remotes (`git remote -v` to list). After pushing, use `gh` (if available) to monitor CI pipeline status until all workflows pass.
