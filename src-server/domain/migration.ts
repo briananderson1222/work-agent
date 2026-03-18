@@ -14,7 +14,31 @@ import type {
 } from '@stallion-ai/shared';
 import { FileStorageAdapter } from './file-storage-adapter.js';
 
-export async function migrateToProject(projectHomeDir: string): Promise<void> {
+export async function runStartupMigrations(projectHomeDir: string): Promise<void> {
+  // Seed default provider connections (runs every startup, idempotent)
+  const storageAdapter = new FileStorageAdapter(projectHomeDir);
+  const existing = storageAdapter.listProviderConnections();
+  if (!existing.some(c => c.capabilities.includes('vectordb'))) {
+    storageAdapter.saveProviderConnection({
+      id: 'lancedb-builtin',
+      type: 'lancedb',
+      name: 'LanceDB (built-in)',
+      config: { dataDir: `${projectHomeDir}/vectordb` },
+      enabled: true,
+      capabilities: ['vectordb'] as ('llm' | 'embedding' | 'vectordb')[],
+    });
+  }
+  if (!existing.some(c => c.capabilities.includes('llm'))) {
+    storageAdapter.saveProviderConnection({
+      id: 'bedrock-default',
+      type: 'bedrock',
+      name: 'Amazon Bedrock',
+      config: { region: '' },
+      enabled: true,
+      capabilities: ['llm', 'embedding'] as ('llm' | 'embedding' | 'vectordb')[],
+    });
+  }
+
   const projectsDir = join(projectHomeDir, 'projects');
 
   if (existsSync(projectsDir)) return;
@@ -76,20 +100,5 @@ export async function migrateToProject(projectHomeDir: string): Promise<void> {
       JSON.stringify(layout, null, 2),
       'utf-8',
     );
-  }
-
-  // Seed default LanceDB provider connection if none exists
-  const storageAdapter = new FileStorageAdapter(projectHomeDir);
-  const existing = storageAdapter.listProviderConnections();
-  const hasVectorDb = existing.some(c => c.capabilities.includes('vectordb'));
-  if (!hasVectorDb) {
-    storageAdapter.saveProviderConnection({
-      id: 'lancedb-builtin',
-      type: 'lancedb',
-      name: 'LanceDB (built-in)',
-      config: { dataDir: `${projectHomeDir}/vectordb` },
-      enabled: true,
-      capabilities: ['vectordb'] as ('llm' | 'embedding' | 'vectordb')[],
-    });
   }
 }

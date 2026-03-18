@@ -43,7 +43,7 @@ import { VoltAgentFramework } from './voltagent-adapter.js';
 import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
 import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
 import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
-import { migrateToProject } from '../domain/migration.js';
+import { runStartupMigrations } from '../domain/migration.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
   getNotificationProviders,
@@ -158,6 +158,8 @@ export class StallionRuntime {
     { conversationCount: number; messageCount: number; lastUpdated: number }
   >();
   private agentStatus = new Map<string, 'idle' | 'running'>();
+  private schedulerService!: SchedulerService;
+  private notificationService!: NotificationService;
   private metricsLog: Array<{
     timestamp: number;
     agentSlug: string;
@@ -448,7 +450,7 @@ export class StallionRuntime {
     ));
 
     // Migrate legacy workspaces to project structure
-    await migrateToProject(this.configLoader.getProjectHomeDir());
+    await runStartupMigrations(this.configLoader.getProjectHomeDir());
 
     // Seed default provider connections if none exist
     const existingProviders = this.storageAdapter.listProviderConnections();
@@ -496,10 +498,55 @@ export class StallionRuntime {
     // Create VoltAgent instances for each agent
     const agents: Record<string, Agent> = {};
 
-    // Create default agent (always available, uses defaultModel, no tools)
-    const defaultModel = await this.createBedrockModel({
+    // Seed built-in stallion-control integration (MCP server for managing Stallion itself)
+    const selfIntegrationId = 'stallion-control';
+    try {
+      await this.configLoader.loadIntegration(selfIntegrationId);
+    } catch {
+      // Not registered yet — seed it
+      const selfServerPath = join(
+        import.meta.dirname || process.cwd(),
+        'stallion-control.js',
+      );
+      await this.configLoader.saveIntegration(selfIntegrationId, {
+        id: selfIntegrationId,
+        displayName: 'Stallion Control',
+        description: 'Manage agents, skills, integrations, prompts, and jobs via natural language',
+        kind: 'mcp',
+        transport: 'stdio',
+        command: 'node',
+        args: [selfServerPath],
+        env: { STALLION_PORT: String(this.port) },
+      });
+      this.logger.info('Seeded stallion-control integration');
+    }
+
+    // Create default agent with stallion-control tools
+    const defaultSpec = {
       model: this.appConfig.defaultModel,
-    } as AgentSpec);
+      tools: { mcpServers: [selfIntegrationId], autoApprove: [`${selfIntegrationId}_*`] },
+    } as AgentSpec;
+    const defaultModel = await this.createBedrockModel(defaultSpec);
+
+    // Load stallion-control tools for the default agent
+    let defaultTools: any[] = [];
+    try {
+      defaultTools = await MCPManager.loadAgentTools(
+        'default',
+        defaultSpec,
+        this.configLoader,
+        this.mcpConfigs,
+        this.mcpConnectionStatus,
+        this.integrationMetadata,
+        this.toolNameMapping,
+        this.toolNameReverseMapping,
+        this.logger,
+      );
+      this.logger.info('Default agent tools loaded', { count: defaultTools.length });
+    } catch (e) {
+      this.logger.warn('Failed to load stallion-control tools for default agent', { error: e });
+    }
+
     const defaultInstructions = this.appConfig.systemPrompt
       ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
       : this.replaceTemplateVariables(DEFAULT_SYSTEM_PROMPT);
@@ -507,6 +554,7 @@ export class StallionRuntime {
       name: 'default',
       instructions: defaultInstructions,
       model: defaultModel,
+      tools: defaultTools,
     });
     agents.default = defaultAgent as any;
     this.activeAgents.set('default', defaultAgent as any);
@@ -518,8 +566,8 @@ export class StallionRuntime {
     this.memoryAdapters.set('default', defaultMemoryAdapter);
     this.agentMetadataMap.set('default', {
       slug: 'default',
-      name: 'Default Agent',
-      description: 'System default agent with no tools',
+      name: 'Stallion',
+      description: 'Default agent with full access to manage Stallion',
       updatedAt: new Date().toISOString(),
     });
     this.logger.info('Default agent created', {
@@ -881,8 +929,8 @@ export class StallionRuntime {
       '/agents',
       createConversationRoutes(this.memoryAdapters, this.logger, this.agentFixedTokens, this.agentTools, this.configLoader, this.appConfig, this.modelCatalog),
     );
-    const schedulerService = new SchedulerService(this.logger);
-    schedulerService.setChatFn(async (agentSlug, prompt) => {
+    this.schedulerService = new SchedulerService(this.logger);
+    this.schedulerService.setChatFn(async (agentSlug, prompt) => {
       const slug =
         agentSlug === 'default'
           ? this.activeAgents.keys().next().value || agentSlug
@@ -894,19 +942,19 @@ export class StallionRuntime {
     });
     app.route(
       '/scheduler',
-      createSchedulerRoutes(schedulerService, this.logger),
+      createSchedulerRoutes(this.schedulerService, this.logger),
     );
     // Notification service
-    const notificationService = new NotificationService(
+    this.notificationService = new NotificationService(
       this.eventBus,
       this.configLoader.getProjectHomeDir(),
       60_000,
     );
     for (const { provider } of getNotificationProviders()) {
-      notificationService.addProvider(provider);
+      this.notificationService.addProvider(provider);
     }
-    notificationService.start();
-    app.route('/notifications', createNotificationRoutes(notificationService));
+    this.notificationService.start();
+    app.route('/notifications', createNotificationRoutes(this.notificationService));
     app.route('/api/feedback', createFeedbackRoutes(this.feedbackService));
     app.route(
       '/api/prompts',
@@ -1568,6 +1616,9 @@ export class StallionRuntime {
     for (const t of this.timers) clearTimeout(t);
     this.timers.length = 0;
 
+    // Stop scheduler first (awaits in-flight jobs that need active agents)
+    await this.schedulerService.stop();
+
     // Disconnect all MCP configurations
     for (const [key, mcpConfig] of this.mcpConfigs.entries()) {
       try {
@@ -1584,8 +1635,9 @@ export class StallionRuntime {
     // Shutdown ACP bridge
     await this.acpBridge.shutdown();
 
-    // Stop feedback analysis
+    // Stop feedback and notifications
     this.feedbackService.stop();
+    this.notificationService.stop();
 
     // Shutdown terminal
     this.terminalWsServer.stop();

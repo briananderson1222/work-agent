@@ -107,6 +107,15 @@ export class AgentService {
       {} as Record<string, any>,
     );
 
+    // Materialize virtual agents (like 'default') to disk on first save
+    try {
+      await this.configLoader.loadAgent(slug);
+    } catch {
+      await this.configLoader.createAgent({ slug, name: filtered.name || slug, ...filtered } as AgentSpec);
+      agentOps.add(1, { operation: 'materialize', agent: slug });
+      return this.configLoader.loadAgent(slug);
+    }
+
     const result = await this.configLoader.updateAgent(slug, filtered);
     agentOps.add(1, { operation: 'update', agent: slug });
     return result;

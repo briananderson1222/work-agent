@@ -5,13 +5,13 @@
 import { randomUUID } from 'node:crypto';
 import type { ProviderConnectionConfig } from '@stallion-ai/shared';
 import { Hono } from 'hono';
+import { BedrockEmbeddingProvider } from '../providers/bedrock-embedding-provider.js';
 import { BedrockLLMProvider } from '../providers/bedrock-llm-provider.js';
 import { LanceDBProvider } from '../providers/lancedb-provider.js';
 import { OllamaEmbeddingProvider, OllamaLLMProvider } from '../providers/ollama-provider.js';
 import { OpenAICompatEmbeddingProvider, OpenAICompatLLMProvider } from '../providers/openai-compat-provider.js';
 import type { IEmbeddingProvider, ILLMProvider, IVectorDbProvider } from '../providers/types.js';
 import type { ProviderService } from '../services/provider-service.js';
-import { providerSchema, validate } from './schemas.js';
 
 function createLLMProvider(
   conn: ProviderConnectionConfig,
@@ -32,6 +32,7 @@ export function createVectorDbProvider(conn: ProviderConnectionConfig): IVectorD
 export function createEmbeddingProvider(conn: ProviderConnectionConfig): IEmbeddingProvider | null {
   if (conn.type === 'ollama') return new OllamaEmbeddingProvider(conn.config as any);
   if (conn.type === 'openai-compat') return new OpenAICompatEmbeddingProvider(conn.config as any);
+  if (conn.type === 'bedrock') return new BedrockEmbeddingProvider(conn.config as any);
   return null;
 }
 
@@ -47,9 +48,9 @@ export function createProviderRoutes(providerService: ProviderService) {
     }
   });
 
-  app.post('/', validate(providerSchema), async (c) => {
+  app.post('/', async (c) => {
     try {
-      const body = c.get('body') as ProviderConnectionConfig;
+      const body = (await c.req.json()) as ProviderConnectionConfig;
       if (!body.id) body.id = randomUUID();
       await providerService.saveProviderConnection(body);
       return c.json({ success: true, data: body }, 201);
@@ -58,9 +59,9 @@ export function createProviderRoutes(providerService: ProviderService) {
     }
   });
 
-  app.put('/:id', validate(providerSchema.partial()), async (c) => {
+  app.put('/:id', async (c) => {
     try {
-      const body = c.get('body') as ProviderConnectionConfig;
+      const body = (await c.req.json()) as ProviderConnectionConfig;
       await providerService.saveProviderConnection(body);
       return c.json({ success: true, data: body });
     } catch (error: any) {
