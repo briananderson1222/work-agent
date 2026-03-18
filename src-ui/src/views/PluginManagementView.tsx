@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Checkbox } from '../components/Checkbox';
+import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { Toggle } from '../components/Toggle';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -220,6 +221,7 @@ export function PluginManagementView() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewSkips, setPreviewSkips] = useState<Set<string>>(new Set());
@@ -488,45 +490,13 @@ export function PluginManagementView() {
         onDeselect={deselectPlugin}
         onSearch={setSearch}
         searchPlaceholder="Search plugins..."
+        onAdd={() => setShowInstallModal(true)}
+        addLabel="+ Install Plugin"
         emptyIcon="⬡"
         emptyTitle="No plugin selected"
         emptyDescription="Select a plugin from the list or install a new one"
         emptyContent={
           <div className="detail-panel">
-            {/* Install bar */}
-            <div className="plugins__install">
-              <span className="plugins__install-prefix">$</span>
-              <PathAutocomplete
-                value={installSource}
-                onChange={(val) => {
-                  setInstallSource(val);
-                  setPreviewData(null);
-                }}
-                onSubmit={() => install()}
-                placeholder="git@github.com:org/plugin.git or /local/path"
-                disabled={installing}
-                apiBase={apiBase}
-              />
-              <button
-                className="plugins__browse-btn"
-                onClick={() => setShowFolderPicker(true)}
-                disabled={installing}
-                title="Browse local folders"
-              >
-                📁
-              </button>
-              <button
-                className="plugins__install-btn"
-                onClick={() => install()}
-                disabled={installing || previewLoading || !installSource.trim()}
-              >
-                {installing
-                  ? 'Installing...'
-                  : previewLoading
-                    ? 'Validating...'
-                    : 'Install'}
-              </button>
-            </div>
             {updates.length > 0 && (
               <div className="plugins__update-banner">
                 <span className="plugins__update-banner-text">
@@ -556,45 +526,6 @@ export function PluginManagementView() {
       >
         {selected && (
           <div className="detail-panel">
-            {/* Install bar */}
-            <div className="detail-panel__install">
-              <div className="plugins__install">
-                <span className="plugins__install-prefix">$</span>
-                <PathAutocomplete
-                  value={installSource}
-                  onChange={(val) => {
-                    setInstallSource(val);
-                    setPreviewData(null);
-                  }}
-                  onSubmit={() => install()}
-                  placeholder="git@github.com:org/plugin.git or /local/path"
-                  disabled={installing}
-                  apiBase={apiBase}
-                />
-                <button
-                  className="plugins__browse-btn"
-                  onClick={() => setShowFolderPicker(true)}
-                  disabled={installing}
-                  title="Browse local folders"
-                >
-                  📁
-                </button>
-                <button
-                  className="plugins__install-btn"
-                  onClick={() => install()}
-                  disabled={
-                    installing || previewLoading || !installSource.trim()
-                  }
-                >
-                  {installing
-                    ? 'Installing...'
-                    : previewLoading
-                      ? 'Validating...'
-                      : 'Install'}
-                </button>
-              </div>
-            </div>
-
             {message && (
               <div
                 className={`plugins__message plugins__message--${message.type}`}
@@ -604,27 +535,31 @@ export function PluginManagementView() {
             )}
 
             {/* Plugin detail */}
-            <div className="detail-panel__section">
-              <h2 className="detail-panel__title">
-                {selected.displayName || selected.name}
-                <span className="plugins__card-version">
-                  v{selected.version}
-                </span>
-                {updates.find((u) => u.name === selected.name) && (
-                  <span className="plugins__card-update-hint">
-                    &rarr; v
-                    {
-                      updates.find((u) => u.name === selected.name)!
-                        .latestVersion
-                    }
-                  </span>
-                )}
-              </h2>
-              {selected.description && (
-                <p className="detail-panel__desc">{selected.description}</p>
+            <DetailHeader
+              title={selected.displayName || selected.name}
+              subtitle={selected.description}
+              badge={{ label: `v${selected.version}`, variant: 'muted' as const }}
+            >
+              {updates.find((u) => u.name === selected.name) && (
+                <button
+                  className="editor-btn editor-btn--primary"
+                  onClick={() => updatePlugin(selected.name)}
+                  disabled={updating === selected.name}
+                >
+                  {updating === selected.name
+                    ? 'Updating…'
+                    : `Update to v${updates.find((u) => u.name === selected.name)!.latestVersion}`}
+                </button>
               )}
-            </div>
+              <button
+                className="editor-btn editor-btn--danger"
+                onClick={() => setRemoveConfirm(selected.name)}
+              >
+                Remove
+              </button>
+            </DetailHeader>
 
+            <div className="detail-panel__body">
             {/* Capabilities */}
             <div className="detail-panel__caps">
               {selected.hasBundle && (
@@ -736,27 +671,46 @@ export function PluginManagementView() {
                 </button>
               )}
 
-            {/* Actions */}
-            <div className="detail-panel__actions">
-              {updates.find((u) => u.name === selected.name) && (
-                <button
-                  className="plugins__btn plugins__btn--update"
-                  onClick={() => updatePlugin(selected.name)}
-                  disabled={updating === selected.name}
-                >
-                  {updating === selected.name ? 'Updating...' : 'Update'}
-                </button>
-              )}
-              <button
-                className="plugins__btn plugins__btn--remove"
-                onClick={() => setRemoveConfirm(selected.name)}
-              >
-                Remove
-              </button>
             </div>
           </div>
         )}
       </SplitPaneLayout>
+
+      {/* Install Plugin Modal */}
+      {showInstallModal && (
+        <div className="plugins__modal-overlay" onClick={() => setShowInstallModal(false)}>
+          <div className="plugins__modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div className="plugins__modal-header">
+              <h3 className="plugins__modal-title">Install Plugin</h3>
+              <button className="plugins__modal-close" onClick={() => setShowInstallModal(false)}>&times;</button>
+            </div>
+            <div className="plugins__modal-body">
+              <div className="plugins__install" style={{ marginBottom: 16 }}>
+                <span className="plugins__install-prefix">$</span>
+                <PathAutocomplete
+                  value={installSource}
+                  onChange={(val) => { setInstallSource(val); setPreviewData(null); }}
+                  onSubmit={() => { install(); setShowInstallModal(false); }}
+                  placeholder="git@github.com:org/plugin.git or /local/path"
+                  disabled={installing}
+                  apiBase={apiBase}
+                />
+                <button className="plugins__browse-btn" onClick={() => setShowFolderPicker(true)} disabled={installing} title="Browse local folders">📁</button>
+                <button
+                  className="plugins__install-btn"
+                  onClick={() => { install(); setShowInstallModal(false); }}
+                  disabled={installing || previewLoading || !installSource.trim()}
+                >
+                  {installing ? 'Installing...' : previewLoading ? 'Validating...' : 'Install'}
+                </button>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                Paste a git URL or local path to a Stallion plugin.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Folder Picker Modal */}
       {showFolderPicker && (
@@ -975,6 +929,18 @@ export function PluginManagementView() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Installing overlay */}
+      {installing && (
+        <div className="plugins__modal-overlay">
+          <div className="plugins__installing-card">
+            <div className="plugins__installing-spinner" />
+            <p className="plugins__installing-text">
+              {message?.text || 'Installing plugin…'}
+            </p>
           </div>
         </div>
       )}

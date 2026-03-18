@@ -696,6 +696,9 @@
 
 /* ═══ Detail Panel (Plugins / Tools right pane) ═══ */
 .detail-panel {
+  padding: 0;
+}
+.detail-panel__body {
   padding: 1.5rem;
 }
 .detail-panel__title {
@@ -803,4 +806,33 @@
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 13px;
+}
+
+/* ── Installing Overlay ── */
+.plugins__installing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem 2.5rem;
+  background: var(--bg-primary);
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-secondary);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+.plugins__installing-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-primary);
+  border-top-color: var(--accent-primary, #3b82f6);
+  border-radius: 50%;
+  animation: plugins-spin 0.8s linear infinite;
+}
+@keyframes plugins-spin {
+  to { transform: rotate(360deg); }
+}
+.plugins__installing-text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }

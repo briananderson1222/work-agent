@@ -1,6 +1,7 @@
 import { LoadingState } from '@stallion-ai/sdk';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useUrlSelection } from '../hooks/useUrlSelection';
@@ -219,11 +220,14 @@ export function IntegrationsView() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
-  const { selectedId, select, deselect } = useUrlSelection('/integrations');
+  const { selectedId, select, deselect } = useUrlSelection('/connections/tools');
   const [editForm, setEditForm] = useState<IntegrationDef | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
+  const [viewMode, setViewMode] = useState<'form' | 'raw'>('form');
+  const [rawJson, setRawJson] = useState('');
+  const [rawError, setRawError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${apiBase}/api/registry/integrations`)
@@ -299,7 +303,81 @@ export function IntegrationsView() {
       displayName: '',
       description: '',
     });
+    setViewMode('form');
+    setRawJson('');
+    setRawError(null);
     select('new');
+  };
+
+  /** Serialize current form to standard mcp.json format */
+  const formToMcpJson = (form: IntegrationDef): string => {
+    const server: Record<string, any> = {};
+    if (form.transport === 'stdio' || !form.transport) {
+      if (form.command) server.command = form.command;
+      if (form.args?.length) server.args = form.args;
+    } else {
+      if (form.endpoint) server.url = form.endpoint;
+      server.transport = form.transport;
+    }
+    if ((form as any).env && Object.keys((form as any).env).length > 0) {
+      server.env = (form as any).env;
+    }
+    const name = form.id || 'my-server';
+    return JSON.stringify({ mcpServers: { [name]: server } }, null, 2);
+  };
+
+  /** Parse mcp.json (or flat server object) into form fields */
+  const parseMcpJson = (json: string): IntegrationDef | null => {
+    setRawError(null);
+    try {
+      const parsed = JSON.parse(json);
+      // Support { mcpServers: { name: { ... } } } format
+      let id: string;
+      let server: any;
+      if (parsed.mcpServers && typeof parsed.mcpServers === 'object') {
+        const keys = Object.keys(parsed.mcpServers);
+        if (keys.length === 0) { setRawError('No servers found in mcpServers'); return null; }
+        id = keys[0];
+        server = parsed.mcpServers[id];
+      } else if (parsed.command || parsed.url || parsed.endpoint) {
+        // Flat format: { command, args, ... }
+        id = editForm?.id || '';
+        server = parsed;
+      } else {
+        setRawError('Unrecognized format. Expected { mcpServers: { ... } } or { command, args }');
+        return null;
+      }
+      const transport = server.transport || (server.url ? 'sse' : 'stdio');
+      return {
+        id,
+        kind: 'mcp',
+        transport,
+        command: server.command || '',
+        args: server.args || [],
+        endpoint: server.url || server.endpoint || '',
+        displayName: editForm?.displayName || id,
+        description: editForm?.description || '',
+        env: server.env,
+      } as any;
+    } catch (e: any) {
+      setRawError(e.message);
+      return null;
+    }
+  };
+
+  const switchToRaw = () => {
+    if (editForm) setRawJson(formToMcpJson(editForm));
+    setRawError(null);
+    setViewMode('raw');
+  };
+
+  const switchToForm = () => {
+    if (rawJson.trim()) {
+      const parsed = parseMcpJson(rawJson);
+      if (parsed) setEditForm(parsed);
+      else return; // Don't switch if parse failed
+    }
+    setViewMode('form');
   };
 
   const items = useMemo(
@@ -366,32 +444,20 @@ export function IntegrationsView() {
         }
       >
         {editForm && (
-          <div className="detail-panel">
-            <div className="agent-inline-editor__header">
-              <h2 className="detail-panel__title">
-                {editForm.displayName || editForm.id || 'New Integration'}
-              </h2>
-              <div className="agent-inline-editor__header-actions">
-                {!isNew && (
-                  <button
-                    type="button"
-                    className="editor-btn editor-btn--danger"
-                    onClick={() => setDeleteConfirm(true)}
-                  >
-                    Delete
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="editor-btn editor-btn--primary"
-                  onClick={handleSave}
-                  disabled={saving || !editForm.id || locked}
-                >
-                  {saving ? 'Saving…' : isNew ? 'Create' : 'Save'}
-                </button>
-              </div>
-            </div>
+          <div className="detail-panel" style={{ overflow: 'auto' }}>
+            <DetailHeader
+              title={editForm.displayName || editForm.id || 'New Integration'}
+              badge={editForm.transport ? { label: editForm.transport, variant: 'muted' as const } : undefined}
+            >
+              {!isNew && (
+                <button type="button" className="editor-btn editor-btn--danger" onClick={() => setDeleteConfirm(true)}>Delete</button>
+              )}
+              <button type="button" className="editor-btn editor-btn--primary" onClick={handleSave} disabled={saving || !editForm.id || locked}>
+                {saving ? 'Saving…' : isNew ? 'Create' : 'Save'}
+              </button>
+            </DetailHeader>
 
+            <div className="detail-panel__body">
             {message && (
               <div
                 className={`plugins__message plugins__message--${message.type}`}
@@ -399,6 +465,40 @@ export function IntegrationsView() {
                 {message.text}
               </div>
             )}
+
+            {/* Form / Raw toggle */}
+            <div className="integration__mode-tabs">
+              <button
+                className={`integration__mode-tab ${viewMode === 'form' ? 'integration__mode-tab--active' : ''}`}
+                onClick={() => switchToForm()}
+              >
+                Form
+              </button>
+              <button
+                className={`integration__mode-tab ${viewMode === 'raw' ? 'integration__mode-tab--active' : ''}`}
+                onClick={() => switchToRaw()}
+              >
+                Raw JSON
+              </button>
+            </div>
+
+            {viewMode === 'raw' ? (
+              <div className="integration__raw-section">
+                <div className="integration__raw-hint">
+                  Paste a standard <code>mcp.json</code> config — compatible with Claude Desktop, Cursor, Windsurf, etc.
+                </div>
+                <textarea
+                  className="integration__raw-editor"
+                  value={rawJson}
+                  onChange={(e) => { setRawJson(e.target.value); setRawError(null); }}
+                  placeholder={'{\n  "mcpServers": {\n    "my-server": {\n      "command": "npx",\n      "args": ["-y", "my-mcp-server"]\n    }\n  }\n}'}
+                  spellCheck={false}
+                  disabled={locked}
+                />
+                {rawError && <div className="integration__raw-error">{rawError}</div>}
+              </div>
+            ) : (
+              <>
 
             {/* Plugin lock banner */}
             {editForm.plugin && isLocked && !isNew && (
@@ -522,6 +622,9 @@ export function IntegrationsView() {
                 />
               </div>
             )}
+              </>
+            )}
+            </div>
           </div>
         )}
       </SplitPaneLayout>

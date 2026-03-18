@@ -2,6 +2,7 @@ import { useAgentsQuery } from '@stallion-ai/sdk';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ACPConnectionsSection } from '../components/ACPConnectionsSection';
+import { DetailHeader } from '../components/DetailHeader';
 import { AgentIcon } from '../components/AgentIcon';
 import { Checkbox } from '../components/Checkbox';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -49,6 +50,7 @@ interface AgentFormData {
   };
   icon: string;
   skills: string[];
+  prompts: string[];
 }
 
 const EMPTY_FORM: AgentFormData = {
@@ -63,6 +65,7 @@ const EMPTY_FORM: AgentFormData = {
   tools: { mcpServers: [], available: [], autoApprove: [] },
   icon: '',
   skills: [],
+  prompts: [],
 };
 
 function slugify(name: string): string {
@@ -95,6 +98,7 @@ function formFromAgent(agent: any): AgentFormData {
     },
     icon: agent.icon || '',
     skills: agent.skills || [],
+    prompts: agent.prompts || [],
   };
 }
 
@@ -147,7 +151,15 @@ export function AgentsView({
   const { data: availableSkills = [] } = useQuery<any[]>({
     queryKey: ['skills'],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/skills`);
+      const res = await fetch(`${apiBase}/api/system/skills`);
+      const json = await res.json();
+      return json.data ?? [];
+    },
+  });
+  const { data: availablePrompts = [] } = useQuery<any[]>({
+    queryKey: ['prompts'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/prompts`);
       const json = await res.json();
       return json.data ?? [];
     },
@@ -285,6 +297,7 @@ export function AgentsView({
         tools: form.tools.mcpServers.length > 0 ? form.tools : undefined,
         icon: form.icon || undefined,
         skills: form.skills.length > 0 ? form.skills : undefined,
+        prompts: form.prompts.length > 0 ? form.prompts : undefined,
       };
       if (isCreating) {
         await createAgent(payload as any);
@@ -393,59 +406,30 @@ export function AgentsView({
         ) : (
           <div className="agent-inline-editor">
             {/* Editor header */}
-            <div className="agent-inline-editor__header">
-              <div className="agent-inline-editor__header-info">
-                {!isCreating && selectedAgent && (
-                  <AgentIcon
-                    agent={selectedAgent}
-                    size="medium"
-                    style={{ borderRadius: '8px', flexShrink: 0 }}
+            <DetailHeader
+              title={isCreating ? 'New Agent' : form.name || selectedSlug || ''}
+              icon={!isCreating && selectedAgent ? <AgentIcon agent={selectedAgent} size="medium" style={{ borderRadius: '8px' }} /> : undefined}
+              badge={isPlugin ? { label: selectedSlug?.split(':')[0] || 'plugin', variant: 'info' as const } : undefined}
+            >
+              {!isCreating && selectedSlug && (
+                <button type="button" className="editor-btn editor-btn--danger" onClick={() => setShowDeleteModal(true)} disabled={locked}>Delete</button>
+              )}
+              <button
+                type="button"
+                className="editor-btn editor-btn--primary"
+                style={{ position: 'relative' }}
+                onClick={handleSave}
+                disabled={isSaving || locked}
+              >
+                {dirty && !isSaving && (
+                  <span
+                    className="agent-inline-editor__dirty-dot"
+                    aria-label="Unsaved changes"
                   />
                 )}
-                <div>
-                  <h2
-                    style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}
-                  >
-                    {isCreating ? 'New Agent' : form.name || selectedSlug}
-                    {isPlugin && (
-                      <span className="editor__plugin-badge">
-                        {selectedSlug?.split(':')[0]}
-                      </span>
-                    )}
-                  </h2>
-                </div>
-              </div>
-              <div className="agent-inline-editor__header-actions">
-                {!isCreating && selectedSlug && (
-                  <button
-                    type="button"
-                    className="editor-btn editor-btn--danger"
-                    onClick={() => setShowDeleteModal(true)}
-                  >
-                    Delete
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="editor-btn editor-btn--primary"
-                  style={{ position: 'relative' }}
-                  onClick={handleSave}
-                  disabled={isSaving || locked}
-                >
-                  {dirty && !isSaving && (
-                    <span
-                      className="agent-inline-editor__dirty-dot"
-                      aria-label="Unsaved changes"
-                    />
-                  )}
-                  {isSaving
-                    ? 'Saving…'
-                    : isCreating
-                      ? 'Create Agent'
-                      : 'Save Changes'}
-                </button>
-              </div>
-            </div>
+                {isSaving ? 'Saving…' : isCreating ? 'Create Agent' : 'Save Changes'}
+              </button>
+            </DetailHeader>
 
             {error && (
               <div
@@ -773,18 +757,12 @@ export function AgentsView({
                                   >
                                     <div
                                       className="editor__tools-server-header"
-                                      onClick={() =>
-                                        toggleIntegration(integration.id)
-                                      }
-                                      style={{
-                                        cursor: locked
-                                          ? 'default'
-                                          : 'pointer',
-                                      }}
                                     >
                                       <Checkbox
                                         checked={enabled}
-                                        onChange={() => {}}
+                                        onChange={() => {
+                                          if (!locked) toggleIntegration(integration.id);
+                                        }}
                                         disabled={locked}
                                       />
                                       <span className="editor__tools-server-name">
@@ -792,14 +770,42 @@ export function AgentsView({
                                           integration.id}
                                       </span>
                                       {enabled && hasWildcard && (
-                                        <span className="editor__tools-server-count">
-                                          all tools
-                                        </span>
+                                        <button
+                                          className="editor__tool-badge editor__tool-badge--auto"
+                                          style={{ cursor: locked ? 'default' : 'pointer', border: 'none', padding: '2px 6px', borderRadius: '3px', fontSize: '0.6rem', fontWeight: 600 }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (locked) return;
+                                            setForm((f) => ({
+                                              ...f,
+                                              tools: {
+                                                ...f.tools,
+                                                autoApprove: f.tools.autoApprove.filter((p: string) => p !== `${integration.id}_*`),
+                                              },
+                                            }));
+                                          }}
+                                        >
+                                          ✓ auto-approve
+                                        </button>
                                       )}
                                       {enabled && !hasWildcard && (
-                                        <span className="editor__tools-server-count">
-                                          selective
-                                        </span>
+                                        <button
+                                          className="editor__tool-badge editor__tool-badge--auto"
+                                          style={{ cursor: locked ? 'default' : 'pointer', border: 'none', background: 'rgba(74,158,255,0.1)', padding: '2px 6px', borderRadius: '3px', fontSize: '0.6rem', fontWeight: 600, color: 'var(--accent-primary)' }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (locked) return;
+                                            setForm((f) => ({
+                                              ...f,
+                                              tools: {
+                                                ...f.tools,
+                                                autoApprove: [...f.tools.autoApprove, `${integration.id}_*`],
+                                              },
+                                            }));
+                                          }}
+                                        >
+                                          + auto-approve
+                                        </button>
                                       )}
                                     </div>
                                   </div>
@@ -820,19 +826,22 @@ export function AgentsView({
                       </div>
                       {availableSkills.length === 0 ? (
                         <div className="editor__tools-empty">
-                          No skills installed. Install skills from the registry to get started.
+                          No skills installed. Install skills from the Skills page to get started.
                         </div>
                       ) : (
-                        <div className="editor__tools-grid">
-                          {availableSkills.map((skill: any) => {
-                            const enabled = form.skills.includes(skill.name);
-                            return (
-                              <label key={skill.name} className={`editor__tool-toggle ${enabled ? 'editor__tool-toggle--on' : ''}`}>
-                                <input
-                                  type="checkbox"
-                                  checked={enabled}
-                                  disabled={locked}
-                                  onChange={() => {
+                        <div className="editor__tools-server">
+                          <div className="editor__tools-server-header">
+                            <span>Available Skills</span>
+                            <span className="editor__tools-server-count">{form.skills.length} enabled</span>
+                          </div>
+                          <div className="editor__tools-list">
+                            {availableSkills.map((skill: any) => {
+                              const enabled = form.skills.includes(skill.name);
+                              return (
+                                <div
+                                  key={skill.name}
+                                  className={`editor__tool-item ${enabled ? 'editor__tool-item--active' : ''}`}
+                                  onClick={() => {
                                     if (locked) return;
                                     setForm((f) => ({
                                       ...f,
@@ -841,14 +850,91 @@ export function AgentsView({
                                         : [...f.skills, skill.name],
                                     }));
                                   }}
-                                />
-                                <span className="editor__tool-name">{skill.name}</span>
-                                {skill.description && (
-                                  <span className="editor__tool-desc">{skill.description}</span>
-                                )}
-                              </label>
-                            );
-                          })}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={enabled}
+                                    disabled={locked}
+                                    readOnly
+                                    style={{ accentColor: 'var(--accent-primary)' }}
+                                  />
+                                  <div className="editor__tool-info">
+                                    <div className="editor__tool-name">
+                                      {skill.name}
+                                      {enabled && <span className="editor__tool-badge editor__tool-badge--auto">on</span>}
+                                    </div>
+                                    {skill.description && (
+                                      <div className="editor__tool-desc">{skill.description}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Prompts */}
+                  <div className="agent-editor__section">
+                    <div className="editor-field">
+                      <div className="editor-label-row">
+                        <label className="editor-label">Prompts</label>
+                      </div>
+                      {availablePrompts.length === 0 ? (
+                        <div className="editor__tools-empty">
+                          No prompts yet.{' '}
+                          <button className="editor__tools-link" onClick={() => onNavigate({ type: 'prompts' })}>
+                            Create one →
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="editor__tools-server">
+                          <div className="editor__tools-server-header">
+                            <span>Available Prompts</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className="editor__tools-server-count">{form.prompts.length} enabled</span>
+                              <button className="editor__tools-link" onClick={() => onNavigate({ type: 'prompts' })} style={{ fontSize: '0.7rem' }}>+ new</button>
+                            </span>
+                          </div>
+                          <div className="editor__tools-list">
+                            {availablePrompts.map((prompt: any) => {
+                              const enabled = form.prompts.includes(prompt.id);
+                              return (
+                                <div
+                                  key={prompt.id}
+                                  className={`editor__tool-item ${enabled ? 'editor__tool-item--active' : ''}`}
+                                  onClick={() => {
+                                    if (locked) return;
+                                    setForm((f) => ({
+                                      ...f,
+                                      prompts: enabled
+                                        ? f.prompts.filter((p: string) => p !== prompt.id)
+                                        : [...f.prompts, prompt.id],
+                                    }));
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={enabled}
+                                    disabled={locked}
+                                    readOnly
+                                    style={{ accentColor: 'var(--accent-primary)' }}
+                                  />
+                                  <div className="editor__tool-info">
+                                    <div className="editor__tool-name">
+                                      {prompt.name}
+                                      {enabled && <span className="editor__tool-badge editor__tool-badge--auto">on</span>}
+                                    </div>
+                                    {prompt.description && (
+                                      <div className="editor__tool-desc">{prompt.description}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>

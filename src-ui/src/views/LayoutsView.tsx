@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { DetailHeader } from '../components/DetailHeader';
 import { LayoutIcon } from '../components/LayoutIcon';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -346,34 +347,21 @@ export function LayoutsView() {
       >
         {showEditor && (
           <div className="workspace-editor">
-            {/* Header */}
-            <div className="workspace-editor__header">
-              <div>
-                <div className="workspace-editor__title">
-                  {isNew ? 'New Layout' : form.name}
-                  {isDirty && (
-                    <span className="workspace-editor__dirty">●</span>
-                  )}
-                </div>
-              </div>
-              <div className="workspace-editor__header-actions">
-                {!isNew && (
-                  <button
-                    className="editor-btn editor-btn--danger"
-                    onClick={() => setDeleteOpen(true)}
-                  >
-                    Delete
-                  </button>
-                )}
-                <button
-                  className="editor-btn editor-btn--primary"
-                  disabled={saveMutation.isPending || !form.name || !form.slug}
-                  onClick={() => saveMutation.mutate(form)}
-                >
-                  {saveMutation.isPending ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            </div>
+            <DetailHeader
+              title={isNew ? 'New Layout' : form.name || selectedSlug || ''}
+              badge={isDirty ? { label: 'unsaved', variant: 'warning' as const } : undefined}
+            >
+              {!isNew && selectedSlug && (
+                <button className="editor-btn editor-btn--danger" onClick={() => setDeleteOpen(true)}>Delete</button>
+              )}
+              <button
+                className="editor-btn editor-btn--primary"
+                disabled={saveMutation.isPending || !form.name || !form.slug}
+                onClick={() => saveMutation.mutate(form)}
+              >
+                {saveMutation.isPending ? 'Saving…' : isNew ? 'Create' : 'Save'}
+              </button>
+            </DetailHeader>
 
             {error && <div className="workspace-editor__error">{error}</div>}
 

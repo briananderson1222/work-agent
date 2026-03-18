@@ -1,7 +1,8 @@
-import type { ProviderConnectionConfig } from '@stallion-ai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { DetailHeader } from '../components/DetailHeader';
+import { ModelSelector } from '../components/ModelSelector';
 import { PathAutocomplete } from '../components/PathAutocomplete';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
@@ -14,7 +15,6 @@ type ProjectForm = Pick<
   | 'name'
   | 'icon'
   | 'description'
-  | 'defaultProviderId'
   | 'defaultModel'
   | 'workingDirectory'
 >;
@@ -40,38 +40,12 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
     enabled: !!slug,
   });
 
-  const { data: providers = [] } = useQuery<ProviderConnectionConfig[]>({
-    queryKey: ['providers'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/providers`);
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-  });
-
-  const selectedProviderId = form?.defaultProviderId ?? '';
-
-  const { data: providerModels = [] } = useQuery<
-    { id: string; name: string }[]
-  >({
-    queryKey: ['provider-models', selectedProviderId],
-    queryFn: async () => {
-      const res = await fetch(
-        `${apiBase}/api/providers/${selectedProviderId}/models`,
-      );
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-    enabled: !!selectedProviderId,
-  });
-
   useEffect(() => {
     if (project) {
       const f: ProjectForm = {
         name: project.name,
         icon: project.icon ?? '',
         description: project.description ?? '',
-        defaultProviderId: project.defaultProviderId ?? '',
         defaultModel: project.defaultModel ?? '',
         workingDirectory: project.workingDirectory ?? '',
       };
@@ -98,7 +72,6 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         name: saved.name,
         icon: saved.icon ?? '',
         description: saved.description ?? '',
-        defaultProviderId: saved.defaultProviderId ?? '',
         defaultModel: saved.defaultModel ?? '',
         workingDirectory: saved.workingDirectory ?? '',
       };
@@ -159,50 +132,24 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '16px 24px',
-          borderBottom: '1px solid var(--border-primary)',
-          background: 'var(--bg-secondary)',
-          flexShrink: 0,
-        }}
+      <DetailHeader
+        title={`${form.icon || project?.icon || ''} ${form.name}`.trim()}
+        badge={isDirty ? { label: 'unsaved', variant: 'warning' as const } : undefined}
       >
-        <div
-          style={{
-            fontSize: '16px',
-            fontWeight: 700,
-            color: 'var(--text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
+        <button
+          className="editor-btn"
+          onClick={() => navigate(`/projects/${slug}`)}
         >
-          {form.icon || project?.icon} {form.name}
-          {isDirty && (
-            <span style={{ color: 'var(--accent-primary)', fontSize: '10px' }}>
-              ●
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            className="editor-btn editor-btn--danger"
-            onClick={() => setDeleteOpen(true)}
-          >
-            Delete
-          </button>
-          <button
-            className="editor-btn editor-btn--primary"
-            disabled={saveMutation.isPending || !form.name}
-            onClick={() => saveMutation.mutate(form)}
-          >
-            {saveMutation.isPending ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </div>
+          ← Back
+        </button>
+        <button
+          className="editor-btn editor-btn--primary"
+          disabled={saveMutation.isPending || !form.name}
+          onClick={() => saveMutation.mutate(form)}
+        >
+          {saveMutation.isPending ? 'Saving…' : 'Save'}
+        </button>
+      </DetailHeader>
 
       {error && (
         <div
@@ -242,26 +189,31 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
 
           <div className="editor-field">
             <label className="editor-label">Name *</label>
-            <input
-              className="editor-input"
-              type="text"
-              value={form.name}
-              onChange={(e) => setField('name', e.target.value)}
-            />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                className="editor-input"
+                type="text"
+                value={form.icon ?? ''}
+                placeholder="🚀"
+                onChange={(e) => setField('icon', e.target.value)}
+                style={{ width: '48px', textAlign: 'center', flexShrink: 0 }}
+              />
+              <input
+                className="editor-input"
+                type="text"
+                value={form.name}
+                onChange={(e) => setField('name', e.target.value)}
+                style={{ flex: 1 }}
+              />
+            </div>
           </div>
           <div className="editor-field">
-            <label className="editor-label">
-              Icon{' '}
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-                (emoji)
-              </span>
-            </label>
-            <input
-              className="editor-input"
-              type="text"
-              value={form.icon ?? ''}
-              placeholder="🚀"
-              onChange={(e) => setField('icon', e.target.value)}
+            <label className="editor-label">Working Directory</label>
+            <PathAutocomplete
+              apiBase={apiBase}
+              value={form.workingDirectory ?? ''}
+              onChange={(v) => setField('workingDirectory', v)}
+              placeholder="/path/to/project"
             />
           </div>
           <div className="editor-field">
@@ -275,7 +227,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
           </div>
         </section>
 
-        {/* Working Directory */}
+        {/* Default AI Model */}
         <section
           style={{
             padding: '20px 24px',
@@ -287,81 +239,18 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
               fontSize: '13px',
               fontWeight: 600,
               color: 'var(--text-primary)',
-              marginBottom: '16px',
+              marginBottom: '12px',
             }}
           >
-            Working Directory
+            Default AI Model
           </div>
           <div className="editor-field">
-            <label className="editor-label">Path</label>
-            <PathAutocomplete
-              apiBase={apiBase}
-              value={form.workingDirectory ?? ''}
-              onChange={(v) => setField('workingDirectory', v)}
-              placeholder="/path/to/project"
+            <ModelSelector
+              value={form.defaultModel ?? ''}
+              onChange={(modelId) => setField('defaultModel', modelId)}
+              placeholder="System default"
             />
-          </div>
-        </section>
-
-        {/* Model */}
-        <section
-          style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--border-primary)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--text-primary)',
-              marginBottom: '16px',
-            }}
-          >
-            Model
-          </div>
-          <div className="editor-field">
-            <label className="editor-label">Default Provider</label>
-            <select
-              className="editor-select"
-              value={form.defaultProviderId ?? ''}
-              onChange={(e) => {
-                setField('defaultProviderId', e.target.value);
-                setField('defaultModel', '');
-              }}
-            >
-              <option value="">System Default</option>
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.type})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="editor-field">
-            <label className="editor-label">Default Model</label>
-            {selectedProviderId ? (
-              <select
-                className="editor-select"
-                value={form.defaultModel ?? ''}
-                onChange={(e) => setField('defaultModel', e.target.value)}
-              >
-                <option value="">— select model —</option>
-                {providerModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className="editor-input"
-                type="text"
-                value={form.defaultModel ?? ''}
-                placeholder="e.g. gpt-4o"
-                onChange={(e) => setField('defaultModel', e.target.value)}
-              />
-            )}
+            <span className="editor-hint">Leave empty to use the system default.</span>
           </div>
         </section>
 
@@ -845,9 +734,6 @@ function KnowledgeSection({
 
       {/* Status bar */}
       <div className="knowledge-section__status">
-        <span className="knowledge-section__status-item">
-          Provider: {status?.provider ?? 'LanceDB (file-based)'}
-        </span>
         {docs.length > 0 && (
           <button
             className="knowledge-section__clear-btn"
