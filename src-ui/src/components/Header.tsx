@@ -81,7 +81,7 @@ export function Header({
   onNavigate,
 }: HeaderProps) {
   const settingsShortcut = useShortcutDisplay('app.settings');
-  const { setDockState } = useNavigation();
+  const { setDockState, setActiveChat } = useNavigation();
   const { apiBase } = useApiBase();
   const [showHelp, setShowHelp] = useState(false);
   const createChatSession = useCreateChatSession();
@@ -92,8 +92,8 @@ export function Header({
   function handleHelpPrompt(prompt: string) {
     setShowHelp(false);
     setDockState(true);
-    // Create a new chat session with the default agent and send the prompt
     const sessionId = createChatSession('default', 'Stallion');
+    setActiveChat(sessionId);
     setTimeout(() => {
       sendMessage(sessionId, 'default', undefined, prompt);
     }, 100);
@@ -231,7 +231,7 @@ export function Header({
                     key={i}
                     onClick={() => handleHelpPrompt(p.prompt)}
                     style={{
-                      display: 'block', width: '100%', padding: '10px 12px', border: 'none',
+                      display: 'flex', alignItems: 'center', width: '100%', padding: '10px 12px', border: 'none',
                       background: 'transparent', color: 'var(--text-primary)', fontSize: 13,
                       textAlign: 'left', cursor: 'pointer', borderBottom: i < helpPrompts.length - 1 ? '1px solid var(--border-primary)' : 'none',
                       fontFamily: 'inherit',
@@ -239,6 +239,9 @@ export function Header({
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 8 }}>
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
                     {p.label}
                   </button>
                 ))}
