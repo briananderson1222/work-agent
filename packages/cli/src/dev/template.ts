@@ -359,7 +359,7 @@ window.__stallion_ai_shared = {
         actions:globalActions,
         onLaunchAction:handleAction,
         title:td?td.label:layoutName,
-        description:'',
+        description:td?td.description||'':'',
         tabActions:tabActions,
         onTabPromptSelect:handleAction
       }),

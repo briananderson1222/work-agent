@@ -30,9 +30,10 @@ export function useSystemStatus(pollInterval?: number) {
       if (!res.ok) throw new Error('Failed to fetch system status');
       return res.json();
     },
-    refetchInterval: pollInterval,
+    refetchInterval: (query) => query.state.status === 'error' ? 5_000 : pollInterval ?? false,
     staleTime: 10_000,
-    retry: 1,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
 }
 

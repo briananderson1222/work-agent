@@ -233,6 +233,7 @@ export function ModelSelector({
           }, 200);
         }}
         placeholder={placeholder || 'Select a model...'}
+        className="editor-input"
         style={{ width: '100%' }}
       />
       {isOpen && filteredModels.length > 0 && (

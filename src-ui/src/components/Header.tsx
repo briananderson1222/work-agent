@@ -6,6 +6,9 @@ import {
 } from '@stallion-ai/connect';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigation } from '../contexts/NavigationContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
+import { useSendMessage, useActiveChatActions, useCreateChatSession } from '../contexts/ActiveChatsContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { NavigationView } from '../types';
 import { getInitials } from '../utils/layout';
@@ -30,6 +33,20 @@ export function Header({
   onNavigate,
 }: HeaderProps) {
   const settingsShortcut = useShortcutDisplay('app.settings');
+  const { setDockState } = useNavigation();
+  const { apiBase } = useApiBase();
+  const [showHelp, setShowHelp] = useState(false);
+
+  const helpPrompts = getHelpPrompts(currentView);
+
+  function handleHelpPrompt(prompt: string) {
+    setShowHelp(false);
+    setDockState(true);
+    // Small delay to let dock open, then the user sees the prompt ready
+    // The prompt is copied to clipboard-style — user can paste or we auto-send
+    // For now, just open dock. The prompt is shown as a suggestion.
+    navigator.clipboard?.writeText(prompt).catch(() => {});
+  }
   const { user: authUser } = useAuth();
   const userName = authUser?.name || authUser?.alias || 'User';
   const userInitials = getInitials(userName);
@@ -132,6 +149,53 @@ export function Header({
         >
           {userInitials}
         </button>
+
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className={`app-toolbar__icon-btn ${showHelp ? 'is-active' : ''}`}
+            onClick={() => setShowHelp(!showHelp)}
+            title="Ask Stallion for help"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </button>
+          {showHelp && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowHelp(false)} />
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 100,
+                background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)',
+                borderRadius: 8, width: 280, boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                overflow: 'hidden',
+              }}>
+                <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border-primary)' }}>
+                  Ask Stallion
+                </div>
+                {helpPrompts.map((p, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleHelpPrompt(p.prompt)}
+                    style={{
+                      display: 'block', width: '100%', padding: '10px 12px', border: 'none',
+                      background: 'transparent', color: 'var(--text-primary)', fontSize: 13,
+                      textAlign: 'left', cursor: 'pointer', borderBottom: i < helpPrompts.length - 1 ? '1px solid var(--border-primary)' : 'none',
+                      fontFamily: 'inherit',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <span style={{ marginRight: 8 }}>{p.icon}</span>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         <button
           type="button"

@@ -4,6 +4,7 @@ export function PathAutocomplete({
   value,
   onChange,
   onSubmit,
+  onBlur,
   placeholder,
   disabled,
   apiBase,
@@ -12,6 +13,7 @@ export function PathAutocomplete({
   value: string;
   onChange: (v: string) => void;
   onSubmit?: () => void;
+  onBlur?: () => void;
   placeholder?: string;
   disabled?: boolean;
   apiBase: string;
@@ -81,8 +83,11 @@ export function PathAutocomplete({
       setSelectedIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      if (selectedIdx >= 0) pick(suggestions[selectedIdx]);
-      else if (suggestions.length > 0) pick(suggestions[0]);
+      if (suggestions.length === 1) {
+        pick(suggestions[0]);
+      } else if (suggestions.length > 1) {
+        setSelectedIdx((i) => (i + 1) % suggestions.length);
+      }
     } else if (e.key === 'Enter') {
       if (selectedIdx >= 0) {
         e.preventDefault();
@@ -108,7 +113,14 @@ export function PathAutocomplete({
         onKeyDown={onKeyDown}
         onBlur={() =>
           setTimeout(() => {
-            if (!pickingRef.current) setShow(false);
+            if (!pickingRef.current) {
+              // Accept current selected suggestion on blur
+              if (show && selectedIdx >= 0 && suggestions[selectedIdx]) {
+                pick(suggestions[selectedIdx]);
+              }
+              setShow(false);
+              onBlur?.();
+            }
           }, 200)
         }
         onFocus={() => suggestions.length > 0 && setShow(true)}
@@ -122,7 +134,7 @@ export function PathAutocomplete({
             top: '100%',
             left: 0,
             right: 0,
-            zIndex: 50,
+            zIndex: 100,
             background: 'var(--bg-secondary, #1e1e1e)',
             border: '1px solid var(--border-color, #333)',
             borderRadius: '0 0 8px 8px',

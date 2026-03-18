@@ -64,7 +64,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       <>
         <FullScreenError
           title="Can't reach server"
-          description={`Could not connect to <code>${apiBase}</code>. If connecting from another device, use your server's IP address instead of localhost.`}
+          description={`Could not connect to ${apiBase}. If connecting from another device, use your server's IP address instead of localhost.`}
           onRetry={() => setShowModal(true)}
           retryLabel="Manage Connections"
         />

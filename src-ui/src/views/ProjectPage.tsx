@@ -363,7 +363,7 @@ export function ProjectPage({ slug }: { slug: string }) {
           </button>
         </div>
 
-        {/* Working directory edit — full width below header */}
+        {/* Working directory edit — inline below header */}
         {editingDir && (
           <div className="project-page__dir-inline">
             <PathAutocomplete
@@ -371,22 +371,16 @@ export function ProjectPage({ slug }: { slug: string }) {
               value={dirDraft}
               onChange={setDirDraft}
               onSubmit={() => saveDirMutation.mutate(dirDraft)}
+              onBlur={() => {
+                if (dirDraft !== (project.workingDirectory ?? '')) {
+                  saveDirMutation.mutate(dirDraft);
+                } else {
+                  setEditingDir(false);
+                }
+              }}
               placeholder="/path/to/project"
               className="project-page__dir-input"
             />
-            <button
-              className="project-page__dir-save"
-              onClick={() => saveDirMutation.mutate(dirDraft)}
-              disabled={saveDirMutation.isPending}
-            >
-              {saveDirMutation.isPending ? '…' : '✓'}
-            </button>
-            <button
-              className="project-page__dir-cancel"
-              onClick={() => setEditingDir(false)}
-            >
-              ✕
-            </button>
           </div>
         )}
 
