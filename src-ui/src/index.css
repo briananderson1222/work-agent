@@ -227,6 +227,16 @@
   box-sizing: border-box;
 }
 
+/* ── Global themed scrollbars ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-secondary) transparent;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-secondary); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
 body {
   font-family: "DM Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -4556,7 +4566,6 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   max-height: 105px;
-  scrollbar-width: thin;
 }
 
 .app__main--dock-right > .chat-dock .chat-dock__scroll-btn {

@@ -111,21 +111,6 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-primary) transparent;
-}
-
-.editor__content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.editor__content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.editor__content::-webkit-scrollbar-thumb {
-  background: var(--border-primary);
-  border-radius: 3px;
 }
 
 /* ── Sections ── */
@@ -776,8 +761,6 @@
 .agent-inline-editor__body {
   flex: 1;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-primary) transparent;
 }
 
 /* ── Agent Editor Sections ── */
@@ -896,8 +879,6 @@
 .workspace-editor__body {
   flex: 1;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-primary) transparent;
 }
 
 .workspace-editor__section {
