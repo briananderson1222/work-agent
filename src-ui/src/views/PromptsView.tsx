@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
@@ -162,6 +162,13 @@ export function PromptsView() {
   }, [prompts, search]);
 
   const selectedPrompt = prompts.find((p) => p.id === selectedId);
+
+  // Populate form when navigating directly via URL
+  useEffect(() => {
+    if (selectedPrompt && !isNew && !dirty) {
+      setForm(promptToForm(selectedPrompt));
+    }
+  }, [selectedPrompt?.id]);
 
   function selectPrompt(id: string) {
     const p = prompts.find((x) => x.id === id);
