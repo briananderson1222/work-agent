@@ -53,8 +53,8 @@ export type AnalyzeCallback = (prompt: string) => Promise<string>;
 // ── Constants ──────────────────────────────────────────
 
 const ANALYSIS_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
-const MAX_REINFORCE = 25;
-const MAX_AVOID = 25;
+const _MAX_REINFORCE = 25;
+const _MAX_AVOID = 25;
 
 // ── Service ────────────────────────────────────────────
 

@@ -216,6 +216,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
           stdio: 'ignore',
           detached: true,
           env: serverEnv,
+          windowsHide: true,
         });
         child.unref();
 

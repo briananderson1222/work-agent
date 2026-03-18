@@ -109,7 +109,7 @@ function isDirty(form: AgentFormData, saved: AgentFormData): boolean {
 export function AgentsView({
   agents,
   apiBase,
-  bedrockReady,
+  bedrockReady: _bedrockReady,
   onNavigate,
 }: AgentsViewProps) {
   const liveAgents = useAgents();

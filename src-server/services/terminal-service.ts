@@ -207,11 +207,19 @@ export class TerminalService {
   private resolveShell(): ShellCandidate[] {
     const candidates: ShellCandidate[] = [];
     if (process.env.SHELL) candidates.push({ shell: process.env.SHELL });
-    candidates.push(
-      { shell: '/bin/zsh', args: ['-o', 'nopromptsp'] },
-      { shell: '/bin/bash' },
-      { shell: '/bin/sh' },
-    );
+    if (process.platform === 'win32') {
+      if (process.env.COMSPEC) candidates.push({ shell: process.env.COMSPEC });
+      candidates.push(
+        { shell: 'powershell.exe' },
+        { shell: 'cmd.exe' },
+      );
+    } else {
+      candidates.push(
+        { shell: '/bin/zsh', args: ['-o', 'nopromptsp'] },
+        { shell: '/bin/bash' },
+        { shell: '/bin/sh' },
+      );
+    }
     return candidates;
   }
 

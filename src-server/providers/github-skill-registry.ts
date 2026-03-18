@@ -49,7 +49,7 @@ export class GitHubSkillRegistryProvider implements ISkillRegistryProvider {
 
     try {
       const tree = await this.fetchTree();
-      const prefix = this.skillsPath + '/';
+      const prefix = `${this.skillsPath}/`;
       // Find directories that contain SKILL.md
       const skillDirs = new Set<string>();
       for (const item of tree) {

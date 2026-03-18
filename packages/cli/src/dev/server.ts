@@ -206,7 +206,7 @@ export async function startDevServer(
           }
           const bodyMatch = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
           const content = bodyMatch ? bodyMatch[1].trim() : raw.trim();
-          return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires, content, _source: manifest.prompts!.source + '/' + f };
+          return { id: meta.id || f.replace('.md', ''), name: meta.label || meta.id || f.replace('.md', ''), icon: meta.icon, requires: meta.requires, content, _source: `${manifest.prompts!.source}/${f}` };
         });
       }
     }
@@ -219,7 +219,7 @@ export async function startDevServer(
         if (existsSync(cfgPath)) {
           try {
             const cfg = JSON.parse(readFileSync(cfgPath, 'utf-8'));
-            cfg._source = 'integrations/' + dir + '/integration.json';
+            cfg._source = `integrations/${dir}/integration.json`;
             integrations.push(cfg);
           } catch {}
         }
@@ -304,7 +304,7 @@ export async function startDevServer(
     return { html, layout, layoutSlug };
   }
 
-  let { html, layout, layoutSlug } = regenerateHTML();
+  let { html, layout } = regenerateHTML();
 
   // ── MCP setup ──
   let mcpManager: MCPManager | null = null;
@@ -377,9 +377,9 @@ export async function startDevServer(
       if (configTimer) clearTimeout(configTimer);
       configTimer = setTimeout(() => {
         try {
-          const label = filename || target.replace(CWD + '/', '');
+          const label = filename || target.replace(`${CWD}/`, '');
           console.log(`\n♻️  ${label} changed — regenerating config...`);
-          ({ html, layout, layoutSlug } = regenerateHTML());
+          ({ html, layout } = regenerateHTML());
           for (const res of reloadClients) res.write('data: reload\n\n');
         } catch (err: any) {
           console.error(`   Config reload failed: ${err.message}`);
@@ -603,7 +603,7 @@ export async function startDevServer(
         : '   MCP: off',
     );
     if (configDirs.length > 0) {
-      console.log(`   Watching: src/ + ${configDirs.map(d => d.replace(CWD + '/', '')).join(', ')}`);
+      console.log(`   Watching: src/ + ${configDirs.map(d => d.replace(`${CWD}/`, '')).join(', ')}`);
     }
     console.log('');
   });

@@ -176,7 +176,10 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
         let commandExists = false;
         if (def.command) {
           try {
-            execSync(`which ${def.command}`, { stdio: 'pipe' });
+            const cmd = process.platform === 'win32'
+              ? `where ${def.command}`
+              : `which ${def.command}`;
+            execSync(cmd, { stdio: 'pipe', windowsHide: true });
             commandExists = true;
           } catch (e) { console.debug('Command not found for integration:', def.command, e); }
         }

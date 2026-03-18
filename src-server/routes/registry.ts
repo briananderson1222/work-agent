@@ -4,7 +4,6 @@
  */
 
 import { Hono } from 'hono';
-import { join } from 'node:path';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import {
   getAgentRegistryProvider,

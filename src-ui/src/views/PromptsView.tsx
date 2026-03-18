@@ -168,7 +168,7 @@ export function PromptsView() {
     if (selectedPrompt && !isNew && !dirty) {
       setForm(promptToForm(selectedPrompt));
     }
-  }, [selectedPrompt?.id]);
+  }, [selectedPrompt?.id, dirty, isNew, selectedPrompt]);
 
   function selectPrompt(id: string) {
     const p = prompts.find((x) => x.id === id);
@@ -241,7 +241,7 @@ export function PromptsView() {
     }
   }
 
-  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const _isSaving = createMutation.isPending || updateMutation.isPending;
   const { enrich, isEnriching } = useAIEnrich();
   const isEditing = isNew || !!selectedId;
 

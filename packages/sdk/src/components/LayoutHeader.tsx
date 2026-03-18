@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigation } from '../hooks';
 import { AuthStatusBadge } from './AuthStatusBadge';
 import './LayoutHeader.css';

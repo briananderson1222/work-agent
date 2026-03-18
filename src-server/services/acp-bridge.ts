@@ -264,6 +264,7 @@ export class ACPConnection {
       this.proc = spawn(bin, this.config.args || [], {
         stdio: ['pipe', 'pipe', 'inherit'],
         cwd: this.cwd,
+        windowsHide: true,
       });
 
       this.proc.on('exit', (code) => {
@@ -1335,6 +1336,7 @@ export class ACPConnection {
           ? Object.fromEntries(params.env.map((e) => [e.name, e.value]))
           : {}),
       },
+      windowsHide: true,
     });
 
     const term: ManagedTerminal = { process: proc, output: '', exitCode: null };
@@ -1467,10 +1469,14 @@ export class ACPConnection {
 
   private async findCommand(): Promise<string | null> {
     const { execSync } = await import('node:child_process');
+    const cmd = process.platform === 'win32'
+      ? `where ${this.config.command}`
+      : `which ${this.config.command}`;
     try {
-      return execSync(`which ${this.config.command}`, {
+      return execSync(cmd, {
         encoding: 'utf-8',
-      }).trim();
+        windowsHide: true,
+      }).trim().split('\n')[0]; // `where` on Windows can return multiple lines
     } catch (e) {
       this.logger.debug('Failed to find command on PATH', { command: this.config.command, error: e });
       return null;
@@ -1510,6 +1516,7 @@ export class ACPConnection {
       const output = execSync(`${this.config.command} settings list`, {
         encoding: 'utf-8',
         timeout: 5000,
+        windowsHide: true,
       });
       const match = output.match(/chat\.defaultModel\s*=\s*"([^"]+)"/);
       if (match) {

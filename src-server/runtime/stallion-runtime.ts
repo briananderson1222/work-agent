@@ -6,7 +6,6 @@
 import { EventEmitter } from 'node:events';
 import { createReadStream, existsSync } from 'node:fs';
 import { appendFile, mkdir, readdir } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
@@ -28,9 +27,7 @@ import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { createEventRoutes } from '../routes/events.js';
 import { EventBus } from '../services/event-bus.js';
 import {
-  feedbackOps,
   registerObservableGauges,
-  tracer,
 } from '../telemetry/metrics.js';
 import { createLogger } from '../utils/logger.js';
 import { createAgentHooks } from './agent-hooks.js';

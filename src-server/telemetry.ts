@@ -3,8 +3,8 @@
  * Set OTEL_EXPORTER_OTLP_ENDPOINT=off to disable telemetry.
  */
 
-import { createHash } from 'crypto';
-import { hostname, userInfo, platform } from 'os';
+import { createHash } from 'node:crypto';
+import { hostname, userInfo, platform } from 'node:os';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { AwsInstrumentation } from '@opentelemetry/instrumentation-aws-sdk';

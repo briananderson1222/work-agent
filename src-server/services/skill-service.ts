@@ -9,7 +9,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { readdir, readFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { readdir, readFile, mkdir, rm, } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import {
   type ResolvedSkill,

@@ -257,11 +257,11 @@ export function ProviderSettingsView({
 
   const llmProviders = useMemo(
     () => llmEmbeddingProviders.filter((p) => p.enabled && p.capabilities.includes('llm')),
-    [providers],
+    [llmEmbeddingProviders.filter],
   );
   const embeddingProviders = useMemo(
     () => llmEmbeddingProviders.filter((p) => p.enabled && p.capabilities.includes('embedding')),
-    [providers],
+    [llmEmbeddingProviders.filter],
   );
 
   // Type picker shown when "+ Add Provider" is clicked

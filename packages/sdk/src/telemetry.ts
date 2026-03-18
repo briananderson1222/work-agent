@@ -7,7 +7,7 @@ interface TelemetryEvent {
   timestamp: number;
 }
 
-let buffer: TelemetryEvent[] = [];
+const buffer: TelemetryEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 const FLUSH_INTERVAL = 10_000;
 
