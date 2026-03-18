@@ -182,8 +182,10 @@ export function AgentsHub({ onNavigate }: AgentsHubProps) {
                     className="agents-hub__card"
                     onClick={() => onNavigate({ type: 'skills' })}
                   >
-                    <span className="agents-hub__card-icon">⚡</span>
-                    <span className="agents-hub__card-name">{skill.name}</span>
+                    <div className="agents-hub__card-row">
+                      <span className="agents-hub__card-icon">⚡</span>
+                      <span className="agents-hub__card-name">{skill.name}</span>
+                    </div>
                     <span className="agents-hub__card-desc">
                       {skill.description ?? skill.source ?? ''}
                     </span>
