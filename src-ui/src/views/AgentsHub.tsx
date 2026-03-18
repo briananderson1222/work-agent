@@ -76,6 +76,14 @@ export function AgentsHub({ onNavigate }: AgentsHubProps) {
             <span className="agents-hub__section-spacer" />
             <span
               className="agents-hub__add-btn"
+              onClick={(e) => { e.stopPropagation(); navigate('/agents'); }}
+              role="button"
+              tabIndex={-1}
+            >
+              Browse
+            </span>
+            <span
+              className="agents-hub__add-btn"
               onClick={(e) => { e.stopPropagation(); onNavigate({ type: 'agent-new' }); }}
               role="button"
               tabIndex={-1}
@@ -212,6 +220,14 @@ export function AgentsHub({ onNavigate }: AgentsHubProps) {
               <span className="agents-hub__section-count">{prompts.length}</span>
             )}
             <span className="agents-hub__section-spacer" />
+            <span
+              className="agents-hub__add-btn"
+              onClick={(e) => { e.stopPropagation(); navigate('/prompts'); }}
+              role="button"
+              tabIndex={-1}
+            >
+              Browse
+            </span>
             <span
               className="agents-hub__add-btn"
               onClick={(e) => { e.stopPropagation(); navigate('/prompts/new'); }}
