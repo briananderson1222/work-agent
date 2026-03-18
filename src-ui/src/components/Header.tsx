@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
-import { useSendMessage, useActiveChatActions, useCreateChatSession } from '../contexts/ActiveChatsContext';
+import { useSendMessage, useCreateChatSession } from '../contexts/ActiveChatsContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { NavigationView } from '../types';
 import { getInitials } from '../utils/layout';
@@ -19,6 +19,54 @@ function checkServerHealth(url: string): Promise<boolean> {
   return fetch(`${url}/api/system/status`)
     .then((r) => r.ok)
     .catch(() => false);
+}
+
+function getHelpPrompts(view?: NavigationView): Array<{ label: string; prompt: string }> {
+  const generic = [
+    { label: 'What can you do?', prompt: 'What can you help me with? List your capabilities.' },
+    { label: 'System health check', prompt: 'Run a system health check and tell me if anything needs attention.' },
+  ];
+
+  if (!view) return generic;
+
+  const contextual: Array<{ label: string; prompt: string }> = [];
+
+  switch (view.type) {
+    case 'agents':
+      contextual.push(
+        { label: 'Create an agent for me', prompt: 'Help me create a new agent. Ask me what I need it to do.' },
+        { label: 'What skills should I add?', prompt: 'List available skills and recommend which ones to install based on common use cases.' },
+      );
+      break;
+    case 'connections-tools':
+      contextual.push(
+        { label: 'Add an MCP server', prompt: 'Help me add a new MCP tool server. What popular ones are available?' },
+        { label: 'Browse the registry', prompt: 'List available integrations from the registry and help me pick ones to install.' },
+      );
+      break;
+    case 'skills':
+      contextual.push(
+        { label: 'Install recommended skills', prompt: 'What skills are available in the registry? Recommend the most useful ones and install them.' },
+      );
+      break;
+    case 'prompts':
+      contextual.push(
+        { label: 'Create a prompt for me', prompt: 'Help me create a useful prompt. Ask me what task I want to automate.' },
+      );
+      break;
+    case 'schedule':
+      contextual.push(
+        { label: 'Schedule a recurring task', prompt: 'Help me set up a scheduled job. Ask me what I want to run and when.' },
+      );
+      break;
+    case 'connections-providers':
+      contextual.push(
+        { label: 'Configure a provider', prompt: 'Help me set up a new LLM provider connection.' },
+      );
+      break;
+  }
+
+  return [...contextual, ...generic];
 }
 
 interface HeaderProps {
@@ -36,16 +84,19 @@ export function Header({
   const { setDockState } = useNavigation();
   const { apiBase } = useApiBase();
   const [showHelp, setShowHelp] = useState(false);
+  const createChatSession = useCreateChatSession();
+  const sendMessage = useSendMessage(apiBase);
 
   const helpPrompts = getHelpPrompts(currentView);
 
   function handleHelpPrompt(prompt: string) {
     setShowHelp(false);
     setDockState(true);
-    // Small delay to let dock open, then the user sees the prompt ready
-    // The prompt is copied to clipboard-style — user can paste or we auto-send
-    // For now, just open dock. The prompt is shown as a suggestion.
-    navigator.clipboard?.writeText(prompt).catch(() => {});
+    // Create a new chat session with the default agent and send the prompt
+    const sessionId = createChatSession('default', 'Stallion');
+    setTimeout(() => {
+      sendMessage(sessionId, 'default', undefined, prompt);
+    }, 100);
   }
   const { user: authUser } = useAuth();
   const userName = authUser?.name || authUser?.alias || 'User';
@@ -188,7 +239,6 @@ export function Header({
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <span style={{ marginRight: 8 }}>{p.icon}</span>
                     {p.label}
                   </button>
                 ))}
