@@ -10,6 +10,8 @@ import { Readable, Writable } from 'node:stream';
 import {
   type Client,
   ClientSideConnection,
+  type ContentBlock,
+  type McpServer,
   ndJsonStream,
   PROTOCOL_VERSION,
 } from '@agentclientprotocol/sdk';
@@ -114,7 +116,7 @@ export class ACPProcess extends EventEmitter {
   /** Create a new ACP session. */
   async newSession(
     cwd: string,
-    mcpServers: string[] = [],
+    mcpServers: McpServer[] = [],
   ): Promise<SessionResult> {
     if (!this.connection) throw new Error('ACPProcess not started');
     const result = (await this.connection.newSession({
@@ -129,7 +131,7 @@ export class ACPProcess extends EventEmitter {
   async loadSession(
     sessionId: string,
     cwd: string,
-    mcpServers: string[] = [],
+    mcpServers: McpServer[] = [],
   ): Promise<void> {
     if (!this.connection) throw new Error('ACPProcess not started');
     await this.connection.loadSession({ sessionId, cwd, mcpServers });
@@ -159,12 +161,7 @@ export class ACPProcess extends EventEmitter {
 
   /** Send a prompt to the current session. */
   async prompt(
-    content: Array<{
-      type: string;
-      text?: string;
-      data?: string;
-      mimeType?: string;
-    }>,
+    content: ContentBlock[],
   ): Promise<void> {
     if (!this.connection || !this._sessionId)
       throw new Error('No active session');
