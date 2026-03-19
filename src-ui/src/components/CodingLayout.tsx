@@ -1,13 +1,18 @@
-import DOMPurify from 'dompurify';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import DOMPurify from 'dompurify';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import {
   langFromFilePath,
   useSyntaxHighlighter,
 } from '../contexts/SyntaxHighlighterContext';
 import { useDockModePreference } from '../hooks/useDockModePreference';
+import {
+  getRecentAgentSlugs,
+  trackRecentAgent,
+} from '../hooks/useRecentAgents';
 import './CodingLayout.css';
+import { ACPChatPanel } from './ACPChatPanel';
 import { TerminalPanel } from './TerminalPanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -500,7 +505,9 @@ function FileContentViewer({
         ) : highlighted ? (
           <div
             style={{ fontSize: '11px', lineHeight: '1.6' }}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlighted) }}
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(highlighted),
+            }}
           />
         ) : (
           <pre
@@ -523,6 +530,18 @@ function FileContentViewer({
 
 // ─── CodingLayout ─────────────────────────────────────────────────────────────
 
+interface TerminalTab {
+  id: string;
+  type: 'shell' | 'agent';
+  label: string;
+  mode?: 'chat' | 'terminal'; // agent tabs: 'chat' (default) or 'terminal' (PTY)
+  agentSlug?: string; // for agent tabs: full slug (e.g., 'kiro-dev') for API calls
+  agentMode?: string; // for agent tabs: mode name (e.g., 'dev') for PTY launch
+  connectionId?: string; // for agent tabs: which ACP connection
+  shell?: string;
+  shellArgs?: string[];
+}
+
 const MIN_TERMINAL_H = 80;
 const MAX_TERMINAL_H = 600;
 const DEFAULT_TERMINAL_H = 200;
@@ -538,6 +557,7 @@ export function CodingLayout({
   config: Record<string, unknown>;
 }) {
   const workingDir = (config.workingDirectory as string | undefined) ?? '';
+  const { apiBase: API_BASE } = useApiBase();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   // Dock mode preference — coding layout defaults to right-split
@@ -580,6 +600,156 @@ export function CodingLayout({
       /* ignore */
     }
   }, [terminalOpen, terminalHeight]);
+
+  // Terminal tabs
+  const [tabs, setTabs] = useState<TerminalTab[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('coding-terminal-tabs');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [activeTabId, setActiveTabId] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem('coding-terminal-active-tab') || '';
+    } catch {
+      return '';
+    }
+  });
+  const shellCounter = useRef(
+    Math.max(
+      0,
+      ...tabs
+        .filter((t) => t.type === 'shell')
+        .map((t) => {
+          const m = t.label.match(/^Shell\s*(\d*)$/);
+          return m ? parseInt(m[1] || '1', 10) : 0;
+        }),
+    ),
+  );
+  const hasInitialized = useRef(tabs.length > 0);
+
+  // Lazy init: create first shell when terminal is first expanded
+  useEffect(() => {
+    if (terminalOpen && !hasInitialized.current) {
+      hasInitialized.current = true;
+      if (tabs.length === 0) {
+        shellCounter.current++;
+        const tab: TerminalTab = {
+          id: `term-${Date.now()}`,
+          type: 'shell',
+          label: 'Shell 1',
+        };
+        setTabs([tab]);
+        setActiveTabId(tab.id);
+      }
+    }
+  }, [terminalOpen]);
+
+  // Persist tabs
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('coding-terminal-tabs', JSON.stringify(tabs));
+      sessionStorage.setItem('coding-terminal-active-tab', activeTabId);
+    } catch {
+      /* ignore */
+    }
+  }, [tabs, activeTabId]);
+
+  const addTab = (
+    type: 'shell' | 'agent',
+    agentSlug?: string,
+    connectionId?: string,
+  ) => {
+    const id = `term-${Date.now()}`;
+    let label: string;
+    const tab: TerminalTab = { id, type, label: '' };
+    if (type === 'agent' && agentSlug) {
+      // agentSlug is the full slug (e.g., 'kiro-dev'), mode is the suffix after connectionId
+      const modeName =
+        connectionId && agentSlug.startsWith(`${connectionId}-`)
+          ? agentSlug.slice(connectionId.length + 1)
+          : agentSlug;
+      label = `Agent: ${modeName}`;
+      tab.agentSlug = agentSlug;
+      tab.agentMode = modeName;
+      tab.connectionId = connectionId;
+      tab.mode = 'chat';
+    } else {
+      shellCounter.current++;
+      label = `Shell ${shellCounter.current}`;
+    }
+    tab.label = label;
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(id);
+  };
+
+  const closeTab = (id: string) => {
+    setTabs((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      if (id === activeTabId && next.length > 0) {
+        const idx = prev.findIndex((t) => t.id === id);
+        setActiveTabId(next[Math.max(0, idx - 1)]?.id || next[0].id);
+      }
+      if (next.length === 0) setActiveTabId('');
+      return next;
+    });
+  };
+
+  const renameTab = (id: string, newLabel: string) => {
+    if (!newLabel.trim()) return;
+    setTabs((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, label: newLabel.trim() } : t)),
+    );
+  };
+
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+
+  /** Toggle agent tab between chat UI and PTY terminal mode */
+  const toggleTabMode = (tabId: string) => {
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (t.id !== tabId || t.type !== 'agent') return t;
+        const newMode = t.mode === 'terminal' ? 'chat' : 'terminal';
+        const updated = { ...t, mode: newMode as 'chat' | 'terminal' };
+        if (newMode === 'terminal' && t.agentSlug) {
+          // Resolve PTY args from connection's interactive config
+          const conn = (acpConnections || []).find(
+            (c: any) => c.id === t.connectionId,
+          );
+          if (conn?.interactive?.args) {
+            updated.shell = conn.command;
+            updated.shellArgs = conn.interactive.args.map((a: string) =>
+              a === '{agent}' ? t.agentMode || t.agentSlug! : a,
+            );
+          }
+        }
+        return updated;
+      }),
+    );
+  };
+
+  /** Check if a tab's connection supports PTY mode */
+  const canTogglePTY = (tab: TerminalTab): boolean => {
+    if (tab.type !== 'agent') return false;
+    const conn = (acpConnections || []).find(
+      (c: any) => c.id === tab.connectionId,
+    );
+    return !!conn?.interactive;
+  };
+
+  // ACP agents for terminal new-tab modal
+  const { data: acpConnections } = useQuery({
+    queryKey: ['acp', 'connections'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/acp/connections`);
+      const json = await res.json();
+      return json.data || [];
+    },
+    refetchInterval: 30_000,
+  });
+  const [showNewTerminal, setShowNewTerminal] = useState(false);
 
   // Ctrl+J toggle
   useEffect(() => {
@@ -656,7 +826,88 @@ export function CodingLayout({
           <div className="coding-layout__drag-grip" />
         </div>
         <div className="coding-layout__terminal-bar">
-          <span className="coding-layout__terminal-label">Terminal</span>
+          <div className="coding-layout__terminal-tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`coding-layout__terminal-tab ${tab.id === activeTabId ? 'coding-layout__terminal-tab--active' : ''}`}
+                onClick={() => setActiveTabId(tab.id)}
+              >
+                <span className="coding-layout__terminal-tab-icon">
+                  {tab.type === 'agent' ? '🤖' : '>'}
+                </span>
+                {tab.type === 'agent' && canTogglePTY(tab) && (
+                  <span
+                    className="coding-layout__terminal-tab-toggle"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleTabMode(tab.id);
+                    }}
+                    title={
+                      tab.mode === 'terminal'
+                        ? 'Switch to Chat UI'
+                        : 'Switch to Terminal'
+                    }
+                  >
+                    {tab.mode === 'terminal' ? '💬' : '>_'}
+                  </span>
+                )}
+                {editingTabId === tab.id ? (
+                  <input
+                    className="coding-layout__terminal-tab-rename"
+                    defaultValue={tab.label}
+                    autoFocus
+                    onBlur={(e) => {
+                      renameTab(tab.id, e.target.value);
+                      setEditingTabId(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        renameTab(tab.id, (e.target as HTMLInputElement).value);
+                        setEditingTabId(null);
+                      }
+                      if (e.key === 'Escape') setEditingTabId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span
+                    className="coding-layout__terminal-tab-label"
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setEditingTabId(tab.id);
+                    }}
+                  >
+                    {tab.label}
+                  </span>
+                )}
+                <span
+                  className="coding-layout__terminal-tab-close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(tab.id);
+                  }}
+                >
+                  ×
+                </span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="coding-layout__terminal-tab-add"
+              onClick={() => {
+                const connected = (acpConnections || []).filter(
+                  (c: any) => c.status === 'connected',
+                );
+                if (connected.length === 0) addTab('shell');
+                else setShowNewTerminal(true);
+              }}
+              title="New terminal"
+            >
+              +
+            </button>
+          </div>
           <button
             type="button"
             className="coding-layout__terminal-toggle"
@@ -667,11 +918,240 @@ export function CodingLayout({
             <span className="coding-layout__terminal-shortcut">⌃J</span>
           </button>
         </div>
-        {terminalOpen && (
-          <div className="coding-layout__terminal-body">
-            <TerminalPanel projectSlug={_projectSlug} workingDir={workingDir} />
-          </div>
-        )}
+        <div
+          className="coding-layout__terminal-body"
+          style={terminalOpen ? undefined : { display: 'none' }}
+        >
+          {tabs.length === 0 ? (
+            <div className="coding-layout__terminal-empty">
+              <div className="coding-layout__terminal-empty-content">
+                <span className="coding-layout__terminal-empty-icon">
+                  {'>'}_
+                </span>
+                <p>No active terminals</p>
+                <button type="button" onClick={() => addTab('shell')}>
+                  + New Terminal
+                </button>
+              </div>
+            </div>
+          ) : (
+            tabs.map((tab) => (
+              <div
+                key={tab.id}
+                style={{
+                  display: tab.id === activeTabId ? 'contents' : 'none',
+                }}
+              >
+                {tab.type === 'agent' &&
+                tab.mode === 'chat' &&
+                tab.agentSlug ? (
+                  <ACPChatPanel
+                    projectSlug={_projectSlug}
+                    agentSlug={tab.agentSlug}
+                    tabId={tab.id}
+                  />
+                ) : (
+                  <TerminalPanel
+                    projectSlug={_projectSlug}
+                    workingDir={workingDir}
+                    terminalId={tab.id}
+                    shell={tab.shell}
+                    shellArgs={tab.shellArgs}
+                  />
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+      {showNewTerminal && (
+        <NewTerminalModal
+          connections={acpConnections || []}
+          onSelect={(type, slug, connectionId) => {
+            addTab(type, slug, connectionId);
+            setShowNewTerminal(false);
+          }}
+          onClose={() => setShowNewTerminal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── New Terminal Modal ───────────────────────────────────────────────────────
+
+function NewTerminalModal({
+  connections,
+  onSelect,
+  onClose,
+}: {
+  connections: any[];
+  onSelect: (
+    type: 'shell' | 'agent',
+    slug?: string,
+    connectionId?: string,
+  ) => void;
+  onClose: () => void;
+}) {
+  const [filter, setFilter] = useState('');
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const connectedAgents = connections
+    .filter((c: any) => c.status === 'connected')
+    .flatMap((c: any) =>
+      (c.modes || []).map((mode: string) => ({
+        id: `${c.id}-${mode}`,
+        label: mode,
+        connection: c.name || c.id,
+        connectionId: c.id,
+        slug: `${c.id}-${mode}`,
+      })),
+    );
+
+  const lc = filter.toLowerCase();
+  const items: Array<{
+    key: string;
+    type: 'shell' | 'agent';
+    label: string;
+    hint: string;
+    slug?: string;
+    connectionId?: string;
+    section?: string;
+  }> = [];
+  if (!filter || 'shell'.includes(lc)) {
+    items.push({
+      key: 'shell',
+      type: 'shell',
+      label: 'Shell',
+      hint: 'Default terminal',
+    });
+  }
+  const recentSlugs = new Set(getRecentAgentSlugs());
+  if (!filter) {
+    for (const a of connectedAgents) {
+      if (recentSlugs.has(a.slug)) {
+        items.push({
+          key: `recent-${a.id}`,
+          type: 'agent',
+          label: a.label,
+          hint: `${a.connection} · Recent`,
+          slug: a.slug,
+          connectionId: a.connectionId,
+          section: 'recent',
+        });
+      }
+    }
+  }
+  for (const a of connectedAgents) {
+    if (
+      a.label.toLowerCase().includes(lc) ||
+      a.connection.toLowerCase().includes(lc)
+    ) {
+      if (filter || !recentSlugs.has(a.slug)) {
+        items.push({
+          key: a.id,
+          type: 'agent',
+          label: a.label,
+          hint: a.connection,
+          slug: a.slug,
+          connectionId: a.connectionId,
+        });
+      }
+    }
+  }
+
+  // Reset selection when filter changes
+  useEffect(() => {
+    setSelectedIdx(0);
+  }, [filter]);
+
+  const selectItem = (item: (typeof items)[0]) => {
+    if (item.type === 'agent' && item.slug) trackRecentAgent(item.slug);
+    onSelect(item.type, item.slug, item.connectionId);
+  };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIdx((i) => Math.min(i + 1, items.length - 1));
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIdx((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === 'Enter' && items[selectedIdx]) {
+      selectItem(items[selectedIdx]);
+      return;
+    }
+  };
+
+  return (
+    <div className="coding-layout__new-terminal-overlay" onClick={onClose}>
+      <div
+        className="coding-layout__new-terminal-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          ref={inputRef}
+          className="coding-layout__new-terminal-filter"
+          placeholder="Select terminal type..."
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={onKey}
+        />
+        <div className="coding-layout__new-terminal-list">
+          {items.map((item, i) => {
+            const prevItem = items[i - 1];
+            const showRecentHeader =
+              item.section === 'recent' && prevItem?.section !== 'recent';
+            const showAllHeader =
+              !item.section &&
+              item.type === 'agent' &&
+              prevItem?.section === 'recent';
+            return (
+              <React.Fragment key={item.key}>
+                {showRecentHeader && (
+                  <div className="coding-layout__new-terminal-section">
+                    Recently Used
+                  </div>
+                )}
+                {showAllHeader && (
+                  <div className="coding-layout__new-terminal-section">
+                    All Agents
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className={`coding-layout__new-terminal-option ${i === selectedIdx ? 'coding-layout__new-terminal-option--selected' : ''}`}
+                  onClick={() => selectItem(item)}
+                  onMouseEnter={() => setSelectedIdx(i)}
+                >
+                  <span className="coding-layout__new-terminal-icon">
+                    {item.type === 'agent' ? '🤖' : '>_'}
+                  </span>
+                  <span>{item.label}</span>
+                  <span className="coding-layout__new-terminal-hint">
+                    {item.hint}
+                  </span>
+                </button>
+              </React.Fragment>
+            );
+          })}
+          {items.length === 0 && (
+            <div className="coding-layout__new-terminal-empty">No matches</div>
+          )}
+        </div>
       </div>
     </div>
   );

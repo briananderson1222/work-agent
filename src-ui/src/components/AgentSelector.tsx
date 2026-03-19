@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSummary } from '../types';
+import { getRecentAgentSlugs, trackRecentAgent } from '../hooks/useRecentAgents';
 
 export interface AgentSelectorProps {
   agents: AgentSummary[];
@@ -58,9 +59,18 @@ export function AgentSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const agentOptions = useMemo(() => agents, [agents]);
+  const { recentAgents, otherAgents } = useMemo(() => {
+    const recentSlugs = getRecentAgentSlugs();
+    const recentSet = new Set(recentSlugs);
+    const recent = recentSlugs
+      .map((s) => agents.find((a) => a.slug === s))
+      .filter(Boolean) as AgentSummary[];
+    const others = agents.filter((a) => !recentSet.has(a.slug));
+    return { recentAgents: recent, otherAgents: others };
+  }, [agents]);
 
   const handleSelect = (slug: string) => {
+    trackRecentAgent(slug);
     onSelect(slug);
     close();
   };
@@ -113,15 +123,39 @@ export function AgentSelector({
 
       {isOpen && (
         <div className="agent-selector__menu" role="menu">
+          {recentAgents.length > 0 && (
+            <div className="agent-selector__section">
+              <span className="agent-selector__section-title">Recently Used</span>
+              <ul>
+                {recentAgents.map((agent) => (
+                  <li key={agent.slug}>
+                    <button
+                      type="button"
+                      className="agent-selector__option"
+                      onClick={() => handleSelect(agent.slug)}
+                    >
+                      <span className="agent-selector__option-name">
+                        {agent.name}
+                      </span>
+                      <span className="agent-selector__option-meta">
+                        {agent.model || 'Default model'} ·{' '}
+                        {formatRelativeTime(agent.updatedAt)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="agent-selector__section">
             <span className="agent-selector__section-title">Agents</span>
-            {agentOptions.length === 0 ? (
+            {otherAgents.length === 0 && recentAgents.length === 0 ? (
               <p className="agent-selector__empty">
                 No agents found. Create one to get started.
               </p>
             ) : (
               <ul>
-                {agentOptions.map((agent) => (
+                {otherAgents.map((agent) => (
                   <li key={agent.slug}>
                     <button
                       type="button"

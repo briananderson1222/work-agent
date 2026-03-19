@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import type { AgentData } from '../contexts/AgentsContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import { getRecentAgentSlugs, trackRecentAgent } from '../hooks/useRecentAgents';
 import { AgentIcon } from './AgentIcon';
 
 interface NewChatModalProps {
@@ -82,21 +83,31 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
     if (recentAgents.length > 0 && !search)
       groups.push({ label: 'Recent', icon: '🕐', agents: recentAgents });
 
+    // Persistent recently-used agents (from localStorage)
+    const recentlyUsedSlugs = getRecentAgentSlugs();
+    const recentlyUsedAgents = recentlyUsedSlugs
+      .filter((s) => !recentSet.has(s))
+      .map((s) => filtered.find((a) => a.slug === s))
+      .filter(Boolean) as AgentData[];
+    const recentlyUsedSet = new Set(recentlyUsedSlugs);
+    if (recentlyUsedAgents.length > 0 && !search)
+      groups.push({ label: 'Recently Used', icon: '⏱️', agents: recentlyUsedAgents });
+
     const wsName = layout?.name;
     if (wsAgents.length > 0)
       groups.push({
         label: wsName || 'Layout',
         icon: layout?.icon,
-        agents: wsAgents.filter((a) => !recentSet.has(a.slug) || !!search),
+        agents: wsAgents.filter((a) => (!recentSet.has(a.slug) && !recentlyUsedSet.has(a.slug)) || !!search),
       });
     if (globalAgents.length > 0)
       groups.push({
         label: 'Global',
         icon: '🌐',
-        agents: globalAgents.filter((a) => !recentSet.has(a.slug) || !!search),
+        agents: globalAgents.filter((a) => (!recentSet.has(a.slug) && !recentlyUsedSet.has(a.slug)) || !!search),
       });
     for (const [conn, agents] of acpGroups) {
-      const filtered = agents.filter((a) => !recentSet.has(a.slug) || !!search);
+      const filtered = agents.filter((a) => (!recentSet.has(a.slug) && !recentlyUsedSet.has(a.slug)) || !!search);
       if (filtered.length > 0)
         groups.push({ label: `${conn} (ACP)`, agents: filtered });
     }
@@ -106,6 +117,11 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
       .flatMap((g) => g.agents);
     return { groups: groups.filter((g) => g.agents.length > 0), flatList };
   }, [agents, search, wsAgentSlugs, layout?.icon, layout?.name]);
+
+  const handleSelect = (agent: AgentData) => {
+    trackRecentAgent(agent.slug);
+    onSelect(agent);
+  };
 
   return (
     <div
@@ -156,7 +172,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
                 e.preventDefault();
                 setSelectedIndex((p) => Math.max(p - 1, 0));
               } else if (e.key === 'Enter' && flatList[selectedIndex])
-                onSelect(flatList[selectedIndex]);
+                handleSelect(flatList[selectedIndex]);
               else if (e.key === 'Escape') onClose();
             }}
             autoFocus
@@ -198,7 +214,7 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
                     key={agent.slug}
                     agent={agent}
                     isSelected={idx === selectedIndex}
-                    onSelect={() => onSelect(agent)}
+                    onSelect={() => handleSelect(agent)}
                     onHover={() => setSelectedIndex(idx)}
                   />
                 );
