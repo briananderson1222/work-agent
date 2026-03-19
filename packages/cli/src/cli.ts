@@ -22,6 +22,7 @@
  */
 
 import { build } from './commands/build.js';
+import { configGet, configSet } from './commands/config.js';
 import { init } from './commands/init.js';
 import {
   info,
@@ -119,6 +120,13 @@ async function main() {
     case 'shortcut':
       shortcut();
       break;
+    case 'config': {
+      const [sub, key, ...rest] = args;
+      if (sub === 'set') configSet(key, rest[0]);
+      else if (sub === 'get') configGet(key);
+      else configGet(); // bare `stallion config` shows all
+      break;
+    }
     case 'dev': {
       const flags: DevFlags = {};
       let devPort = 4200;
@@ -151,6 +159,11 @@ Usage:
     --features=<flags>    Comma-separated feature flags (e.g. strands-runtime)
   stallion stop                 Stop running application
   stallion upgrade              Pull latest + rebuild (keeps plugins)
+
+Configuration:
+  stallion config               Show all config values
+  stallion config get <key>     Get a config value
+  stallion config set <key> <value>  Set a config value (use "null" to unset)
 
 Plugin Management:
   stallion list                 List installed plugins
