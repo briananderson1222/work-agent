@@ -7,9 +7,15 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 export function TerminalPanel({
   projectSlug,
   workingDir,
+  terminalId = 'default',
+  shell,
+  shellArgs,
 }: {
   projectSlug: string;
   workingDir: string;
+  terminalId?: string;
+  shell?: string;
+  shellArgs?: string[];
 }) {
   const { apiBase } = useApiBase();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -22,7 +28,7 @@ export function TerminalPanel({
       cursorBlink: true,
       convertEol: true,
       fontSize: 12,
-      fontFamily: 'Menlo, courier-new, courier, monospace',
+      fontFamily: "'MesloLGS NF', 'MesloLGM Nerd Font', 'Hack Nerd Font', 'FiraCode Nerd Font', 'JetBrainsMono Nerd Font', Menlo, courier-new, courier, monospace",
       theme: {
         background: '#1a1a2e',
         foreground: '#e0e0e0',
@@ -75,8 +81,10 @@ export function TerminalPanel({
           JSON.stringify({
             type: 'open',
             projectSlug,
-            terminalId: 'default',
+            terminalId,
             cwd: workingDir,
+            ...(shell && { shell }),
+            ...(shellArgs && { shellArgs }),
             cols: terminal.cols,
             rows: terminal.rows,
           }),
@@ -131,10 +139,14 @@ export function TerminalPanel({
       disposed = true;
       dataDispose.dispose();
       observer.disconnect();
+      // Tell server to close the PTY session
+      if (ws?.readyState === WebSocket.OPEN && sessionId) {
+        ws.send(JSON.stringify({ type: 'close', sessionId }));
+      }
       terminal.dispose();
       ws?.close();
     };
-  }, [apiBase, projectSlug, workingDir]);
+  }, [apiBase, projectSlug, workingDir, terminalId, shell, shellArgs]);
 
   if (wsError) {
     return <CommandExecutor workingDir={workingDir} />;
