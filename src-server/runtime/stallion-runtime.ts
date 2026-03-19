@@ -556,6 +556,7 @@ export class StallionRuntime {
     });
     agents.default = defaultAgent as any;
     this.activeAgents.set('default', defaultAgent as any);
+    this.agentTools.set('default', defaultTools);
     // Register memory adapter for default agent so conversations persist
     const defaultMemoryAdapter = new FileMemoryAdapter({
       projectHomeDir: this.configLoader.getProjectHomeDir(),
