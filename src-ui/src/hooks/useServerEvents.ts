@@ -6,6 +6,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { navigationStore } from '../contexts/NavigationContext';
 import { toastStore } from '../contexts/ToastContext';
 
 type EventHandler = (data: Record<string, unknown>) => void;
@@ -35,6 +36,12 @@ const DATA_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
         undefined,
         10000,
       );
+    }
+  },
+  'ui:navigate': (data) => {
+    const path = data.path as string | undefined;
+    if (path && typeof path === 'string' && path.startsWith('/')) {
+      navigationStore.navigate(path);
     }
   },
 };
@@ -81,6 +88,7 @@ const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
     qc.invalidateQueries({ queryKey: ['notifications'] }),
   'notification:cleared': (qc) =>
     qc.invalidateQueries({ queryKey: ['notifications'] }),
+  'ui:navigate': () => {},
 };
 
 export function useServerEvents(handlers?: Record<string, EventHandler>) {

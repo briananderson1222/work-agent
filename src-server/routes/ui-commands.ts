@@ -1,0 +1,32 @@
+import { Hono } from 'hono';
+import type { EventBus } from '../services/event-bus.js';
+
+const INVALID_PATH = /javascript:|data:|vbscript:/i;
+
+export function createUICommandRoutes(eventBus: EventBus) {
+  const app = new Hono();
+
+  app.post('/', async (c) => {
+    const { command, payload } = await c.req.json<{ command: string; payload: Record<string, unknown> }>();
+
+    if (command === 'navigate') {
+      const path = payload?.path;
+      if (
+        typeof path !== 'string' ||
+        !path.startsWith('/') ||
+        path.startsWith('//') ||
+        path.startsWith('http:') ||
+        path.startsWith('https:') ||
+        INVALID_PATH.test(path)
+      ) {
+        return c.json({ error: 'Invalid navigation path' }, 400);
+      }
+      eventBus.emit('ui:navigate', { path });
+      return c.json({ success: true });
+    }
+
+    return c.json({ error: `Unknown command: ${command}` }, 400);
+  });
+
+  return app;
+}

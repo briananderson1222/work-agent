@@ -25,6 +25,7 @@ import {
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { createEventRoutes } from '../routes/events.js';
+import { createUICommandRoutes } from '../routes/ui-commands.js';
 import { EventBus } from '../services/event-bus.js';
 import {
   registerObservableGauges,
@@ -239,7 +240,7 @@ export class StallionRuntime {
     this.fileTreeService = new FileTreeService();
     const ptyAdapter = new NodePtyAdapter();
     const historyStore = new FileTerminalHistoryStore();
-    this.terminalService = new TerminalService(ptyAdapter, historyStore);
+    this.terminalService = new TerminalService(ptyAdapter, historyStore, () => this.appConfig?.terminalShell);
     this.terminalWsServer = new TerminalWebSocketServer(this.terminalService);
     this.terminalWsServer.start(this.port + 1);
     this.acpBridge = new ACPManager(
@@ -841,6 +842,8 @@ export class StallionRuntime {
         logger: this.logger,
       }),
     );
+
+    app.route('/api/ui', createUICommandRoutes(this.eventBus));
 
     // Build RuntimeContext for extracted route modules
     const ctx = this.buildRuntimeContext();

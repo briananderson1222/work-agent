@@ -6,7 +6,7 @@
  */
 
 import type { LayoutComponent } from '@stallion-ai/sdk';
-import { log } from '@/utils/logger';
+import { log } from '../utils/logger';
 
 export class PluginRegistry {
   private layouts = new Map<string, LayoutComponent>();
