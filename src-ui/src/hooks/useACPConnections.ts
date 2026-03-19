@@ -20,6 +20,9 @@ export interface ACPConnectionInfo {
   mcpServers: string[];
   currentModel: string | null;
   source?: 'user' | 'plugin';
+  interactive?: {
+    args: string[];
+  };
   configOptions?: {
     category: string;
     currentValue?: string;

@@ -32,6 +32,7 @@ export class TerminalService {
   constructor(
     private pty: IPtyAdapter,
     private historyStore: ITerminalHistoryStore,
+    private getTerminalShell?: () => string | undefined,
   ) {
     if (process.platform !== 'win32') {
       this.subprocessInterval = setInterval(
@@ -73,7 +74,9 @@ export class TerminalService {
     this.sessions.set(sessionId, entry);
 
     const env = { ...process.env, ...input.env, TERM: 'xterm-256color' };
-    const candidates = this.resolveShell();
+    const candidates = input.shell
+      ? [{ shell: input.shell, args: input.shellArgs }]
+      : this.resolveShell();
     let proc: IPtyProcess | null = null;
 
     for (const candidate of candidates) {
@@ -132,10 +135,24 @@ export class TerminalService {
     terminalOps.add(1, { operation: 'close' });
     entry.unsubData?.();
     entry.unsubExit?.();
+    const pid = entry.process?.pid;
     entry.process?.kill();
+    // SIGKILL fallback for stubborn processes (e.g. kiro-cli with children)
+    if (pid) {
+      setTimeout(() => {
+        try { process.kill(pid, 'SIGKILL'); } catch { /* already dead */ }
+      }, 3000);
+    }
     entry.status = 'exited';
     await this.persistNow(sessionId);
     this.sessions.delete(sessionId);
+  }
+
+  async closeByProject(projectSlug: string): Promise<void> {
+    const ids = [...this.sessions.entries()]
+      .filter(([, e]) => e.projectSlug === projectSlug)
+      .map(([id]) => id);
+    await Promise.all(ids.map((id) => this.close(id)));
   }
 
   async restart(sessionId: string): Promise<TerminalSessionSnapshot> {
@@ -206,10 +223,16 @@ export class TerminalService {
 
   private resolveShell(): ShellCandidate[] {
     const candidates: ShellCandidate[] = [];
+    const configured = this.getTerminalShell?.();
+    if (configured) candidates.push({ shell: configured });
     if (process.env.SHELL) candidates.push({ shell: process.env.SHELL });
     if (process.platform === 'win32') {
       if (process.env.COMSPEC) candidates.push({ shell: process.env.COMSPEC });
       candidates.push(
+        { shell: 'C:\\Program Files\\Git\\bin\\bash.exe' },
+        { shell: 'C:\\Program Files (x86)\\Git\\bin\\bash.exe' },
+        { shell: 'C:\\cygwin64\\bin\\bash.exe' },
+        { shell: 'C:\\cygwin\\bin\\bash.exe' },
         { shell: 'powershell.exe' },
         { shell: 'cmd.exe' },
       );

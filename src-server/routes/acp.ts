@@ -93,5 +93,11 @@ export function createACPRoutes(ctx: RuntimeContext) {
     return c.json({ success: true });
   });
 
+  app.post('/connections/:id/reconnect', async (c) => {
+    const id = param(c, 'id');
+    const result = await ctx.acpBridge.reconnect(id);
+    return c.json({ success: result });
+  });
+
   return app;
 }

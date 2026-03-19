@@ -41,4 +41,6 @@ export interface TerminalOpenInput {
   cols: number;
   rows: number;
   env?: Record<string, string>;
+  shell?: string;
+  shellArgs?: string[];
 }

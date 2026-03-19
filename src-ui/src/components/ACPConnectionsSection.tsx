@@ -143,6 +143,10 @@ export function ACPConnectionsSection({
             onClick={() => setSelectedConn(conn)}
             onToggle={(enabled) => toggleEnabled(conn.id, enabled)}
             onRemove={() => removeConnection(conn.id)}
+            onReconnect={async () => {
+              await fetch(`${apiBase}/acp/connections/${conn.id}/reconnect`, { method: 'POST' });
+              refresh();
+            }}
           />
         ))}
       </div>
@@ -176,12 +180,14 @@ function ConnectionCard({
   onClick,
   onToggle,
   onRemove,
+  onReconnect,
 }: {
   conn: ACPConnectionInfo;
   agents: AgentSummary[];
   onClick: () => void;
   onToggle: (enabled: boolean) => void;
   onRemove: () => void;
+  onReconnect: () => void;
 }) {
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
@@ -189,6 +195,7 @@ function ConnectionCard({
   const isConnecting = conn.status === 'connecting';
   const isUnavailable = conn.status === 'unavailable';
   const isError = conn.status === 'error';
+  const isDisconnected = conn.status === 'disconnected';
   const isPlugin = conn.source === 'plugin';
   const statusLabel = isUnavailable
     ? 'not installed'
@@ -353,6 +360,17 @@ function ConnectionCard({
         >
           {conn.enabled ? '● Enabled' : '○ Disabled'}
         </button>
+        {(isDisconnected || isError) && conn.enabled && (
+          <button
+            className="button button--small button--secondary"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReconnect();
+            }}
+          >
+            ↻ Reconnect
+          </button>
+        )}
         <div style={{ flex: 1 }} />
         {!isPlugin && (
           <button

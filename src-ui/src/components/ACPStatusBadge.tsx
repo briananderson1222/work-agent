@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useACPConnections } from '../hooks/useACPConnections';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import { AgentIcon } from './AgentIcon';
 
 export function ACPStatusBadge() {
   const { data: connections = [] } = useACPConnections();
+  const { apiBase } = useApiBase();
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
@@ -50,7 +55,7 @@ export function ACPStatusBadge() {
         {label}
       </button>
 
-      {showModal && (
+      {showModal && createPortal(
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div
             className="modal-dialog"
@@ -177,19 +182,37 @@ export function ACPStatusBadge() {
                           fontSize: '11px',
                           color: 'var(--text-muted)',
                           paddingLeft: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
                         }}
                       >
-                        Command:{' '}
-                        <code
-                          style={{
-                            fontSize: '10px',
-                            background: 'var(--bg-tertiary)',
-                            padding: '1px 4px',
-                            borderRadius: '3px',
-                          }}
-                        >
-                          {conn.command}
-                        </code>
+                        <span>
+                          Command:{' '}
+                          <code
+                            style={{
+                              fontSize: '10px',
+                              background: 'var(--bg-tertiary)',
+                              padding: '1px 4px',
+                              borderRadius: '3px',
+                            }}
+                          >
+                            {conn.command}
+                          </code>
+                        </span>
+                        {conn.status === 'disconnected' && (
+                          <button
+                            type="button"
+                            className="button button--small button--secondary"
+                            style={{ marginLeft: 'auto', fontSize: '10px', padding: '2px 8px' }}
+                            onClick={async () => {
+                              await fetch(`${apiBase}/acp/connections/${conn.id}/reconnect`, { method: 'POST' });
+                              queryClient.invalidateQueries({ queryKey: ['acp-connections'] });
+                            }}
+                          >
+                            ↻ Retry
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -207,7 +230,7 @@ export function ACPStatusBadge() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }

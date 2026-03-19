@@ -208,7 +208,7 @@ export class ACPConnection {
   private status: ACPConnectionStatus = 'disconnected';
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 15;
   private shuttingDown = false;
   private intentionalKill = false;
   private lastActivityAt: number = Date.now();
@@ -463,9 +463,10 @@ export class ACPConnection {
   isIdle(): boolean {
     if (this.status !== 'connected') return false;
     if (this.activeWriter) return false;
+    // Never cull connections that haven't been used yet — they provide agents to the UI
+    if (!this.hasBeenViewed) return false;
     const elapsed = Date.now() - this.lastActivityAt;
-    const timeout = this.hasBeenViewed ? 5 * 60_000 : 60_000;
-    return elapsed > timeout;
+    return elapsed > 5 * 60_000;
   }
 
   async cullSession(): Promise<void> {
@@ -487,6 +488,7 @@ export class ACPConnection {
     mcpServers: string[];
     configOptions: any[];
     currentModel: string | null;
+    interactive?: { args: string[] };
   } {
     return {
       status: this.status,
@@ -495,6 +497,7 @@ export class ACPConnection {
       mcpServers: this.mcpServers,
       configOptions: this.configOptions,
       currentModel: this.getCurrentModelName(),
+      interactive: this.config.interactive,
     };
   }
 
@@ -514,6 +517,21 @@ export class ACPConnection {
       delayMs: delay,
     });
     this.reconnectTimer = setTimeout(() => this.start(), delay);
+  }
+
+  /** Reset reconnect state so start() can be called again */
+  resetReconnect(): void {
+    this.reconnectAttempts = 0;
+    this.shuttingDown = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.proc) {
+      this.intentionalKill = true;
+      this.proc.kill();
+      this.proc = null;
+    }
   }
 
   // ── Agent Discovery ────────────────────────────────────────────
@@ -1719,6 +1737,14 @@ export class ACPManager {
       await conn.shutdown();
       this.connections.delete(id);
     }
+  }
+
+  /** Force reconnect a disconnected connection */
+  async reconnect(id: string): Promise<boolean> {
+    const conn = this.connections.get(id);
+    if (!conn) return false;
+    conn.resetReconnect();
+    return conn.start();
   }
 
   /** Shutdown all connections */

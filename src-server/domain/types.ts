@@ -40,6 +40,9 @@ export interface ACPConnectionConfig {
   cwd?: string;
   enabled: boolean;
   source?: 'user' | 'plugin';
+  interactive?: {
+    args: string[];  // '{agent}' placeholder replaced with mode slug at launch
+  };
 }
 
 export interface ACPConfig {

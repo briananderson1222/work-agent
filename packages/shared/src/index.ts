@@ -330,6 +330,7 @@ export interface AppConfig {
   defaultEmbeddingProvider?: string;
   defaultEmbeddingModel?: string;
   defaultVectorDbProvider?: string;
+  terminalShell?: string;
 }
 
 export interface TemplateVariable {
