@@ -2,7 +2,7 @@
 
 ## Stallion CLI
 
-Always use `./stallion` to manage the app — never raw npm scripts.
+Always use `./stallion` to manage the app — never raw npm scripts, `node esbuild.config.mjs`, or `npx vite build` directly. The CLI handles build orchestration (server + UI) in the correct order.
 
 ```bash
 ./stallion --help              # Discover all commands and flags
