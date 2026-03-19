@@ -897,11 +897,7 @@ export function CodingLayout({
               type="button"
               className="coding-layout__terminal-tab-add"
               onClick={() => {
-                const connected = (acpConnections || []).filter(
-                  (c: any) => c.status === 'connected',
-                );
-                if (connected.length === 0) addTab('shell');
-                else setShowNewTerminal(true);
+                setShowNewTerminal(true);
               }}
               title="New terminal"
             >

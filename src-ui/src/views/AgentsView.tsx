@@ -14,6 +14,7 @@ import {
   useAgents,
 } from '../contexts/AgentsContext';
 import { useConfig } from '../contexts/ConfigContext';
+import { useACPConnections } from '../hooks/useACPConnections';
 import { useAIEnrich } from '../hooks/useAIEnrich';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import type { AgentSummary, NavigationView, Tool } from '../types';
@@ -170,6 +171,7 @@ export function AgentsView({
   // Use live agents from context, fall back to prop
   const allAgents = liveAgents.length > 0 ? liveAgents : agents;
   const acpAgents = allAgents.filter((a) => a.source === 'acp');
+  const { data: acpConnections = [] } = useACPConnections();
 
   const filteredAgents = useMemo(() => {
     const q = search.toLowerCase();
@@ -181,20 +183,29 @@ export function AgentsView({
     );
   }, [allAgents, search]);
 
-  // Group: standalone → workspace-scoped → ACP
+  // Group: standalone → workspace-scoped → ACP connections
   const listItems = useMemo(() => {
     const standalone = filteredAgents.filter(
       (a) => !a.slug.includes(':') && a.source !== 'acp',
     );
-    const layoutAgents = filteredAgents.filter((a) => a.slug.includes(':'));
-    const acp = filteredAgents.filter((a) => a.source === 'acp');
-    return [...standalone, ...layoutAgents, ...acp].map((a) => ({
+    const layoutAgents = filteredAgents.filter(
+      (a) => a.slug.includes(':') && a.source !== 'acp',
+    );
+    const agentItems = [...standalone, ...layoutAgents].map((a) => ({
       id: a.slug,
       name: a.name,
       subtitle: a.slug,
       icon: <AgentIcon agent={a} size="small" />,
     }));
-  }, [filteredAgents]);
+    // Add one entry per ACP connection instead of individual modes
+    const connItems = acpConnections.map((c: any) => ({
+      id: `__acp:${c.id}`,
+      name: c.name || c.id,
+      subtitle: `${(c.modes || []).length} agents · ACP`,
+      icon: c.icon ? <img src={c.icon} alt="" style={{ width: 20, height: 20, borderRadius: 4 }} /> : <span style={{ fontSize: 14 }}>🔌</span>,
+    }));
+    return [...agentItems, ...connItems];
+  }, [filteredAgents, acpConnections]);
 
   const loadTools = useCallback(async () => {
     try {
@@ -330,6 +341,7 @@ export function AgentsView({
   const isPlugin = selectedSlug?.includes(':') && !isCreating;
   const locked = !!(isPlugin && isLocked);
   const selectedAgent = allAgents.find((a) => a.slug === selectedSlug);
+  const selectedAcpConnection = selectedSlug?.startsWith('__acp:') ? selectedSlug.slice(6) : null;
 
   const editorId = isCreating ? '__new__' : (selectedSlug ?? null);
 
@@ -390,18 +402,17 @@ export function AgentsView({
                 <p className="split-pane__empty-desc">Select an agent to edit, or create a new one</p>
               </div>
             )}
-            {acpAgents.length > 0 && (
-              <div className="agents-acp-section">
-                <ACPConnectionsSection
-                  acpAgents={acpAgents as unknown as AgentSummary[]}
-                  apiBase={apiBase}
-                />
-              </div>
-            )}
           </div>
         }
       >
-        {isLoading ? (
+        {selectedAcpConnection ? (
+          <div style={{ padding: '24px' }}>
+            <ACPConnectionsSection
+              acpAgents={acpAgents as unknown as AgentSummary[]}
+              apiBase={apiBase}
+            />
+          </div>
+        ) : isLoading ? (
           <div className="editor__loading">Loading agent...</div>
         ) : (
           <div className="agent-inline-editor">
