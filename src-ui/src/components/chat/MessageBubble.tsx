@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useApiBase } from '../contexts/ApiBaseContext';
-import type { AgentSummary } from '../types';
-import { AgentIcon } from './AgentIcon';
-import { FilePartPreview } from './FilePartPreview';
-import { markdownCodeComponents } from './HighlightedCodeBlock';
-import { ReasoningSection } from './ReasoningSection';
+import { useApiBase } from '../../contexts/ApiBaseContext';
+import type { AgentSummary } from '../../types';
+import { AgentIcon } from '../AgentIcon';
+import { FilePartPreview } from '../FilePartPreview';
+import { markdownCodeComponents } from '../HighlightedCodeBlock';
+import { ReasoningSection } from '../ReasoningSection';
+import { UserIcon } from '../UserIcon';
 import { ToolCallDisplay } from './ToolCallDisplay';
-import { UserIcon } from './UserIcon';
-import './chat.css';
+import '../chat.css';
 
 interface Attachment {
   id: string;
@@ -70,23 +70,53 @@ interface MessageBubbleProps {
 type RatingValue = 'thumbs_up' | 'thumbs_down' | null;
 
 const ThumbUpIcon = ({ filled }: { filled: boolean }) => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M7 10v12" /><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill={filled ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M7 10v12" />
+    <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
   </svg>
 );
 
 const ThumbDownIcon = ({ filled }: { filled: boolean }) => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 14V2" /><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill={filled ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M17 14V2" />
+    <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
   </svg>
 );
 
 /** Cache ratings per session to avoid re-fetching for every message. */
-let ratingsCache: { apiBase: string; data: Map<string, { rating: RatingValue; reason?: string }>; ts: number } | null = null;
+let ratingsCache: {
+  apiBase: string;
+  data: Map<string, { rating: RatingValue; reason?: string }>;
+  ts: number;
+} | null = null;
 
-async function loadRatingsCache(apiBase: string): Promise<Map<string, { rating: RatingValue; reason?: string }>> {
+async function loadRatingsCache(
+  apiBase: string,
+): Promise<Map<string, { rating: RatingValue; reason?: string }>> {
   const now = Date.now();
-  if (ratingsCache && ratingsCache.apiBase === apiBase && now - ratingsCache.ts < 30_000) {
+  if (
+    ratingsCache &&
+    ratingsCache.apiBase === apiBase &&
+    now - ratingsCache.ts < 30_000
+  ) {
     return ratingsCache.data;
   }
   const res = await fetch(`${apiBase}/api/feedback/ratings`);
@@ -94,7 +124,10 @@ async function loadRatingsCache(apiBase: string): Promise<Map<string, { rating: 
   const json = await res.json();
   const map = new Map<string, { rating: RatingValue; reason?: string }>();
   for (const r of json.data || []) {
-    map.set(`${r.conversationId}:${r.messageIndex}`, { rating: r.rating, reason: r.reason });
+    map.set(`${r.conversationId}:${r.messageIndex}`, {
+      rating: r.rating,
+      reason: r.reason,
+    });
   }
   ratingsCache = { apiBase, data: map, ts: now };
   return map;
@@ -123,13 +156,15 @@ function MessageRating({
 
   // Load existing rating on mount
   useEffect(() => {
-    loadRatingsCache(apiBase).then((map) => {
-      const existing = map.get(`${conversationId}:${messageIndex}`);
-      if (existing) {
-        setRating(existing.rating);
-        if (existing.reason) setSavedReason(existing.reason);
-      }
-    }).catch(() => {});
+    loadRatingsCache(apiBase)
+      .then((map) => {
+        const existing = map.get(`${conversationId}:${messageIndex}`);
+        if (existing) {
+          setRating(existing.rating);
+          if (existing.reason) setSavedReason(existing.reason);
+        }
+      })
+      .catch(() => {});
   }, [apiBase, conversationId, messageIndex]);
 
   const submitRating = useCallback(
@@ -173,23 +208,36 @@ function MessageRating({
       setRating(newRating);
       if (newRating === 'thumbs_down') {
         setShowReasonInput(true);
-        try { await submitRating(newRating); } catch { setRating(prevRating); }
+        try {
+          await submitRating(newRating);
+        } catch {
+          setRating(prevRating);
+        }
       } else {
         setShowReasonInput(false);
         setReasonText('');
-        try { await submitRating(newRating); } catch { setRating(prevRating); }
+        try {
+          await submitRating(newRating);
+        } catch {
+          setRating(prevRating);
+        }
       }
     },
     [rating, submitRating],
   );
 
   const handleReasonSubmit = useCallback(async () => {
-    if (!reasonText.trim()) { setShowReasonInput(false); return; }
+    if (!reasonText.trim()) {
+      setShowReasonInput(false);
+      return;
+    }
     const reason = reasonText.trim();
     try {
       await submitRating(rating, reason);
       setSavedReason(reason);
-    } catch { /* keep input open */ }
+    } catch {
+      /* keep input open */
+    }
     setShowReasonInput(false);
     setReasonText('');
   }, [rating, reasonText, submitRating]);
@@ -210,7 +258,9 @@ function MessageRating({
       >
         <ThumbDownIcon filled={rating === 'thumbs_down'} />
       </button>
-      <span className={`message__rating-expand${showReasonInput ? ' message__rating-expand--open' : ''}`}>
+      <span
+        className={`message__rating-expand${showReasonInput ? ' message__rating-expand--open' : ''}`}
+      >
         {showReasonInput ? (
           <input
             className="message__rating-reason"
@@ -219,11 +269,19 @@ function MessageRating({
             value={reasonText}
             autoFocus
             onChange={(e) => setReasonText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleReasonSubmit(); if (e.key === 'Escape') { setShowReasonInput(false); setReasonText(''); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleReasonSubmit();
+              if (e.key === 'Escape') {
+                setShowReasonInput(false);
+                setReasonText('');
+              }
+            }}
             onBlur={handleReasonSubmit}
           />
         ) : savedReason ? (
-          <span className="message__rating-reason-label" title={savedReason}>{savedReason}</span>
+          <span className="message__rating-reason-label" title={savedReason}>
+            {savedReason}
+          </span>
         ) : null}
       </span>
     </span>

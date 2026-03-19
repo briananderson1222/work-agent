@@ -1,8 +1,8 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useStreamingContent } from '../hooks/useStreamingContent';
-import { markdownCodeComponents } from './HighlightedCodeBlock';
-import { LoadingDots } from './LoadingDots';
+import { useStreamingContent } from '../../hooks/useStreamingContent';
+import { markdownCodeComponents } from '../HighlightedCodeBlock';
+import { LoadingDots } from '../LoadingDots';
 
 type ContentPart = {
   type: 'text' | 'tool' | 'reasoning';

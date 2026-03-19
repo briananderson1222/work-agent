@@ -2,27 +2,19 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
-import { useToast } from '../contexts/ToastContext';
 import { useFeatureSettings } from '../hooks/useFeatureSettings';
 import { useMessageContext } from '../hooks/useMessageContext';
 import { useShareReceiver } from '../hooks/useShareReceiver';
 import type { SlashCommand } from '../hooks/useSlashCommands';
 import { useSTT } from '../hooks/useSTT';
-import { useToolApproval } from '../hooks/useToolApproval';
 import { useTTS } from '../hooks/useTTS';
 import type { ChatMessage, ChatSession, FileAttachment } from '../types';
-import { AgentIcon } from './AgentIcon';
-import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInputArea } from './ChatInputArea';
 import { ConversationStats } from './ConversationStats';
+import { ChatMessageList } from './chat/ChatMessageList';
 import { EphemeralMessage } from './EphemeralMessage';
-import { MessageBubble } from './MessageBubble';
 import { QueuedMessages } from './QueuedMessages';
-import { ReasoningSection } from './ReasoningSection';
-import { ScrollToBottomButton } from './ScrollToBottomButton';
-import { StreamingMessage } from './StreamingMessage';
 import { SystemEventMessage } from './SystemEventMessage';
-import { ToolCallDisplay } from './ToolCallDisplay';
 
 interface ChatDockBodyProps {
   activeSession: ChatSession;
@@ -80,14 +72,9 @@ export function ChatDockBody({
 }: ChatDockBodyProps) {
   const agents = useAgents();
   const { apiBase } = useApiBase();
-  const { showToast } = useToast();
-  const handleToolApproval = useToolApproval(apiBase);
   const { updateChat, clearEphemeralMessages } = useActiveChatActions();
 
-  // Mobile settings (only non-voice flags remain here)
   const { settings } = useFeatureSettings();
-
-  // Voice via provider pattern
   const stt = useSTT();
   const tts = useTTS();
   const { getComposedContext } = useMessageContext();
@@ -105,7 +92,6 @@ export function ChatDockBody({
     }
   }, [stt.state, stt.transcript, chatInput.handleInputChange]);
 
-  // Share sheet / PWA share target
   useShareReceiver({
     enabled: true,
     onShare: useCallback(
@@ -114,7 +100,6 @@ export function ChatDockBody({
     ),
   });
 
-  // Wrap handleSend to prepend composed context
   const handleSendWithContext = useCallback(async () => {
     const ctx = getComposedContext();
     if (ctx && chatInput.input && !chatInput.input.startsWith('[')) {
@@ -150,36 +135,10 @@ export function ChatDockBody({
     tts.speak,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [removingMessages, setRemovingMessages] = useState<Set<string>>(
     new Set(),
   );
-
-  const agent = agents.find((a) => a.slug === activeSession.agentSlug);
   const ephemeralMessages = activeSession.messages.filter((m) => m.isEphemeral);
-
-  useEffect(() => {
-    if (!isUserScrolledUp && messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop =
-        messagesContainerRef.current.scrollHeight;
-    }
-  }, [isUserScrolledUp]);
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    const isAtBottom =
-      target.scrollHeight - target.scrollTop - target.clientHeight < 10;
-    setIsUserScrolledUp(!isAtBottom);
-  };
-
-  const handleScrollToBottom = () => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop =
-        messagesContainerRef.current.scrollHeight;
-      setIsUserScrolledUp(false);
-    }
-  };
 
   const handleDismissEphemeral = (messageId: string) => {
     setRemovingMessages((prev) => new Set(prev).add(messageId));
@@ -200,67 +159,56 @@ export function ChatDockBody({
     }, 300);
   };
 
-  const renderMessage = (msg: ChatMessage, idx: number) => {
-    const textContent =
-      msg.contentParts
-        ?.filter((p: any) => p.type === 'text')
-        .map((p: any) => p.content)
-        .join('\n') ||
-      msg.content ||
-      '';
+  const agent = agents.find((a) => a.slug === activeSession.agentSlug);
 
-    if (msg.isEphemeral) {
-      const messageId = (msg as any).id || `ephemeral-${idx}`;
-      return (
-        <EphemeralMessage
-          key={messageId}
-          msg={msg}
-          idx={idx}
-          fontSize={chatFontSize}
-          isRemoving={removingMessages.has(messageId)}
-          onDismiss={() => handleDismissEphemeral(messageId)}
-          onAction={
-            (msg as any).action
-              ? () => {
-                  (msg as any).action.handler();
-                  clearEphemeralMessages(activeSession.id);
-                }
-              : undefined
-          }
-        />
-      );
-    }
+  // Dock-specific message overrides: ephemeral messages and system events
+  const renderOverride = useCallback(
+    (msg: ChatMessage, idx: number): React.ReactNode | null => {
+      if (msg.isEphemeral) {
+        const messageId = (msg as any).id || `ephemeral-${idx}`;
+        return (
+          <EphemeralMessage
+            key={messageId}
+            msg={msg}
+            idx={idx}
+            fontSize={chatFontSize}
+            isRemoving={removingMessages.has(messageId)}
+            onDismiss={() => handleDismissEphemeral(messageId)}
+            onAction={
+              (msg as any).action
+                ? () => {
+                    (msg as any).action.handler();
+                    clearEphemeralMessages(activeSession.id);
+                  }
+                : undefined
+            }
+          />
+        );
+      }
 
-    const isSystemEvent =
-      msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
-    if (isSystemEvent) {
-      return (
-        <SystemEventMessage
-          key={`${activeSession.id}-msg-${idx}`}
-          messageKey={`${activeSession.id}-msg-${idx}`}
-          content={textContent.replace(/^\[SYSTEM_EVENT\]\s*/, '')}
-        />
-      );
-    }
+      const textContent =
+        msg.contentParts
+          ?.filter((p: any) => p.type === 'text')
+          .map((p: any) => p.content)
+          .join('\n') ||
+        msg.content ||
+        '';
+      const isSystemEvent =
+        msg.role === 'user' && textContent.startsWith('[SYSTEM_EVENT]');
+      if (isSystemEvent) {
+        return (
+          <SystemEventMessage
+            key={`${activeSession.id}-msg-${idx}`}
+            messageKey={`${activeSession.id}-msg-${idx}`}
+            content={textContent.replace(/^\[SYSTEM_EVENT\]\s*/, '')}
+          />
+        );
+      }
 
-    return (
-      <MessageBubble
-        key={`${activeSession.id}-msg-${idx}`}
-        msg={msg as any}
-        idx={idx}
-        activeSession={activeSession as any}
-        agents={agents as any}
-        chatFontSize={chatFontSize}
-        showReasoning={showReasoning}
-        showToolDetails={showToolDetails}
-        onCopy={(text) => {
-          navigator.clipboard.writeText(text);
-          showToast('Copied to clipboard');
-        }}
-        onToolApproval={handleToolApproval as any}
-      />
-    );
-  };
+      return null; // Use default MessageBubble rendering
+    },
+    [chatFontSize, removingMessages, activeSession.id, clearEphemeralMessages],
+  );
 
   return (
     <>
@@ -275,7 +223,6 @@ export function ChatDockBody({
           key={`${activeSession.conversationId || activeSession.agentSlug}-${activeSession.status}`}
         />
       )}
-      {/* Session info bar — project context */}
       {activeSession.projectName && (
         <div className="chat-dock__session-info">
           <span className="chat-dock__session-project">
@@ -288,61 +235,13 @@ export function ChatDockBody({
           </span>
         </div>
       )}
-      <div
-        className="chat-messages"
-        ref={messagesContainerRef}
-        style={{ fontSize: `${chatFontSize}px` }}
-        onScroll={handleScroll}
-      >
-        {activeSession.messages.length === 0 ? (
-          <ChatEmptyState agentName={activeSession.agentName} />
-        ) : (
-          <>
-            {activeSession.messages.map(renderMessage)}
-            {activeSession.status === 'sending' && (
-              <StreamingMessage
-                sessionId={activeSession.id}
-                agentIcon={
-                  <AgentIcon agent={agent || { name: 'AI' }} size={20} />
-                }
-                agentIconStyle={{}}
-                fontSize={chatFontSize}
-                showReasoning={showReasoning}
-                renderReasoning={(content, i) => (
-                  <ReasoningSection
-                    key={i}
-                    content={content}
-                    fontSize={chatFontSize}
-                    show={showReasoning}
-                  />
-                )}
-                renderToolCall={(part, i) => (
-                  <ToolCallDisplay
-                    key={i}
-                    toolCall={part}
-                    showDetails={showToolDetails}
-                    onApprove={
-                      part.tool?.needsApproval
-                        ? (action) =>
-                            handleToolApproval(
-                              activeSession.id,
-                              activeSession.agentSlug,
-                              part.tool!.approvalId!,
-                              part.tool!.name,
-                              action,
-                            )
-                        : undefined
-                    }
-                  />
-                )}
-              />
-            )}
-          </>
-        )}
-      </div>
-      {isUserScrolledUp && (
-        <ScrollToBottomButton onClick={handleScrollToBottom} />
-      )}
+      <ChatMessageList
+        activeSession={activeSession}
+        fontSize={chatFontSize}
+        showReasoning={showReasoning}
+        showToolDetails={showToolDetails}
+        renderOverride={renderOverride}
+      />
       <QueuedMessages
         sessionId={activeSession.id}
         messages={activeSession.queuedMessages}
