@@ -57,15 +57,11 @@ const resolved = useResolveAgent('my-agent'); // → 'sa-agent:my-agent'
 
 ---
 
-### Workspace Hooks
+### Layout Hooks
 
 #### `useLayouts(): LayoutConfig[]`
 
 Returns all layouts.
-
-#### `useWorkspace(slug: string, enabled?: boolean): LayoutConfig | undefined`
-
-Returns a single layout by slug. Pass `enabled: false` to skip fetching.
 
 ---
 
@@ -340,10 +336,6 @@ Invokes an agent and caches the result. Cache key: `['invoke', agentSlug, conten
 const { data, isLoading } = useInvokeAgent('my-agent', 'Summarize this', { schema: MySchema });
 ```
 
-### `useTransformTool<T>(agentSlug, toolName, toolArgs, transformFn, config?)`
-
-Calls a tool with a transform function and caches the result.
-
 ### `useApiQuery<T>(queryKey, queryFn, config?)`
 
 Generic query hook for custom API calls.
@@ -456,7 +448,7 @@ Fetches app configuration imperatively.
 
 ### `transformTool(agentSlug, toolName, toolArgs, transformFn): Promise<any>`
 
-**Deprecated.** Use `callTool` instead.
+**Removed.** Use `callTool` instead.
 
 ---
 
@@ -605,7 +597,7 @@ Manages per-tab URL hash state for layout plugins with multiple tabs. Persists s
 </LayoutNavigationProvider>
 ```
 
-#### `useWorkspaceNavigation()`
+#### `useLayoutNavigation()`
 
 Must be called inside `LayoutNavigationProvider`.
 
@@ -641,13 +633,13 @@ parseAgentSlug('sa-agent:my-agent'); // → { namespace: 'sa-agent', name: 'my-a
 parseAgentSlug('my-agent');          // → { name: 'my-agent' }
 ```
 
-### `isWorkspaceAgent(slug: string): boolean`
+### `isLayoutAgent(slug: string): boolean`
 
 Returns `true` if the slug is namespace-qualified.
 
 ```ts
-isWorkspaceAgent('sa-agent:my-agent'); // true
-isWorkspaceAgent('my-agent');          // false
+isLayoutAgent('sa-agent:my-agent'); // true
+isLayoutAgent('my-agent');          // false
 ```
 
 ### `agentQueries`
@@ -876,36 +868,6 @@ A no-op subscribe function for `useSyncExternalStore` when no provider is active
 const noopSubscribe: (fn: () => void) => () => void
 ```
 
-### `createWorkspaceContext<T>(config)`
-
-Factory for typed layout-scoped React context with optional `sessionStorage` persistence.
-
-```ts
-interface WorkspaceContextConfig<T> {
-  layoutSlug: string;
-  initialState: T;
-  persist?: boolean; // default: true
-}
-```
-
-Returns `{ Provider, useWorkspaceContext }`.
-
-```tsx
-const { Provider, useWorkspaceContext } = createWorkspaceContext({
-  layoutSlug: 'my-layout',
-  initialState: { selectedId: null as string | null },
-});
-
-// In your plugin root:
-<Provider>
-  <MyPlugin />
-</Provider>
-
-// In child components:
-const { state, setState } = useWorkspaceContext();
-setState({ selectedId: 'abc' });
-```
-
 ---
 
 ## Types
@@ -914,7 +876,7 @@ Core types re-exported from `@stallion-ai/shared` plus SDK-specific types.
 
 ### Shared types (from `@stallion-ai/shared`)
 
-`AgentSpec`, `AgentSummary` (SDK), `AgentMetadata`, `AgentUIConfig`, `AgentGuardrails`, `AgentTools`, `AgentQuickPrompt`, `LayoutConfig`, `WorkspaceMetadata`, `WorkspaceTab`, `WorkspacePrompt`, `PluginManifest`, `SlashCommand`, `SlashCommandParam`, `ToolDef`, `ToolMetadata`, `ToolPermissions`, `ToolCallResponse`, `ConversationStats`
+`AgentSpec`, `AgentSummary` (SDK), `AgentMetadata`, `AgentUIConfig`, `AgentGuardrails`, `AgentTools`, `AgentQuickPrompt`, `LayoutConfig`, `StandaloneLayoutConfig`, `LayoutTab`, `LayoutAction`, `LayoutPrompt`, `PluginManifest`, `SlashCommand`, `SlashCommandParam`, `ToolDef`, `ToolMetadata`, `ToolPermissions`, `ToolCallResponse`, `ConversationStats`
 
 ### SDK-specific types
 
@@ -970,7 +932,7 @@ interface Conversation {
 
 interface NavigationState {
   currentView: string;
-  selectedWorkspace?: string;
+  selectedLayout?: string;
   selectedAgent?: string;
   dockState: boolean;
   dockHeight: number;

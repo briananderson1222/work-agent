@@ -134,26 +134,21 @@ notify({ title: 'New message', message: 'You have a new message' });
 ### Tool Invocation
 
 ```tsx
-import { transformTool, invokeAgent } from '@stallion-ai/sdk';
+import { callTool, invokeAgent } from '@stallion-ai/sdk';
 
-// Transform tool output
-const result = await transformTool(
-  'my-agent',
-  'tool-name',
-  { param: 'value' },
-  '(data) => data.items'
-);
+// Call an MCP tool directly
+const result = await callTool('my-agent', 'tool-name', { param: 'value' });
 
 // Invoke agent silently
 const response = await invokeAgent('my-agent', 'Do something');
 ```
 
-## Workspace Navigation
+## Layout Navigation
 
 ```tsx
-import { useWorkspaceNavigation } from '@stallion-ai/sdk';
+import { useLayoutNavigation } from '@stallion-ai/sdk';
 
-const { getTabState, setTabState } = useWorkspaceNavigation();
+const { getTabState, setTabState } = useLayoutNavigation();
 
 // Save state
 setTabState('my-tab', 'key=value&other=data');

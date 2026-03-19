@@ -127,8 +127,9 @@ All fields:
     { "id": "main", "label": "Main", "component": "my-plugin-main" },
     { "id": "settings", "label": "Settings", "component": "my-plugin-settings" }
   ],
-  "globalPrompts": [
-    { "id": "summarize", "label": "Summarize", "prompt": "Summarize the current context" }
+  "actions": [
+    { "type": "prompt", "label": "Summarize", "data": "my-plugin:summarize" },
+    { "type": "external", "label": "Docs", "icon": "📖", "data": "https://example.com" }
   ]
 }
 ```
@@ -310,13 +311,16 @@ const result = await serverFetch({
 Register and access layout-scoped providers from plugin UI:
 
 ```tsx
-import { registerProvider, getProvider, hasProvider } from '@stallion-ai/sdk';
+import { registerProvider, configureProvider, getProvider, hasProvider } from '@stallion-ai/sdk';
 
 // Register a client-side provider
-registerProvider('myService', myServiceInstance, { layout: 'my-layout' });
+registerProvider('my-plugin/crm', { layout: 'my-layout', type: 'crm' }, () => myCRMProvider);
+
+// Set it as the active provider for this layout
+configureProvider('my-layout', 'crm', 'my-plugin/crm');
 
 // Access a provider
-const svc = getProvider('myService');
+const svc = getProvider<IMyCRMProvider>('my-layout', 'crm');
 ```
 
 ## Provider Interfaces
