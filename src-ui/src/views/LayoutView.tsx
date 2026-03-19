@@ -181,6 +181,19 @@ export function LayoutView({
       );
       if (!targetAgent) return;
 
+      // Resolve prompt content: if id looks like a plugin prompt ref (e.g. "sales-sa:activity"),
+      // fetch the actual prompt content from the server
+      let promptText = prompt.prompt;
+      if (prompt.id && prompt.id.includes(':') && promptText === prompt.label) {
+        try {
+          const res = await fetch(`${apiBase}/api/prompts/${encodeURIComponent(prompt.id)}`);
+          const data = await res.json();
+          if (data.success && data.data?.content) {
+            promptText = data.data.content;
+          }
+        } catch { /* fall through to label */ }
+      }
+
       const sessionId = createChatSession(
         targetAgent.slug,
         targetAgent.name,
@@ -190,11 +203,12 @@ export function LayoutView({
       setDockState(true);
       setActiveChat(sessionId);
 
-      await sendMessage(sessionId, targetAgent.slug, undefined, prompt.prompt);
+      await sendMessage(sessionId, targetAgent.slug, undefined, promptText);
     },
     [
       agents,
       layout?.defaultAgent,
+      apiBase,
       createChatSession,
       sendMessage,
       setDockState,

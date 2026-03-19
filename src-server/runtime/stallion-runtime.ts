@@ -4,7 +4,7 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { createReadStream, existsSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { appendFile, mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -413,6 +413,9 @@ export class StallionRuntime {
 
     // Load plugin providers
     await this.loadPluginProviders();
+
+    // Re-scan plugin prompts so they're available via the API
+    await this.loadPluginPrompts();
 
     // Discover Agent Skills (scans project skills/, global skills/, and plugins/)
     const projects = this.storageAdapter?.listProjects() || [];
@@ -1387,6 +1390,26 @@ export class StallionRuntime {
       this.approvalRegistry,
       this.logger,
     );
+  }
+
+  /** Scan installed plugins for prompt files and register them. */
+  private async loadPluginPrompts(): Promise<void> {
+    const pluginsDir = join(this.configLoader.getProjectHomeDir(), 'plugins');
+    if (!existsSync(pluginsDir)) return;
+    const { scanPromptDir } = await import('../services/prompt-scanner.js');
+    const { PromptService } = await import('../services/prompt-service.js');
+    const svc = new PromptService();
+    for (const name of readdirSync(pluginsDir)) {
+      const manifestPath = join(pluginsDir, name, 'plugin.json');
+      if (!existsSync(manifestPath)) continue;
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+        if (!manifest.prompts?.source) continue;
+        const promptsDir = join(pluginsDir, name, manifest.prompts.source);
+        const scanned = scanPromptDir(promptsDir, name);
+        if (scanned.length > 0) svc.registerPluginPrompts(scanned);
+      } catch { continue; }
+    }
   }
 
   /**
