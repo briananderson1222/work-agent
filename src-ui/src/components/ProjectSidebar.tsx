@@ -110,13 +110,11 @@ function ProjectRow({
   isActive,
   activeLayout,
   collapsed,
-  pageType,
 }: {
   project: ProjectMetadata;
   isActive: boolean;
   activeLayout: string | null;
   collapsed: boolean;
-  pageType: string | null;
 }) {
   const [expanded, setExpanded] = useState(isActive);
   const { setProject, setLayout } = useNavigation();
@@ -137,7 +135,7 @@ function ProjectRow({
     setExpanded((prev) => !prev);
   };
 
-  const btnClass = `sidebar__project-btn${isActive && !activeLayout ? ' sidebar__project-btn--active' : ''}`;
+  const btnClass = `sidebar__project-btn${isActive ? ' sidebar__project-btn--active' : ''}`;
 
   return (
     <div>
@@ -149,9 +147,6 @@ function ProjectRow({
       >
         <LayoutIcon layout={project} size={collapsed ? 28 : 18} />
         <span className="sidebar__project-name">{project.name}</span>
-        {isActive && !collapsed && pageType && (
-          <span className="sidebar__page-type">{pageType}</span>
-        )}
         <span
           className={`sidebar__chevron${expanded ? ' sidebar__chevron--open' : ''}`}
           onClick={handleChevronClick}
@@ -222,7 +217,7 @@ function ProjectRow({
 
 export function ProjectSidebar() {
   const { projects } = useProjects();
-  const { selectedProject, selectedLayout, pathname, navigate } = useNavigation();
+  const { selectedProject, selectedProjectLayout, navigate } = useNavigation();
   const { appName } = useBranding();
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem(STORAGE_KEY) !== 'false',
@@ -280,22 +275,15 @@ export function ProjectSidebar() {
       <div className="sidebar__body">
         {projects.map((project) => {
           const isActive = selectedProject === project.slug;
-          let pageType: string | null = null;
-          if (isActive) {
-            if (pathname.includes('/settings')) pageType = 'Settings';
-            else if (selectedLayout) pageType = null; // layout name shown in layout list
-            else pageType = 'Dashboard';
-          }
           return (
             <ProjectRow
               key={project.slug}
               project={project}
               isActive={isActive}
               activeLayout={
-                isActive ? ((selectedLayout as string | null) ?? null) : null
+                isActive ? ((selectedProjectLayout as string | null) ?? null) : null
               }
               collapsed={collapsed}
-              pageType={pageType}
             />
           );
         })}

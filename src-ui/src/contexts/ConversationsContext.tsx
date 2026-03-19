@@ -524,6 +524,7 @@ type ConversationsContextType = {
     signal?: AbortSignal,
     model?: string,
     attachments?: FileAttachment[],
+    projectSlug?: string,
   ) => Promise<{ conversationId?: string; finishReason?: string }>;
   setStatus: (
     agentSlug: string,
@@ -594,6 +595,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
       signal?: AbortSignal,
       model?: string,
       attachments?: FileAttachment[],
+      projectSlug?: string,
     ) => {
       return conversationsStore.sendMessage(
         apiBase,
@@ -607,6 +609,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
         signal,
         model,
         attachments,
+        projectSlug,
       );
     },
     [],
