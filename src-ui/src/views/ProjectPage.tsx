@@ -5,6 +5,8 @@ import { PathAutocomplete } from '../components/PathAutocomplete';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectConfig } from '../contexts/ProjectsContext';
+import { useGitStatus, useGitLog } from '../hooks/useGitStatus';
+import { GitBadge } from '../components/GitBadge';
 import './ProjectPage.css';
 
 interface DocMeta {
@@ -66,6 +68,8 @@ export function ProjectPage({ slug }: { slug: string }) {
   });
 
   const { data: layouts = [] } = useProjectLayoutsQuery(slug);
+  const { data: gitStatus } = useGitStatus(project?.workingDirectory);
+  const { data: gitLog = [] } = useGitLog(project?.workingDirectory, 5);
 
   const { data: docs = [] } = useQuery<DocMeta[]>({
     queryKey: ['knowledge', slug],
@@ -350,6 +354,7 @@ export function ProjectPage({ slug }: { slug: string }) {
                   <span className="project-page__dir-edit-icon">✎</span>
                 </button>
               )}
+              {gitStatus && <GitBadge git={gitStatus} className="project-page__git-badge" />}
               {project.description && (
                 <p className="project-page__desc">{project.description}</p>
               )}
@@ -381,6 +386,37 @@ export function ProjectPage({ slug }: { slug: string }) {
               placeholder="/path/to/project"
               className="project-page__dir-input"
             />
+          </div>
+        )}
+
+        {/* Git section */}
+        {gitStatus && (
+          <div className="project-page__git-section">
+            <div className="project-page__section-header">
+              <span className="project-page__section-label">
+                ⎇ {gitStatus.branch}
+                {gitStatus.changes.length > 0 && (
+                  <span className="project-page__git-section-dirty"> · {gitStatus.staged} staged, {gitStatus.unstaged} modified, {gitStatus.untracked} untracked</span>
+                )}
+                {(gitStatus.ahead > 0 || gitStatus.behind > 0) && (
+                  <span className="project-page__git-section-remote">
+                    {gitStatus.ahead > 0 && ` · ↑${gitStatus.ahead}`}
+                    {gitStatus.behind > 0 && ` · ↓${gitStatus.behind}`}
+                  </span>
+                )}
+              </span>
+            </div>
+            {gitLog.length > 0 && (
+              <div className="project-page__git-log">
+                {gitLog.map((c) => (
+                  <div key={c.sha} className="project-page__git-commit">
+                    <span className="project-page__git-sha">{c.sha}</span>
+                    <span className="project-page__git-msg">{c.message}</span>
+                    <span className="project-page__git-meta">{c.author} · {c.relativeTime}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -59,6 +59,61 @@
   margin: 6px 0 0;
 }
 
+.project-page__git-badge .git-badge {
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* ── Git Section ── */
+.project-page__git-section {
+  margin-bottom: 24px;
+}
+.project-page__git-section-dirty {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.project-page__git-section-remote {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.project-page__git-log {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.project-page__git-commit {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  font-size: 12px;
+}
+.project-page__git-sha {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent-primary);
+  opacity: 0.8;
+}
+.project-page__git-msg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+.project-page__git-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .project-page__settings-btn {
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);

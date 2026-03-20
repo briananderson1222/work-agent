@@ -432,6 +432,70 @@ export function useConversationsQuery(
 }
 
 /**
+ * Fetch git status for a working directory
+ */
+export function useGitStatusQuery(
+  workingDirectory: string | null | undefined,
+  config?: QueryConfig<any>,
+) {
+  return useApiQuery<{
+    branch: string;
+    changes: string[];
+    staged: number;
+    unstaged: number;
+    untracked: number;
+    lastCommit: { sha: string; author: string; relativeTime: string; message: string } | null;
+    ahead: number;
+    behind: number;
+  } | null>(
+    ['git-status', workingDirectory ?? ''],
+    async () => {
+      if (!workingDirectory) return null;
+      const apiBase = await _getApiBase();
+      const res = await fetch(
+        `${apiBase}/api/coding/git/status?path=${encodeURIComponent(workingDirectory)}`,
+      );
+      const json = await res.json();
+      if (!json.success) return null;
+      return json.data;
+    },
+    {
+      ...config,
+      enabled: !!workingDirectory && (config?.enabled ?? true),
+      staleTime: config?.staleTime ?? 10_000,
+    },
+  );
+}
+
+/**
+ * Fetch recent git commits for a working directory
+ */
+export function useGitLogQuery(
+  workingDirectory: string | null | undefined,
+  count = 5,
+  config?: QueryConfig<any>,
+) {
+  return useApiQuery<Array<{ sha: string; author: string; relativeTime: string; message: string }>>(
+    ['git-log', workingDirectory ?? '', count],
+    async () => {
+      if (!workingDirectory) return [];
+      const apiBase = await _getApiBase();
+      const res = await fetch(
+        `${apiBase}/api/coding/git/log?path=${encodeURIComponent(workingDirectory)}&count=${count}`,
+      );
+      const json = await res.json();
+      if (!json.success) return [];
+      return json.data;
+    },
+    {
+      ...config,
+      enabled: !!workingDirectory && (config?.enabled ?? true),
+      staleTime: config?.staleTime ?? 30_000,
+    },
+  );
+}
+
+/**
  * Fetch conversation stats
  */
 export function useStatsQuery(

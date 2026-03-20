@@ -1015,13 +1015,113 @@ body {
   color: var(--accent-primary);
   font-weight: 600;
 }
+.chat-dock__project-badge--link {
+  cursor: pointer;
+}
+.chat-dock__project-badge--link:hover {
+  text-decoration: underline;
+}
 .chat-dock__project-dir {
+  display: flex;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   opacity: 0.7;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+}
+.chat-dock__project-dir-parent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.chat-dock__project-dir-leaf {
+  flex-shrink: 0;
+  color: var(--accent-primary);
+  opacity: 1;
+  font-weight: 500;
+}
+.chat-dock__project-context > .git-tooltip-anchor {
+  margin-left: auto;
+}
+
+/* ── Shared Git Badge ─────────────────────────────────────────── */
+.git-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.git-badge__branch {
+  color: var(--text-secondary);
+}
+.git-badge__dirty {
+  color: var(--warning, #e5c07b);
+  font-weight: 600;
+}
+
+/* ── Git Tooltip ──────────────────────────────────────────────── */
+.git-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 1000;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 8px 0;
+  min-width: 240px;
+  max-width: 320px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.git-tooltip__section {
+  padding: 4px 12px;
+}
+.git-tooltip__section + .git-tooltip__section {
+  border-top: 1px solid var(--border-primary);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+.git-tooltip__label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.git-tooltip__commit-msg {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.git-tooltip__commit-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.git-tooltip__changes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.git-tooltip__stat {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.git-tooltip__stat--staged { color: var(--success, #98c379); }
+.git-tooltip__stat--unstaged { color: var(--warning, #e5c07b); }
+.git-tooltip__stat--untracked { color: var(--text-muted); }
+.git-tooltip__clean {
+  color: var(--success, #98c379);
+  font-size: 10px;
 }
 
 .chat-dock__tab-agent {

@@ -9,7 +9,7 @@ import { CONFIG_DEFAULTS, useConfig } from '../contexts/ConfigContext';
 import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import { useProjects } from '../contexts/ProjectsContext';
+import { useProject, useProjects } from '../contexts/ProjectsContext';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useChatDockActions } from '../hooks/useChatDockActions';
 import { useChatDockKeyboardShortcuts } from '../hooks/useChatDockKeyboardShortcuts';
@@ -18,6 +18,8 @@ import { useChatInput } from '../hooks/useChatInput';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { setDockModeOverride } from '../hooks/useDockModePreference';
 import { useDragResize } from '../hooks/useDragResize';
+import { useGitStatus } from '../hooks/useGitStatus';
+import { GitBadge } from './GitBadge';
 import { ChatDockBody } from './ChatDockBody';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
@@ -41,6 +43,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     activeChat,
     setActiveChat,
     setDockMode,
+    setProject,
   } = useNavigation();
   const agents = useAgents();
   const { projects } = useProjects();
@@ -93,6 +96,13 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     ? agents.find((a) => a.slug === activeSessionForHook.agentSlug)
     : null;
   const agentDefaultModelId = agentForHook?.model;
+
+  // Resolve project context from the session's project (not the URL's)
+  const sessionProjectSlug = activeSessionForHook?.projectSlug;
+  const { project: sessionProject } = useProject(sessionProjectSlug ?? '');
+  const sessionWorkingDir = sessionProject?.workingDirectory ?? null;
+  const sessionProjectName = sessionProject?.name ?? activeSessionForHook?.projectName ?? sessionProjectSlug;
+  const { data: gitStatus } = useGitStatus(sessionWorkingDir);
 
   // For ACP agents with their own model options, use those instead of Bedrock models
   const effectiveModels = agentForHook?.modelOptions || availableModels;
@@ -243,13 +253,25 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               selectedProject={selectedProject}
             />
 
-            {/* Working directory breadcrumb for project-scoped sessions */}
-            {activeSession?.projectSlug && activeWorkingDir && (
-              <div className="chat-dock__project-context">
-                <span className="chat-dock__project-badge">{activeSession.projectName || activeSession.projectSlug}</span>
-                <span className="chat-dock__project-dir">{activeWorkingDir}</span>
-              </div>
-            )}
+            {/* Project context breadcrumb for project-scoped sessions */}
+            {activeSession?.projectSlug && (() => {
+              const isCurrentProject = selectedProject === activeSession.projectSlug;
+              const parts = sessionWorkingDir ? sessionWorkingDir.replace(/\/+$/, '').split('/') : [];
+              const lastFolder = parts.pop() || '';
+              const parentPath = parts.length ? parts.join('/') + '/' : '';
+              return (
+                <div className="chat-dock__project-context">
+                  <span className={`chat-dock__project-badge${isCurrentProject ? '' : ' chat-dock__project-badge--link'}`} onClick={isCurrentProject ? undefined : () => setProject(activeSession.projectSlug!)}>{sessionProjectName || activeSession.projectSlug}</span>
+                  {sessionWorkingDir && (
+                    <span className="chat-dock__project-dir">
+                      <span className="chat-dock__project-dir-parent">{parentPath}</span>
+                      <span className="chat-dock__project-dir-leaf">{lastFolder}</span>
+                    </span>
+                  )}
+                  {gitStatus && <GitBadge git={gitStatus} />}
+                </div>
+              );
+            })()}
 
             <div className="chat-dock__body">
               {activeSession ? (
@@ -319,7 +341,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
             sessions.map((s) => s.conversationId).filter(Boolean) as string[]
           }
           onSelect={(conversationId, agentSlug) => {
-            openConversation(conversationId, agentSlug);
+            openConversation(conversationId, agentSlug, activeProject ?? undefined, activeProjectName ?? undefined);
             setShowSessionPicker(false);
           }}
           onClose={() => setShowSessionPicker(false)}

@@ -134,6 +134,8 @@ export {
   useCreateLayoutMutation,
   useCreateProjectMutation,
   useDeleteProjectMutation,
+  useGitLogQuery,
+  useGitStatusQuery,
   useInvalidateQuery,
   useInvokeAgent,
   useLayoutQuery,

@@ -66,19 +66,76 @@ export function createCodingRoutes(fileTreeService: FileTreeService) {
     codingOps.add(1, { operation: 'git-status' });
     try {
       const dir = validatePath(c.req.query('path'));
-      const branchOut = (await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-        cwd: dir,
-        encoding: 'utf-8',
-      })).stdout;
-      const statusOut = (await execFile('git', ['status', '--porcelain'], {
-        cwd: dir,
-        encoding: 'utf-8',
-      })).stdout;
-      const changes = statusOut.split('\n').filter((l) => l.trim().length > 0);
+      const opts = { cwd: dir, encoding: 'utf-8' as const };
+
+      const [branchOut, statusOut, logOut, trackingOut] = await Promise.all([
+        execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], opts),
+        execFile('git', ['status', '--porcelain'], opts),
+        execFile('git', ['log', '-1', '--format=%H|%an|%ar|%s'], opts).catch(() => ({ stdout: '' })),
+        execFile('git', ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}'], opts).catch(() => ({ stdout: '' })),
+      ]);
+
+      const changes = statusOut.stdout.split('\n').filter((l) => l.trim().length > 0);
+
+      // Change breakdown
+      let staged = 0, unstaged = 0, untracked = 0;
+      for (const line of changes) {
+        const x = line[0], y = line[1];
+        if (x === '?') { untracked++; }
+        else {
+          if (x !== ' ' && x !== '?') staged++;
+          if (y !== ' ' && y !== '?') unstaged++;
+        }
+      }
+
+      // Last commit
+      let lastCommit = null;
+      const logParts = logOut.stdout.trim().split('|');
+      if (logParts.length >= 4) {
+        lastCommit = {
+          sha: logParts[0].slice(0, 8),
+          author: logParts[1],
+          relativeTime: logParts[2],
+          message: logParts.slice(3).join('|'),
+        };
+      }
+
+      // Ahead/behind
+      let ahead = 0, behind = 0;
+      const trackParts = trackingOut.stdout.trim().split(/\s+/);
+      if (trackParts.length === 2) {
+        ahead = parseInt(trackParts[0], 10) || 0;
+        behind = parseInt(trackParts[1], 10) || 0;
+      }
+
       return c.json({
         success: true,
-        data: { branch: branchOut.trim(), changes },
+        data: {
+          branch: branchOut.stdout.trim(),
+          changes,
+          staged, unstaged, untracked,
+          lastCommit,
+          ahead, behind,
+        },
       });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 400);
+    }
+  });
+
+  app.get('/git/log', async (c) => {
+    try {
+      const dir = validatePath(c.req.query('path'));
+      const count = Math.min(parseInt(c.req.query('count') || '5', 10), 20);
+      const raw = (await execFile(
+        'git', ['log', `-${count}`, '--format=%H|%an|%ar|%s'],
+        { cwd: dir, encoding: 'utf-8' },
+      )).stdout;
+      const commits = raw.split('\n').filter((l) => l.trim()).map((line) => {
+        const parts = line.split('|');
+        return { sha: parts[0].slice(0, 8), author: parts[1], relativeTime: parts[2], message: parts.slice(3).join('|') };
+      });
+      return c.json({ success: true, data: commits });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 400);
     }

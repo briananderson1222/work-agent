@@ -85,7 +85,7 @@ export function useChatDockActions({
   );
 
   const openConversation = useCallback(
-    async (conversationId: string, agentSlug: string) => {
+    async (conversationId: string, agentSlug: string, projectSlug?: string, projectName?: string) => {
       const agent = agents.find((a) => a.slug === agentSlug);
       if (!agent) return;
 
@@ -101,6 +101,8 @@ export function useChatDockActions({
         conversationId,
         agentSlug,
         agent.name,
+        projectSlug,
+        projectName,
       );
       setActiveSessionId(sessionId);
       setActiveChat(sessionId);

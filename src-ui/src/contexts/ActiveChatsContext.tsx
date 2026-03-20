@@ -107,6 +107,8 @@ class ActiveChatsStore {
           conversationId: string;
           agentSlug: string;
           model?: string;
+          projectSlug?: string;
+          projectName?: string;
           sessionAutoApprove?: string[];
           ephemeralMessages?: any[];
           inputHistory?: string[];
@@ -122,6 +124,8 @@ class ActiveChatsStore {
             agentSlug: session.agentSlug,
             conversationId: session.conversationId,
             model: session.model,
+            projectSlug: session.projectSlug,
+            projectName: session.projectName,
             sessionAutoApprove: session.sessionAutoApprove || [],
             ephemeralMessages: session.ephemeralMessages || [],
           };
@@ -1001,7 +1005,7 @@ export function useOpenConversation(apiBase: string) {
   const { fetchMessages } = useConversationActions();
 
   return useCallback(
-    async (conversationId: string, agentSlug: string, agentName: string) => {
+    async (conversationId: string, agentSlug: string, agentName: string, projectSlug?: string, projectName?: string) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
 
       initChat(sessionId, {
@@ -1009,6 +1013,8 @@ export function useOpenConversation(apiBase: string) {
         agentName,
         title: `${agentName} Chat`,
         conversationId,
+        projectSlug,
+        projectName,
       });
 
       // Load messages

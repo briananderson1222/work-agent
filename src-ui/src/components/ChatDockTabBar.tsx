@@ -12,7 +12,7 @@ interface ChatDockTabBarProps {
   chatDockRef: RefObject<HTMLDivElement | null>;
   focusSession: (id: string) => void;
   removeSession: (id: string) => void;
-  openConversation: (conversationId: string, agentSlug: string) => void;
+  openConversation: (conversationId: string, agentSlug: string, projectSlug?: string, projectName?: string) => void;
   openChatForAgent: (
     agent: AgentData,
     projectSlug?: string,
