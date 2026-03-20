@@ -16,15 +16,26 @@ export function createConversationRoutes(
   configLoader?: any,
   appConfig?: any,
   modelCatalog?: any,
+  createMemoryAdapter?: (slug: string) => FileMemoryAdapter,
 ) {
   const app = new Hono();
+
+  /** Get or lazily create an adapter for a slug */
+  const getAdapter = (slug: string): FileMemoryAdapter | null => {
+    let adapter = memoryAdapters.get(slug);
+    if (!adapter && createMemoryAdapter) {
+      adapter = createMemoryAdapter(slug);
+      memoryAdapters.set(slug, adapter);
+    }
+    return adapter || null;
+  };
 
   // Get conversations for an agent
   app.get('/:slug/conversations', async (c) => {
     try {
       conversationOps.add(1, { operation: 'list' });
       const slug = param(c, 'slug');
-      const adapter = memoryAdapters.get(slug);
+      const adapter = getAdapter(slug);
 
       if (!adapter) {
         return c.json({ success: true, data: [] });
@@ -45,7 +56,7 @@ export function createConversationRoutes(
       conversationOps.add(1, { operation: 'update', agent: param(c, 'slug') });
       const slug = param(c, 'slug');
       const conversationId = param(c, 'conversationId');
-      const adapter = memoryAdapters.get(slug);
+      const adapter = getAdapter(slug);
 
       if (!adapter) {
         return c.json({ success: false, error: 'Agent not found' }, 404);
@@ -67,7 +78,7 @@ export function createConversationRoutes(
       conversationOps.add(1, { operation: 'delete', agent: param(c, 'slug') });
       const slug = param(c, 'slug');
       const conversationId = param(c, 'conversationId');
-      const adapter = memoryAdapters.get(slug);
+      const adapter = getAdapter(slug);
 
       if (!adapter) {
         return c.json({ success: false, error: 'Agent not found' }, 404);
@@ -88,7 +99,7 @@ export function createConversationRoutes(
       conversationOps.add(1, { operation: 'messages', agent: param(c, 'slug') });
       const slug = param(c, 'slug');
       const conversationId = param(c, 'conversationId');
-      const adapter = memoryAdapters.get(slug);
+      const adapter = getAdapter(slug);
 
       if (!adapter) {
         return c.json({ success: true, data: [] });
@@ -141,6 +152,48 @@ export function createConversationRoutes(
       return c.json({ success: true, data });
     } catch (error: any) {
       logger.error('Failed to get conversation stats', { error });
+      return c.json({ success: false, error: error.message }, 500);
+    }
+  });
+
+  return app;
+}
+
+/**
+ * Global conversation lookup — resolves a conversation ID across all agents/projects.
+ */
+export function createGlobalConversationRoutes(
+  memoryAdapters: Map<string, FileMemoryAdapter>,
+  storageAdapter: { getConversation(id: string): any },
+  logger: any,
+  createMemoryAdapter?: (slug: string) => FileMemoryAdapter,
+) {
+  const app = new Hono();
+
+  app.get('/:id', async (c) => {
+    try {
+      const id = param(c, 'id');
+
+      // Try project storage first (has projectId/projectSlug)
+      const projectRecord = storageAdapter.getConversation(id);
+      if (projectRecord) {
+        return c.json({ success: true, data: projectRecord });
+      }
+
+      // Fall back to scanning memory adapters
+      for (const [slug, adapter] of memoryAdapters) {
+        const conv = await adapter.getConversation(id);
+        if (conv) {
+          return c.json({
+            success: true,
+            data: { id: conv.id, agentSlug: slug, title: conv.title },
+          });
+        }
+      }
+
+      return c.json({ success: false, error: 'Conversation not found' }, 404);
+    } catch (error: any) {
+      logger.error('Failed to lookup conversation', { error });
       return c.json({ success: false, error: error.message }, 500);
     }
   });

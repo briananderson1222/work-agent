@@ -36,11 +36,13 @@ export function useChatDockActions({
   const focusSession = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
-      setActiveChat(sessionId);
+      const convId = sessions.find((s) => s.id === sessionId)?.conversationId ?? null;
+      setActiveChat(convId);
       setDockState(true, isDockMaximized);
       updateChat(sessionId, { hasUnread: false });
     },
     [
+      sessions,
       setActiveSessionId,
       setActiveChat,
       setDockState,
@@ -54,9 +56,9 @@ export function useChatDockActions({
       removeChat(sessionId);
       if (activeSessionId === sessionId) {
         const remaining = sessions.filter((s) => s.id !== sessionId);
-        const next = remaining[remaining.length - 1]?.id ?? null;
-        setActiveSessionId(next);
-        setActiveChat(next);
+        const next = remaining[remaining.length - 1] ?? null;
+        setActiveSessionId(next?.id ?? null);
+        setActiveChat(next?.conversationId ?? null);
       }
     },
     [removeChat, activeSessionId, sessions, setActiveSessionId, setActiveChat],
@@ -72,7 +74,8 @@ export function useChatDockActions({
         projectName,
       );
       setActiveSessionId(sessionId);
-      setActiveChat(sessionId);
+      // New chat has no conversationId yet — URL gets no ?chat= param
+      setActiveChat(null);
       setDockState(true, isDockMaximized);
     },
     [
@@ -105,7 +108,7 @@ export function useChatDockActions({
         projectName,
       );
       setActiveSessionId(sessionId);
-      setActiveChat(sessionId);
+      setActiveChat(conversationId);
       setDockState(true, false);
     },
     [

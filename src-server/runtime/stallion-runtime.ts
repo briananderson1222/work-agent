@@ -6,7 +6,7 @@
 import { EventEmitter } from 'node:events';
 import { createReadStream, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { appendFile, mkdir, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   Agent,
@@ -23,6 +23,7 @@ import {
   DEFAULT_SYSTEM_PROMPT,
 } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
+import { ACPStatus } from '../domain/types.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { createEventRoutes } from '../routes/events.js';
 import { createUICommandRoutes } from '../routes/ui-commands.js';
@@ -60,7 +61,7 @@ import { createBedrockRoutes } from '../routes/bedrock.js';
 import { createBrandingRoutes } from '../routes/branding.js';
 import { createCodingRoutes } from '../routes/coding.js';
 import { createConfigRoutes } from '../routes/config.js';
-import { createConversationRoutes } from '../routes/conversations.js';
+import { createConversationRoutes, createGlobalConversationRoutes } from '../routes/conversations.js';
 import { createFeedbackRoutes } from '../routes/feedback.js';
 import { createFsRoutes } from '../routes/fs.js';
 import {
@@ -385,15 +386,6 @@ export class StallionRuntime {
 
     // Registry providers are registered by plugins via loadProviders()
 
-    // Register default onboarding provider (checks Bedrock credentials)
-    const { registerOnboardingProvider } = await import(
-      '../providers/registry.js'
-    );
-    const { DefaultOnboardingProvider } = await import(
-      '../providers/defaults.js'
-    );
-    registerOnboardingProvider(new DefaultOnboardingProvider());
-
     // JSON manifest fallback for environments without plugins
     if (this.appConfig.registryUrl) {
       const registryProvider = new JsonManifestRegistryProvider(
@@ -477,7 +469,7 @@ export class StallionRuntime {
       }
     }
 
-    // Daily agent reload at midnight so {{date}}/{{time}} template variables stay fresh
+    // Daily agent reload at midnight so config changes take effect
     const msUntilMidnight = () => {
       const now = new Date();
       const midnight = new Date(now);
@@ -548,12 +540,10 @@ export class StallionRuntime {
       this.logger.warn('Failed to load stallion-control tools for default agent', { error: e });
     }
 
-    const defaultInstructions = this.appConfig.systemPrompt
-      ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
-      : this.replaceTemplateVariables(DEFAULT_SYSTEM_PROMPT);
+    const rawSystemPrompt = this.appConfig.systemPrompt || DEFAULT_SYSTEM_PROMPT;
     const defaultAgent = await this.framework.createTempAgent({
       name: 'default',
-      instructions: defaultInstructions,
+      instructions: () => this.replaceTemplateVariables(rawSystemPrompt),
       model: defaultModel,
       tools: defaultTools,
     });
@@ -765,7 +755,7 @@ export class StallionRuntime {
             const s = this.acpBridge.getStatus();
             return {
               connected: s.connections.some(
-                (c: any) => c.status === 'connected',
+                (c: any) => c.status === ACPStatus.AVAILABLE,
               ),
               connections: s.connections,
             };
@@ -839,7 +829,7 @@ export class StallionRuntime {
         getACPStatus: () => {
           const s = this.acpBridge.getStatus();
           return {
-            connected: s.connections.some((c) => c.status === 'connected'),
+            connected: s.connections.some((c) => c.status === ACPStatus.AVAILABLE),
             connections: s.connections,
           };
         },
@@ -952,7 +942,16 @@ export class StallionRuntime {
     );
     app.route(
       '/agents',
-      createConversationRoutes(this.memoryAdapters, this.logger, this.agentFixedTokens, this.agentTools, this.configLoader, this.appConfig, this.modelCatalog),
+      createConversationRoutes(this.memoryAdapters, this.logger, this.agentFixedTokens, this.agentTools, this.configLoader, this.appConfig, this.modelCatalog, (slug: string) => {
+        return new FileMemoryAdapter({
+          projectHomeDir: this.configLoader.getProjectHomeDir(),
+          usageAggregator: this.usageAggregator,
+        });
+      }),
+    );
+    app.route(
+      '/api/conversations',
+      createGlobalConversationRoutes(this.memoryAdapters, this.storageAdapter, this.logger),
     );
     this.schedulerService = new SchedulerService(this.logger);
     this.schedulerService.setChatFn(async (agentSlug, prompt) => {
@@ -1262,17 +1261,18 @@ export class StallionRuntime {
     const spec = await this.configLoader.loadAgent(agentSlug);
     this.agentSpecs.set(agentSlug, spec);
 
-    // Replace template variables in prompts — resolved at agent creation time.
-    // Date/time are current as of agent load; prompt caching stays effective.
-    // Agents reload on config change, so updates to systemPrompt take effect.
-    const processedPrompt = this.replaceTemplateVariables(spec.prompt);
-    const processedSystemPrompt = this.appConfig.systemPrompt
-      ? this.replaceTemplateVariables(this.appConfig.systemPrompt)
-      : '';
+    // Keep raw templates so date/time variables resolve fresh per-invocation
+    const rawSystemPrompt = this.appConfig.systemPrompt || '';
+    const rawAgentPrompt = spec.prompt;
     const skillCatalog = SkillService.getSkillCatalogPrompt(spec.skills);
-    const instructions = [processedSystemPrompt, processedPrompt, skillCatalog]
-      .filter(Boolean)
-      .join('\n\n');
+    const instructions = () => {
+      const parts = [
+        rawSystemPrompt ? this.replaceTemplateVariables(rawSystemPrompt) : '',
+        this.replaceTemplateVariables(rawAgentPrompt),
+        skillCatalog,
+      ].filter(Boolean);
+      return parts.join('\n\n');
+    };
 
     const memoryAdapter = new FileMemoryAdapter({
       projectHomeDir: this.configLoader.getProjectHomeDir(),
@@ -1430,7 +1430,7 @@ export class StallionRuntime {
       registerUserDirectoryProvider,
       registerAgentRegistryProvider,
       registerIntegrationRegistryProvider,
-      registerOnboardingProvider,
+      registerPluginRegistryProvider,
     } = await import('../providers/registry.js');
 
     clearAll();
@@ -1461,6 +1461,28 @@ export class StallionRuntime {
         continue;
       }
       try {
+        // JSON files for registry types → auto-wrap with JsonManifestRegistryProvider
+        if (
+          modulePath.endsWith('.json') &&
+          (entry.type === 'agentRegistry' || entry.type === 'integrationRegistry' || entry.type === 'pluginRegistry')
+        ) {
+          const { JsonManifestRegistryProvider } = await import(
+            '../providers/json-manifest-registry.js'
+          );
+          const instance = new JsonManifestRegistryProvider(
+            modulePath,
+            dirname(pluginsDir),
+          );
+          if (entry.type === 'agentRegistry') registerAgentRegistryProvider(instance);
+          else if (entry.type === 'pluginRegistry') registerPluginRegistryProvider(instance, entry.pluginName);
+          else registerIntegrationRegistryProvider(instance);
+          this.logger.info('Registered plugin provider (JSON manifest)', {
+            plugin: entry.pluginName,
+            type: entry.type,
+          });
+          continue;
+        }
+
         const fileUrl = `file://${modulePath}?t=${Date.now()}`;
         const mod = await import(fileUrl);
         const factory = mod.default || mod;
@@ -1475,8 +1497,8 @@ export class StallionRuntime {
           registerAgentRegistryProvider(instance);
         else if (entry.type === 'integrationRegistry')
           registerIntegrationRegistryProvider(instance);
-        else if (entry.type === 'onboarding')
-          registerOnboardingProvider(instance, entry.pluginName);
+        else if (entry.type === 'pluginRegistry')
+          registerPluginRegistryProvider(instance, entry.pluginName);
         else if (entry.type === 'branding') registerBrandingProvider(instance);
         else if (entry.type === 'settings') registerSettingsProvider(instance);
         else

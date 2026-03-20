@@ -104,7 +104,7 @@ export function useChatDockKeyboardShortcuts({
         const newSessionId = `session-${Date.now()}`;
         initChat(newSessionId, (selectedAgent as any) ?? undefined);
         setActiveSessionId(newSessionId);
-        setActiveChat(newSessionId);
+        setActiveChat(null); // New chat, no conversation yet
       }
     }, [selectedAgent, initChat, setActiveSessionId, setActiveChat]),
   );

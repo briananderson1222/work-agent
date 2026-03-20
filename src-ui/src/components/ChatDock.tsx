@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  activeChatsStore,
   useActiveChatActions,
   useRehydrateSessions,
 } from '../contexts/ActiveChatsContext';
@@ -117,7 +118,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     agentDefaultModel: agentDefaultModelId,
     onSessionMigrate: (newSessionId) => {
       setActiveSessionId(newSessionId);
-      setActiveChat(newSessionId);
+      // Look up the newly assigned conversationId
+      const convId = activeChatsStore.getSnapshot()[newSessionId]?.conversationId ?? null;
+      setActiveChat(convId);
     },
     onAuthError: () => onRequestAuth?.(),
   });
@@ -126,14 +129,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   useEffect(() => {
     rehydrateSessions();
   }, [rehydrateSessions]);
-
-  // Sync activeChat from URL to local state on mount/change
-  useEffect(() => {
-    if (activeChat && sessions.some((s) => s.id === activeChat)) {
-      setActiveSessionId(activeChat);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeChat, sessions.some, setActiveSessionId]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
@@ -168,8 +163,30 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       setActiveSessionId,
     });
 
+  // Sync activeChat (conversationId) from URL to local state
+  useEffect(() => {
+    if (!activeChat) return;
+    const existing = sessions.find((s) => s.conversationId === activeChat);
+    if (existing) {
+      setActiveSessionId(existing.id);
+      return;
+    }
+    // Not in memory — fetch from server and open
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/conversations/${encodeURIComponent(activeChat)}`);
+        const json = await res.json();
+        if (!json.success || !json.data) return;
+        const conv = json.data;
+        await openConversation(conv.id, conv.agentSlug, conv.projectSlug);
+      } catch { /* conversation not found */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChat]);
+
   // Drag to resize
   useDragResize({
+
     isDragging,
     setIsDragging,
     setHeight: setDockHeight,

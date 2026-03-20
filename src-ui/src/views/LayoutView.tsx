@@ -201,7 +201,7 @@ export function LayoutView({
         projectSlug ?? undefined,
       );
       setDockState(true);
-      setActiveChat(sessionId);
+      setActiveChat(null); // New chat, no conversation yet
 
       await sendMessage(sessionId, targetAgent.slug, undefined, promptText);
     },

@@ -93,7 +93,7 @@ export function Header({
     setShowHelp(false);
     setDockState(true);
     const sessionId = createChatSession('default', 'Stallion');
-    setActiveChat(sessionId);
+    setActiveChat(null); // New chat, no conversation yet
     setTimeout(() => {
       sendMessage(sessionId, 'default', undefined, prompt);
     }, 100);
