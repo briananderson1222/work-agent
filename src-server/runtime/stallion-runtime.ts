@@ -300,7 +300,7 @@ export class StallionRuntime {
 
     // Apply log level changes at runtime
     if (this.appConfig.logLevel) {
-      this.logger.level = this.appConfig.logLevel;
+      (this.logger as any).level = this.appConfig.logLevel;
     }
 
     const agentMetadataList = await this.configLoader.listAgents();
@@ -412,7 +412,7 @@ export class StallionRuntime {
 
     // Apply log level from config (config overrides startup default)
     if (this.appConfig.logLevel) {
-      this.logger.level = this.appConfig.logLevel;
+      (this.logger as any).level = this.appConfig.logLevel;
     }
 
     // Registry providers are registered by plugins via loadProviders()

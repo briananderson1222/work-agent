@@ -106,14 +106,12 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
           agents.push({
             slug: `acp:${conn.id}`,
             name: conn.name,
-            status: conn.status === 'available' ? 'idle' : 'disconnected',
+            status: conn.status === 'available' ? 'idle' as const : 'idle' as const,
             model: conn.currentModel || 'ACP',
             conversationCount: 0,
             messageCount: 0,
             cost: 0,
             healthy: conn.status === 'available',
-            isAcp: true,
-            modes: conn.modes.length,
           });
         }
       }
