@@ -1,5 +1,6 @@
 import type { EventEmitter } from 'node:events';
 import { trace } from '@opentelemetry/api';
+import { MonitoringEmitter } from '../../../monitoring/emitter.js';
 import {
   toolCalls as otelToolCalls,
   toolDuration as otelToolDuration,
@@ -38,6 +39,7 @@ export class MetadataHandler implements StreamHandler {
       traceId?: string;
       plugin?: string;
     },
+    private monitoringEmitter?: MonitoringEmitter,
   ) {}
 
   async *process(
@@ -92,56 +94,35 @@ export class MetadataHandler implements StreamHandler {
   }
 
   private emitMonitoringEvent(chunk: StreamChunk): void {
-    if (!this.monitoringEvents || !this.context) return;
-
-    const baseEvent = {
-      timestamp: new Date().toISOString(),
-      timestampMs: Date.now(),
-      agentSlug: this.context.slug,
-      conversationId: this.context.conversationId,
-      userId: this.context.userId,
-      traceId: this.context.traceId,
-    };
+    if (!this.monitoringEmitter || !this.context) return;
+    const { slug, conversationId, userId, traceId } = this.context;
 
     switch (chunk.type) {
       case 'tool-call':
-        this.monitoringEvents.emit('event', {
-          ...baseEvent,
-          type: 'tool-call',
-          toolName: chunk.toolName,
-          toolCallId: chunk.toolCallId,
+        this.monitoringEmitter.emitToolCall({
+          slug, conversationId: conversationId ?? '', userId: userId ?? '', traceId: traceId ?? '',
+          toolName: chunk.toolName || 'unknown',
+          toolCallId: chunk.toolCallId || '',
           input: chunk.input,
           toolCallNumber: this.stats.toolCalls,
         });
-        trace.getActiveSpan()?.addEvent('tool-call', {
-          'tool.name': chunk.toolName,
-          'tool.call_id': chunk.toolCallId,
-        });
+        trace.getActiveSpan()?.addEvent('tool-call', { 'tool.name': chunk.toolName || 'unknown', 'tool.call_id': chunk.toolCallId });
         break;
-
       case 'tool-result':
-        this.monitoringEvents.emit('event', {
-          ...baseEvent,
-          type: 'tool-result',
-          toolName: chunk.toolName,
-          toolCallId: chunk.toolCallId,
+        this.monitoringEmitter.emitToolResult({
+          slug, conversationId: conversationId ?? '', userId: userId ?? '', traceId: traceId ?? '',
+          toolName: chunk.toolName || 'unknown',
+          toolCallId: chunk.toolCallId || '',
           result: chunk.output,
         });
-        trace.getActiveSpan()?.addEvent('tool-result', {
-          'tool.name': chunk.toolName,
-          'tool.call_id': chunk.toolCallId,
-        });
+        trace.getActiveSpan()?.addEvent('tool-result', { 'tool.name': chunk.toolName || 'unknown', 'tool.call_id': chunk.toolCallId });
         break;
-
       case 'reasoning-end': {
-        // Only emit reasoning event at the end with complete content
-        // Note: reasoning-end in AI SDK doesn't have text field, but custom handlers may add it
         const reasoningChunk = chunk as StreamChunk & { text?: string };
         if (reasoningChunk.text) {
-          this.monitoringEvents.emit('event', {
-            ...baseEvent,
-            type: 'reasoning',
-            data: reasoningChunk.text,
+          this.monitoringEmitter.emitReasoning({
+            slug, conversationId: conversationId ?? '', userId: userId ?? '', traceId: traceId ?? '',
+            text: reasoningChunk.text,
           });
         }
         break;

@@ -8,7 +8,6 @@ import type { AppConfig } from '../types';
 
 type ConfigData = AppConfig & {
   defaultMaxSteps?: number;
-  logLevel?: string;
 };
 
 export const CONFIG_DEFAULTS = {

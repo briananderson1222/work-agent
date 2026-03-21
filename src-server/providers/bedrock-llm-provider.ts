@@ -11,6 +11,7 @@ import type {
   LLMStreamChunk,
   LLMStreamOpts,
 } from './types.js';
+import { checkBedrockCredentials } from './bedrock.js';
 
 export class BedrockLLMProvider implements ILLMProvider {
   readonly id = 'bedrock';
@@ -114,5 +115,24 @@ export class BedrockLLMProvider implements ILLMProvider {
       console.debug('Failed to check Bedrock credentials:', e);
       return false;
     }
+  }
+
+  async getPrerequisites(): Promise<import('@stallion-ai/shared').Prerequisite[]> {
+    const hasCreds = await checkBedrockCredentials();
+    return [
+      {
+        id: 'bedrock',
+        name: 'Bedrock Credentials',
+        description: 'AWS credentials with Bedrock model access',
+        status: hasCreds ? 'installed' : 'missing',
+        category: 'required',
+        installGuide: {
+          steps: ['Configure AWS credentials with Bedrock access'],
+          links: [
+            'https://docs.aws.amazon.com/bedrock/latest/userguide/setting-up.html',
+          ],
+        },
+      },
+    ];
   }
 }

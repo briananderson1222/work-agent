@@ -478,7 +478,7 @@ function FeatureToggle({
     >
       <Toggle
         checked={checked}
-        onChange={() => onToggle(featureKey)}
+        onChange={() => {}}
         size="sm"
       />
       <div>
@@ -638,7 +638,7 @@ function VoiceFeaturesSection() {
             >
               <Toggle
                 checked={p.enabled}
-                onChange={() => toggleProvider(p.id)}
+                onChange={() => {}}
                 size="sm"
               />
               <div>
@@ -1068,7 +1068,7 @@ export function SettingsView({
               id="logLevel"
               value={config.logLevel || 'info'}
               onChange={(e) =>
-                setConfig({ ...config, logLevel: e.target.value })
+                setConfig({ ...config, logLevel: e.target.value as AppConfig['logLevel'] })
               }
             >
               <option value="error">Error</option>

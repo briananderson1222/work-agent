@@ -8,6 +8,7 @@ import type { ConfigLoader } from '../domain/config-loader.js';
 import {
   getAgentRegistryProvider,
   getIntegrationRegistryProvider,
+  getPluginRegistryProviders,
   getSkillRegistryProvider,
 } from '../providers/registry.js';
 import { registryOps } from '../telemetry/metrics.js';
@@ -148,6 +149,54 @@ export function createRegistryRoutes(
     const result = await uninstallSkill(id, configLoader.getProjectHomeDir());
     if (result.success && reloadSkills) await reloadSkills().catch(() => {});
     return c.json(result, result.success ? 200 : 500);
+  });
+
+  // ── Plugin Registry ──────────────────────────────────────
+
+  app.get('/plugins', async (c) => {
+    registryOps.add(1, { operation: 'list-plugins' });
+    const entries = getPluginRegistryProviders();
+    if (entries.length === 0) return c.json({ success: true, data: [] });
+    const results = await Promise.all(
+      entries.map(async (e) => {
+        const items = await e.provider.listAvailable();
+        return items.map((item) => ({ ...item, source: e.source }));
+      }),
+    );
+    return c.json({ success: true, data: results.flat() });
+  });
+
+  app.get('/plugins/installed', async (c) => {
+    registryOps.add(1, { operation: 'list-plugins-installed' });
+    const entries = getPluginRegistryProviders();
+    if (entries.length === 0) return c.json({ success: true, data: [] });
+    const results = await Promise.all(
+      entries.map(async (e) => e.provider.listInstalled()),
+    );
+    return c.json({ success: true, data: results.flat() });
+  });
+
+  app.post('/plugins/install', async (c) => {
+    const { id } = await c.req.json();
+    if (!id) return c.json({ success: false, error: 'id is required' }, 400);
+    registryOps.add(1, { operation: 'install-plugin', item: id });
+    const entries = getPluginRegistryProviders();
+    for (const e of entries) {
+      const result = await e.provider.install(id);
+      if (result.success) return c.json(result);
+    }
+    return c.json({ success: false, message: `No provider could install ${id}` }, 500);
+  });
+
+  app.delete('/plugins/:id', async (c) => {
+    const id = c.req.param('id');
+    registryOps.add(1, { operation: 'uninstall-plugin', item: id });
+    const entries = getPluginRegistryProviders();
+    for (const e of entries) {
+      const result = await e.provider.uninstall(id);
+      if (result.success) return c.json(result);
+    }
+    return c.json({ success: false, message: `No provider could uninstall ${id}` }, 500);
   });
 
   return app;

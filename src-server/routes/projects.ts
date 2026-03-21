@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Hono } from 'hono';
+import type { KnowledgeNamespaceConfig, PluginManifest } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { ProjectService } from '../services/project-service.js';
 
@@ -106,6 +107,21 @@ function readPluginLayout(projectHomeDir: string, pluginName: string) {
       : null;
   if (!layoutPath) return null;
   return JSON.parse(readFileSync(layoutPath, 'utf-8'));
+}
+
+function registerPluginNamespaces(
+  storageAdapter: IStorageAdapter,
+  projectSlug: string,
+  manifest: PluginManifest,
+): void {
+  const namespaces = manifest.knowledge?.namespaces;
+  if (!namespaces?.length) return;
+  const project = storageAdapter.getProject(projectSlug);
+  const existing: KnowledgeNamespaceConfig[] = project.knowledgeNamespaces ?? [];
+  const existingIds = new Set(existing.map((n) => n.id));
+  const toAdd = namespaces.filter((n) => !existingIds.has(n.id));
+  if (!toAdd.length) return;
+  storageAdapter.saveProject({ ...project, knowledgeNamespaces: [...existing, ...toAdd] });
 }
 
 export function createProjectRoutes(
@@ -319,6 +335,13 @@ export function createProjectRoutes(
       };
 
       storageAdapter.saveLayout(slug, layout);
+
+      const pluginFile = join(homeDir, 'plugins', pluginName, 'plugin.json');
+      if (existsSync(pluginFile)) {
+        const manifest = JSON.parse(readFileSync(pluginFile, 'utf-8'));
+        registerPluginNamespaces(storageAdapter, slug, manifest);
+      }
+
       return c.json({ success: true, data: layout }, 201);
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 400);

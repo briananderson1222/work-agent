@@ -23,6 +23,13 @@ interface KnowledgeStatus {
   lastIndexed: string | null;
 }
 
+interface KnowledgeNamespace {
+  id: string;
+  label: string;
+  behavior: 'rag' | 'inject';
+  builtIn?: boolean;
+}
+
 interface ConversationRecord {
   id: string;
   projectId: string;
@@ -90,6 +97,44 @@ export function ProjectPage({ slug }: { slug: string }) {
       return json.success ? json.data : null;
     },
   });
+
+  const { data: namespaces = [] } = useQuery<KnowledgeNamespace[]>({
+    queryKey: ['knowledge-namespaces', slug],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/projects/${slug}/knowledge/namespaces`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+  });
+
+  const [selectedNs, setSelectedNs] = useState<string | null>(null);
+  const [rulesContent, setRulesContent] = useState('');
+  const [savingRules, setSavingRules] = useState(false);
+
+  async function handleSaveRules() {
+    if (!rulesContent.trim()) return;
+    setSavingRules(true);
+    try {
+      // Clear existing rules docs first
+      const rulesRes = await fetch(`${apiBase}/api/projects/${slug}/knowledge/ns/rules`);
+      const rulesJson = await rulesRes.json();
+      if (rulesJson.success && rulesJson.data?.length) {
+        await fetch(`${apiBase}/api/projects/${slug}/knowledge/ns/rules/bulk-delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: rulesJson.data.map((d: any) => d.id) }),
+        });
+      }
+      // Upload new rules
+      await fetch(`${apiBase}/api/projects/${slug}/knowledge/ns/rules/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: 'project-rules.md', content: rulesContent }),
+      });
+      qc.invalidateQueries({ queryKey: ['knowledge', slug] });
+    } catch { /* ignore */ }
+    setSavingRules(false);
+  }
 
   const { data: conversations = [] } = useQuery<ConversationRecord[]>({
     queryKey: ['project-conversations', slug],
@@ -262,8 +307,9 @@ export function ProjectPage({ slug }: { slug: string }) {
   const [dirOpen, setDirOpen] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(true);
 
-  const dirDocs = docs.filter((d) => d.source === 'directory-scan');
-  const uploadDocs = docs.filter((d) => d.source !== 'directory-scan');
+  const filteredDocs = selectedNs ? docs.filter((d: any) => d.namespace === selectedNs) : docs;
+  const dirDocs = filteredDocs.filter((d) => d.source === 'directory-scan');
+  const uploadDocs = filteredDocs.filter((d) => d.source !== 'directory-scan');
 
   // ── Add layout modal ──
   const [showAddLayout, setShowAddLayout] = useState(false);
@@ -483,6 +529,45 @@ export function ProjectPage({ slug }: { slug: string }) {
                     ` · ${timeAgo(knowledgeStatus.lastIndexed)}`}
                 </span>
               )}
+
+          {/* Namespace tabs */}
+          {namespaces.length > 0 && (
+            <div className="project-page__ns-tabs" style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+              <button
+                className={`project-page__ns-tab ${selectedNs === null ? 'project-page__ns-tab--active' : ''}`}
+                onClick={() => setSelectedNs(null)}
+                style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: selectedNs === null ? 'var(--accent)' : 'transparent', color: selectedNs === null ? '#fff' : 'var(--text)', cursor: 'pointer', fontSize: '11px' }}
+              >All</button>
+              {namespaces.map((ns) => (
+                <button
+                  key={ns.id}
+                  className={`project-page__ns-tab ${selectedNs === ns.id ? 'project-page__ns-tab--active' : ''}`}
+                  onClick={() => setSelectedNs(ns.id)}
+                  style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: selectedNs === ns.id ? 'var(--accent)' : 'transparent', color: selectedNs === ns.id ? '#fff' : 'var(--text)', cursor: 'pointer', fontSize: '11px' }}
+                >{ns.label}{ns.behavior === 'inject' ? ' ⚡' : ''}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Rules editor — shown when rules namespace is selected */}
+          {selectedNs === 'rules' && (
+            <div className="project-page__rules-editor" style={{ marginBottom: '12px', padding: '8px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--bg-secondary)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                ⚡ Rules are injected into every chat message's system prompt for this project.
+              </div>
+              <textarea
+                value={rulesContent}
+                onChange={(e) => setRulesContent(e.target.value)}
+                placeholder="Add project rules... e.g. 'Always respond in bullet points' or 'This project uses Python 3.12 with FastAPI'"
+                style={{ width: '100%', minHeight: '80px', padding: '6px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+              />
+              <button
+                onClick={handleSaveRules}
+                disabled={savingRules || !rulesContent.trim()}
+                style={{ marginTop: '6px', padding: '4px 12px', borderRadius: '4px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '11px' }}
+              >{savingRules ? 'Saving…' : 'Save Rules'}</button>
+            </div>
+          )}
               {selectedDocs.size > 0 && (
                 <button
                   className="project-page__add-btn project-page__add-btn--danger"

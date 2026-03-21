@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { ACPStatus } from '../domain/types.js';
 import { listProviders } from '../providers/registry.js';
 import type { RuntimeContext } from '../runtime/types.js';
 import { acpConnectionSchema, getBody, param, validate } from './schemas.js';
@@ -39,7 +40,7 @@ export function createACPRoutes(ctx: RuntimeContext) {
     const connections = allConnections.map((cfg) => ({
       ...cfg,
       ...(status.connections.find((s) => s.id === cfg.id) || {
-        status: 'disconnected',
+        status: ACPStatus.UNAVAILABLE,
         modes: [],
         sessionId: null,
         mcpServers: [],

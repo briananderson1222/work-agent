@@ -3,17 +3,21 @@
  */
 
 import type { EventEmitter } from 'node:events';
+import { getCachedUser } from './auth.js';
 
 type Agent = any;
 
 import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import type { MonitoringEvent } from '../monitoring/schema.js';
 
 // Type extensions for monitoring routes
 interface ModelWithId {
   modelId?: string;
 }
+
+import type { ACPManager } from '../services/acp-bridge.js';
 
 export interface MonitoringDeps {
   activeAgents: Map<string, Agent>;
@@ -31,12 +35,14 @@ export interface MonitoringDeps {
     messageCount?: number;
     cost?: number;
   }>;
+  /** EventEmitter that produces OTel-shaped MonitoringEvent objects */
   monitoringEvents: EventEmitter;
   queryEventsFromDisk: (
     start: number,
     end: number,
     userId: string,
   ) => Promise<any[]>;
+  acpBridge?: ACPManager;
 }
 
 export function createMonitoringRoutes(deps: MonitoringDeps) {
@@ -92,6 +98,25 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
           };
         }),
       );
+
+      // Append ACP connections as virtual agents
+      if (deps.acpBridge) {
+        const acpStatus = deps.acpBridge.getStatus();
+        for (const conn of acpStatus.connections) {
+          agents.push({
+            slug: `acp:${conn.id}`,
+            name: conn.name,
+            status: conn.status === 'available' ? 'idle' : 'disconnected',
+            model: conn.currentModel || 'ACP',
+            conversationCount: 0,
+            messageCount: 0,
+            cost: 0,
+            healthy: conn.status === 'available',
+            isAcp: true,
+            modes: conn.modes.length,
+          });
+        }
+      }
 
       const totalCost = agents.reduce((sum, a) => sum + a.cost, 0);
       const totalMessages = agents.reduce((sum, a) => sum + a.messageCount, 0);
@@ -180,7 +205,7 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
     const startTime = c.req.query('start');
     const endTime = c.req.query('end');
     const userId =
-      c.req.query('userId') || c.req.header('x-user-id') || 'default-user';
+      c.req.query('userId') || c.req.header('x-user-id') || getCachedUser().alias;
 
     // If time range specified, return historical events as JSON
     if (startTime || endTime) {
@@ -198,9 +223,16 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
     c.header('Connection', 'keep-alive');
 
     return stream(c, async (streamWriter) => {
-      await streamWriter.write(
-        `data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() })}\n\n`,
-      );
+      const now = Date.now();
+      const connectedEvent: MonitoringEvent = {
+        timestamp: new Date(now).toISOString(),
+        'timestamp.ms': now,
+        'trace.id': 'system',
+        'gen_ai.operation.name': 'invoke_agent',
+        'span.kind': 'log',
+        'stallion.system.type': 'connected',
+      };
+      await streamWriter.write(`data: ${JSON.stringify(connectedEvent)}\n\n`);
 
       const eventHandler = async (event: any) => {
         if (event.userId && event.userId !== userId) {
@@ -219,9 +251,16 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
 
       const interval = setInterval(async () => {
         try {
-          await streamWriter.write(
-            `data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`,
-          );
+          const hbNow = Date.now();
+          const heartbeatEvent: MonitoringEvent = {
+            timestamp: new Date(hbNow).toISOString(),
+            'timestamp.ms': hbNow,
+            'trace.id': 'system',
+            'gen_ai.operation.name': 'invoke_agent',
+            'span.kind': 'log',
+            'stallion.system.type': 'heartbeat',
+          };
+          await streamWriter.write(`data: ${JSON.stringify(heartbeatEvent)}\n\n`);
         } catch (e) {
           console.debug('Failed to write monitoring heartbeat, client disconnected:', e);
           clearInterval(interval);

@@ -1,6 +1,7 @@
-import { useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
+import { K, OP, SPAN } from '../monitoring-keys';
 
 export interface AgentStats {
   slug: string;
@@ -25,43 +26,38 @@ export interface MonitoringStats {
 }
 
 export interface MonitoringEvent {
-  type: string;
   timestamp: string;
-  timestampMs?: number;
-  agentSlug?: string;
-  conversationId?: string;
-  traceId?: string;
-  reason?: string;
-  toolName?: string;
-  toolCallId?: string;
-  toolCallNumber?: number;
-  toolCallCount?: number;
-  requiresApproval?: boolean;
-  maxSteps?: number;
-  steps?: number;
-  usage?: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    estimatedCost?: number;
-  };
-  inputChars?: number;
-  outputChars?: number;
-  input?: any;
-  result?: any;
-  artifacts?: Array<{ type: string; name?: string; content?: any }>;
-  data?: any;
-  healthy?: boolean;
-  checks?: Record<string, boolean>;
-  integrations?: Array<{
-    id: string;
-    type: string;
-    connected: boolean;
-    metadata?: {
-      transport?: string;
-      toolCount?: number;
-    };
-  }>;
+  'timestamp.ms': number;
+  'trace.id': string;
+  'gen_ai.operation.name': string;
+  'gen_ai.provider.name'?: string;
+  'gen_ai.request.model'?: string;
+  'gen_ai.conversation.id'?: string;
+  'gen_ai.usage.input_tokens'?: number;
+  'gen_ai.usage.output_tokens'?: number;
+  'gen_ai.response.finish_reasons'?: string[];
+  'gen_ai.tool.name'?: string;
+  'gen_ai.tool.call.id'?: string;
+  'gen_ai.tool.call.arguments'?: unknown;
+  'gen_ai.tool.call.result'?: unknown;
+  'span.kind': 'start' | 'end' | 'event' | 'log';
+  'stallion.agent.slug'?: string;
+  'stallion.agent.steps'?: number;
+  'stallion.agent.max_steps'?: number;
+  'stallion.input.chars'?: number;
+  'stallion.output.chars'?: number;
+  'stallion.artifacts'?: Array<{ type: string; name?: string; content?: unknown }>;
+  'stallion.user.id'?: string;
+  'stallion.health.healthy'?: boolean;
+  'stallion.health.checks'?: Record<string, boolean>;
+  'stallion.health.integrations'?: Array<{ id: string; type: string; connected: boolean; metadata?: { transport?: string; toolCount?: number } }>;
+  'stallion.reasoning.text'?: string;
+  'stallion.agent_telemetry.session_id'?: string;
+  'stallion.agent_telemetry.event_id'?: string;
+  'stallion.agent_telemetry.schema_version'?: string;
+  'stallion.agent_telemetry.context'?: unknown;
+  'stallion.agent_telemetry.enrichment'?: unknown;
+  [key: string]: unknown;
 }
 
 class MonitoringStore {
@@ -106,9 +102,7 @@ class MonitoringStore {
 
   async fetchStats() {
     try {
-      const response = await fetch(`${this.apiBase}/monitoring/stats`, {
-        headers: { 'x-user-id': 'default-user' },
-      });
+      const response = await fetch(`${this.apiBase}/monitoring/stats`);
       const result = await response.json();
       if (result.success) {
         this.stats = result.data;
@@ -127,9 +121,6 @@ class MonitoringStore {
 
       const response = await fetch(
         `${this.apiBase}/monitoring/events?${params}`,
-        {
-          headers: { 'x-user-id': 'default-user' },
-        },
       );
       const result = await response.json();
 
@@ -203,7 +194,7 @@ class MonitoringStore {
     this.fetchHistoricalEvents(start, now);
 
     this.eventSource = new EventSource(
-      `${this.apiBase}/monitoring/events?userId=default-user`,
+      `${this.apiBase}/monitoring/events`,
     );
 
     this.eventSource.onmessage = (event) => {
@@ -211,35 +202,35 @@ class MonitoringStore {
         const data = JSON.parse(event.data);
 
         // Filter out SSE protocol events
-        if (data.type === 'heartbeat') {
+        if (data[K.SYSTEM_TYPE] === 'heartbeat') {
           this.lastHeartbeat = Date.now();
           return;
         }
-        if (data.type === 'connected') {
+        if (data[K.SYSTEM_TYPE] === 'connected') {
           return; // SSE handshake, not a monitoring event
         }
 
         this.events = [data, ...this.events].slice(0, 1000);
 
         // Update stats in real-time based on events
-        if (data.type === 'agent-start' && this.stats) {
+        if (data[K.OP_NAME] === OP.INVOKE_AGENT && data[K.SPAN_KIND] === SPAN.START && this.stats) {
           const agent = this.stats.agents.find(
-            (a) => a.slug === data.agentSlug,
+            (a) => a.slug === data[K.AGENT_SLUG],
           );
           if (agent) agent.status = 'running';
-        } else if (data.type === 'agent-complete' && this.stats) {
+        } else if (data[K.OP_NAME] === OP.INVOKE_AGENT && data[K.SPAN_KIND] === SPAN.END && this.stats) {
           const agent = this.stats.agents.find(
-            (a) => a.slug === data.agentSlug,
+            (a) => a.slug === data[K.AGENT_SLUG],
           );
           if (agent) {
             agent.status = 'idle';
             agent.messageCount += 2; // User + assistant message
           }
-        } else if (data.type === 'agent-health' && this.stats) {
+        } else if (data[K.SPAN_KIND] === SPAN.LOG && data[K.HEALTHY] !== undefined && this.stats) {
           const agent = this.stats.agents.find(
-            (a) => a.slug === data.agentSlug,
+            (a) => a.slug === data[K.AGENT_SLUG],
           );
-          if (agent) agent.healthy = data.healthy;
+          if (agent) agent.healthy = data[K.HEALTHY] as boolean;
         }
 
         this.notify();
@@ -311,14 +302,25 @@ export function useMonitoring() {
   const store = useMemo(() => getStore(apiBase), [apiBase]);
   const data = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
+  const clearEvents = useCallback(() => store.clearEvents(), [store]);
+  const refresh = useCallback(() => store.fetchStats(), [store]);
+  const setDateRange = useCallback(
+    (range: 'now' | 'today' | 'week' | 'month' | 'all') =>
+      store.setDateRange(range),
+    [store],
+  );
+  const setTimeRange = useCallback(
+    (start?: Date, end?: Date, isLive?: boolean) =>
+      store.setTimeRange(start, end, isLive),
+    [store],
+  );
+
   return {
     stats: data.stats,
     events: data.events,
-    clearEvents: () => store.clearEvents(),
-    refresh: () => store.fetchStats(),
-    setDateRange: (range: 'now' | 'today' | 'week' | 'month' | 'all') =>
-      store.setDateRange(range),
-    setTimeRange: (start?: Date, end?: Date, isLive?: boolean) =>
-      store.setTimeRange(start, end, isLive),
+    clearEvents,
+    refresh,
+    setDateRange,
+    setTimeRange,
   };
 }

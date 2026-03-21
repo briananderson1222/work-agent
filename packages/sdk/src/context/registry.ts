@@ -34,6 +34,15 @@ class ContextRegistry extends ListenerManager {
     return this._providers.get(id);
   }
 
+  toggle(id: string): void {
+    const p = this._providers.get(id);
+    if (p) {
+      p.enabled = !p.enabled;
+      this._cachedAll = Array.from(this._providers.values());
+      this._notify();
+    }
+  }
+
   /**
    * Compose all enabled providers into a single context string,
    * separated by newlines.

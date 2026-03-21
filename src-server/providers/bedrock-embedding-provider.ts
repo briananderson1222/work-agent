@@ -1,5 +1,6 @@
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import type { IEmbeddingProvider } from './types.js';
+import { checkBedrockCredentials } from './bedrock.js';
 
 export class BedrockEmbeddingProvider implements IEmbeddingProvider {
   readonly id = 'bedrock-embedding';
@@ -55,5 +56,24 @@ export class BedrockEmbeddingProvider implements IEmbeddingProvider {
     } catch {
       return false;
     }
+  }
+
+  async getPrerequisites(): Promise<import('@stallion-ai/shared').Prerequisite[]> {
+    const hasCreds = await checkBedrockCredentials();
+    return [
+      {
+        id: 'bedrock',
+        name: 'Bedrock Credentials',
+        description: 'AWS credentials with Bedrock model access',
+        status: hasCreds ? 'installed' : 'missing',
+        category: 'required',
+        installGuide: {
+          steps: ['Configure AWS credentials with Bedrock access'],
+          links: [
+            'https://docs.aws.amazon.com/bedrock/latest/userguide/setting-up.html',
+          ],
+        },
+      },
+    ];
   }
 }

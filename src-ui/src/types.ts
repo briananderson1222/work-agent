@@ -147,10 +147,22 @@ export interface AppConfig {
   apiEndpoint?: string;
   region?: string;
   defaultModel?: string;
+  invokeModel?: string;
+  structureModel?: string;
+  runtime?: 'voltagent' | 'strands';
+  defaultMaxTurns?: number;
+  defaultMaxOutputTokens?: number;
   defaultChatFontSize?: number;
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
-  logLevel?: string;
+  logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+  registryUrl?: string;
+  gitRemote?: string;
+  defaultLLMProvider?: string;
+  defaultEmbeddingProvider?: string;
+  defaultEmbeddingModel?: string;
+  defaultVectorDbProvider?: string;
+  terminalShell?: string;
 }
 
 export interface TemplateVariable {

@@ -71,6 +71,8 @@ import {
 import { createLayoutRoutes, createWorkflowRoutes } from '../routes/layouts.js';
 import modelsRoute from '../routes/models.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
+import { MonitoringEmitter } from '../monitoring/emitter.js';
+import { createOtlpReceiverRoutes } from '../monitoring/otlp-receiver.js';
 import { createNotificationRoutes } from '../routes/notifications.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createProjectRoutes } from '../routes/projects.js';
@@ -86,6 +88,10 @@ import { createSystemRoutes } from '../routes/system.js';
 import { createTelemetryRoutes } from '../routes/telemetry-events.js';
 import { createTemplateRoutes } from '../routes/templates.js';
 import { createToolRoutes } from '../routes/tools.js';
+import { VoiceSessionService } from '../voice/voice-session.js';
+import { NovaSonicProvider } from '../voice/providers/nova-sonic.js';
+import { createVoiceRoutes, attachVoiceWebSocket } from '../routes/voice.js';
+import { createBuiltinToolExecutor, BUILTIN_VOICE_TOOLS } from '../voice/voice-tools.js';
 import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
@@ -152,6 +158,7 @@ export class StallionRuntime {
   > = new Map(); // Tool name mapping with parsed data
   private toolNameReverseMapping: Map<string, string> = new Map(); // Original -> Normalized for O(1) lookup
   private monitoringEvents = new EventEmitter();
+  private monitoringEmitter!: MonitoringEmitter;
   private agentStats = new Map<
     string,
     { conversationCount: number; messageCount: number; lastUpdated: number }
@@ -185,6 +192,7 @@ export class StallionRuntime {
   private fileTreeService!: FileTreeService;
   private terminalService!: TerminalService;
   private terminalWsServer!: TerminalWebSocketServer;
+  private voiceService!: VoiceSessionService;
   private acpBridge: ACPManager;
   private feedbackService: FeedbackService;
   private timers: NodeJS.Timeout[] = [];
@@ -244,6 +252,15 @@ export class StallionRuntime {
     this.terminalService = new TerminalService(ptyAdapter, historyStore, () => this.appConfig?.terminalShell);
     this.terminalWsServer = new TerminalWebSocketServer(this.terminalService);
     this.terminalWsServer.start(this.port + 1);
+    this.voiceService = new VoiceSessionService({
+      providerFactory: () => new NovaSonicProvider({ region: 'us-east-1' }),
+      toolExecutor: createBuiltinToolExecutor(`http://localhost:${this.port}`),
+      defaultTools: BUILTIN_VOICE_TOOLS,
+    });
+    this.monitoringEmitter = new MonitoringEmitter(
+      this.monitoringEvents,
+      (event: any) => this.persistEvent(event),
+    );
     this.acpBridge = new ACPManager(
       this.approvalRegistry,
       this.logger,
@@ -258,6 +275,9 @@ export class StallionRuntime {
       },
       { get: () => this.usageAggregator },
       this.eventBus,
+      this.monitoringEvents,
+      (event: any) => this.persistEvent(event),
+      this.monitoringEmitter,
     );
 
     // Log versions for debugging
@@ -277,6 +297,12 @@ export class StallionRuntime {
   async reloadAgents(): Promise<void> {
     // Refresh app config so template variables (date/time) are current
     this.appConfig = await this.configLoader.loadAppConfig();
+
+    // Apply log level changes at runtime
+    if (this.appConfig.logLevel) {
+      this.logger.level = this.appConfig.logLevel;
+    }
+
     const agentMetadataList = await this.configLoader.listAgents();
     const currentSlugs = new Set(agentMetadataList.map((m) => m.slug));
 
@@ -383,6 +409,11 @@ export class StallionRuntime {
       model: this.appConfig.defaultModel,
       runtime,
     });
+
+    // Apply log level from config (config overrides startup default)
+    if (this.appConfig.logLevel) {
+      this.logger.level = this.appConfig.logLevel;
+    }
 
     // Registry providers are registered by plugins via loadProviders()
 
@@ -598,6 +629,12 @@ export class StallionRuntime {
         port: this.port,
         configureApp: (app) => this.configureRoutes(app),
       }),
+    });
+
+    // Attach voice WebSocket upgrade handler once the HTTP server is ready
+    setImmediate(() => {
+      const httpServer = (this.voltAgent as any)?.serverInstance?.server;
+      if (httpServer) attachVoiceWebSocket(httpServer, this.voiceService);
     });
 
     this.logger.debug('Stallion Runtime initialized', { port: this.port });
@@ -938,7 +975,12 @@ export class StallionRuntime {
         monitoringEvents: this.monitoringEvents,
         queryEventsFromDisk: (start, end, userId) =>
           this.queryEventsFromDisk(start, end, userId),
+        acpBridge: this.acpBridge,
       }),
+    );
+    app.route(
+      '',
+      createOtlpReceiverRoutes((event) => this.monitoringEmitter.emitRaw(event)),
     );
     app.route(
       '/agents',
@@ -980,6 +1022,7 @@ export class StallionRuntime {
     this.notificationService.start();
     app.route('/notifications', createNotificationRoutes(this.notificationService));
     app.route('/api/feedback', createFeedbackRoutes(this.feedbackService));
+    app.route('/api/voice', createVoiceRoutes(this.voiceService));
     app.route(
       '/api/prompts',
       createPromptRoutes(new PromptService(), this.logger),
@@ -1016,6 +1059,7 @@ export class StallionRuntime {
       eventBus: this.eventBus,
       logger: this.logger,
       monitoringEvents: this.monitoringEvents,
+      monitoringEmitter: this.monitoringEmitter,
       agentStats: this.agentStats,
       metricsLog: this.metricsLog,
       persistEvent: (event: any) => this.persistEvent(event),
@@ -1080,20 +1124,32 @@ export class StallionRuntime {
         // Generate trace ID for health check
         const traceId = `health:${slug}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
 
-        const healthEvent = {
-          type: 'agent-health',
-          timestamp: new Date().toISOString(),
-          timestampMs: Date.now(),
-          agentSlug: slug,
-          userId: 'default-user', // Health checks are system-level but we need userId for filtering
+        this.monitoringEmitter.emitHealth({
+          slug,
+          userId: getCachedUser().alias,
           traceId,
           healthy,
           checks,
           integrations,
-        };
+        });
+      }
 
-        this.monitoringEvents.emit('event', healthEvent);
-        await this.persistEvent(healthEvent);
+      // ACP connection health checks
+      const acpStatus = this.acpBridge.getStatus();
+      for (const conn of acpStatus.connections) {
+        const traceId = `health:acp:${conn.id}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+        const healthy = conn.status === 'available';
+
+        this.monitoringEmitter.emitHealth({
+          slug: `acp:${conn.id}`,
+          userId: getCachedUser().alias,
+          traceId,
+          healthy,
+          checks: {
+            connected: healthy,
+            modesAvailable: conn.modes.length > 0,
+          },
+        });
       }
     };
 
@@ -1147,7 +1203,7 @@ export class StallionRuntime {
               if (
                 eventTime >= start &&
                 eventTime <= end &&
-                event.userId === userId
+                (event.userId === userId || event['stallion.user.id'] === userId)
               ) {
                 events.push(event);
               }

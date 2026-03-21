@@ -421,3 +421,69 @@ export async function fetchConfig(): Promise<any> {
 
   return response.json();
 }
+
+// ── Knowledge API ──────────────────────────────────────────────────
+
+function knowledgeBase(apiBase: string, projectSlug: string, namespace?: string): string {
+  const base = `${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge`;
+  return namespace ? `${base}/ns/${encodeURIComponent(namespace)}` : base;
+}
+
+export async function fetchKnowledgeNamespaces(projectSlug: string): Promise<any[]> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/namespaces`, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch namespaces: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function fetchKnowledgeDocs(projectSlug: string, namespace?: string): Promise<any[]> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(knowledgeBase(apiBase, projectSlug, namespace), {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch knowledge docs: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function searchKnowledge(projectSlug: string, query: string, namespace?: string, topK?: number): Promise<any[]> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+    body: JSON.stringify({ query, topK }),
+  });
+  if (!res.ok) throw new Error(`Knowledge search failed: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function uploadKnowledge(projectSlug: string, filename: string, content: string, namespace?: string): Promise<any> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+    body: JSON.stringify({ filename, content }),
+  });
+  if (!res.ok) throw new Error(`Knowledge upload failed: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function deleteKnowledgeDoc(projectSlug: string, docId: string, namespace?: string): Promise<void> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/${encodeURIComponent(docId)}`, {
+    method: 'DELETE',
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
+  if (!res.ok) throw new Error(`Knowledge delete failed: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+}

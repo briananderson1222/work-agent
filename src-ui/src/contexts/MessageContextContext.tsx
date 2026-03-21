@@ -43,10 +43,7 @@ export function MessageContextContext({
   );
 
   const toggleProvider = useCallback((id: string) => {
-    const p = contextRegistry.get(id);
-    if (p) {
-      p.enabled = !p.enabled;
-    }
+    contextRegistry.toggle(id);
   }, []);
 
   const getComposedContext = useCallback(

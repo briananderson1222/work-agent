@@ -200,7 +200,7 @@ export interface IAgentFramework {
   /** Create a lightweight agent for one-shot invocations (no persistence, no hooks) */
   createTempAgent(opts: {
     name: string;
-    instructions: string;
+    instructions: string | (() => string);
     model: any;
     tools?: ITool[];
     maxSteps?: number;
@@ -256,6 +256,7 @@ export interface RuntimeContext {
 
   // Monitoring / metrics (used by chat and monitoring routes)
   monitoringEvents: import('node:events').EventEmitter;
+  monitoringEmitter?: import('../monitoring/emitter.js').MonitoringEmitter;
   agentStats: Map<string, { conversationCount: number; messageCount: number; lastUpdated: number }>;
   metricsLog: Array<{
     timestamp: number;

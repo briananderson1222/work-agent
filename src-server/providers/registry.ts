@@ -19,7 +19,7 @@ import type {
   IAuthProvider,
   IBrandingProvider,
   IIntegrationRegistryProvider,
-  IOnboardingProvider,
+  IPluginRegistryProvider,
   ISettingsProvider,
   ISkillRegistryProvider,
   IUserDirectoryProvider,
@@ -49,7 +49,7 @@ export function registerProvider(
   const source = opts?.source ?? 'unknown';
   // For additive types, push to array
   if (
-    type === 'onboarding' ||
+    type === 'pluginRegistry' ||
     type === 'agentRegistry' ||
     type === 'integrationRegistry' ||
     type === 'notification' ||
@@ -284,23 +284,57 @@ export function getSkillRegistryProvider(): ISkillRegistryProvider | null {
   return entries.length > 0 ? (entries[0].provider as ISkillRegistryProvider) : null;
 }
 
-// ── Onboarding ─────────────────────────────────────────
+// ── Plugin Registry ────────────────────────────────────
 
-export function registerOnboardingProvider(
-  provider: IOnboardingProvider,
+export function registerPluginRegistryProvider(
+  provider: IPluginRegistryProvider,
   source = 'Core',
 ): void {
-  registerProvider('onboarding', provider, { source });
+  registerProvider('pluginRegistry', provider, { source });
 }
 
-export function getOnboardingProviders(): {
-  provider: IOnboardingProvider;
+export function getPluginRegistryProviders(): {
+  provider: IPluginRegistryProvider;
   source: string;
 }[] {
-  return listProviders('onboarding') as {
-    provider: IOnboardingProvider;
+  return listProviders('pluginRegistry') as {
+    provider: IPluginRegistryProvider;
     source: string;
   }[];
+}
+
+// ── Cross-Provider Prerequisites ───────────────────────
+
+export async function getAllPrerequisites(): Promise<
+  Array<import('@stallion-ai/shared').Prerequisite & { source: string }>
+> {
+  const results: Array<import('@stallion-ai/shared').Prerequisite & { source: string }> = [];
+
+  // Walk singleton providers
+  for (const [, wsMap] of store) {
+    for (const [, entry] of wsMap) {
+      if (typeof entry.provider?.getPrerequisites === 'function') {
+        try {
+          const items = await entry.provider.getPrerequisites();
+          results.push(...items.map((p: any) => ({ ...p, source: entry.source })));
+        } catch {}
+      }
+    }
+  }
+
+  // Walk additive providers
+  for (const [, entries] of additiveStore) {
+    for (const entry of entries) {
+      if (typeof entry.provider?.getPrerequisites === 'function') {
+        try {
+          const items = await entry.provider.getPrerequisites();
+          results.push(...items.map((p: any) => ({ ...p, source: entry.source })));
+        } catch {}
+      }
+    }
+  }
+
+  return results;
 }
 
 // ── Branding ───────────────────────────────────────────

@@ -40,7 +40,7 @@ export interface AgentBundle {
 // ── Extended creation options (runtime passes these in) ─
 
 export interface CreateAgentOptions {
-  processedPrompt: string;
+  processedPrompt: string | (() => string);
   memoryAdapter: FileMemoryAdapter;
   configLoader: ConfigLoader;
   mcpConfigs: Map<string, MCPConfiguration>;
@@ -293,7 +293,7 @@ export class VoltAgentFramework {
 
   async createTempAgent(opts: {
     name: string;
-    instructions: string;
+    instructions: string | (() => string);
     model: any;
     tools?: ITool[];
     maxSteps?: number;

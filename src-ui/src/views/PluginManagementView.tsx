@@ -182,6 +182,128 @@ interface PreviewData {
 /* PathAutocomplete imported from shared component */
 import { PathAutocomplete } from '../components/PathAutocomplete';
 
+/* ── Plugin Registry Modal ── */
+function PluginRegistryModal({
+  apiBase,
+  onClose,
+}: {
+  apiBase: string;
+  onClose: () => void;
+}) {
+  const [items, setItems] = useState<Array<{ id: string; displayName?: string; description?: string; version?: string; installed?: boolean; source?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
+
+  const fetchItems = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/registry/plugins`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setItems(data.success ? data.data || [] : []);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBase]);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const handleAction = async (item: { id: string; displayName?: string; installed?: boolean }, action: 'install' | 'uninstall') => {
+    setActionLoading(item.id);
+    setMessage(null);
+    try {
+      const res = action === 'install'
+        ? await fetch(`${apiBase}/api/registry/plugins/install`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: item.id }),
+          })
+        : await fetch(`${apiBase}/api/registry/plugins/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setMessage({ type: 'success', text: `${action === 'install' ? 'Installed' : 'Removed'} ${item.displayName || item.id}` });
+        fetchItems();
+      } else {
+        setMessage({ type: 'error', text: data.error || `${action} failed` });
+      }
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e.message });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const filtered = items.filter((item) => {
+    if (!filter) return true;
+    const q = filter.toLowerCase();
+    return (item.displayName || item.id).toLowerCase().includes(q) || item.description?.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="plugins__modal-overlay" onClick={onClose}>
+      <div className="plugins__modal" onClick={(e) => e.stopPropagation()}>
+        <div className="plugins__modal-header">
+          <h3 className="plugins__modal-title">Plugin Registry</h3>
+          <button className="plugins__modal-close" onClick={onClose}>&times;</button>
+        </div>
+        <div className="plugins__modal-body">
+          {message && (
+            <div className={`plugins__modal-message plugins__message--${message.type}`}>{message.text}</div>
+          )}
+          {loading ? (
+            <div className="plugins__empty">Loading registry...</div>
+          ) : items.length === 0 ? (
+            <div className="plugins__empty">No plugin registry configured.</div>
+          ) : (
+            <>
+              <input
+                className="plugins__filter-input"
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter plugins..."
+                autoFocus
+              />
+              <div className="plugins__registry-list">
+                {filtered.length === 0 ? (
+                  <div className="plugins__empty">No matches for &ldquo;{filter}&rdquo;</div>
+                ) : (
+                  filtered.map((item) => (
+                    <div key={item.id} className="plugins__registry-item">
+                      <div className="plugins__registry-info">
+                        <div className="plugins__registry-name">
+                          {item.displayName || item.id}
+                          {item.version && <span className="plugins__card-version">v{item.version}</span>}
+                          {item.source && <span className="plugins__cap plugins__cap--ref">{item.source}</span>}
+                        </div>
+                        {item.description && (
+                          <div className="plugins__registry-desc" style={{ maxHeight: 60, overflow: 'hidden' }}>
+                            {item.description.replace(/\\n/g, ' ')}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
+                        onClick={() => handleAction(item, item.installed ? 'uninstall' : 'install')}
+                        disabled={actionLoading === item.id}
+                      >
+                        {actionLoading === item.id ? '...' : item.installed ? 'Remove' : 'Install'}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main View ── */
 export function PluginManagementView() {
   const { apiBase } = useApiBase();
@@ -222,6 +344,8 @@ export function PluginManagementView() {
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [showRegistryModal, setShowRegistryModal] = useState(false);
+  const [hasRegistry, setHasRegistry] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewSkips, setPreviewSkips] = useState<Set<string>>(new Set());
@@ -245,6 +369,13 @@ export function PluginManagementView() {
   );
   const [quickProjectName, setQuickProjectName] = useState('');
   const [assigningLayout, setAssigningLayout] = useState(false);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/registry/plugins`)
+      .then((r) => r.json())
+      .then((d) => setHasRegistry(d.success && d.data?.length > 0))
+      .catch(() => {});
+  }, [apiBase]);
 
   const fetchProviderDetails = useCallback(
     async (name: string) => {
@@ -492,6 +623,14 @@ export function PluginManagementView() {
         searchPlaceholder="Search plugins..."
         onAdd={() => setShowInstallModal(true)}
         addLabel="+ Install Plugin"
+        sidebarActions={hasRegistry ? (
+          <button
+            className="plugins__btn plugins__btn--install"
+            onClick={() => setShowRegistryModal(true)}
+          >
+            Browse Registry
+          </button>
+        ) : undefined}
         emptyIcon="⬡"
         emptyTitle="No plugin selected"
         emptyDescription="Select a plugin from the list or install a new one"
@@ -675,6 +814,16 @@ export function PluginManagementView() {
           </div>
         )}
       </SplitPaneLayout>
+
+      {showRegistryModal && (
+        <PluginRegistryModal
+          apiBase={apiBase}
+          onClose={() => {
+            setShowRegistryModal(false);
+            queryClient.invalidateQueries({ queryKey: ['plugins'] });
+          }}
+        />
+      )}
 
       {/* Install Plugin Modal */}
       {showInstallModal && (

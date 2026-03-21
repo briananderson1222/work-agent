@@ -191,8 +191,8 @@ function ConnectionCard({
 }) {
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const isConnected = conn.status === 'connected';
-  const isConnecting = conn.status === 'connecting';
+  const isConnected = conn.status === 'available';
+  const isConnecting = conn.status === 'probing';
   const isUnavailable = conn.status === 'unavailable';
   const isError = conn.status === 'error';
   const isDisconnected = conn.status === 'disconnected';
@@ -536,8 +536,8 @@ function ConnectionDetailModal({
   agents: AgentSummary[];
   onClose: () => void;
 }) {
-  const isConnected = conn.status === 'connected';
-  const isConnecting = conn.status === 'connecting';
+  const isConnected = conn.status === 'available';
+  const isConnecting = conn.status === 'probing';
   const isUnavailable = conn.status === 'unavailable';
   const isError = conn.status === 'error';
   const statusLabel = isUnavailable

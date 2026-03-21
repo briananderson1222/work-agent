@@ -41,14 +41,17 @@ export interface StartOptions {
 export function start(opts: StartOptions = {}): void {
   const { serverPort = 3141, uiPort = 3000, logFile, build, baseDir, features } = opts;
 
-  if (isRunning()) {
+  if (build) {
+    console.log('Building application...');
+    if (isRunning()) stop();
+    execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
+    execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
+  } else if (isRunning()) {
     console.log(
       `✓ Already running\n  UI:   http://localhost:${uiPort}\n  Stop: stallion stop`,
     );
     return;
-  }
-
-  if (build || !isInstalled()) {
+  } else if (!isInstalled()) {
     console.log('Building application...');
     execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
     execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });

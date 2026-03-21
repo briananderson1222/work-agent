@@ -4,7 +4,6 @@
 
 import { userInfo as osUserInfo } from 'node:os';
 import type { ToolDef } from '../domain/types.js';
-import { checkBedrockCredentials } from './bedrock.js';
 import type {
   AuthStatus,
   IAgentRegistryProvider,
@@ -12,11 +11,9 @@ import type {
   IBrandingProvider,
   IIntegrationRegistryProvider,
   InstallResult,
-  IOnboardingProvider,
   ISettingsProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
-  Prerequisite,
   RegistryItem,
   RenewResult,
   UserDetailVM,
@@ -95,32 +92,6 @@ export class DefaultUserDirectoryProvider implements IUserDirectoryProvider {
   }
   async searchPeople(_query: string): Promise<UserDetailVM[]> {
     return [];
-  }
-}
-
-// ── Onboarding Default ─────────────────────────────────
-
-export class DefaultOnboardingProvider implements IOnboardingProvider {
-  async getPrerequisites(): Promise<Prerequisite[]> {
-    const hasCreds = await checkBedrockCredentials();
-    return [
-      {
-        id: 'bedrock',
-        name: 'Bedrock Credentials',
-        description: 'AWS credentials for model access',
-        status: hasCreds ? 'installed' : 'missing',
-        category: 'required' as const,
-        ...(!hasCreds && {
-          installGuide: {
-            steps: ['Configure AWS credentials with Bedrock access'],
-            commands: ['aws configure', 'aws sts get-caller-identity'],
-            links: [
-              'https://docs.aws.amazon.com/bedrock/latest/userguide/setting-up.html',
-            ],
-          },
-        }),
-      },
-    ];
   }
 }
 

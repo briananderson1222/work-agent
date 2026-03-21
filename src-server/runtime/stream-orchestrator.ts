@@ -106,10 +106,11 @@ export function createStreamingPipeline(
     traceId: string;
     plugin?: string;
   },
+  monitoringEmitter?: any,
 ): StreamPipeline {
   const pipeline = new StreamPipeline(abortSignal);
   const completionHandler = new CompletionHandler();
-  const metadataHandler = new MetadataHandler(monitoringEvents, contextData);
+  const metadataHandler = new MetadataHandler(monitoringEvents, contextData, monitoringEmitter);
 
   // Add handlers in order (elicitation handled via callback + injectable stream)
   pipeline

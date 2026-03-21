@@ -1,15 +1,28 @@
 import { useLayoutQuery } from '@stallion-ai/sdk';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import type { AgentData } from '../contexts/AgentsContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import type { ProjectMetadata } from '../contexts/ProjectsContext';
 import { getRecentAgentSlugs, trackRecentAgent } from '../hooks/useRecentAgents';
 import { AgentIcon } from './AgentIcon';
 
 interface NewChatModalProps {
   agents: AgentData[];
-  onSelect: (agent: AgentData) => void;
+  projects: ProjectMetadata[];
+  activeProjectSlug?: string | null;
+  onSelect: (agent: AgentData, projectSlug?: string, projectName?: string) => void;
   onClose: () => void;
+}
+
+/** "Global" sentinel for the context picker */
+const GLOBAL_CONTEXT = '__global__';
+
+interface ContextOption {
+  value: string; // project slug or GLOBAL_CONTEXT
+  label: string;
+  icon?: string;
+  workingDirectory?: string;
 }
 
 interface AgentGroup {
@@ -18,13 +31,70 @@ interface AgentGroup {
   agents: AgentData[];
 }
 
-export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
-  const [search, setSearch] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+export function NewChatModal({
+  agents,
+  projects,
+  activeProjectSlug,
+  onSelect,
+  onClose,
+}: NewChatModalProps) {
+  const [agentSearch, setAgentSearch] = useState('');
+  const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
+  const [selectedContext, setSelectedContext] = useState<string>(
+    activeProjectSlug || GLOBAL_CONTEXT,
+  );
+  const [contextSearch, setContextSearch] = useState('');
+  const [contextOpen, setContextOpen] = useState(false);
+  const contextRef = useRef<HTMLDivElement>(null);
+  const agentInputRef = useRef<HTMLInputElement>(null);
+
   const { selectedLayout } = useNavigation();
   const { data: layout } = useLayoutQuery(selectedLayout || '', {
     enabled: !!selectedLayout,
   });
+
+  const isGlobal = selectedContext === GLOBAL_CONTEXT;
+  const selectedProject = projects.find((p) => p.slug === selectedContext);
+
+  // Build context options: Global + all projects
+  const contextOptions = useMemo<ContextOption[]>(() => {
+    const opts: ContextOption[] = [
+      { value: GLOBAL_CONTEXT, label: 'Global', icon: '🌐' },
+    ];
+    for (const p of projects) {
+      opts.push({
+        value: p.slug,
+        label: p.name,
+        icon: p.icon || '📁',
+        workingDirectory: p.workingDirectory,
+      });
+    }
+    return opts;
+  }, [projects]);
+
+  const filteredContextOptions = useMemo(() => {
+    if (!contextSearch) return contextOptions;
+    const q = contextSearch.toLowerCase();
+    return contextOptions.filter((o) => o.label.toLowerCase().includes(q));
+  }, [contextOptions, contextSearch]);
+
+  const currentContextOption = contextOptions.find((o) => o.value === selectedContext);
+
+  // Close context dropdown on outside click
+  useEffect(() => {
+    if (!contextOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (contextRef.current && !contextRef.current.contains(e.target as Node))
+        setContextOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [contextOpen]);
+
+  // Focus agent input on mount and when context dropdown closes
+  useEffect(() => {
+    if (!contextOpen) agentInputRef.current?.focus();
+  }, [contextOpen]);
 
   const wsAgentSlugs = useMemo(
     () => new Set(layout?.availableAgents || []),
@@ -34,15 +104,13 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
   const { groups, flatList } = useMemo(() => {
     const filtered = (agents || []).filter(
       (a) =>
-        a.name.toLowerCase().includes(search.toLowerCase()) ||
-        a.slug.toLowerCase().includes(search.toLowerCase()),
+        a.name.toLowerCase().includes(agentSearch.toLowerCase()) ||
+        a.slug.toLowerCase().includes(agentSearch.toLowerCase()),
     );
 
-    // Workspace agents: listed in workspace config OR slug prefix matches workspace plugin
     const isLayoutAgent = (a: AgentData) => {
       if (a.source === 'acp') return false;
       if (wsAgentSlugs.has(a.slug)) return true;
-      // Fallback: if slug contains ':' it's a plugin agent, treat as workspace
       if (a.slug.includes(':')) return true;
       return false;
     };
@@ -61,147 +129,167 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
       acpGroups.get(conn)!.push(a);
     }
 
-    // Build groups
-    const groups: AgentGroup[] = [];
-
-    // Recently used (top 3, across all sources)
-    const chats = activeChatsStore.getSnapshot();
-    const recentSlugs: string[] = [];
-    const chatEntries = Object.values(chats)
-      .filter((c: any) => c.agentSlug && c.messages?.length > 0)
-      .sort((a: any, b: any) => (b.lastActivity || 0) - (a.lastActivity || 0));
-    for (const chat of chatEntries) {
-      if (!recentSlugs.includes((chat as any).agentSlug))
-        recentSlugs.push((chat as any).agentSlug);
-      if (recentSlugs.length >= 3) break;
-    }
-    const recentAgents = recentSlugs
-      .map((s) => filtered.find((a) => a.slug === s))
-      .filter(Boolean) as AgentData[];
+    // Recent: from active chats + localStorage, scoped to selected context
+    const recentSlugs = getRecentForContext(selectedContext);
+    const recentAgents = agentSearch
+      ? []
+      : recentSlugs
+          .map((s) => filtered.find((a) => a.slug === s))
+          .filter(Boolean) as AgentData[];
     const recentSet = new Set(recentSlugs);
 
-    if (recentAgents.length > 0 && !search)
+    const groups: AgentGroup[] = [];
+
+    if (recentAgents.length > 0)
       groups.push({ label: 'Recent', icon: '🕐', agents: recentAgents });
 
-    // Persistent recently-used agents (from localStorage)
-    const recentlyUsedSlugs = getRecentAgentSlugs();
-    const recentlyUsedAgents = recentlyUsedSlugs
-      .filter((s) => !recentSet.has(s))
-      .map((s) => filtered.find((a) => a.slug === s))
-      .filter(Boolean) as AgentData[];
-    const recentlyUsedSet = new Set(recentlyUsedSlugs);
-    if (recentlyUsedAgents.length > 0 && !search)
-      groups.push({ label: 'Recently Used', icon: '⏱️', agents: recentlyUsedAgents });
+    const showLayoutAgents = isGlobal || (selectedProject?.layoutCount ?? 0) > 0;
 
     const wsName = layout?.name;
-    if (wsAgents.length > 0)
+    if (showLayoutAgents && wsAgents.length > 0)
       groups.push({
         label: wsName || 'Layout',
         icon: layout?.icon,
-        agents: wsAgents.filter((a) => (!recentSet.has(a.slug) && !recentlyUsedSet.has(a.slug)) || !!search),
+        agents: wsAgents.filter((a) => !recentSet.has(a.slug) || !!agentSearch),
       });
+
+    for (const [conn, connAgents] of acpGroups) {
+      const visible = connAgents.filter((a) => !recentSet.has(a.slug) || !!agentSearch);
+      if (visible.length > 0)
+        groups.push({ label: conn, icon: '🔌', agents: visible });
+    }
+
     if (globalAgents.length > 0)
       groups.push({
         label: 'Global',
         icon: '🌐',
-        agents: globalAgents.filter((a) => (!recentSet.has(a.slug) && !recentlyUsedSet.has(a.slug)) || !!search),
+        agents: globalAgents.filter((a) => !recentSet.has(a.slug) || !!agentSearch),
       });
-    for (const [conn, agents] of acpGroups) {
-      const filtered = agents.filter((a) => (!recentSet.has(a.slug) && !recentlyUsedSet.has(a.slug)) || !!search);
-      if (filtered.length > 0)
-        groups.push({ label: `${conn} (ACP)`, agents: filtered });
-    }
 
     const flatList = groups
       .filter((g) => g.agents.length > 0)
       .flatMap((g) => g.agents);
     return { groups: groups.filter((g) => g.agents.length > 0), flatList };
-  }, [agents, search, wsAgentSlugs, layout?.icon, layout?.name]);
+  }, [agents, agentSearch, wsAgentSlugs, layout?.icon, layout?.name, selectedContext]);
 
   const handleSelect = (agent: AgentData) => {
     trackRecentAgent(agent.slug);
-    onSelect(agent);
+    if (isGlobal) {
+      onSelect(agent);
+    } else if (selectedProject) {
+      onSelect(agent, selectedProject.slug, selectedProject.name);
+    }
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 2000,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: 'var(--bg-primary)',
-          border: '1px solid var(--border-primary)',
-          borderRadius: '12px',
-          width: '90%',
-          maxWidth: '500px',
-          maxHeight: '600px',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          style={{
-            padding: '20px',
-            borderBottom: '1px solid var(--border-primary)',
-          }}
-        >
-          <h3 style={{ margin: '0 0 12px 0' }}>New Chat</h3>
+    <div className="new-chat-modal__overlay" onClick={onClose}>
+      <div className="new-chat-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="new-chat-modal__header">
+          <h3 className="new-chat-modal__title">New Chat</h3>
+
+          {/* Context picker */}
+          <div className="new-chat-modal__context-picker" ref={contextRef}>
+            <label className="new-chat-modal__context-label-text">Context</label>
+            <button
+              className="new-chat-modal__context-button"
+              onClick={() => {
+                setContextOpen((v) => !v);
+                setContextSearch('');
+              }}
+            >
+              {currentContextOption?.icon && (
+                <span className="new-chat-modal__context-icon">{currentContextOption.icon}</span>
+              )}
+              <span className="new-chat-modal__context-label">
+                {currentContextOption?.label || 'Select context'}
+              </span>
+              {!isGlobal && selectedProject?.workingDirectory && (
+                <span className="new-chat-modal__context-dir">
+                  <CwdBreadcrumb path={selectedProject.workingDirectory} />
+                </span>
+              )}
+              {!isGlobal && selectedProject && !selectedProject.workingDirectory && (
+                <span className="new-chat-modal__context-dir new-chat-modal__context-dir--fallback">~ (defaults to home)</span>
+              )}
+              {isGlobal && (
+                <span className="new-chat-modal__context-dir new-chat-modal__context-dir--fallback">~ (home directory)</span>
+              )}
+              <span className="new-chat-modal__chevron">▾</span>
+            </button>
+
+            {contextOpen && (
+              <div className="new-chat-modal__dropdown">
+                <input
+                  className="new-chat-modal__dropdown-search"
+                  type="text"
+                  placeholder="Filter..."
+                  value={contextSearch}
+                  onChange={(e) => setContextSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setContextOpen(false);
+                  }}
+                  autoFocus
+                />
+                {filteredContextOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`new-chat-modal__dropdown-item ${opt.value === selectedContext ? 'new-chat-modal__dropdown-item--active' : ''}`}
+                    onClick={() => {
+                      setSelectedContext(opt.value);
+                      setContextOpen(false);
+                      setSelectedAgentIndex(0);
+                    }}
+                  >
+                    <span className="new-chat-modal__dropdown-item-main">
+                      <span>{opt.icon} {opt.label}</span>
+                      {opt.workingDirectory && (
+                        <span className="new-chat-modal__dropdown-item-dir">
+                          <CwdBreadcrumb path={opt.workingDirectory} />
+                        </span>
+                      )}
+                    </span>
+                    {opt.value !== GLOBAL_CONTEXT && !opt.workingDirectory && (
+                      <span className="new-chat-modal__no-cwd-badge">~/</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Agent search */}
           <input
+            ref={agentInputRef}
             type="text"
             placeholder="Search agents..."
-            value={search}
+            value={agentSearch}
             onChange={(e) => {
-              setSearch(e.target.value);
-              setSelectedIndex(0);
+              setAgentSearch(e.target.value);
+              setSelectedAgentIndex(0);
             }}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setSelectedIndex((p) => Math.min(p + 1, flatList.length - 1));
+                setSelectedAgentIndex((p) => Math.min(p + 1, flatList.length - 1));
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                setSelectedIndex((p) => Math.max(p - 1, 0));
-              } else if (e.key === 'Enter' && flatList[selectedIndex])
-                handleSelect(flatList[selectedIndex]);
+                setSelectedAgentIndex((p) => Math.max(p - 1, 0));
+              } else if (e.key === 'Enter' && flatList[selectedAgentIndex])
+                handleSelect(flatList[selectedAgentIndex]);
               else if (e.key === 'Escape') onClose();
             }}
             autoFocus
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '8px',
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              fontSize: '14px',
-            }}
+            className="new-chat-modal__search"
           />
         </div>
-        <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
+
+        <div className="new-chat-modal__list">
           {groups.map((group, gi) => (
             <React.Fragment key={group.label}>
               <div
+                className={`new-chat-modal__group-label ${group.icon === '🔌' ? 'new-chat-modal__group-label--acp' : ''}`}
                 style={{
-                  padding: '8px 20px 4px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: group.label.includes('ACP')
-                    ? 'var(--accent-acp)'
-                    : 'var(--text-muted)',
-                  borderTop:
-                    gi > 0 ? '1px solid var(--border-primary)' : undefined,
+                  borderTop: gi > 0 ? '1px solid var(--border-primary)' : undefined,
                 }}
               >
                 {group.icon && <>{group.icon} </>}
@@ -213,9 +301,9 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
                   <AgentRow
                     key={agent.slug}
                     agent={agent}
-                    isSelected={idx === selectedIndex}
+                    isSelected={idx === selectedAgentIndex}
                     onSelect={() => handleSelect(agent)}
-                    onHover={() => setSelectedIndex(idx)}
+                    onHover={() => setSelectedAgentIndex(idx)}
                   />
                 );
               })}
@@ -225,6 +313,50 @@ export function NewChatModal({ agents, onSelect, onClose }: NewChatModalProps) {
       </div>
     </div>
   );
+}
+
+/** Working directory breadcrumb with leaf emphasis (matches chat dock style) */
+function CwdBreadcrumb({ path }: { path: string }) {
+  const parts = path.replace(/\/+$/, '').split('/');
+  const leaf = parts.pop() || '';
+  const parent = parts.length ? parts.join('/') + '/' : '';
+  return (
+    <>
+      <span className="new-chat-modal__dir-parent">{parent}</span>
+      <span className="new-chat-modal__dir-leaf">{leaf}</span>
+    </>
+  );
+}
+
+/** Get recent agent slugs, optionally scoped to a project context */
+function getRecentForContext(context: string): string[] {
+  // From active chats
+  const chats = activeChatsStore.getSnapshot();
+  const slugs: string[] = [];
+  const isGlobal = context === GLOBAL_CONTEXT;
+
+  const entries = Object.values(chats)
+    .filter((c: any) => {
+      if (!c.agentSlug || !c.messages?.length) return false;
+      if (isGlobal) return !c.projectSlug;
+      return c.projectSlug === context;
+    })
+    .sort((a: any, b: any) => (b.lastActivity || 0) - (a.lastActivity || 0));
+
+  for (const chat of entries) {
+    if (!slugs.includes((chat as any).agentSlug))
+      slugs.push((chat as any).agentSlug);
+    if (slugs.length >= 3) break;
+  }
+
+  // Supplement from localStorage
+  const stored = getRecentAgentSlugs();
+  for (const s of stored) {
+    if (!slugs.includes(s)) slugs.push(s);
+    if (slugs.length >= 5) break;
+  }
+
+  return slugs;
 }
 
 function AgentRow({
@@ -240,35 +372,16 @@ function AgentRow({
 }) {
   return (
     <button
+      className={`new-chat-modal__agent ${isSelected ? 'new-chat-modal__agent--selected' : ''}`}
       onClick={onSelect}
       onMouseEnter={onHover}
-      style={{
-        width: '100%',
-        padding: '12px 20px',
-        border: 'none',
-        borderBottom: '1px solid var(--border-primary)',
-        background: isSelected ? 'var(--accent-primary)' : 'transparent',
-        textAlign: 'left',
-        cursor: 'pointer',
-        color: isSelected ? 'white' : 'var(--text-primary)',
-        transition: 'all 0.15s',
-      }}
     >
-      <div
-        style={{
-          fontWeight: 600,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}
-      >
+      <div className="new-chat-modal__agent-header">
         <AgentIcon agent={agent} size="small" />
-        {agent.name}
+        <span className="new-chat-modal__agent-name">{agent.name}</span>
       </div>
       {agent.description && (
-        <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '2px' }}>
-          {agent.description}
-        </div>
+        <div className="new-chat-modal__agent-desc">{agent.description}</div>
       )}
     </button>
   );

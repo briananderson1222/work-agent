@@ -630,23 +630,6 @@ export function CodingLayout({
   );
   const hasInitialized = useRef(tabs.length > 0);
 
-  // Lazy init: create first shell when terminal is first expanded
-  useEffect(() => {
-    if (terminalOpen && !hasInitialized.current) {
-      hasInitialized.current = true;
-      if (tabs.length === 0) {
-        shellCounter.current++;
-        const tab: TerminalTab = {
-          id: `term-${Date.now()}`,
-          type: 'shell',
-          label: 'Shell 1',
-        };
-        setTabs([tab]);
-        setActiveTabId(tab.id);
-      }
-    }
-  }, [terminalOpen]);
-
   // Persist tabs
   useEffect(() => {
     try {
@@ -925,7 +908,7 @@ export function CodingLayout({
                   {'>'}_
                 </span>
                 <p>No active terminals</p>
-                <button type="button" onClick={() => addTab('shell')}>
+                <button type="button" onClick={() => setShowNewTerminal(true)}>
                   + New Terminal
                 </button>
               </div>
@@ -998,7 +981,7 @@ function NewTerminalModal({
   }, []);
 
   const connectedAgents = connections
-    .filter((c: any) => c.status === 'connected')
+    .filter((c: any) => c.status === 'available')
     .flatMap((c: any) =>
       (c.modes || []).map((mode: string) => ({
         id: `${c.id}-${mode}`,

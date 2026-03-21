@@ -14,12 +14,17 @@ export {
   _setLayoutContext,
   callTool,
   createChatSession,
+  deleteKnowledgeDoc,
   fetchConfig,
+  fetchKnowledgeDocs,
+  fetchKnowledgeNamespaces,
   fetchLayouts,
   invoke,
   invokeAgent,
+  searchKnowledge,
   sendMessage,
   streamMessage,
+  uploadKnowledge,
 } from './api';
 export type { AutoSelectItem } from './components';
 // Re-export components
@@ -65,6 +70,9 @@ export {
   // Keyboard shortcuts
   useKeyboardShortcut,
   useKeyboardShortcuts,
+  useKnowledgeDocs,
+  useKnowledgeNamespaces,
+  useKnowledgeSearch,
   useLayout,
   // Layout management
   useLayouts,
@@ -138,6 +146,11 @@ export {
   useGitStatusQuery,
   useInvalidateQuery,
   useInvokeAgent,
+  useKnowledgeDeleteMutation,
+  useKnowledgeDocsQuery,
+  useKnowledgeNamespacesQuery,
+  useKnowledgeSaveMutation,
+  useKnowledgeSearchQuery,
   useLayoutQuery,
   useLayoutsQuery,
   useModelCapabilitiesQuery,
@@ -151,7 +164,7 @@ export {
   useUsageQuery,
 } from './queries';
 // Re-export query factories (for imperative fetching in commands)
-export { agentQueries } from './queryFactories';
+export { agentQueries, knowledgeQueries } from './queryFactories';
 export { telemetry } from './telemetry';
 export * from './types';
 export { voiceRegistry } from './voice/registry.js';

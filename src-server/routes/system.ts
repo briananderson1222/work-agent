@@ -1,5 +1,5 @@
 /**
- * System status routes — unified readiness check for onboarding
+ * System status routes — unified readiness check
  */
 
 import { execFile, execFile as execFileCb, spawn } from 'node:child_process';
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { resolveGitInfo } from '@stallion-ai/shared';
 import { Hono } from 'hono';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
-import { getOnboardingProviders } from '../providers/registry.js';
+import { getAllPrerequisites } from '../providers/registry.js';
 import * as SkillService from '../services/skill-service.js';
 
 interface SystemStatusDeps {
@@ -42,27 +42,17 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
     });
 
   app.get('/status', async (c) => {
-    const [credentialsFound, kiroCliInstalled, claudeInstalled] =
+    const [credentialsFound, kiroCliInstalled] =
       await Promise.all([
         checkBedrockCredentials(),
         whichCmd('kiro-cli'),
-        whichCmd('claude'),
       ]);
 
     const acpStatus = deps.getACPStatus();
     const config = deps.getAppConfig();
 
-    // Aggregate onboarding prerequisites from all providers
-    const providers = getOnboardingProviders();
-    const prerequisiteArrays = await Promise.all(
-      providers.map(({ provider, source }) =>
-        provider
-          .getPrerequisites()
-          .then((items) => items.map((p) => ({ ...p, source })))
-          .catch(() => []),
-      ),
-    );
-    const prerequisites = prerequisiteArrays.flat();
+    // Aggregate prerequisites from all providers that implement getPrerequisites()
+    const prerequisites = await getAllPrerequisites();
 
     return c.json({
       prerequisites,
@@ -71,7 +61,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         connected: acpStatus.connected,
         connections: acpStatus.connections,
       },
-      clis: { 'kiro-cli': kiroCliInstalled, claude: claudeInstalled },
+      clis: { 'kiro-cli': kiroCliInstalled },
       ready: credentialsFound || acpStatus.connected,
     });
   });

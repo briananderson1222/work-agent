@@ -119,7 +119,7 @@ describe('Provider System', () => {
         join(plugin1Dir, 'plugin.json'),
         JSON.stringify({
           name: 'plugin1',
-          providers: [{ type: 'onboarding', module: './onboarding.js' }],
+          providers: [{ type: 'pluginRegistry', module: './registry.json' }],
         }),
       );
 
@@ -129,7 +129,7 @@ describe('Provider System', () => {
         join(plugin2Dir, 'plugin.json'),
         JSON.stringify({
           name: 'plugin2',
-          providers: [{ type: 'onboarding', module: './onboarding.js' }],
+          providers: [{ type: 'pluginRegistry', module: './registry.json' }],
         }),
       );
 
@@ -186,10 +186,10 @@ describe('Provider System', () => {
       const provider1 = { id: 1 };
       const provider2 = { id: 2 };
 
-      registerProvider('onboarding', provider1, { source: 'plugin1' });
-      registerProvider('onboarding', provider2, { source: 'plugin2' });
+      registerProvider('pluginRegistry', provider1, { source: 'plugin1' });
+      registerProvider('pluginRegistry', provider2, { source: 'plugin2' });
 
-      const entries = listProviders('onboarding');
+      const entries = listProviders('pluginRegistry');
       expect(entries).toHaveLength(2);
       expect(entries[0].provider).toBe(provider1);
       expect(entries[1].provider).toBe(provider2);
@@ -197,15 +197,15 @@ describe('Provider System', () => {
 
     it('clearAll resets both stores', () => {
       registerProvider('auth', { test: 'singleton' });
-      registerProvider('onboarding', { test: 'additive' });
+      registerProvider('pluginRegistry', { test: 'additive' });
 
       expect(getProvider('auth')).not.toBeNull();
-      expect(listProviders('onboarding')).toHaveLength(1);
+      expect(listProviders('pluginRegistry')).toHaveLength(1);
 
       clearAll();
 
       expect(getProvider('auth')).toBeNull();
-      expect(listProviders('onboarding')).toHaveLength(0);
+      expect(listProviders('pluginRegistry')).toHaveLength(0);
     });
 
     it('backward-compat: registerBrandingProvider + getBrandingProvider', () => {

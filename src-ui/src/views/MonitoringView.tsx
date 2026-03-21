@@ -1,11 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useModels } from '../contexts/ModelsContext';
-import { useMonitoring } from '../contexts/MonitoringContext';
+import { MonitoringEvent, useMonitoring } from '../contexts/MonitoringContext';
 import { useToast } from '../contexts/ToastContext';
 import {
   parseSearchQuery,
   useSearchAutocomplete,
 } from '../hooks/useSearchAutocomplete';
+import { K, OP, SPAN } from '../monitoring-keys';
+
+/** Derive a display-friendly event type from OTel attributes */
+function getEventType(event: MonitoringEvent): string {
+  const op = event[K.OP_NAME];
+  const kind = event[K.SPAN_KIND];
+  if (op === OP.INVOKE_AGENT && kind === SPAN.START) return 'agent-start';
+  if (op === OP.INVOKE_AGENT && kind === SPAN.END) return 'agent-complete';
+  if (op === OP.EXECUTE_TOOL && kind === SPAN.START) return 'tool-call';
+  if (op === OP.EXECUTE_TOOL && kind === SPAN.END) return 'tool-result';
+  if (op === OP.INVOKE_AGENT && kind === SPAN.LOG) return 'agent-health';
+  if (event[K.REASONING_TEXT]) return 'reasoning';
+  if (event[K.AT_EVENT_ID]) return 'agent-telemetry';
+  return `${op}-${kind}`;
+}
 
 export function MonitoringView() {
   const { stats, events, clearEvents, setTimeRange } = useMonitoring();
@@ -27,7 +42,7 @@ export function MonitoringView() {
         type: 'conversation' as const,
         getOptions: () =>
           [
-            ...new Set(events.map((e) => e.conversationId).filter(Boolean)),
+            ...new Set(events.map((e) => e[K.CONVERSATION_ID]).filter(Boolean)),
           ] as string[],
       },
       {
@@ -35,7 +50,7 @@ export function MonitoringView() {
         type: 'tool' as const,
         getOptions: () =>
           [
-            ...new Set(events.map((e) => e.toolCallId).filter(Boolean)),
+            ...new Set(events.map((e) => e[K.TOOL_CALL_ID]).filter(Boolean)),
           ] as string[],
       },
       {
@@ -43,7 +58,7 @@ export function MonitoringView() {
         type: 'trace' as const,
         getOptions: () =>
           [
-            ...new Set(events.map((e) => e.traceId).filter(Boolean)),
+            ...new Set(events.map((e) => e[K.TRACE_ID]).filter(Boolean)),
           ] as string[],
       },
     ],
@@ -195,7 +210,7 @@ export function MonitoringView() {
     const ms = 5 * 60 * 1000; // 5 minutes
     const now = new Date();
     const start = new Date(now.getTime() - ms);
-    setTimeRange(start, now, isLiveMode);
+    setTimeRange(start, now, true);
 
     // Set absolute inputs
     const localStart = new Date(
@@ -209,7 +224,8 @@ export function MonitoringView() {
     setAbsoluteStart(localStart);
     setAbsoluteEnd(localEnd);
     setTimeMode('relative');
-  }, [isLiveMode, setTimeRange]); // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   // Update time range when live mode changes
   useEffect(() => {
@@ -252,7 +268,7 @@ export function MonitoringView() {
       // Add IDs of new events (use timestamp + type as ID)
       for (let i = prevEventCountRef.current; i < events.length; i++) {
         const event = events[i];
-        newIds.add(`${event.timestamp}-${event.type}`);
+        newIds.add(`${event.timestamp}-${getEventType(event)}`);
       }
       setNewEventIds(newIds);
 
@@ -324,9 +340,11 @@ export function MonitoringView() {
           : [...prev, agentSlug],
       );
     } else {
-      // Single select
+      // Single click: toggle if only one selected, otherwise narrow to clicked
       setSelectedAgents((prev) =>
-        prev.length === 1 && prev[0] === agentSlug ? [] : [agentSlug],
+        prev.length === 1 && prev[0] === agentSlug
+          ? []
+          : [agentSlug],
       );
     }
   };
@@ -421,22 +439,22 @@ export function MonitoringView() {
       const agentsToFilter = parsed.filters.agent || selectedAgents;
       if (
         agentsToFilter.length > 0 &&
-        !agentsToFilter.includes(event.agentSlug || '')
+        !agentsToFilter.includes(event[K.AGENT_SLUG] || '')
       )
         return false;
       // Check both parsed conversation and selectedConversation from sidebar clicks
       const conversationToFilter =
         parsed.filters.conversation?.[0] || selectedConversation;
-      if (conversationToFilter && event.conversationId !== conversationToFilter)
+      if (conversationToFilter && event[K.CONVERSATION_ID] !== conversationToFilter)
         return false;
       // Check tool call ID filter
       const toolCallIdToFilter = parsed.filters.tool?.[0] || selectedToolCallId;
-      if (toolCallIdToFilter && event.toolCallId !== toolCallIdToFilter)
+      if (toolCallIdToFilter && event[K.TOOL_CALL_ID] !== toolCallIdToFilter)
         return false;
       // Check trace ID filter
       const traceIdToFilter = parsed.filters.trace?.[0] || selectedTraceId;
-      if (traceIdToFilter && event.traceId !== traceIdToFilter) return false;
-      if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(event.type))
+      if (traceIdToFilter && event[K.TRACE_ID] !== traceIdToFilter) return false;
+      if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(getEventType(event)))
         return false;
       // Only apply text filter if it's not just a filter key with colon
       const isIncompleteFilter = /^(agent|conversation|tool|trace):$/.test(
@@ -718,9 +736,6 @@ export function MonitoringView() {
                                 | '30d',
                             );
                             setTimeMode('relative');
-                            const now = new Date();
-                            const start = new Date(now.getTime() - option.ms);
-                            setTimeRange(start, now, isLiveMode);
                             setClearTime(null);
                             setShowTimeControls(false);
                           }}
@@ -841,7 +856,7 @@ export function MonitoringView() {
                 const historicalSlugs = [
                   ...new Set(
                     filteredEvents
-                      .map((e) => e.agentSlug)
+                      .map((e) => e[K.AGENT_SLUG])
                       .filter((s): s is string => !!s),
                   ),
                 ];
@@ -859,19 +874,19 @@ export function MonitoringView() {
               const runningConversations = events
                 .filter(
                   (e) =>
-                    e.agentSlug === agent.slug &&
-                    e.type === 'agent-start' &&
-                    e.conversationId,
+                    e[K.AGENT_SLUG] === agent.slug &&
+                    getEventType(e) === 'agent-start' &&
+                    e[K.CONVERSATION_ID],
                 )
                 .reduce(
                   (acc, e) => {
                     if (
-                      e.conversationId &&
-                      !acc.some((c) => c.id === e.conversationId)
+                      e[K.CONVERSATION_ID] &&
+                      !acc.some((c) => c.id === e[K.CONVERSATION_ID])
                     ) {
                       acc.push({
-                        id: e.conversationId,
-                        color: getConversationColor(e.conversationId),
+                        id: e[K.CONVERSATION_ID] as string,
+                        color: getConversationColor(e[K.CONVERSATION_ID] as string),
                       });
                     }
                     return acc;
@@ -959,7 +974,7 @@ export function MonitoringView() {
               const historicalSlugs = [
                 ...new Set(
                   filteredEvents
-                    .map((e) => e.agentSlug)
+                    .map((e) => e[K.AGENT_SLUG])
                     .filter((s): s is string => !!s),
                 ),
               ].filter((slug) => !stats?.agents.some((a) => a.slug === slug));
@@ -984,7 +999,7 @@ export function MonitoringView() {
                   </div>
                   {historicalSlugs.map((slug) => {
                     const eventCount = filteredEvents.filter(
-                      (e) => e.agentSlug === slug,
+                      (e) => e[K.AGENT_SLUG] === slug,
                     ).length;
                     return (
                       <div
@@ -1190,15 +1205,15 @@ export function MonitoringView() {
               </div>
             ) : (
               filteredEvents.map((event, idx) => {
-                const eventId = `${event.timestamp}-${event.type}`;
+                const eventId = `${event.timestamp}-${getEventType(event)}`;
                 const isNew = newEventIds.has(eventId);
-                const agentColor = event.agentSlug
-                  ? getAgentColor(event.agentSlug)
+                const agentColor = event[K.AGENT_SLUG]
+                  ? getAgentColor(event[K.AGENT_SLUG] as string)
                   : undefined;
                 return (
                   <div
                     key={idx}
-                    className={`log-entry event-${event.type} agent-${event.agentSlug} ${isNew ? 'new-event' : ''}`}
+                    className={`log-entry event-${getEventType(event)} agent-${event[K.AGENT_SLUG]} ${isNew ? 'new-event' : ''}`}
                     style={
                       agentColor
                         ? {
@@ -1226,7 +1241,7 @@ export function MonitoringView() {
                           {event.timestamp
                             ? new Date(event.timestamp).toLocaleTimeString()
                             : '-'}
-                          {event.timestampMs && (
+                          {!!event[K.TIMESTAMP_MS] && (
                             <span
                               style={{
                                 fontSize: '0.7em',
@@ -1235,20 +1250,20 @@ export function MonitoringView() {
                               }}
                             >
                               .
-                              {String(event.timestampMs % 1000).padStart(
+                              {String(event[K.TIMESTAMP_MS] % 1000).padStart(
                                 3,
                                 '0',
                               )}
                             </span>
                           )}
                         </div>
-                        {event.traceId && (
+                        {!!event[K.TRACE_ID] && (
                           <button
-                            className={`trace-pill ${selectedTraceId === event.traceId ? 'selected' : ''}`}
-                            onClick={() => handleTraceClick(event.traceId!)}
-                            title={`Trace ID: ${event.traceId}\nClick to filter`}
+                            className={`trace-pill ${selectedTraceId === event[K.TRACE_ID] ? 'selected' : ''}`}
+                            onClick={() => handleTraceClick(event[K.TRACE_ID] as string)}
+                            title={`Trace ID: ${event[K.TRACE_ID]}\nClick to filter`}
                             style={
-                              selectedTraceId === event.traceId && agentColor
+                              selectedTraceId === event[K.TRACE_ID] && agentColor
                                 ? {
                                     borderColor: agentColor,
                                     color: agentColor,
@@ -1256,43 +1271,43 @@ export function MonitoringView() {
                                 : undefined
                             }
                           >
-                            {event.traceId.slice(-8)}
+                            {(event[K.TRACE_ID] as string).slice(-8)}
                           </button>
                         )}
                       </div>
-                      <div className="log-type">{event.type.toUpperCase()}</div>
-                      <div className="log-agent">{event.agentSlug || '-'}</div>
+                      <div className="log-type">{getEventType(event).toUpperCase()}</div>
+                      <div className="log-agent">{event[K.AGENT_SLUG] || '-'}</div>
 
                       <div className="log-data">
-                        {event.conversationId && (
+                        {!!event[K.CONVERSATION_ID] && (
                           <span className="log-inline">
                             <span className="meta-label">Conversation:</span>
                             <button
-                              className={`pill-button ${selectedConversation === event.conversationId ? 'selected' : ''}`}
+                              className={`pill-button ${selectedConversation === event[K.CONVERSATION_ID] ? 'selected' : ''}`}
                               style={{
                                 backgroundColor: 'var(--event-agent-start)',
                                 borderColor: 'var(--event-agent-start)',
                               }}
                               onClick={() =>
                                 handleConversationClick(
-                                  event.conversationId!,
-                                  event.agentSlug!,
+                                  event[K.CONVERSATION_ID] as string,
+                                  event[K.AGENT_SLUG] as string,
                                 )
                               }
                               title="Filter by conversation"
                             >
-                              ...{event.conversationId.slice(-6)}
+                              ...{(event[K.CONVERSATION_ID] as string).slice(-6)}
                             </button>
                           </span>
                         )}
 
-                        {event.toolCallId && (
+                        {!!event[K.TOOL_CALL_ID] && (
                           <span className="log-inline">
                             <span className="meta-label">Tool Call:</span>
                             <button
-                              className={`pill-button ${selectedToolCallId === event.toolCallId ? 'selected' : ''}`}
+                              className={`pill-button ${selectedToolCallId === event[K.TOOL_CALL_ID] ? 'selected' : ''}`}
                               onClick={() =>
-                                handleToolCallClick(event.toolCallId!)
+                                handleToolCallClick(event[K.TOOL_CALL_ID] as string)
                               }
                               title="Filter by tool call ID"
                               style={{
@@ -1301,58 +1316,36 @@ export function MonitoringView() {
                                 color: 'white',
                               }}
                             >
-                              ...{event.toolCallId.slice(-6)}
+                              ...{(event[K.TOOL_CALL_ID] as string).slice(-6)}
                             </button>
                           </span>
                         )}
 
-                        {event.toolName && (
+                        {!!event[K.TOOL_NAME] && (
                           <span className="log-inline">
                             <span className="meta-label">Tool:</span>
                             <span className="pill-badge tool-badge">
-                              {event.toolName}
+                              {event[K.TOOL_NAME] as string}
                             </span>
-                            {event.requiresApproval && (
-                              <span
-                                style={{
-                                  marginLeft: '0.5rem',
-                                  fontSize: '0.75rem',
-                                  color: 'var(--warning-primary)',
-                                }}
-                              >
-                                🔒 Requires Approval
-                              </span>
-                            )}
-                            {event.toolCallNumber !== undefined && (
-                              <span
-                                style={{
-                                  marginLeft: '0.5rem',
-                                  fontSize: '0.75rem',
-                                  color: 'var(--text-secondary)',
-                                }}
-                              >
-                                Call #{event.toolCallNumber}
-                              </span>
-                            )}
                           </span>
                         )}
 
-                        {event.healthy !== undefined && (
+                        {event[K.HEALTHY] !== undefined && (
                           <span className="log-inline">
                             <span className="meta-label">Status:</span>
                             <span
-                              className={`pill-badge ${event.healthy ? 'health-ok' : 'health-error'}`}
+                              className={`pill-badge ${event[K.HEALTHY] ? 'health-ok' : 'health-error'}`}
                             >
-                              {event.healthy ? '✓ Healthy' : '⚠ Unhealthy'}
+                              {event[K.HEALTHY] ? '✓ Healthy' : '⚠ Unhealthy'}
                             </span>
                           </span>
                         )}
 
-                        {event.integrations &&
-                          event.integrations.length > 0 && (
+                        {!!(event[K.HEALTH_INTEGRATIONS] as Array<unknown> | undefined) &&
+                          (event[K.HEALTH_INTEGRATIONS] as Array<{ type: string; id: string; connected: boolean; metadata?: { transport: string; toolCount: number } }>).length > 0 && (
                             <span className="log-inline">
                               <span className="meta-label">Integrations:</span>
-                              {event.integrations.map((integration, idx) => (
+                              {(event[K.HEALTH_INTEGRATIONS] as Array<{ type: string; id: string; connected: boolean; metadata?: { transport: string; toolCount: number } }>).map((integration, idx) => (
                                 <span
                                   key={idx}
                                   className={`pill-badge ${integration.connected ? 'health-ok' : 'health-error'}`}
@@ -1366,12 +1359,12 @@ export function MonitoringView() {
                             </span>
                           )}
 
-                        {event.reason && (
+                        {!!(event[K.FINISH_REASONS] as string[] | undefined)?.[0] && (
                           <span className="log-inline">
                             <span className="meta-label">Reason:</span>
-                            <span className="pill-badge">{event.reason}</span>
-                            {event.reason === 'tool-calls' &&
-                              event.maxSteps && (
+                            <span className="pill-badge">{(event[K.FINISH_REASONS] as string[])[0]}</span>
+                            {(event[K.FINISH_REASONS] as string[])[0] === 'tool-calls' &&
+                              !!event[K.AGENT_MAX_STEPS] && (
                                 <span
                                   style={{
                                     marginLeft: '0.5rem',
@@ -1379,8 +1372,8 @@ export function MonitoringView() {
                                     color: 'var(--text-secondary)',
                                   }}
                                 >
-                                  (Hit max steps limit: {event.steps}/
-                                  {event.maxSteps})
+                                  (Hit max steps limit: {event[K.AGENT_STEPS]}/
+                                  {event[K.AGENT_MAX_STEPS]})
                                 </span>
                               )}
                           </span>
@@ -1389,7 +1382,7 @@ export function MonitoringView() {
                     </div>
 
                     {/* Collapsible sections */}
-                    {event.data && (
+                    {!!event[K.REASONING_TEXT] && (
                       <details
                         className="log-details"
                         style={{ marginTop: '0.75rem' }}
@@ -1403,7 +1396,7 @@ export function MonitoringView() {
                               color: 'var(--text-secondary)',
                             }}
                           >
-                            ({event.data.length} chars)
+                            ({(event[K.REASONING_TEXT] as string).length} chars)
                           </span>
                         </summary>
                         <pre
@@ -1413,16 +1406,16 @@ export function MonitoringView() {
                             overflow: 'auto',
                           }}
                         >
-                          {event.data}
+                          {event[K.REASONING_TEXT] as string}
                         </pre>
                       </details>
                     )}
 
-                    {event.checks && (
+                    {!!(event[K.HEALTH_CHECKS] as Record<string, boolean> | undefined) && (
                       <details className="log-details">
                         <summary>Health Checks</summary>
                         <div style={{ padding: '0.5rem 0' }}>
-                          {Object.entries(event.checks).map(([key, value]) => (
+                          {Object.entries(event[K.HEALTH_CHECKS] as Record<string, boolean>).map(([key, value]) => (
                             <div
                               key={key}
                               style={{
@@ -1445,8 +1438,8 @@ export function MonitoringView() {
                               </span>
                             </div>
                           ))}
-                          {event.integrations &&
-                            event.integrations.length > 0 && (
+                          {!!(event[K.HEALTH_INTEGRATIONS] as Array<unknown> | undefined) &&
+                            (event[K.HEALTH_INTEGRATIONS] as Array<{ type: string; id: string; connected: boolean; metadata?: { transport: string; toolCount: number } }>).length > 0 && (
                               <div
                                 style={{
                                   marginTop: '1rem',
@@ -1462,7 +1455,7 @@ export function MonitoringView() {
                                 >
                                   Integrations:
                                 </div>
-                                {event.integrations.map((integration, idx) => (
+                                {(event[K.HEALTH_INTEGRATIONS] as Array<{ type: string; id: string; connected: boolean; metadata?: { transport: string; toolCount: number } }>).map((integration, idx) => (
                                   <div
                                     key={idx}
                                     style={{
@@ -1506,26 +1499,24 @@ export function MonitoringView() {
                       </details>
                     )}
 
-                    {event.input &&
-                      (typeof event.input === 'string' ||
-                        Object.keys(event.input).length > 0) && (
+                    {(() => {
+                      const args = event[K.TOOL_CALL_ARGS];
+                      if (!args) return null;
+                      const hasContent = typeof args === 'string' ? (args as string).length > 0 : Object.keys(args as Record<string, unknown>).length > 0;
+                      if (!hasContent) return null;
+                      const argsStr = typeof args === 'string' ? (args as string) : JSON.stringify(args, null, 2);
+                      const argsLabel = typeof args === 'string' ? `${(args as string).length} chars` : `${Object.keys(args as Record<string, unknown>).length} params`;
+                      return (
                         <details className="log-details">
                           <summary>
-                            Input (
-                            {typeof event.input === 'string'
-                              ? `${event.input.length} chars`
-                              : `${Object.keys(event.input).length} params`}
-                            )
+                            Input ({argsLabel})
                           </summary>
-                          <pre>
-                            {typeof event.input === 'string'
-                              ? event.input
-                              : JSON.stringify(event.input, null, 2)}
-                          </pre>
+                          <pre>{argsStr}</pre>
                         </details>
-                      )}
+                      );
+                    })()}
 
-                    {event.result && (
+                    {!!event[K.TOOL_CALL_RESULT] && (
                       <details className="log-details">
                         <summary>
                           Result
@@ -1534,7 +1525,7 @@ export function MonitoringView() {
                             onClick={(e) => {
                               e.stopPropagation();
                               navigator.clipboard.writeText(
-                                JSON.stringify(event.result, null, 2),
+                                JSON.stringify(event[K.TOOL_CALL_RESULT], null, 2),
                               );
                               showToast('Copied to clipboard');
                             }}
@@ -1562,21 +1553,22 @@ export function MonitoringView() {
                             </svg>
                           </button>
                         </summary>
-                        <pre>{JSON.stringify(event.result, null, 2)}</pre>
+                        <pre>{JSON.stringify(event[K.TOOL_CALL_RESULT], null, 2)}</pre>
                       </details>
                     )}
 
-                    {event.type === 'agent-complete' &&
-                      event.artifacts &&
+                    {getEventType(event) === 'agent-complete' &&
+                      !!(event[K.ARTIFACTS] as Array<unknown> | undefined) &&
                       (() => {
-                        const textArtifacts = event.artifacts.filter(
+                        const artifacts = event[K.ARTIFACTS] as Array<{ type: string; name?: string; content?: unknown }>;
+                        const textArtifacts = artifacts.filter(
                           (a) => a.type === 'text',
                         );
                         const finalOutput =
                           textArtifacts.length > 0
-                            ? textArtifacts[textArtifacts.length - 1].content
+                            ? String(textArtifacts[textArtifacts.length - 1].content ?? '')
                             : null;
-                        const toolCalls = event.artifacts.filter(
+                        const toolCalls = artifacts.filter(
                           (a) => a.type === 'tool-call',
                         );
 
@@ -1645,7 +1637,7 @@ export function MonitoringView() {
                                 </div>
                               </details>
                             )}
-                            {event.usage && (
+                            {event[K.INPUT_TOKENS] !== undefined || event[K.INPUT_CHARS] !== undefined ? (
                               <details className="log-details">
                                 <summary>Usage & Stats</summary>
                                 <div
@@ -1658,7 +1650,7 @@ export function MonitoringView() {
                                   }}
                                 >
                                   {/* Character Counts */}
-                                  {event.inputChars !== undefined && (
+                                  {event[K.INPUT_CHARS] !== undefined && (
                                     <>
                                       <div
                                         style={{
@@ -1668,13 +1660,13 @@ export function MonitoringView() {
                                         Input:
                                       </div>
                                       <div style={{ fontFamily: 'monospace' }}>
-                                        {event.inputChars.toLocaleString()}{' '}
+                                        {(event[K.INPUT_CHARS] as number).toLocaleString()}{' '}
                                         chars
                                       </div>
                                     </>
                                   )}
 
-                                  {event.outputChars !== undefined && (
+                                  {event[K.OUTPUT_CHARS] !== undefined && (
                                     <>
                                       <div
                                         style={{
@@ -1684,14 +1676,14 @@ export function MonitoringView() {
                                         Output:
                                       </div>
                                       <div style={{ fontFamily: 'monospace' }}>
-                                        {event.outputChars.toLocaleString()}{' '}
+                                        {(event[K.OUTPUT_CHARS] as number).toLocaleString()}{' '}
                                         chars
                                       </div>
                                     </>
                                   )}
 
-                                  {event.inputChars !== undefined &&
-                                    event.outputChars !== undefined && (
+                                  {event[K.INPUT_CHARS] !== undefined &&
+                                    event[K.OUTPUT_CHARS] !== undefined && (
                                       <>
                                         <div
                                           style={{
@@ -1708,7 +1700,7 @@ export function MonitoringView() {
                                           }}
                                         >
                                           {(
-                                            event.inputChars + event.outputChars
+                                            (event[K.INPUT_CHARS] as number) + (event[K.OUTPUT_CHARS] as number)
                                           ).toLocaleString()}{' '}
                                           chars
                                         </div>
@@ -1716,7 +1708,7 @@ export function MonitoringView() {
                                     )}
 
                                   {/* Token Usage */}
-                                  {event.usage?.inputTokens !== undefined && (
+                                  {event[K.INPUT_TOKENS] !== undefined && (
                                     <>
                                       <div
                                         style={{
@@ -1732,12 +1724,12 @@ export function MonitoringView() {
                                           marginTop: '0.5rem',
                                         }}
                                       >
-                                        {event.usage.inputTokens.toLocaleString()}
+                                        {(event[K.INPUT_TOKENS] as number).toLocaleString()}
                                       </div>
                                     </>
                                   )}
 
-                                  {event.usage?.outputTokens !== undefined && (
+                                  {event[K.OUTPUT_TOKENS] !== undefined && (
                                     <>
                                       <div
                                         style={{
@@ -1747,12 +1739,12 @@ export function MonitoringView() {
                                         Output Tokens:
                                       </div>
                                       <div style={{ fontFamily: 'monospace' }}>
-                                        {event.usage.outputTokens.toLocaleString()}
+                                        {(event[K.OUTPUT_TOKENS] as number).toLocaleString()}
                                       </div>
                                     </>
                                   )}
 
-                                  {event.usage?.totalTokens !== undefined && (
+                                  {event[K.INPUT_TOKENS] !== undefined && event[K.OUTPUT_TOKENS] !== undefined && (
                                     <>
                                       <div
                                         style={{
@@ -1768,13 +1760,13 @@ export function MonitoringView() {
                                           fontWeight: 500,
                                         }}
                                       >
-                                        {event.usage.totalTokens.toLocaleString()}
+                                        {((event[K.INPUT_TOKENS] as number || 0) + (event[K.OUTPUT_TOKENS] as number || 0)).toLocaleString()}
                                       </div>
                                     </>
                                   )}
 
                                   {/* Execution Stats */}
-                                  {event.steps !== undefined && (
+                                  {event[K.AGENT_STEPS] !== undefined && (
                                     <>
                                       <div
                                         style={{
@@ -1790,12 +1782,12 @@ export function MonitoringView() {
                                           marginTop: '0.5rem',
                                         }}
                                       >
-                                        {event.steps}
+                                        {event[K.AGENT_STEPS] as number}
                                       </div>
                                     </>
                                   )}
 
-                                  {event.maxSteps !== undefined && (
+                                  {event[K.AGENT_MAX_STEPS] !== undefined && (
                                     <>
                                       <div
                                         style={{
@@ -1805,28 +1797,13 @@ export function MonitoringView() {
                                         Max Steps:
                                       </div>
                                       <div style={{ fontFamily: 'monospace' }}>
-                                        {event.maxSteps}
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {event.toolCallCount !== undefined && (
-                                    <>
-                                      <div
-                                        style={{
-                                          color: 'var(--text-secondary)',
-                                        }}
-                                      >
-                                        Tool Calls:
-                                      </div>
-                                      <div style={{ fontFamily: 'monospace' }}>
-                                        {event.toolCallCount}
+                                        {event[K.AGENT_MAX_STEPS] as number}
                                       </div>
                                     </>
                                   )}
                                 </div>
                               </details>
-                            )}
+                            ) : null}
                           </>
                         );
                       })()}

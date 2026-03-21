@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ProjectConfig, ProjectMetadata } from '@stallion-ai/shared';
+import { BUILTIN_KNOWLEDGE_NAMESPACES } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import { projectOps } from '../telemetry/metrics.js';
 
@@ -31,6 +32,7 @@ export class ProjectService {
       ...config,
       name: name || config.name,
       id: randomUUID(),
+      knowledgeNamespaces: [...BUILTIN_KNOWLEDGE_NAMESPACES],
       createdAt: now,
       updatedAt: now,
     };

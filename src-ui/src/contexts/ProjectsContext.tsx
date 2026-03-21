@@ -9,6 +9,7 @@ export interface ProjectMetadata {
   icon?: string;
   description?: string;
   hasWorkingDirectory: boolean;
+  workingDirectory?: string;
   layoutCount: number;
   hasKnowledge: boolean;
   defaultProviderId?: string;

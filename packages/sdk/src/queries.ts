@@ -5,7 +5,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { _getApiBase, invokeAgent } from './api';
-import { agentQueries } from './queryFactories';
+import { agentQueries, knowledgeQueries } from './queryFactories';
 
 interface QueryConfig<_T> {
   staleTime?: number;
@@ -507,5 +507,57 @@ export function useStatsQuery(
     ...agentQueries.stats(agentSlug || '', conversationId || ''),
     ...config,
     enabled: !!agentSlug && !!conversationId && (config?.enabled ?? true),
+  });
+}
+
+// ── Knowledge Hooks ────────────────────────────────────────────────
+
+export function useKnowledgeNamespacesQuery(projectSlug: string, config?: QueryConfig<any>) {
+  return useQuery({
+    ...knowledgeQueries.namespaces(projectSlug),
+    ...config,
+    enabled: !!projectSlug && (config?.enabled ?? true),
+  });
+}
+
+export function useKnowledgeDocsQuery(projectSlug: string, namespace?: string, config?: QueryConfig<any>) {
+  return useQuery({
+    ...knowledgeQueries.list(projectSlug, namespace),
+    ...config,
+    enabled: !!projectSlug && (config?.enabled ?? true),
+  });
+}
+
+export function useKnowledgeSearchQuery(projectSlug: string, query: string, namespace?: string, config?: QueryConfig<any>) {
+  return useQuery({
+    ...knowledgeQueries.search(projectSlug, query, namespace),
+    ...config,
+    enabled: !!projectSlug && !!query && (config?.enabled ?? true),
+  });
+}
+
+export function useKnowledgeSaveMutation(projectSlug: string, namespace?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ filename, content }: { filename: string; content: string }) => {
+      const { uploadKnowledge } = await import('./api');
+      return uploadKnowledge(projectSlug, filename, content, namespace);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });
+    },
+  });
+}
+
+export function useKnowledgeDeleteMutation(projectSlug: string, namespace?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (docId: string) => {
+      const { deleteKnowledgeDoc } = await import('./api');
+      return deleteKnowledgeDoc(projectSlug, docId, namespace);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });
+    },
   });
 }

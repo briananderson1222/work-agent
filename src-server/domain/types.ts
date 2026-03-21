@@ -48,3 +48,12 @@ export interface ACPConnectionConfig {
 export interface ACPConfig {
   connections: ACPConnectionConfig[];
 }
+
+/** Probe-based ACP connection status values */
+export const ACPStatus = {
+  AVAILABLE: 'available',
+  UNAVAILABLE: 'unavailable',
+  PROBING: 'probing',
+} as const;
+
+export type ACPStatusValue = (typeof ACPStatus)[keyof typeof ACPStatus];

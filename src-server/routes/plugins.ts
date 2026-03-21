@@ -1169,7 +1169,7 @@ async function loadProviders(
     registerUserDirectoryProvider,
     registerAgentRegistryProvider,
     registerIntegrationRegistryProvider,
-    registerOnboardingProvider,
+    registerPluginRegistryProvider,
   } = await import('../providers/registry.js');
   let loaded = 0;
 
@@ -1181,7 +1181,7 @@ async function loadProviders(
       // JSON files for registry types → auto-wrap with JsonManifestRegistryProvider
       if (
         modulePath.endsWith('.json') &&
-        (p.type === 'agentRegistry' || p.type === 'integrationRegistry')
+        (p.type === 'agentRegistry' || p.type === 'integrationRegistry' || p.type === 'pluginRegistry')
       ) {
         const { JsonManifestRegistryProvider } = await import(
           '../providers/json-manifest-registry.js'
@@ -1192,6 +1192,7 @@ async function loadProviders(
           dirname(pluginsDir),
         );
         if (p.type === 'agentRegistry') registerAgentRegistryProvider(instance);
+        else if (p.type === 'pluginRegistry') registerPluginRegistryProvider(instance);
         else registerIntegrationRegistryProvider(instance);
         loaded++;
         continue;
@@ -1211,11 +1212,6 @@ async function loadProviders(
         registerAgentRegistryProvider(instance);
       else if (p.type === 'integrationRegistry')
         registerIntegrationRegistryProvider(instance);
-      else if (p.type === 'onboarding')
-        registerOnboardingProvider(
-          instance,
-          manifest.displayName || pluginName,
-        );
       else if (p.type === 'branding') registerBrandingProvider(instance);
       else if (p.type === 'settings') registerSettingsProvider(instance);
       else

@@ -55,6 +55,7 @@ export interface PluginManifest {
   providers?: PluginProviderEntry[];
   tools?: { required?: string[] };
   dependencies?: PluginDependency[];
+  knowledge?: { namespaces: KnowledgeNamespaceConfig[] };
 }
 
 export interface PluginOverrideConfig {
@@ -180,6 +181,33 @@ export interface ToolMetadata {
   source?: string;
 }
 
+// ── Knowledge ──────────────────────────────────────────────────────
+
+export type KnowledgeNamespaceBehavior = 'rag' | 'inject';
+
+export interface KnowledgeNamespaceConfig {
+  id: string;
+  label: string;
+  behavior: KnowledgeNamespaceBehavior;
+  description?: string;
+  builtIn?: boolean;
+}
+
+export interface KnowledgeDocumentMeta {
+  id: string;
+  filename: string;
+  namespace: string;
+  source: 'upload' | 'directory-scan';
+  chunkCount: number;
+  createdAt: string;
+}
+
+export const BUILTIN_KNOWLEDGE_NAMESPACES: KnowledgeNamespaceConfig[] = [
+  { id: 'default', label: 'General', behavior: 'rag', builtIn: true },
+  { id: 'rules', label: 'Rules & Steering', behavior: 'inject', builtIn: true },
+  { id: 'code', label: 'Code Context', behavior: 'rag', builtIn: true },
+];
+
 // ── Project ────────────────────────────────────────────────────────
 
 export interface ProjectConfig {
@@ -196,6 +224,7 @@ export interface ProjectConfig {
   similarityThreshold?: number;
   topK?: number;
   agents?: string[];
+  knowledgeNamespaces?: KnowledgeNamespaceConfig[];
   createdAt: string;
   updatedAt: string;
 }
@@ -207,6 +236,7 @@ export interface ProjectMetadata {
   icon?: string;
   description?: string;
   hasWorkingDirectory: boolean;
+  workingDirectory?: string;
   layoutCount: number;
   hasKnowledge: boolean;
   defaultProviderId?: string;
@@ -324,6 +354,7 @@ export interface AppConfig {
   systemPrompt?: string;
   templateVariables?: TemplateVariable[];
   defaultChatFontSize?: number;
+  logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
   registryUrl?: string;
   gitRemote?: string;
   defaultLLMProvider?: string;

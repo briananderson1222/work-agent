@@ -330,7 +330,6 @@ class ConversationsStore {
       const payload = {
         input,
         options: {
-          userId: CONFIG_DEFAULTS.userId,
           ...(conversationId ? { conversationId } : {}),
           ...(title ? { title } : {}),
           ...(model ? { model } : {}),

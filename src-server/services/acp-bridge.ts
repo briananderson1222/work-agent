@@ -6,6 +6,9 @@
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { getCachedUser } from '../routes/auth.js';
+import { MonitoringEmitter } from '../monitoring/emitter.js';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -33,9 +36,11 @@ import type { Context } from 'hono';
 import { stream as honoStream } from 'hono/streaming';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ACPConnectionConfig } from '../domain/types.js';
+import { ACPStatus, type ACPStatusValue } from '../domain/types.js';
 import { acpOps, approvalOps } from '../telemetry/metrics.js';
 import { resolveHomeDir } from '../utils/paths.js';
 import { ApprovalRegistry } from './approval-registry.js';
+import { ACPProbe } from './acp-probe.js';
 
 interface ACPMode {
   id: string;
@@ -186,7 +191,7 @@ export type ACPConnectionStatus =
   | 'connecting'
   | 'connected'
   | 'error'
-  | 'unavailable';
+  | ACPStatusValue;
 
 export class ACPConnection {
   private proc: ChildProcess | null = null;
@@ -206,13 +211,9 @@ export class ACPConnection {
   private terminals = new Map<string, ManagedTerminal>();
   private terminalCounter = 0;
   private status: ACPConnectionStatus = 'disconnected';
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 15;
   private shuttingDown = false;
   private intentionalKill = false;
   private lastActivityAt: number = Date.now();
-  private hasBeenViewed: boolean = false;
 
   // Per-prompt SSE writer — set during handleChat, used by Client callbacks
   private activeWriter: ((chunk: any) => Promise<void>) | null = null;
@@ -232,12 +233,16 @@ export class ACPConnection {
     private approvalRegistry: ApprovalRegistry,
     private logger: any,
     private cwd: string,
+    private conversationId?: string,
     private memoryAdapters?: Map<string, FileMemoryAdapter>,
     private createMemoryAdapter?: (slug: string) => FileMemoryAdapter,
     private usageAggregatorRef?: { get: () => any },
     private eventBus?: {
       emit: (event: string, data?: Record<string, unknown>) => void;
     },
+    private monitoringEvents?: import('node:events').EventEmitter,
+    private persistEvent?: (event: any) => Promise<void>,
+    private monitoringEmitter?: MonitoringEmitter,
   ) {
     if (this.config.cwd) this.cwd = this.config.cwd;
   }
@@ -256,7 +261,7 @@ export class ACPConnection {
       this.logger.info(
         `[ACP:${this.prefix}] ${this.config.command} not found on PATH`,
       );
-      this.status = 'unavailable';
+      this.status = ACPStatus.UNAVAILABLE;
       return false;
     }
 
@@ -280,9 +285,6 @@ export class ACPConnection {
           id: this.config.id,
           status: 'disconnected',
         });
-        if (!this.intentionalKill) {
-          this.scheduleReconnect();
-        }
       });
 
       const input = Writable.toWeb(this.proc.stdin!);
@@ -315,75 +317,11 @@ export class ACPConnection {
       this.promptCapabilities =
         initResult.agentCapabilities?.promptCapabilities || {};
 
-      // Try to resume previous session, fall back to new session
-      let sessionResult: SessionResult = { sessionId: '' };
-
-      // Pre-create adapters so findPreviousSessionId can scan conversation metadata
-      // We don't know modes yet, but we can scan for existing agent dirs for this connection
-      this.preCreateAdaptersFromDisk();
-
-      const previousSessionId = await this.findPreviousSessionId();
-
-      if (previousSessionId && initResult.agentCapabilities?.loadSession) {
-        // Save modes from new session creation first (load doesn't return modes)
-        const tempSession = (await this.connection.newSession({
-          cwd: this.cwd,
-          mcpServers: [],
-        })) as SessionResult;
-        if (tempSession.modes?.availableModes) {
-          this.modes = tempSession.modes.availableModes;
-          this.currentModeId =
-            tempSession.modes.currentModeId || this.modes[0]?.id || null;
-        }
-        const delays = [500, 1000, 2000];
-        let resumed = false;
-        for (let attempt = 0; attempt < delays.length; attempt++) {
-          try {
-            await this.connection.loadSession({
-              sessionId: previousSessionId,
-              cwd: this.cwd,
-              mcpServers: [],
-            });
-            sessionResult = { sessionId: previousSessionId };
-            this.logger.info('[ACPBridge] Resumed session', {
-              sessionId: previousSessionId,
-              attempt: attempt + 1,
-            });
-            resumed = true;
-            break;
-          } catch (err: any) {
-            this.logger.warn('[ACPBridge] Resume attempt failed', {
-              attempt: attempt + 1,
-              maxAttempts: delays.length,
-              error: err.message,
-            });
-            acpOps.add(1, { operation: 'resume-retry', attempt: String(attempt + 1) });
-            this.eventBus?.emit('acp:resume-retry', {
-              id: this.config.id,
-              attempt: attempt + 1,
-              maxAttempts: delays.length,
-            });
-            if (attempt < delays.length - 1) {
-              await new Promise((r) => setTimeout(r, delays[attempt]));
-            }
-          }
-        }
-        if (!resumed) {
-          this.logger.info(
-            '[ACPBridge] All resume attempts failed, creating fresh session',
-          );
-          acpOps.add(1, { operation: 'resume-failed' });
-          sessionResult = (await this.connection.newSession({
-            cwd: this.cwd,
-            mcpServers: [],
-          })) as SessionResult;
-        }
-      } else {
-        sessionResult = (await this.connection.newSession({
-          cwd: this.cwd,
-          mcpServers: [],
-        })) as SessionResult;
-      }
+      // Create a fresh session (sessions are ephemeral, no resume)
+      const sessionResult = (await this.connection.newSession({
+        cwd: this.cwd,
+        mcpServers: [],
+      })) as SessionResult;
 
       this.sessionId = sessionResult.sessionId;
 
@@ -401,7 +339,6 @@ export class ACPConnection {
 
       this.status = 'connected';
       acpOps.add(1, { operation: 'connect' });
-      this.reconnectAttempts = 0;
       this.eventBus?.emit('acp:status', {
         id: this.config.id,
         status: 'connected',
@@ -436,14 +373,12 @@ export class ACPConnection {
         status: 'error',
       });
       this.cleanup();
-      this.scheduleReconnect();
       return false;
     }
   }
 
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.cleanup();
   }
 
@@ -457,14 +392,11 @@ export class ACPConnection {
 
   private touchActivity(): void {
     this.lastActivityAt = Date.now();
-    this.hasBeenViewed = true;
   }
 
   isIdle(): boolean {
     if (this.status !== 'connected') return false;
     if (this.activeWriter) return false;
-    // Never cull connections that haven't been used yet — they provide agents to the UI
-    if (!this.hasBeenViewed) return false;
     const elapsed = Date.now() - this.lastActivityAt;
     return elapsed > 5 * 60_000;
   }
@@ -473,9 +405,8 @@ export class ACPConnection {
     this.logger.info(`[ACP:${this.prefix}] Culling idle session`, {
       sessionId: this.sessionId,
       idleMs: Date.now() - this.lastActivityAt,
-      viewed: this.hasBeenViewed,
     });
-    acpOps.add(1, { operation: 'cull', viewed: String(this.hasBeenViewed) });
+    acpOps.add(1, { operation: 'cull' });
     this.cleanup();
     this.status = 'disconnected';
     this.eventBus?.emit('acp:status', { id: this.config.id, status: 'culled' });
@@ -499,39 +430,6 @@ export class ACPConnection {
       currentModel: this.getCurrentModelName(),
       interactive: this.config.interactive,
     };
-  }
-
-  // ── Reconnect ──────────────────────────────────────────────────
-
-  private scheduleReconnect(): void {
-    if (
-      this.shuttingDown ||
-      this.reconnectAttempts >= this.maxReconnectAttempts
-    )
-      return;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
-    this.reconnectAttempts++;
-    this.logger.info('[ACPBridge] Scheduling reconnect', {
-      attempt: this.reconnectAttempts,
-      delayMs: delay,
-    });
-    this.reconnectTimer = setTimeout(() => this.start(), delay);
-  }
-
-  /** Reset reconnect state so start() can be called again */
-  resetReconnect(): void {
-    this.reconnectAttempts = 0;
-    this.shuttingDown = false;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    if (this.proc) {
-      this.intentionalKill = true;
-      this.proc.kill();
-      this.proc = null;
-    }
   }
 
   // ── Agent Discovery ────────────────────────────────────────────
@@ -651,14 +549,7 @@ export class ACPConnection {
     }
 
     // Resolve userId and conversationId (same format as VoltAgent)
-    let resolvedAlias = 'default';
-    try {
-      const { getCachedUser } = await import('../routes/auth.js');
-      resolvedAlias = getCachedUser().alias || 'default';
-    } catch (e) {
-      this.logger.debug('Failed to resolve user alias, using default', { error: e });
-      /* fallback */
-    }
+    const resolvedAlias = getCachedUser().alias;
     const userId = options.userId || `agent:${slug}:user:${resolvedAlias}`;
     const isNewConversation = !options.conversationId;
     const conversationId =
@@ -811,6 +702,28 @@ export class ACPConnection {
       };
       c.req.raw.signal?.addEventListener('abort', abortHandler);
 
+      // Monitoring: emit agent-start
+      const chatStartMs = Date.now();
+      const traceId = `acp:${slug}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+      const agentStartEvent = {
+        type: 'agent-start',
+        timestamp: new Date().toISOString(),
+        timestampMs: chatStartMs,
+        agentSlug: slug,
+        conversationId,
+        userId,
+        traceId,
+        input: inputText.length > 200 ? `${inputText.substring(0, 200)}...` : inputText,
+      };
+      this.monitoringEvents?.emit('event', agentStartEvent);
+      this.persistEvent?.(agentStartEvent).catch(() => {});
+      this.monitoringEmitter?.emitAgentStart({
+        slug,
+        conversationId, userId, traceId,
+        input: typeof input === 'string' ? input : '[complex input]',
+        provider: 'acp',
+      });
+
       try {
         // Emit conversation-started for new conversations
         if (isNewConversation) {
@@ -961,6 +874,29 @@ export class ACPConnection {
       } finally {
         clearInterval(waitingTimer);
         c.req.raw.signal?.removeEventListener('abort', abortHandler);
+
+        // Monitoring: emit agent-complete
+        const agentCompleteEvent = {
+          type: 'agent-complete',
+          timestamp: new Date().toISOString(),
+          timestampMs: Date.now(),
+          agentSlug: slug,
+          conversationId,
+          userId,
+          traceId,
+          reason: cancelled ? 'cancelled' : 'end_turn',
+          inputChars: inputText.length,
+          outputChars: this.responseAccumulator.length,
+          toolCallCount: this.responseParts.filter(p => p.type === 'tool-invocation').length,
+        };
+        this.monitoringEvents?.emit('event', agentCompleteEvent);
+        this.persistEvent?.(agentCompleteEvent).catch(() => {});
+        this.monitoringEmitter?.emitAgentComplete({
+          slug,
+          conversationId, userId, traceId,
+          reason: cancelled ? 'cancelled' : 'complete',
+        });
+
         this.activeWriter = null;
         this.responseAccumulator = '';
         this.responseParts = [];
@@ -1678,11 +1614,15 @@ function simpleDiff(oldText: string, newText: string): string {
 // ── ACPManager ───────────────────────────────────────────────────
 
 /**
- * Manages multiple ACPConnection instances from config.
- * Drop-in replacement for the old single ACPBridge.
+ * Probe + Session Pool architecture.
+ * Probes: periodic connect→discover→disconnect per ACP source. Caches modes/agents.
+ * Sessions: per-conversation ACPConnection with own process and CWD. Culled when idle.
  */
 export class ACPManager {
-  private connections = new Map<string, ACPConnection>();
+  private probes = new Map<string, ACPProbe>();
+  private configs = new Map<string, ACPConnectionConfig>();
+  private sessions = new Map<string, ACPConnection>();
+  private probeTimer: ReturnType<typeof setInterval> | null = null;
   private cullTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -1695,97 +1635,134 @@ export class ACPManager {
     private eventBus?: {
       emit: (event: string, data?: Record<string, unknown>) => void;
     },
+    private monitoringEvents?: import('node:events').EventEmitter,
+    private persistEvent?: (event: any) => Promise<void>,
+    private monitoringEmitter?: MonitoringEmitter,
   ) {}
 
-  /** Start connections for all enabled configs */
+  /** Create probes for all enabled configs and run initial discovery */
   async startAll(configs: ACPConnectionConfig[]): Promise<void> {
     await Promise.all(configs.map((cfg) => this.addConnection(cfg)));
+    this.probeTimer = setInterval(() => this.runProbes(), 60_000);
     this.cullTimer = setInterval(() => this.sweepIdleSessions(), 30_000);
   }
 
+  /** Run probes for all sources (skipped if sessions are active) */
+  private async runProbes(): Promise<void> {
+    if (this.sessions.size > 0) return;
+    const before = this.getVirtualAgents().length;
+    await Promise.all(
+      Array.from(this.probes.values()).map((p) => p.probe()),
+    );
+    if (this.getVirtualAgents().length !== before) {
+      this.eventBus?.emit('agents:changed');
+    }
+  }
+
   private async sweepIdleSessions(): Promise<void> {
-    for (const conn of this.connections.values()) {
-      if (conn.isIdle()) {
-        await conn.cullSession();
+    for (const [id, session] of this.sessions) {
+      if (session.isIdle()) {
+        await session.cullSession();
+        this.sessions.delete(id);
       }
     }
   }
 
-  /** Add and start a single connection */
+  /** Add a source: create probe and run initial discovery */
   async addConnection(config: ACPConnectionConfig): Promise<boolean> {
-    if (this.connections.has(config.id)) {
+    if (this.probes.has(config.id)) {
       await this.removeConnection(config.id);
     }
-    const conn = new ACPConnection(
-      config,
-      this.approvalRegistry,
-      this.logger,
-      this.cwd,
-      this.memoryAdapters,
-      this.createMemoryAdapter,
-      this.usageAggregatorRef,
-      this.eventBus,
-    );
-    this.connections.set(config.id, conn);
-    return conn.start();
+    this.configs.set(config.id, config);
+    const probe = new ACPProbe(config, this.logger, this.cwd);
+    this.probes.set(config.id, probe);
+    const ok = await probe.probe();
+    if (ok) this.eventBus?.emit('agents:changed');
+    return ok;
   }
 
-  /** Remove and shutdown a connection */
+  /** Remove a source and kill its associated sessions */
   async removeConnection(id: string): Promise<void> {
-    const conn = this.connections.get(id);
-    if (conn) {
-      await conn.shutdown();
-      this.connections.delete(id);
+    this.probes.delete(id);
+    this.configs.delete(id);
+    for (const [convId, session] of this.sessions) {
+      if (session.config.id === id) {
+        await session.shutdown();
+        this.sessions.delete(convId);
+      }
     }
   }
 
-  /** Force reconnect a disconnected connection */
+  /** Re-probe a source */
   async reconnect(id: string): Promise<boolean> {
-    const conn = this.connections.get(id);
-    if (!conn) return false;
-    conn.resetReconnect();
-    return conn.start();
+    const probe = this.probes.get(id);
+    if (!probe) return false;
+    const ok = await probe.probe();
+    if (ok) this.eventBus?.emit('agents:changed');
+    return ok;
   }
 
-  /** Shutdown all connections */
+  /** Shutdown everything */
   async shutdown(): Promise<void> {
-    if (this.cullTimer) {
-      clearInterval(this.cullTimer);
-      this.cullTimer = null;
-    }
+    if (this.probeTimer) { clearInterval(this.probeTimer); this.probeTimer = null; }
+    if (this.cullTimer) { clearInterval(this.cullTimer); this.cullTimer = null; }
     await Promise.all(
-      Array.from(this.connections.values()).map((c) => c.shutdown()),
+      Array.from(this.sessions.values()).map((s) => s.shutdown()),
     );
-    this.connections.clear();
+    this.sessions.clear();
+    this.probes.clear();
+    this.configs.clear();
   }
 
-  // ── Delegated methods (same interface as old ACPBridge) ──
+  // ── Delegated methods ──
 
   hasAgent(slug: string): boolean {
-    return Array.from(this.connections.values()).some((c) => c.hasAgent(slug));
+    return Array.from(this.probes.entries()).some(([id, probe]) =>
+      probe.getModes().some((m) => `${id}-${m.id}` === slug),
+    );
   }
 
   getVirtualAgents(): any[] {
-    return Array.from(this.connections.values()).flatMap((c) =>
-      c.getVirtualAgents(),
-    );
+    return Array.from(this.probes.entries()).flatMap(([id, probe]) => {
+      const config = this.configs.get(id);
+      const configOptions = probe.getConfigOptions();
+      const modelConfig = configOptions.find((o: any) => o.category === 'model');
+      const modelOptions = modelConfig?.options?.map((o: any) => ({
+        id: o.value ?? o,
+        name: o.name ?? o,
+        originalId: o.value ?? o,
+      })) || null;
+      const capabilities = probe.getCapabilities();
+
+      return probe.getModes().map((mode) => ({
+        slug: `${id}-${mode.id}`,
+        name: mode.name || mode.id,
+        description: mode.description || `${config?.name || id} ${mode.id} mode`,
+        model: modelConfig?.currentValue || config?.name || id,
+        icon: config?.icon || '🔌',
+        source: 'acp' as const,
+        connectionId: id,
+        connectionName: config?.name || id,
+        connectionIcon: config?.icon,
+        updatedAt: new Date().toISOString(),
+        supportsAttachments: capabilities?.image || false,
+        modelOptions,
+      }));
+    });
   }
 
   isConnected(): boolean {
-    return Array.from(this.connections.values()).some((c) => c.isConnected());
+    return Array.from(this.probes.values()).some((p) => p.isAvailable());
   }
 
   getSlashCommands(slug: string): any[] {
-    const conn = this.findConnectionForSlug(slug);
-    return conn?.getSlashCommands(slug) || [];
+    const session = this.findSessionForSlug(slug);
+    return session?.getSlashCommands(slug) || [];
   }
 
-  async getCommandOptions(
-    slug: string,
-    partialCommand: string,
-  ): Promise<any[]> {
-    const conn = this.findConnectionForSlug(slug);
-    return conn?.getCommandOptions(partialCommand) || [];
+  async getCommandOptions(slug: string, partialCommand: string): Promise<any[]> {
+    const session = this.findSessionForSlug(slug);
+    return session?.getCommandOptions(partialCommand) || [];
   }
 
   async handleChat(
@@ -1793,38 +1770,82 @@ export class ACPManager {
     slug: string,
     input: any,
     options: any,
-    context?: { cwd?: string },
+    context?: { cwd?: string; conversationId?: string },
   ): Promise<Response> {
-    const conn = this.findConnectionForSlug(slug);
-    if (!conn)
-      return c.json({ success: false, error: 'ACP connection not found' }, 503);
-    return conn.handleChat(c, slug, input, options, context);
+    const configId = this.findConfigIdForSlug(slug);
+    if (!configId) return c.json({ success: false, error: 'ACP agent not found' }, 503);
+
+    const conversationId = context?.conversationId || options.conversationId ||
+      `anon:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+    const sessionCwd = context?.cwd || homedir();
+
+    let session = this.sessions.get(conversationId);
+    if (!session) {
+      const config = this.configs.get(configId)!;
+      session = new ACPConnection(
+        config,
+        this.approvalRegistry,
+        this.logger,
+        sessionCwd,
+        conversationId,
+        this.memoryAdapters,
+        this.createMemoryAdapter,
+        this.usageAggregatorRef,
+        this.eventBus,
+        this.monitoringEvents,
+        this.persistEvent,
+        this.monitoringEmitter,
+      );
+      this.sessions.set(conversationId, session);
+    }
+
+    return session.handleChat(c, slug, input, options, context);
   }
 
-  /** Get status of all connections */
+  /** Status: probe availability per source + active session count */
   getStatus(): {
-    connections: Array<
-      { id: string; name: string; icon?: string } & ReturnType<
-        ACPConnection['getStatus']
-      >
-    >;
+    connections: Array<{
+      id: string;
+      name: string;
+      icon?: string;
+      status: string;
+      modes: string[];
+      sessionId: null;
+      mcpServers: string[];
+      configOptions: any[];
+      currentModel: string | null;
+    }>;
+    activeSessions: number;
   } {
     return {
-      connections: Array.from(this.connections.values()).map((c) => ({
-        id: c.config.id,
-        name: c.config.name,
-        icon: c.config.icon,
-        ...c.getStatus(),
-      })),
+      connections: Array.from(this.probes.entries()).map(([id, probe]) => {
+        const config = this.configs.get(id);
+        const configOptions = probe.getConfigOptions();
+        const modelConfig = configOptions.find((o: any) => o.category === 'model');
+        return {
+          id,
+          name: config?.name || id,
+          icon: config?.icon,
+          status: probe.isAvailable() ? ACPStatus.AVAILABLE : (probe.lastProbeAt > 0 ? ACPStatus.UNAVAILABLE : ACPStatus.PROBING),
+          modes: probe.getModes().map((m) => m.id),
+          sessionId: null,
+          mcpServers: [],
+          configOptions,
+          currentModel: modelConfig?.currentValue || null,
+        };
+      }),
+      activeSessions: this.sessions.size,
     };
   }
 
-  /** Get a specific connection */
-  getConnection(id: string): ACPConnection | undefined {
-    return this.connections.get(id);
+  private findConfigIdForSlug(slug: string): string | undefined {
+    for (const [id, probe] of this.probes) {
+      if (probe.getModes().some((m) => `${id}-${m.id}` === slug)) return id;
+    }
+    return undefined;
   }
 
-  private findConnectionForSlug(slug: string): ACPConnection | undefined {
-    return Array.from(this.connections.values()).find((c) => c.hasAgent(slug));
+  private findSessionForSlug(slug: string): ACPConnection | undefined {
+    return Array.from(this.sessions.values()).find((s) => s.hasAgent(slug));
   }
 }

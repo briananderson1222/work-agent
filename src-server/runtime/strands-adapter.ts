@@ -390,9 +390,10 @@ export class StrandsFramework {
       );
     }
 
+    const resolvedPrompt = typeof opts.processedPrompt === 'function' ? opts.processedPrompt() : opts.processedPrompt;
     const strandsAgent = new StrandsAgent({
       model,
-      systemPrompt: opts.processedPrompt,
+      systemPrompt: resolvedPrompt,
       tools: functionTools,
     });
 
@@ -690,7 +691,7 @@ export class StrandsFramework {
 
   async createTempAgent(opts: {
     name: string;
-    instructions: string;
+    instructions: string | (() => string);
     model: any;
     tools?: ITool[];
     maxSteps?: number;
@@ -705,9 +706,10 @@ export class StrandsFramework {
           callback: async (input: unknown) => t.execute(input),
         }),
     );
+    const resolved = typeof opts.instructions === 'function' ? opts.instructions() : opts.instructions;
     const agent = new StrandsAgent({
       model: opts.model,
-      systemPrompt: opts.instructions,
+      systemPrompt: resolved,
       tools: strandsTools,
     });
     return new StrandsAgentWrapper(

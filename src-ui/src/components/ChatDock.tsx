@@ -11,6 +11,7 @@ import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContex
 import { useModels } from '../contexts/ModelsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useProject, useProjects } from '../contexts/ProjectsContext';
+import { useProjectLayoutsQuery } from '@stallion-ai/sdk';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useChatDockActions } from '../hooks/useChatDockActions';
 import { useChatDockKeyboardShortcuts } from '../hooks/useChatDockKeyboardShortcuts';
@@ -45,6 +46,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setActiveChat,
     setDockMode,
     setProject,
+    setLayout,
   } = useNavigation();
   const agents = useAgents();
   const { projects } = useProjects();
@@ -104,6 +106,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const sessionWorkingDir = sessionProject?.workingDirectory ?? null;
   const sessionProjectName = sessionProject?.name ?? activeSessionForHook?.projectName ?? sessionProjectSlug;
   const { data: gitStatus } = useGitStatus(sessionWorkingDir);
+  const { data: sessionLayouts = [] } = useProjectLayoutsQuery(sessionProjectSlug ?? '', { enabled: !!sessionProjectSlug });
+  const sessionCodingLayout = sessionLayouts.find((l: any) => l.type === 'coding');
 
   // For ACP agents with their own model options, use those instead of Bedrock models
   const effectiveModels = agentForHook?.modelOptions || availableModels;
@@ -280,10 +284,16 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                 <div className="chat-dock__project-context">
                   <span className={`chat-dock__project-badge${isCurrentProject ? '' : ' chat-dock__project-badge--link'}`} onClick={isCurrentProject ? undefined : () => setProject(activeSession.projectSlug!)}>{sessionProjectName || activeSession.projectSlug}</span>
                   {sessionWorkingDir && (
-                    <span className="chat-dock__project-dir">
+                    <span
+                      className={`chat-dock__project-dir${sessionCodingLayout ? ' chat-dock__project-dir--link' : ''}`}
+                      onClick={sessionCodingLayout ? () => setLayout(activeSession.projectSlug!, sessionCodingLayout.slug) : undefined}
+                    >
                       <span className="chat-dock__project-dir-parent">{parentPath}</span>
                       <span className="chat-dock__project-dir-leaf">{lastFolder}</span>
                     </span>
+                  )}
+                  {!sessionWorkingDir && (
+                    <span className="chat-dock__project-dir chat-dock__project-dir--fallback">~ (defaults to home)</span>
                   )}
                   {gitStatus && <GitBadge git={gitStatus} />}
                 </div>
@@ -319,12 +329,10 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       {showNewChatModal && (
         <NewChatModal
           agents={agents}
-          onSelect={(agent) => {
-            openChatForAgent(
-              agent,
-              activeProject ?? undefined,
-              activeProjectName ?? undefined,
-            );
+          projects={projects}
+          activeProjectSlug={activeProject}
+          onSelect={(agent, projectSlug, projectName) => {
+            openChatForAgent(agent, projectSlug, projectName);
             setShowNewChatModal(false);
           }}
           onClose={() => setShowNewChatModal(false)}

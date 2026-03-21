@@ -37,6 +37,7 @@ export interface IAgentRegistryProvider {
   listInstalled(): Promise<RegistryItem[]>;
   install(id: string): Promise<InstallResult>;
   uninstall(id: string): Promise<InstallResult>;
+  update?(id: string): Promise<InstallResult>;
 }
 
 export interface IIntegrationRegistryProvider {
@@ -47,6 +48,7 @@ export interface IIntegrationRegistryProvider {
   getToolDef(id: string): Promise<ToolDef | null>;
   sync(): Promise<void>;
   installByCommand?(command: string): Promise<InstallResult>;
+  update?(id: string): Promise<InstallResult>;
 }
 
 export interface ISkillRegistryProvider {
@@ -54,12 +56,23 @@ export interface ISkillRegistryProvider {
   listInstalled(): Promise<RegistryItem[]>;
   install(id: string, targetDir: string): Promise<InstallResult>;
   uninstall(id: string, targetDir: string): Promise<InstallResult>;
+  update?(id: string): Promise<InstallResult>;
+}
+
+export interface IPluginRegistryProvider {
+  listAvailable(): Promise<RegistryItem[]>;
+  listInstalled(): Promise<RegistryItem[]>;
+  install(id: string): Promise<InstallResult>;
+  uninstall(id: string): Promise<InstallResult>;
+  preview?(id: string): Promise<import('@stallion-ai/shared').PluginPreview>;
+  update?(id: string): Promise<InstallResult>;
 }
 
 export interface IAuthProvider {
   getStatus(): Promise<AuthStatus>;
   renew(): Promise<RenewResult>;
   getBadgePhoto?(id: string): Promise<ArrayBuffer | null>;
+  getPrerequisites?(): Promise<Prerequisite[]>;
 }
 
 export interface IUserIdentityProvider {
@@ -72,9 +85,6 @@ export interface IUserDirectoryProvider {
   searchPeople(query: string): Promise<UserDetailVM[]>;
 }
 
-export interface IOnboardingProvider {
-  getPrerequisites(): Promise<Prerequisite[]>;
-}
 
 export interface IBrandingProvider {
   getAppName(): Promise<string>;
@@ -179,6 +189,7 @@ export interface ISchedulerProvider {
   getStatus(): Promise<SchedulerProviderStatus>;
   previewSchedule?(cron: string, count?: number): Promise<string[]>;
   subscribe?(send: (data: string) => void): () => void;
+  getPrerequisites?(): Promise<Prerequisite[]>;
 }
 
 // ── Notification Provider ──────────────────────────────
@@ -236,6 +247,7 @@ export interface ILLMProvider {
   supportsStreaming?(): boolean;
   supportsToolCalling?(): boolean;
   healthCheck?(): Promise<boolean>;
+  getPrerequisites?(): Promise<Prerequisite[]>;
 }
 
 // ── Embedding Provider ─────────────────────────────────
@@ -246,6 +258,7 @@ export interface IEmbeddingProvider {
   embed(texts: string[]): Promise<number[][]>;
   dimensions(): number;
   healthCheck?(): Promise<boolean>;
+  getPrerequisites?(): Promise<Prerequisite[]>;
 }
 
 // ── Vector DB Provider ─────────────────────────────────
@@ -355,7 +368,7 @@ export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
   scheduler: 'additive',
   agentRegistry: 'additive',
   integrationRegistry: 'additive',
-  onboarding: 'additive',
+  pluginRegistry: 'additive',
   acpConnections: 'additive',
   llmProvider: 'additive',
   embeddingProvider: 'additive',

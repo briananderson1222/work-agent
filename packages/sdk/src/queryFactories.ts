@@ -56,3 +56,32 @@ export const agentQueries = {
     staleTime: 30 * 1000, // 30 seconds
   }),
 };
+
+export const knowledgeQueries = {
+  namespaces: (projectSlug: string) => ({
+    queryKey: ['knowledge', 'namespaces', projectSlug],
+    queryFn: async () => {
+      const { fetchKnowledgeNamespaces } = await import('./api');
+      return fetchKnowledgeNamespaces(projectSlug);
+    },
+    staleTime: 5 * 60 * 1000,
+  }),
+
+  list: (projectSlug: string, namespace?: string) => ({
+    queryKey: ['knowledge', 'docs', projectSlug, namespace ?? 'all'],
+    queryFn: async () => {
+      const { fetchKnowledgeDocs } = await import('./api');
+      return fetchKnowledgeDocs(projectSlug, namespace);
+    },
+    staleTime: 2 * 60 * 1000,
+  }),
+
+  search: (projectSlug: string, query: string, namespace?: string, topK?: number) => ({
+    queryKey: ['knowledge', 'search', projectSlug, query, namespace ?? 'all', topK],
+    queryFn: async () => {
+      const { searchKnowledge } = await import('./api');
+      return searchKnowledge(projectSlug, query, namespace, topK);
+    },
+    staleTime: 60 * 1000,
+  }),
+};

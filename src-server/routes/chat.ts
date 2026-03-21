@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
 import { SpanStatusCode } from '@opentelemetry/api';
 import { createLLMProviderFromConfig, streamWithProvider } from '../services/llm-router.js';
+import { getCachedUser } from './auth.js';
 import { InjectableStream } from '../runtime/streaming/InjectableStream.js';
 import * as StreamOrchestrator from '../runtime/stream-orchestrator.js';
 import {
@@ -49,7 +50,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
           slug,
           input,
           options,
-          acpCwd ? { cwd: acpCwd } : undefined,
+          { ...(acpCwd && { cwd: acpCwd }), ...(options.conversationId && { conversationId: options.conversationId }) },
         );
       }
 
@@ -71,6 +72,16 @@ export function createChatRoutes(ctx: RuntimeContext) {
           }
         } catch (err: any) {
           ctx.logger.warn('Failed to resolve project provider', { projectSlug, error: err.message });
+        }
+      }
+
+      // Inject context — project rules and inject-behavior knowledge namespaces
+      let injectContext: string | null = null;
+      if (projectSlug) {
+        try {
+          injectContext = await ctx.knowledgeService.getInjectContext(projectSlug);
+        } catch (err: any) {
+          ctx.logger.debug('Inject context retrieval failed', { projectSlug, error: err.message });
         }
       }
 
@@ -119,10 +130,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
               ? ctx.replaceTemplateVariables(agentSpec.prompt)
               : '';
             const combinedPrompt = [globalPrompt, agentPrompt].filter(Boolean).join('\n\n');
-            const systemPrompt =
-              ragContext && combinedPrompt
-                ? `${ragContext}\n\n${combinedPrompt}`
-                : ragContext || combinedPrompt;
+            const systemPrompt = [injectContext, ragContext, combinedPrompt].filter(Boolean).join('\n\n');
             if (systemPrompt) {
               messages.push({ role: 'system', content: systemPrompt });
             }
@@ -131,7 +139,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
               try {
                 const adapter = ctx.memoryAdapters.get(slug);
                 if (adapter) {
-                  const userId = options.userId || 'default-user';
+                  const userId = options.userId || getCachedUser().alias;
                   const msgs = await adapter.getMessages(userId, options.conversationId);
                   if (msgs) {
                     for (const msg of msgs) {
@@ -313,14 +321,8 @@ export function createChatRoutes(ctx: RuntimeContext) {
           }
 
           // Resolve userId from auth
-          if (!operationContext.userId || operationContext.userId === 'default-user') {
-            try {
-              const { getCachedUser } = await import('../routes/auth.js');
-              operationContext.userId = getCachedUser().alias || 'default-user';
-            } catch (e) {
-              console.debug('Failed to resolve user from auth:', e);
-              operationContext.userId = operationContext.userId || 'default-user';
-            }
+          if (!operationContext.userId) {
+            operationContext.userId = getCachedUser().alias;
           }
 
           // Generate conversationId if not provided
@@ -387,14 +389,15 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           // Inject RAG context into input
           let finalInput = input;
-          if (ragContext && typeof input === 'string') {
-            finalInput = `${ragContext}\n\n${input}`;
-          } else if (ragContext && Array.isArray(input)) {
+          const combinedContext = [injectContext, ragContext].filter(Boolean).join('\n\n') || null;
+          if (combinedContext && typeof input === 'string') {
+            finalInput = `${combinedContext}\n\n${input}`;
+          } else if (combinedContext && Array.isArray(input)) {
             const clone = JSON.parse(JSON.stringify(input));
             const userMsg = clone.find((m: any) => m.role === 'user');
             if (userMsg?.parts) {
               const textPart = userMsg.parts.find((p: any) => p.type === 'text');
-              if (textPart) textPart.text = `${ragContext}\n\n${textPart.text}`;
+              if (textPart) textPart.text = `${combinedContext}\n\n${textPart.text}`;
             }
             finalInput = clone;
           }
@@ -403,18 +406,12 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           ctx.agentStatus.set(slug, 'running');
 
-          const agentStartEvent = {
-            type: 'agent-start',
-            timestamp: new Date().toISOString(),
-            timestampMs: Date.now(),
-            agentSlug: slug,
-            conversationId: operationContext.conversationId,
-            userId: operationContext.userId,
-            traceId,
-            input: typeof input === 'string' ? input : input?.text || '[complex input]',
-          };
-          ctx.monitoringEvents.emit('event', agentStartEvent);
-          await ctx.persistEvent(agentStartEvent);
+          if (ctx.monitoringEmitter) {
+            ctx.monitoringEmitter.emitAgentStart({
+              slug, conversationId: operationContext.conversationId, userId: operationContext.userId,
+              traceId, input: typeof input === 'string' ? input : input?.text || '[complex input]',
+            });
+          }
 
           // Initialize stats if needed
           if (!ctx.agentStats.has(slug)) {
@@ -483,6 +480,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
               traceId,
               plugin,
             },
+            ctx.monitoringEmitter,
           );
 
           const agentTools = ctx.agentTools.get(slug) || [];
@@ -555,13 +553,13 @@ export function createChatRoutes(ctx: RuntimeContext) {
               if (userText) {
                 await memoryAdapter.addMessage(
                   { id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: userText }] },
-                  operationContext.userId || 'default-user',
+                  operationContext.userId || getCachedUser().alias,
                   conversationId,
                 );
               }
               await memoryAdapter.addMessage(
                 { id: crypto.randomUUID(), role: 'assistant', parts: [{ type: 'text', text: accumulatedText }] },
-                operationContext.userId || 'default-user',
+                operationContext.userId || getCachedUser().alias,
                 conversationId,
                 { model: modelOverride || ctx.agentSpecs.get(slug)?.model },
               );
@@ -582,31 +580,17 @@ export function createChatRoutes(ctx: RuntimeContext) {
             // Usage might not be available
           }
 
-          const agentCompleteEvent = {
-            type: 'agent-complete',
-            timestamp: new Date().toISOString(),
-            timestampMs: Date.now(),
-            agentSlug: slug,
-            conversationId: operationContext.conversationId,
-            userId: operationContext.userId,
-            traceId: requestTraceId,
-            reason: completionReason,
-            artifacts,
-            steps: currentStep,
-            toolCallCount,
-            maxSteps: ctx.agentSpecs.get(slug)?.guardrails?.maxSteps,
-            inputChars: typeof input === 'string' ? input.length : input?.text?.length || 0,
-            outputChars: finalOutput.length,
-            usage: usage
-              ? {
-                  promptTokens: usage.promptTokens || usage.inputTokens || 0,
-                  completionTokens: usage.completionTokens || usage.outputTokens || 0,
-                  totalTokens: usage.totalTokens || 0,
-                }
-              : undefined,
-          };
-          ctx.monitoringEvents.emit('event', agentCompleteEvent);
-          await ctx.persistEvent(agentCompleteEvent);
+          if (ctx.monitoringEmitter) {
+            ctx.monitoringEmitter.emitAgentComplete({
+              slug, conversationId: operationContext.conversationId, userId: operationContext.userId,
+              traceId: requestTraceId, reason: completionReason, steps: currentStep,
+              maxSteps: ctx.agentSpecs.get(slug)?.guardrails?.maxSteps,
+              inputChars: typeof input === 'string' ? input.length : input?.text?.length || 0,
+              outputChars: finalOutput.length,
+              usage: usage ? { inputTokens: usage.promptTokens || usage.inputTokens || 0, outputTokens: usage.completionTokens || usage.outputTokens || 0 } : undefined,
+              artifacts,
+            });
+          }
 
           const stats = ctx.agentStats.get(slug);
           if (stats) {
