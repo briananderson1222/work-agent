@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { type PluginManifest, readPluginManifest } from '@stallion-ai/shared';
 
 export const PROJECT_HOME = join(homedir(), '.stallion-ai');
@@ -39,7 +39,7 @@ export function extractPluginName(source: string): string {
     const match = url.match(/\/([^/]+?)(?:\.git)?$/);
     return match ? match[1] : url.split('/').pop()!.replace('.git', '');
   }
-  return source.split('/').pop()!;
+  return basename(source.replace(/\\/g, '/'));
 }
 
 /** Scan installed plugins for registry.json files and look up a dep by id */
