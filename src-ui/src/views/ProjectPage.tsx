@@ -1,5 +1,5 @@
 import { useProjectLayoutsQuery, useProjectQuery, useUpdateProjectMutation, useCreateLayoutMutation, useKnowledgeDocsQuery, useKnowledgeNamespacesQuery, useKnowledgeSearchQuery, useKnowledgeBulkDeleteMutation, useKnowledgeStatusQuery, useKnowledgeScanMutation, useProjectConversationsQuery, useAddLayoutFromPluginMutation, fetchKnowledgeDocs, uploadKnowledge, deleteKnowledgeDoc, fetchAvailableLayouts, updateKnowledgeNamespace } from '@stallion-ai/sdk';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { PathAutocomplete } from '../components/PathAutocomplete';
 import { useApiBase } from '../contexts/ApiBaseContext';
