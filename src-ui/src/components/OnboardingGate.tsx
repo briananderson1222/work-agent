@@ -30,17 +30,23 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
 
   // Track whether we've ever been successfully connected
   const wasConnected = useRef(false);
+  // Track whether we've shown the error screen — prevents bouncing to loader on background retries
+  const hasShownError = useRef(false);
   useEffect(() => {
-    if (status?.ready) wasConnected.current = true;
+    if (status?.ready) {
+      wasConnected.current = true;
+      hasShownError.current = false;
+    }
   }, [status?.ready]);
 
-  // Loading state
-  if (isLoading) {
+  // Loading state — only on initial load, not during background retries from the error screen
+  if (isLoading && !hasShownError.current) {
     return <FullScreenLoader label="loading" />;
   }
 
   // Can't reach server
   if (isError || !status) {
+    hasShownError.current = true;
     // If we were previously connected, show a non-blocking reconnect banner
     if (wasConnected.current) {
       return (
