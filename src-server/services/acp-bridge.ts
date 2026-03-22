@@ -205,6 +205,8 @@ export class ACPConnection {
   private terminalCounter = 0;
   private status: ACPConnectionStatus = 'disconnected';
   private shuttingDown = false;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: runtime state flag used in kill logic
+  private intentionalKill = false;
   private lastActivityAt: number = Date.now();
 
   // Per-prompt SSE writer — set during handleChat, used by Client callbacks

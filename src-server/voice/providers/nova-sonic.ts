@@ -30,6 +30,8 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
   private currentToolName = '';
   private currentToolUseId = '';
   private currentToolContent = '';
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: runtime state tracking for content type
+  private currentContentType = '';
 
   readonly outputAudioFormat = OUTPUT_FORMAT;
 
