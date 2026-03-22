@@ -1,7 +1,6 @@
 import { execSync, spawn } from 'node:child_process';
 import {
   existsSync,
-  mkdirSync,
   openSync,
   readFileSync,
   rmSync,
@@ -13,7 +12,6 @@ import { CWD, PIDFILE, PROJECT_HOME } from './helpers.js';
 import {
   createAppShortcut,
   createPathLink,
-  IS_WINDOWS,
   killProcessTree,
   promptYN,
   sleepSync,
@@ -83,8 +81,8 @@ export function start(opts: StartOptions = {}): void {
     ...(process.env as any),
     PORT: String(serverPort),
   };
-  if (baseDir) serverEnv['STALLION_AI_DIR'] = baseDir;
-  if (features) serverEnv['STALLION_FEATURES'] = features;
+  if (baseDir) serverEnv.STALLION_AI_DIR = baseDir;
+  if (features) serverEnv.STALLION_FEATURES = features;
 
   const serverProc = spawn('node', ['dist-server/index.js'], {
     cwd: CWD,

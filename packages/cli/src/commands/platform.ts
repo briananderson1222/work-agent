@@ -77,7 +77,7 @@ export function createPathLink(repoRoot: string): void {
   if (IS_WINDOWS) {
     const cliTs = join(repoRoot, 'packages', 'cli', 'src', 'cli.ts');
     const npmBin = join(
-      process.env['APPDATA'] ?? join(homedir(), 'AppData', 'Roaming'),
+      process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'),
       'npm',
     );
     mkdirSync(npmBin, { recursive: true });

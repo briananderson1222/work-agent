@@ -4,7 +4,6 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
-  writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -95,15 +94,15 @@ describe('createPathLink', () => {
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
-    if (origAppData !== undefined) process.env['APPDATA'] = origAppData;
-    else delete process.env['APPDATA'];
+    if (origAppData !== undefined) process.env.APPDATA = origAppData;
+    else delete process.env.APPDATA;
   });
 
   it.runIf(IS_WINDOWS)(
     'Windows: writes stallion.cmd shim to %APPDATA%\\npm\\',
     () => {
-      origAppData = process.env['APPDATA'];
-      process.env['APPDATA'] = tmpDir;
+      origAppData = process.env.APPDATA;
+      process.env.APPDATA = tmpDir;
 
       createPathLink('/fake/repo');
 
@@ -122,8 +121,8 @@ describe('createPathLink', () => {
   it.runIf(IS_WINDOWS)(
     'Windows: creates npm bin dir if it does not exist',
     () => {
-      origAppData = process.env['APPDATA'];
-      process.env['APPDATA'] = tmpDir;
+      origAppData = process.env.APPDATA;
+      process.env.APPDATA = tmpDir;
 
       expect(existsSync(join(tmpDir, 'npm'))).toBe(false);
       createPathLink('/fake/repo');
