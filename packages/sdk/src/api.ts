@@ -529,7 +529,7 @@ export async function fetchProjectConversations(projectSlug: string, limit = 10)
   const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/conversations?limit=${limit}`, {
     headers: { 'x-stallion-plugin': _getPluginName() },
   });
-  if (!res.ok) throw new Error(`Failed to fetch conversations: ${res.statusText}`);
+  if (!res.ok) return [];
   const json = await res.json();
   return json.success ? json.data : [];
 }
