@@ -438,7 +438,7 @@ export class KnowledgeService {
     namespace: string = 'code',
   ): Promise<{ indexed: number; skipped: number }> {
     const nsCfg = this.getNamespaceConfig(projectSlug, namespace);
-    const storageDir = this.resolveStorageDir(projectSlug, namespace);
+    const _storageDir = this.resolveStorageDir(projectSlug, namespace);
 
     // Determine scan directory: namespace storageDir (files subdir or root), or project workingDirectory
     let scanPath: string | null = null;

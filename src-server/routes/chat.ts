@@ -280,7 +280,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
         let hasOutput = false;
         let accumulatedText = '';
         let reasoningText = '';
-        let toolCallCount = 0;
+        let _toolCallCount = 0;
         let currentStep = 0;
         let requestTraceId = '';
         let isNewConversation = false;
@@ -464,7 +464,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
           hasOutput = false;
           accumulatedText = '';
           reasoningText = '';
-          toolCallCount = 0;
+          _toolCallCount = 0;
           currentStep = 0;
           requestTraceId = traceId;
 
@@ -513,7 +513,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
             accumulatedText = results.completion.accumulatedText;
           }
           if (results.metadata) {
-            toolCallCount = results.metadata.toolCalls || 0;
+            _toolCallCount = results.metadata.toolCalls || 0;
           }
 
           if (abortController.signal.aborted) {

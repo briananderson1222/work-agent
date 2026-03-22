@@ -628,7 +628,7 @@ export function CodingLayout({
         }),
     ),
   );
-  const hasInitialized = useRef(tabs.length > 0);
+  const _hasInitialized = useRef(tabs.length > 0);
 
   // Persist tabs
   useEffect(() => {
@@ -1047,7 +1047,7 @@ function NewTerminalModal({
   // Reset selection when filter changes
   useEffect(() => {
     setSelectedIdx(0);
-  }, [filter]);
+  }, []);
 
   const selectItem = (item: (typeof items)[0]) => {
     if (item.type === 'agent' && item.slug) trackRecentAgent(item.slug);

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useVoiceSession } from '../hooks/useVoiceSession';
 import './VoicePill.css';
 

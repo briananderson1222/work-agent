@@ -5,12 +5,10 @@
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { getCachedUser } from '../routes/auth.js';
 import { MonitoringEmitter } from '../monitoring/emitter.js';
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import {
   type Client,
@@ -38,7 +36,6 @@ import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ACPConnectionConfig } from '../domain/types.js';
 import { ACPStatus, type ACPStatusValue } from '../domain/types.js';
 import { acpOps, approvalOps } from '../telemetry/metrics.js';
-import { resolveHomeDir } from '../utils/paths.js';
 import { ApprovalRegistry } from './approval-registry.js';
 import { ACPProbe } from './acp-probe.js';
 
@@ -163,10 +160,6 @@ interface ExtNotificationParams {
   url?: string;
 }
 
-interface ConversationMetadata {
-  acpSessionId?: string;
-}
-
 interface ToolCall {
   title?: string | null;
   rawInput?: any;
@@ -212,7 +205,6 @@ export class ACPConnection {
   private terminalCounter = 0;
   private status: ACPConnectionStatus = 'disconnected';
   private shuttingDown = false;
-  private intentionalKill = false;
   private lastActivityAt: number = Date.now();
 
   // Per-prompt SSE writer — set during handleChat, used by Client callbacks
@@ -1483,72 +1475,6 @@ export class ACPConnection {
       this.logger.debug('Failed to detect model from CLI settings', { error: e });
       /* ignore */
     }
-  }
-
-  /** Pre-create adapters for any existing agent dirs for this connection on disk */
-  private preCreateAdaptersFromDisk(): void {
-    if (!this.memoryAdapters || !this.createMemoryAdapter) return;
-    try {
-      const agentsDir = join(resolveHomeDir(), 'agents');
-      if (!existsSync(agentsDir)) return;
-      for (const dir of readdirSync(agentsDir) as string[]) {
-        if (
-          dir.startsWith(`${this.prefix}-`) &&
-          !this.memoryAdapters.has(dir)
-        ) {
-          this.getOrCreateAdapter(dir);
-          this.logger.debug('[ACPBridge] Pre-created adapter from disk', {
-            slug: dir,
-          });
-        }
-      }
-    } catch (err) {
-      this.logger.warn('[ACPBridge] Failed to pre-create adapters', {
-        error: (err as Error).message,
-      });
-    }
-  }
-
-  /** Find the most recent acpSessionId from stored conversations */
-  private async findPreviousSessionId(): Promise<string | null> {
-    if (!this.memoryAdapters) return null;
-    if (this.sessionMap.size > 0) {
-      const sid = Array.from(this.sessionMap.values()).pop() || null;
-      this.logger.info('[ACPBridge] Found previous session from sessionMap', {
-        sessionId: sid,
-      });
-      return sid;
-    }
-    for (const [slug, adapter] of Array.from(this.memoryAdapters)) {
-      if (!slug.startsWith(`${this.prefix}-`)) continue;
-      try {
-        const conversations = await adapter.getConversations(slug);
-        this.logger.debug('[ACPBridge] Scanning conversations for session', {
-          slug,
-          count: conversations.length,
-        });
-        const sorted = conversations.sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-        );
-        for (const conv of sorted) {
-          const metadata = conv.metadata as ConversationMetadata;
-          const sid = metadata?.acpSessionId;
-          if (sid) {
-            this.logger.info(
-              '[ACPBridge] Found previous session from conversation metadata',
-              { sessionId: sid, conversationId: conv.id },
-            );
-            return sid;
-          }
-        }
-      } catch (e) {
-        this.logger.debug('Failed to scan conversations for previous session', { slug, error: e });
-        /* ignore */
-      }
-    }
-    this.logger.info('[ACPBridge] No previous session found');
-    return null;
   }
 
   private cleanup(): void {

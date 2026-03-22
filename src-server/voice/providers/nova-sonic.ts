@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { BedrockRuntimeClient, InvokeModelWithBidirectionalStreamCommand, type InvokeModelWithBidirectionalStreamInput } from '@aws-sdk/client-bedrock-runtime';
 import { NodeHttp2Handler } from '@smithy/node-http-handler';
 import type { IS2SProvider, S2SAudioFormat, S2SSessionConfig, S2SProviderState } from '../s2s-types.js';
@@ -27,7 +27,6 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
   // Per-response tracking
   private currentRole = '';
   private currentGenerationStage = '';
-  private currentContentType = '';
   private currentToolName = '';
   private currentToolUseId = '';
   private currentToolContent = '';

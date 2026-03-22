@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import type { IS2SProvider, S2SSessionConfig, S2SToolDefinition } from './s2s-types.js';
 

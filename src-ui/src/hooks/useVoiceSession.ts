@@ -164,7 +164,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
     try {
       const res = await fetch(`${apiBase}/api/voice/sessions`, { method: 'POST' });
       if (!res.ok) throw new Error(`Session creation failed: ${res.status}`);
-      const { sessionId } = await res.json();
+      const { sessionId: _sessionId } = await res.json();
 
       const wsUrl = new URL(apiBase);
       const voiceWsPort = parseInt(wsUrl.port || '3141', 10) + 2;

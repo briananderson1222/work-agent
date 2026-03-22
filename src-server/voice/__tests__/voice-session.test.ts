@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { VoiceSessionService } from '../voice-session.js';
 import type { IS2SProvider, S2SAudioFormat, S2SSessionConfig } from '../s2s-types.js';
@@ -43,7 +43,10 @@ class MockWebSocket {
   sentMessages: object[] = [];
   private handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
   send(data: string): void { this.sentMessages.push(JSON.parse(data)); }
-  on(event: string, handler: (...args: unknown[]) => void): void { (this.handlers[event] ??= []).push(handler); }
+  on(event: string, handler: (...args: unknown[]) => void): void {
+    if (!this.handlers[event]) this.handlers[event] = [];
+    this.handlers[event].push(handler);
+  }
   trigger(event: string, ...args: unknown[]): void { this.handlers[event]?.forEach((h) => h(...args)); }
 }
 

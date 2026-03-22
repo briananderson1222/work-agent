@@ -50,7 +50,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   } = useNavigation();
   const agents = useAgents();
   const { projects } = useProjects();
-  const { projectSlug: activeProject, projectName: activeProjectName, workingDirectory: activeWorkingDir } =
+  const { projectSlug: activeProject, projectName: activeProjectName } =
     useActiveProject();
   const availableModels = useModels();
   const appConfig = useConfig();
@@ -186,7 +186,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       } catch { /* conversation not found */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeChat]);
+  }, [activeChat, apiBase, openConversation, sessions.find, setActiveSessionId]);
 
   // Drag to resize
   useDragResize({
@@ -279,7 +279,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               const isCurrentProject = selectedProject === activeSession.projectSlug;
               const parts = sessionWorkingDir ? sessionWorkingDir.replace(/\/+$/, '').split('/') : [];
               const lastFolder = parts.pop() || '';
-              const parentPath = parts.length ? parts.join('/') + '/' : '';
+              const parentPath = parts.length ? `${parts.join('/')}/` : '';
               return (
                 <div className="chat-dock__project-context">
                   <span className={`chat-dock__project-badge${isCurrentProject ? '' : ' chat-dock__project-badge--link'}`} onClick={isCurrentProject ? undefined : () => setProject(activeSession.projectSlug!)}>{sessionProjectName || activeSession.projectSlug}</span>

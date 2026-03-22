@@ -170,7 +170,7 @@ export function NewChatModal({
       .filter((g) => g.agents.length > 0)
       .flatMap((g) => g.agents);
     return { groups: groups.filter((g) => g.agents.length > 0), flatList };
-  }, [agents, agentSearch, wsAgentSlugs, layout?.icon, layout?.name, selectedContext]);
+  }, [agents, agentSearch, wsAgentSlugs, layout?.icon, layout?.name, selectedContext, isGlobal, selectedProject?.layoutCount]);
 
   const handleSelect = (agent: AgentData) => {
     trackRecentAgent(agent.slug);
@@ -319,7 +319,7 @@ export function NewChatModal({
 function CwdBreadcrumb({ path }: { path: string }) {
   const parts = path.replace(/\/+$/, '').split('/');
   const leaf = parts.pop() || '';
-  const parent = parts.length ? parts.join('/') + '/' : '';
+  const parent = parts.length ? `${parts.join('/')}/` : '';
   return (
     <>
       <span className="new-chat-modal__dir-parent">{parent}</span>

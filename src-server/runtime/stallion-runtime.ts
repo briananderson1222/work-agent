@@ -1007,7 +1007,7 @@ export class StallionRuntime {
     );
     app.route(
       '/agents',
-      createConversationRoutes(this.memoryAdapters, this.logger, this.agentFixedTokens, this.agentTools, this.configLoader, this.appConfig, this.modelCatalog, (slug: string) => {
+      createConversationRoutes(this.memoryAdapters, this.logger, this.agentFixedTokens, this.agentTools, this.configLoader, this.appConfig, this.modelCatalog, (_slug: string) => {
         return new FileMemoryAdapter({
           projectHomeDir: this.configLoader.getProjectHomeDir(),
           usageAggregator: this.usageAggregator,
@@ -1487,7 +1487,7 @@ export class StallionRuntime {
         const promptsDir = join(pluginsDir, name, manifest.prompts.source);
         const scanned = scanPromptDir(promptsDir, name);
         if (scanned.length > 0) svc.registerPluginPrompts(scanned);
-      } catch { continue; }
+      } catch { }
     }
   }
 

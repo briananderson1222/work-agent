@@ -42,14 +42,14 @@ export function ChatMessageList({
   const agent = agents.find((a) => a.slug === activeSession.agentSlug);
 
   const lastMsg = messages[messages.length - 1];
-  const streamTick = lastMsg?.content?.length ?? 0;
+  const _streamTick = lastMsg?.content?.length ?? 0;
 
   useEffect(() => {
     if (!isUserScrolledUp && messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop =
         messagesContainerRef.current.scrollHeight;
     }
-  }, [isUserScrolledUp, messages.length, streamTick, activeSession.status]);
+  }, [isUserScrolledUp]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;

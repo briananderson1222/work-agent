@@ -9,7 +9,6 @@ import {
 } from 'react';
 import { log } from '@/utils/logger';
 import type { FileAttachment } from '../types';
-import { CONFIG_DEFAULTS } from './ConfigContext';
 
 export type ConversationStatus = 'idle' | 'streaming' | 'processing';
 

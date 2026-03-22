@@ -225,7 +225,7 @@ export function MonitoringView() {
     setAbsoluteEnd(localEnd);
     setTimeMode('relative');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount
+  }, [setTimeRange]); // Only run on mount
 
   // Update time range when live mode changes
   useEffect(() => {

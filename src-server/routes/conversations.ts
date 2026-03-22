@@ -166,7 +166,7 @@ export function createGlobalConversationRoutes(
   memoryAdapters: Map<string, FileMemoryAdapter>,
   storageAdapter: { getConversation(id: string): any },
   logger: any,
-  createMemoryAdapter?: (slug: string) => FileMemoryAdapter,
+  _createMemoryAdapter?: (slug: string) => FileMemoryAdapter,
 ) {
   const app = new Hono();
 

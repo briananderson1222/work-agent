@@ -184,7 +184,7 @@ export function LayoutView({
       // Resolve prompt content: if id looks like a plugin prompt ref (e.g. "sales-sa:activity"),
       // fetch the actual prompt content from the server
       let promptText = prompt.prompt;
-      if (prompt.id && prompt.id.includes(':') && promptText === prompt.label) {
+      if (prompt.id?.includes(':') && promptText === prompt.label) {
         try {
           const res = await fetch(`${apiBase}/api/prompts/${encodeURIComponent(prompt.id)}`);
           const data = await res.json();

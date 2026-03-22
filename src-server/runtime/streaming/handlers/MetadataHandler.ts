@@ -30,8 +30,7 @@ export class MetadataHandler implements StreamHandler {
 
   private toolStartTimes = new Map<string, { start: number; tool: string }>();
 
-  constructor(
-    private monitoringEvents?: EventEmitter,
+  constructor(_monitoringEvents?: EventEmitter,
     private context?: {
       slug: string;
       conversationId?: string;

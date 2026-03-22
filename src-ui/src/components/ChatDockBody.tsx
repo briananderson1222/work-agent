@@ -140,7 +140,7 @@ export function ChatDockBody({
   );
   const ephemeralMessages = activeSession.messages.filter((m) => m.isEphemeral);
 
-  const handleDismissEphemeral = (messageId: string) => {
+  const handleDismissEphemeral = useCallback((messageId: string) => {
     setRemovingMessages((prev) => new Set(prev).add(messageId));
     setTimeout(() => {
       const updated = ephemeralMessages.filter(
@@ -157,7 +157,7 @@ export function ChatDockBody({
         return next;
       });
     }, 300);
-  };
+  }, [ephemeralMessages, activeSession.id, clearEphemeralMessages, updateChat]);
 
   const agent = agents.find((a) => a.slug === activeSession.agentSlug);
 
@@ -207,7 +207,7 @@ export function ChatDockBody({
 
       return null; // Use default MessageBubble rendering
     },
-    [chatFontSize, removingMessages, activeSession.id, clearEphemeralMessages],
+    [chatFontSize, removingMessages, activeSession.id, clearEphemeralMessages, handleDismissEphemeral],
   );
 
   return (
