@@ -21,6 +21,8 @@
  *     --tools-dir=<path>    Tool configs directory
  */
 
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { build } from './commands/build.js';
 import { configGet, configSet } from './commands/config.js';
 import { init } from './commands/init.js';
@@ -81,7 +83,7 @@ async function main() {
       await build();
       break;
     case 'start': {
-      if (args.includes('--clean')) clean(args.includes('--force'));
+      if (args.includes('--clean')) await clean(args.includes('--force'));
       let serverPort = 3141;
       let uiPort = 3000;
       let logFile: string | undefined;
@@ -94,7 +96,7 @@ async function main() {
         else if (arg.startsWith('--ui-port='))
           uiPort = parseInt(arg.split('=')[1], 10);
         else if (arg.startsWith('--log=')) logFile = arg.split('=')[1];
-        else if (arg === '--log') logFile = '/tmp/stallion-server.log';
+        else if (arg === '--log') logFile = join(tmpdir(), 'stallion-server.log');
         else if (arg === '--build') buildFlag = true;
         else if (arg.startsWith('--base=')) baseDir = arg.split('=')[1];
         else if (arg.startsWith('--features=')) features = arg.split('=')[1];
@@ -106,7 +108,7 @@ async function main() {
       stop();
       break;
     case 'fresh':
-      clean(args.includes('--force'));
+      await clean(args.includes('--force'));
       break;
     case 'upgrade':
       upgrade();

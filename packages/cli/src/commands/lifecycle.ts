@@ -7,10 +7,17 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { resolveGitInfo } from '@stallion-ai/shared';
 import { CWD, PIDFILE, PROJECT_HOME } from './helpers.js';
+import {
+  createAppShortcut,
+  createPathLink,
+  IS_WINDOWS,
+  killProcessTree,
+  promptYN,
+  sleepSync,
+} from './platform.js';
 
 export function isRunning(): boolean {
   if (!existsSync(PIDFILE)) return false;
@@ -39,7 +46,14 @@ export interface StartOptions {
 }
 
 export function start(opts: StartOptions = {}): void {
-  const { serverPort = 3141, uiPort = 3000, logFile, build, baseDir, features } = opts;
+  const {
+    serverPort = 3141,
+    uiPort = 3000,
+    logFile,
+    build,
+    baseDir,
+    features,
+  } = opts;
 
   if (build) {
     console.log('Building application...');
@@ -69,13 +83,14 @@ export function start(opts: StartOptions = {}): void {
     ...(process.env as any),
     PORT: String(serverPort),
   };
-  if (baseDir) serverEnv.STALLION_AI_DIR = baseDir;
-  if (features) serverEnv.STALLION_FEATURES = features;
+  if (baseDir) serverEnv['STALLION_AI_DIR'] = baseDir;
+  if (features) serverEnv['STALLION_FEATURES'] = features;
 
   const serverProc = spawn('node', ['dist-server/index.js'], {
     cwd: CWD,
     stdio: serverStdio,
     detached: true,
+    windowsHide: true,
     env: serverEnv,
   });
   serverProc.unref();
@@ -111,6 +126,7 @@ export function start(opts: StartOptions = {}): void {
       cwd: CWD,
       stdio: 'ignore',
       detached: true,
+      windowsHide: true,
       env: { ...process.env },
     },
   );
@@ -118,7 +134,7 @@ export function start(opts: StartOptions = {}): void {
 
   writeFileSync(PIDFILE, `${serverProc.pid} ${uiProc.pid}`);
 
-  execSync('sleep 1');
+  sleepSync(1000);
   try {
     process.kill(serverProc.pid!, 0);
     process.kill(uiProc.pid!, 0);
@@ -136,23 +152,15 @@ export function start(opts: StartOptions = {}): void {
 
 export function stop(): void {
   if (!existsSync(PIDFILE)) return;
-  const pids = readFileSync(PIDFILE, 'utf-8').trim().split(' ').map(p => parseInt(p, 10));
+  const pids = readFileSync(PIDFILE, 'utf-8')
+    .trim()
+    .split(' ')
+    .map((p) => parseInt(p, 10));
   for (const pid of pids) {
-    // SIGTERM the process group so children (kiro-cli, etc.) also get the signal
-    try { process.kill(-pid, 'SIGTERM'); } catch {
-      try { process.kill(pid, 'SIGTERM'); } catch { continue; }
-    }
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-      try { process.kill(pid, 0); } catch { break; }
-      execSync('sleep 0.2', { stdio: 'ignore' });
-    }
-    // Force kill the group if still alive
-    try { process.kill(-pid, 'SIGKILL'); } catch {}
-    try { process.kill(pid, 'SIGKILL'); } catch {}
+    killProcessTree(pid);
   }
   rmSync(PIDFILE, { force: true });
-  console.log('  \u2713 Stopped');
+  console.log('  ✓ Stopped');
 }
 
 export function doctor(): void {
@@ -198,85 +206,24 @@ export function doctor(): void {
 }
 
 export function link(): void {
-  const target = '/usr/local/bin/stallion';
-  const source = join(CWD, 'stallion');
-
-  if (!existsSync(source)) {
-    console.error('No stallion script found in current directory.');
-    process.exit(1);
-  }
-
-  try {
-    execSync(`ln -sf "${source}" "${target}"`, { stdio: 'pipe' });
-  } catch {
-    execSync(`sudo ln -sf "${source}" "${target}"`, { stdio: 'inherit' });
-  }
-  console.log(`  ✓ Linked: stallion → ${source}`);
-  console.log("  You can now run 'stallion' from anywhere");
+  createPathLink(CWD);
 }
 
 export function shortcut(): void {
-  const appDir = join(homedir(), 'Applications', 'Stallion.app');
-  const macosDir = join(appDir, 'Contents', 'MacOS');
-  mkdirSync(macosDir, { recursive: true });
-
-  writeFileSync(
-    join(appDir, 'Contents', 'Info.plist'),
-    `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key><string>Stallion</string>
-  <key>CFBundleDisplayName</key><string>Stallion AI</string>
-  <key>CFBundleIdentifier</key><string>com.stallion-ai.launcher</string>
-  <key>CFBundleVersion</key><string>1.0</string>
-  <key>CFBundleExecutable</key><string>launch</string>
-  <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>LSUIElement</key><true/>
-</dict>
-</plist>`,
-  );
-
-  const stallionPath = join(CWD, 'stallion');
-  writeFileSync(
-    join(macosDir, 'launch'),
-    `#!/bin/bash
-"${stallionPath}" start &
-sleep 2
-open "http://localhost:3000"
-`,
-  );
-  execSync(`chmod +x "${join(macosDir, 'launch')}"`);
-
-  console.log('  ✓ Created ~/Applications/Stallion.app');
-  console.log('  Double-click to launch Stallion and open in browser');
+  createAppShortcut(CWD);
 }
 
-export function clean(force = false): void {
+export async function clean(force = false): Promise<void> {
   if (!force) {
     console.log('\n⚠️  This will delete ~/.stallion-ai which includes:');
     console.log('   - All installed plugins');
     console.log('   - Conversation history');
     console.log('   - Tool configurations\n');
 
-    try {
-      const answer = execSync(
-        'read -p "Continue? [y/N] " -n 1 -r ans && echo $ans',
-        {
-          stdio: ['inherit', 'pipe', 'inherit'],
-          encoding: 'utf-8',
-          shell: '/bin/bash',
-        },
-      )
-        .trim()
-        .toLowerCase();
-      console.log('');
-      if (answer !== 'y') {
-        console.log('Cancelled.');
-        process.exit(0);
-      }
-    } catch {
-      console.log('\nCancelled.');
+    const confirmed = await promptYN('Continue?');
+    console.log('');
+    if (!confirmed) {
+      console.log('Cancelled.');
       process.exit(0);
     }
   }
