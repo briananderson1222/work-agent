@@ -464,12 +464,12 @@ export async function searchKnowledge(projectSlug: string, query: string, namesp
   return json.data;
 }
 
-export async function uploadKnowledge(projectSlug: string, filename: string, content: string, namespace?: string): Promise<any> {
+export async function uploadKnowledge(projectSlug: string, filename: string, content: string, namespace?: string, metadata?: Record<string, any>): Promise<any> {
   const apiBase = await _getApiBase();
   const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/upload`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
-    body: JSON.stringify({ filename, content }),
+    body: JSON.stringify({ filename, content, ...(metadata && { metadata }) }),
   });
   if (!res.ok) throw new Error(`Knowledge upload failed: ${res.statusText}`);
   const json = await res.json();

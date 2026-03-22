@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ProviderConnectionConfig } from '@stallion-ai/shared';
 import { Hono } from 'hono';
+import { providerOps } from '../telemetry/metrics.js';
 import { BedrockEmbeddingProvider } from '../providers/bedrock-embedding-provider.js';
 import { BedrockLLMProvider } from '../providers/bedrock-llm-provider.js';
 import { LanceDBProvider } from '../providers/lancedb-provider.js';
@@ -41,6 +42,7 @@ export function createProviderRoutes(providerService: ProviderService) {
 
   app.get('/', async (c) => {
     try {
+      providerOps.add(1, { op: 'list' });
       const data = await providerService.listProviderConnections();
       return c.json({ success: true, data });
     } catch (error: any) {
@@ -52,6 +54,7 @@ export function createProviderRoutes(providerService: ProviderService) {
     try {
       const body = (await c.req.json()) as ProviderConnectionConfig;
       if (!body.id) body.id = randomUUID();
+      providerOps.add(1, { op: 'register' });
       await providerService.saveProviderConnection(body);
       return c.json({ success: true, data: body }, 201);
     } catch (error: any) {
@@ -72,6 +75,7 @@ export function createProviderRoutes(providerService: ProviderService) {
   app.delete('/:id', async (c) => {
     try {
       const id = c.req.param('id');
+      providerOps.add(1, { op: 'delete' });
       await providerService.deleteProviderConnection(id);
       return c.json({ success: true });
     } catch (error: any) {
@@ -107,6 +111,7 @@ export function createProviderRoutes(providerService: ProviderService) {
   app.get('/:id/health', async (c) => {
     try {
       const id = c.req.param('id');
+      providerOps.add(1, { op: 'health' });
       const connections = await providerService.listProviderConnections();
       const conn = connections.find((p) => p.id === id);
       if (!conn)

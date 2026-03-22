@@ -56,6 +56,7 @@ export interface PluginManifest {
   tools?: { required?: string[] };
   dependencies?: PluginDependency[];
   knowledge?: { namespaces: KnowledgeNamespaceConfig[] };
+  skills?: string[];
 }
 
 export interface PluginOverrideConfig {

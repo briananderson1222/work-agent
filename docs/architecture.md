@@ -27,8 +27,10 @@ graph TB
         RT --> |mounts| ROUTES[Hono Routes]
         RT --> |manages| AGENTS[Active Agents]
         RT --> |manages| MCP[MCPManager]
-        RT --> |manages| ACP[ACPManager]
         RT --> |emits| EB[EventBus]
+        RT --> |emits| ME[MonitoringEmitter]
+        ME --> |SSE fan-out| EB
+        ME --> |disk| MEVT[events-DATE.ndjson]
 
         ROUTES --> |POST /api/agents/:slug/chat| STREAM[StreamOrchestrator]
         STREAM --> |pipeline| PIPE[StreamPipeline]
@@ -37,6 +39,23 @@ graph TB
         PIPE --> H3[ToolCallHandler]
         PIPE --> H4[CompletionHandler]
         PIPE --> H5[MetadataHandler]
+
+        ROUTES --> |/knowledge/*| KS[KnowledgeService]
+        KS --> LDB[(LanceDB)]
+    end
+
+    subgraph ACP
+        ACPM[ACPManager]
+        ACPP[ACPProbe]
+        ACPM --> |capability detection| ACPP
+    end
+
+    subgraph Voice [:port+2]
+        VSS[VoiceSessionService]
+        S2S[S2S Provider / Nova Sonic]
+        WS[WebSocket]
+        VSS --> S2S
+        VSS --> WS
     end
 
     subgraph Plugins [.stallion-ai/plugins/]
@@ -66,8 +85,12 @@ graph TB
 
     UI --> |HTTP + SSE| ROUTES
     UI --> SDK
-    CLI --> |ACP stdio| ACP
-    ACP --> |spawns| CLI
+    CLI --> |ACP stdio| ACPM
+    ACPM --> |spawns| CLI
+    RT --> |manages| ACPM
+
+    UI --> |WebSocket| WS
+    ROUTES --> |/voice/*| VSS
 
     AGENTS --> |tool calls| MCP
     MCP --> MCP1 & MCP2
@@ -96,6 +119,10 @@ graph TB
 | `LayoutService` | `src-server/services/layout-service.ts` | Workspace and workflow file management |
 | `SchedulerService` | `src-server/services/scheduler-service.ts` | Cron-based agent invocation scheduling |
 | `EventBus` | `src-server/services/event-bus.ts` | In-process pub/sub for SSE fan-out to connected clients |
+| `MonitoringEmitter` | `src-server/monitoring/emitter.ts` | Emits structured GenAI-aligned events (chat turns, tool calls, completions) to EventBus and disk |
+| `KnowledgeService` | `src-server/services/knowledge-service.ts` | LanceDB-backed vector store for document indexing, chunking, and semantic search; supports namespaces |
+| `VoiceSessionService` | `src-server/voice/` | Manages voice sessions; connects to S2S providers (Nova Sonic); handles tool execution during voice; WebSocket on port+2 |
+| `ACPProbe` | `src-server/services/acp-probe.ts` | Detects capabilities of connected ACP servers (supported modes, config options); results are cached |
 | `ConfigLoader` | `src-server/domain/config-loader.ts` | Reads/writes agent YAML, app config, ACP config; watches for file changes |
 | `FileMemoryAdapter` | `src-server/adapters/file/memory-adapter.ts` | Persists conversations and messages to `.stallion-ai/` on disk |
 | `UsageAggregator` | `src-server/analytics/usage-aggregator.ts` | Aggregates token usage from persisted events |
@@ -214,7 +241,34 @@ Each ACP connection exposes:
 
 ACP connections are configured in `.stallion-ai/config/acp.json` and managed via `/acp/connections` CRUD endpoints.
 
+**ACPProbe** runs on each new connection to detect the server's supported modes, config options, and capabilities. Results are cached and surfaced to the UI so it can render mode-specific controls without round-tripping the CLI on every render.
+
 > For full protocol details, see `guides/acp.md` (forthcoming).
+
+---
+
+## Voice Subsystem
+
+The voice subsystem (`src-server/voice/`) provides a real-time speech-to-speech interface. `VoiceSessionService` manages session lifecycle, connects to S2S providers (default: Nova Sonic), and handles tool execution during active voice turns. REST routes at `/voice/sessions`, `/voice/status`, and `/voice/agent` manage session control; the audio stream runs over a WebSocket on `port + 2`.
+
+Voice providers are pluggable — plugins can register `STTProvider`, `TTSProvider`, or `ConversationalVoiceProvider` via `voiceRegistry` in the SDK.
+
+---
+
+## Knowledge Service
+
+`KnowledgeService` (`src-server/services/knowledge-service.ts`) is a LanceDB-backed vector store. It handles document ingestion (chunking + embedding), namespace-scoped indexing, and semantic search. Routes are mounted at `/knowledge/*`. Namespaces allow agents and plugins to maintain isolated knowledge domains within the same store.
+
+---
+
+## Monitoring Emitter
+
+`MonitoringEmitter` (`src-server/monitoring/emitter.ts`) is the application-level event system, separate from OTel. It emits structured events aligned to the GenAI semantic conventions — chat turns, tool calls, and completions. Each event is:
+
+1. Published to `EventBus` for real-time SSE delivery to connected clients
+2. Persisted to `.stallion-ai/monitoring/events-<date>.ndjson` for offline analysis
+
+This is distinct from the OTel pipeline: OTel handles infrastructure-level spans and metrics; `MonitoringEmitter` handles product-level event tracking. `UsageAggregator` reads the persisted NDJSON files to compute token usage summaries.
 
 ---
 

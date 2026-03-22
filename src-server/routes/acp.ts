@@ -3,6 +3,7 @@ import { ACPStatus } from '../domain/types.js';
 import { listProviders } from '../providers/registry.js';
 import type { RuntimeContext } from '../runtime/types.js';
 import { acpConnectionSchema, getBody, param, validate } from './schemas.js';
+import { acpOps } from '../telemetry/metrics.js';
 
 export function createACPRoutes(ctx: RuntimeContext) {
   const app = new Hono();
@@ -69,6 +70,7 @@ export function createACPRoutes(ctx: RuntimeContext) {
     config.connections.push(newConn);
     await ctx.configLoader.saveACPConfig(config);
     if (newConn.enabled) await ctx.acpBridge.addConnection(newConn);
+    acpOps.add(1, { op: 'create' });
     return c.json({ success: true, data: newConn });
   });
 
@@ -82,6 +84,7 @@ export function createACPRoutes(ctx: RuntimeContext) {
     await ctx.configLoader.saveACPConfig(config);
     await ctx.acpBridge.removeConnection(id);
     if (config.connections[idx].enabled) await ctx.acpBridge.addConnection(config.connections[idx]);
+    acpOps.add(1, { op: 'update' });
     return c.json({ success: true, data: config.connections[idx] });
   });
 
@@ -91,6 +94,7 @@ export function createACPRoutes(ctx: RuntimeContext) {
     config.connections = config.connections.filter((conn) => conn.id !== id);
     await ctx.configLoader.saveACPConfig(config);
     await ctx.acpBridge.removeConnection(id);
+    acpOps.add(1, { op: 'delete' });
     return c.json({ success: true });
   });
 

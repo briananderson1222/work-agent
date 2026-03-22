@@ -3,12 +3,14 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Hono } from 'hono';
+import { insightOps } from '../telemetry/metrics.js';
 
 export function createInsightsRoutes(monitoringDir: string) {
   const app = new Hono();
 
   app.get('/insights', async (c) => {
     const days = parseInt(c.req.query('days') || '14', 10);
+    insightOps.add(1, { op: 'get_insights' });
     const cutoff = Date.now() - days * 86400000;
 
     const toolUsage: Record<string, { calls: number; errors: number }> = {};

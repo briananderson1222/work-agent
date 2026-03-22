@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import type { FeedbackService } from '../services/feedback-service.js';
 import { rateSchema, validate, getBody } from './schemas.js';
+import { feedbackOps } from '../telemetry/metrics.js';
 
 export function createFeedbackRoutes(feedbackService: FeedbackService) {
   const app = new Hono();
@@ -37,6 +38,7 @@ export function createFeedbackRoutes(feedbackService: FeedbackService) {
       rating,
       reason,
     });
+    feedbackOps.add(1, { op: 'submit' });
     return c.json({ success: true, data: entry });
   });
 

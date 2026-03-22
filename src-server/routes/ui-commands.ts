@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { EventBus } from '../services/event-bus.js';
+import { uiCommandOps } from '../telemetry/metrics.js';
 
 const INVALID_PATH = /javascript:|data:|vbscript:/i;
 
@@ -8,6 +9,7 @@ export function createUICommandRoutes(eventBus: EventBus) {
 
   app.post('/', async (c) => {
     const { command, payload } = await c.req.json<{ command: string; payload: Record<string, unknown> }>();
+    uiCommandOps.add(1, { op: 'execute' });
 
     if (command === 'navigate') {
       const path = payload?.path;

@@ -2,6 +2,7 @@ import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { Hono } from 'hono';
+import { fileTreeOps } from '../telemetry/metrics.js';
 
 export function createFsRoutes() {
   const app = new Hono();
@@ -9,6 +10,7 @@ export function createFsRoutes() {
   app.get('/browse', async (c) => {
     try {
       const pathParam = c.req.query('path') || '~';
+      fileTreeOps.add(1, { op: 'browse' });
       const resolvedPath = pathParam === '~' ? homedir() : resolve(pathParam);
 
       const entries = await readdir(resolvedPath, { withFileTypes: true });

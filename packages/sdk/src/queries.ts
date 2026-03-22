@@ -539,9 +539,9 @@ export function useKnowledgeSearchQuery(projectSlug: string, query: string, name
 export function useKnowledgeSaveMutation(projectSlug: string, namespace?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ filename, content }: { filename: string; content: string }) => {
+    mutationFn: async ({ filename, content, metadata }: { filename: string; content: string; metadata?: Record<string, any> }) => {
       const { uploadKnowledge } = await import('./api');
-      return uploadKnowledge(projectSlug, filename, content, namespace);
+      return uploadKnowledge(projectSlug, filename, content, namespace, metadata);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });

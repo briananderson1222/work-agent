@@ -143,6 +143,15 @@ export const acpOps = meter.createCounter('stallion.acp.operations', {
   description: 'ACP connection lifecycle events',
 });
 
+// ── Voice ──
+export const voiceOps = meter.createCounter('stallion.voice.operations', {
+  description: 'Voice session lifecycle events',
+});
+export const voiceDuration = meter.createHistogram('stallion.voice.duration', {
+  description: 'Voice session duration',
+  unit: 'ms',
+});
+
 // ── Templates ──
 export const templateOps = meter.createCounter('stallion.template.operations', {
   description: 'Template list/apply events',
@@ -186,6 +195,41 @@ export const skillActivations = meter.createCounter('stallion.skill.activations'
 export const skillActivationDuration = meter.createHistogram('stallion.skill.activation.duration', {
   description: 'Skill activation duration',
   unit: 'ms',
+});
+
+// ── Analytics ──
+export const analyticsOps = meter.createCounter('stallion.analytics.operations', {
+  description: 'Analytics query events',
+});
+
+// ── Bedrock ──
+export const bedrockOps = meter.createCounter('stallion.bedrock.operations', {
+  description: 'Bedrock model catalog events',
+});
+
+// ── Config ──
+export const configOps = meter.createCounter('stallion.config.operations', {
+  description: 'App config read/write events',
+});
+
+// ── SSE ──
+export const sseOps = meter.createCounter('stallion.sse.operations', {
+  description: 'SSE connection events',
+});
+
+// ── Insights ──
+export const insightOps = meter.createCounter('stallion.insight.operations', {
+  description: 'Insight query events',
+});
+
+// ── System ──
+export const systemOps = meter.createCounter('stallion.system.operations', {
+  description: 'System status/verify events',
+});
+
+// ── UI Commands ──
+export const uiCommandOps = meter.createCounter('stallion.uicommand.operations', {
+  description: 'UI command execution events',
 });
 
 export function registerObservableGauges(callbacks: {

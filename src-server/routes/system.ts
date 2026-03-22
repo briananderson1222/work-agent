@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveGitInfo } from '@stallion-ai/shared';
 import { Hono } from 'hono';
+import { systemOps } from '../telemetry/metrics.js';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
 import { getAllPrerequisites } from '../providers/registry.js';
 import * as SkillService from '../services/skill-service.js';
@@ -47,6 +48,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         checkBedrockCredentials(),
         whichCmd('kiro-cli'),
       ]);
+    systemOps.add(1, { op: 'get_status' });
 
     const acpStatus = deps.getACPStatus();
     const config = deps.getAppConfig();
@@ -69,6 +71,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // Heavier verification — actually calls ListFoundationModels
   app.post('/verify-bedrock', async (c) => {
     try {
+      systemOps.add(1, { op: 'verify_bedrock' });
       const { BedrockClient, ListFoundationModelsCommand } = await import(
         '@aws-sdk/client-bedrock'
       );
@@ -169,6 +172,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // Apply core app update
   app.post('/core-update', async (c) => {
     try {
+      systemOps.add(1, { op: 'apply_update' });
       const { gitRoot } = resolveGitInfo(
         dirname(fileURLToPath(import.meta.url)),
       );
@@ -239,6 +243,7 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   // available and configured on this server.  clientOnly providers are always
   // advertised; server-backed providers require credentials or API keys.
   app.get('/capabilities', (c) => {
+    systemOps.add(1, { op: 'get_capabilities' });
     const appConfig = deps.getAppConfig();
     return c.json({
       runtime: appConfig.runtime || 'voltagent',

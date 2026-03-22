@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import type { NotificationService } from '../services/notification-service.js';
+import { notificationOps } from '../telemetry/metrics.js';
 
 export function createNotificationRoutes(
   notificationService: NotificationService,
@@ -28,6 +29,7 @@ export function createNotificationRoutes(
       body.source ?? 'api',
       body,
     );
+    notificationOps.add(1, { op: 'schedule' });
     return c.json({ success: true, data: notification }, 201);
   });
 
@@ -43,6 +45,7 @@ export function createNotificationRoutes(
       c.req.param('id'),
       c.req.param('actionId'),
     );
+    notificationOps.add(1, { op: 'action' });
     return c.json({ success: true });
   });
 

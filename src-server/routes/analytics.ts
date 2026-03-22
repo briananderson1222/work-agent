@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import type { UsageAggregator } from '../analytics/usage-aggregator.js';
+import { analyticsOps } from '../telemetry/metrics.js';
 
 export function createAnalyticsRoutes(
   usageAggregator: UsageAggregator | undefined,
@@ -18,6 +19,7 @@ export function createAnalyticsRoutes(
           500,
         );
       }
+      analyticsOps.add(1, { op: 'get_usage' });
       const stats = await usageAggregator.loadStats();
       const from = c.req.query('from');
       const to = c.req.query('to');
@@ -68,6 +70,7 @@ export function createAnalyticsRoutes(
         );
       }
       const achievements = await usageAggregator.getAchievements();
+      analyticsOps.add(1, { op: 'get_achievements' });
       return c.json({ data: achievements });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
@@ -83,6 +86,7 @@ export function createAnalyticsRoutes(
         );
       }
       const stats = await usageAggregator.fullRescan();
+      analyticsOps.add(1, { op: 'rescan' });
       return c.json({ data: stats, message: 'Full rescan completed' });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
@@ -98,6 +102,7 @@ export function createAnalyticsRoutes(
         );
       }
       await usageAggregator.reset();
+      analyticsOps.add(1, { op: 'delete_usage' });
       return c.json({ success: true, message: 'Usage stats reset' });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);

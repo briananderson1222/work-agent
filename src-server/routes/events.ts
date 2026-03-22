@@ -6,6 +6,7 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { EventBus } from '../services/event-bus.js';
+import { sseOps } from '../telemetry/metrics.js';
 
 export interface EventRouteDeps {
   eventBus: EventBus;
@@ -25,6 +26,7 @@ export function createEventRoutes({
 
   app.get('/', (c) => {
     return streamSSE(c, async (stream) => {
+      sseOps.add(1, { op: 'connect' });
       // Replay current ACP state so clients that connect after startup get the truth
       const acpStatus = getACPStatus();
       await stream.writeSSE({

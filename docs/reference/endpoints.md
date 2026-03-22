@@ -276,6 +276,48 @@ These endpoints are called by the frontend but not yet documented in `api.md`:
 | `/tool-approval/:approvalId` | POST | `useToolApproval.ts`, `ToolApprovalHandler.ts` | Approve/reject tool calls |
 | `/tools/test` | POST | `AgentEditorView.tsx` | Test a tool configuration |
 
+### Voice (4/4)
+
+| Endpoint | Method | Status | Used By |
+|----------|--------|--------|---------|
+| `/voice/sessions` | POST | ✅ in-use | `useVoiceSession.ts` (create voice session) |
+| `/voice/sessions/:id` | DELETE | ✅ in-use | `useVoiceSession.ts` (destroy voice session) |
+| `/voice/status` | GET | ✅ in-use | `VoicePill.tsx` (active session count) |
+| `/voice/agent` | GET | ✅ in-use | `VoicePill.tsx` (voice agent info) |
+
+> **Note**: Voice also uses a WebSocket connection on port+2 for real-time audio streaming. The WS URL is constructed client-side from the API base URL.
+
+### Knowledge (7+)
+
+| Endpoint | Method | Status | Used By |
+|----------|--------|--------|---------|
+| `/agents/:slug/knowledge` | GET | ✅ in-use | `KnowledgeView.tsx` (list documents) |
+| `/agents/:slug/knowledge/status` | GET | ✅ in-use | `KnowledgeView.tsx` (index status) |
+| `/agents/:slug/knowledge/upload` | POST | ✅ in-use | `KnowledgeView.tsx` (upload document) |
+| `/agents/:slug/knowledge/scan` | POST | ✅ in-use | `KnowledgeView.tsx` (scan directories) |
+| `/agents/:slug/knowledge/search` | POST | ✅ in-use | `KnowledgeView.tsx` (semantic search) |
+| `/agents/:slug/knowledge/bulk-delete` | POST | ✅ in-use | `KnowledgeView.tsx` (bulk delete) |
+| `/agents/:slug/knowledge/:id` | DELETE | ✅ in-use | `KnowledgeView.tsx` (delete document) |
+| `/agents/:slug/knowledge/namespaces` | GET | ✅ in-use | `KnowledgeView.tsx` (list namespaces) |
+| `/agents/:slug/knowledge/namespaces/:ns/*` | * | ✅ in-use | Namespaced variants of above |
+
+### Projects (12/12)
+
+| Endpoint | Method | Status | Used By |
+|----------|--------|--------|---------|
+| `/projects` | GET | ✅ in-use | `useProjectsQuery` hook |
+| `/projects` | POST | ✅ in-use | `ProjectsView.tsx` (create project) |
+| `/projects/:slug` | GET | ✅ in-use | `useProjectsQuery` hook |
+| `/projects/:slug` | PUT | ✅ in-use | `ProjectSettingsView.tsx` (update project) |
+| `/projects/:slug` | DELETE | ✅ in-use | `ProjectsView.tsx` (delete project) |
+| `/projects/:slug/layouts` | GET | ✅ in-use | `useProjectLayoutsQuery` hook |
+| `/projects/:slug/layouts` | POST | ✅ in-use | `ProjectsView.tsx` (add layout to project) |
+| `/projects/:slug/layouts/:layoutSlug` | GET | ✅ in-use | `LayoutView.tsx` |
+| `/projects/:slug/layouts/:layoutSlug` | PUT | ✅ in-use | `LayoutEditorView.tsx` |
+| `/projects/:slug/layouts/:layoutSlug` | DELETE | ✅ in-use | `ProjectsView.tsx` (remove layout) |
+| `/projects/layouts/available` | GET | ✅ in-use | `ProjectsView.tsx` (available layout sources) |
+| `/projects/:slug/layouts/from-plugin` | POST | ✅ in-use | `ProjectsView.tsx` (add layout from plugin) |
+
 ---
 
 ## Key Insights
@@ -301,6 +343,9 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 8. **Insights** - 1/1 (100%)
 9. **System** - 8/9 endpoints (89%)
 10. **Plugins** - 10/16 endpoints (63%)
+11. **Voice** - 4/4 endpoints (100%)
+12. **Knowledge** - 9/9 endpoints (100%)
+13. **Projects** - 12/12 endpoints (100%)
 
 ### Least Used Endpoint Categories
 

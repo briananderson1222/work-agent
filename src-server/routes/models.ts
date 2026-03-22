@@ -5,6 +5,7 @@ import {
 import { GetProductsCommand, PricingClient } from '@aws-sdk/client-pricing';
 import { Hono } from 'hono';
 import { createLogger } from '../utils/logger.js';
+import { bedrockOps } from '../telemetry/metrics.js';
 
 const logger = createLogger({ name: 'models' });
 
@@ -21,7 +22,7 @@ app.get('/capabilities', async (c) => {
     if (modelCache && Date.now() - cacheTimestamp < CACHE_TTL) {
       return c.json({ data: modelCache });
     }
-
+    bedrockOps.add(1, { op: 'list_capabilities' });
     const region = process.env.AWS_REGION || 'us-east-1';
     const bedrockClient = new BedrockClient({ region });
 
@@ -84,7 +85,7 @@ app.get('/pricing/:modelId', async (c) => {
     const modelId = c.req.param('modelId');
     const region =
       c.req.query('region') || process.env.AWS_REGION || 'us-east-1';
-
+    bedrockOps.add(1, { op: 'get_pricing' });
     // Extract model name from modelId (e.g., "anthropic.claude-3-7-sonnet-20250219-v1:0" -> "Claude 3.7 Sonnet")
     const pricingClient = new PricingClient({ region: 'us-east-1' }); // Pricing API only in us-east-1
 

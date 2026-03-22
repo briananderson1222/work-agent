@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import type { MCPService } from '../services/mcp-service.js';
+import { toolCalls } from '../telemetry/metrics.js';
 
 export function createToolRoutes(
   mcpService: MCPService,
@@ -14,6 +15,7 @@ export function createToolRoutes(
   // List all available tools (GET /tools)
   app.get('/', async (c) => {
     try {
+      toolCalls.add(1, { op: 'list' });
       const [tools, agentMap] = await Promise.all([
         mcpService.listIntegrations(),
         mcpService.getToolAgentMap(),
@@ -119,6 +121,7 @@ export function createAgentToolRoutes(
     try {
       const slug = c.req.param('slug')!;
       const toolId = c.req.param('toolId')!;
+      toolCalls.add(1, { op: 'remove_tool' });
       await mcpService.removeToolFromAgent(slug, toolId);
       await reinitialize();
       return c.json({ success: true }, 200);

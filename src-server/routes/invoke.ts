@@ -1,6 +1,7 @@
 import { jsonSchema } from 'ai';
 import { Hono } from 'hono';
 import { DEFAULT_SYSTEM_PROMPT } from '../domain/config-loader.js';
+import { chatRequests } from '../telemetry/metrics.js';
 import type { AgentSpec } from '../domain/types.js';
 import type { RuntimeContext } from '../runtime/types.js';
 import { isAuthError } from '../utils/auth-errors.js';
@@ -38,7 +39,7 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
     try {
       const slug = param(c, 'slug');
       const { input, model, tools: toolNames, schema } = getBody(c);
-
+      chatRequests.add(1, { op: 'invoke' });
       const agent = ctx.activeAgents.get(slug);
       if (!agent) return c.json({ success: false, error: 'Agent not found' }, 404);
 
@@ -134,6 +135,7 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
     try {
       const slug = param(c, 'slug');
       const { prompt, model, tools: toolNames, maxSteps = 10, schema: schemaJson } = getBody(c);
+      chatRequests.add(1, { op: 'invoke_stream' });
 
       const agent = ctx.activeAgents.get(slug);
       if (!agent) return c.json({ success: false, error: 'Agent not found' }, 404);
@@ -223,7 +225,7 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         structureModel,
         system,
       } = getBody(c);
-
+      chatRequests.add(1, { op: 'invoke_global' });
       const filteredTools =
         toolIds.length > 0
           ? toolIds.map((id: string) => ctx.globalToolRegistry.get(id)).filter(Boolean)

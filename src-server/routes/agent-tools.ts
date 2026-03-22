@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { RuntimeContext } from '../runtime/types.js';
 import { addToolSchema, updateAllowedSchema, updateAliasesSchema, validate, getBody, param } from './schemas.js';
+import { toolCalls } from '../telemetry/metrics.js';
 
 type ToolWithDescription = { description?: string; [key: string]: any };
 
@@ -45,6 +46,7 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
     try {
       const slug = param(c, 'slug');
       const { toolId } = getBody(c);
+      toolCalls.add(1, { op: 'add_tool' });
       const agent = await ctx.configLoader.loadAgent(slug);
       const tools = agent.tools || { mcpServers: [], available: ['*'] };
       if (!tools.mcpServers.includes(toolId)) tools.mcpServers.push(toolId);
@@ -61,6 +63,7 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
     try {
       const slug = param(c, 'slug');
       const toolId = param(c, 'toolId');
+      toolCalls.add(1, { op: 'remove_tool' });
       const agent = await ctx.configLoader.loadAgent(slug);
       const tools = agent.tools || { mcpServers: [] };
       tools.mcpServers = tools.mcpServers.filter((id: string) => id !== toolId);

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import type { IS2SProvider, S2SSessionConfig, S2SToolDefinition } from './s2s-types.js';
+import { voiceOps } from '../telemetry/metrics.js';
 
 export type S2SProviderFactory = (config?: any) => IS2SProvider;
 
@@ -50,6 +51,7 @@ class VoiceSession {
     this.provider.on('stateChange', (state) => this.send({ type: 'state', state }));
     this.provider.on('error', (err) => this.send({ type: 'error', message: err.message }));
     this.provider.on('toolUse', async (e) => {
+      voiceOps.add(1, { op: 'tool.call' });
       const tool = this.tools.find(t => t.name === e.toolName);
       let result: string;
       if (tool) {
@@ -72,7 +74,7 @@ class VoiceSession {
       } catch {}
     });
 
-    ws.on('close', () => this.destroy());
+    ws.on('close', () => { voiceOps.add(1, { op: 'ws.disconnect' }); this.destroy(); });
   }
 
   async start(config: S2SSessionConfig): Promise<void> {
@@ -105,6 +107,7 @@ export class VoiceSessionService {
 
     const session = new VoiceSession(id, ws, this.opts.providerFactory, tools);
     this.sessions.set(id, session);
+    voiceOps.add(1, { op: 'ws.connect' });
 
     const s2sTools = tools.map(toS2STool).filter((t): t is S2SToolDefinition => t !== null);
     const systemPrompt = VOICE_PROMPT_PREFIX + (spec?.systemPrompt ?? '');

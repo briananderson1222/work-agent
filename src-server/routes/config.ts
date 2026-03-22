@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { EventBus } from '../services/event-bus.js';
+import { configOps } from '../telemetry/metrics.js';
 
 export function createConfigRoutes(
   configLoader: ConfigLoader,
@@ -17,6 +18,7 @@ export function createConfigRoutes(
   // Get app config
   app.get('/app', async (c) => {
     try {
+      configOps.add(1, { op: 'get_app' });
       const config = await configLoader.loadAppConfig();
       return c.json({ success: true, data: config });
     } catch (error: any) {
@@ -28,6 +30,7 @@ export function createConfigRoutes(
   // Update app config
   app.put('/app', async (c) => {
     try {
+      configOps.add(1, { op: 'update_app' });
       const updates = await c.req.json();
       const updated = await configLoader.updateAppConfig(updates);
       logger.info('App config updated', { config: updated });

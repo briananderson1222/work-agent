@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import type { LayoutService } from '../services/layout-service.js';
+import { layoutOps } from '../telemetry/metrics.js';
 
 export function createLayoutRoutes(layoutService: LayoutService) {
   const app = new Hono();
@@ -34,6 +35,7 @@ export function createLayoutRoutes(layoutService: LayoutService) {
     try {
       const config = await c.req.json();
       const layout = await layoutService.createLayout(config);
+      layoutOps.add(1, { op: 'create' });
       return c.json({ success: true, data: layout }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -46,6 +48,7 @@ export function createLayoutRoutes(layoutService: LayoutService) {
       const slug = c.req.param('slug');
       const updates = await c.req.json();
       const updated = await layoutService.updateLayout(slug, updates);
+      layoutOps.add(1, { op: 'update' });
       return c.json({ success: true, data: updated });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -57,6 +60,7 @@ export function createLayoutRoutes(layoutService: LayoutService) {
     try {
       const slug = c.req.param('slug');
       await layoutService.deleteLayout(slug);
+      layoutOps.add(1, { op: 'delete' });
       return c.json({ success: true }, 200);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);

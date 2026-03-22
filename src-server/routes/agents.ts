@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import type { AgentService } from '../services/agent-service.js';
+import { agentOps } from '../telemetry/metrics.js';
 
 export function createAgentRoutes(
   agentService: AgentService,
@@ -36,6 +37,7 @@ export function createAgentRoutes(
       const body = await c.req.json();
       const { slug: _slug, ...spec } = body;
       const { slug, spec: created } = await agentService.createAgent(spec);
+      agentOps.add(1, { op: 'create' });
       await reinitialize();
       return c.json({ success: true, data: { slug, ...created } }, 201);
     } catch (error: any) {
@@ -49,6 +51,7 @@ export function createAgentRoutes(
       const slug = c.req.param('slug');
       const updates = await c.req.json();
       const updated = await agentService.updateAgent(slug, updates);
+      agentOps.add(1, { op: 'update' });
       await reinitialize();
       return c.json({ success: true, data: updated });
     } catch (error: any) {
@@ -64,6 +67,7 @@ export function createAgentRoutes(
       if (!result.success) {
         return c.json({ success: false, error: result.error }, 400);
       }
+      agentOps.add(1, { op: 'delete' });
       await reinitialize();
       return c.json({ success: true }, 200);
     } catch (error: any) {

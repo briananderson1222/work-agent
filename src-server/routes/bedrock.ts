@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import type { AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import { bedrockOps } from '../telemetry/metrics.js';
 
 export function createBedrockRoutes(
   getModelCatalog: () => BedrockModelCatalog | undefined,
@@ -23,7 +24,7 @@ export function createBedrockRoutes(
           500,
         );
       }
-
+      bedrockOps.add(1, { op: 'list_models' });
       const [models, profiles] = await Promise.all([
         modelCatalog.listModels(),
         modelCatalog.listInferenceProfiles(),
@@ -82,6 +83,7 @@ export function createBedrockRoutes(
         );
       }
       const region = c.req.query('region') || appConfig.region;
+      bedrockOps.add(1, { op: 'get_pricing' });
       const pricing = await modelCatalog.getModelPricing(region);
       return c.json({ success: true, data: pricing });
     } catch (error: any) {
@@ -101,6 +103,7 @@ export function createBedrockRoutes(
         );
       }
       const modelId = c.req.param('modelId');
+      bedrockOps.add(1, { op: 'validate_model' });
       const isValid = await modelCatalog.validateModelId(modelId);
       return c.json({ success: true, data: { modelId, isValid } });
     } catch (error: any) {
@@ -120,6 +123,7 @@ export function createBedrockRoutes(
         );
       }
       const modelId = c.req.param('modelId');
+      bedrockOps.add(1, { op: 'get_model' });
       const models = await modelCatalog.listModels();
       const model = models.find((m) => m.modelId === modelId);
 

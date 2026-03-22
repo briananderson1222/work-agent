@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { SchedulerService } from '../services/scheduler-service.js';
+import { schedulerJobRuns } from '../telemetry/metrics.js';
 
 export function createSchedulerRoutes(
   schedulerService: SchedulerService,
@@ -131,6 +132,7 @@ export function createSchedulerRoutes(
   app.post('/jobs', async (c) => {
     try {
       const body = await c.req.json();
+      schedulerJobRuns.add(1, { op: 'create_job' });
       const output = await schedulerService.addJob(body);
       return c.json({ success: true, data: { output } });
     } catch (error: any) {
@@ -142,6 +144,7 @@ export function createSchedulerRoutes(
   app.put('/jobs/:target', async (c) => {
     try {
       const opts = await c.req.json();
+      schedulerJobRuns.add(1, { op: 'edit_job' });
       const output = await schedulerService.editJob(
         c.req.param('target'),
         opts,
@@ -155,6 +158,7 @@ export function createSchedulerRoutes(
 
   app.post('/jobs/:target/run', async (c) => {
     try {
+      schedulerJobRuns.add(1, { op: 'run_job' });
       const output = await schedulerService.runJob(c.req.param('target'));
       return c.json({ success: true, data: { output } });
     } catch (error: any) {
@@ -165,6 +169,7 @@ export function createSchedulerRoutes(
 
   app.put('/jobs/:target/enable', async (c) => {
     try {
+      schedulerJobRuns.add(1, { op: 'enable_job' });
       await schedulerService.enableJob(c.req.param('target'));
       return c.json({ success: true });
     } catch (error: any) {
@@ -175,6 +180,7 @@ export function createSchedulerRoutes(
 
   app.put('/jobs/:target/disable', async (c) => {
     try {
+      schedulerJobRuns.add(1, { op: 'disable_job' });
       await schedulerService.disableJob(c.req.param('target'));
       return c.json({ success: true });
     } catch (error: any) {
@@ -185,6 +191,7 @@ export function createSchedulerRoutes(
 
   app.delete('/jobs/:target', async (c) => {
     try {
+      schedulerJobRuns.add(1, { op: 'delete_job' });
       await schedulerService.removeJob(c.req.param('target'));
       return c.json({ success: true });
     } catch (error: any) {

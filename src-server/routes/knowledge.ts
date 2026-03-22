@@ -3,6 +3,7 @@ import type { KnowledgeNamespaceConfig } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { KnowledgeService } from '../services/knowledge-service.js';
 import type { ProviderService } from '../services/provider-service.js';
+import { knowledgeOps } from '../telemetry/metrics.js';
 
 // ── Shared route handlers (used by both default and namespaced routes) ──
 
@@ -38,6 +39,7 @@ function knowledgeHandlers(knowledgeService: KnowledgeService, getSlug: (c: any)
       const { filename, content, metadata } = await c.req.json();
       if (!filename || !content) return c.json({ success: false, error: 'filename and content required' }, 400);
       const data = await knowledgeService.uploadDocument(getSlug(c), filename, content, 'upload', getNs(c), metadata);
+      knowledgeOps.add(1, { op: 'upload' });
       return c.json({ success: true, data }, 201);
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -50,6 +52,7 @@ function knowledgeHandlers(knowledgeService: KnowledgeService, getSlug: (c: any)
         extensions?: string[]; includePatterns?: string[]; excludePatterns?: string[];
       };
       const data = await knowledgeService.scanDirectories(getSlug(c), extensions, includePatterns, excludePatterns, getNs(c) ?? 'code');
+      knowledgeOps.add(1, { op: 'scan' });
       return c.json({ success: true, data });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -61,6 +64,7 @@ function knowledgeHandlers(knowledgeService: KnowledgeService, getSlug: (c: any)
       const { query, topK } = await c.req.json();
       if (!query) return c.json({ success: false, error: 'query required' }, 400);
       const data = await knowledgeService.searchDocuments(getSlug(c), query, topK, getNs(c));
+      knowledgeOps.add(1, { op: 'search' });
       return c.json({ success: true, data });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -77,6 +81,7 @@ function knowledgeHandlers(knowledgeService: KnowledgeService, getSlug: (c: any)
       for (const id of ids) {
         try { await knowledgeService.deleteDocument(slug, id, ns); deleted++; } catch { /* skip missing */ }
       }
+      knowledgeOps.add(1, { op: 'bulk_delete' });
       return c.json({ success: true, data: { deleted } });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -86,6 +91,7 @@ function knowledgeHandlers(knowledgeService: KnowledgeService, getSlug: (c: any)
   app.delete('/:docId', async (c) => {
     try {
       await knowledgeService.deleteDocument(getSlug(c), c.req.param('docId'), getNs(c));
+      knowledgeOps.add(1, { op: 'delete' });
       return c.json({ success: true });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);

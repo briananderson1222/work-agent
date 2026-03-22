@@ -9,6 +9,7 @@ import { Hono } from 'hono';
 import type { KnowledgeNamespaceConfig, PluginManifest } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { ProjectService } from '../services/project-service.js';
+import { projectOps } from '../telemetry/metrics.js';
 
 /** Scan installed plugins for available layout sources */
 function getAvailableLayouts(projectHomeDir: string) {
@@ -146,6 +147,7 @@ export function createProjectRoutes(
     try {
       const body = await c.req.json();
       const project = await projectService.createProject(body);
+      projectOps.add(1, { op: 'create' });
       return c.json({ success: true, data: project }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -169,6 +171,7 @@ export function createProjectRoutes(
       const slug = c.req.param('slug');
       const body = await c.req.json();
       const updated = await projectService.updateProject(slug, body);
+      projectOps.add(1, { op: 'update' });
       return c.json({ success: true, data: updated });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -180,6 +183,7 @@ export function createProjectRoutes(
     try {
       const slug = c.req.param('slug');
       await projectService.deleteProject(slug);
+      projectOps.add(1, { op: 'delete' });
       return c.json({ success: true }, 200);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -215,6 +219,7 @@ export function createProjectRoutes(
       }
 
       storageAdapter.saveLayout(slug, body);
+      projectOps.add(1, { op: 'add_layout' });
       return c.json({ success: true, data: body }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -279,6 +284,7 @@ export function createProjectRoutes(
       const slug = c.req.param('slug');
       const layoutSlug = c.req.param('layoutSlug');
       storageAdapter.deleteLayout(slug, layoutSlug);
+      projectOps.add(1, { op: 'remove_layout' });
       return c.json({ success: true }, 200);
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);

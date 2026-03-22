@@ -1,12 +1,14 @@
 import type { LayoutTemplate } from '@stallion-ai/shared';
 import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
+import { templateOps } from '../telemetry/metrics.js';
 
 export function createTemplateRoutes(storageAdapter: IStorageAdapter) {
   const app = new Hono();
 
   app.get('/', (c) => {
     try {
+      templateOps.add(1, { op: 'list' });
       return c.json({ success: true, data: storageAdapter.listTemplates() });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -36,6 +38,7 @@ export function createTemplateRoutes(storageAdapter: IStorageAdapter) {
         createdAt: new Date().toISOString(),
       };
       storageAdapter.saveTemplate(template);
+      templateOps.add(1, { op: 'apply' });
       return c.json({ success: true, data: template }, 201);
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 400);

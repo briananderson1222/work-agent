@@ -183,3 +183,74 @@ if (entry) {
   otelToolDuration.record(performance.now() - entry.start, { tool: entry.tool });
 }
 ```
+
+## Application-Level Monitoring (MonitoringEmitter)
+
+Beyond OTel infrastructure metrics, Stallion tracks GenAI-specific events through the `MonitoringEmitter` class. This is a separate system from OTel — it captures structured events about agent conversations, tool calls, and health checks.
+
+### Architecture
+
+```
+StreamOrchestrator / ACPBridge
+  └─ MonitoringEmitter (src-server/monitoring/emitter.ts)
+       ├─ EventBus (SSE fan-out to /monitoring/events)
+       └─ Disk persistence (events-YYYY-MM-DD.ndjson)
+```
+
+The emitter is injected into the streaming pipeline and ACP bridge. It captures events at key lifecycle points without coupling to any specific transport.
+
+### Event Schema
+
+Events follow the [OTel GenAI Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/) with Stallion extensions. Defined in `src-server/monitoring/schema.ts`.
+
+Core attributes (every event):
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `timestamp` | string | ISO-8601 |
+| `timestamp.ms` | number | Epoch ms for sorting |
+| `trace.id` | string | Groups related events |
+| `gen_ai.operation.name` | string | `chat`, `invoke_agent`, `execute_tool` |
+| `span.kind` | string | `start`, `end`, `event`, `log` |
+
+GenAI attributes (set per operation type):
+
+| Attribute | Set On | Description |
+|-----------|--------|-------------|
+| `gen_ai.request.model` | agent start/end | Model ID |
+| `gen_ai.conversation.id` | all agent events | Conversation ID |
+| `gen_ai.usage.input_tokens` | agent complete | Input token count |
+| `gen_ai.usage.output_tokens` | agent complete | Output token count |
+| `gen_ai.tool.name` | tool call/result | Tool name |
+| `gen_ai.tool.call.id` | tool call/result | Unique call ID |
+
+Stallion extensions:
+
+| Attribute | Description |
+|-----------|-------------|
+| `stallion.agent.slug` | Agent identifier |
+| `stallion.agent.steps` | Steps taken in agent loop |
+| `stallion.input.chars` | Input character count |
+| `stallion.output.chars` | Output character count |
+| `stallion.user.id` | User identifier |
+| `stallion.reasoning.text` | Extended thinking content |
+
+### Emitter Methods
+
+| Method | When | Key Data |
+|--------|------|----------|
+| `emitAgentStart` | Chat request begins | slug, model, input |
+| `emitAgentComplete` | Chat request ends | tokens, steps, finish reason |
+| `emitToolCall` | Tool execution starts | tool name, arguments |
+| `emitToolResult` | Tool execution ends | tool name, result |
+| `emitReasoning` | Extended thinking | reasoning text |
+| `emitHealth` | Health check | healthy, checks, integrations |
+| `emitRaw` | Custom events | any MonitoringEvent |
+
+### Consuming Events
+
+**SSE stream**: `GET /monitoring/events` — real-time event stream for the Monitoring view.
+
+**Disk**: Events persist to `~/.stallion-ai/events/events-YYYY-MM-DD.ndjson` (one JSON object per line). Historical events are queryable via `GET /monitoring/events?since=<timestamp>`.
+
+**UI**: The Monitoring view (`MonitoringContext.tsx`) subscribes to the SSE stream and displays events in real-time with filtering by agent, operation type, and time range.

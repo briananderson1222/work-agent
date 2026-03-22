@@ -1,16 +1,6 @@
 # Plugin Development
 
-Plugins are the product — the core provides the foundation. A plugin can contribute layout UIs, agents, MCP tools, and provider implementations (auth, branding, agent registry, etc.). The SDK (`@stallion-ai/sdk`) is what plugin developers use to interact with Stallion from plugin UI code.
-
-## Plugin Types
-
-| Type | What it provides |
-|------|-----------------|
-| `workspace` | A full layout UI with tabs, agents, and optional providers |
-| `agent` | Agents only — no layout UI |
-| `tool` | Provider implementations only (auth, branding, registry, etc.) |
-
-A single plugin can combine all three — e.g., a layout plugin that also registers an auth provider.
+Plugins are the product — the core provides the foundation. A plugin can contribute layout UIs, agents, MCP tools, provider implementations, and knowledge namespaces. A single plugin can combine any of these.
 
 ## Directory Structure
 
@@ -39,7 +29,6 @@ All fields:
 {
   "name": "my-plugin",
   "version": "1.0.0",
-  "type": "workspace",
   "sdkVersion": "^0.4.0",
   "displayName": "My Plugin",
   "description": "What this plugin does",
@@ -76,7 +65,6 @@ All fields:
 |-------|------|----------|-------------|
 | `name` | string | yes | Unique plugin identifier (used as install directory name) |
 | `version` | string | yes | Semver version |
-| `type` | `workspace` \| `agent` \| `tool` | yes | Plugin type |
 | `sdkVersion` | string | no | Semver range of `@stallion-ai/sdk` required |
 | `displayName` | string | no | Human-readable name shown in UI |
 | `description` | string | no | Short description |
@@ -89,6 +77,7 @@ All fields:
 | `providers` | array | no | Server-side provider modules to load |
 | `tools.required` | string[] | no | MCP tool IDs that must be installed |
 | `dependencies` | array | no | Other plugins this plugin depends on |
+| `knowledge` | object | no | Knowledge namespace configuration |
 
 ### Provider Entry Fields
 
@@ -718,14 +707,14 @@ Plugins can inject external links into the host UI:
 
 ## Examples
 
-| Example | Type | What it shows |
-|---------|------|---------------|
-| `examples/demo-layout/` | workspace | Full layout with agents, tabs, SDK hooks |
-| `examples/minimal-layout/` | workspace | Minimal entry point, no agents |
-| `examples/custom-branding/` | tool | Branding provider only |
-| `examples/elevenlabs-voice/` | tool | STT/TTS voice provider |
-| `examples/nova-sonic-voice/` | tool | Nova Sonic voice provider |
-| `examples/meeting-transcription/` | tool | Context provider for meeting transcription |
+| Example | What it shows |
+|---------|---------------|
+| `examples/demo-layout/` | Full layout with agents, tabs, SDK hooks |
+| `examples/minimal-layout/` | Minimal entry point, no agents |
+| `examples/custom-branding/` | Branding provider only |
+| `examples/elevenlabs-voice/` | STT/TTS voice provider |
+| `examples/nova-sonic-voice/` | Nova Sonic voice provider |
+| `examples/meeting-transcription/` | Context provider for meeting transcription |
 
 ### Minimal Layout (examples/minimal-layout)
 
@@ -766,7 +755,6 @@ module.exports = () => ({
 {
   "name": "custom-branding",
   "version": "1.0.0",
-  "type": "tool",
   "providers": [{ "type": "branding", "module": "./providers/branding.js" }]
 }
 ```

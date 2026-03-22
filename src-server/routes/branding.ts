@@ -4,12 +4,14 @@
 
 import { Hono } from 'hono';
 import { getBrandingProvider } from '../providers/registry.js';
+import { providerOps } from '../telemetry/metrics.js';
 
 export function createBrandingRoutes() {
   const app = new Hono();
 
   app.get('/', async (c) => {
     const provider = getBrandingProvider();
+    providerOps.add(1, { op: 'branding' });
     const [name, logo, theme, welcomeMessage] = await Promise.all([
       provider.getAppName(),
       provider.getLogo?.() ?? null,
