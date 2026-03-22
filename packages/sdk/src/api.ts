@@ -487,3 +487,85 @@ export async function deleteKnowledgeDoc(projectSlug: string, docId: string, nam
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
 }
+
+export async function bulkDeleteKnowledgeDocs(projectSlug: string, ids: string[], namespace?: string): Promise<void> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/bulk-delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) throw new Error(`Knowledge bulk delete failed: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+}
+
+export async function fetchKnowledgeStatus(projectSlug: string): Promise<any> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/status`, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch knowledge status: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function scanKnowledgeDirectory(projectSlug: string, options?: { extensions?: string[]; includePatterns?: string[]; excludePatterns?: string[] }): Promise<any> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${knowledgeBase(apiBase, projectSlug)}/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+    body: JSON.stringify(options ?? {}),
+  });
+  if (!res.ok) throw new Error(`Knowledge scan failed: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function fetchProjectConversations(projectSlug: string, limit = 10): Promise<any[]> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/conversations?limit=${limit}`, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch conversations: ${res.statusText}`);
+  const json = await res.json();
+  return json.success ? json.data : [];
+}
+
+export async function addProjectLayoutFromPlugin(projectSlug: string, plugin: string): Promise<any> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/layouts/from-plugin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+    body: JSON.stringify({ plugin }),
+  });
+  if (!res.ok) throw new Error(`Failed to add layout from plugin: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function fetchAvailableLayouts(): Promise<any[]> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${apiBase}/api/projects/layouts/available`, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch available layouts: ${res.statusText}`);
+  const json = await res.json();
+  return json.success ? json.data ?? [] : [];
+}
+
+export async function updateKnowledgeNamespace(projectSlug: string, namespaceId: string, data: Record<string, any>): Promise<any> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/namespaces/${encodeURIComponent(namespaceId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update namespace: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}

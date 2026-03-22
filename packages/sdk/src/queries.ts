@@ -561,3 +561,65 @@ export function useKnowledgeDeleteMutation(projectSlug: string, namespace?: stri
     },
   });
 }
+
+export function useKnowledgeBulkDeleteMutation(projectSlug: string, namespace?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { bulkDeleteKnowledgeDocs } = await import('./api');
+      return bulkDeleteKnowledgeDocs(projectSlug, ids, namespace);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });
+    },
+  });
+}
+
+export function useKnowledgeStatusQuery(projectSlug: string, config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['knowledge', 'status', projectSlug],
+    async () => {
+      const { fetchKnowledgeStatus } = await import('./api');
+      return fetchKnowledgeStatus(projectSlug);
+    },
+    { ...config, enabled: !!projectSlug && (config?.enabled ?? true) },
+  );
+}
+
+export function useKnowledgeScanMutation(projectSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (options?: { extensions?: string[]; includePatterns?: string[]; excludePatterns?: string[] }) => {
+      const { scanKnowledgeDirectory } = await import('./api');
+      return scanKnowledgeDirectory(projectSlug, options);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });
+      qc.invalidateQueries({ queryKey: ['knowledge', 'status', projectSlug] });
+    },
+  });
+}
+
+export function useProjectConversationsQuery(projectSlug: string, limit = 10, config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['project-conversations', projectSlug],
+    async () => {
+      const { fetchProjectConversations } = await import('./api');
+      return fetchProjectConversations(projectSlug, limit);
+    },
+    { ...config, enabled: !!projectSlug && (config?.enabled ?? true) },
+  );
+}
+
+export function useAddLayoutFromPluginMutation(projectSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (plugin: string) => {
+      const { addProjectLayoutFromPlugin } = await import('./api');
+      return addProjectLayoutFromPlugin(projectSlug, plugin);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['projects', projectSlug, 'layouts'] });
+    },
+  });
+}

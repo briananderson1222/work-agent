@@ -1,5 +1,5 @@
-import { useProjectLayoutsQuery, useKnowledgeDocsQuery, useKnowledgeNamespacesQuery, useKnowledgeSearchQuery, fetchKnowledgeDocs, uploadKnowledge, deleteKnowledgeDoc } from '@stallion-ai/sdk';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useProjectLayoutsQuery, useProjectQuery, useUpdateProjectMutation, useCreateLayoutMutation, useKnowledgeDocsQuery, useKnowledgeNamespacesQuery, useKnowledgeSearchQuery, useKnowledgeBulkDeleteMutation, useKnowledgeStatusQuery, useKnowledgeScanMutation, useProjectConversationsQuery, useAddLayoutFromPluginMutation, fetchKnowledgeDocs, uploadKnowledge, deleteKnowledgeDoc, fetchAvailableLayouts, updateKnowledgeNamespace } from '@stallion-ai/sdk';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { PathAutocomplete } from '../components/PathAutocomplete';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -63,16 +63,7 @@ export function ProjectPage({ slug }: { slug: string }) {
   const { setLayout, setConversation, navigate } = useNavigation();
   const qc = useQueryClient();
 
-  const { data: project, isLoading } = useQuery<ProjectConfig>({
-    queryKey: ['projects', slug],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/projects/${slug}`);
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
-      return json.data;
-    },
-    enabled: !!slug,
-  });
+  const { data: project, isLoading } = useProjectQuery(slug);
 
   const { data: layouts = [] } = useProjectLayoutsQuery(slug);
   const { data: gitStatus } = useGitStatus(project?.workingDirectory);
@@ -80,16 +71,7 @@ export function ProjectPage({ slug }: { slug: string }) {
 
   const { data: docs = [] } = useKnowledgeDocsQuery(slug);
 
-  const { data: knowledgeStatus } = useQuery<KnowledgeStatus>({
-    queryKey: ['knowledge-status', slug],
-    queryFn: async () => {
-      const res = await fetch(
-        `${apiBase}/api/projects/${slug}/knowledge/status`,
-      );
-      const json = await res.json();
-      return json.success ? json.data : null;
-    },
-  });
+  const { data: knowledgeStatus } = useKnowledgeStatusQuery(slug);
 
   const { data: namespaces = [] } = useKnowledgeNamespacesQuery(slug);
 
@@ -141,16 +123,7 @@ export function ProjectPage({ slug }: { slug: string }) {
     setSavingRules(false);
   }
 
-  const { data: conversations = [] } = useQuery<ConversationRecord[]>({
-    queryKey: ['project-conversations', slug],
-    queryFn: async () => {
-      const res = await fetch(
-        `${apiBase}/api/projects/${slug}/conversations?limit=10`,
-      );
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-  });
+  const { data: conversations = [] } = useProjectConversationsQuery(slug);
 
   // ── Drag-and-drop file upload ──
   const [dragOver, setDragOver] = useState(false);
@@ -184,90 +157,31 @@ export function ProjectPage({ slug }: { slug: string }) {
     },
   });
 
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      const res = await fetch(
-        `${apiBase}/api/projects/${slug}/knowledge/bulk-delete`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids }),
-        },
-      );
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
-    },
-    onSuccess: () => {
-      setSelectedDocs(new Set());
-      qc.invalidateQueries({ queryKey: ['knowledge', slug] });
-      qc.invalidateQueries({ queryKey: ['knowledge-status', slug] });
-    },
-  });
+  const bulkDeleteMutation = useKnowledgeBulkDeleteMutation(slug);
 
   // ── Inline working directory edit ──
   const [editingDir, setEditingDir] = useState(false);
   const [dirDraft, setDirDraft] = useState('');
 
-  const saveDirMutation = useMutation({
-    mutationFn: async (workingDirectory: string) => {
-      const res = await fetch(`${apiBase}/api/projects/${slug}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workingDirectory: workingDirectory || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['projects', slug] });
-      setEditingDir(false);
-    },
-  });
+  const updateProjectMutation = useUpdateProjectMutation();
 
   // ── Directory scan with confirmation ──
   const [showScanDialog, setShowScanDialog] = useState(false);
   const [scanInclude, setScanInclude] = useState('');
   const [scanExclude, setScanExclude] = useState('');
-  const [scanning, setScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<{
-    indexed: number;
-    skipped: number;
-  } | null>(null);
+  const [scanResult, setScanResult] = useState<{ indexed: number; skipped: number } | null>(null);
+
+  const scanMutation = useKnowledgeScanMutation(slug);
 
   async function handleScan() {
-    setScanning(true);
     setScanResult(null);
     setShowScanDialog(false);
-    try {
-      const body: Record<string, unknown> = {};
-      const inc = scanInclude
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const exc = scanExclude
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (inc.length) body.includePatterns = inc;
-      if (exc.length) body.excludePatterns = exc;
-      const res = await fetch(
-        `${apiBase}/api/projects/${slug}/knowledge/scan`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      );
-      const json = await res.json();
-      if (json.success) setScanResult(json.data);
-      qc.invalidateQueries({ queryKey: ['knowledge', slug] });
-      qc.invalidateQueries({ queryKey: ['knowledge-status', slug] });
-    } catch {
-      /* ignore */
-    }
-    setScanning(false);
+    const inc = scanInclude.split(',').map(s => s.trim()).filter(Boolean);
+    const exc = scanExclude.split(',').map(s => s.trim()).filter(Boolean);
+    const options: Record<string, any> = {};
+    if (inc.length) options.includePatterns = inc;
+    if (exc.length) options.excludePatterns = exc;
+    scanMutation.mutate(options, { onSuccess: (data: any) => setScanResult(data) });
   }
 
   // ── Bulk selection ──
@@ -310,38 +224,29 @@ export function ProjectPage({ slug }: { slug: string }) {
 
   useEffect(() => {
     if (!showAddLayout) return;
-    fetch(`${apiBase}/api/projects/layouts/available`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) setAvailable(d.data ?? []);
-      })
+    fetchAvailableLayouts()
+      .then(data => setAvailable(data))
       .catch(() => {});
-  }, [showAddLayout, apiBase]);
+  }, [showAddLayout]);
+
+  const addLayoutFromPluginMutation = useAddLayoutFromPluginMutation(slug);
+  const createLayoutMutation = useCreateLayoutMutation(slug);
 
   async function addLayout(item: AvailableLayout) {
     setAdding(item.slug);
     try {
       if (item.source === 'plugin' && item.plugin) {
-        await fetch(`${apiBase}/api/projects/${slug}/layouts/from-plugin`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plugin: item.plugin }),
-        });
+        await addLayoutFromPluginMutation.mutateAsync(item.plugin);
       } else {
-        await fetch(`${apiBase}/api/projects/${slug}/layouts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: item.type,
-            name: item.name,
-            slug: `${item.slug}-${Date.now().toString(36)}`,
-            icon: item.icon,
-            description: item.description,
-            config: {},
-          }),
+        await createLayoutMutation.mutateAsync({
+          type: item.type,
+          name: item.name,
+          slug: `${item.slug}-${Date.now().toString(36)}`,
+          icon: item.icon,
+          description: item.description,
+          config: {},
         });
       }
-      qc.invalidateQueries({ queryKey: ['projects', slug, 'layouts'] });
       setShowAddLayout(false);
     } catch {
       /* ignore */
@@ -413,10 +318,10 @@ export function ProjectPage({ slug }: { slug: string }) {
               apiBase={apiBase}
               value={dirDraft}
               onChange={setDirDraft}
-              onSubmit={() => saveDirMutation.mutate(dirDraft)}
+              onSubmit={() => { updateProjectMutation.mutate({ slug, workingDirectory: dirDraft || undefined }, { onSuccess: () => setEditingDir(false) }); }}
               onBlur={() => {
                 if (dirDraft !== (project.workingDirectory ?? '')) {
-                  saveDirMutation.mutate(dirDraft);
+                  updateProjectMutation.mutate({ slug, workingDirectory: dirDraft || undefined }, { onSuccess: () => setEditingDir(false) });
                 } else {
                   setEditingDir(false);
                 }
@@ -574,11 +479,8 @@ export function ProjectPage({ slug }: { slug: string }) {
                   defaultValue={(nsCfg as any).storageDir ?? ''}
                   onBlur={(e) => {
                     const val = e.target.value.trim();
-                    fetch(`${apiBase}/api/projects/${slug}/knowledge/namespaces/${selectedNs}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ storageDir: val || undefined }),
-                    }).then(() => qc.invalidateQueries({ queryKey: ['knowledge-namespaces', slug] }));
+                    updateKnowledgeNamespace(slug, selectedNs!, { storageDir: val || undefined })
+                      .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
                   }}
                   style={{ flex: 1, padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '11px' }}
                 />
@@ -587,11 +489,8 @@ export function ProjectPage({ slug }: { slug: string }) {
                     type="checkbox"
                     defaultChecked={(nsCfg as any).writeFiles ?? false}
                     onChange={(e) => {
-                      fetch(`${apiBase}/api/projects/${slug}/knowledge/namespaces/${selectedNs}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ writeFiles: e.target.checked }),
-                      }).then(() => qc.invalidateQueries({ queryKey: ['knowledge-namespaces', slug] }));
+                      updateKnowledgeNamespace(slug, selectedNs!, { writeFiles: e.target.checked })
+                        .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
                     }}
                   />
                   Write files
@@ -602,11 +501,8 @@ export function ProjectPage({ slug }: { slug: string }) {
                     defaultChecked={!!(nsCfg as any).enhance?.auto}
                     onChange={(e) => {
                       const enhance = e.target.checked ? { agent: 'sales-sa:sales-sa', auto: true } : undefined;
-                      fetch(`${apiBase}/api/projects/${slug}/knowledge/namespaces/${selectedNs}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ enhance }),
-                      }).then(() => qc.invalidateQueries({ queryKey: ['knowledge-namespaces', slug] }));
+                      updateKnowledgeNamespace(slug, selectedNs!, { enhance })
+                        .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
                     }}
                   />
                   ✨ Auto-enhance
@@ -631,9 +527,9 @@ export function ProjectPage({ slug }: { slug: string }) {
                 <button
                   className="project-page__add-btn"
                   onClick={() => setShowScanDialog(true)}
-                  disabled={scanning}
+                  disabled={scanMutation.isPending}
                 >
-                  {scanning ? '⟳ Scanning…' : '⟳ Index directory'}
+                  {scanMutation.isPending ? '⟳ Scanning…' : '⟳ Index directory'}
                 </button>
               )}
             </div>
