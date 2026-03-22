@@ -836,3 +836,44 @@
   font-size: 0.875rem;
   color: var(--text-secondary);
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .plugins__install {
+    flex-wrap: wrap;
+  }
+
+  .plugins__install input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .plugins__table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .plugins__modal {
+    width: 95vw;
+    max-width: 95vw;
+    max-height: 90vh;
+  }
+
+  .plugins__tools-desc {
+    max-width: none;
+  }
+
+  .plugins__btn {
+    min-height: 44px;
+  }
+
+  .plugins__section-action {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .plugins__modal-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

@@ -340,3 +340,29 @@
   color: var(--text-secondary);
   margin-right: 8px;
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .usage-stats-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .drill-down-overlay {
+    padding: 1rem;
+  }
+
+  .drill-down-modal {
+    width: 95vw;
+    max-width: 95vw;
+    max-height: 90vh;
+  }
+
+  .usage-stats-button {
+    min-height: 44px;
+  }
+
+  .drill-down-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

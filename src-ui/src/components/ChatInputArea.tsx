@@ -110,6 +110,11 @@ export function ChatInputArea({
   const isOverride = currentModel && currentModel !== agentDefaultModel;
   const modelInfo = availableModels.find((m) => m.id === currentModel);
   const { settings: featureSettings } = useFeatureSettings();
+  const safeMaxHeight = Math.max(dockHeight - 200, 120);
+  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+  const placeholder = isMobile
+    ? 'Type a message...'
+    : 'Type a message... (Enter to send, Shift+Enter for new line)';
 
   return (
     <div
@@ -126,7 +131,7 @@ export function ChatInputArea({
             }))}
             currentModel={currentModel}
             agentDefaultModel={agentDefaultModel}
-            maxHeight={`calc(${dockHeight}px - 200px)`}
+            maxHeight={`${safeMaxHeight}px`}
             onSelect={onModelSelect}
             onClose={onModelClose}
           />
@@ -135,14 +140,14 @@ export function ChatInputArea({
           <SlashCommandSelector
             query={commandQuery}
             commands={slashCommands}
-            maxHeight={`calc(${dockHeight}px - 200px)`}
+            maxHeight={`${safeMaxHeight}px`}
             onSelect={onCommandSelect}
             onClose={onCommandClose}
           />
         )}
         <textarea
           ref={textareaRef}
-          placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+          placeholder={placeholder}
           value={input}
           disabled={disabled}
           tabIndex={0}

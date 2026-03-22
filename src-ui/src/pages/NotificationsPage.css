@@ -202,3 +202,10 @@
   white-space: nowrap;
   margin-left: 16px;
 }
+
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .notifications-page__clear-btn {
+    min-height: 44px;
+  }
+}

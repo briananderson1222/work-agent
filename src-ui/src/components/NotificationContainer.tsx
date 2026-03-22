@@ -58,13 +58,13 @@ export function NotificationContainer() {
     <div
       style={{
         position: 'fixed',
-        top: '60px', // Below header
+        top: 'calc(var(--app-toolbar-height, 46px) + var(--safe-top, 0px) + 8px)',
         right: '20px',
         zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
-        maxWidth: '400px',
+        maxWidth: 'calc(100vw - 40px)',
         pointerEvents: 'none',
       }}
     >

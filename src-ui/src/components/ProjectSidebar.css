@@ -302,3 +302,66 @@
 .sidebar--collapsed .sidebar__nav-label {
   display: none;
 }
+
+/* Mobile: sidebar is an overlay drawer */
+@media (max-width: 768px) {
+  /* ── Sidebar drawer ── */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 500;
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: none;
+  }
+
+  .sidebar--expanded {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar--collapsed {
+    transform: translateX(-100%);
+  }
+
+  /* Show toggle inside sidebar header on mobile (only when open) */
+  .sidebar--expanded .sidebar__toggle {
+    display: flex;
+    position: static;
+    right: auto;
+  }
+
+  .sidebar--collapsed .sidebar__toggle {
+    display: none;
+  }
+
+  /* Backdrop overlay */
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 499;
+  }
+
+  /* Hide the old edge-tab toggle */
+  .sidebar__mobile-toggle {
+    display: none;
+  }
+}
+
+/* Desktop: hide mobile-only elements */
+@media (min-width: 769px) {
+  .sidebar-backdrop {
+    display: none;
+  }
+
+  .sidebar__mobile-toggle {
+    display: none;
+  }
+}

@@ -778,3 +778,50 @@
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .chat-dock__tab {
+    min-width: 120px;
+  }
+
+  .chat-dock__tabs {
+    padding: 4px 8px;
+  }
+
+  .session-panel {
+    width: min(350px, 100vw);
+  }
+
+  .chat-settings-modal {
+    min-width: unset;
+    width: 90vw;
+  }
+
+  .chat-dock__header-actions button {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .chat-controls {
+    min-width: 80px;
+  }
+
+  .chat-input textarea {
+    min-height: 40px;
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+
+  .app-toolbar__icon-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .message__rating-btn {
+    padding: 10px;
+  }
+
+  .message__copy-btn {
+    padding: 10px;
+  }
+}

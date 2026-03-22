@@ -25,13 +25,18 @@ export function SessionManagementPanel({
   const { dockMode } = useNavigation();
   const isRight = dockMode === 'right';
 
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+
   return (
+    <>
+      {/* Backdrop for mobile tap-to-dismiss */}
+      <div className="session-menu__backdrop" onClick={onClose} />
     <div
       className="session-panel"
       style={{
         left: isRight ? undefined : bounds.left,
         top: bounds.top,
-        bottom: `${window.innerHeight - bounds.bottom}px`,
+        bottom: `${vh - bounds.bottom}px`,
       }}
     >
       <div className="session-panel__header">
@@ -52,5 +57,6 @@ export function SessionManagementPanel({
 
       <div className="session-panel__content">{children}</div>
     </div>
+    </>
   );
 }

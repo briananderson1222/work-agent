@@ -369,3 +369,26 @@
   letter-spacing: 0.05em;
   color: var(--text-muted);
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .coding-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .coding-layout__tree {
+    border-right: none;
+    border-bottom: 1px solid var(--border-primary);
+    max-height: 30vh;
+    overflow-y: auto;
+  }
+
+  .coding-layout__terminal-tabs {
+    flex-wrap: wrap;
+  }
+
+  .coding-layout__terminal-tab {
+    min-height: 44px;
+  }
+}

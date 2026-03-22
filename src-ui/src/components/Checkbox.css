@@ -55,3 +55,10 @@
   font-size: 13px;
   color: var(--text-primary);
 }
+
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .cb {
+    min-height: 44px;
+  }
+}
