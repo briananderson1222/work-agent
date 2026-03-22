@@ -20,7 +20,7 @@ const mcpRefCounts = new Map<string, Set<string>>();
 /**
  * Release MCP reference for an agent and clean up if no more references
  */
-export function releaseMCPRef(
+export async function releaseMCPRef(
   agentSlug: string,
   toolId: string,
   mcpConfigs: Map<string, MCPConfiguration>,
@@ -29,7 +29,7 @@ export function releaseMCPRef(
     string,
     { type: string; transport?: string; toolCount?: number }
   >,
-): void {
+): Promise<void> {
   const mcpKey = toolId;
   const refSet = mcpRefCounts.get(mcpKey);
 
@@ -39,9 +39,15 @@ export function releaseMCPRef(
     // Clean up if no more references
     if (refSet.size === 0) {
       mcpRefCounts.delete(mcpKey);
+      const config = mcpConfigs.get(mcpKey);
       mcpConfigs.delete(mcpKey);
       mcpConnectionStatus.delete(mcpKey);
       integrationMetadata.delete(mcpKey);
+
+      // Disconnect the MCP config (kills child process, removes listeners)
+      if (config) {
+        try { await config.disconnect(); } catch {}
+      }
     }
   }
 }

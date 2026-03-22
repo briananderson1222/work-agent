@@ -83,6 +83,8 @@ class VoiceSession {
   }
 
   async destroy(): Promise<void> {
+    this.provider.removeAllListeners();
+    if (typeof this.ws.removeAllListeners === 'function') this.ws.removeAllListeners();
     await this.provider.disconnect();
   }
 
@@ -132,6 +134,13 @@ export class VoiceSessionService {
       session.destroy();
       this.sessions.delete(id);
     }
+  }
+
+  async stop(): Promise<void> {
+    await Promise.all(
+      Array.from(this.sessions.values()).map((s) => s.destroy()),
+    );
+    this.sessions.clear();
   }
 
   getActiveCount(): number {

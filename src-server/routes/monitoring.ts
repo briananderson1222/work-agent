@@ -8,7 +8,7 @@ import { getCachedUser } from './auth.js';
 type Agent = any;
 
 import { Hono } from 'hono';
-import { stream } from 'hono/streaming';
+import { streamSSE } from 'hono/streaming';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { MonitoringEvent } from '../monitoring/schema.js';
 
@@ -216,11 +216,7 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
     }
 
     // Otherwise, stream live events via SSE
-    c.header('Content-Type', 'text/event-stream');
-    c.header('Cache-Control', 'no-cache');
-    c.header('Connection', 'keep-alive');
-
-    return stream(c, async (streamWriter) => {
+    return streamSSE(c, async (stream) => {
       const now = Date.now();
       const connectedEvent: MonitoringEvent = {
         timestamp: new Date(now).toISOString(),
@@ -230,43 +226,38 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
         'span.kind': 'log',
         'stallion.system.type': 'connected',
       };
-      await streamWriter.write(`data: ${JSON.stringify(connectedEvent)}\n\n`);
+      await stream.writeSSE({ data: JSON.stringify(connectedEvent) });
 
-      const eventHandler = async (event: any) => {
-        if (event.userId && event.userId !== userId) {
-          return;
-        }
-
-        try {
-          await streamWriter.write(`data: ${JSON.stringify(event)}\n\n`);
-        } catch (e) {
-          console.debug('Failed to write monitoring event to stream:', e);
-          // Client disconnected
-        }
+      const eventHandler = (event: any) => {
+        if (event.userId && event.userId !== userId) return;
+        stream.writeSSE({ data: JSON.stringify(event) }).catch(() => {});
       };
 
       deps.monitoringEvents.on('event', eventHandler);
 
-      const interval = setInterval(async () => {
-        try {
-          const hbNow = Date.now();
-          const heartbeatEvent: MonitoringEvent = {
-            timestamp: new Date(hbNow).toISOString(),
-            'timestamp.ms': hbNow,
-            'trace.id': 'system',
-            'gen_ai.operation.name': 'invoke_agent',
-            'span.kind': 'log',
-            'stallion.system.type': 'heartbeat',
-          };
-          await streamWriter.write(`data: ${JSON.stringify(heartbeatEvent)}\n\n`);
-        } catch (e) {
-          console.debug('Failed to write monitoring heartbeat, client disconnected:', e);
-          clearInterval(interval);
-          deps.monitoringEvents.off('event', eventHandler);
-        }
+      const interval = setInterval(() => {
+        const hbNow = Date.now();
+        const heartbeatEvent: MonitoringEvent = {
+          timestamp: new Date(hbNow).toISOString(),
+          'timestamp.ms': hbNow,
+          'trace.id': 'system',
+          'gen_ai.operation.name': 'invoke_agent',
+          'span.kind': 'log',
+          'stallion.system.type': 'heartbeat',
+        };
+        stream.writeSSE({ data: JSON.stringify(heartbeatEvent) }).catch(() => {});
       }, 30000);
 
-      await new Promise(() => {});
+      try {
+        await new Promise((_, reject) => {
+          stream.onAbort(() => reject(new Error('aborted')));
+        });
+      } catch {
+        /* client disconnected */
+      }
+
+      clearInterval(interval);
+      deps.monitoringEvents.off('event', eventHandler);
     });
   });
 

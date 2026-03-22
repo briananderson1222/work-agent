@@ -1785,6 +1785,9 @@ export class StallionRuntime {
     this.feedbackService.stop();
     this.notificationService.stop();
 
+    // Shutdown voice sessions
+    await this.voiceService.stop();
+
     // Shutdown terminal
     this.terminalWsServer.stop();
     await this.terminalService.dispose();
