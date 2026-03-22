@@ -9,7 +9,12 @@ export const IS_MAC = process.platform === 'darwin';
 
 /** Cross-platform synchronous sleep — no shell spawn needed. */
 export function sleepSync(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {} // busy-wait fallback
+  }
 }
 
 /**
@@ -90,9 +95,9 @@ export function createPathLink(repoRoot: string): void {
     process.exit(1);
   }
   try {
-    execSync(`ln -sf "${source}" "/usr/local/bin/stallion"`, { stdio: 'pipe' });
+    execFileSync('ln', ['-sf', source, '/usr/local/bin/stallion'], { stdio: 'pipe' });
   } catch {
-    execSync(`sudo ln -sf "${source}" "/usr/local/bin/stallion"`, {
+    execFileSync('sudo', ['ln', '-sf', source, '/usr/local/bin/stallion'], {
       stdio: 'inherit',
     });
   }
@@ -154,7 +159,7 @@ export function createAppShortcut(repoRoot: string): void {
       join(macosDir, 'launch'),
       `#!/bin/bash\n"${stallionPath}" start &\nsleep 2\nopen "http://localhost:3000"\n`,
     );
-    execSync(`chmod +x "${join(macosDir, 'launch')}"`);
+    execFileSync('chmod', ['+x', join(macosDir, 'launch')]);
     console.log('  ✓ Created ~/Applications/Stallion.app');
     console.log('  Double-click to launch Stallion and open in browser');
     return;

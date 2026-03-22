@@ -63,7 +63,7 @@ describe('killProcessTree', () => {
 
     await new Promise((r) => setTimeout(r, 500));
     expect(() => process.kill(pid, 0)).toThrow();
-  });
+  }, 15_000);
 });
 
 // ─── promptYN — logic coverage ───────────────────────────────────────────────

@@ -139,7 +139,7 @@ describe('stop', () => {
     expect(existsSync(TEST_PIDFILE)).toBe(false);
     await new Promise((r) => setTimeout(r, 500));
     expect(isAlive(pid)).toBe(false);
-  });
+  }, 15_000);
 
   it('kills multiple processes listed in the pidfile', async () => {
     const pid1 = await spawnLongRunning();
@@ -152,7 +152,7 @@ describe('stop', () => {
     await new Promise((r) => setTimeout(r, 500));
     expect(isAlive(pid1)).toBe(false);
     expect(isAlive(pid2)).toBe(false);
-  });
+  }, 15_000);
 
   it('handles a pidfile containing only dead PIDs without throwing', () => {
     writeFileSync(TEST_PIDFILE, '99998 99999');

@@ -39,7 +39,7 @@ export function extractPluginName(source: string): string {
     const match = url.match(/\/([^/]+?)(?:\.git)?$/);
     return match ? match[1] : url.split('/').pop()!.replace('.git', '');
   }
-  return basename(source);
+  return basename(source.replace(/\\/g, '/'));
 }
 
 /** Scan installed plugins for registry.json files and look up a dep by id */
