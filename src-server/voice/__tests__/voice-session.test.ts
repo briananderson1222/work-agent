@@ -24,8 +24,10 @@ class MockS2SProvider extends EventEmitter implements IS2SProvider {
   readonly outputAudioFormat = OUTPUT_FORMAT;
   sendAudioCalls: Buffer[] = [];
   sendToolResultCalls: Array<{ toolUseId: string; result: string }> = [];
+  connectConfig: S2SSessionConfig | undefined;
 
-  async connect(_config: S2SSessionConfig): Promise<S2SAudioFormat> {
+  async connect(config: S2SSessionConfig): Promise<S2SAudioFormat> {
+    this.connectConfig = config;
     this._state = 'listening';
     return INPUT_FORMAT;
   }
@@ -42,21 +44,32 @@ class MockWebSocket {
   private handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
   send(data: string): void { this.sentMessages.push(JSON.parse(data)); }
   on(event: string, handler: (...args: unknown[]) => void): void { (this.handlers[event] ??= []).push(handler); }
-  close(): void { this.readyState = 3; }
   trigger(event: string, ...args: unknown[]): void { this.handlers[event]?.forEach((h) => h(...args)); }
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
 
-function makeService(toolExecutor?: ReturnType<typeof vi.fn>) {
+const VOICE_SLUG = 'stallion-voice';
+
+function makeService(overrides?: {
+  tools?: any[];
+  systemPrompt?: string;
+  voiceAgentSlug?: string;
+}) {
   let provider: MockS2SProvider;
   const factory = () => { provider = new MockS2SProvider(); return provider as unknown as IS2SProvider; };
-  const service = new VoiceSessionService({ providerFactory: factory, toolExecutor });
+
+  const slug = overrides?.voiceAgentSlug ?? VOICE_SLUG;
+  const tools = overrides?.tools ?? [];
+  const agentTools = new Map([[slug, tools]]);
+  const agentSpecs = new Map([[slug, { systemPrompt: overrides?.systemPrompt ?? '' }]]);
+
+  const service = new VoiceSessionService({ providerFactory: factory, agentTools, agentSpecs, voiceAgentSlug: overrides?.voiceAgentSlug });
   return { service, getProvider: () => provider! };
 }
 
 describe('VoiceSessionService', () => {
-  test('createSession returns a session ID and sends session_ready', async () => {
+  test('createSession returns ID and sends session_ready', async () => {
     const { service } = makeService();
     const ws = new MockWebSocket();
     const id = service.createSession(ws as any);
@@ -79,7 +92,7 @@ describe('VoiceSessionService', () => {
     expect(spy).toHaveBeenCalled();
   });
 
-  test('getActiveCount tracks sessions', async () => {
+  test('getActiveCount tracks sessions', () => {
     const { service } = makeService();
     const ws1 = new MockWebSocket();
     const ws2 = new MockWebSocket();
@@ -131,27 +144,49 @@ describe('VoiceSession wiring', () => {
     expect(ws.sentMessages).toContainEqual({ type: 'error', message: 'boom' });
   });
 
-  test('full tool use cycle: toolUse → toolExecutor → sendToolResult', async () => {
-    const executor = vi.fn().mockResolvedValue('calendar result');
+  test('toolUse calls tool.execute() from agent tools map', async () => {
+    const execute = vi.fn().mockResolvedValue({ events: ['meeting1'] });
     const ws2 = new MockWebSocket();
-    const built2 = makeService(executor);
+    const built2 = makeService({ tools: [{ name: 'get_events', description: 'Get events', execute }] });
     built2.service.createSession(ws2 as any);
     await tick();
     const p2 = built2.getProvider();
 
-    p2.emit('toolUse', { toolName: 'get_calendar_events', toolUseId: 'tu-1', parameters: { date: 'today' } });
+    p2.emit('toolUse', { toolName: 'get_events', toolUseId: 'tu-1', parameters: { date: 'today' } });
     await tick();
 
-    expect(executor).toHaveBeenCalledWith('get_calendar_events', { date: 'today' });
+    expect(execute).toHaveBeenCalledWith({ date: 'today' });
     expect(p2.sendToolResultCalls).toHaveLength(1);
-    expect(p2.sendToolResultCalls[0]).toEqual({ toolUseId: 'tu-1', result: 'calendar result' });
+    expect(p2.sendToolResultCalls[0]).toEqual({ toolUseId: 'tu-1', result: JSON.stringify({ events: ['meeting1'] }) });
   });
 
-  test('toolUse without executor returns fallback message', async () => {
-    provider.emit('toolUse', { toolName: 'some_tool', toolUseId: 'tu-2', parameters: {} });
+  test('toolUse for unknown tool returns error string', async () => {
+    provider.emit('toolUse', { toolName: 'no_such_tool', toolUseId: 'tu-2', parameters: {} });
     await tick();
     expect(provider.sendToolResultCalls).toHaveLength(1);
-    expect(provider.sendToolResultCalls[0].result).toContain('No tool executor');
+    expect(provider.sendToolResultCalls[0].result).toContain('no_such_tool');
+  });
+
+  test('system prompt includes voice prefix + agent spec prompt', async () => {
+    const ws2 = new MockWebSocket();
+    const built2 = makeService({ systemPrompt: 'You are a sales assistant.' });
+    built2.service.createSession(ws2 as any);
+    await tick();
+    const config = built2.getProvider().connectConfig!;
+    expect(config.systemPrompt).toBe(
+      'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything.\n\nYou are a sales assistant.'
+    );
+  });
+
+  test('tools from agent map are translated to S2SToolDefinition format', async () => {
+    const ws2 = new MockWebSocket();
+    const built2 = makeService({
+      tools: [{ name: 'list_contacts', description: 'List contacts', parameters: { type: 'object', properties: {} }, execute: vi.fn() }],
+    });
+    built2.service.createSession(ws2 as any);
+    await tick();
+    const config = built2.getProvider().connectConfig!;
+    expect(config.tools).toEqual([{ name: 'list_contacts', description: 'List contacts', inputSchema: { type: 'object', properties: {} } }]);
   });
 
   test('WebSocket close triggers session cleanup', async () => {
@@ -161,13 +196,15 @@ describe('VoiceSession wiring', () => {
     expect(spy).toHaveBeenCalled();
   });
 
-  test('provider connect failure sends error to WebSocket and cleans up', async () => {
+  test('provider connect failure sends error and cleans up', async () => {
     const failFactory = () => {
       const p = new MockS2SProvider();
       vi.spyOn(p, 'connect').mockRejectedValue(new Error('connect failed'));
       return p as unknown as IS2SProvider;
     };
-    const failService = new VoiceSessionService({ providerFactory: failFactory });
+    const agentTools = new Map([[VOICE_SLUG, []]]);
+    const agentSpecs = new Map([[VOICE_SLUG, {}]]);
+    const failService = new VoiceSessionService({ providerFactory: failFactory, agentTools, agentSpecs });
     const ws3 = new MockWebSocket();
     failService.createSession(ws3 as any);
     await tick();

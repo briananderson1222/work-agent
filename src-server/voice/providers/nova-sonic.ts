@@ -62,6 +62,7 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
         const item = this.queue.shift()!;
         if (item === null) return;
         yield item;
+        await new Promise<void>(r => setTimeout(r, 30));
       }
       await new Promise<void>(r => { this.queueResolve = r; });
     }
@@ -76,7 +77,7 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
     const voice = config.voice ?? 'matthew';
 
     const tools = (config.tools ?? []).map(t => ({
-      toolSpec: { name: t.name, description: t.description, inputSchema: { json: t.inputSchema } },
+      toolSpec: { name: t.name, description: t.description, inputSchema: { json: JSON.stringify(t.inputSchema) } },
     }));
 
     // Seed setup events into queue before starting stream
@@ -86,8 +87,10 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
         promptName: this.promptName,
         textOutputConfiguration: { mediaType: 'text/plain' },
         audioOutputConfiguration: { mediaType: 'audio/lpcm', sampleRateHertz: 24000, sampleSizeBits: 16, channelCount: 1, voiceId: voice, encoding: 'base64', audioType: 'SPEECH' },
-        toolUseOutputConfiguration: { mediaType: 'application/json' },
-        ...(tools.length > 0 && { toolConfiguration: { tools, toolChoice: { auto: {} } } }),
+        ...(tools.length > 0 && {
+          toolUseOutputConfiguration: { mediaType: 'application/json' },
+          toolConfiguration: { tools, toolChoice: { auto: {} } },
+        }),
       },
     }));
     // System prompt

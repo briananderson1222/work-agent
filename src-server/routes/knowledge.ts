@@ -35,9 +35,9 @@ function knowledgeHandlers(knowledgeService: KnowledgeService, getSlug: (c: any)
 
   app.post('/upload', async (c) => {
     try {
-      const { filename, content } = await c.req.json();
+      const { filename, content, metadata } = await c.req.json();
       if (!filename || !content) return c.json({ success: false, error: 'filename and content required' }, 400);
-      const data = await knowledgeService.uploadDocument(getSlug(c), filename, content, 'upload', getNs(c));
+      const data = await knowledgeService.uploadDocument(getSlug(c), filename, content, 'upload', getNs(c), metadata);
       return c.json({ success: true, data }, 201);
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);
@@ -145,6 +145,16 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   app.delete('/namespaces/:nsId', (c) => {
     try {
       knowledgeService.removeNamespace(c.get('slug'), c.req.param('nsId'));
+      return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 500);
+    }
+  });
+
+  app.put('/namespaces/:nsId', async (c) => {
+    try {
+      const body = await c.req.json();
+      knowledgeService.updateNamespace(c.get('slug'), c.req.param('nsId'), body);
       return c.json({ success: true });
     } catch (e: any) {
       return c.json({ success: false, error: e.message }, 500);

@@ -191,6 +191,19 @@ export interface KnowledgeNamespaceConfig {
   behavior: KnowledgeNamespaceBehavior;
   description?: string;
   builtIn?: boolean;
+  /** Custom storage directory. Default: <dataDir>/projects/<slug>/knowledge/<namespace>/ */
+  storageDir?: string;
+  /** Write actual files to disk alongside vector index. Enables Obsidian/editor compatibility. */
+  writeFiles?: boolean;
+  /** Re-index from storageDir on scan. Default: true when storageDir is set. */
+  syncOnScan?: boolean;
+  /** Post-save enhancement — invoke an agent to structure/enrich the note. */
+  enhance?: {
+    /** Agent slug to invoke for enhancement. */
+    agent: string;
+    /** Auto-enhance on every save. Default: false (manual via UI button). */
+    auto?: boolean;
+  };
 }
 
 export interface KnowledgeDocumentMeta {
@@ -200,6 +213,11 @@ export interface KnowledgeDocumentMeta {
   source: 'upload' | 'directory-scan';
   chunkCount: number;
   createdAt: string;
+  eventId?: string;
+  eventSubject?: string;
+  enhancedFrom?: string;
+  enhancedTo?: string;
+  status?: 'raw' | 'enhanced';
 }
 
 export const BUILTIN_KNOWLEDGE_NAMESPACES: KnowledgeNamespaceConfig[] = [

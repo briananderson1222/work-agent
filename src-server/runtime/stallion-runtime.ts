@@ -91,7 +91,6 @@ import { createToolRoutes } from '../routes/tools.js';
 import { VoiceSessionService } from '../voice/voice-session.js';
 import { NovaSonicProvider } from '../voice/providers/nova-sonic.js';
 import { createVoiceRoutes, attachVoiceWebSocket } from '../routes/voice.js';
-import { createBuiltinToolExecutor, BUILTIN_VOICE_TOOLS } from '../voice/voice-tools.js';
 import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
@@ -254,8 +253,9 @@ export class StallionRuntime {
     this.terminalWsServer.start(this.port + 1);
     this.voiceService = new VoiceSessionService({
       providerFactory: () => new NovaSonicProvider({ region: 'us-east-1' }),
-      toolExecutor: createBuiltinToolExecutor(`http://localhost:${this.port}`),
-      defaultTools: BUILTIN_VOICE_TOOLS,
+      agentTools: this.agentTools,
+      agentSpecs: this.agentSpecs,
+      voiceAgentSlug: 'stallion-voice',
     });
     this.monitoringEmitter = new MonitoringEmitter(
       this.monitoringEvents,
@@ -352,6 +352,30 @@ export class StallionRuntime {
 
     this.logger.info('Agents reloaded', { count: agentMetadataList.length });
     this.eventBus.emit('agents:changed', { count: agentMetadataList.length });
+    await this.bootstrapVoiceAgent();
+  }
+
+  private async bootstrapVoiceAgent(): Promise<void> {
+    const mcpServers = Array.from(
+      new Set([
+        'stallion-control',
+        ...Array.from(this.agentSpecs.values()).flatMap(
+          (spec) => spec.tools?.mcpServers ?? [],
+        ),
+      ]),
+    );
+    const voiceSpec = {
+      name: 'Stallion Voice',
+      prompt:
+        'You are Stallion Voice, a hands-free voice assistant. You can navigate the app, query data, and perform actions. Be concise — this is voice, not text. Use short sentences. Always confirm before creating, modifying, or deleting anything.',
+      tools: { mcpServers, autoApprove: ['stallion-control_*'], available: ['*'] },
+    };
+    if (await this.configLoader.agentExists('stallion-voice')) {
+      await this.configLoader.updateAgent('stallion-voice', voiceSpec);
+    } else {
+      await this.configLoader.createAgent(voiceSpec);
+    }
+    this.logger.info('Bootstrapped stallion-voice agent', { mcpServers });
   }
 
   /**
@@ -631,11 +655,10 @@ export class StallionRuntime {
       }),
     });
 
-    // Attach voice WebSocket upgrade handler once the HTTP server is ready
-    setImmediate(() => {
-      const httpServer = (this.voltAgent as any)?.serverInstance?.server;
-      if (httpServer) attachVoiceWebSocket(httpServer, this.voiceService);
-    });
+    // Attach voice WebSocket on its own port (port + 2), same pattern as terminal WS
+    const voiceWsPort = this.port + 2;
+    attachVoiceWebSocket(voiceWsPort, this.voiceService);
+    this.logger.info('Voice WebSocket listening', { port: voiceWsPort });
 
     this.logger.debug('Stallion Runtime initialized', { port: this.port });
 

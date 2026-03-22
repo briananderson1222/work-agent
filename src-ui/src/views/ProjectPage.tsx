@@ -110,6 +110,41 @@ export function ProjectPage({ slug }: { slug: string }) {
   const [selectedNs, setSelectedNs] = useState<string | null>(null);
   const [rulesContent, setRulesContent] = useState('');
   const [savingRules, setSavingRules] = useState(false);
+  const [rulesLoaded, setRulesLoaded] = useState(false);
+
+  // Load existing rules content when rules tab is selected
+  useEffect(() => {
+    if (selectedNs !== 'rules' || rulesLoaded) return;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/projects/${slug}/knowledge/ns/rules/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: '*', topK: 50 }),
+        });
+        const json = await res.json();
+        if (json.success && json.data?.length) {
+          // Reconstruct content from chunks, grouped by doc, ordered by chunkIndex
+          const byDoc = new Map<string, { filename: string; chunks: Map<number, string> }>();
+          for (const r of json.data) {
+            const docId = r.metadata?.docId;
+            const idx = r.metadata?.chunkIndex ?? 0;
+            const fn = r.metadata?.filename ?? 'rules';
+            if (!docId) continue;
+            if (!byDoc.has(docId)) byDoc.set(docId, { filename: fn, chunks: new Map() });
+            byDoc.get(docId)!.chunks.set(idx, r.text);
+          }
+          const parts: string[] = [];
+          for (const [, { chunks }] of byDoc) {
+            const sorted = Array.from(chunks.entries()).sort((a, b) => a[0] - b[0]);
+            parts.push(sorted.map(([, t]) => t).join('\n\n'));
+          }
+          if (parts.length) setRulesContent(parts.join('\n\n---\n\n'));
+        }
+      } catch { /* ignore */ }
+      setRulesLoaded(true);
+    })();
+  }, [selectedNs, rulesLoaded, apiBase, slug]);
 
   async function handleSaveRules() {
     if (!rulesContent.trim()) return;
@@ -307,7 +342,7 @@ export function ProjectPage({ slug }: { slug: string }) {
   const [dirOpen, setDirOpen] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(true);
 
-  const filteredDocs = selectedNs ? docs.filter((d: any) => d.namespace === selectedNs) : docs;
+  const filteredDocs = selectedNs ? docs.filter((d: any) => (d.namespace || 'default') === selectedNs) : docs;
   const dirDocs = filteredDocs.filter((d) => d.source === 'directory-scan');
   const uploadDocs = filteredDocs.filter((d) => d.source !== 'directory-scan');
 
@@ -568,6 +603,60 @@ export function ProjectPage({ slug }: { slug: string }) {
               >{savingRules ? 'Saving…' : 'Save Rules'}</button>
             </div>
           )}
+
+          {/* Namespace storage config — shown for any selected namespace */}
+          {selectedNs && (() => {
+            const nsCfg = namespaces.find((n: KnowledgeNamespace) => n.id === selectedNs);
+            if (!nsCfg) return null;
+            return (
+              <div style={{ marginBottom: '8px', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--bg-secondary)', display: 'flex', gap: '8px', alignItems: 'center', fontSize: '11px' }}>
+                <label style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>📁 Storage:</label>
+                <input
+                  type="text"
+                  placeholder="Default (built-in)"
+                  defaultValue={(nsCfg as any).storageDir ?? ''}
+                  onBlur={(e) => {
+                    const val = e.target.value.trim();
+                    fetch(`${apiBase}/api/projects/${slug}/knowledge/namespaces/${selectedNs}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ storageDir: val || undefined }),
+                    }).then(() => qc.invalidateQueries({ queryKey: ['knowledge-namespaces', slug] }));
+                  }}
+                  style={{ flex: 1, padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '11px' }}
+                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    defaultChecked={(nsCfg as any).writeFiles ?? false}
+                    onChange={(e) => {
+                      fetch(`${apiBase}/api/projects/${slug}/knowledge/namespaces/${selectedNs}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ writeFiles: e.target.checked }),
+                      }).then(() => qc.invalidateQueries({ queryKey: ['knowledge-namespaces', slug] }));
+                    }}
+                  />
+                  Write files
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    defaultChecked={!!(nsCfg as any).enhance?.auto}
+                    onChange={(e) => {
+                      const enhance = e.target.checked ? { agent: 'sales-sa:sales-sa', auto: true } : undefined;
+                      fetch(`${apiBase}/api/projects/${slug}/knowledge/namespaces/${selectedNs}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enhance }),
+                      }).then(() => qc.invalidateQueries({ queryKey: ['knowledge-namespaces', slug] }));
+                    }}
+                  />
+                  ✨ Auto-enhance
+                </label>
+              </div>
+            );
+          })()}
               {selectedDocs.size > 0 && (
                 <button
                   className="project-page__add-btn project-page__add-btn--danger"

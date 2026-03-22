@@ -23,6 +23,17 @@ function float32ToInt16(input: Float32Array): Int16Array {
   return out;
 }
 
+function downsample(input: Float32Array, fromRate: number, toRate: number): Float32Array {
+  if (fromRate === toRate) return input;
+  const ratio = fromRate / toRate;
+  const length = Math.ceil(input.length / ratio);
+  const output = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    output[i] = input[Math.round(i * ratio)];
+  }
+  return output;
+}
+
 function int16ToFloat32(input: Int16Array): Float32Array {
   const out = new Float32Array(input.length);
   for (let i = 0; i < input.length; i++) {
@@ -123,7 +134,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
     const stream = streamRef.current;
     if (!ctx || !stream) return;
 
-    const CHUNK = 512;
+    const CHUNK = 4096;
     const source = ctx.createMediaStreamSource(stream);
     // ScriptProcessorNode is deprecated but AudioWorklet requires a separate file;
     // ScriptProcessorNode is sufficient for this use case.
@@ -131,7 +142,8 @@ export function useVoiceSession(): UseVoiceSessionResult {
     processor.onaudioprocess = (e) => {
       if (isMutedRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
       const float32 = e.inputBuffer.getChannelData(0);
-      const int16 = float32ToInt16(float32);
+      const resampled = downsample(float32, ctx.sampleRate, inputSampleRateRef.current);
+      const int16 = float32ToInt16(resampled);
       wsRef.current!.send(JSON.stringify({ type: 'audio_in', data: int16ToBase64(int16) }));
     };
     source.connect(processor);
@@ -154,8 +166,9 @@ export function useVoiceSession(): UseVoiceSessionResult {
       if (!res.ok) throw new Error(`Session creation failed: ${res.status}`);
       const { sessionId } = await res.json();
 
-      const wsBase = apiBase.replace(/^http/, 'ws');
-      const ws = new WebSocket(`${wsBase}/api/voice/ws/${sessionId}`);
+      const wsUrl = new URL(apiBase);
+      const voiceWsPort = parseInt(wsUrl.port || '3141', 10) + 2;
+      const ws = new WebSocket(`ws://${wsUrl.hostname}:${voiceWsPort}/?agent=stallion-voice`);
       wsRef.current = ws;
 
       const ctx = new AudioContext();

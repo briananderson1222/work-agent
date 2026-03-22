@@ -6,7 +6,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChatDock } from './components/ChatDock';
 import { CodingLayout } from './components/CodingLayout';
-import { GlobalVoiceButton } from './components/GlobalVoiceButton';
+import { VoicePill } from './components/VoicePill';
 import { Header } from './components/Header';
 import { NewProjectModal } from './components/NewProjectModal';
 import { ProjectSidebar } from './components/ProjectSidebar';
@@ -846,7 +846,7 @@ function App() {
           </div>
 
           <ChatDock onRequestAuth={handleAuthError} />
-          {featureSettings.voiceInputEnabled && <GlobalVoiceButton />}
+          {featureSettings.voiceInputEnabled && <VoicePill />}
         </div>
       </div>
     </ProjectsProvider>
