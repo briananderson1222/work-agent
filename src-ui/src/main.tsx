@@ -1,10 +1,4 @@
 import * as SDK from '@stallion-ai/sdk';
-// Explicitly import knowledge API functions so they survive tree-shaking.
-// Plugins access these at runtime via window.__stallion_ai_shared['@stallion-ai/sdk'].
-// Without explicit references, Vite removes them since the core app doesn't use them.
-import { fetchKnowledgeDocs, fetchKnowledgeNamespaces, searchKnowledge, uploadKnowledge, deleteKnowledgeDoc, useKnowledgeDocs, useKnowledgeSearch, useKnowledgeNamespaces, useKnowledgeSaveMutation, useKnowledgeDeleteMutation } from '@stallion-ai/sdk';
-const _knowledgeExports = { fetchKnowledgeDocs, fetchKnowledgeNamespaces, searchKnowledge, uploadKnowledge, deleteKnowledgeDoc, useKnowledgeDocs, useKnowledgeSearch, useKnowledgeNamespaces, useKnowledgeSaveMutation, useKnowledgeDeleteMutation };
-const _SDK = Object.assign({}, SDK, _knowledgeExports);
 import * as ReactQuery from '@tanstack/react-query';
 import debug from 'debug';
 import DOMPurify from 'dompurify';
@@ -19,7 +13,7 @@ import { UserDetailModal } from './components/UserDetailModal';
   react: ReactAll,
   'react/jsx-runtime': jsxRuntime,
   'react/jsx-dev-runtime': jsxRuntime,
-  '@stallion-ai/sdk': _SDK,
+  '@stallion-ai/sdk': SDK,
   '@tanstack/react-query': ReactQuery,
   dompurify: Object.assign(
     (dirty: string, cfg?: any) => DOMPurify.sanitize(dirty, cfg),

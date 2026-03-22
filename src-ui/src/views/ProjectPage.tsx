@@ -1,4 +1,4 @@
-import { useProjectLayoutsQuery } from '@stallion-ai/sdk';
+import { useProjectLayoutsQuery, useKnowledgeDocsQuery, useKnowledgeNamespacesQuery, useKnowledgeSearchQuery, fetchKnowledgeDocs, uploadKnowledge, deleteKnowledgeDoc } from '@stallion-ai/sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { PathAutocomplete } from '../components/PathAutocomplete';
@@ -78,14 +78,7 @@ export function ProjectPage({ slug }: { slug: string }) {
   const { data: gitStatus } = useGitStatus(project?.workingDirectory);
   const { data: gitLog = [] } = useGitLog(project?.workingDirectory, 5);
 
-  const { data: docs = [] } = useQuery<DocMeta[]>({
-    queryKey: ['knowledge', slug],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/projects/${slug}/knowledge`);
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-  });
+  const { data: docs = [] } = useKnowledgeDocsQuery(slug);
 
   const { data: knowledgeStatus } = useQuery<KnowledgeStatus>({
     queryKey: ['knowledge-status', slug],
@@ -98,14 +91,7 @@ export function ProjectPage({ slug }: { slug: string }) {
     },
   });
 
-  const { data: namespaces = [] } = useQuery<KnowledgeNamespace[]>({
-    queryKey: ['knowledge-namespaces', slug],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/projects/${slug}/knowledge/namespaces`);
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-  });
+  const { data: namespaces = [] } = useKnowledgeNamespacesQuery(slug);
 
   const [selectedNs, setSelectedNs] = useState<string | null>(null);
   const [rulesContent, setRulesContent] = useState('');
@@ -113,60 +99,44 @@ export function ProjectPage({ slug }: { slug: string }) {
   const [rulesLoaded, setRulesLoaded] = useState(false);
 
   // Load existing rules content when rules tab is selected
+  const { data: rulesSearchData } = useKnowledgeSearchQuery(slug, '*', 'rules', {
+    enabled: selectedNs === 'rules' && !rulesLoaded,
+  });
+
   useEffect(() => {
-    if (selectedNs !== 'rules' || rulesLoaded) return;
-    (async () => {
-      try {
-        const res = await fetch(`${apiBase}/api/projects/${slug}/knowledge/ns/rules/search`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: '*', topK: 50 }),
-        });
-        const json = await res.json();
-        if (json.success && json.data?.length) {
-          // Reconstruct content from chunks, grouped by doc, ordered by chunkIndex
-          const byDoc = new Map<string, { filename: string; chunks: Map<number, string> }>();
-          for (const r of json.data) {
-            const docId = r.metadata?.docId;
-            const idx = r.metadata?.chunkIndex ?? 0;
-            const fn = r.metadata?.filename ?? 'rules';
-            if (!docId) continue;
-            if (!byDoc.has(docId)) byDoc.set(docId, { filename: fn, chunks: new Map() });
-            byDoc.get(docId)!.chunks.set(idx, r.text);
-          }
-          const parts: string[] = [];
-          for (const [, { chunks }] of byDoc) {
-            const sorted = Array.from(chunks.entries()).sort((a, b) => a[0] - b[0]);
-            parts.push(sorted.map(([, t]) => t).join('\n\n'));
-          }
-          if (parts.length) setRulesContent(parts.join('\n\n---\n\n'));
-        }
-      } catch { /* ignore */ }
-      setRulesLoaded(true);
-    })();
-  }, [selectedNs, rulesLoaded, apiBase, slug]);
+    if (selectedNs !== 'rules' || rulesLoaded || !rulesSearchData) return;
+    if (rulesSearchData.length) {
+      const byDoc = new Map<string, { filename: string; chunks: Map<number, string> }>();
+      for (const r of rulesSearchData) {
+        const docId = r.metadata?.docId;
+        const idx = r.metadata?.chunkIndex ?? 0;
+        const fn = r.metadata?.filename ?? 'rules';
+        if (!docId) continue;
+        if (!byDoc.has(docId)) byDoc.set(docId, { filename: fn, chunks: new Map() });
+        byDoc.get(docId)!.chunks.set(idx, r.text);
+      }
+      const parts: string[] = [];
+      for (const [, { chunks }] of byDoc) {
+        const sorted = Array.from(chunks.entries()).sort((a, b) => a[0] - b[0]);
+        parts.push(sorted.map(([, t]) => t).join('\n\n'));
+      }
+      if (parts.length) setRulesContent(parts.join('\n\n---\n\n'));
+    }
+    setRulesLoaded(true);
+  }, [selectedNs, rulesLoaded, rulesSearchData]);
 
   async function handleSaveRules() {
     if (!rulesContent.trim()) return;
     setSavingRules(true);
     try {
       // Clear existing rules docs first
-      const rulesRes = await fetch(`${apiBase}/api/projects/${slug}/knowledge/ns/rules`);
-      const rulesJson = await rulesRes.json();
-      if (rulesJson.success && rulesJson.data?.length) {
-        await fetch(`${apiBase}/api/projects/${slug}/knowledge/ns/rules/bulk-delete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: rulesJson.data.map((d: any) => d.id) }),
-        });
+      const rulesDocs = await fetchKnowledgeDocs(slug, 'rules');
+      for (const doc of rulesDocs) {
+        await deleteKnowledgeDoc(slug, doc.id, 'rules');
       }
       // Upload new rules
-      await fetch(`${apiBase}/api/projects/${slug}/knowledge/ns/rules/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: 'project-rules.md', content: rulesContent }),
-      });
-      qc.invalidateQueries({ queryKey: ['knowledge', slug] });
+      await uploadKnowledge(slug, 'project-rules.md', rulesContent, 'rules');
+      qc.invalidateQueries({ queryKey: ['knowledge', 'docs', slug] });
     } catch { /* ignore */ }
     setSavingRules(false);
   }
@@ -192,17 +162,10 @@ export function ProjectPage({ slug }: { slug: string }) {
     for (const file of Array.from(files)) {
       try {
         const content = await file.text();
-        await fetch(`${apiBase}/api/projects/${slug}/knowledge/upload`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: file.name, content }),
-        });
-      } catch {
-        /* skip */
-      }
+        await uploadKnowledge(slug, file.name, content);
+      } catch { /* skip */ }
     }
-    qc.invalidateQueries({ queryKey: ['knowledge', slug] });
-    qc.invalidateQueries({ queryKey: ['knowledge-status', slug] });
+    qc.invalidateQueries({ queryKey: ['knowledge', 'docs', slug] });
     setUploading(false);
   }
 
@@ -214,16 +177,10 @@ export function ProjectPage({ slug }: { slug: string }) {
 
   const deleteMutation = useMutation({
     mutationFn: async (docId: string) => {
-      const res = await fetch(
-        `${apiBase}/api/projects/${slug}/knowledge/${docId}`,
-        { method: 'DELETE' },
-      );
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      await deleteKnowledgeDoc(slug, docId);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['knowledge', slug] });
-      qc.invalidateQueries({ queryKey: ['knowledge-status', slug] });
+      qc.invalidateQueries({ queryKey: ['knowledge', 'docs', slug] });
     },
   });
 
