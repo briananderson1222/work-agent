@@ -55,7 +55,7 @@ For full field reference see [docs/reference/config.md](../reference/config.md).
 }
 ```
 
-- `mcpServers` — IDs of MCP servers to connect (each defined in `.stallion-ai/tools/<id>/tool.json`)
+- `mcpServers` — IDs of MCP servers to connect (each defined in `.stallion-ai/integrations/<id>/tool.json`)
 - `available` — allowlist of tool names exposed to the agent; omit or set `["*"]` to expose all tools from connected servers
 - `autoApprove` — tools that execute without user confirmation; all other tools trigger the approval flow
 - `aliases` — rename tools in prompts without changing the underlying tool name
@@ -179,14 +179,14 @@ Provider Interface (contract)  →  Provider Impl (plugin)        →  ViewModel
 Plugins must use SDK hooks for navigating between layout tabs — never use raw `sessionStorage`, `window.history.pushState`, or `window.dispatchEvent` directly.
 
 ```typescript
-import { useNavigation, useWorkspaceNavigation } from '@stallion-ai/sdk';
+import { useNavigation, useLayoutNavigation } from '@stallion-ai/sdk';
 
 const nav = useNavigation();
-const { setTabState, getTabState } = useWorkspaceNavigation();
+const { setTabState, getTabState } = useLayoutNavigation();
 
 // Navigate to another tab with state:
 setTabState('crm', 'selectedAccount=<id>');       // write state for target tab
-nav.setWorkspaceTab('stallion', 'crm');            // navigate to tab
+nav.setLayout('my-project', 'my-layout');          // navigate to layout
 
 // Read state on the receiving tab:
 const state = getTabState('crm');                  // read in useEffect([activeTab])
@@ -196,7 +196,7 @@ const accountId = params.get('selectedAccount');
 
 **Rules:**
 - `setTabState(tabId, state)` writes to sessionStorage + syncs URL hash
-- `setLayoutTab(layoutSlug, tabId)` handles client-side URL navigation
+- `setLayout(projectSlug, layoutSlug)` handles client-side URL navigation
 - Receiving tab reads state via `getTabState(tabId)` in a `useEffect` triggered by `activeTab`
 - State format is URL search params string (e.g., `'event=abc&date=2026-01-01'`)
 

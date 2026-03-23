@@ -196,7 +196,7 @@ stateDiagram-v2
 
 **Load** — On startup (or after a reload), `loadPluginProviders()` scans `plugins/`, reads each `plugin.json` manifest, and dynamically imports provider modules. Each provider is registered in the appropriate singleton slot (auth, branding, agentRegistry, etc.).
 
-**Render** — Plugin UI bundles are served from `/api/plugins/:name/dist/:file`. The web UI loads them as ES module chunks. Plugins use `@stallion-ai/sdk` hooks and components — they never call the server directly.
+**Render** — Plugin UI bundles are served from `/api/plugins/:name/dist/:file`. The web UI loads them as IIFE bundles via `<script>` injection. Plugins use `@stallion-ai/sdk` hooks and components — they never call the server directly.
 
 **Uninstall** — The plugin directory is deleted. On next reload, the registry is cleared and rebuilt without the removed plugin. Agents and tools installed by the plugin are also removed.
 
@@ -206,7 +206,7 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Defined: agent YAML written to .stallion-ai/agents/
+    [*] --> Defined: agent JSON written to .stallion-ai/agents/
     Defined --> Loading: createAgentInstance()
     Loading --> MCPConnect: MCPManager.loadTools()
     MCPConnect --> Ready: agent registered in activeAgents
@@ -214,15 +214,13 @@ stateDiagram-v2
     Running --> Ready: stream complete
     Ready --> Reloaded: config file change detected
     Reloaded --> Loading
-    Ready --> Removed: agent YAML deleted
+    Ready --> Removed: agent JSON deleted
     Removed --> [*]
 ```
 
-**Define** — An agent is a YAML file in `.stallion-ai/agents/<slug>/agent.yaml` (schema: `schemas/agent.schema.json`). It specifies model, prompt, tools, guardrails, and MCP server references.
+**Define** — An agent is a JSON file in `.stallion-ai/agents/<slug>/agent.json` (schema: `schemas/agent.schema.json`). It specifies model, prompt, tools, guardrails, and MCP server references.
 
 **Load** — `createAgentInstance()` reads the spec, resolves the Bedrock model, creates a `FileMemoryAdapter`, and delegates to the active framework adapter.
-
-**MCP Connect** — For each `tools.mcpServers` entry, `MCPManager` creates an `MCPConfiguration` (stdio, HTTP, or WebSocket transport), connects, and loads the tool list. Tool names are normalized to avoid collisions.
 
 **Chat** — `agent.streamText()` is called with the user input and conversation context. The result's `fullStream` is piped through the `StreamPipeline` and written as SSE.
 

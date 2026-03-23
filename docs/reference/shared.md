@@ -14,7 +14,6 @@ Describes a plugin's identity, capabilities, and structure. Read from `plugin.js
 interface PluginManifest {
   name: string;
   version: string;
-  type: 'workspace' | 'agent' | 'tool';
   sdkVersion?: string;
   displayName?: string;
   description?: string;
@@ -22,17 +21,19 @@ interface PluginManifest {
   capabilities?: string[];
   permissions?: string[];
   agents?: Array<{ slug: string; source: string }>;
-  workspace?: { slug: string; source: string };
-  workspaces?: Array<{ slug: string; source: string }>;
+  layout?: { slug: string; source: string };
+  layouts?: Array<{ slug: string; source: string }>;
   providers?: PluginProviderEntry[];
   tools?: { required?: string[] };
   dependencies?: PluginDependency[];
+  knowledge?: { namespaces: KnowledgeNamespaceConfig[] };
+  skills?: string[];
 }
 
 interface PluginProviderEntry {
   type: string;
   module: string;
-  workspace?: string;
+  layout?: string;
 }
 
 interface PluginDependency {
@@ -79,8 +80,6 @@ interface ConflictInfo {
   existingSource?: string;
 }
 ```
-
----
 
 ## agent types
 
@@ -267,7 +266,7 @@ interface WorkspacePrompt {
 ### `WorkspaceMetadata`
 
 ```ts
-interface WorkspaceMetadata {
+interface LayoutMetadata {
   slug: string;
   name: string;
   icon?: string;

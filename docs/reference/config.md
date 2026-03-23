@@ -95,7 +95,7 @@ Controls which MCP servers and tools the agent can use.
 
 | field | type | description |
 |---|---|---|
-| `mcpServers` | string[] | IDs of MCP server tools to connect (defined in `~/.stallion-ai/tools/<id>/tool.json`) |
+| `mcpServers` | string[] | IDs of MCP server tools to connect (defined in `~/.stallion-ai/integrations/<id>/tool.json`) |
 | `available` | string[] | Allowlist of specific tool names exposed to the agent. Empty means all tools from connected servers |
 | `autoApprove` | string[] | Tool names that execute without user confirmation |
 | `aliases` | object | Map of `{ "alias": "actual-tool-name" }` for renaming tools in prompts |

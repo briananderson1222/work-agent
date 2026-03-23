@@ -50,9 +50,15 @@ All runtime data lives in `~/.stallion-ai/`:
 │   ├── app.json          # Model settings, system prompt, template vars
 │   └── acp.json          # ACP connection configs
 ├── agents/               # Agent definitions (JSON + memory)
+├── integrations/         # MCP tool server configs
 ├── layouts/              # Layout configs
 ├── plugins/              # Installed plugin source
-└── analytics/            # Usage data
+├── projects/             # Project definitions
+├── prompts/              # Prompt templates
+├── vectordb/             # LanceDB vector store
+├── monitoring/           # Event logs (NDJSON)
+├── analytics/            # Usage data
+└── plugin-grants.json    # Plugin permission grants
 ```
 
 Set `STALLION_AI_DIR` to override the default location.
@@ -262,8 +268,8 @@ Providers are declared in `plugin.json` and loaded when the server starts. For r
 │   ├── shared/           # @stallion-ai/shared
 │   └── cli/              # @stallion-ai/cli (stallion)
 ├── examples/
-│   ├── demo-workspace/   # Full plugin example
-│   ├── minimal-workspace/# Minimal plugin example
+│   ├── demo-layout/      # Full plugin example
+│   ├── minimal-layout/   # Minimal plugin example
 │   ├── custom-branding/  # Branding provider example
 │   ├── elevenlabs-voice/ # ElevenLabs voice plugin
 │   ├── nova-sonic-voice/ # Nova Sonic voice plugin
@@ -281,17 +287,35 @@ The `./stallion` script is the unified CLI for managing the application:
 ./stallion start                    # Build (if needed) and start server + UI
 ./stallion start --port=3142        # Custom server port (default: 3141)
 ./stallion start --ui-port=3001     # Custom UI port (default: 3000)
+./stallion start --build            # Force rebuild before starting
+./stallion start --base=<dir>       # Custom data directory (default: ~/.stallion-ai)
+./stallion start --log[=<path>]     # Redirect server output to log file
+./stallion start --features=<flags> # Comma-separated feature flags
 ./stallion stop                     # Stop running processes
 ./stallion upgrade                  # Pull latest, rebuild
 ./stallion doctor                   # Check prerequisites
+./stallion link                     # Add 'stallion' to PATH (/usr/local/bin)
+./stallion shortcut                 # Create macOS app in ~/Applications
+```
+
+Configuration:
+
+```bash
+./stallion config                   # Show all config values
+./stallion config get <key>         # Get a config value
+./stallion config set <key> <value> # Set a config value
 ```
 
 Plugin management:
 
 ```bash
 ./stallion install <git-url|path>   # Install a plugin
+./stallion preview <git-url|path>   # Preview plugin contents before installing
 ./stallion list                     # List installed plugins
+./stallion info <name>              # Show plugin details
+./stallion update <name>            # Update a git-installed plugin
 ./stallion remove <name>            # Remove a plugin
+./stallion registry [url]           # Browse or set plugin registry URL
 ./stallion dev [port]               # Plugin dev server (default: 4200)
 ```
 
@@ -375,7 +399,6 @@ npx playwright test tests/plugin-system.spec.ts
 |-----|-------------|
 | [Architecture](docs/architecture.md) | System overview, diagrams, component map, data flows |
 | [Agent Development](docs/guides/agents.md) | Agent config, MCP tools, guardrails, approval flow |
-| [Workspace Agents](docs/guides/workspace-agents.md) | Plugin-based agent and workspace setup |
 | [Plugins](docs/guides/plugins.md) | Plugin architecture and development |
 | [Custom Commands](docs/guides/commands.md) | Slash command system |
 | [ACP](docs/guides/acp.md) | Agent Communication Protocol — connecting external runtimes |

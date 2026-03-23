@@ -2,7 +2,7 @@
 
 ## Endpoint Overview
 
-### Stallion Endpoints (96 endpoints total):
+### Stallion Endpoints (~177 endpoints total):
 
 #### Agent Management (5)
 - `GET /api/agents` - Enriched agent list
@@ -151,6 +151,109 @@
 - `POST /system/push-subscribe` - Subscribe to Web Push
 - `POST /system/push-unsubscribe` - Unsubscribe from Web Push
 
+#### ACP (8)
+- `GET /acp/status` - ACP connection status
+- `GET /acp/commands/:slug` - Slash commands for ACP agent
+- `GET /acp/commands/:slug/options` - Slash command autocomplete
+- `GET /acp/connections` - List ACP connections
+- `POST /acp/connections` - Add ACP connection
+- `PUT /acp/connections/:id` - Update ACP connection
+- `DELETE /acp/connections/:id` - Remove ACP connection
+- `POST /acp/connections/:id/reconnect` - Reconnect ACP connection
+
+#### Knowledge (14)
+- `GET /api/projects/:slug/knowledge` - List documents
+- `GET /api/projects/:slug/knowledge/status` - Index status
+- `POST /api/projects/:slug/knowledge/upload` - Upload document
+- `POST /api/projects/:slug/knowledge/scan` - Scan directories
+- `POST /api/projects/:slug/knowledge/search` - Semantic search
+- `POST /api/projects/:slug/knowledge/bulk-delete` - Bulk delete documents
+- `GET /api/projects/:slug/knowledge/:docId/content` - Get document content
+- `DELETE /api/projects/:slug/knowledge/:docId` - Delete document
+- `DELETE /api/projects/:slug/knowledge` - Delete all documents
+- `GET /api/projects/:slug/knowledge/namespaces` - List namespaces
+- `POST /api/projects/:slug/knowledge/namespaces` - Create namespace
+- `DELETE /api/projects/:slug/knowledge/namespaces/:nsId` - Delete namespace
+- `PUT /api/projects/:slug/knowledge/namespaces/:nsId` - Update namespace
+- `POST /api/knowledge/search` - Cross-project search
+
+#### Projects (12)
+- `GET /api/projects` - List projects
+- `POST /api/projects` - Create project
+- `GET /api/projects/:slug` - Get project
+- `PUT /api/projects/:slug` - Update project
+- `DELETE /api/projects/:slug` - Delete project
+- `GET /api/projects/:slug/layouts` - List project layouts
+- `POST /api/projects/:slug/layouts` - Add layout to project
+- `GET /api/projects/:slug/layouts/:layoutSlug` - Get project layout
+- `PUT /api/projects/:slug/layouts/:layoutSlug` - Update project layout
+- `DELETE /api/projects/:slug/layouts/:layoutSlug` - Remove layout from project
+- `GET /api/projects/layouts/available` - Available layout sources
+- `POST /api/projects/:slug/layouts/from-plugin` - Add layout from plugin
+
+#### Notifications (7)
+- `GET /notifications` - List notifications (filterable by status/category)
+- `POST /notifications` - Create notification
+- `DELETE /notifications/:id` - Dismiss notification
+- `POST /notifications/:id/action/:actionId` - Execute notification action
+- `POST /notifications/:id/snooze` - Snooze notification
+- `DELETE /notifications` - Clear all notifications
+- `GET /notifications/providers` - List notification providers
+
+#### Prompts (6)
+- `GET /api/prompts/providers` - List prompt providers
+- `GET /api/prompts` - List prompts
+- `GET /api/prompts/:id` - Get prompt
+- `POST /api/prompts` - Create prompt
+- `PUT /api/prompts/:id` - Update prompt
+- `DELETE /api/prompts/:id` - Delete prompt
+
+#### Templates (4)
+- `GET /api/templates` - List templates
+- `GET /api/templates/:id` - Get template
+- `POST /api/templates` - Create template
+- `DELETE /api/templates/:id` - Delete template
+
+#### Voice (4)
+- `POST /api/voice/sessions` - Create voice session
+- `DELETE /api/voice/sessions/:id` - Destroy voice session
+- `GET /api/voice/status` - Active session count
+- `GET /api/voice/agent` - Voice agent info
+
+#### Feedback (8)
+- `POST /api/feedback/rate` - Rate a message
+- `DELETE /api/feedback/rate` - Remove rating
+- `GET /api/feedback/ratings` - List ratings
+- `GET /api/feedback/guidelines` - Get feedback guidelines
+- `POST /api/feedback/analyze` - Analyze feedback
+- `POST /api/feedback/clear-analysis` - Clear analysis
+- `GET /api/feedback/status` - Feedback service status
+- `POST /api/feedback/test` - Test feedback analysis
+
+#### Coding (8)
+- `GET /api/coding/files` - List files in project
+- `GET /api/coding/files/search` - Search files
+- `GET /api/coding/files/content` - Get file content
+- `GET /api/coding/git/status` - Git status
+- `GET /api/coding/git/log` - Git log
+- `GET /api/coding/git/diff` - Git diff
+- `GET /api/coding/git/branches` - Git branches
+- `POST /api/coding/exec` - Execute command
+
+#### Providers (9)
+- `GET /api/providers` - List providers
+- `POST /api/providers` - Create provider
+- `PUT /api/providers/:id` - Update provider
+- `DELETE /api/providers/:id` - Delete provider
+- `POST /api/providers/:id/test` - Test provider connection
+- `GET /api/providers/:id/health` - Provider health check
+- `GET /api/providers/:id/models` - List provider models
+- `POST /api/providers/:id/test-embedding` - Test embedding provider
+- `POST /api/providers/:id/test-vectordb` - Test vector DB provider
+
+#### Telemetry Events (1)
+- `POST /api/telemetry/events` - Ingest plugin telemetry events
+
 ---
 
 ## Category Breakdown
@@ -177,9 +280,18 @@
 | Registry | 9 |
 | Scheduler | 16 |
 | System | 9 |
-| **Total** | **97** |
-
-> Note: System has 9 endpoints (3 documented in api.md + 3 push notification endpoints used by frontend but not yet in api.md). Plugins has 16 (api.md documents 16 distinct routes). Scheduler has 16 routes.
+| ACP | 8 |
+| Knowledge | 14 |
+| Projects | 12 |
+| Notifications | 7 |
+| Prompts | 6 |
+| Templates | 4 |
+| Voice | 4 |
+| Feedback | 8 |
+| Coding | 8 |
+| Providers | 9 |
+| Telemetry Events | 1 |
+| **Total** | **~177** |
 
 ---
 

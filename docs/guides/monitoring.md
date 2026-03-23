@@ -5,12 +5,12 @@ Stallion ships a full observability stack: OTel Collector → Prometheus → Gra
 ## Quick Start
 
 ```bash
-docker compose --profile monitoring up -d
+cd monitoring && docker compose up -d
 ```
 
 | Service    | URL                        | Credentials     |
 |------------|----------------------------|-----------------|
-| Grafana    | http://localhost:3001      | anonymous admin  |
+| Grafana    | http://localhost:3333      | admin/stallion   |
 | Prometheus | http://localhost:9090      | —               |
 | Jaeger     | http://localhost:16686     | —               |
 | Collector  | http://localhost:4318      | OTLP HTTP       |
