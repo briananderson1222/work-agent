@@ -246,11 +246,11 @@ class NavigationStore {
   }
 
   setLayoutTab(layoutSlug: string, tabId: string | null) {
-    if (tabId) {
-      this.navigate(`/layouts/${layoutSlug}/${tabId}`);
-    } else {
-      this.navigate(`/layouts/${layoutSlug}`);
-    }
+    const { selectedProject } = this.state;
+    const base = selectedProject
+      ? `/projects/${selectedProject}/layouts/${layoutSlug}`
+      : `/layouts/${layoutSlug}`;
+    this.navigate(tabId ? `${base}/${tabId}` : base);
   }
 
   setProject(slug: string) {
