@@ -5,10 +5,8 @@
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
-import { homedir } from 'node:os';
-import { getCachedUser } from '../routes/auth.js';
-import { MonitoringEmitter } from '../monitoring/emitter.js';
 import { readFile, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { Readable, Writable } from 'node:stream';
 import {
   type Client,
@@ -35,9 +33,12 @@ import { stream as honoStream } from 'hono/streaming';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ACPConnectionConfig } from '../domain/types.js';
 import { ACPStatus, type ACPStatusValue } from '../domain/types.js';
+import { MonitoringEmitter } from '../monitoring/emitter.js';
+import { getCachedUser } from '../routes/auth.js';
 import { acpOps, approvalOps } from '../telemetry/metrics.js';
-import { ApprovalRegistry } from './approval-registry.js';
 import { ACPProbe } from './acp-probe.js';
+import { ApprovalRegistry } from './approval-registry.js';
+import { forceKillProcess } from './process-utils.js';
 
 interface ACPMode {
   id: string;
@@ -264,6 +265,7 @@ export class ACPConnection {
         stdio: ['pipe', 'pipe', 'inherit'],
         cwd: this.cwd,
         windowsHide: true,
+        detached: true,
       });
 
       this.proc.on('exit', (code) => {
@@ -393,6 +395,11 @@ export class ACPConnection {
     if (this.activeWriter) return false;
     const elapsed = Date.now() - this.lastActivityAt;
     return elapsed > 5 * 60_000;
+  }
+
+  isStale(): boolean {
+    if (this.status !== 'disconnected' && this.status !== 'error') return false;
+    return Date.now() - this.lastActivityAt > 30_000;
   }
 
   async cullSession(): Promise<void> {
@@ -678,7 +685,9 @@ export class ACPConnection {
           try {
             await write({ type: 'waiting', elapsedMs: elapsed });
           } catch (e) {
-            this.logger.debug('Failed to write waiting event to stream', { error: e });
+            this.logger.debug('Failed to write waiting event to stream', {
+              error: e,
+            });
             /* stream may be closed */
           }
         }
@@ -707,13 +716,18 @@ export class ACPConnection {
         conversationId,
         userId,
         traceId,
-        input: inputText.length > 200 ? `${inputText.substring(0, 200)}...` : inputText,
+        input:
+          inputText.length > 200
+            ? `${inputText.substring(0, 200)}...`
+            : inputText,
       };
       this.monitoringEvents?.emit('event', agentStartEvent);
       this.persistEvent?.(agentStartEvent).catch(() => {});
       this.monitoringEmitter?.emitAgentStart({
         slug,
-        conversationId, userId, traceId,
+        conversationId,
+        userId,
+        traceId,
         input: typeof input === 'string' ? input : '[complex input]',
         provider: 'acp',
       });
@@ -817,17 +831,21 @@ export class ACPConnection {
         for (const part of this.responseParts) {
           if (part.type === 'tool-invocation' && part.state === 'call') {
             part.state = 'error';
-            part.result = 'Tool call interrupted — agent session ended unexpectedly';
+            part.result =
+              'Tool call interrupted — agent session ended unexpectedly';
             if (this.activeWriter) {
               await this.activeWriter({
                 type: 'tool-result',
                 toolCallId: part.toolCallId,
-                error: 'Tool call interrupted — agent session ended unexpectedly',
+                error:
+                  'Tool call interrupted — agent session ended unexpectedly',
               });
             }
           }
         }
-        const failedCount = this.responseParts.filter(p => p.type === 'tool-invocation' && p.state === 'error').length;
+        const failedCount = this.responseParts.filter(
+          (p) => p.type === 'tool-invocation' && p.state === 'error',
+        ).length;
         if (failedCount > 0) {
           acpOps.add(failedCount, { operation: 'tool-interrupted' });
         }
@@ -881,13 +899,17 @@ export class ACPConnection {
           reason: cancelled ? 'cancelled' : 'end_turn',
           inputChars: inputText.length,
           outputChars: this.responseAccumulator.length,
-          toolCallCount: this.responseParts.filter(p => p.type === 'tool-invocation').length,
+          toolCallCount: this.responseParts.filter(
+            (p) => p.type === 'tool-invocation',
+          ).length,
         };
         this.monitoringEvents?.emit('event', agentCompleteEvent);
         this.persistEvent?.(agentCompleteEvent).catch(() => {});
         this.monitoringEmitter?.emitAgentComplete({
           slug,
-          conversationId, userId, traceId,
+          conversationId,
+          userId,
+          traceId,
           reason: cancelled ? 'cancelled' : 'complete',
         });
 
@@ -1417,16 +1439,22 @@ export class ACPConnection {
 
   private async findCommand(): Promise<string | null> {
     const { execSync } = await import('node:child_process');
-    const cmd = process.platform === 'win32'
-      ? `where ${this.config.command}`
-      : `which ${this.config.command}`;
+    const cmd =
+      process.platform === 'win32'
+        ? `where ${this.config.command}`
+        : `which ${this.config.command}`;
     try {
       return execSync(cmd, {
         encoding: 'utf-8',
         windowsHide: true,
-      }).trim().split('\n')[0]; // `where` on Windows can return multiple lines
+      })
+        .trim()
+        .split('\n')[0]; // `where` on Windows can return multiple lines
     } catch (e) {
-      this.logger.debug('Failed to find command on PATH', { command: this.config.command, error: e });
+      this.logger.debug('Failed to find command on PATH', {
+        command: this.config.command,
+        error: e,
+      });
       return null;
     }
   }
@@ -1474,7 +1502,9 @@ export class ACPConnection {
         );
       }
     } catch (e) {
-      this.logger.debug('Failed to detect model from CLI settings', { error: e });
+      this.logger.debug('Failed to detect model from CLI settings', {
+        error: e,
+      });
       /* ignore */
     }
   }
@@ -1493,9 +1523,7 @@ export class ACPConnection {
     this.terminals.clear();
     this.intentionalKill = true;
     if (this.proc) {
-      const p = this.proc;
-      p.kill('SIGTERM');
-      setTimeout(() => { try { p.kill('SIGKILL'); } catch {} }, 5000);
+      forceKillProcess(this.proc).catch(() => {});
     }
     this.proc = null;
     this.connection = null;
@@ -1579,9 +1607,7 @@ export class ACPManager {
   private async runProbes(): Promise<void> {
     if (this.sessions.size > 0) return;
     const before = this.getVirtualAgents().length;
-    await Promise.all(
-      Array.from(this.probes.values()).map((p) => p.probe()),
-    );
+    await Promise.all(Array.from(this.probes.values()).map((p) => p.probe()));
     if (this.getVirtualAgents().length !== before) {
       this.eventBus?.emit('agents:changed');
     }
@@ -1589,8 +1615,8 @@ export class ACPManager {
 
   private async sweepIdleSessions(): Promise<void> {
     for (const [id, session] of this.sessions) {
-      if (session.isIdle()) {
-        await session.cullSession();
+      if (session.isIdle() || session.isStale()) {
+        await session.shutdown();
         this.sessions.delete(id);
       }
     }
@@ -1632,8 +1658,14 @@ export class ACPManager {
 
   /** Shutdown everything */
   async shutdown(): Promise<void> {
-    if (this.probeTimer) { clearInterval(this.probeTimer); this.probeTimer = null; }
-    if (this.cullTimer) { clearInterval(this.cullTimer); this.cullTimer = null; }
+    if (this.probeTimer) {
+      clearInterval(this.probeTimer);
+      this.probeTimer = null;
+    }
+    if (this.cullTimer) {
+      clearInterval(this.cullTimer);
+      this.cullTimer = null;
+    }
     await Promise.all(
       Array.from(this.sessions.values()).map((s) => s.shutdown()),
     );
@@ -1654,18 +1686,22 @@ export class ACPManager {
     return Array.from(this.probes.entries()).flatMap(([id, probe]) => {
       const config = this.configs.get(id);
       const configOptions = probe.getConfigOptions();
-      const modelConfig = configOptions.find((o: any) => o.category === 'model');
-      const modelOptions = modelConfig?.options?.map((o: any) => ({
-        id: o.value ?? o,
-        name: o.name ?? o,
-        originalId: o.value ?? o,
-      })) || null;
+      const modelConfig = configOptions.find(
+        (o: any) => o.category === 'model',
+      );
+      const modelOptions =
+        modelConfig?.options?.map((o: any) => ({
+          id: o.value ?? o,
+          name: o.name ?? o,
+          originalId: o.value ?? o,
+        })) || null;
       const capabilities = probe.getCapabilities();
 
       return probe.getModes().map((mode) => ({
         slug: `${id}-${mode.id}`,
         name: mode.name || mode.id,
-        description: mode.description || `${config?.name || id} ${mode.id} mode`,
+        description:
+          mode.description || `${config?.name || id} ${mode.id} mode`,
         model: modelConfig?.currentValue || config?.name || id,
         icon: config?.icon || '🔌',
         source: 'acp' as const,
@@ -1688,7 +1724,10 @@ export class ACPManager {
     return session?.getSlashCommands(slug) || [];
   }
 
-  async getCommandOptions(slug: string, partialCommand: string): Promise<any[]> {
+  async getCommandOptions(
+    slug: string,
+    partialCommand: string,
+  ): Promise<any[]> {
     const session = this.findSessionForSlug(slug);
     return session?.getCommandOptions(partialCommand) || [];
   }
@@ -1701,9 +1740,12 @@ export class ACPManager {
     context?: { cwd?: string; conversationId?: string },
   ): Promise<Response> {
     const configId = this.findConfigIdForSlug(slug);
-    if (!configId) return c.json({ success: false, error: 'ACP agent not found' }, 503);
+    if (!configId)
+      return c.json({ success: false, error: 'ACP agent not found' }, 503);
 
-    const conversationId = context?.conversationId || options.conversationId ||
+    const conversationId =
+      context?.conversationId ||
+      options.conversationId ||
       `anon:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
     const sessionCwd = context?.cwd || homedir();
 
@@ -1749,12 +1791,18 @@ export class ACPManager {
       connections: Array.from(this.probes.entries()).map(([id, probe]) => {
         const config = this.configs.get(id);
         const configOptions = probe.getConfigOptions();
-        const modelConfig = configOptions.find((o: any) => o.category === 'model');
+        const modelConfig = configOptions.find(
+          (o: any) => o.category === 'model',
+        );
         return {
           id,
           name: config?.name || id,
           icon: config?.icon,
-          status: probe.isAvailable() ? ACPStatus.AVAILABLE : (probe.lastProbeAt > 0 ? ACPStatus.UNAVAILABLE : ACPStatus.PROBING),
+          status: probe.isAvailable()
+            ? ACPStatus.AVAILABLE
+            : probe.lastProbeAt > 0
+              ? ACPStatus.UNAVAILABLE
+              : ACPStatus.PROBING,
           modes: probe.getModes().map((m) => m.id),
           sessionId: null,
           mcpServers: [],

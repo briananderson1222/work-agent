@@ -15,6 +15,7 @@ import {
   ndJsonStream,
   PROTOCOL_VERSION,
 } from '@agentclientprotocol/sdk';
+import { forceKillProcess } from './process-utils.js';
 
 export interface ACPProcessOptions {
   command: string;
@@ -80,6 +81,7 @@ export class ACPProcess extends EventEmitter {
       stdio: ['pipe', 'pipe', 'inherit'],
       cwd: this.opts.cwd,
       windowsHide: true,
+      detached: true,
     });
 
     this.proc.on('exit', (code) => {
@@ -160,9 +162,7 @@ export class ACPProcess extends EventEmitter {
   }
 
   /** Send a prompt to the current session. */
-  async prompt(
-    content: ContentBlock[],
-  ): Promise<void> {
+  async prompt(content: ContentBlock[]): Promise<void> {
     if (!this.connection || !this._sessionId)
       throw new Error('No active session');
     await this.connection.prompt({
@@ -186,30 +186,13 @@ export class ACPProcess extends EventEmitter {
     return (this.connection as any).extMethod(method, params);
   }
 
-  /** Destroy the process: SIGTERM → 500ms → SIGKILL. */
+  /** Destroy the process: SIGTERM → 1s → SIGKILL. */
   async destroy(): Promise<void> {
     if (this.destroyed) return;
     this.destroyed = true;
 
     if (this.proc) {
-      this.proc.kill('SIGTERM');
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => {
-          if (this.proc) {
-            this.proc.kill('SIGKILL');
-          }
-          resolve();
-        }, 500);
-        if (this.proc) {
-          this.proc.once('exit', () => {
-            clearTimeout(timer);
-            resolve();
-          });
-        } else {
-          clearTimeout(timer);
-          resolve();
-        }
-      });
+      await forceKillProcess(this.proc);
     }
 
     this.proc = null;
