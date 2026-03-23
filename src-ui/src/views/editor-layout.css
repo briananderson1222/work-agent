@@ -1294,6 +1294,13 @@
   );
 }
 
+/* ACP info banner variant */
+.editor__lock-banner--info {
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  color: var(--text-secondary);
+}
+
 /* ═══ Agent Editor — Guardrails Grid ═══ */
 .editor__guardrails-grid {
   display: grid;
@@ -1333,6 +1340,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 8px 12px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-primary);
@@ -1579,4 +1587,77 @@
   .editor-btn--small {
     min-height: 44px;
   }
+}
+
+/* ═══ Agent Editor — Label Row Actions ═══ */
+.editor-label-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ═══ Agent Editor — Add Modal ═══ */
+.editor-add-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.editor-add-modal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+.editor-add-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-primary);
+}
+.editor-add-modal__header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.editor-add-modal__close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.editor-add-modal__close:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.editor-add-modal__body {
+  overflow-y: auto;
+  flex: 1;
+}
+.editor-add-modal__footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-primary);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ═══ Agent Editor — Expandable Integration Tools ═══ */
+.editor__tools-server-header .agent-editor__chevron {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+  margin-left: 4px;
 }
