@@ -216,14 +216,22 @@ export interface LayoutPrompt {
   agent?: string;
 }
 
+export interface LayoutAction {
+  type: 'prompt' | 'inline-prompt' | 'external' | 'internal';
+  label: string;
+  icon?: string;
+  agent?: string;
+  data: string;
+}
+
 export interface LayoutTab {
   id: string;
   label: string;
   component: string;
   icon?: string;
   description?: string;
-  actions?: LayoutPrompt[];
-  prompts?: LayoutPrompt[];
+  actions?: LayoutAction[];
+  prompts?: (LayoutAction | LayoutPrompt)[];
 }
 
 export interface StandaloneLayoutConfig {
@@ -232,7 +240,11 @@ export interface StandaloneLayoutConfig {
   icon?: string;
   description?: string;
   plugin?: string;
+  requiredProviders?: string[];
+  availableAgents?: string[];
+  defaultAgent?: string;
   tabs: LayoutTab[];
+  actions?: LayoutAction[];
   globalPrompts?: LayoutPrompt[];
 }
 

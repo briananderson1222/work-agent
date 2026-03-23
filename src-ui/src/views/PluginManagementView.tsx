@@ -11,6 +11,7 @@ import { usePermissions } from '../core/PermissionManager';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import './PluginManagementView.css';
 import './page-layout.css';
+import './editor-layout.css';
 
 interface Plugin {
   name: string;
@@ -625,7 +626,8 @@ export function PluginManagementView() {
         addLabel="+ Install Plugin"
         sidebarActions={hasRegistry ? (
           <button
-            className="plugins__btn plugins__btn--install"
+            className="split-pane__add-btn"
+            style={{ background: 'transparent', border: '1px solid var(--border-primary)', color: 'var(--text-secondary)' }}
             onClick={() => setShowRegistryModal(true)}
           >
             Browse Registry
@@ -679,17 +681,33 @@ export function PluginManagementView() {
               subtitle={selected.description}
               badge={{ label: `v${selected.version}`, variant: 'muted' as const }}
             >
-              {updates.find((u) => u.name === selected.name) && (
-                <button
-                  className="editor-btn editor-btn--primary"
-                  onClick={() => updatePlugin(selected.name)}
-                  disabled={updating === selected.name}
-                >
-                  {updating === selected.name
+              {(() => {
+                const upd = updates.find((u) => u.name === selected.name);
+                if (upd) {
+                  const label = updating === selected.name
                     ? 'Updating…'
-                    : `Update to v${updates.find((u) => u.name === selected.name)!.latestVersion}`}
-                </button>
-              )}
+                    : upd.source === 'git'
+                      ? `Update (${upd.latestVersion})`
+                      : `Update to v${upd.latestVersion}`;
+                  return (
+                    <button
+                      className="editor-btn editor-btn--primary"
+                      onClick={() => updatePlugin(selected.name)}
+                      disabled={updating === selected.name}
+                    >
+                      {label}
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    className="editor-btn"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['plugin-updates'] })}
+                  >
+                    Check for Updates
+                  </button>
+                );
+              })()}
               <button
                 className="editor-btn editor-btn--danger"
                 onClick={() => setRemoveConfirm(selected.name)}
@@ -704,9 +722,9 @@ export function PluginManagementView() {
               {selected.hasBundle && (
                 <span className="plugins__cap plugins__cap--bundle">ui</span>
               )}
-              {selected.workspace && (
+              {selected.layout && (
                 <span className="plugins__cap plugins__cap--workspace">
-                  workspace:{selected.workspace.slug}
+                  layout:{selected.layout.slug}
                 </span>
               )}
               {selected.agents?.map((a) => (
@@ -765,9 +783,9 @@ export function PluginManagementView() {
                           <span className="plugins__cap plugins__cap--provider">
                             {pr.type}
                           </span>
-                          {pr.workspace && (
+                          {pr.layout && (
                             <span className="plugins__provider-scope">
-                              {pr.workspace}
+                              {pr.layout}
                             </span>
                           )}
                           <label className="plugins__provider-toggle">
@@ -828,15 +846,16 @@ export function PluginManagementView() {
       {/* Install Plugin Modal */}
       {showInstallModal && (
         <div className="plugins__modal-overlay" onClick={() => setShowInstallModal(false)}>
-          <div className="plugins__modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+          <div className="plugins__modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, overflow: 'visible' }}>
             <div className="plugins__modal-header">
               <h3 className="plugins__modal-title">Install Plugin</h3>
               <button className="plugins__modal-close" onClick={() => setShowInstallModal(false)}>&times;</button>
             </div>
-            <div className="plugins__modal-body">
+            <div className="plugins__modal-body" style={{ overflow: 'visible' }}>
               <div className="plugins__install" style={{ marginBottom: 16 }}>
                 <span className="plugins__install-prefix">$</span>
                 <PathAutocomplete
+                  className="plugins__install-input"
                   value={installSource}
                   onChange={(val) => { setInstallSource(val); setPreviewData(null); }}
                   onSubmit={() => { install(); setShowInstallModal(false); }}

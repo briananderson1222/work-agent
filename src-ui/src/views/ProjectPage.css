@@ -350,15 +350,138 @@
   margin-bottom: 2rem;
 }
 
+.project-page__knowledge-header {
+  margin-bottom: 14px;
+}
+
+.project-page__knowledge-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
 .project-page__knowledge-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .project-page__knowledge-stats {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Namespace tabs ── */
+
+.project-page__ns-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.project-page__ns-tab {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.project-page__ns-tab:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.project-page__ns-tab--active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+/* ── Rules editor ── */
+
+.project-page__rules-editor {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.project-page__rules-hint {
   font-size: 11px;
   color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.project-page__rules-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 12px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+.project-page__rules-textarea:focus {
+  border-color: var(--accent-primary);
+}
+
+/* ── Namespace config bar ── */
+
+.project-page__ns-config {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  font-size: 11px;
+}
+
+.project-page__ns-config-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.project-page__ns-config-input {
+  flex: 1;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 11px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.project-page__ns-config-input:focus {
+  border-color: var(--accent-primary);
+}
+
+.project-page__ns-config-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .project-page__scan-result {
@@ -368,6 +491,108 @@
   padding: 6px 10px;
   background: color-mix(in srgb, var(--success-text, #22c55e) 8%, transparent);
   border-radius: 5px;
+}
+
+/* ── Clickable document rows ── */
+
+.project-page__doc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.project-page__doc:hover {
+  background: var(--bg-tertiary);
+}
+
+/* ── Document Viewer Modal ── */
+
+.project-page__doc-viewer {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 720px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.project-page__doc-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.project-page__doc-viewer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-page__doc-viewer-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.project-page__doc-viewer-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-page__doc-viewer-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.project-page__doc-viewer-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.project-page__doc-viewer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+}
+
+.project-page__doc-viewer-content {
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.project-page__doc-viewer-loading,
+.project-page__doc-viewer-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 32px 0;
 }
 
 /* ── Collapsible document groups ────────────────────────────────── */
@@ -467,20 +692,6 @@
 .project-page__dropzone-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; opacity: 0.7; }
 
 /* ── Document list items ────────────────────────────────────────── */
-
-.project-page__doc {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  transition: background 0.1s;
-}
-
-.project-page__doc:hover {
-  background: var(--bg-tertiary);
-}
 
 .project-page__doc-check {
   cursor: pointer;

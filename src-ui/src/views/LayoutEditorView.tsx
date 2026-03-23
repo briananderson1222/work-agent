@@ -1006,7 +1006,8 @@ export function LayoutEditorView({
                             </div>
                           ) : (
                             <div style={{ display: 'grid', gap: '8px' }}>
-                              {(tab.prompts || []).map((prompt, promptIdx) => {
+                              {(tab.prompts || []).map((_prompt, promptIdx) => {
+                                const prompt = _prompt as LayoutPrompt;
                                 const promptKey = `tab-${tabIdx}-${promptIdx}`;
                                 const isPromptExpanded =
                                   expandedPrompts.has(promptKey);

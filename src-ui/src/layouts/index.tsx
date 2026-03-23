@@ -26,7 +26,7 @@ export type AgentLayoutComponent = (props: AgentLayoutProps) => JSX.Element;
 const coreRegistry: Record<string, AgentLayoutComponent> = {};
 const loggedComponents = new Set<string>();
 
-const DefaultLayout: AgentLayoutComponent = ({ layout: _layout }) => (
+const DefaultLayout: AgentLayoutComponent = ({ layout, onShowChat }) => (
   <div className="workspace-default">
     <div className="workspace-default__empty">
       <svg
@@ -48,7 +48,7 @@ const DefaultLayout: AgentLayoutComponent = ({ layout: _layout }) => (
         <path d="M16 28l4-4 3 3 5-5 4 4" opacity="0.5" />
       </svg>
       <h3 className="workspace-default__title">
-        {workspace?.name || 'Layout'}
+        {layout?.name || 'Layout'}
       </h3>
       <p className="workspace-default__desc">
         Start a conversation or schedule an automated job to get things moving.
@@ -129,9 +129,9 @@ export function LayoutRenderer({
             onLaunchAction={onLaunchPrompt ? (action) => onLaunchPrompt({ id: action.data, label: action.label, prompt: action.type === 'inline-prompt' ? action.data : action.label }) : undefined}
             title={activeTab?.label || layout.name}
             description={activeTab?.description || layout.description || ''}
-            tabActions={activeTab?.actions}
-            tabPrompts={activeTab?.prompts}
-            onTabPromptSelect={onLaunchPrompt ? (action) => onLaunchPrompt({ id: action.data || action.id, label: action.label, prompt: action.type === 'inline-prompt' ? action.data : (action.prompt || action.label) }) : undefined}
+            tabActions={activeTab?.actions as any}
+            tabPrompts={activeTab?.prompts as any}
+            onTabPromptSelect={onLaunchPrompt ? (action: any) => onLaunchPrompt({ id: action.data || action.id, label: action.label, prompt: action.type === 'inline-prompt' ? action.data : (action.prompt || action.label) }) : undefined}
             onRefresh={onRefresh}
             loading={loading}
           />

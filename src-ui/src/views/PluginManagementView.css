@@ -438,13 +438,16 @@
 
 /* ── Action Buttons ── */
 .plugins__btn {
-  padding: 0.3rem 0.65rem;
-  font-size: 0.75rem;
-  border-radius: 0.25rem;
+  padding: 7px 16px;
+  font-size: 13px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
   font-weight: 500;
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: inherit;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-secondary);
 }
 .plugins__btn:disabled {
   opacity: 0.35;
@@ -587,7 +590,7 @@
 
 .plugins__btn--install {
   background: var(--accent-primary);
-  border: none;
+  border-color: var(--accent-primary);
   color: white;
   font-weight: 600;
 }
