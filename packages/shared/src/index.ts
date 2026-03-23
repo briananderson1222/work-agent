@@ -222,9 +222,7 @@ export interface KnowledgeDocumentMeta {
 }
 
 export const BUILTIN_KNOWLEDGE_NAMESPACES: KnowledgeNamespaceConfig[] = [
-  { id: 'default', label: 'General', behavior: 'rag', builtIn: true },
   { id: 'rules', label: 'Rules & Steering', behavior: 'inject', builtIn: true },
-  { id: 'code', label: 'Code Context', behavior: 'rag', builtIn: true },
 ];
 
 // ── Project ────────────────────────────────────────────────────────
