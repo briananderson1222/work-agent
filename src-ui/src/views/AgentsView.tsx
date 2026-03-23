@@ -167,6 +167,9 @@ export function AgentsView({
   });
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [addModalType, setAddModalType] = useState<'integrations' | 'skills' | 'prompts' | null>(null);
+  const [expandedIntegrations, setExpandedIntegrations] = useState<Record<string, boolean>>({});
+  const [integrationTools, setIntegrationTools] = useState<Record<string, Tool[]>>({});
 
   // Use live agents from context, fall back to prop
   const allAgents = liveAgents.length > 0 ? liveAgents : agents;
@@ -339,8 +342,9 @@ export function AgentsView({
 
   const dirty = isDirty(form, savedForm);
   const isPlugin = selectedSlug?.includes(':') && !isCreating;
-  const locked = !!(isPlugin && isLocked);
   const selectedAgent = allAgents.find((a) => a.slug === selectedSlug);
+  const isAcp = selectedAgent?.source === 'acp';
+  const locked = !!(isPlugin && isLocked) || !!isAcp;
   const selectedAcpConnection = selectedSlug?.startsWith('__acp:') ? selectedSlug.slice(6) : null;
 
   const editorId = isCreating ? '__new__' : (selectedSlug ?? null);
@@ -420,26 +424,28 @@ export function AgentsView({
             <DetailHeader
               title={isCreating ? 'New Agent' : form.name || selectedSlug || ''}
               icon={!isCreating && selectedAgent ? <AgentIcon agent={selectedAgent} size="medium" style={{ borderRadius: '8px' }} /> : undefined}
-              badge={isPlugin ? { label: selectedSlug?.split(':')[0] || 'plugin', variant: 'info' as const } : undefined}
+              badge={isAcp ? { label: 'ACP', variant: 'muted' as const } : isPlugin ? { label: selectedSlug?.split(':')[0] || 'plugin', variant: 'info' as const } : undefined}
             >
-              {!isCreating && selectedSlug && (
+              {!isCreating && selectedSlug && !isAcp && (
                 <button type="button" className="editor-btn editor-btn--danger" onClick={() => setShowDeleteModal(true)} disabled={locked}>Delete</button>
               )}
-              <button
-                type="button"
-                className="editor-btn editor-btn--primary"
-                style={{ position: 'relative' }}
-                onClick={handleSave}
-                disabled={isSaving || locked}
-              >
-                {dirty && !isSaving && (
-                  <span
-                    className="agent-inline-editor__dirty-dot"
-                    aria-label="Unsaved changes"
-                  />
-                )}
-                {isSaving ? 'Saving…' : isCreating ? 'Create Agent' : 'Save Changes'}
-              </button>
+              {!isAcp && (
+                <button
+                  type="button"
+                  className="editor-btn editor-btn--primary"
+                  style={{ position: 'relative' }}
+                  onClick={handleSave}
+                  disabled={isSaving || locked}
+                >
+                  {dirty && !isSaving && (
+                    <span
+                      className="agent-inline-editor__dirty-dot"
+                      aria-label="Unsaved changes"
+                    />
+                  )}
+                  {isSaving ? 'Saving…' : isCreating ? 'Create Agent' : 'Save Changes'}
+                </button>
+              )}
             </DetailHeader>
 
             {error && (
@@ -465,6 +471,15 @@ export function AgentsView({
                 >
                   Unlock
                 </button>
+              </div>
+            )}
+
+            {/* ACP info banner */}
+            {isAcp && (
+              <div className="editor__lock-banner editor__lock-banner--info">
+                <span>
+                  ℹ️ This agent is managed by ACP. Configuration is read-only.
+                </span>
               </div>
             )}
 
@@ -862,12 +877,18 @@ export function AgentsView({
                                     }));
                                   }}
                                 >
-                                  <input
-                                    type="checkbox"
+                                  <Checkbox
                                     checked={enabled}
                                     disabled={locked}
-                                    readOnly
-                                    style={{ accentColor: 'var(--accent-primary)' }}
+                                    onChange={() => {
+                                      if (locked) return;
+                                      setForm((f) => ({
+                                        ...f,
+                                        skills: enabled
+                                          ? f.skills.filter((s: string) => s !== skill.name)
+                                          : [...f.skills, skill.name],
+                                      }));
+                                    }}
                                   />
                                   <div className="editor__tool-info">
                                     <div className="editor__tool-name">
@@ -926,12 +947,18 @@ export function AgentsView({
                                     }));
                                   }}
                                 >
-                                  <input
-                                    type="checkbox"
+                                  <Checkbox
                                     checked={enabled}
                                     disabled={locked}
-                                    readOnly
-                                    style={{ accentColor: 'var(--accent-primary)' }}
+                                    onChange={() => {
+                                      if (locked) return;
+                                      setForm((f) => ({
+                                        ...f,
+                                        prompts: enabled
+                                          ? f.prompts.filter((p: string) => p !== prompt.id)
+                                          : [...f.prompts, prompt.id],
+                                      }));
+                                    }}
                                   />
                                   <div className="editor__tool-info">
                                     <div className="editor__tool-name">

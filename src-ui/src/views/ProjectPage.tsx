@@ -1,14 +1,34 @@
-import { useProjectLayoutsQuery, useProjectQuery, useUpdateProjectMutation, useCreateLayoutMutation, useKnowledgeDocsQuery, useKnowledgeNamespacesQuery, useKnowledgeSearchQuery, useKnowledgeDeleteMutation, useKnowledgeBulkDeleteMutation, useKnowledgeStatusQuery, useKnowledgeScanMutation, useProjectConversationsQuery, useAddLayoutFromPluginMutation, useKnowledgeDocContentQuery, fetchKnowledgeDocs, uploadKnowledge, deleteKnowledgeDoc, fetchAvailableLayouts, updateKnowledgeNamespace } from '@stallion-ai/sdk';
-import { useQueryClient, } from '@tanstack/react-query';
+import {
+  deleteKnowledgeDoc,
+  fetchAvailableLayouts,
+  fetchKnowledgeDocs,
+  updateKnowledgeNamespace,
+  uploadKnowledge,
+  useAddLayoutFromPluginMutation,
+  useCreateLayoutMutation,
+  useKnowledgeBulkDeleteMutation,
+  useKnowledgeDeleteMutation,
+  useKnowledgeDocContentQuery,
+  useKnowledgeDocsQuery,
+  useKnowledgeNamespacesQuery,
+  useKnowledgeScanMutation,
+  useKnowledgeSearchQuery,
+  useKnowledgeStatusQuery,
+  useProjectConversationsQuery,
+  useProjectLayoutsQuery,
+  useProjectQuery,
+  useUpdateProjectMutation,
+} from '@stallion-ai/sdk';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { GitBadge } from '../components/GitBadge';
+import { markdownCodeComponents } from '../components/HighlightedCodeBlock';
 import { PathAutocomplete } from '../components/PathAutocomplete';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import { useGitStatus, useGitLog } from '../hooks/useGitStatus';
-import { GitBadge } from '../components/GitBadge';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { markdownCodeComponents } from '../components/HighlightedCodeBlock';
+import { useGitLog, useGitStatus } from '../hooks/useGitStatus';
 import './ProjectPage.css';
 
 interface DocMeta {
@@ -77,20 +97,25 @@ export function ProjectPage({ slug }: { slug: string }) {
   const [rulesLoaded, setRulesLoaded] = useState(false);
 
   // Load existing rules content when rules tab is selected
-  const { data: rulesSearchData, isLoading: rulesLoading } = useKnowledgeSearchQuery(slug, '*', 'rules', {
-    enabled: selectedNs === 'rules' && !rulesLoaded,
-  });
+  const { data: rulesSearchData, isLoading: rulesLoading } =
+    useKnowledgeSearchQuery(slug, '*', 'rules', {
+      enabled: selectedNs === 'rules' && !rulesLoaded,
+    });
 
   useEffect(() => {
     if (selectedNs !== 'rules' || rulesLoaded || !rulesSearchData) return;
     if (rulesSearchData.length) {
-      const byDoc = new Map<string, { filename: string; chunks: Map<number, string> }>();
+      const byDoc = new Map<
+        string,
+        { filename: string; chunks: Map<number, string> }
+      >();
       for (const r of rulesSearchData) {
         const docId = r.metadata?.docId;
         const idx = r.metadata?.chunkIndex ?? 0;
         const fn = r.metadata?.filename ?? 'rules';
         if (!docId) continue;
-        if (!byDoc.has(docId)) byDoc.set(docId, { filename: fn, chunks: new Map() });
+        if (!byDoc.has(docId))
+          byDoc.set(docId, { filename: fn, chunks: new Map() });
         byDoc.get(docId)!.chunks.set(idx, r.text);
       }
       const parts: string[] = [];
@@ -115,7 +140,9 @@ export function ProjectPage({ slug }: { slug: string }) {
       // Upload new rules
       await uploadKnowledge(slug, 'project-rules.md', rulesContent, 'rules');
       qc.invalidateQueries({ queryKey: ['knowledge', 'docs', slug] });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setSavingRules(false);
   }
 
@@ -132,7 +159,9 @@ export function ProjectPage({ slug }: { slug: string }) {
       try {
         const content = await file.text();
         await uploadKnowledge(slug, file.name, content);
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
     qc.invalidateQueries({ queryKey: ['knowledge', 'docs', slug] });
     setUploading(false);
@@ -158,19 +187,30 @@ export function ProjectPage({ slug }: { slug: string }) {
   const [showScanDialog, setShowScanDialog] = useState(false);
   const [scanInclude, setScanInclude] = useState('');
   const [scanExclude, setScanExclude] = useState('');
-  const [scanResult, setScanResult] = useState<{ indexed: number; skipped: number } | null>(null);
+  const [scanResult, setScanResult] = useState<{
+    indexed: number;
+    skipped: number;
+  } | null>(null);
 
   const scanMutation = useKnowledgeScanMutation(slug);
 
   async function handleScan() {
     setScanResult(null);
     setShowScanDialog(false);
-    const inc = scanInclude.split(',').map(s => s.trim()).filter(Boolean);
-    const exc = scanExclude.split(',').map(s => s.trim()).filter(Boolean);
+    const inc = scanInclude
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const exc = scanExclude
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const options: Record<string, any> = {};
     if (inc.length) options.includePatterns = inc;
     if (exc.length) options.excludePatterns = exc;
-    scanMutation.mutate(options, { onSuccess: (data: any) => setScanResult(data) });
+    scanMutation.mutate(options, {
+      onSuccess: (data: any) => setScanResult(data),
+    });
   }
 
   // ── Bulk selection ──
@@ -212,9 +252,12 @@ export function ProjectPage({ slug }: { slug: string }) {
 
   // ── Document viewer ──
   const [viewingDoc, setViewingDoc] = useState<DocMeta | null>(null);
-  const { data: viewingContent, isLoading: contentLoading } = useKnowledgeDocContentQuery(slug, viewingDoc?.id ?? null);
+  const { data: viewingContent, isLoading: contentLoading } =
+    useKnowledgeDocContentQuery(slug, viewingDoc?.id ?? null);
 
-  const filteredDocs = selectedNs ? docs.filter((d: any) => (d.namespace || 'default') === selectedNs) : docs;
+  const filteredDocs = selectedNs
+    ? docs.filter((d: any) => (d.namespace || 'default') === selectedNs)
+    : docs;
   const dirDocs = filteredDocs.filter((d) => d.source === 'directory-scan');
   const uploadDocs = filteredDocs.filter((d) => d.source !== 'directory-scan');
 
@@ -226,7 +269,7 @@ export function ProjectPage({ slug }: { slug: string }) {
   useEffect(() => {
     if (!showAddLayout) return;
     fetchAvailableLayouts()
-      .then(data => setAvailable(data))
+      .then((data) => setAvailable(data))
       .catch(() => {});
   }, [showAddLayout]);
 
@@ -298,7 +341,9 @@ export function ProjectPage({ slug }: { slug: string }) {
                   <span className="project-page__dir-edit-icon">✎</span>
                 </button>
               )}
-              {gitStatus && <GitBadge git={gitStatus} className="project-page__git-badge" />}
+              {gitStatus && (
+                <GitBadge git={gitStatus} className="project-page__git-badge" />
+              )}
               {project.description && (
                 <p className="project-page__desc">{project.description}</p>
               )}
@@ -319,10 +364,18 @@ export function ProjectPage({ slug }: { slug: string }) {
               apiBase={apiBase}
               value={dirDraft}
               onChange={setDirDraft}
-              onSubmit={() => { updateProjectMutation.mutate({ slug, workingDirectory: dirDraft || undefined }, { onSuccess: () => setEditingDir(false) }); }}
+              onSubmit={() => {
+                updateProjectMutation.mutate(
+                  { slug, workingDirectory: dirDraft || undefined },
+                  { onSuccess: () => setEditingDir(false) },
+                );
+              }}
               onBlur={() => {
                 if (dirDraft !== (project.workingDirectory ?? '')) {
-                  updateProjectMutation.mutate({ slug, workingDirectory: dirDraft || undefined }, { onSuccess: () => setEditingDir(false) });
+                  updateProjectMutation.mutate(
+                    { slug, workingDirectory: dirDraft || undefined },
+                    { onSuccess: () => setEditingDir(false) },
+                  );
                 } else {
                   setEditingDir(false);
                 }
@@ -340,7 +393,11 @@ export function ProjectPage({ slug }: { slug: string }) {
               <span className="project-page__section-label">
                 ⎇ {gitStatus.branch}
                 {gitStatus.changes.length > 0 && (
-                  <span className="project-page__git-section-dirty"> · {gitStatus.staged} staged, {gitStatus.unstaged} modified, {gitStatus.untracked} untracked</span>
+                  <span className="project-page__git-section-dirty">
+                    {' '}
+                    · {gitStatus.staged} staged, {gitStatus.unstaged} modified,{' '}
+                    {gitStatus.untracked} untracked
+                  </span>
                 )}
                 {(gitStatus.ahead > 0 || gitStatus.behind > 0) && (
                   <span className="project-page__git-section-remote">
@@ -356,7 +413,9 @@ export function ProjectPage({ slug }: { slug: string }) {
                   <div key={c.sha} className="project-page__git-commit">
                     <span className="project-page__git-sha">{c.sha}</span>
                     <span className="project-page__git-msg">{c.message}</span>
-                    <span className="project-page__git-meta">{c.author} · {c.relativeTime}</span>
+                    <span className="project-page__git-meta">
+                      {c.author} · {c.relativeTime}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -388,17 +447,13 @@ export function ProjectPage({ slug }: { slug: string }) {
                       {layout.icon}
                     </span>
                   )}
-                  <span className="project-page__card-name">
-                    {layout.name}
-                  </span>
+                  <span className="project-page__card-name">{layout.name}</span>
                   {layout.description && (
                     <span className="project-page__card-desc">
                       {layout.description}
                     </span>
                   )}
-                  <span className="project-page__card-type">
-                    {layout.type}
-                  </span>
+                  <span className="project-page__card-type">{layout.type}</span>
                 </button>
               ))
             ) : (
@@ -416,7 +471,9 @@ export function ProjectPage({ slug }: { slug: string }) {
         <div className="project-page__knowledge">
           <div className="project-page__knowledge-header">
             <div className="project-page__knowledge-title-row">
-              <span className="project-page__section-label">Knowledge & Documents</span>
+              <span className="project-page__section-label">
+                Knowledge & Documents
+              </span>
               <div className="project-page__knowledge-actions">
                 {selectedDocs.size > 0 && (
                   <button
@@ -424,7 +481,9 @@ export function ProjectPage({ slug }: { slug: string }) {
                     onClick={() => bulkDeleteMutation.mutate([...selectedDocs])}
                     disabled={bulkDeleteMutation.isPending}
                   >
-                    {bulkDeleteMutation.isPending ? 'Deleting…' : `Delete ${selectedDocs.size}`}
+                    {bulkDeleteMutation.isPending
+                      ? 'Deleting…'
+                      : `Delete ${selectedDocs.size}`}
                   </button>
                 )}
                 {project.workingDirectory && (
@@ -433,15 +492,19 @@ export function ProjectPage({ slug }: { slug: string }) {
                     onClick={() => setShowScanDialog(true)}
                     disabled={scanMutation.isPending}
                   >
-                    {scanMutation.isPending ? '⟳ Scanning…' : '⟳ Index directory'}
+                    {scanMutation.isPending
+                      ? '⟳ Scanning…'
+                      : '⟳ Index directory'}
                   </button>
                 )}
               </div>
             </div>
             {knowledgeStatus && knowledgeStatus.totalChunks > 0 && (
               <div className="project-page__knowledge-stats">
-                {knowledgeStatus.documentCount} documents · {knowledgeStatus.totalChunks} chunks
-                {knowledgeStatus.lastIndexed && ` · updated ${timeAgo(knowledgeStatus.lastIndexed)}`}
+                {knowledgeStatus.documentCount} documents ·{' '}
+                {knowledgeStatus.totalChunks} chunks
+                {knowledgeStatus.lastIndexed &&
+                  ` · updated ${timeAgo(knowledgeStatus.lastIndexed)}`}
               </div>
             )}
           </div>
@@ -452,13 +515,17 @@ export function ProjectPage({ slug }: { slug: string }) {
               <button
                 className={`project-page__ns-tab${selectedNs === null ? ' project-page__ns-tab--active' : ''}`}
                 onClick={() => setSelectedNs(null)}
-              >All</button>
+              >
+                All
+              </button>
               {namespaces.map((ns) => (
                 <button
                   key={ns.id}
                   className={`project-page__ns-tab${selectedNs === ns.id ? ' project-page__ns-tab--active' : ''}`}
                   onClick={() => setSelectedNs(ns.id)}
-                >{ns.label}</button>
+                >
+                  {ns.label}
+                </button>
               ))}
             </div>
           )}
@@ -467,10 +534,13 @@ export function ProjectPage({ slug }: { slug: string }) {
           {selectedNs === 'rules' && (
             <div className="project-page__rules-editor">
               <div className="project-page__rules-hint">
-                ⚡ Injected into every chat message's system prompt. Saved as <code>project-rules.md</code>.
+                ⚡ Injected into every chat message's system prompt. Saved as{' '}
+                <code>project-rules.md</code>.
               </div>
               {!rulesLoaded && rulesLoading ? (
-                <div className="project-page__rules-loading">Loading rules…</div>
+                <div className="project-page__rules-loading">
+                  Loading rules…
+                </div>
               ) : (
                 <>
                   <textarea
@@ -483,59 +553,83 @@ export function ProjectPage({ slug }: { slug: string }) {
                     onClick={handleSaveRules}
                     disabled={savingRules || !rulesContent.trim()}
                     className="project-page__add-btn project-page__add-btn--primary"
-                  >{savingRules ? 'Saving…' : 'Save Rules'}</button>
+                  >
+                    {savingRules ? 'Saving…' : 'Save Rules'}
+                  </button>
                 </>
               )}
             </div>
           )}
 
           {/* Namespace storage config */}
-          {selectedNs && (() => {
-            const nsCfg = namespaces.find((n: KnowledgeNamespace) => n.id === selectedNs);
-            if (!nsCfg) return null;
-            return (
-              <div className="project-page__ns-config">
-                <label className="project-page__ns-config-label">Storage:</label>
-                <PathAutocomplete
-                  apiBase={apiBase}
-                  value={storageDirDraft}
-                  onChange={setStorageDirDraft}
-                  onBlur={() => {
-                    const val = storageDirDraft.trim();
-                    if (val !== ((nsCfg as any).storageDir ?? '')) {
-                      updateKnowledgeNamespace(slug, selectedNs!, { storageDir: val || undefined })
-                        .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
-                    }
-                  }}
-                  placeholder="Default (built-in)"
-                  className="project-page__ns-config-input"
-                />
-                <label className="project-page__ns-config-check">
-                  <input
-                    type="checkbox"
-                    defaultChecked={(nsCfg as any).writeFiles ?? false}
-                    onChange={(e) => {
-                      updateKnowledgeNamespace(slug, selectedNs!, { writeFiles: e.target.checked })
-                        .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
+          {selectedNs &&
+            (() => {
+              const nsCfg = namespaces.find(
+                (n: KnowledgeNamespace) => n.id === selectedNs,
+              );
+              if (!nsCfg) return null;
+              return (
+                <div className="project-page__ns-config">
+                  <label className="project-page__ns-config-label">
+                    Storage:
+                  </label>
+                  <PathAutocomplete
+                    apiBase={apiBase}
+                    value={storageDirDraft}
+                    onChange={setStorageDirDraft}
+                    onBlur={() => {
+                      const val = storageDirDraft.trim();
+                      if (val !== ((nsCfg as any).storageDir ?? '')) {
+                        updateKnowledgeNamespace(slug, selectedNs!, {
+                          storageDir: val || undefined,
+                        }).then(() =>
+                          qc.invalidateQueries({
+                            queryKey: ['knowledge', 'namespaces', slug],
+                          }),
+                        );
+                      }
                     }}
+                    placeholder="Default (built-in)"
+                    className="project-page__ns-config-input"
                   />
-                  Write files
-                </label>
-                <label className="project-page__ns-config-check">
-                  <input
-                    type="checkbox"
-                    defaultChecked={!!(nsCfg as any).enhance?.auto}
-                    onChange={(e) => {
-                      const enhance = e.target.checked ? { agent: 'sales-sa:sales-sa', auto: true } : undefined;
-                      updateKnowledgeNamespace(slug, selectedNs!, { enhance })
-                        .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
-                    }}
-                  />
-                  Auto-enhance
-                </label>
-              </div>
-            );
-          })()}
+                  <label className="project-page__ns-config-check">
+                    <input
+                      type="checkbox"
+                      defaultChecked={(nsCfg as any).writeFiles ?? false}
+                      onChange={(e) => {
+                        updateKnowledgeNamespace(slug, selectedNs!, {
+                          writeFiles: e.target.checked,
+                        }).then(() =>
+                          qc.invalidateQueries({
+                            queryKey: ['knowledge', 'namespaces', slug],
+                          }),
+                        );
+                      }}
+                    />
+                    Write files
+                  </label>
+                  <label className="project-page__ns-config-check">
+                    <input
+                      type="checkbox"
+                      defaultChecked={!!(nsCfg as any).enhance?.auto}
+                      onChange={(e) => {
+                        const enhance = e.target.checked
+                          ? { agent: 'sales-sa:sales-sa', auto: true }
+                          : undefined;
+                        updateKnowledgeNamespace(slug, selectedNs!, {
+                          enhance,
+                        }).then(() =>
+                          qc.invalidateQueries({
+                            queryKey: ['knowledge', 'namespaces', slug],
+                          }),
+                        );
+                      }}
+                    />
+                    Auto-enhance
+                  </label>
+                </div>
+              );
+            })()}
 
           {scanResult && (
             <div className="project-page__scan-result">
@@ -550,24 +644,39 @@ export function ProjectPage({ slug }: { slug: string }) {
                 className="project-page__doc-group-header"
                 onClick={() => setDirOpen((o) => !o)}
               >
-                <span className="project-page__doc-group-chevron">{dirOpen ? '▾' : '▸'}</span>
+                <span className="project-page__doc-group-chevron">
+                  {dirOpen ? '▾' : '▸'}
+                </span>
                 <span className="project-page__doc-group-icon">📁</span>
-                <span className="project-page__doc-group-label">Directory Index</span>
-                <span className="project-page__doc-group-count">{dirDocs.length} files</span>
+                <span className="project-page__doc-group-label">
+                  Directory Index
+                </span>
+                <span className="project-page__doc-group-count">
+                  {dirDocs.length} files
+                </span>
                 <input
                   type="checkbox"
                   className="project-page__doc-group-check"
                   checked={dirDocs.every((d) => selectedDocs.has(d.id))}
-                  onChange={(e) => { e.stopPropagation(); toggleAllInGroup(dirDocs); }}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    toggleAllInGroup(dirDocs);
+                  }}
                   onClick={(e) => e.stopPropagation()}
                   title="Select all"
                 />
               </button>
               {dirOpen && (
                 <div className="project-page__doc-group-body">
-                  <div className="project-page__doc-group-meta">From: {project.workingDirectory}</div>
+                  <div className="project-page__doc-group-meta">
+                    From: {project.workingDirectory}
+                  </div>
                   {dirDocs.map((doc) => (
-                    <div key={doc.id} className="project-page__doc" onClick={() => setViewingDoc(doc)}>
+                    <div
+                      key={doc.id}
+                      className="project-page__doc"
+                      onClick={() => setViewingDoc(doc)}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedDocs.has(doc.id)}
@@ -575,13 +684,22 @@ export function ProjectPage({ slug }: { slug: string }) {
                         onClick={(e) => e.stopPropagation()}
                         className="project-page__doc-check"
                       />
-                      <span className="project-page__doc-name">{doc.filename}</span>
-                      <span className="project-page__doc-badge">{doc.chunkCount} chunks</span>
+                      <span className="project-page__doc-name">
+                        {doc.filename}
+                      </span>
+                      <span className="project-page__doc-badge">
+                        {doc.chunkCount} chunks
+                      </span>
                       <button
                         className="project-page__doc-remove"
-                        onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(doc.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteMutation.mutate(doc.id);
+                        }}
                         title="Remove"
-                      >×</button>
+                      >
+                        ×
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -595,17 +713,29 @@ export function ProjectPage({ slug }: { slug: string }) {
               className="project-page__doc-group-header"
               onClick={() => setUploadOpen((o) => !o)}
             >
-              <span className="project-page__doc-group-chevron">{uploadOpen ? '▾' : '▸'}</span>
+              <span className="project-page__doc-group-chevron">
+                {uploadOpen ? '▾' : '▸'}
+              </span>
               <span className="project-page__doc-group-icon">📎</span>
-              <span className="project-page__doc-group-label">Uploaded Documents</span>
+              <span className="project-page__doc-group-label">
+                Uploaded Documents
+              </span>
               {uploadDocs.length > 0 && (
                 <>
-                  <span className="project-page__doc-group-count">{uploadDocs.length} files</span>
+                  <span className="project-page__doc-group-count">
+                    {uploadDocs.length} files
+                  </span>
                   <input
                     type="checkbox"
                     className="project-page__doc-group-check"
-                    checked={uploadDocs.length > 0 && uploadDocs.every((d) => selectedDocs.has(d.id))}
-                    onChange={(e) => { e.stopPropagation(); toggleAllInGroup(uploadDocs); }}
+                    checked={
+                      uploadDocs.length > 0 &&
+                      uploadDocs.every((d) => selectedDocs.has(d.id))
+                    }
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      toggleAllInGroup(uploadDocs);
+                    }}
                     onClick={(e) => e.stopPropagation()}
                     title="Select all"
                   />
@@ -617,7 +747,10 @@ export function ProjectPage({ slug }: { slug: string }) {
                 {/* Drop zone */}
                 <div
                   className={`project-page__dropzone${dragOver ? ' project-page__dropzone--active' : ''}`}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
                   onDragLeave={() => setDragOver(false)}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
@@ -628,17 +761,32 @@ export function ProjectPage({ slug }: { slug: string }) {
                     multiple
                     accept=".txt,.md,.json,.csv,.html,.ts,.tsx,.js,.py,.yaml,.yml,.toml,.xml,.sql,.sh,.css"
                     style={{ display: 'none' }}
-                    onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ''; }}
+                    onChange={(e) => {
+                      if (e.target.files) uploadFiles(e.target.files);
+                      e.target.value = '';
+                    }}
                   />
-                  <span className="project-page__dropzone-icon">{uploading ? '⏳' : '📎'}</span>
-                  <span className="project-page__dropzone-text">
-                    {uploading ? 'Uploading…' : dragOver ? 'Drop files here' : 'Drop files here or click to browse'}
+                  <span className="project-page__dropzone-icon">
+                    {uploading ? '⏳' : '📎'}
                   </span>
-                  <span className="project-page__dropzone-hint">.md .txt .json .ts .py .yaml and more</span>
+                  <span className="project-page__dropzone-text">
+                    {uploading
+                      ? 'Uploading…'
+                      : dragOver
+                        ? 'Drop files here'
+                        : 'Drop files here or click to browse'}
+                  </span>
+                  <span className="project-page__dropzone-hint">
+                    .md .txt .json .ts .py .yaml and more
+                  </span>
                 </div>
 
                 {uploadDocs.map((doc) => (
-                  <div key={doc.id} className="project-page__doc" onClick={() => setViewingDoc(doc)}>
+                  <div
+                    key={doc.id}
+                    className="project-page__doc"
+                    onClick={() => setViewingDoc(doc)}
+                  >
                     <input
                       type="checkbox"
                       checked={selectedDocs.has(doc.id)}
@@ -646,13 +794,22 @@ export function ProjectPage({ slug }: { slug: string }) {
                       onClick={(e) => e.stopPropagation()}
                       className="project-page__doc-check"
                     />
-                    <span className="project-page__doc-name">{doc.filename}</span>
-                    <span className="project-page__doc-badge">{doc.chunkCount} chunks</span>
+                    <span className="project-page__doc-name">
+                      {doc.filename}
+                    </span>
+                    <span className="project-page__doc-badge">
+                      {doc.chunkCount} chunks
+                    </span>
                     <button
                       className="project-page__doc-remove"
-                      onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(doc.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteMutation.mutate(doc.id);
+                      }}
                       title="Remove"
-                    >×</button>
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
               </div>
@@ -662,29 +819,55 @@ export function ProjectPage({ slug }: { slug: string }) {
 
         {/* Document Viewer Modal */}
         {viewingDoc && (
-          <div className="project-page__modal-overlay" onClick={() => setViewingDoc(null)}>
-            <div className="project-page__doc-viewer" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="project-page__modal-overlay"
+            onClick={() => setViewingDoc(null)}
+          >
+            <div
+              className="project-page__doc-viewer"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="project-page__doc-viewer-header">
                 <div className="project-page__doc-viewer-title">
                   <span className="project-page__doc-viewer-icon">📄</span>
-                  <span className="project-page__doc-viewer-name">{viewingDoc.filename}</span>
-                  <span className="project-page__doc-badge">{viewingDoc.chunkCount} chunks</span>
+                  <span className="project-page__doc-viewer-name">
+                    {viewingDoc.filename}
+                  </span>
+                  <span className="project-page__doc-badge">
+                    {viewingDoc.chunkCount} chunks
+                  </span>
                 </div>
-                <button className="project-page__doc-viewer-close" onClick={() => setViewingDoc(null)}>✕</button>
+                <button
+                  className="project-page__doc-viewer-close"
+                  onClick={() => setViewingDoc(null)}
+                >
+                  ✕
+                </button>
               </div>
               <div className="project-page__doc-viewer-body">
                 {contentLoading ? (
-                  <div className="project-page__doc-viewer-loading">Loading content…</div>
+                  <div className="project-page__doc-viewer-loading">
+                    Loading content…
+                  </div>
                 ) : viewingContent ? (
                   viewingDoc.filename.endsWith('.md') ? (
                     <div className="project-page__doc-viewer-markdown">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownCodeComponents}>{viewingContent}</ReactMarkdown>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={markdownCodeComponents}
+                      >
+                        {viewingContent}
+                      </ReactMarkdown>
                     </div>
                   ) : (
-                    <pre className="project-page__doc-viewer-content">{viewingContent}</pre>
+                    <pre className="project-page__doc-viewer-content">
+                      {viewingContent}
+                    </pre>
                   )
                 ) : (
-                  <div className="project-page__doc-viewer-empty">Unable to load document content</div>
+                  <div className="project-page__doc-viewer-empty">
+                    Unable to load document content
+                  </div>
                 )}
               </div>
             </div>

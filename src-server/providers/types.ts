@@ -85,7 +85,6 @@ export interface IUserDirectoryProvider {
   searchPeople(query: string): Promise<UserDetailVM[]>;
 }
 
-
 export interface IBrandingProvider {
   getAppName(): Promise<string>;
   getLogo?(): Promise<{ src: string; alt?: string } | null>;
@@ -291,7 +290,11 @@ export interface IVectorDbProvider {
     topK: number,
     threshold?: number,
   ): Promise<VectorSearchResult[]>;
-  getByMetadata(namespace: string, key: string, value: string): Promise<VectorSearchResult[]>;
+  getByMetadata(
+    namespace: string,
+    key: string,
+    value: string,
+  ): Promise<VectorSearchResult[]>;
   count(namespace: string): Promise<number>;
 }
 

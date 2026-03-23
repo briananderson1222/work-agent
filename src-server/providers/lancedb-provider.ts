@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { resolveHomeDir } from '../utils/paths.js';
 import type {
   IVectorDbProvider,
   VectorDocument,
   VectorSearchResult,
 } from './types.js';
-import { resolveHomeDir } from '../utils/paths.js';
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0,
@@ -101,7 +101,11 @@ export class LanceDBProvider implements IVectorDbProvider {
     return loadDocs(this.dataDir, namespace).length;
   }
 
-  async getByMetadata(namespace: string, key: string, value: string): Promise<VectorSearchResult[]> {
+  async getByMetadata(
+    namespace: string,
+    key: string,
+    value: string,
+  ): Promise<VectorSearchResult[]> {
     return loadDocs(this.dataDir, namespace)
       .filter((d) => d.metadata[key] === value)
       .map((d) => ({ id: d.id, text: d.text, score: 1, metadata: d.metadata }));

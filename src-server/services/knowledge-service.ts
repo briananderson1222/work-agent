@@ -9,8 +9,8 @@ import {
 } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 import type {
-  KnowledgeNamespaceConfig,
   KnowledgeDocumentMeta,
+  KnowledgeNamespaceConfig,
 } from '@stallion-ai/shared';
 import { BUILTIN_KNOWLEDGE_NAMESPACES } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
@@ -26,15 +26,44 @@ export type DocumentMeta = KnowledgeDocumentMeta;
 const DEFAULT_NS = 'default';
 
 const DEFAULT_EXTENSIONS = new Set([
-  '.txt', '.md', '.mdx', '.json', '.csv', '.html', '.htm',
-  '.ts', '.tsx', '.js', '.jsx', '.py', '.rs', '.go', '.java',
-  '.yaml', '.yml', '.toml', '.xml', '.sql', '.sh', '.bash',
-  '.css', '.scss', '.less', '.svelte', '.vue',
+  '.txt',
+  '.md',
+  '.mdx',
+  '.json',
+  '.csv',
+  '.html',
+  '.htm',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.py',
+  '.rs',
+  '.go',
+  '.java',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.xml',
+  '.sql',
+  '.sh',
+  '.bash',
+  '.css',
+  '.scss',
+  '.less',
+  '.svelte',
+  '.vue',
 ]);
 
 const SKIP_DIRS = new Set([
-  '.git', 'node_modules', 'dist', 'build', '.cache',
-  '__pycache__', 'target', '.next',
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  '.cache',
+  '__pycache__',
+  'target',
+  '.next',
 ]);
 
 function chunkText(text: string, maxChunkSize = 500): string[] {
@@ -73,13 +102,27 @@ function chunkText(text: string, maxChunkSize = 500): string[] {
 // ── Namespace-aware storage helpers ────────────────────────────────
 
 /** Default storage dir for a namespace (new layout: knowledge/<ns>/) */
-function defaultStorageDir(dataDir: string, projectSlug: string, namespace: string): string {
+function defaultStorageDir(
+  dataDir: string,
+  projectSlug: string,
+  namespace: string,
+): string {
   return join(dataDir, 'projects', projectSlug, 'knowledge', namespace);
 }
 
 /** Old metadata path (pre-directory-per-namespace). Used for migration. */
-function legacyMetaFile(dataDir: string, projectSlug: string, namespace: string): string {
-  return join(dataDir, 'projects', projectSlug, 'documents', `metadata-${namespace}.json`);
+function legacyMetaFile(
+  dataDir: string,
+  projectSlug: string,
+  namespace: string,
+): string {
+  return join(
+    dataDir,
+    'projects',
+    projectSlug,
+    'documents',
+    `metadata-${namespace}.json`,
+  );
 }
 
 /** Original flat metadata path (pre-namespace). */
@@ -87,16 +130,25 @@ function legacyFlatMetaFile(dataDir: string, projectSlug: string): string {
   return join(dataDir, 'projects', projectSlug, 'documents', 'metadata.json');
 }
 
-function loadMeta(storageDir: string, dataDir: string, projectSlug: string, namespace: string): KnowledgeDocumentMeta[] {
+function loadMeta(
+  storageDir: string,
+  dataDir: string,
+  projectSlug: string,
+  namespace: string,
+): KnowledgeDocumentMeta[] {
   // 1. New path: <storageDir>/metadata.json
   const newFile = join(storageDir, 'metadata.json');
   if (existsSync(newFile)) {
-    return JSON.parse(readFileSync(newFile, 'utf-8')) as KnowledgeDocumentMeta[];
+    return JSON.parse(
+      readFileSync(newFile, 'utf-8'),
+    ) as KnowledgeDocumentMeta[];
   }
   // 2. Migration: old namespace-aware path
   const oldNsFile = legacyMetaFile(dataDir, projectSlug, namespace);
   if (existsSync(oldNsFile)) {
-    const docs = JSON.parse(readFileSync(oldNsFile, 'utf-8')) as KnowledgeDocumentMeta[];
+    const docs = JSON.parse(
+      readFileSync(oldNsFile, 'utf-8'),
+    ) as KnowledgeDocumentMeta[];
     // Migrate: write to new location
     mkdirSync(storageDir, { recursive: true });
     writeFileSync(newFile, JSON.stringify(docs, null, 2), 'utf-8');
@@ -118,10 +170,18 @@ function loadMeta(storageDir: string, dataDir: string, projectSlug: string, name
 
 function saveMeta(storageDir: string, docs: KnowledgeDocumentMeta[]): void {
   mkdirSync(storageDir, { recursive: true });
-  writeFileSync(join(storageDir, 'metadata.json'), JSON.stringify(docs, null, 2), 'utf-8');
+  writeFileSync(
+    join(storageDir, 'metadata.json'),
+    JSON.stringify(docs, null, 2),
+    'utf-8',
+  );
 }
 
-function writeFileToDisk(storageDir: string, filename: string, content: string): void {
+function writeFileToDisk(
+  storageDir: string,
+  filename: string,
+  content: string,
+): void {
   const filesDir = join(storageDir, 'files');
   mkdirSync(filesDir, { recursive: true });
   writeFileSync(join(filesDir, filename), content, 'utf-8');
@@ -129,11 +189,17 @@ function writeFileToDisk(storageDir: string, filename: string, content: string):
 
 function deleteFileFromDisk(storageDir: string, filename: string): void {
   const filePath = join(storageDir, 'files', filename);
-  try { unlinkSync(filePath); } catch { /* file may not exist */ }
+  try {
+    unlinkSync(filePath);
+  } catch {
+    /* file may not exist */
+  }
 }
 
 function vectorNs(projectSlug: string, namespace: string): string {
-  return namespace === DEFAULT_NS ? `project-${projectSlug}` : `project-${projectSlug}:${namespace}`;
+  return namespace === DEFAULT_NS
+    ? `project-${projectSlug}`
+    : `project-${projectSlug}:${namespace}`;
 }
 
 // ── Service ────────────────────────────────────────────────────────
@@ -149,12 +215,17 @@ export class KnowledgeService {
   // ── Storage resolution ──
 
   private resolveStorageDir(projectSlug: string, namespace: string): string {
-    const nsCfg = this.listNamespaces(projectSlug).find((n) => n.id === namespace);
+    const nsCfg = this.listNamespaces(projectSlug).find(
+      (n) => n.id === namespace,
+    );
     if (nsCfg?.storageDir) return nsCfg.storageDir;
     return defaultStorageDir(this.dataDir, projectSlug, namespace);
   }
 
-  private getNamespaceConfig(projectSlug: string, namespace: string): KnowledgeNamespaceConfig | undefined {
+  private getNamespaceConfig(
+    projectSlug: string,
+    namespace: string,
+  ): KnowledgeNamespaceConfig | undefined {
     return this.listNamespaces(projectSlug).find((n) => n.id === namespace);
   }
 
@@ -169,7 +240,10 @@ export class KnowledgeService {
       const seen = new Set<string>();
       const result: KnowledgeNamespaceConfig[] = [];
       for (const ns of [...BUILTIN_KNOWLEDGE_NAMESPACES, ...custom]) {
-        if (!seen.has(ns.id)) { seen.add(ns.id); result.push(ns); }
+        if (!seen.has(ns.id)) {
+          seen.add(ns.id);
+          result.push(ns);
+        }
       }
       return result;
     } catch {
@@ -193,12 +267,18 @@ export class KnowledgeService {
       throw new Error(`Cannot remove built-in namespace '${namespaceId}'`);
     }
     const project = this.storageAdapter.getProject(projectSlug);
-    project.knowledgeNamespaces = (project.knowledgeNamespaces ?? []).filter((n) => n.id !== namespaceId);
+    project.knowledgeNamespaces = (project.knowledgeNamespaces ?? []).filter(
+      (n) => n.id !== namespaceId,
+    );
     project.updatedAt = new Date().toISOString();
     this.storageAdapter.saveProject(project);
   }
 
-  updateNamespace(projectSlug: string, namespaceId: string, updates: Partial<KnowledgeNamespaceConfig>): void {
+  updateNamespace(
+    projectSlug: string,
+    namespaceId: string,
+    updates: Partial<KnowledgeNamespaceConfig>,
+  ): void {
     if (!this.storageAdapter) throw new Error('Storage adapter required');
     const project = this.storageAdapter.getProject(projectSlug);
     const namespaces = project.knowledgeNamespaces ?? [];
@@ -207,7 +287,9 @@ export class KnowledgeService {
       namespaces[idx] = { ...namespaces[idx], ...updates, id: namespaceId };
     } else {
       // Might be a built-in — add as override
-      const builtin = BUILTIN_KNOWLEDGE_NAMESPACES.find((b) => b.id === namespaceId);
+      const builtin = BUILTIN_KNOWLEDGE_NAMESPACES.find(
+        (b) => b.id === namespaceId,
+      );
       if (builtin) namespaces.push({ ...builtin, ...updates, id: namespaceId });
       else throw new Error(`Namespace '${namespaceId}' not found`);
     }
@@ -275,7 +357,12 @@ export class KnowledgeService {
     return meta;
   }
 
-  async searchDocuments(projectSlug: string, query: string, topK = 5, namespace?: string) {
+  async searchDocuments(
+    projectSlug: string,
+    query: string,
+    topK = 5,
+    namespace?: string,
+  ) {
     const vectorDb = this.resolveVectorDb();
     if (!vectorDb) return [];
     const embeddingProvider = this.resolveEmbedding();
@@ -292,7 +379,9 @@ export class KnowledgeService {
     }
 
     // Search all rag-behavior namespaces
-    const namespaces = this.listNamespaces(projectSlug).filter((n) => n.behavior === 'rag');
+    const namespaces = this.listNamespaces(projectSlug).filter(
+      (n) => n.behavior === 'rag',
+    );
     const allResults: any[] = [];
     for (const nsCfg of namespaces) {
       const ns = vectorNs(projectSlug, nsCfg.id);
@@ -306,7 +395,10 @@ export class KnowledgeService {
     return allResults.slice(0, topK);
   }
 
-  async listDocuments(projectSlug: string, namespace?: string): Promise<KnowledgeDocumentMeta[]> {
+  async listDocuments(
+    projectSlug: string,
+    namespace?: string,
+  ): Promise<KnowledgeDocumentMeta[]> {
     if (namespace) {
       const storageDir = this.resolveStorageDir(projectSlug, namespace);
       return loadMeta(storageDir, this.dataDir, projectSlug, namespace);
@@ -321,7 +413,11 @@ export class KnowledgeService {
     return all;
   }
 
-  async deleteDocument(projectSlug: string, docId: string, namespace?: string): Promise<void> {
+  async deleteDocument(
+    projectSlug: string,
+    docId: string,
+    namespace?: string,
+  ): Promise<void> {
     const vectorDb = this.resolveVectorDb();
     if (!vectorDb) throw new Error('No vector DB provider configured');
 
@@ -332,9 +428,15 @@ export class KnowledgeService {
     const storageDir = this.resolveStorageDir(projectSlug, targetNs);
     const meta = loadMeta(storageDir, this.dataDir, projectSlug, targetNs);
     const doc = meta.find((d) => d.id === docId);
-    if (!doc) throw new Error(`Document '${docId}' not found in namespace '${targetNs}'`);
+    if (!doc)
+      throw new Error(
+        `Document '${docId}' not found in namespace '${targetNs}'`,
+      );
 
-    const chunkIds = Array.from({ length: doc.chunkCount }, (_, i) => `${docId}:${i}`);
+    const chunkIds = Array.from(
+      { length: doc.chunkCount },
+      (_, i) => `${docId}:${i}`,
+    );
     await vectorDb.deleteDocuments(ns, chunkIds);
 
     // Delete file from disk if writeFiles is enabled
@@ -343,13 +445,20 @@ export class KnowledgeService {
       deleteFileFromDisk(storageDir, doc.filename);
     }
 
-    saveMeta(storageDir, meta.filter((d) => d.id !== docId));
+    saveMeta(
+      storageDir,
+      meta.filter((d) => d.id !== docId),
+    );
     knowledgeOps.add(1, { op: 'delete' });
   }
 
   // ── Document content retrieval ──
 
-  async getDocumentContent(projectSlug: string, docId: string, namespace?: string): Promise<string> {
+  async getDocumentContent(
+    projectSlug: string,
+    docId: string,
+    namespace?: string,
+  ): Promise<string> {
     const vectorDb = this.resolveVectorDb();
     if (!vectorDb) throw new Error('No vector DB provider configured');
 
@@ -362,7 +471,8 @@ export class KnowledgeService {
     if (!doc) throw new Error(`Document '${docId}' not found`);
 
     const ns = vectorNs(projectSlug, targetNs);
-    if (!(await vectorDb.namespaceExists(ns))) throw new Error('Vector namespace not found');
+    if (!(await vectorDb.namespaceExists(ns)))
+      throw new Error('Vector namespace not found');
 
     const results = await vectorDb.getByMetadata(ns, 'docId', docId);
 
@@ -403,7 +513,9 @@ export class KnowledgeService {
    * Returns formatted string for system prompt prepending, or null if empty.
    */
   async getInjectContext(projectSlug: string): Promise<string | null> {
-    const namespaces = this.listNamespaces(projectSlug).filter((n) => n.behavior === 'inject');
+    const namespaces = this.listNamespaces(projectSlug).filter(
+      (n) => n.behavior === 'inject',
+    );
     if (namespaces.length === 0) return null;
 
     const vectorDb = this.resolveVectorDb();
@@ -434,12 +546,16 @@ export class KnowledgeService {
       if (results.length === 0) continue;
 
       // Group by docId, reconstruct in order
-      const byDoc = new Map<string, { filename: string; chunks: Map<number, string> }>();
+      const byDoc = new Map<
+        string,
+        { filename: string; chunks: Map<number, string> }
+      >();
       for (const r of results) {
         const docId = r.metadata.docId as string;
         const chunkIndex = r.metadata.chunkIndex as number;
         const filename = r.metadata.filename as string;
-        if (!byDoc.has(docId)) byDoc.set(docId, { filename, chunks: new Map() });
+        if (!byDoc.has(docId))
+          byDoc.set(docId, { filename, chunks: new Map() });
         byDoc.get(docId)!.chunks.set(chunkIndex, r.text);
       }
 
@@ -449,7 +565,9 @@ export class KnowledgeService {
         docTexts.push(sorted.map(([, text]) => text).join('\n\n'));
       }
 
-      sections.push(`<${nsCfg.id}_rules>\n${docTexts.join('\n\n')}\n</${nsCfg.id}_rules>`);
+      sections.push(
+        `<${nsCfg.id}_rules>\n${docTexts.join('\n\n')}\n</${nsCfg.id}_rules>`,
+      );
     }
 
     if (sections.length === 0) return null;
@@ -488,14 +606,28 @@ export class KnowledgeService {
     let skipped = 0;
 
     const files = this.collectFiles(scanPath, allowedExts);
-    const filtered = this.applyPatterns(files, scanPath, includePatterns, excludePatterns);
+    const filtered = this.applyPatterns(
+      files,
+      scanPath,
+      includePatterns,
+      excludePatterns,
+    );
 
     for (const filePath of filtered) {
       try {
         const content = readFileSync(filePath, 'utf-8');
-        if (content.length === 0 || content.length > 500_000) { skipped++; continue; }
+        if (content.length === 0 || content.length > 500_000) {
+          skipped++;
+          continue;
+        }
         const relPath = relative(scanPath, filePath);
-        await this.uploadDocument(projectSlug, relPath, content, 'directory-scan', namespace);
+        await this.uploadDocument(
+          projectSlug,
+          relPath,
+          content,
+          'directory-scan',
+          namespace,
+        );
         indexed++;
       } catch (e) {
         console.debug('Failed to index file during directory scan:', e);
@@ -546,13 +678,23 @@ export class KnowledgeService {
     return new RegExp(`^${regex}$`).test(path);
   }
 
-  private collectFiles(dirPath: string, allowedExts: Set<string>, maxFiles = 200): string[] {
+  private collectFiles(
+    dirPath: string,
+    allowedExts: Set<string>,
+    maxFiles = 200,
+  ): string[] {
     const results: string[] = [];
     const walk = (current: string, depth: number) => {
       if (depth > 8 || results.length >= maxFiles) return;
       let entries: string[];
-      try { entries = readdirSync(current); } catch (e) {
-        console.debug('Failed to read directory during knowledge scan:', current, e);
+      try {
+        entries = readdirSync(current);
+      } catch (e) {
+        console.debug(
+          'Failed to read directory during knowledge scan:',
+          current,
+          e,
+        );
         return;
       }
       for (const name of entries) {

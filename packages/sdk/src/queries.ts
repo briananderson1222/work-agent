@@ -446,7 +446,12 @@ export function useGitStatusQuery(
     staged: number;
     unstaged: number;
     untracked: number;
-    lastCommit: { sha: string; author: string; relativeTime: string; message: string } | null;
+    lastCommit: {
+      sha: string;
+      author: string;
+      relativeTime: string;
+      message: string;
+    } | null;
     ahead: number;
     behind: number;
   } | null>(
@@ -477,7 +482,14 @@ export function useGitLogQuery(
   count = 5,
   config?: QueryConfig<any>,
 ) {
-  return useApiQuery<Array<{ sha: string; author: string; relativeTime: string; message: string }>>(
+  return useApiQuery<
+    Array<{
+      sha: string;
+      author: string;
+      relativeTime: string;
+      message: string;
+    }>
+  >(
     ['git-log', workingDirectory ?? '', count],
     async () => {
       if (!workingDirectory) return [];
@@ -514,7 +526,10 @@ export function useStatsQuery(
 
 // ── Knowledge Hooks ────────────────────────────────────────────────
 
-export function useKnowledgeNamespacesQuery(projectSlug: string, config?: QueryConfig<any>) {
+export function useKnowledgeNamespacesQuery(
+  projectSlug: string,
+  config?: QueryConfig<any>,
+) {
   return useQuery({
     ...knowledgeQueries.namespaces(projectSlug),
     ...config,
@@ -522,7 +537,11 @@ export function useKnowledgeNamespacesQuery(projectSlug: string, config?: QueryC
   });
 }
 
-export function useKnowledgeDocsQuery(projectSlug: string, namespace?: string, config?: QueryConfig<any>) {
+export function useKnowledgeDocsQuery(
+  projectSlug: string,
+  namespace?: string,
+  config?: QueryConfig<any>,
+) {
   return useQuery({
     ...knowledgeQueries.list(projectSlug, namespace),
     ...config,
@@ -530,7 +549,12 @@ export function useKnowledgeDocsQuery(projectSlug: string, namespace?: string, c
   });
 }
 
-export function useKnowledgeSearchQuery(projectSlug: string, query: string, namespace?: string, config?: QueryConfig<any>) {
+export function useKnowledgeSearchQuery(
+  projectSlug: string,
+  query: string,
+  namespace?: string,
+  config?: QueryConfig<any>,
+) {
   return useQuery({
     ...knowledgeQueries.search(projectSlug, query, namespace),
     ...config,
@@ -538,12 +562,29 @@ export function useKnowledgeSearchQuery(projectSlug: string, query: string, name
   });
 }
 
-export function useKnowledgeSaveMutation(projectSlug: string, namespace?: string) {
+export function useKnowledgeSaveMutation(
+  projectSlug: string,
+  namespace?: string,
+) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ filename, content, metadata }: { filename: string; content: string; metadata?: Record<string, any> }) => {
+    mutationFn: async ({
+      filename,
+      content,
+      metadata,
+    }: {
+      filename: string;
+      content: string;
+      metadata?: Record<string, any>;
+    }) => {
       const { uploadKnowledge } = await import('./api');
-      return uploadKnowledge(projectSlug, filename, content, namespace, metadata);
+      return uploadKnowledge(
+        projectSlug,
+        filename,
+        content,
+        namespace,
+        metadata,
+      );
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });
@@ -551,7 +592,10 @@ export function useKnowledgeSaveMutation(projectSlug: string, namespace?: string
   });
 }
 
-export function useKnowledgeDeleteMutation(projectSlug: string, namespace?: string) {
+export function useKnowledgeDeleteMutation(
+  projectSlug: string,
+  namespace?: string,
+) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (docId: string) => {
@@ -564,7 +608,10 @@ export function useKnowledgeDeleteMutation(projectSlug: string, namespace?: stri
   });
 }
 
-export function useKnowledgeBulkDeleteMutation(projectSlug: string, namespace?: string) {
+export function useKnowledgeBulkDeleteMutation(
+  projectSlug: string,
+  namespace?: string,
+) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ids: string[]) => {
@@ -577,7 +624,10 @@ export function useKnowledgeBulkDeleteMutation(projectSlug: string, namespace?: 
   });
 }
 
-export function useKnowledgeStatusQuery(projectSlug: string, config?: QueryConfig<any>) {
+export function useKnowledgeStatusQuery(
+  projectSlug: string,
+  config?: QueryConfig<any>,
+) {
   return useApiQuery(
     ['knowledge', 'status', projectSlug],
     async () => {
@@ -588,21 +638,33 @@ export function useKnowledgeStatusQuery(projectSlug: string, config?: QueryConfi
   );
 }
 
-export function useKnowledgeDocContentQuery(projectSlug: string, docId: string | null, namespace?: string, config?: QueryConfig<string>) {
+export function useKnowledgeDocContentQuery(
+  projectSlug: string,
+  docId: string | null,
+  namespace?: string,
+  config?: QueryConfig<string>,
+) {
   return useApiQuery(
     ['knowledge', 'doc-content', projectSlug, docId ?? ''],
     async () => {
       const { fetchKnowledgeDocContent } = await import('./api');
       return fetchKnowledgeDocContent(projectSlug, docId!, namespace);
     },
-    { ...config, enabled: !!projectSlug && !!docId && (config?.enabled ?? true) },
+    {
+      ...config,
+      enabled: !!projectSlug && !!docId && (config?.enabled ?? true),
+    },
   );
 }
 
 export function useKnowledgeScanMutation(projectSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (options?: { extensions?: string[]; includePatterns?: string[]; excludePatterns?: string[] }) => {
+    mutationFn: async (options?: {
+      extensions?: string[];
+      includePatterns?: string[];
+      excludePatterns?: string[];
+    }) => {
       const { scanKnowledgeDirectory } = await import('./api');
       return scanKnowledgeDirectory(projectSlug, options);
     },
@@ -613,7 +675,11 @@ export function useKnowledgeScanMutation(projectSlug: string) {
   });
 }
 
-export function useProjectConversationsQuery(projectSlug: string, limit = 10, config?: QueryConfig<any>) {
+export function useProjectConversationsQuery(
+  projectSlug: string,
+  limit = 10,
+  config?: QueryConfig<any>,
+) {
   return useApiQuery(
     ['project-conversations', projectSlug],
     async () => {

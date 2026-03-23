@@ -115,7 +115,10 @@ export async function sendMessage(
       `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/text`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-stallion-plugin': _getPluginName(),
+        },
         body: JSON.stringify({
           input: content,
           options: {
@@ -133,10 +136,16 @@ export async function sendMessage(
     }
 
     const result = await response.json();
-    telemetry.track('sdk.sendMessage', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    telemetry.track('sdk.sendMessage', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'ok',
+    });
     return result;
   } catch (err) {
-    telemetry.track('sdk.sendMessage', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    telemetry.track('sdk.sendMessage', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'error',
+    });
     throw err;
   }
 }
@@ -157,7 +166,10 @@ export async function streamMessage(
       `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/stream`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-stallion-plugin': _getPluginName(),
+        },
         body: JSON.stringify({
           input: content,
           options: {
@@ -171,7 +183,9 @@ export async function streamMessage(
     );
 
     if (!response.ok) {
-      const error = new Error(`Failed to stream message: ${response.statusText}`);
+      const error = new Error(
+        `Failed to stream message: ${response.statusText}`,
+      );
       options.onError?.(error);
       throw error;
     }
@@ -200,9 +214,15 @@ export async function streamMessage(
       throw error;
     }
 
-    telemetry.track('sdk.streamMessage', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    telemetry.track('sdk.streamMessage', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'ok',
+    });
   } catch (err) {
-    telemetry.track('sdk.streamMessage', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    telemetry.track('sdk.streamMessage', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'error',
+    });
     throw err;
   }
 }
@@ -223,7 +243,10 @@ export async function invokeAgent(
       `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/invoke`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-stallion-plugin': _getPluginName(),
+        },
         body: JSON.stringify({
           input: content,
           schema: options.schema,
@@ -242,10 +265,16 @@ export async function invokeAgent(
     }
 
     const result = await response.json();
-    telemetry.track('sdk.invokeAgent', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    telemetry.track('sdk.invokeAgent', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'ok',
+    });
     return result;
   } catch (err) {
-    telemetry.track('sdk.invokeAgent', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    telemetry.track('sdk.invokeAgent', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'error',
+    });
     throw err;
   }
 }
@@ -270,7 +299,10 @@ export async function callTool(
       `${apiBase}/agents/${encodeURIComponent(resolvedAgent)}/tools/${encodeURIComponent(toolName)}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-stallion-plugin': _getPluginName(),
+        },
         body: JSON.stringify(toolArgs),
       },
     );
@@ -284,14 +316,19 @@ export async function callTool(
       throw new Error(data.error || 'Tool call failed');
     }
 
-    telemetry.track('sdk.callTool', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    telemetry.track('sdk.callTool', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'ok',
+    });
     return data.response;
   } catch (err) {
-    telemetry.track('sdk.callTool', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    telemetry.track('sdk.callTool', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'error',
+    });
     throw err;
   }
 }
-
 
 export interface InvokeOptions {
   prompt: string;
@@ -313,7 +350,10 @@ export async function invoke(options: InvokeOptions): Promise<any> {
     const apiBase = await _getApiBase();
     const response = await fetch(`${apiBase}/invoke`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stallion-plugin': _getPluginName(),
+      },
       body: JSON.stringify(options),
     });
 
@@ -326,10 +366,16 @@ export async function invoke(options: InvokeOptions): Promise<any> {
       throw new Error(data.error || 'Invoke failed');
     }
 
-    telemetry.track('sdk.invoke', { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+    telemetry.track('sdk.invoke', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'ok',
+    });
     return data.response;
   } catch (err) {
-    telemetry.track('sdk.invoke', { duration_ms: Math.round(performance.now() - start), status: 'error' });
+    telemetry.track('sdk.invoke', {
+      duration_ms: Math.round(performance.now() - start),
+      status: 'error',
+    });
     throw err;
   }
 }
@@ -424,88 +470,154 @@ export async function fetchConfig(): Promise<any> {
 
 // ── Knowledge API ──────────────────────────────────────────────────
 
-function knowledgeBase(apiBase: string, projectSlug: string, namespace?: string): string {
+function knowledgeBase(
+  apiBase: string,
+  projectSlug: string,
+  namespace?: string,
+): string {
   const base = `${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge`;
   return namespace ? `${base}/ns/${encodeURIComponent(namespace)}` : base;
 }
 
-export async function fetchKnowledgeNamespaces(projectSlug: string): Promise<any[]> {
+export async function fetchKnowledgeNamespaces(
+  projectSlug: string,
+): Promise<any[]> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/namespaces`, {
-    headers: { 'x-stallion-plugin': _getPluginName() },
-  });
+  const res = await fetch(
+    `${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/namespaces`,
+    {
+      headers: { 'x-stallion-plugin': _getPluginName() },
+    },
+  );
   if (!res.ok) throw new Error(`Failed to fetch namespaces: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
 
-export async function fetchKnowledgeDocs(projectSlug: string, namespace?: string): Promise<any[]> {
+export async function fetchKnowledgeDocs(
+  projectSlug: string,
+  namespace?: string,
+): Promise<any[]> {
   const apiBase = await _getApiBase();
   const res = await fetch(knowledgeBase(apiBase, projectSlug, namespace), {
     headers: { 'x-stallion-plugin': _getPluginName() },
   });
-  if (!res.ok) throw new Error(`Failed to fetch knowledge docs: ${res.statusText}`);
+  if (!res.ok)
+    throw new Error(`Failed to fetch knowledge docs: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
 
-export async function searchKnowledge(projectSlug: string, query: string, namespace?: string, topK?: number): Promise<any[]> {
+export async function searchKnowledge(
+  projectSlug: string,
+  query: string,
+  namespace?: string,
+  topK?: number,
+): Promise<any[]> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
-    body: JSON.stringify({ query, topK }),
-  });
+  const res = await fetch(
+    `${knowledgeBase(apiBase, projectSlug, namespace)}/search`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stallion-plugin': _getPluginName(),
+      },
+      body: JSON.stringify({ query, topK }),
+    },
+  );
   if (!res.ok) throw new Error(`Knowledge search failed: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
 
-export async function uploadKnowledge(projectSlug: string, filename: string, content: string, namespace?: string, metadata?: Record<string, any>): Promise<any> {
+export async function uploadKnowledge(
+  projectSlug: string,
+  filename: string,
+  content: string,
+  namespace?: string,
+  metadata?: Record<string, any>,
+): Promise<any> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/upload`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
-    body: JSON.stringify({ filename, content, ...(metadata && { metadata }) }),
-  });
+  const res = await fetch(
+    `${knowledgeBase(apiBase, projectSlug, namespace)}/upload`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stallion-plugin': _getPluginName(),
+      },
+      body: JSON.stringify({
+        filename,
+        content,
+        ...(metadata && { metadata }),
+      }),
+    },
+  );
   if (!res.ok) throw new Error(`Knowledge upload failed: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
 
-export async function deleteKnowledgeDoc(projectSlug: string, docId: string, namespace?: string): Promise<void> {
+export async function deleteKnowledgeDoc(
+  projectSlug: string,
+  docId: string,
+  namespace?: string,
+): Promise<void> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/${encodeURIComponent(docId)}`, {
-    method: 'DELETE',
-    headers: { 'x-stallion-plugin': _getPluginName() },
-  });
+  const res = await fetch(
+    `${knowledgeBase(apiBase, projectSlug, namespace)}/${encodeURIComponent(docId)}`,
+    {
+      method: 'DELETE',
+      headers: { 'x-stallion-plugin': _getPluginName() },
+    },
+  );
   if (!res.ok) throw new Error(`Knowledge delete failed: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
 }
 
-export async function bulkDeleteKnowledgeDocs(projectSlug: string, ids: string[], namespace?: string): Promise<void> {
+export async function bulkDeleteKnowledgeDocs(
+  projectSlug: string,
+  ids: string[],
+  namespace?: string,
+): Promise<void> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/bulk-delete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
-    body: JSON.stringify({ ids }),
-  });
-  if (!res.ok) throw new Error(`Knowledge bulk delete failed: ${res.statusText}`);
+  const res = await fetch(
+    `${knowledgeBase(apiBase, projectSlug, namespace)}/bulk-delete`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stallion-plugin': _getPluginName(),
+      },
+      body: JSON.stringify({ ids }),
+    },
+  );
+  if (!res.ok)
+    throw new Error(`Knowledge bulk delete failed: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
 }
 
-export async function fetchKnowledgeDocContent(projectSlug: string, docId: string, namespace?: string): Promise<string> {
+export async function fetchKnowledgeDocContent(
+  projectSlug: string,
+  docId: string,
+  namespace?: string,
+): Promise<string> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/${encodeURIComponent(docId)}/content`, {
-    headers: { 'x-stallion-plugin': _getPluginName() },
-  });
-  if (!res.ok) throw new Error(`Failed to fetch doc content: ${res.statusText}`);
+  const res = await fetch(
+    `${knowledgeBase(apiBase, projectSlug, namespace)}/${encodeURIComponent(docId)}/content`,
+    {
+      headers: { 'x-stallion-plugin': _getPluginName() },
+    },
+  );
+  if (!res.ok)
+    throw new Error(`Failed to fetch doc content: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data.content;
@@ -513,20 +625,34 @@ export async function fetchKnowledgeDocContent(projectSlug: string, docId: strin
 
 export async function fetchKnowledgeStatus(projectSlug: string): Promise<any> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/status`, {
-    headers: { 'x-stallion-plugin': _getPluginName() },
-  });
-  if (!res.ok) throw new Error(`Failed to fetch knowledge status: ${res.statusText}`);
+  const res = await fetch(
+    `${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/status`,
+    {
+      headers: { 'x-stallion-plugin': _getPluginName() },
+    },
+  );
+  if (!res.ok)
+    throw new Error(`Failed to fetch knowledge status: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
 
-export async function scanKnowledgeDirectory(projectSlug: string, options?: { extensions?: string[]; includePatterns?: string[]; excludePatterns?: string[] }): Promise<any> {
+export async function scanKnowledgeDirectory(
+  projectSlug: string,
+  options?: {
+    extensions?: string[];
+    includePatterns?: string[];
+    excludePatterns?: string[];
+  },
+): Promise<any> {
   const apiBase = await _getApiBase();
   const res = await fetch(`${knowledgeBase(apiBase, projectSlug)}/scan`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-stallion-plugin': _getPluginName(),
+    },
     body: JSON.stringify(options ?? {}),
   });
   if (!res.ok) throw new Error(`Knowledge scan failed: ${res.statusText}`);
@@ -535,24 +661,40 @@ export async function scanKnowledgeDirectory(projectSlug: string, options?: { ex
   return json.data;
 }
 
-export async function fetchProjectConversations(projectSlug: string, limit = 10): Promise<any[]> {
+export async function fetchProjectConversations(
+  projectSlug: string,
+  limit = 10,
+): Promise<any[]> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/conversations?limit=${limit}`, {
-    headers: { 'x-stallion-plugin': _getPluginName() },
-  });
+  const res = await fetch(
+    `${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/conversations?limit=${limit}`,
+    {
+      headers: { 'x-stallion-plugin': _getPluginName() },
+    },
+  );
   if (!res.ok) return [];
   const json = await res.json();
   return json.success ? json.data : [];
 }
 
-export async function addProjectLayoutFromPlugin(projectSlug: string, plugin: string): Promise<any> {
+export async function addProjectLayoutFromPlugin(
+  projectSlug: string,
+  plugin: string,
+): Promise<any> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/layouts/from-plugin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
-    body: JSON.stringify({ plugin }),
-  });
-  if (!res.ok) throw new Error(`Failed to add layout from plugin: ${res.statusText}`);
+  const res = await fetch(
+    `${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/layouts/from-plugin`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stallion-plugin': _getPluginName(),
+      },
+      body: JSON.stringify({ plugin }),
+    },
+  );
+  if (!res.ok)
+    throw new Error(`Failed to add layout from plugin: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
@@ -563,18 +705,29 @@ export async function fetchAvailableLayouts(): Promise<any[]> {
   const res = await fetch(`${apiBase}/api/projects/layouts/available`, {
     headers: { 'x-stallion-plugin': _getPluginName() },
   });
-  if (!res.ok) throw new Error(`Failed to fetch available layouts: ${res.statusText}`);
+  if (!res.ok)
+    throw new Error(`Failed to fetch available layouts: ${res.statusText}`);
   const json = await res.json();
-  return json.success ? json.data ?? [] : [];
+  return json.success ? (json.data ?? []) : [];
 }
 
-export async function updateKnowledgeNamespace(projectSlug: string, namespaceId: string, data: Record<string, any>): Promise<any> {
+export async function updateKnowledgeNamespace(
+  projectSlug: string,
+  namespaceId: string,
+  data: Record<string, any>,
+): Promise<any> {
   const apiBase = await _getApiBase();
-  const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/namespaces/${encodeURIComponent(namespaceId)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
-    body: JSON.stringify(data),
-  });
+  const res = await fetch(
+    `${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/namespaces/${encodeURIComponent(namespaceId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stallion-plugin': _getPluginName(),
+      },
+      body: JSON.stringify(data),
+    },
+  );
   if (!res.ok) throw new Error(`Failed to update namespace: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
