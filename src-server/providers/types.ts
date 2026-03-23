@@ -291,6 +291,7 @@ export interface IVectorDbProvider {
     topK: number,
     threshold?: number,
   ): Promise<VectorSearchResult[]>;
+  getByMetadata(namespace: string, key: string, value: string): Promise<VectorSearchResult[]>;
   count(namespace: string): Promise<number>;
 }
 

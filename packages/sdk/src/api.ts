@@ -500,6 +500,17 @@ export async function bulkDeleteKnowledgeDocs(projectSlug: string, ids: string[]
   if (!json.success) throw new Error(json.error);
 }
 
+export async function fetchKnowledgeDocContent(projectSlug: string, docId: string, namespace?: string): Promise<string> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${knowledgeBase(apiBase, projectSlug, namespace)}/${encodeURIComponent(docId)}/content`, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch doc content: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data.content;
+}
+
 export async function fetchKnowledgeStatus(projectSlug: string): Promise<any> {
   const apiBase = await _getApiBase();
   const res = await fetch(`${apiBase}/api/projects/${encodeURIComponent(projectSlug)}/knowledge/status`, {

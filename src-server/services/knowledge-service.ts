@@ -347,6 +347,34 @@ export class KnowledgeService {
     knowledgeOps.add(1, { op: 'delete' });
   }
 
+  // ── Document content retrieval ──
+
+  async getDocumentContent(projectSlug: string, docId: string, namespace?: string): Promise<string> {
+    const vectorDb = this.resolveVectorDb();
+    if (!vectorDb) throw new Error('No vector DB provider configured');
+
+    const targetNs = namespace ?? this.findDocNamespace(projectSlug, docId);
+    if (!targetNs) throw new Error(`Document '${docId}' not found`);
+
+    const storageDir = this.resolveStorageDir(projectSlug, targetNs);
+    const meta = loadMeta(storageDir, this.dataDir, projectSlug, targetNs);
+    const doc = meta.find((d) => d.id === docId);
+    if (!doc) throw new Error(`Document '${docId}' not found`);
+
+    const ns = vectorNs(projectSlug, targetNs);
+    if (!(await vectorDb.namespaceExists(ns))) throw new Error('Vector namespace not found');
+
+    const results = await vectorDb.getByMetadata(ns, 'docId', docId);
+
+    const chunks = new Map<number, string>();
+    for (const r of results) {
+      chunks.set(r.metadata.chunkIndex as number, r.text);
+    }
+
+    const sorted = Array.from(chunks.entries()).sort((a, b) => a[0] - b[0]);
+    return sorted.map(([, text]) => text).join('\n\n');
+  }
+
   // ── Context injection ──
 
   /**

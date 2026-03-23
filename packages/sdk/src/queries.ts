@@ -247,6 +247,8 @@ export function useCreateLayoutMutation(projectSlug: string) {
       name: string;
       slug: string;
       type: string;
+      icon?: string;
+      description?: string;
       config?: Record<string, unknown>;
     }) => {
       const apiBase = await _getApiBase();
@@ -583,6 +585,17 @@ export function useKnowledgeStatusQuery(projectSlug: string, config?: QueryConfi
       return fetchKnowledgeStatus(projectSlug);
     },
     { ...config, enabled: !!projectSlug && (config?.enabled ?? true) },
+  );
+}
+
+export function useKnowledgeDocContentQuery(projectSlug: string, docId: string | null, namespace?: string, config?: QueryConfig<string>) {
+  return useApiQuery(
+    ['knowledge', 'doc-content', projectSlug, docId ?? ''],
+    async () => {
+      const { fetchKnowledgeDocContent } = await import('./api');
+      return fetchKnowledgeDocContent(projectSlug, docId!, namespace);
+    },
+    { ...config, enabled: !!projectSlug && !!docId && (config?.enabled ?? true) },
   );
 }
 

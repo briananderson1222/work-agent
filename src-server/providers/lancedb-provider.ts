@@ -100,4 +100,10 @@ export class LanceDBProvider implements IVectorDbProvider {
   async count(namespace: string): Promise<number> {
     return loadDocs(this.dataDir, namespace).length;
   }
+
+  async getByMetadata(namespace: string, key: string, value: string): Promise<VectorSearchResult[]> {
+    return loadDocs(this.dataDir, namespace)
+      .filter((d) => d.metadata[key] === value)
+      .map((d) => ({ id: d.id, text: d.text, score: 1, metadata: d.metadata }));
+  }
 }

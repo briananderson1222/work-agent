@@ -88,6 +88,15 @@ function knowledgeHandlers(knowledgeService: KnowledgeService, getSlug: (c: any)
     }
   });
 
+  app.get('/:docId/content', async (c) => {
+    try {
+      const content = await knowledgeService.getDocumentContent(getSlug(c), c.req.param('docId'), getNs(c));
+      return c.json({ success: true, data: { content } });
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message }, 500);
+    }
+  });
+
   app.delete('/:docId', async (c) => {
     try {
       await knowledgeService.deleteDocument(getSlug(c), c.req.param('docId'), getNs(c));
