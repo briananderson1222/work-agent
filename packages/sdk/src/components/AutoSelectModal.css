@@ -168,3 +168,10 @@
   cursor: pointer;
   font-size: 14px;
 }
+
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .auto-select-modal__cancel {
+    min-height: 44px;
+  }
+}

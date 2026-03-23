@@ -80,3 +80,14 @@
     opacity: 0;
   }
 }
+
+/* ── Mobile responsive: safe area ── */
+@media (max-width: 768px) {
+  .gvb--mobile {
+    bottom: calc(24px + var(--safe-bottom, 0px));
+  }
+
+  .gvb--desktop {
+    bottom: calc(70px + var(--safe-bottom, 0px));
+  }
+}

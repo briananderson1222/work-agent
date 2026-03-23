@@ -97,7 +97,7 @@ export function ConversationStats({
           fontSize: '13px',
           color: 'var(--text-primary)',
           zIndex: 10000,
-          minWidth: '320px',
+          minWidth: 'min(320px, 90vw)',
           boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
         }}
       >

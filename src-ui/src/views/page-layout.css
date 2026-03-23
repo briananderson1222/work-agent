@@ -43,6 +43,27 @@
   }
 }
 
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .page {
+    overflow-x: hidden;
+  }
+
+  .page__header {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .page__title {
+    font-size: 1.35rem;
+  }
+
+  .page__grid,
+  .page__card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Page Header ── */
 .page__header {
   margin-bottom: 2rem;

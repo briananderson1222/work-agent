@@ -117,7 +117,7 @@ export function start(opts: StartOptions = {}): void {
         res.writeHead(200,{'Content-Type':mime[ext]||'application/octet-stream','Cache-Control':'no-cache'});
         fs.createReadStream(p).pipe(res);
       }
-    }).listen(${uiPort});
+    }).listen(${uiPort},'0.0.0.0');
   `,
     ],
     {

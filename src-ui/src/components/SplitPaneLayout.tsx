@@ -1,7 +1,18 @@
 import { LoadingState } from '@stallion-ai/sdk';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import './SplitPaneLayout.css';
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
 
 interface SplitPaneItem {
   id: string;
@@ -60,6 +71,7 @@ export function SplitPaneLayout({
   title,
   subtitle,
 }: SplitPaneLayoutProps) {
+  const isMobile = useIsMobile();
   const { navigate } = useNavigation();
   const breadcrumb = label.split(/\s*\/\s*/).map((seg, i, arr) => {
     // Non-terminal segments auto-link to /<segment> unless overridden
@@ -82,7 +94,7 @@ export function SplitPaneLayout({
   });
   return (
     <div className="split-pane">
-      <div className="split-pane__left">
+      <div className={`split-pane__left${!isMobile || !selectedId ? ' split-pane__left--visible' : ''}`}>
         <div className="split-pane__header">
           <div className="split-pane__label">{breadcrumb}</div>
           <h2
@@ -138,7 +150,12 @@ export function SplitPaneLayout({
         )}
       </div>
 
-      <div className="split-pane__right">
+      <div className={`split-pane__right${!isMobile || selectedId ? ' split-pane__right--visible' : ''}`}>
+        {isMobile && selectedId && (
+          <button className="split-pane__back" onClick={() => onDeselect?.()}>
+            ← Back to list
+          </button>
+        )}
         {selectedId
           ? children
           : emptyContent || (

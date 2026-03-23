@@ -2986,6 +2986,62 @@ export function MonitoringView() {
         .btn-secondary:hover {
           background: var(--bg-hover);
         }
+
+        @media (max-width: 768px) {
+          .monitoring-content {
+            flex-direction: column;
+          }
+
+          .monitoring-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid var(--border-primary);
+            max-height: 40vh;
+            overflow-y: auto;
+          }
+
+          .monitoring-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+          }
+
+          .monitoring-stats {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+          }
+
+          .monitoring-actions {
+            flex-wrap: wrap;
+            width: 100%;
+          }
+
+          .event-filters {
+            flex-wrap: wrap;
+            gap: 4px;
+          }
+
+          .event-filter {
+            font-size: 11px;
+            padding: 4px 8px;
+          }
+
+          .log-entry {
+            padding: 8px 10px;
+            font-size: 12px;
+          }
+
+          .log-entry .log-meta {
+            flex-wrap: wrap;
+            gap: 4px;
+          }
+
+          .time-controls-dropdown {
+            min-width: unset;
+            width: calc(100vw - 2rem);
+            max-width: 300px;
+          }
+        }
       `}</style>
     </div>
   );

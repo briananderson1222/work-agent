@@ -6,7 +6,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  height: 100vh; /* fallback */
+  /* biome-ignore lint/suspicious/noDuplicateProperties: 100vh fallback for browsers without dvh */
+  height: 100dvh;
   width: 100%;
   background: var(--bg-primary, #0a0a0a);
   color: var(--text-secondary, #999);
@@ -322,4 +324,12 @@
   margin-top: 1.5rem;
   opacity: 0.6;
   letter-spacing: 0.02em;
+}
+
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .fs-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }

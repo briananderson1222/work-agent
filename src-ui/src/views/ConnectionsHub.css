@@ -168,3 +168,30 @@
   color: var(--text-muted);
   margin-top: 8px;
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .connections-hub__inner {
+    padding: 1.5rem 1rem 2rem;
+  }
+
+  .connections-hub__title {
+    font-size: 18px;
+  }
+
+  .connections-hub__cards {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .connections-hub__card {
+    flex-direction: row;
+    align-items: center;
+    padding: 10px 14px;
+    gap: 10px;
+  }
+
+  .connections-hub__card-type {
+    display: none;
+  }
+}

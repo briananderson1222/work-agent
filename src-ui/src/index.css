@@ -3,6 +3,11 @@
 :root {
   --chat-dock-header-height: 55px;
   --app-toolbar-height: 46px;
+  /* Safe area insets for mobile/APK */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 :root,
@@ -275,6 +280,7 @@ body {
   align-items: center;
   gap: 24px;
   padding: 4px 24px;
+  padding-top: var(--safe-top);
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-primary);
 }
@@ -318,43 +324,85 @@ body {
 }
 
 .header-hamburger {
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 20px;
-  padding: 8px;
+  display: none;
+}
+
+/* Mobile: hamburger + logo in toolbar */
+.app-toolbar__sidebar-toggle {
+  display: none;
+}
+.app-toolbar__logo {
+  display: none;
+}
+.app-toolbar__brand {
+  display: none;
 }
 
 @media (max-width: 768px) {
-  .header-hamburger {
-    display: block !important;
+  .app-toolbar__sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 20px;
+    padding: 4px;
+    cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
   }
 
+  .app-toolbar__logo {
+    display: block;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+  }
+
+  .app-toolbar__brand {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    margin-right: auto;
+  }
+}
+
+.header-nav {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-primary);
+}
+
+/* Mobile: hide header nav — sidebar handles navigation */
+@media (max-width: 768px) {
   .header-nav {
     display: none;
-    position: absolute;
-    top: 60px;
-    left: 0;
-    right: 0;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-primary);
-    flex-direction: column;
-    padding: 8px;
-    z-index: 1000;
-  }
-
-  .header-nav--open {
-    display: flex !important;
-  }
-
-  .header-nav .header-nav-btn {
-    width: 100%;
-    text-align: left;
   }
 
   .header-divider {
     display: none;
+  }
+
+  .app-toolbar__breadcrumb {
+    display: none;
+  }
+
+  .app-toolbar {
+    gap: 8px;
+    padding: 4px 12px;
+    padding-top: calc(4px + var(--safe-top, 0px));
+    position: sticky;
+    top: 0;
+    z-index: 200;
   }
 }
 
@@ -815,6 +863,7 @@ body {
   background: var(--bg-secondary);
   border-top: 2px solid var(--accent-primary);
   box-shadow: var(--shadow-md);
+  padding-bottom: var(--safe-bottom);
   transition:
     height 0.2s ease-in-out,
     transform 0.3s ease;
@@ -2013,6 +2062,7 @@ body {
 
 .chat-input-container {
   padding: 20px;
+  padding-bottom: var(--safe-bottom);
   border-top: 1px solid var(--border-primary);
   background: var(--bg-secondary);
 }
@@ -3203,7 +3253,7 @@ body {
 /* Session Management Panel */
 .session-panel {
   position: fixed;
-  width: 350px;
+  width: min(350px, 100vw);
   background: var(--bg-primary);
   border-right: 1px solid var(--border-primary);
   box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15);
@@ -4583,41 +4633,61 @@ body {
 /* ── Dock Mode: Right Split ─────────────────────────────────────── */
 
 .app__main--dock-right {
-  display: grid;
-  grid-template-columns: 1fr var(--chat-dock-width, 400px);
-  grid-template-rows: auto 1fr;
-}
-
-.app__main--dock-right:has(> .chat-dock.is-collapsed) {
-  grid-template-columns: 1fr 36px;
-}
-
-.app__main--dock-right > .app-toolbar {
-  grid-column: 1 / -1;
-}
-
-.app__main--dock-right > .main-content {
-  grid-column: 1;
-  grid-row: 2;
-  overflow: hidden;
-}
-
-.app__main--dock-right > .main-content > .content-view {
-  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .app__main--dock-right > .chat-dock {
-  position: relative;
-  grid-column: 2;
-  grid-row: 2;
-  height: 100% !important;
-  max-height: 100%;
-  border-top: none;
-  border-left: 2px solid var(--accent-primary);
-  box-shadow: none;
-  flex-direction: column;
-  overflow: hidden;
+  position: fixed;
+  border-left: none;
+  border-top: 2px solid var(--accent-primary);
+  height: auto !important;
 }
+
+.app__main--dock-right > .main-content > .content-view {
+  padding-bottom: var(--chat-dock-height, 49px);
+}
+
+@media (min-width: 769px) {
+  .app__main--dock-right {
+    display: grid;
+    grid-template-columns: 1fr var(--chat-dock-width, 400px);
+    grid-template-rows: auto 1fr;
+  }
+
+  .app__main--dock-right:has(> .chat-dock.is-collapsed) {
+    grid-template-columns: 1fr 36px;
+  }
+
+  .app__main--dock-right > .app-toolbar {
+    grid-column: 1 / -1;
+  }
+
+  .app__main--dock-right > .main-content {
+    grid-column: 1;
+    grid-row: 2;
+    overflow: hidden;
+  }
+
+  .app__main--dock-right > .main-content > .content-view {
+    padding-bottom: 0;
+  }
+
+  .app__main--dock-right > .chat-dock {
+    position: relative;
+    grid-column: 2;
+    grid-row: 2;
+    height: 100% !important;
+    max-height: 100%;
+    border-top: none;
+    border-left: 2px solid var(--accent-primary);
+    box-shadow: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}
+
+
 
 .app__main--dock-right > .chat-dock .chat-dock__body {
   flex: 1;
@@ -4883,26 +4953,6 @@ body {
 
 .app__main--dock-bottom-inline > .chat-dock.is-maximized {
   grid-row: 2 / -1;
-}
-
-/* ── Dock Mode: Responsive Fallback ─────────────────────────────── */
-
-@media (max-width: 768px) {
-  .app__main--dock-right {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .app__main--dock-right > .chat-dock {
-    position: fixed;
-    border-left: none;
-    border-top: 2px solid var(--accent-primary);
-    height: auto !important;
-  }
-
-  .app__main--dock-right > .main-content > .content-view {
-    padding-bottom: var(--chat-dock-height, 49px);
-  }
 }
 
 /* ── Provider Overview ── */
@@ -5335,4 +5385,32 @@ body {
   font-size: 12px;
   opacity: 0.7;
   margin-top: 2px;
+}
+
+/* ── Mobile touch targets for core UI elements ── */
+@media (max-width: 768px) {
+  .workspace-tabs__container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .workspace-tabs__container::-webkit-scrollbar {
+    display: none;
+  }
+
+  .workspace-tabs__tab {
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  .workspace-header__refresh-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .workspace-header__action-btn,
+  .workspace-header__prompt-btn {
+    min-height: 44px;
+  }
 }

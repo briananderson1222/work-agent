@@ -1538,3 +1538,45 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .workspace-editor__tab-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-editor__prompt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor__guardrails-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor__footer {
+    bottom: var(--safe-bottom, 0px);
+  }
+
+  .workspace-editor__item-actions {
+    gap: 8px;
+  }
+
+  .workspace-editor__item-actions button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .editor__close-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .editor__tag-remove {
+    padding: 15px;
+    margin: -15px;
+  }
+
+  .editor-btn--small {
+    min-height: 44px;
+  }
+}

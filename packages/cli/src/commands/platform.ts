@@ -70,7 +70,7 @@ export async function promptYN(question: string): Promise<boolean> {
 
 /**
  * Register the stallion CLI globally on PATH.
- * Unix    : symlink repoRoot/stallion → /usr/local/bin/stallion
+ * Unix    : symlink repoRoot/stallion → ~/.local/bin/stallion (no sudo needed)
  * Windows : write stallion.cmd shim to %APPDATA%\npm\ (npm puts that on PATH)
  */
 export function createPathLink(repoRoot: string): void {
@@ -94,15 +94,21 @@ export function createPathLink(repoRoot: string): void {
     console.error('No stallion script found in current directory.');
     process.exit(1);
   }
-  try {
-    execFileSync('ln', ['-sf', source, '/usr/local/bin/stallion'], { stdio: 'pipe' });
-  } catch {
-    execFileSync('sudo', ['ln', '-sf', source, '/usr/local/bin/stallion'], {
-      stdio: 'inherit',
-    });
-  }
+  const binDir = join(homedir(), '.local', 'bin');
+  mkdirSync(binDir, { recursive: true });
+  const target = join(binDir, 'stallion');
+  execFileSync('ln', ['-sf', source, target], { stdio: 'pipe' });
   console.log(`  ✓ Linked: stallion → ${source}`);
-  console.log("  You can now run 'stallion' from anywhere");
+
+  // Check if ~/.local/bin is on PATH
+  const pathDirs = (process.env.PATH || '').split(':');
+  if (!pathDirs.includes(binDir)) {
+    console.log(`\n  ⚠ ${binDir} is not on your PATH.`);
+    console.log('  Add this to your shell profile (~/.zshrc, ~/.bashrc, etc.):');
+    console.log(`    export PATH="${binDir}:$PATH"`);
+  } else {
+    console.log("  You can now run 'stallion' from anywhere");
+  }
 }
 
 /**

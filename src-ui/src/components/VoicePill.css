@@ -93,3 +93,17 @@
   cursor: pointer;
   color: #fff;
 }
+
+/* ── Mobile responsive: safe area + touch targets ── */
+@media (max-width: 768px) {
+  .voice-pill {
+    bottom: calc(24px + var(--safe-bottom, 0px));
+  }
+
+  .voice-pill__mute {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

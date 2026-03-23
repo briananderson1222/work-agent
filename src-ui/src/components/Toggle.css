@@ -54,3 +54,12 @@
 .toggle--sm.toggle--on .toggle__thumb {
   transform: translateX(12px);
 }
+
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .toggle--md,
+  .toggle--sm {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

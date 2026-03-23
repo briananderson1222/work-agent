@@ -209,3 +209,15 @@
 .knowledge-view__link:hover {
   text-decoration: underline;
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .knowledge-view__stats {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .knowledge-view__content {
+    padding: 1rem;
+  }
+}

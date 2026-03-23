@@ -77,3 +77,11 @@
     opacity: 0.2;
   }
 }
+
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .voice-orb {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+}
