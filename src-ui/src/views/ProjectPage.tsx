@@ -201,6 +201,14 @@ export function ProjectPage({ slug }: { slug: string }) {
   // ── Collapsible sections ──
   const [dirOpen, setDirOpen] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(true);
+  const [storageDirDraft, setStorageDirDraft] = useState('');
+
+  // Sync storage dir draft when namespace changes
+  useEffect(() => {
+    if (!selectedNs) return;
+    const ns = namespaces.find((n: KnowledgeNamespace) => n.id === selectedNs);
+    setStorageDirDraft((ns as any)?.storageDir ?? '');
+  }, [selectedNs, namespaces]);
 
   // ── Document viewer ──
   const [viewingDoc, setViewingDoc] = useState<DocMeta | null>(null);
@@ -488,15 +496,18 @@ export function ProjectPage({ slug }: { slug: string }) {
             return (
               <div className="project-page__ns-config">
                 <label className="project-page__ns-config-label">Storage:</label>
-                <input
-                  type="text"
-                  placeholder="Default (built-in)"
-                  defaultValue={(nsCfg as any).storageDir ?? ''}
-                  onBlur={(e) => {
-                    const val = e.target.value.trim();
-                    updateKnowledgeNamespace(slug, selectedNs!, { storageDir: val || undefined })
-                      .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
+                <PathAutocomplete
+                  apiBase={apiBase}
+                  value={storageDirDraft}
+                  onChange={setStorageDirDraft}
+                  onBlur={() => {
+                    const val = storageDirDraft.trim();
+                    if (val !== ((nsCfg as any).storageDir ?? '')) {
+                      updateKnowledgeNamespace(slug, selectedNs!, { storageDir: val || undefined })
+                        .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
+                    }
                   }}
+                  placeholder="Default (built-in)"
                   className="project-page__ns-config-input"
                 />
                 <label className="project-page__ns-config-check">
