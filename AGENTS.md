@@ -52,7 +52,7 @@ The root route (`/`) auto-selects in this priority: (1) last-viewed project+layo
 
 ### Code quality & pushing
 
-Before pushing, run the full local CI pipeline (typecheck, biome lint, build, tests) and ensure the core stays vendor-neutral. Route handlers use `getBody(c)` and `param(c, 'name')` from `schemas.ts` for type safety. See [docs/guides/code-quality.md](docs/guides/code-quality.md) for details.
+Before pushing, run the full local CI pipeline (typecheck, biome lint, build, tests) and ensure the core stays vendor-neutral. Route handlers use `getBody(c)` and `param(c, 'name')` from `schemas.ts` for type safety. See [docs/guides/code-quality.md](docs/guides/code-quality.md) for details. See [docs/guides/testing.md](docs/guides/testing.md) for test patterns, shared utilities, and the new-feature testing checklist.
 
 ### Known issues
 

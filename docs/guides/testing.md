@@ -1,0 +1,162 @@
+# Testing Guide
+
+## Philosophy
+
+- **Unit tests** for business logic (services, utilities, pure functions)
+- **Integration tests** for HTTP routes (Hono `app.request()`)
+- **E2E tests** for user journeys (Playwright)
+
+## Conventions
+
+| Type | Framework | Pattern | Location |
+|---|---|---|---|
+| Unit / Integration | Vitest | `*.test.ts` | `__tests__/` colocated with source |
+| E2E | Playwright | `*.spec.ts` | `tests/` at project root |
+| Test utilities | — | named exports | `__test-utils__/` colocated with source |
+
+## Running Tests
+
+```bash
+npm test                          # vitest watch mode
+npx vitest run                    # single run
+npm run test:coverage             # with coverage report
+npx playwright test               # e2e
+npx playwright test tests/foo.spec.ts  # single e2e
+```
+
+## Shared Test Utilities
+
+### Mock Factories (`src-server/__test-utils__/mocks.ts`)
+
+```ts
+import { createMockLogger, createMockEventBus } from '../../__test-utils__/mocks.js';
+
+const logger = createMockLogger();
+const eventBus = createMockEventBus();
+```
+
+### Route Helpers (`src-server/__test-utils__/route-helpers.ts`)
+
+```ts
+import { requestJSON, expectSuccess, expectError } from '../../__test-utils__/route-helpers.js';
+
+const { body } = await requestJSON(app, 'GET', '/jobs');
+expectSuccess(body);
+
+const { body: err } = await requestJSON(app, 'DELETE', '/jobs/ghost');
+expectError(err, 'not found');
+```
+
+## Patterns
+
+### Service Test
+
+```ts
+import { describe, expect, test, beforeEach } from 'vitest';
+import { createMockLogger } from '../../__test-utils__/mocks.js';
+import { MyService } from '../my-service.js';
+
+describe('MyService', () => {
+  let service: MyService;
+
+  beforeEach(() => {
+    service = new MyService(createMockLogger());
+  });
+
+  test('creates a thing', async () => {
+    const result = await service.create({ name: 'test' });
+    expect(result.name).toBe('test');
+  });
+});
+```
+
+### Route Integration Test
+
+```ts
+import { describe, expect, test, beforeEach } from 'vitest';
+import { createMockLogger } from '../../__test-utils__/mocks.js';
+import { requestJSON, expectSuccess } from '../../__test-utils__/route-helpers.js';
+import { createMyRoutes } from '../my-routes.js';
+
+describe('MyRoutes', () => {
+  let app: ReturnType<typeof createMyRoutes>;
+
+  beforeEach(() => {
+    const service = new MyService(createMockLogger());
+    app = createMyRoutes(service, createMockLogger());
+  });
+
+  test('GET / returns list', async () => {
+    const { body } = await requestJSON(app, 'GET', '/');
+    expectSuccess(body);
+    expect(body.data).toEqual([]);
+  });
+});
+```
+
+### Hook Test (jsdom)
+
+```ts
+// @vitest-environment jsdom
+import { describe, expect, test, vi } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useMyHook } from '../useMyHook.js';
+
+describe('useMyHook', () => {
+  test('initial state', () => {
+    const { result } = renderHook(() => useMyHook());
+    expect(result.current.value).toBe(null);
+  });
+});
+```
+
+## New Feature Checklist
+
+- [ ] Service has unit test in `__tests__/`
+- [ ] Route has integration test in `__tests__/`
+- [ ] Critical hooks have unit tests
+- [ ] E2E test for user-facing flows in `tests/`
+- [ ] Coverage does not decrease
+
+## TDD Enforcement Policy
+
+Every new feature or bug fix MUST include tests. This is not optional.
+
+### Rules
+
+1. **No PR without tests.** If you add a service, it gets a `__tests__/<name>.test.ts`. If you add a route, it gets a `__tests__/<name>.routes.test.ts`. If you add a user-facing flow, it gets a `tests/<feature>.spec.ts` Playwright test.
+
+2. **Write tests first when possible.** For new services and routes, write the test file with expected behavior before implementing. For bug fixes, write a failing test that reproduces the bug, then fix it.
+
+3. **Coverage can only go up.** Thresholds are set in `vitest.config.ts`. If `npm run test:coverage` fails, you've decreased coverage — add tests before merging.
+
+4. **Use shared utilities.** Don't reinvent mocks. Use `createMockLogger()` from `__test-utils__/mocks.ts`, `requestJSON()` from `__test-utils__/route-helpers.ts`, and `collectSSE()` from `__test-utils__/sse-helpers.ts`.
+
+5. **Playwright for integration boundaries.** SSE streaming, WebSocket, AWS SDK calls, and UI flows are tested via Playwright with route interception — not unit tests.
+
+### What counts as "tested"
+
+| Change Type | Required Test |
+|---|---|
+| New service | Unit test covering public API |
+| New route | Integration test via `app.request()` |
+| New UI component/hook | Playwright e2e test for the user flow |
+| Bug fix | Regression test that fails without the fix |
+| Refactor | Existing tests still pass (no new tests needed) |
+
+### SSE Test Helper
+
+For routes that use `streamSSE`, use the `collectSSE` helper:
+
+```ts
+import { collectSSE } from '../../__test-utils__/sse-helpers.js';
+
+const res = await app.request('/events');
+const events = await collectSSE(res, { maxEvents: 3, timeoutMs: 500 });
+expect(events[0].parsed.type).toBe('connected');
+```
+
+### Known Limitations
+
+- **UI hook unit tests** require vitest 2.x for proper jsdom localStorage support. Until then, test hooks through Playwright e2e tests.
+- **AWS SDK routes** (bedrock, models) are thin wrappers — test via Playwright with route interception rather than mocking the SDK.
