@@ -48,12 +48,22 @@ export function useDragResize({
 
     const handleMouseUp = () => setIsDragging(false);
 
+    const handleTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      handleMouseMove({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
+    };
+    const handleTouchEnd = () => setIsDragging(false);
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
     };
   }, [
     isDragging,

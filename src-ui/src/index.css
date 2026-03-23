@@ -905,6 +905,10 @@ body {
   user-select: none;
 }
 
+.chat-dock__header.is-dragging {
+  touch-action: none;
+}
+
 .chat-dock__title {
   display: flex;
   align-items: center;
@@ -4685,236 +4689,234 @@ body {
     flex-direction: column;
     overflow: hidden;
   }
-}
 
+  .app__main--dock-right > .chat-dock .chat-dock__body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
 
+  .app__main--dock-right > .chat-dock .chat-messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-width: 100%;
+    width: 100%;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__body {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
+  .app__main--dock-right > .chat-dock.is-collapsed {
+    grid-column: 2;
+    overflow: hidden;
+    border-left: 1px solid var(--border-primary);
+  }
 
-.app__main--dock-right > .chat-dock .chat-messages {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-width: 100%;
-  width: 100%;
-}
+  .app__main--dock-right > .chat-dock.is-collapsed .chat-dock__header {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    padding: 12px 8px;
+    justify-content: flex-start;
+    border-bottom: none;
+    height: 100%;
+    flex-direction: row;
+  }
 
-.app__main--dock-right > .chat-dock.is-collapsed {
-  grid-column: 2;
-  overflow: hidden;
-  border-left: 1px solid var(--border-primary);
-}
+  .app__main--dock-right > .chat-dock.is-collapsed .chat-dock__header-actions {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    flex-direction: row;
+    gap: 8px;
+    margin-top: auto;
+    align-items: center;
+  }
 
-.app__main--dock-right > .chat-dock.is-collapsed .chat-dock__header {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  padding: 12px 8px;
-  justify-content: flex-start;
-  border-bottom: none;
-  height: 100%;
-  flex-direction: row;
-}
+  .app__main--dock-right > .chat-dock.is-collapsed .chat-dock__counter {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
 
-.app__main--dock-right > .chat-dock.is-collapsed .chat-dock__header-actions {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  flex-direction: row;
-  gap: 8px;
-  margin-top: auto;
-  align-items: center;
-}
+  .app__main--dock-right > .chat-dock.is-collapsed .chat-dock__activity,
+  .app__main--dock-right > .chat-dock.is-collapsed .chat-dock__badge {
+    display: none;
+  }
 
-.app__main--dock-right > .chat-dock.is-collapsed .chat-dock__counter {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-}
+  .app__main--dock-right > .chat-dock.is-collapsed .chat-dock__maximize-btn,
+  .app__main--dock-right > .chat-dock.is-collapsed .chat-dock__icon-btn {
+    writing-mode: horizontal-tb;
+  }
 
-.app__main--dock-right > .chat-dock.is-collapsed .chat-dock__activity,
-.app__main--dock-right > .chat-dock.is-collapsed .chat-dock__badge {
-  display: none;
-}
+  .app__main--dock-right > .chat-dock.is-maximized {
+    grid-column: 1 / -1;
+  }
 
-.app__main--dock-right > .chat-dock.is-collapsed .chat-dock__maximize-btn,
-.app__main--dock-right > .chat-dock.is-collapsed .chat-dock__icon-btn {
-  writing-mode: horizontal-tb;
-}
+  /* Right-mode header: compact horizontal layout */
+  .app__main--dock-right > .chat-dock .chat-dock__header {
+    padding: 6px 12px;
+    gap: 8px;
+  }
 
-.app__main--dock-right > .chat-dock.is-maximized {
-  grid-column: 1 / -1;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__title {
+    font-size: 13px;
+  }
 
-/* Right-mode header: compact horizontal layout */
-.app__main--dock-right > .chat-dock .chat-dock__header {
-  padding: 6px 12px;
-  gap: 8px;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__subtitle {
+    display: none;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__title {
-  font-size: 13px;
-}
+  /* Right-mode tabs: compact sidebar-style list */
+  .app__main--dock-right > .chat-dock .chat-dock__tabs {
+    flex-direction: row;
+    padding: 4px 6px;
+    gap: 4px;
+    align-items: stretch;
+    justify-content: stretch;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__subtitle {
-  display: none;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__tab-container {
+    flex-direction: row;
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+    align-items: flex-start;
+  }
 
-/* Right-mode tabs: compact sidebar-style list */
-.app__main--dock-right > .chat-dock .chat-dock__tabs {
-  flex-direction: row;
-  padding: 4px 6px;
-  gap: 4px;
-  align-items: stretch;
-  justify-content: stretch;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__tab-list {
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    gap: 1px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    max-height: 105px;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__tab-container {
-  flex-direction: row;
-  flex: 1;
-  min-width: 0;
-  gap: 4px;
-  align-items: flex-start;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__scroll-btn {
+    display: none;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__tab-list {
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  gap: 1px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  max-height: 105px;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__tab {
+    min-width: 0;
+    width: 100%;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 6px;
+    gap: 4px;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__scroll-btn {
-  display: none;
-}
+  /* Inline agent badge next to title in right-mode tabs */
+  .app__main--dock-right > .chat-dock .chat-dock__tab-agent {
+    display: inline;
+    margin-left: 4px;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__tab {
-  min-width: 0;
-  width: 100%;
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 6px;
-  gap: 4px;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__tab-title {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-/* Inline agent badge next to title in right-mode tabs */
-.app__main--dock-right > .chat-dock .chat-dock__tab-agent {
-  display: inline;
-  margin-left: 4px;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__tab-actions {
+    flex-direction: column-reverse;
+    width: auto;
+    justify-content: stretch;
+    gap: 0;
+    padding-top: 0;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__tab-title {
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__tab-actions .chat-dock__new {
+    padding: 4px 8px;
+    font-size: 11px;
+    width: 100%;
+    flex: 1;
+    text-align: center;
+    box-sizing: border-box;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__tab-actions {
-  flex-direction: column-reverse;
-  width: auto;
-  justify-content: stretch;
-  gap: 0;
-  padding-top: 0;
-}
+  .app__main--dock-right
+    > .chat-dock
+    .chat-dock__tab-actions
+    .chat-dock__subtitle {
+    display: none;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__tab-actions .chat-dock__new {
-  padding: 4px 8px;
-  font-size: 11px;
-  width: 100%;
-  flex: 1;
-  text-align: center;
-  box-sizing: border-box;
-}
+  /* Right-mode input area: full-width stacked layout */
+  .app__main--dock-right > .chat-dock .chat-input-container {
+    padding: 8px 10px;
+  }
 
-.app__main--dock-right
-  > .chat-dock
-  .chat-dock__tab-actions
-  .chat-dock__subtitle {
-  display: none;
-}
+  .app__main--dock-right > .chat-dock .chat-input {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
 
-/* Right-mode input area: full-width stacked layout */
-.app__main--dock-right > .chat-dock .chat-input-container {
-  padding: 8px 10px;
-}
+  .app__main--dock-right > .chat-dock .chat-input textarea {
+    min-height: 40px;
+    max-height: 80px;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
 
-.app__main--dock-right > .chat-dock .chat-input {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 4px;
-}
+  .app__main--dock-right > .chat-dock .chat-controls-row {
+    flex-wrap: nowrap;
+  }
 
-.app__main--dock-right > .chat-dock .chat-input textarea {
-  min-height: 40px;
-  max-height: 80px;
-  font-size: 13px;
-  padding: 8px 10px;
-}
+  /* Compact context indicator in right mode */
+  .app__main--dock-right > .chat-dock .context-indicator-content {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
 
-.app__main--dock-right > .chat-dock .chat-controls-row {
-  flex-wrap: nowrap;
-}
+  /* Right-mode session info bar */
+  .app__main--dock-right > .chat-dock .chat-dock__session-info {
+    padding: 2px 8px;
+    font-size: 10px;
+  }
 
-/* Compact context indicator in right mode */
-.app__main--dock-right > .chat-dock .context-indicator-content {
-  font-size: 9px;
-  padding: 2px 4px;
-}
+  /* Right-mode project filter pills */
+  .app__main--dock-right > .chat-dock .chat-dock__project-filter {
+    padding: 2px 6px;
+  }
 
-/* Right-mode session info bar */
-.app__main--dock-right > .chat-dock .chat-dock__session-info {
-  padding: 2px 8px;
-  font-size: 10px;
-}
+  .app__main--dock-right > .chat-dock .chat-dock__filter-pill {
+    padding: 1px 6px;
+    font-size: 10px;
+  }
 
-/* Right-mode project filter pills */
-.app__main--dock-right > .chat-dock .chat-dock__project-filter {
-  padding: 2px 6px;
-}
+  /* Right-mode messages: right-aligned conversation flow */
+  .app__main--dock-right > .chat-dock .chat-messages {
+    align-items: flex-end;
+  }
 
-.app__main--dock-right > .chat-dock .chat-dock__filter-pill {
-  padding: 1px 6px;
-  font-size: 10px;
-}
+  .app__main--dock-right > .chat-dock .message {
+    max-width: 95%;
+    overflow-x: hidden;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+  }
 
-/* Right-mode messages: right-aligned conversation flow */
-.app__main--dock-right > .chat-dock .chat-messages {
-  align-items: flex-end;
-}
+  .app__main--dock-right > .chat-dock .message-row {
+    width: 100%;
+  }
 
-.app__main--dock-right > .chat-dock .message {
-  max-width: 95%;
-  overflow-x: hidden;
-  overflow-wrap: break-word;
-  word-break: break-word;
-  min-width: 0;
-}
+  .app__main--dock-right > .chat-dock .message pre {
+    overflow-x: auto;
+    max-width: 100%;
+  }
 
-.app__main--dock-right > .chat-dock .message-row {
-  width: 100%;
-}
+  .app__main--dock-right > .chat-dock .streaming-message {
+    max-width: 100%;
+    overflow-x: hidden;
+    min-width: 0;
+  }
 
-.app__main--dock-right > .chat-dock .message pre {
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-.app__main--dock-right > .chat-dock .streaming-message {
-  max-width: 100%;
-  overflow-x: hidden;
-  min-width: 0;
-}
-
-.app__main--dock-right > .chat-dock .streaming-text {
-  overflow-wrap: break-word;
-  word-break: break-word;
-  min-width: 0;
+  .app__main--dock-right > .chat-dock .streaming-text {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+  }
 }
 
 .chat-dock__resize-handle--horizontal {

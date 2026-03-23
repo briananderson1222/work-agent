@@ -248,6 +248,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           dockHeight={dockHeight}
           previousDockHeight={previousDockHeight}
           previousDockOpen={previousDockOpen}
+          isDragging={isDragging}
+          setIsDragging={setIsDragging}
           setDockHeight={setDockHeight}
           setPreviousDockHeight={setPreviousDockHeight}
           setPreviousDockOpen={setPreviousDockOpen}

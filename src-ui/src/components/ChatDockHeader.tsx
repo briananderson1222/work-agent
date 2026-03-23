@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 
@@ -14,6 +14,8 @@ interface ChatDockHeaderProps {
   dockHeight: number;
   previousDockHeight: number;
   previousDockOpen: boolean;
+  isDragging: boolean;
+  setIsDragging: (v: boolean) => void;
   setDockHeight: (h: number) => void;
   setPreviousDockHeight: (h: number) => void;
   setPreviousDockOpen: (o: boolean) => void;
@@ -27,6 +29,8 @@ export function ChatDockHeader({
   dockHeight,
   previousDockHeight,
   previousDockOpen,
+  isDragging,
+  setIsDragging,
   setDockHeight,
   setPreviousDockHeight,
   setPreviousDockOpen,
@@ -39,6 +43,21 @@ export function ChatDockHeader({
   const maximizeShortcut = useShortcutDisplay('dock.maximize');
 
   const activeSessions = sessions.filter((s) => s.status === 'sending');
+
+  const touchStartY = useRef<number | null>(null);
+  const DRAG_THRESHOLD = 8;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    if (Math.abs(e.touches[0].clientY - touchStartY.current) > DRAG_THRESHOLD) {
+      touchStartY.current = null;
+      setIsDragging(true);
+    }
+  }, [setIsDragging]);
 
   const handleHeaderClick = () => {
     if (isDockMaximized) {
@@ -70,8 +89,10 @@ export function ChatDockHeader({
 
   return (
     <div
-      className={`chat-dock__header ${isDockMaximized ? 'is-maximized' : ''}`}
+      className={`chat-dock__header ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''}`}
       onClick={handleHeaderClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
     >
       <div className="chat-dock__title">
         <span>Chat Dock</span>
