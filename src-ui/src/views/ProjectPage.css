@@ -587,6 +587,52 @@
   margin: 0;
 }
 
+.project-page__doc-viewer-markdown {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.project-page__doc-viewer-markdown h1,
+.project-page__doc-viewer-markdown h2,
+.project-page__doc-viewer-markdown h3 {
+  margin: 1em 0 0.5em;
+  color: var(--text-primary);
+}
+
+.project-page__doc-viewer-markdown h1 { font-size: 1.4em; }
+.project-page__doc-viewer-markdown h2 { font-size: 1.2em; }
+.project-page__doc-viewer-markdown h3 { font-size: 1.05em; }
+
+.project-page__doc-viewer-markdown p { margin: 0.5em 0; }
+
+.project-page__doc-viewer-markdown ul,
+.project-page__doc-viewer-markdown ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.project-page__doc-viewer-markdown code {
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+}
+
+.project-page__doc-viewer-markdown pre {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  overflow-x: auto;
+}
+
+.project-page__doc-viewer-markdown pre code {
+  padding: 0;
+  background: none;
+}
+
 .project-page__doc-viewer-loading,
 .project-page__doc-viewer-empty {
   font-size: 13px;

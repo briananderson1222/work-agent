@@ -6,6 +6,9 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useGitStatus, useGitLog } from '../hooks/useGitStatus';
 import { GitBadge } from '../components/GitBadge';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { markdownCodeComponents } from '../components/HighlightedCodeBlock';
 import './ProjectPage.css';
 
 interface DocMeta {
@@ -447,7 +450,7 @@ export function ProjectPage({ slug }: { slug: string }) {
                   key={ns.id}
                   className={`project-page__ns-tab${selectedNs === ns.id ? ' project-page__ns-tab--active' : ''}`}
                   onClick={() => setSelectedNs(ns.id)}
-                >{ns.label}{ns.behavior === 'inject' ? ' ⚡' : ''}</button>
+                >{ns.label}</button>
               ))}
             </div>
           )}
@@ -456,7 +459,7 @@ export function ProjectPage({ slug }: { slug: string }) {
           {selectedNs === 'rules' && (
             <div className="project-page__rules-editor">
               <div className="project-page__rules-hint">
-                ⚡ Rules are injected into every chat message's system prompt for this project.
+                Rules are injected into every chat message's system prompt for this project.
               </div>
               <textarea
                 value={rulesContent}
@@ -478,7 +481,7 @@ export function ProjectPage({ slug }: { slug: string }) {
             if (!nsCfg) return null;
             return (
               <div className="project-page__ns-config">
-                <label className="project-page__ns-config-label">📁 Storage:</label>
+                <label className="project-page__ns-config-label">Storage:</label>
                 <input
                   type="text"
                   placeholder="Default (built-in)"
@@ -511,7 +514,7 @@ export function ProjectPage({ slug }: { slug: string }) {
                         .then(() => qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] }));
                     }}
                   />
-                  ✨ Auto-enhance
+                  Auto-enhance
                 </label>
               </div>
             );
@@ -656,7 +659,13 @@ export function ProjectPage({ slug }: { slug: string }) {
                 {contentLoading ? (
                   <div className="project-page__doc-viewer-loading">Loading content…</div>
                 ) : viewingContent ? (
-                  <pre className="project-page__doc-viewer-content">{viewingContent}</pre>
+                  viewingDoc.filename.endsWith('.md') ? (
+                    <div className="project-page__doc-viewer-markdown">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownCodeComponents}>{viewingContent}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <pre className="project-page__doc-viewer-content">{viewingContent}</pre>
+                  )
                 ) : (
                   <div className="project-page__doc-viewer-empty">Unable to load document content</div>
                 )}
