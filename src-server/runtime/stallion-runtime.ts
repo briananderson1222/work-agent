@@ -116,6 +116,17 @@ export interface StallionRuntimeOptions {
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 }
 
+// Read-only stallion-control tools safe for auto-approve
+const SC_READ_ONLY_TOOLS = [
+  'list_agents', 'get_agent', 'list_skills', 'list_registry_skills',
+  'list_integrations', 'get_integration', 'list_registry_integrations',
+  'list_providers', 'list_prompts', 'list_jobs', 'system_status',
+  'list_models', 'navigate_to', 'list_projects', 'get_project',
+  'list_project_layouts', 'list_layouts', 'get_layout',
+  'list_conversations', 'get_conversation_messages', 'get_config',
+  'list_plugins', 'check_plugin_updates', 'get_usage', 'get_achievements',
+].map((t) => `stallion-control_${t}`);
+
 /**
  * Main runtime for Stallion system
  * Manages VoltAgent instances with dynamic agent loading
@@ -570,9 +581,10 @@ export class StallionRuntime {
     }
 
     // Create default agent with stallion-control tools
+    // Auto-approve read-only tools; write ops (create/update/delete/install/remove) require user approval
     const defaultSpec = {
       model: this.appConfig.defaultModel,
-      tools: { mcpServers: [selfIntegrationId], autoApprove: [`${selfIntegrationId}_*`] },
+      tools: { mcpServers: [selfIntegrationId], autoApprove: SC_READ_ONLY_TOOLS },
     } as AgentSpec;
     const defaultModel = await this.createBedrockModel(defaultSpec);
 
@@ -925,7 +937,7 @@ export class StallionRuntime {
                 try {
                   const spec: AgentSpec =
                     slug === 'default'
-                      ? { name: 'default', prompt: metadata.description, description: metadata.description, model: this.appConfig.defaultModel }
+                      ? { name: 'default', prompt: metadata.description, description: metadata.description, model: this.appConfig.defaultModel, tools: { mcpServers: ['stallion-control'], autoApprove: SC_READ_ONLY_TOOLS } }
                       : await this.configLoader.loadAgent(slug);
                   return {
                     slug, name: metadata.name, prompt: spec.prompt, description: spec.description,
