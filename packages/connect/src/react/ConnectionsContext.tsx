@@ -9,7 +9,7 @@ import { ConnectionStore } from '../core/ConnectionStore';
 import { defaultStorage } from '../core/storage';
 import type { SavedConnection } from '../core/types';
 
-const FALLBACK_URL = 'http://localhost:3141';
+const FALLBACK_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3141';
 const LEGACY_KEY = 'project-stallion-api-base';
 
 interface ConnectionsContextType {

@@ -775,6 +775,17 @@ export class StallionRuntime {
           ) {
             return origin;
           }
+          // Allow private network origins (LAN access)
+          try {
+            const host = new URL(origin).hostname;
+            if (
+              host.startsWith('192.168.') ||
+              host.startsWith('10.') ||
+              /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+            ) {
+              return origin;
+            }
+          } catch {}
           const allowed = process.env.ALLOWED_ORIGINS?.split(',') || [];
           return allowed.includes(origin) ? origin : null;
         },

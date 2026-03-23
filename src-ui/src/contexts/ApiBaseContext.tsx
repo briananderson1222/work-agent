@@ -9,7 +9,7 @@ import { type ReactNode } from 'react';
 const DEFAULT_API_BASE =
   (window as Window & { __API_BASE__?: string }).__API_BASE__ ||
   import.meta.env.VITE_API_BASE ||
-  'http://localhost:3141';
+  window.location.origin;
 
 export function ApiBaseProvider({ children }: { children: ReactNode }) {
   return (

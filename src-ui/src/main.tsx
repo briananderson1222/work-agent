@@ -94,7 +94,7 @@ const API_BASE = (() => {
       if (active?.url) return active.url;
     }
   } catch {}
-  return import.meta.env.VITE_API_BASE || 'http://localhost:3141';
+  return import.meta.env.VITE_API_BASE || window.location.origin;
 })();
 
 // Expose for non-React code paths (ActiveChatsContext, ConfigContext) that check window.__API_BASE__
