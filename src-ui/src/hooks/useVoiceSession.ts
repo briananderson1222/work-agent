@@ -12,6 +12,8 @@ export interface UseVoiceSessionResult {
   isMuted: boolean;
   toggleMute: () => void;
   error: string | null;
+  /** Mic input level 0–1, updated per audio frame. Use for visualization. */
+  audioLevel: number;
 }
 
 function float32ToInt16(input: Float32Array): Int16Array {
@@ -63,6 +65,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
   const [transcriptRole, setTranscriptRole] = useState<'user' | 'assistant' | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [audioLevel, setAudioLevel] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -87,6 +90,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
   const stopAudio = useCallback(() => {
     playQueueRef.current = [];
     isPlayingRef.current = false;
+    setAudioLevel(0);
   }, []);
 
   const cleanup = useCallback(() => {
@@ -142,6 +146,10 @@ export function useVoiceSession(): UseVoiceSessionResult {
     processor.onaudioprocess = (e) => {
       if (isMutedRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
       const float32 = e.inputBuffer.getChannelData(0);
+      // Compute RMS for audio level visualization
+      let sum = 0;
+      for (let i = 0; i < float32.length; i++) sum += float32[i] * float32[i];
+      setAudioLevel(Math.min(1, Math.sqrt(sum / float32.length) * 5));
       const resampled = downsample(float32, ctx.sampleRate, inputSampleRateRef.current);
       const int16 = float32ToInt16(resampled);
       wsRef.current!.send(JSON.stringify({ type: 'audio_in', data: int16ToBase64(int16) }));
@@ -176,7 +184,10 @@ export function useVoiceSession(): UseVoiceSessionResult {
 
       ws.onmessage = (ev) => {
         let msg: any;
-        try { msg = JSON.parse(ev.data); } catch { return; }
+        try { msg = JSON.parse(ev.data); } catch (err) {
+          console.warn('[VoiceSession] Failed to parse server message:', err);
+          return;
+        }
 
         switch (msg.type) {
           case 'session_ready': {
@@ -218,7 +229,11 @@ export function useVoiceSession(): UseVoiceSessionResult {
         setState('idle');
       };
 
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        // 1000 = normal close (user disconnected), anything else is unexpected
+        if (ev.code !== 1000 && state !== 'idle') {
+          setError(`Connection lost (code ${ev.code})`);
+        }
         cleanup();
         setState('idle');
       };
@@ -234,5 +249,5 @@ export function useVoiceSession(): UseVoiceSessionResult {
   // Cleanup on unmount
   useEffect(() => () => { cleanup(); }, [cleanup]);
 
-  return { state, transcript, transcriptRole, connect, disconnect, isMuted, toggleMute, error };
+  return { state, transcript, transcriptRole, connect, disconnect, isMuted, toggleMute, error, audioLevel };
 }

@@ -39,15 +39,20 @@ function getIcon(state: string) {
 }
 
 export function VoicePill() {
-  const { state, transcript, connect, disconnect, isMuted, toggleMute, error } = useVoiceSession();
+  const { state, transcript, connect, disconnect, isMuted, toggleMute, error, audioLevel } = useVoiceSession();
   const isActive = state !== 'idle';
 
   return (
     <div
       className={`voice-pill${isActive ? ` voice-pill--${state}` : ''}`}
+      style={state === 'listening' ? {
+        '--audio-scale': 1 + audioLevel * 0.3,
+        '--audio-glow': audioLevel,
+      } as React.CSSProperties : undefined}
       onClick={isActive ? disconnect : connect}
       title={error ?? (isActive ? 'End voice session' : 'Start voice session')}
     >
+      {state === 'listening' && <span className="voice-pill__ring" />}
       <span className="voice-pill__icon">{getIcon(state)}</span>
       {isActive && isMuted && (
         <span className="voice-pill__mute" onClick={e => { e.stopPropagation(); toggleMute(); }} title="Unmute">✕</span>

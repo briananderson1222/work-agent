@@ -32,8 +32,20 @@
 
 .voice-pill--listening {
   border-color: #4caf50;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 12px rgba(76, 175, 80, 0.4);
-  animation: voice-pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  animation: none;
+  transform: scale(var(--audio-scale, 1));
+  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+}
+
+.voice-pill__ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(76, 175, 80, calc(0.3 + var(--audio-glow, 0) * 0.7));
+  box-shadow: 0 0 calc(4px + var(--audio-glow, 0) * 16px) rgba(76, 175, 80, calc(var(--audio-glow, 0) * 0.6));
+  pointer-events: none;
+  transition: border-color 0.08s, box-shadow 0.08s;
 }
 
 .voice-pill--thinking {

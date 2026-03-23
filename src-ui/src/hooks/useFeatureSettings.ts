@@ -14,8 +14,8 @@ export interface FeatureSettings {
   offlineQueueEnabled: boolean;
   /** Subscribe to Web Push notifications for high-priority alerts. */
   pushNotificationsEnabled: boolean;
-  /** Show voice input orb in chat and global voice button. */
-  voiceInputEnabled: boolean;
+  /** Show the global voice pill for speech-to-speech (S2S) sessions. */
+  voiceS2SEnabled: boolean;
   /** Show mobile pairing QR code and network discovery in Settings. */
   mobilePairingEnabled: boolean;
 }
@@ -26,7 +26,7 @@ const DEFAULTS: FeatureSettings = {
   ttsReadbackEnabled: false,
   offlineQueueEnabled: true,
   pushNotificationsEnabled: false,
-  voiceInputEnabled: true,
+  voiceS2SEnabled: false,
   mobilePairingEnabled: false,
 };
 

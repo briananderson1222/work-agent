@@ -123,7 +123,10 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
           if (!bytes) continue;
           event = JSON.parse(new TextDecoder().decode(bytes))?.event;
           if (!event) continue;
-        } catch { continue; }
+        } catch (err) {
+          console.warn('[NovaSonic] Failed to parse response chunk:', err);
+          continue;
+        }
 
         if (event.completionStart) {
           this.emit('turnStart');

@@ -71,7 +71,9 @@ class VoiceSession {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === 'audio_in') this.provider.sendAudio(Buffer.from(msg.data, 'base64'));
-      } catch {}
+      } catch (err) {
+        console.warn('[VoiceSession] Failed to parse client WS message:', err);
+      }
     });
 
     ws.on('close', () => { voiceOps.add(1, { op: 'ws.disconnect' }); this.destroy(); });

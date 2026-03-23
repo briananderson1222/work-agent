@@ -846,7 +846,7 @@ function App() {
           </div>
 
           <ChatDock onRequestAuth={handleAuthError} />
-          {featureSettings.voiceInputEnabled && <VoicePill />}
+          {featureSettings.voiceS2SEnabled && <VoicePill />}
         </div>
       </div>
     </ProjectsProvider>
@@ -880,7 +880,7 @@ function ProjectLayoutRenderer({
   if (!layoutConfig)
     return <LayoutView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
 
-  const Renderer = layoutTypeRegistry[layoutConfig.type];
+  const Renderer = layoutConfig.type ? layoutTypeRegistry[layoutConfig.type] : undefined;
   if (Renderer) {
     return (
       <Renderer

@@ -430,10 +430,10 @@ const FEATURE_META: Array<{
   privacyNote?: string;
 }> = [
   {
-    key: 'voiceInputEnabled',
-    label: 'Voice input',
+    key: 'voiceS2SEnabled',
+    label: 'Voice pill (speech-to-speech)',
     description:
-      'Show the microphone button for speech-to-text input in chat and the global voice button.',
+      'Show the floating voice pill for full-duplex speech-to-speech sessions with app control.',
   },
   {
     key: 'mobilePairingEnabled',

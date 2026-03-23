@@ -1,6 +1,5 @@
 import type { STTState as VoiceState } from '@stallion-ai/sdk';
 import React from 'react';
-import { useFeatureSettings } from '../hooks/useFeatureSettings';
 import type { SlashCommand } from '../hooks/useSlashCommands';
 import type { FileAttachment } from '../types';
 import { ContextPercentage } from './ConversationStats';
@@ -109,7 +108,6 @@ export function ChatInputArea({
 }: ChatInputAreaProps) {
   const isOverride = currentModel && currentModel !== agentDefaultModel;
   const modelInfo = availableModels.find((m) => m.id === currentModel);
-  const { settings: featureSettings } = useFeatureSettings();
   const safeMaxHeight = Math.max(dockHeight - 200, 120);
   const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
   const placeholder = isMobile
@@ -205,8 +203,7 @@ export function ChatInputArea({
           </button>
         )}
       </div>
-      {featureSettings.voiceInputEnabled &&
-        voiceSupported &&
+      {voiceSupported &&
         voiceState !== undefined &&
         onVoiceStart &&
         onVoiceStop && (
