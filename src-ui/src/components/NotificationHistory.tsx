@@ -121,11 +121,11 @@ export function NotificationHistory({
                       </div>
                     )}
                     <div>{notification.message}</div>
-                    {notification.metadata?.detail && (
+                    {notification.metadata?.detail ? (
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', whiteSpace: 'pre-line', lineHeight: 1.3 }}>
                         {notification.metadata.detail as string}
                       </div>
-                    )}
+                    ) : null}
                     {notification.actions && notification.actions.length > 0 && (
                       <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                         {notification.actions.map((action, idx) => (

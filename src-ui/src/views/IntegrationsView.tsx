@@ -19,6 +19,7 @@ interface IntegrationDef {
   args?: string[];
   endpoint?: string;
   source?: string;
+  plugin?: string;
   usedBy?: string[];
   permissions?: Record<string, boolean>;
 }
@@ -254,7 +255,6 @@ export function IntegrationsView() {
     setMessage(null);
     try {
       const isNew = selectedId === 'new';
-      const _locked = !!(editForm?.plugin && isLocked && !isNew);
       const url = isNew
         ? `${apiBase}/integrations`
         : `${apiBase}/integrations/${encodeURIComponent(editForm.id)}`;

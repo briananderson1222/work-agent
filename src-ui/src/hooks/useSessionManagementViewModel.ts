@@ -83,8 +83,8 @@ export function useSessionManagementViewModel(
             typeof conv.title === 'string'
               ? conv.title
               : Array.isArray(conv.title)
-                ? conv.title[0]?.content?.[0]?.text ||
-                  conv.title[0]?.content ||
+                ? (conv.title as any[])[0]?.content?.[0]?.text ||
+                  (conv.title as any[])[0]?.content ||
                   'Untitled'
                 : conv.title
                   ? String(conv.title)

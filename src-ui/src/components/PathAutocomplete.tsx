@@ -139,7 +139,7 @@ export function PathAutocomplete({
             right: 0,
             zIndex: 100,
             background: 'var(--bg-secondary, #1e1e1e)',
-            border: '1px solid var(--border-color, #333)',
+            border: '1px solid var(--border-primary)',
             borderRadius: '0 0 8px 8px',
             maxHeight: 200,
             overflowY: 'auto',

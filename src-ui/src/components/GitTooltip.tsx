@@ -13,7 +13,7 @@ interface GitData {
 
 export function GitTooltip({ git, children }: { git: GitData; children: ReactNode }) {
   const [show, setShow] = useState(false);
-  const timeout = useRef<ReturnType<typeof setTimeout>>();
+  const timeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const enter = () => { clearTimeout(timeout.current); timeout.current = setTimeout(() => setShow(true), 300); };
   const leave = () => { clearTimeout(timeout.current); setShow(false); };

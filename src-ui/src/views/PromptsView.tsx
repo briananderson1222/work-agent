@@ -241,7 +241,6 @@ export function PromptsView() {
     }
   }
 
-  const _isSaving = createMutation.isPending || updateMutation.isPending;
   const { enrich, isEnriching } = useAIEnrich();
   const isEditing = isNew || !!selectedId;
 

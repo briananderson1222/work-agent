@@ -16,6 +16,15 @@ interface AgentToolConfig {
   aliases?: Record<string, string>;
 }
 
+interface ToolDef {
+  id: string;
+  name: string;
+  description?: string;
+  kind?: string;
+  transport?: string;
+  parameters?: Record<string, unknown>;
+}
+
 export function ToolManagementView({
   apiBase,
   agentSlug,
@@ -36,7 +45,7 @@ export function ToolManagementView({
     data,
     isLoading,
     error: loadError,
-  } = useQuery({
+  } = useQuery<{ tools: ToolDef[]; config: AgentToolConfig }>({
     queryKey: ['agent-tools', agentSlug],
     queryFn: async () => {
       const [toolsRes, agentRes, agentToolsRes] = await Promise.all([

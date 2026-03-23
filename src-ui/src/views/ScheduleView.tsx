@@ -58,38 +58,6 @@ function localTime(iso: string | null) {
   });
 }
 
-function _localizeSchedule(
-  human: string | undefined,
-  schedule: string,
-  nextFire?: string,
-): string {
-  if (!human) return schedule;
-  const ref = nextFire ? new Date(nextFire) : new Date();
-  const m = schedule.match(/^cron\s+(\d+)\s+(\d+)\s/);
-  if (m) {
-    const d = new Date(ref);
-    d.setUTCHours(parseInt(m[2], 10), parseInt(m[1], 10), 0, 0);
-    const local = d.toLocaleTimeString(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-    return human.replace(/\d{1,2}:\d{2}\s*(AM|PM)\s*UTC/, local);
-  }
-  const r = schedule.match(/^cron\s+\S+\s+(\d+)-(\d+)\s/);
-  if (r) {
-    const fmt = (h: number) => {
-      const d = new Date(ref);
-      d.setUTCHours(h, 0);
-      return d.toLocaleTimeString(undefined, { hour: 'numeric' });
-    };
-    return human.replace(
-      /\(\d+-\d+\s*UTC\)/,
-      `(${fmt(parseInt(r[1], 10))}–${fmt(parseInt(r[2], 10))})`,
-    );
-  }
-  return human.replace(/ UTC$/, '');
-}
-
 function rateColor(rate: number) {
   if (rate >= 90) return 'high';
   if (rate >= 50) return 'mid';
@@ -120,30 +88,6 @@ const IconFile = () => (
   >
     <path d="M9 1.5H4a1 1 0 00-1 1v11a1 1 0 001 1h8a1 1 0 001-1V5.5L9 1.5z" />
     <path d="M9 1.5V5.5h4" />
-  </svg>
-);
-const _IconPause = () => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-  >
-    <circle cx="8" cy="8" r="5.5" />
-    <path d="M6 10l4-4M6 6l4 4" />
-  </svg>
-);
-const _IconResume = () => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-  >
-    <circle cx="8" cy="8" r="5.5" />
-    <path d="M8 4.5v3.5" />
   </svg>
 );
 const IconX = () => (
@@ -427,7 +371,6 @@ function CronEditor({
     validateCronField(p, CRON_FIELDS[i].allowed[0], CRON_FIELDS[i].allowed[1]),
   );
   const hasError = errors.some((e) => e !== null);
-  const _activeErr = active !== null ? errors[active] : null;
 
   return (
     <div className="cron-editor">
@@ -930,11 +873,7 @@ function JobFormModal({
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
       >,
     ) =>
-      setForm((f) => ({ ...f, [field]: e.target.value }));
-
-  const _setBool =
-    (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((f) => ({ ...f, [field]: e.target.checked }));
+      setForm((f: Record<string, string>) => ({ ...f, [field]: e.target.value }));
 
   const handleSubmit = () => {
     if (isEdit) {
@@ -1008,7 +947,7 @@ function JobFormModal({
             <span className="schedule__field-label">Agent</span>
             <AgentPicker
               value={form.agent}
-              onChange={(v) => setForm((f) => ({ ...f, agent: v }))}
+              onChange={(v) => setForm((f: Record<string, string>) => ({ ...f, agent: v }))}
             />
           </label>
           <label className="schedule__field">
@@ -1025,7 +964,7 @@ function JobFormModal({
             <span className="schedule__field-label">Schedule</span>
             <CronEditor
               value={form.cron}
-              onChange={(v) => setForm((f) => ({ ...f, cron: v }))}
+              onChange={(v) => setForm((f: Record<string, string>) => ({ ...f, cron: v }))}
             />
             <CronPreview cron={cronInput} />
           </label>
@@ -1041,7 +980,7 @@ function JobFormModal({
               {f.type === 'boolean' ? (
                 <Toggle
                   checked={!!form[f.key]}
-                  onChange={(v) => setForm((prev) => ({ ...prev, [f.key]: v }))}
+                  onChange={(v) => setForm((prev: Record<string, string | boolean>) => ({ ...prev, [f.key]: v }))}
                   size="sm"
                 />
               ) : f.type === 'textarea' ? (
@@ -1093,7 +1032,6 @@ export function ScheduleView() {
   const toggleJob = useToggleJob();
   const deleteJob = useDeleteJob();
   const openArtifact = useOpenArtifact();
-  const _addJob = useAddJob();
   const { updateParams } = useNavigation();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingJob, setEditingJob] = useState<any | null>(null);
@@ -1383,7 +1321,6 @@ export function ScheduleView() {
                   </thead>
                   <tbody>
                     {sortedJobs.map((job: any) => {
-                      const _jobStats = statsMap.get(job.name);
                       const isExpanded = expanded === job.name;
                       const running = isRunning(job.name);
                       return (

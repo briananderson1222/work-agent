@@ -16,9 +16,6 @@ function slugify(name: string) {
     .replace(/^-|-$/g, '');
 }
 
-function _basename(path: string) {
-  return path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path;
-}
 
 export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
   const { apiBase } = useApiBase();

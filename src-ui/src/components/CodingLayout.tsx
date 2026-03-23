@@ -628,7 +628,6 @@ export function CodingLayout({
         }),
     ),
   );
-  const _hasInitialized = useRef(tabs.length > 0);
 
   // Persist tabs
   useEffect(() => {

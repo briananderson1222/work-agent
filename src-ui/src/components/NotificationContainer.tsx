@@ -124,11 +124,11 @@ export function NotificationContainer() {
                 </div>
               </div>
               <div style={{ fontSize: '14px' }}>{notification.message}</div>
-              {notification.metadata?.detail && (
+              {notification.metadata?.detail ? (
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', whiteSpace: 'pre-line', lineHeight: 1.4 }}>
                   {notification.metadata.detail as string}
                 </div>
-              )}
+              ) : null}
               {notification.conversationTitle && notification.onNavigate && (
                 <div
                   style={{

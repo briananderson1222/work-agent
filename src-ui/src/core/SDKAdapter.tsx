@@ -43,7 +43,7 @@ export function SDKAdapter({ children, layout }: SDKAdapterProps) {
 
   // Set layout context synchronously so plugin tool calls resolve correctly on first render
   _setApiBase(apiBase);
-  _setLayoutContext(layout);
+  _setLayoutContext(layout as any);
 
   // Set API base and layout context for SDK API functions
   useEffect(() => {

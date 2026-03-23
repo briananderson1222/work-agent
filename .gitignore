@@ -38,3 +38,4 @@ examples/demo-workspace/package-lock.json
 test-results/
 ?/
 docs/plans/
+*.tsbuildinfo

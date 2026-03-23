@@ -41,9 +41,6 @@ export function ChatMessageList({
   const messages = activeSession.messages || [];
   const agent = agents.find((a) => a.slug === activeSession.agentSlug);
 
-  const lastMsg = messages[messages.length - 1];
-  const _streamTick = lastMsg?.content?.length ?? 0;
-
   useEffect(() => {
     if (!isUserScrolledUp && messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop =

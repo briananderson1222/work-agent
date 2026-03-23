@@ -165,7 +165,7 @@ export function ActivityTimeline() {
             </span>
             <span>
               Avg/Day:{' '}
-              <strong>{(rs?.avgPerDay ?? 0 ?? 0).toFixed(1)} msgs</strong>
+              <strong>{(rs?.avgPerDay ?? 0).toFixed(1)} msgs</strong>
             </span>
             {(rs?.totalCost ?? 0) > 0 && (
               <span>
