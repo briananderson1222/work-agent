@@ -40,6 +40,8 @@ class NavigationStore {
   /** Persisted project+layout — for '/' route resolution */
   lastProject: string | null;
   lastProjectLayout: string | null;
+  /** In-memory dock mode set by layout preferences — not written to URL */
+  dockModeOverride: DockMode | null = null;
 
   constructor() {
     this.lastLayout =
@@ -140,11 +142,12 @@ class NavigationStore {
     let selectedProject: string | null = null;
     let selectedProjectLayout: string | null = null;
     const projectMatch = pathname.match(
-      /^\/projects\/([^/]+)(?:\/layouts\/([^/]+))?/,
+      /^\/projects\/([^/]+)(?:\/layouts\/([^/]+)(?:\/([^/]+))?)?/,
     );
     if (projectMatch) {
       selectedProject = projectMatch[1];
       if (projectMatch[2]) selectedProjectLayout = projectMatch[2];
+      if (projectMatch[3]) activeTab = projectMatch[3];
     }
 
     return {
@@ -158,7 +161,7 @@ class NavigationStore {
       activeTab,
       isDockOpen: params.get('dock') === 'open',
       isDockMaximized: params.get('maximize') === 'true',
-      dockMode: (params.get('dockMode') as DockMode) || 'bottom',
+      dockMode: (params.get('dockMode') as DockMode) || this.dockModeOverride || 'bottom',
       fontSize: params.get('fontSize')
         ? parseInt(params.get('fontSize')!, 10)
         : null,
@@ -290,7 +293,15 @@ class NavigationStore {
   }
 
   setDockMode(mode: DockMode) {
+    this.dockModeOverride = null;
     this.updateParams({ dockMode: mode === 'bottom' ? null : mode });
+  }
+
+  /** Update dock mode in-memory only — no URL param written. Used for layout preferences. */
+  setDockModeQuiet(mode: DockMode) {
+    this.dockModeOverride = mode;
+    this.state = { ...this.state, dockMode: mode };
+    this.notify();
   }
 }
 
@@ -308,6 +319,7 @@ const NavigationContext = createContext<{
   setActiveChat: (id: string | null) => void;
   setDockState: (open: boolean, maximized?: boolean) => void;
   setDockMode: (mode: DockMode) => void;
+  setDockModeQuiet: (mode: DockMode) => void;
 } | null>(null);
 
 export function NavigationProvider({ children }: { children: ReactNode }) {
@@ -361,6 +373,10 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     navigationStore.setDockMode(mode);
   }, []);
 
+  const setDockModeQuiet = useCallback((mode: DockMode) => {
+    navigationStore.setDockModeQuiet(mode);
+  }, []);
+
   return (
     <NavigationContext.Provider
       value={{
@@ -375,6 +391,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
         setActiveChat,
         setDockState,
         setDockMode,
+        setDockModeQuiet,
       }}
     >
       {children}

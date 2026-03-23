@@ -43,6 +43,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     isDockMaximized,
     dockMode,
     activeChat,
+    pathname,
     setActiveChat,
     setDockMode,
     setProject,
@@ -354,7 +355,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         setShowToolDetails={setShowToolDetails}
         dockMode={dockMode}
         onDockModeChange={(mode) => {
-          setDockModeOverride(null, mode);
+          const layoutKey = pathname.startsWith('/projects/') && pathname.includes('/layouts/') ? 'coding' : null;
+          setDockModeOverride(layoutKey, mode);
           setDockMode(mode);
         }}
       />

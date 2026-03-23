@@ -20,4 +20,5 @@ if [ "$1" = "--link" ]; then
   exit 0
 fi
 
+cd "$SCRIPT_DIR"
 exec npx tsx "$SCRIPT_DIR/packages/cli/src/cli.ts" "$@"

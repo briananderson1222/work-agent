@@ -174,7 +174,7 @@ function App() {
       const slug = path.split('/')[2];
       return { type: 'project-edit', slug };
     }
-    if (path.match(/^\/projects\/[^/]+\/layouts\/[^/]+$/)) {
+    if (path.match(/^\/projects\/[^/]+\/layouts\/[^/]+/)) {
       const parts = path.split('/');
       return { type: 'layout', projectSlug: parts[2], layoutSlug: parts[4] };
     }
@@ -447,7 +447,7 @@ function App() {
         setCurrentView({ type: 'project-edit', slug });
         return;
       }
-      if (path.match(/^\/projects\/[^/]+\/layouts\/[^/]+$/)) {
+      if (path.match(/^\/projects\/[^/]+\/layouts\/[^/]+/)) {
         const parts = path.split('/');
         setCurrentView({
           type: 'layout',

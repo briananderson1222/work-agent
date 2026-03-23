@@ -6,22 +6,46 @@ const STORAGE_PREFIX = 'stallion-dock-mode-override:';
 
 /**
  * Layouts call this to declare a preferred dock mode.
- * SessionStorage overrides persist within a browser session (cleared on tab close).
- * Manual ⌘⇧D cycling writes to sessionStorage so the override sticks.
+ *
+ * Priority: URL param (explicit) > sessionStorage override (⌘⇧D / settings) > layout preferred.
+ * Layout preferences apply silently — they do NOT write to the URL.
+ * Only explicit user actions (⌘⇧D, settings panel) write to URL + sessionStorage.
  */
 export function useDockModePreference(layoutKey: string, preferred: DockMode) {
-  const { dockMode, setDockMode } = useNavigation();
+  const { dockMode, setDockMode, setDockModeQuiet } = useNavigation();
   const prevMode = useRef<DockMode>(dockMode);
+  const applied = useRef(false);
 
   useEffect(() => {
+    if (applied.current) return;
+    applied.current = true;
     prevMode.current = dockMode;
-    const override = sessionStorage.getItem(
-      STORAGE_PREFIX + layoutKey,
-    ) as DockMode | null;
-    setDockMode(override || preferred);
-    return () => setDockMode(prevMode.current);
+
+    // URL param already present → explicit user choice, respect it
+    const urlMode = new URLSearchParams(window.location.search).get('dockMode') as DockMode | null;
+    if (urlMode) return;
+
+    // SessionStorage override → user previously cycled via ⌘⇧D / settings
+    const override = sessionStorage.getItem(STORAGE_PREFIX + layoutKey) as DockMode | null;
+    if (override) {
+      setDockModeQuiet(override);
+      return;
+    }
+
+    // Apply layout preference silently (no URL param)
+    setDockModeQuiet(preferred);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dockMode, layoutKey, preferred, setDockMode]);
+  }, [layoutKey, preferred, setDockMode, setDockModeQuiet]);
+
+  // Restore previous mode on unmount
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      setDockModeQuiet(prevMode.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setDockModeQuiet]);
 }
 
 /** Write a manual override for the current layout (called by ⌘⇧D handler). */
