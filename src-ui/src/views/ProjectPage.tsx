@@ -77,7 +77,7 @@ export function ProjectPage({ slug }: { slug: string }) {
   const [rulesLoaded, setRulesLoaded] = useState(false);
 
   // Load existing rules content when rules tab is selected
-  const { data: rulesSearchData } = useKnowledgeSearchQuery(slug, '*', 'rules', {
+  const { data: rulesSearchData, isLoading: rulesLoading } = useKnowledgeSearchQuery(slug, '*', 'rules', {
     enabled: selectedNs === 'rules' && !rulesLoaded,
   });
 
@@ -459,19 +459,25 @@ export function ProjectPage({ slug }: { slug: string }) {
           {selectedNs === 'rules' && (
             <div className="project-page__rules-editor">
               <div className="project-page__rules-hint">
-                Rules are injected into every chat message's system prompt for this project.
+                ⚡ Injected into every chat message's system prompt. Saved as <code>project-rules.md</code>.
               </div>
-              <textarea
-                value={rulesContent}
-                onChange={(e) => setRulesContent(e.target.value)}
-                placeholder="Add project rules... e.g. 'Always respond in bullet points' or 'This project uses Python 3.12 with FastAPI'"
-                className="project-page__rules-textarea"
-              />
-              <button
-                onClick={handleSaveRules}
-                disabled={savingRules || !rulesContent.trim()}
-                className="project-page__add-btn project-page__add-btn--primary"
-              >{savingRules ? 'Saving…' : 'Save Rules'}</button>
+              {!rulesLoaded && rulesLoading ? (
+                <div className="project-page__rules-loading">Loading rules…</div>
+              ) : (
+                <>
+                  <textarea
+                    value={rulesContent}
+                    onChange={(e) => setRulesContent(e.target.value)}
+                    placeholder="Add project rules... e.g. 'Always respond in bullet points' or 'This project uses Python 3.12 with FastAPI'"
+                    className="project-page__rules-textarea"
+                  />
+                  <button
+                    onClick={handleSaveRules}
+                    disabled={savingRules || !rulesContent.trim()}
+                    className="project-page__add-btn project-page__add-btn--primary"
+                  >{savingRules ? 'Saving…' : 'Save Rules'}</button>
+                </>
+              )}
             </div>
           )}
 
