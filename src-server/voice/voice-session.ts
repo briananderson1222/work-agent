@@ -31,6 +31,8 @@ export interface VoiceSessionOptions {
   agentSpecs: Map<string, { systemPrompt?: string; [k: string]: any }>;
   /** Which agent to use for voice. Default: 'stallion-voice' */
   voiceAgentSlug?: string;
+  /** Called once on first session to bootstrap the voice agent and load tools */
+  onFirstSession?: () => Promise<void>;
 }
 
 class VoiceSession {
@@ -98,6 +100,7 @@ class VoiceSession {
 export class VoiceSessionService {
   private sessions = new Map<string, VoiceSession>();
   private slug: string;
+  private bootstrapped = false;
 
   constructor(private opts: VoiceSessionOptions) {
     this.slug = opts.voiceAgentSlug ?? 'stallion-voice';
@@ -106,26 +109,38 @@ export class VoiceSessionService {
   createSession(ws: WebSocket, config?: Partial<S2SSessionConfig> & { agentSlug?: string }): string {
     const id = randomUUID();
     const agentSlug = config?.agentSlug ?? this.slug;
-    const tools = this.opts.agentTools.get(agentSlug) ?? [];
-    const spec = this.opts.agentSpecs.get(agentSlug);
 
-    const session = new VoiceSession(id, ws, this.opts.providerFactory, tools);
-    this.sessions.set(id, session);
-    voiceOps.add(1, { op: 'ws.connect' });
+    const startSession = () => {
+      const tools = this.opts.agentTools.get(agentSlug) ?? [];
+      const spec = this.opts.agentSpecs.get(agentSlug);
 
-    const s2sTools = tools.map(toS2STool).filter((t): t is S2SToolDefinition => t !== null);
-    const systemPrompt = VOICE_PROMPT_PREFIX + (spec?.systemPrompt ?? '');
+      const session = new VoiceSession(id, ws, this.opts.providerFactory, tools);
+      this.sessions.set(id, session);
+      voiceOps.add(1, { op: 'ws.connect' });
 
-    const fullConfig: S2SSessionConfig = {
-      systemPrompt,
-      tools: s2sTools,
-      ...config,
+      const s2sTools = tools.map(toS2STool).filter((t): t is S2SToolDefinition => t !== null);
+      const systemPrompt = VOICE_PROMPT_PREFIX + (spec?.systemPrompt ?? '');
+
+      const fullConfig: S2SSessionConfig = {
+        systemPrompt,
+        tools: s2sTools,
+        ...config,
+      };
+
+      session.start(fullConfig).catch((err) => {
+        ws.send(JSON.stringify({ type: 'error', message: err.message }));
+        this.destroySession(id);
+      });
     };
 
-    session.start(fullConfig).catch((err) => {
-      ws.send(JSON.stringify({ type: 'error', message: err.message }));
-      this.destroySession(id);
-    });
+    if (!this.bootstrapped && this.opts.onFirstSession) {
+      this.bootstrapped = true;
+      this.opts.onFirstSession().then(startSession).catch((err) => {
+        ws.send(JSON.stringify({ type: 'error', message: `Voice bootstrap failed: ${err.message}` }));
+      });
+    } else {
+      startSession();
+    }
 
     return id;
   }

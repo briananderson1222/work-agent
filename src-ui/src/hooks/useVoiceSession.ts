@@ -73,6 +73,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const playQueueRef = useRef<AudioBuffer[]>([]);
   const isPlayingRef = useRef(false);
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const isMutedRef = useRef(false);
   const inputSampleRateRef = useRef(16000);
   const outputSampleRateRef = useRef(24000);
@@ -90,6 +91,10 @@ export function useVoiceSession(): UseVoiceSessionResult {
   const stopAudio = useCallback(() => {
     playQueueRef.current = [];
     isPlayingRef.current = false;
+    if (currentSourceRef.current) {
+      try { currentSourceRef.current.stop(); } catch {}
+      currentSourceRef.current = null;
+    }
     setAudioLevel(0);
   }, []);
 
@@ -111,6 +116,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
     const ctx = audioCtxRef.current;
     if (!ctx || playQueueRef.current.length === 0) {
       isPlayingRef.current = false;
+      currentSourceRef.current = null;
       return;
     }
     isPlayingRef.current = true;
@@ -119,6 +125,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
     src.buffer = buf;
     src.connect(ctx.destination);
     src.onended = playNext;
+    currentSourceRef.current = src;
     src.start();
   }, []);
 

@@ -36,36 +36,60 @@ class WebSpeechSTTProvider extends ListenerManager implements STTProvider {
     this._rec?.abort();
     this._transcript = '';
 
-    const rec = new SpeechRec();
-    rec.continuous = opts?.continuous ?? false;
-    rec.interimResults = opts?.interimResults ?? false;
-    if (opts?.lang) rec.lang = opts.lang;
+    // Request mic permission explicitly — required in WebViews / mobile
+    const startRec = () => {
+      const rec = new SpeechRec();
+      rec.continuous = opts?.continuous ?? false;
+      rec.interimResults = opts?.interimResults ?? false;
+      if (opts?.lang) rec.lang = opts.lang;
 
-    rec.onstart = () => this._setState('listening');
+      rec.onstart = () => this._setState('listening');
 
-    rec.onresult = (e: any) => {
-      const t = Array.from(e.results as any[])
-        .map((r: any) => r[0].transcript)
-        .join(' ')
-        .trim();
-      if (t) {
-        this._transcript = t;
-        this._notify();
+      rec.onresult = (e: any) => {
+        const t = Array.from(e.results as any[])
+          .map((r: any) => r[0].transcript)
+          .join(' ')
+          .trim();
+        if (t) {
+          this._transcript = t;
+          this._notify();
+        }
+      };
+
+      rec.onerror = (e: any) => {
+        console.warn('[STT] SpeechRecognition error:', e?.error ?? e);
+        this._setError();
+      };
+
+      rec.onend = () => {
+        // Don't override an error state that hasn't expired yet
+        if (this._state === 'listening') this._setState('idle');
+      };
+
+      this._rec = rec;
+      try {
+        rec.start();
+      } catch (err) {
+        console.warn('[STT] Failed to start:', err);
+        this._setError();
       }
     };
 
-    rec.onerror = () => this._setError();
-
-    rec.onend = () => {
-      // Don't override an error state that hasn't expired yet
-      if (this._state === 'listening') this._setState('idle');
-    };
-
-    this._rec = rec;
-    try {
-      rec.start();
-    } catch {
-      this._setError();
+    // Ensure mic permission before starting — getUserMedia triggers the prompt
+    if (navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          // Got permission — stop the stream immediately, SpeechRecognition manages its own
+          stream.getTracks().forEach((t) => t.stop());
+          startRec();
+        })
+        .catch((err) => {
+          console.warn('[STT] Mic permission denied:', err);
+          this._setError();
+        });
+    } else {
+      // No getUserMedia (older browser) — try SpeechRecognition directly
+      startRec();
     }
   }
 

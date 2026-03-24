@@ -267,6 +267,7 @@ export class StallionRuntime {
       agentTools: this.agentTools,
       agentSpecs: this.agentSpecs,
       voiceAgentSlug: 'stallion-voice',
+      onFirstSession: () => this.bootstrapVoiceAgent(),
     });
     this.monitoringEmitter = new MonitoringEmitter(
       this.monitoringEvents,
@@ -363,7 +364,6 @@ export class StallionRuntime {
 
     this.logger.info('Agents reloaded', { count: agentMetadataList.length });
     this.eventBus.emit('agents:changed', { count: agentMetadataList.length });
-    await this.bootstrapVoiceAgent();
   }
 
   private async bootstrapVoiceAgent(): Promise<void> {
@@ -386,7 +386,15 @@ export class StallionRuntime {
     } else {
       await this.configLoader.createAgent(voiceSpec);
     }
-    this.logger.info('Bootstrapped stallion-voice agent', { mcpServers });
+
+    // Load tools into agentTools so the voice session can use them
+    try {
+      await this.createVoltAgentInstance('stallion-voice');
+      this.logger.info('Bootstrapped stallion-voice agent', { mcpServers, toolCount: this.agentTools.get('stallion-voice')?.length ?? 0 });
+    } catch (err) {
+      this.logger.warn('Failed to load stallion-voice tools', { error: err });
+      this.logger.info('Bootstrapped stallion-voice agent (no tools)', { mcpServers });
+    }
   }
 
   /**
