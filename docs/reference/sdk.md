@@ -65,6 +65,18 @@ Returns all layouts.
 
 ---
 
+### Project Hooks
+
+#### `useProjects(): Project[]`
+
+Returns all projects.
+
+#### `useProject(slug: string): Project | undefined`
+
+Returns a single project by slug.
+
+---
+
 ### Conversation Hooks
 
 #### `useConversations(agentSlug?: string): Conversation[]`
@@ -171,6 +183,22 @@ Returns all configured models.
 #### `useAvailableModels(): Model[]`
 
 Returns models available for the current user/layout.
+
+---
+
+### Knowledge Hooks
+
+#### `useKnowledgeDocs(projectSlug: string, namespace?: string): KnowledgeDoc[]`
+
+Returns knowledge documents for a project, optionally filtered by namespace.
+
+#### `useKnowledgeNamespaces(projectSlug: string): KnowledgeNamespace[]`
+
+Returns knowledge namespaces for a project.
+
+#### `useKnowledgeSearch(projectSlug: string, query: string, namespace?: string): SearchResult[]`
+
+Returns semantic search results from a project's knowledge base.
 
 ---
 
@@ -327,6 +355,103 @@ Fetches usage analytics.
 ### `useAchievementsQuery(config?)`
 
 Fetches achievement data.
+
+### `useProjectsQuery(config?)`
+
+Fetches all projects.
+
+### `useProjectQuery(slug: string, config?)`
+
+Fetches a single project by slug.
+
+### `useProjectLayoutsQuery(projectSlug: string, config?)`
+
+Fetches layouts for a project.
+
+### `useProjectConversationsQuery(projectSlug: string, limit?, config?)`
+
+Fetches recent conversations for a project. Default limit: 10.
+
+### `useCreateProjectMutation()`
+
+Creates a new project. Invalidates `['projects']` on success.
+
+### `useUpdateProjectMutation()`
+
+Updates a project. Invalidates `['projects']` on success.
+
+### `useDeleteProjectMutation()`
+
+Deletes a project. Invalidates `['projects']` on success.
+
+### `useCreateLayoutMutation(projectSlug: string)`
+
+Creates a new layout within a project. Invalidates project layouts on success.
+
+### `useAddLayoutFromPluginMutation(projectSlug: string)`
+
+Adds a layout from an installed plugin to a project. Invalidates project layouts on success.
+
+### `useKnowledgeDocsQuery(projectSlug, namespace?, config?)`
+
+Fetches knowledge documents for a project, optionally filtered by namespace.
+
+### `useKnowledgeStatusQuery(projectSlug, config?)`
+
+Fetches the knowledge index status for a project.
+
+### `useKnowledgeSearchQuery(projectSlug, query, namespace?, config?)`
+
+Performs semantic search across a project's knowledge base.
+
+### `useKnowledgeNamespacesQuery(projectSlug, config?)`
+
+Fetches knowledge namespaces for a project.
+
+### `useKnowledgeDocContentQuery(projectSlug, docId, namespace?, config?)`
+
+Fetches the content of a specific knowledge document. Disabled when `docId` is null.
+
+### `useKnowledgeScanMutation(projectSlug)`
+
+Triggers a directory scan to ingest documents into the knowledge base.
+
+### `useKnowledgeSaveMutation(projectSlug, namespace?)`
+
+Saves/uploads a document to the knowledge base.
+
+### `useKnowledgeDeleteMutation(projectSlug, namespace?)`
+
+Deletes a single knowledge document.
+
+### `useKnowledgeBulkDeleteMutation(projectSlug, namespace?)`
+
+Bulk-deletes knowledge documents.
+
+### `useGitStatusQuery(workingDirectory, config?)`
+
+Fetches git status for a working directory. Disabled when `workingDirectory` is null/undefined.
+
+### `useGitLogQuery(workingDirectory, count?, config?)`
+
+Fetches git log for a working directory. Default count: 5. Disabled when `workingDirectory` is null/undefined.
+
+### `usePromptsQuery(config?)`
+
+Fetches all prompts from the prompt registry.
+
+### `useModelCapabilitiesQuery(config?)`
+
+Fetches model capabilities. Returns `[]` on 401 (credentials not configured).
+
+### `useAgentInvokeMutation(agentSlug: string)`
+
+Fire-and-forget agent invocation mutation. Returns a `useMutation` result.
+
+```tsx
+const { mutate } = useAgentInvokeMutation('my-agent');
+mutate('Summarize this document');
+```
 
 ### `useInvokeAgent<T>(agentSlug, content, options?, config?)`
 

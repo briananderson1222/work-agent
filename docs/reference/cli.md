@@ -23,7 +23,7 @@ After running `stallion link`, the `stallion` command is available globally from
 Start the application server and UI. Builds automatically on first run if `dist-server/` or `dist-ui/` are missing.
 
 ```
-stallion start [--port=<n>] [--ui-port=<n>] [--clean] [--force] [--log[=<path>]]
+stallion start [--port=<n>] [--ui-port=<n>] [--clean] [--force] [--build] [--base=<dir>] [--features=<flags>] [--log[=<path>]]
 ```
 
 | Flag | Default | Description |
@@ -32,6 +32,9 @@ stallion start [--port=<n>] [--ui-port=<n>] [--clean] [--force] [--log[=<path>]]
 | `--ui-port=<n>` | `3000` | UI static file server port |
 | `--clean` | — | Wipe `~/.stallion-ai` and rebuild before starting |
 | `--force` | — | Skip confirmation prompt when used with `--clean` |
+| `--build` | — | Force rebuild before starting (even if dist exists) |
+| `--base=<dir>` | `~/.stallion-ai` | Data directory override |
+| `--features=<flags>` | — | Comma-separated feature flags (e.g. `strands-runtime`) |
 | `--log[=<path>]` | `/tmp/stallion-server.log` | Redirect server stdout/stderr to a log file |
 
 Both processes are spawned detached. Their PIDs are written to `.stallion.pids` in the working directory (see [PIDFILE mechanism](#pidfile-mechanism)).
@@ -103,6 +106,45 @@ stallion shortcut
 
 ```bash
 stallion shortcut
+```
+
+---
+
+## Configuration
+
+### `config`
+
+Show all current configuration values from `~/.stallion-ai/config.json`.
+
+```
+stallion config
+```
+
+### `config get <key>`
+
+Get a single configuration value.
+
+```
+stallion config get <key>
+```
+
+```bash
+stallion config get registryUrl
+stallion config get defaultModel
+```
+
+### `config set <key> <value>`
+
+Set a configuration value. Use `"null"` to unset a key.
+
+```
+stallion config set <key> <value>
+```
+
+```bash
+stallion config set registryUrl https://registry.example.com/plugins.json
+stallion config set defaultModel us.anthropic.claude-sonnet-4-5-20250929-v1:0
+stallion config set registryUrl null
 ```
 
 ---
