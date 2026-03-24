@@ -138,7 +138,10 @@ export function ChatDockTabBar({
           onClick={() => setShowSessionPicker(true)}
           title={`Open Conversation (${openConversationShortcut})`}
         >
-          Open{' '}
+          <svg className="chat-dock__new-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+          </svg>
+          <span className="chat-dock__new-label">Open</span>
           <span className="chat-dock__subtitle">
             {openConversationShortcut}
           </span>
@@ -155,7 +158,11 @@ export function ChatDockTabBar({
           }}
           title={`New Chat (${newChatShortcut})`}
         >
-          + New <span className="chat-dock__subtitle">{newChatShortcut}</span>
+          <svg className="chat-dock__new-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+          </svg>
+          <span className="chat-dock__new-label">New</span>
+          <span className="chat-dock__subtitle">{newChatShortcut}</span>
         </button>
       </div>
     </div>

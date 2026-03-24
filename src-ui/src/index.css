@@ -263,6 +263,10 @@ body {
   overflow: hidden;
 }
 
+@supports (height: 100dvh) {
+  #root, .app { height: 100dvh; }
+}
+
 .app--with-sidebar {
   flex-direction: row;
 }
@@ -1217,6 +1221,9 @@ body {
 }
 
 .chat-dock__new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--border-secondary);
@@ -4955,6 +4962,40 @@ body {
 
 .app__main--dock-bottom-inline > .chat-dock.is-maximized {
   grid-row: 2 / -1;
+}
+
+/* New/Open button icon — hidden on desktop, shown on mobile */
+.chat-dock__new-icon {
+  display: none;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Mobile: compact chat dock header and tab bar */
+@media (max-width: 768px) {
+  .chat-dock__subtitle {
+    display: none;
+  }
+
+  .chat-dock__new-label {
+    display: none;
+  }
+
+  .chat-dock__new-icon {
+    display: block;
+  }
+
+  .chat-dock__new {
+    padding: 6px 10px;
+    min-width: 36px;
+    justify-content: center;
+  }
+
+  .chat-dock__maximize-btn {
+    font-size: 0.85rem;
+    padding: 0.2rem 0.35rem;
+  }
 }
 
 /* ── Provider Overview ── */

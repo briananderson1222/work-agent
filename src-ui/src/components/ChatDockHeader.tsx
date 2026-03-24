@@ -1,6 +1,17 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
+
+function useIsMobile() {
+  const [m, setM] = useState(() => window.matchMedia('(max-width: 768px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const h = (e: MediaQueryListEvent) => setM(e.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, []);
+  return m;
+}
 
 interface Session {
   id: string;
@@ -41,6 +52,10 @@ export function ChatDockHeader({
     useNavigation();
   const toggleDockShortcut = useShortcutDisplay('dock.toggle');
   const maximizeShortcut = useShortcutDisplay('dock.maximize');
+  const isMobile = useIsMobile();
+
+  // On mobile, dock is always bottom-positioned regardless of dockMode
+  const effectiveRight = !isMobile && dockMode === 'right';
 
   const activeSessions = sessions.filter((s) => s.status === 'sending');
 
@@ -184,10 +199,10 @@ export function ChatDockHeader({
           }
         >
           {isDockMaximized
-            ? dockMode === 'right'
+            ? effectiveRight
               ? '➡'
               : '⬇'
-            : dockMode === 'right'
+            : effectiveRight
               ? '⬅'
               : '⬆'}
           <span className="chat-dock__subtitle">{maximizeShortcut}</span>
@@ -205,7 +220,7 @@ export function ChatDockHeader({
               width: '16px',
               height: '16px',
               transform:
-                dockMode === 'right'
+                effectiveRight
                   ? isDockOpen
                     ? 'rotate(270deg)'
                     : 'rotate(90deg)'
