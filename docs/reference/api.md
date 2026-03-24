@@ -2576,7 +2576,7 @@ Returns the server's runtime and available voice/context provider capabilities.
 **Response**:
 ```json
 {
-  "runtime": "strands",
+  "runtime": "voltagent",
   "voice": {
     "stt": [
       { "id": "webspeech", "name": "WebSpeech (Browser)", "clientOnly": true, "visibleOn": ["all"], "configured": true }
