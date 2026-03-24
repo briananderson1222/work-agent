@@ -32,6 +32,15 @@ export function useInvokeAgent<T = any>(
 }
 
 /**
+ * Fire-and-forget agent invocation (side effects: enhance, sync, etc.)
+ */
+export function useAgentInvokeMutation(agentSlug: string) {
+  return useMutation({
+    mutationFn: (input: string) => invokeAgent(agentSlug, input),
+  });
+}
+
+/**
  * Generic API query hook
  * For custom API calls with manual cache key
  */

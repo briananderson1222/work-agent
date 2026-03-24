@@ -155,6 +155,7 @@ export {
   useGitStatusQuery,
   useInvalidateQuery,
   useInvokeAgent,
+  useAgentInvokeMutation,
   useKnowledgeBulkDeleteMutation,
   useKnowledgeDeleteMutation,
   useKnowledgeDocContentQuery,
