@@ -9,39 +9,77 @@ src-server/
 ├── runtime/             # Agent runtime integration
 │   ├── streaming/       # Streaming handlers
 │   └── stallion-runtime.ts  # Core runtime (should be minimal)
-├── routes/              # HTTP route handlers (18 files)
+├── routes/              # HTTP route handlers (34 files)
+│   ├── acp.ts
+│   ├── agent-tools.ts
 │   ├── agents.ts
 │   ├── analytics.ts
 │   ├── auth.ts
 │   ├── bedrock.ts
 │   ├── branding.ts
+│   ├── chat.ts
+│   ├── coding.ts
 │   ├── config.ts
 │   ├── conversations.ts
 │   ├── events.ts
+│   ├── feedback.ts
 │   ├── fs.ts
 │   ├── insights.ts
+│   ├── invoke.ts
+│   ├── knowledge.ts
+│   ├── layouts.ts
 │   ├── models.ts
 │   ├── monitoring.ts
+│   ├── notifications.ts
 │   ├── plugins.ts
+│   ├── projects.ts
+│   ├── prompts.ts
+│   ├── providers.ts
 │   ├── registry.ts
 │   ├── scheduler.ts
+│   ├── schemas.ts
 │   ├── system.ts
+│   ├── telemetry-events.ts
+│   ├── templates.ts
 │   ├── tools.ts
-│   └── layouts.ts
-├── services/            # Business logic services
+│   ├── ui-commands.ts
+│   └── voice.ts
+├── services/            # Business logic services (28 files)
 │   ├── acp-bridge.ts
+│   ├── acp-probe.ts
+│   ├── acp-process.ts
 │   ├── agent-service.ts
 │   ├── approval-registry.ts
 │   ├── builtin-scheduler.ts
+│   ├── cron.ts
 │   ├── event-bus.ts
+│   ├── feedback-service.ts
+│   ├── file-tree-service.ts
+│   ├── json-store.ts
+│   ├── knowledge-service.ts
+│   ├── layout-service.ts
+│   ├── llm-router.ts
 │   ├── mcp-service.ts
+│   ├── notification-service.ts
 │   ├── plugin-permissions.ts
+│   ├── process-utils.ts
+│   ├── project-service.ts
+│   ├── prompt-scanner.ts
+│   ├── prompt-service.ts
+│   ├── provider-service.ts
 │   ├── scheduler-service.ts
-│   └── layout-service.ts
+│   ├── skill-service.ts
+│   ├── sse-broadcaster.ts
+│   ├── template-service.ts
+│   ├── terminal-service.ts
+│   └── terminal-ws-server.ts
 ├── adapters/            # Storage adapters
-├── providers/           # LLM providers (Bedrock)
+├── providers/           # LLM providers (Bedrock, Ollama, OpenAI-compat)
+├── monitoring/          # MonitoringEmitter and event schema
+├── telemetry/           # OTel metrics instruments
 ├── domain/              # Types and config loading
 ├── analytics/           # Usage tracking
+├── voice/               # Voice session service and S2S providers
 └── utils/               # Utility functions
 ```
 
@@ -149,7 +187,7 @@ Group related endpoints in the same file:
 
 ```typescript
 // routes/layouts.ts - includes workflow routes
-export function createWorkspaceRoutes(deps) { /* layout CRUD */ }
+export function createLayoutRoutes(deps) { /* layout CRUD */ }
 export function createWorkflowRoutes(deps) { /* workflow operations */ }
 ```
 
@@ -195,7 +233,7 @@ export class AgentService {
 
   async deleteAgent(slug: string): Promise<void> {
     // Check dependencies
-    const dependentLayouts = await this.configLoader.getWorkspacesUsingAgent(slug);
+    const dependentLayouts = await this.configLoader.getLayoutsUsingAgent(slug);
     if (dependentLayouts.length > 0) {
       throw new Error(`Cannot delete: used by layouts: ${dependentLayouts.join(', ')}`);
     }

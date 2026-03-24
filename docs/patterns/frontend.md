@@ -24,7 +24,7 @@ The frontend uses a 4-layer architecture for data management. **All new data fet
                             ↑
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 2: Query Hooks (SDK)                                 │
-│  - useAgentsQuery, useLayoutsQuery, useTransformTool     │
+│  - useAgentsQuery, useLayoutsQuery                        │
 │  - Wraps React Query with consistent config                 │
 │  - Lives in packages/sdk/src/queries.ts                     │
 └─────────────────────────────────────────────────────────────┘
@@ -116,16 +116,15 @@ export function useAgentToolsQuery(agentSlug: string | undefined, config?: Query
 }
 
 // Hook for custom queries
-export function useTransformTool<T>(
+export function useInvokeAgent<T = any>(
   agentSlug: string,
-  toolName: string,
-  toolArgs: any,
-  transformFn: string,
+  content: string,
+  options?: { schema?: any },
   config?: QueryConfig<T>
 ) {
   return useQuery({
-    queryKey: ['transform', agentSlug, toolName, toolArgs],
-    queryFn: () => transformTool(agentSlug, toolName, toolArgs, transformFn),
+    queryKey: ['invoke', agentSlug, content, options],
+    queryFn: () => invokeAgent(agentSlug, content, options),
     staleTime: config?.staleTime ?? 5 * 60 * 1000,
     enabled: config?.enabled ?? true,
   });
@@ -138,7 +137,6 @@ export function useTransformTool<T>(
 - `useConversationsQuery(agentSlug)` - Conversations for agent
 - `useModelsQuery` - Bedrock models
 - `useConfigQuery` - App configuration
-- `useTransformTool` - Tool invocation with transform
 - `useInvokeAgent` - Agent invocation with schema
 - `useApiQuery` - Generic custom queries
 - `useStatsQuery` - Conversation stats
@@ -149,24 +147,17 @@ ViewModel hooks combine queries and add business logic. **These live in the plug
 
 ```typescript
 // examples/my-plugin/useMyViewModel.ts
-import { useTransformTool, useAgents } from '@stallion-ai/sdk';
+import { useInvokeAgent, useAgents, callTool } from '@stallion-ai/sdk';
 
 export function useFilesViewModel() {
   // Use SDK query hooks
-  const { data: fileList } = useTransformTool(
+  const { data: fileList } = useInvokeAgent(
     'my-agent',
-    'files_list_directory',
-    { path: '/documents' },
-    'data => data'
+    'List files in /documents'
   );
   
-  const { data: fileContents = [] } = useTransformTool(
-    'my-agent',
-    'files_read_file',
-    { path: fileList?.selectedFile },
-    'data => data',
-    { enabled: !!fileList?.selectedFile }
-  );
+  // Use callTool for direct MCP tool calls
+  // const result = await callTool('my-agent', 'files_read_file', { path: selectedFile });
   
   // Derived state (business logic)
   const fileDetails = fileList ? {
@@ -262,7 +253,7 @@ export function CRM() {
 
 ```typescript
 // ✅ Correct - plugin imports from SDK
-import { useTransformTool, useAgents, useSendToChat } from '@stallion-ai/sdk';
+import { useInvokeAgent, useAgents, useSendToChat } from '@stallion-ai/sdk';
 
 // ❌ Wrong - plugin imports from core
 import { useAgents } from '@/contexts/AgentsContext';
@@ -273,7 +264,7 @@ import { useAgents } from '@/contexts/AgentsContext';
 ### Context Hooks (wrap core contexts)
 
 ```typescript
-// Agent/Workspace data
+// Agent/Layout data
 useAgents()              // All agents
 useAgent(slug)           // Single agent
 useLayouts()          // All layouts
@@ -305,7 +296,6 @@ useModelsQuery()
 useStatsQuery(agentSlug, conversationId)
 
 // Tool invocation
-useTransformTool(agent, tool, args, transform)
 useInvokeAgent(agent, content, options)
 
 // Generic
@@ -466,12 +456,12 @@ Single source of truth for all types, config parsers, and API contracts shared a
 
 | Need | Import from |
 |---|---|
-| TypeScript types (AgentSpec, PluginManifest, WorkspaceConfig, etc.) | `@stallion-ai/shared` |
+| TypeScript types (AgentSpec, PluginManifest, LayoutConfig, etc.) | `@stallion-ai/shared` |
 | API response shapes (ToolCallResponse, AgentInvokeResponse) | `@stallion-ai/shared` |
 | Config file parsers (readPluginManifest, readAgentSpec, etc.) | `@stallion-ai/shared` |
 | Plugin install helpers (copyPluginTools, buildPlugin) | `@stallion-ai/shared` |
 | React Query hooks for fetching data | `@stallion-ai/sdk` |
-| Context hooks (useAgents, useWorkspaces, etc.) | `@stallion-ai/sdk` |
+| Context hooks (useAgents, useLayouts, etc.) | `@stallion-ai/sdk` |
 
 **Rule:** If it's a type or a pure function that works in Node and the browser, it belongs in `shared`. If it requires React or browser APIs, it belongs in `sdk`.
 
@@ -482,7 +472,7 @@ Single source of truth for all types, config parsers, and API contracts shared a
 import type {
   AgentSpec, AgentMetadata, AgentGuardrails, AgentTools,
   PluginManifest, PluginManifest, PluginComponent, PluginPreview,
-  WorkspaceConfig, WorkspaceTab, WorkspaceMetadata,
+  LayoutConfig, LayoutTab, LayoutMetadata,
   ToolDef, ToolMetadata,
   AppConfig, TemplateVariable,
   ConversationStats, MemoryEvent, SessionMetadata,

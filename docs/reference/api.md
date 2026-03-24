@@ -1775,7 +1775,7 @@ Returns all installed plugins with manifest info, bundle status, git metadata, a
       "version": "1.0.0",
       "description": "A plugin",
       "hasBundle": true,
-      "workspace": { "slug": "my-ws" },
+      "layout": { "slug": "my-layout" },
       "agents": [{ "slug": "assistant" }],
       "providers": [],
       "links": [],
@@ -1813,7 +1813,7 @@ Fetches a plugin from a git URL or local path, validates it, and returns manifes
   "manifest": { "name": "my-plugin", "version": "1.0.0", "agents": [], "providers": [] },
   "components": [
     { "type": "agent", "id": "my-plugin:assistant" },
-    { "type": "workspace", "id": "my-ws" }
+    { "type": "layout", "id": "my-layout" }
   ],
   "conflicts": [],
   "dependencies": [],
@@ -1844,7 +1844,7 @@ Installs a plugin from a git URL or local path, including agents, layout config,
 ```
 
 - `source`: Git URL (supports `#branch` suffix) or local path
-- `skip`: Optional array of component IDs to exclude (e.g. `"agent:<slug>"`, `"workspace:<slug>"`, `"provider:<type>"`, `"tool:<id>"`)
+- `skip`: Optional array of component IDs to exclude (e.g. `"agent:<slug>"`, `"layout:<slug>"`, `"provider:<type>"`, `"tool:<id>"`)
 
 **Response**:
 ```json
@@ -2039,7 +2039,7 @@ Returns provider declarations for a plugin with their enabled/disabled state.
 ```json
 {
   "providers": [
-    { "type": "auth", "module": "dist/auth-provider.js", "workspace": null, "enabled": true }
+    { "type": "auth", "module": "dist/auth-provider.js", "layout": null, "enabled": true }
   ]
 }
 ```
@@ -2576,7 +2576,7 @@ Returns the server's runtime and available voice/context provider capabilities.
 **Response**:
 ```json
 {
-  "runtime": "voltagent",
+  "runtime": "strands",
   "voice": {
     "stt": [
       { "id": "webspeech", "name": "WebSpeech (Browser)", "clientOnly": true, "visibleOn": ["all"], "configured": true }
