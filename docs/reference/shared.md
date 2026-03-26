@@ -229,10 +229,29 @@ interface ToolMetadata {
 
 ### `LayoutConfig`
 
-Full layout definition loaded from a layout JSON file.
+Full layout definition for project-scoped layouts.
 
 ```ts
 interface LayoutConfig {
+  id: string;
+  projectSlug: string;
+  type: string;
+  name: string;
+  slug: string;
+  icon?: string;
+  description?: string;
+  config: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### `StandaloneLayoutConfig`
+
+File-based layout definition (not project-scoped). Used by plugins.
+
+```ts
+interface StandaloneLayoutConfig {
   name: string;
   slug: string;
   icon?: string;
@@ -241,21 +260,41 @@ interface LayoutConfig {
   requiredProviders?: string[];
   availableAgents?: string[];
   defaultAgent?: string;
-  tabs: WorkspaceTab[];
-  globalPrompts?: WorkspacePrompt[];
+  tabs: LayoutTab[];
+  actions?: LayoutAction[];
 }
+```
 
-interface WorkspaceTab {
+### `LayoutTab`
+
+```ts
+interface LayoutTab {
   id: string;
   label: string;
   component: string;
   icon?: string;
   description?: string;
-  actions?: WorkspacePrompt[];
-  prompts?: WorkspacePrompt[];
+  actions?: LayoutAction[];
+  prompts?: LayoutAction[];
 }
+```
 
-interface WorkspacePrompt {
+### `LayoutAction`
+
+```ts
+interface LayoutAction {
+  type: 'prompt' | 'inline-prompt' | 'external' | 'internal';
+  label: string;
+  icon?: string;
+  agent?: string;
+  data: string;
+}
+```
+
+### `LayoutPrompt`
+
+```ts
+interface LayoutPrompt {
   id: string;
   label: string;
   prompt: string;
@@ -263,10 +302,26 @@ interface WorkspacePrompt {
 }
 ```
 
-### `WorkspaceMetadata`
+### `LayoutMetadata`
 
 ```ts
 interface LayoutMetadata {
+  id: string;
+  slug: string;
+  projectSlug: string;
+  type: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  plugin?: string;
+  tabCount?: number;
+}
+```
+
+### `StandaloneLayoutMetadata`
+
+```ts
+interface StandaloneLayoutMetadata {
   slug: string;
   name: string;
   icon?: string;
@@ -275,6 +330,225 @@ interface LayoutMetadata {
   tabCount: number;
 }
 ```
+
+---
+
+## knowledge types
+
+### `KnowledgeNamespaceConfig`
+
+```ts
+type KnowledgeNamespaceBehavior = 'rag' | 'inject';
+
+interface KnowledgeNamespaceConfig {
+  id: string;
+  label: string;
+  behavior: KnowledgeNamespaceBehavior;
+  description?: string;
+  builtIn?: boolean;
+  storageDir?: string;
+  writeFiles?: boolean;
+  syncOnScan?: boolean;
+  enhance?: {
+    agent: string;
+    auto?: boolean;
+  };
+}
+```
+
+### `KnowledgeDocumentMeta`
+
+```ts
+interface KnowledgeDocumentMeta {
+  id: string;
+  filename: string;
+  namespace: string;
+  source: 'upload' | 'directory-scan';
+  chunkCount: number;
+  createdAt: string;
+  eventId?: string;
+  eventSubject?: string;
+  enhancedFrom?: string;
+  enhancedTo?: string;
+  status?: 'raw' | 'enhanced';
+}
+```
+
+---
+
+## project types
+
+### `ProjectConfig`
+
+```ts
+interface ProjectConfig {
+  id: string;
+  name: string;
+  slug: string;
+  icon?: string;
+  description?: string;
+  workingDirectory?: string;
+  defaultProviderId?: string;
+  defaultModel?: string;
+  defaultEmbeddingProviderId?: string;
+  defaultEmbeddingModel?: string;
+  similarityThreshold?: number;
+  topK?: number;
+  agents?: string[];
+  knowledgeNamespaces?: KnowledgeNamespaceConfig[];
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### `ProjectMetadata`
+
+```ts
+interface ProjectMetadata {
+  id: string;
+  slug: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  hasWorkingDirectory: boolean;
+  workingDirectory?: string;
+  layoutCount: number;
+  hasKnowledge: boolean;
+  defaultProviderId?: string;
+}
+```
+
+---
+
+## provider types
+
+### `ProviderConnectionConfig`
+
+```ts
+interface ProviderConnectionConfig {
+  id: string;
+  type: string;
+  name: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  capabilities: ('llm' | 'embedding' | 'vectordb')[];
+}
+```
+
+### `LayoutTemplate`
+
+```ts
+interface LayoutTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  type: string;
+  config: Record<string, unknown>;
+  createdAt: string;
+}
+```
+
+---
+
+## notification types
+
+Re-exported from `@stallion-ai/shared/notifications`.
+
+```ts
+type NotificationStatus = 'pending' | 'delivered' | 'dismissed' | 'snoozed';
+type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+interface NotificationAction {
+  id: string;
+  label: string;
+  variant?: 'primary' | 'secondary' | 'danger';
+}
+
+interface Notification {
+  id: string;
+  source: string;
+  category: string;
+  title: string;
+  body?: string;
+  priority: NotificationPriority;
+  status: NotificationStatus;
+  actions?: NotificationAction[];
+  metadata?: Record<string, unknown>;
+  dedupeTag?: string;
+  createdAt: string;
+  deliveredAt?: string;
+  dismissedAt?: string;
+  snoozedUntil?: string;
+}
+```
+
+---
+
+## scheduler types
+
+Re-exported from `@stallion-ai/shared/scheduler`.
+
+```ts
+interface SchedulerJob {
+  target: string;
+  schedule: string;
+  enabled: boolean;
+  lastRun?: string;
+  nextRun?: string;
+}
+
+interface SchedulerLogEntry {
+  runAt: string;
+  status: 'success' | 'error';
+  outputPath?: string;
+  error?: string;
+}
+
+interface SchedulerEvent {
+  type: string;
+  target: string;
+  timestamp: string;
+}
+
+interface SchedulerProviderStats {
+  totalJobs: number;
+  enabledJobs: number;
+  lastRunAt?: string;
+}
+
+interface SchedulerProviderStatus {
+  running: boolean;
+  provider: string;
+}
+```
+
+---
+
+## build utilities
+
+Constants and helpers for plugin bundling.
+
+### `SHARED_EXTERNALS`
+
+Module names provided by the host app at runtime via `window.__stallion_ai_shared`.
+
+```ts
+const SHARED_EXTERNALS: string[]
+// ['react', 'react/jsx-runtime', '@stallion-ai/sdk', '@tanstack/react-query', ...]
+```
+
+### `SHARED_EXTERNALS_REGEX`
+
+esbuild filter regex matching all shared externals.
+
+### `RUNTIME_SHIM`
+
+Runtime `require()` shim that maps externals to `window.__stallion_ai_shared` at runtime. Injected as a banner in plugin bundles.
+
+### `registrationFooter(pluginName: string): string`
+
+Returns JS code that registers plugin exports on `window.__stallion_ai_plugins`. Injected as a footer in plugin bundles.
 
 ---
 
@@ -465,12 +739,12 @@ const manifest = readPluginManifest('/path/to/my-plugin');
 console.log(manifest.name, manifest.version);
 ```
 
-### `readToolDef(toolsDir: string, id: string): ToolDef`
+### `readIntegrationDef(toolsDir: string, id: string): ToolDef`
 
-Reads `<toolsDir>/<id>/tool.json`. Throws if not found.
+Reads `<toolsDir>/<id>/integration.json`. Throws if not found.
 
 ```ts
-const tool = readToolDef('/project/.stallion-ai/tools', 'my-mcp-server');
+const tool = readIntegrationDef('/project/.stallion-ai/integrations', 'my-mcp-server');
 ```
 
 ### `readAgentSpec(path: string): AgentSpec`
@@ -481,33 +755,33 @@ Reads an agent JSON file at the given path.
 
 Reads a layout JSON file at the given path.
 
-### `resolvePluginTools(pluginDir: string, toolsDir: string): Map<string, ToolDef>`
+### `resolvePluginIntegrations(pluginDir: string, toolsDir: string): Map<string, ToolDef>`
 
-Walks all agents declared in a plugin's manifest, collects their `mcpServers` references, and returns a map of `toolId → ToolDef` by reading from `toolsDir`. Silently skips missing tool definitions.
+Walks all agents declared in a plugin's manifest, collects their `mcpServers` references, and returns a map of `toolId → ToolDef` by reading from `toolsDir`. Silently skips missing integration definitions.
 
 ```ts
-const tools = resolvePluginTools('/path/to/plugin', '/project/.stallion-ai/tools');
+const tools = resolvePluginIntegrations('/path/to/plugin', '/project/.stallion-ai/integrations');
 for (const [id, def] of tools) {
   console.log(id, def.transport);
 }
 ```
 
-### `listToolIds(toolsDir: string): string[]`
+### `listIntegrationIds(toolsDir: string): string[]`
 
-Returns the IDs of all tools in a directory (subdirectories that contain a `tool.json`). Returns `[]` if the directory does not exist.
+Returns the IDs of all integrations in a directory (subdirectories that contain an `integration.json`). Returns `[]` if the directory does not exist.
 
 ```ts
-const ids = listToolIds('/project/.stallion-ai/tools');
+const ids = listIntegrationIds('/project/.stallion-ai/integrations');
 // ['my-mcp-server', 'another-tool']
 ```
 
-### `copyPluginTools(pluginDir: string, projectToolsDir: string): string[]`
+### `copyPluginIntegrations(pluginDir: string, projectIntegrationsDir: string): string[]`
 
-Copies tool configs from `<pluginDir>/tools/` into `projectToolsDir`. Skips tools that already exist. Returns the list of copied tool IDs.
+Copies integration configs from `<pluginDir>/integrations/` into `projectIntegrationsDir`. Skips integrations that already exist. Returns the list of copied integration IDs.
 
 ```ts
-const copied = copyPluginTools('/path/to/plugin', '/project/.stallion-ai/tools');
-console.log('installed tools:', copied);
+const copied = copyPluginIntegrations('/path/to/plugin', '/project/.stallion-ai/integrations');
+console.log('installed integrations:', copied);
 ```
 
 ### `resolveGitInfo(hint?: string)`
@@ -521,13 +795,21 @@ const { gitRoot, branch, hash, remote } = resolveGitInfo();
 
 Throws if not inside a git repository.
 
-### `buildPlugin(pluginDir: string): boolean`
+### `buildPlugin(pluginDir: string, mode?: 'production' | 'dev'): Promise<BuildResult>`
 
-Builds a plugin if it has a `build.mjs` or `build.sh` and no existing `dist/bundle.js`. Installs npm dependencies first and symlinks `@stallion-ai/shared` as a peer. Returns `true` if a build was executed, `false` if skipped.
+Builds a plugin. Workspace plugins (with entrypoint) use esbuild JS API directly. Provider-only plugins fall back to `build.mjs` / `build.sh` / `npm run build`. Installs npm dependencies first and symlinks `@stallion-ai/shared` as a peer.
 
 ```ts
-const built = buildPlugin('/path/to/plugin');
-if (built) console.log('plugin compiled');
+interface BuildResult {
+  built: boolean;
+  bundlePath?: string;
+  cssPath?: string;
+}
+```
+
+```ts
+const result = await buildPlugin('/path/to/plugin');
+if (result.built) console.log('bundle at', result.bundlePath);
 ```
 
 ---

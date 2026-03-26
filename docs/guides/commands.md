@@ -80,28 +80,9 @@ Commands can reference other commands in their prompts:
 }
 ```
 
-## Importing Q Developer Agents
-
-You can import agents from Amazon Q Developer CLI through the UI:
-
-1. Open Settings (⌘,)
-2. Go to the "Agents" tab
-3. Click "Import from Q"
-4. Select an agent from the list
-5. Customize the name and slug
-6. Click "Import"
-
-The agent will be created with:
-- The original Q Developer instructions as the system prompt
-- Default model and guardrails
-- No tools (you can add them later)
-- Your custom name and slug (no prefix required)
-
-**Note**: The import reads from `~/.aws/amazonq/cli-agents.json`. Make sure you have Q Developer CLI configured.
-
 ## Notes
 
-- **Server restart required**: New agents and command changes require a server restart
+- **Hot-reload**: Agent and command changes are detected automatically via file watcher — no server restart needed
 - **Autocomplete**: Custom commands appear in the `/` autocomplete menu
 - **Scoped to agent**: Each agent has its own set of custom commands
 - **No nesting yet**: Commands are expanded once (no recursive expansion)

@@ -1,6 +1,6 @@
 # Strands Agents SDK Migration
 
-Status: **In Progress** — adapter at functional parity, gaps documented below.
+Status: **Functional** — adapter at parity with VoltAgent. Known gaps documented below (require upstream SDK changes).
 
 ## How to Test
 

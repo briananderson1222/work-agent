@@ -14,7 +14,7 @@ The key insight: KiRoom treats agent conversations as a **first-class collaborat
 | Agent Sessions | ACP with persistent sessions, resume, sub-agents | ACP bridge (less mature) |
 | Storage | SQLite + filesystem (notes, files, output) | JSON files + filesystem |
 | Real-time | WebSocket (granular event types) | SSE streaming |
-| Analytics | Rating-driven feedback loop + template proposals | Monitoring-based metrics |
+| Analytics | Rating-driven feedback loop + template proposals | Rating-driven feedback loop (FeedbackService) + monitoring metrics |
 | File Management | Room files + thread files + versioned docs | Knowledge/embedding focused |
 | Search | Cross-room regex with URL filters | Basic |
 | Plugin System | MCP tools (agents extend via MCP) | SDK plugin system (layouts, providers) |
@@ -25,7 +25,7 @@ The key insight: KiRoom treats agent conversations as a **first-class collaborat
 
 | Feature | Why | Effort | Doc |
 |---------|-----|--------|-----|
-| **Insights & Feedback Loop** | KiRoom's rating → analysis → prompt injection cycle is genuinely novel. Stallion's insights are just monitoring metrics. This is the biggest UX differentiator. | Medium | [02](./02-insights-feedback.md) |
+| **Insights & Feedback Loop** | ✅ **DONE.** FeedbackService with two-tier analysis, ratings, behavior injection. `InsightsDashboard` has feedback tab. | Medium | [02](./02-insights-feedback.md) |
 | **ACP Session Management** | KiRoom's ACP is battle-tested: persistent sessions, tool approvals, sub-agents, context compaction, session culling. Stallion's bridge exists but has gaps. | Large | [03](./03-acp-integration.md) |
 | **Threading Model** | Multiple threads per project with forking, family trees, and per-message agent/model switching. Transforms the conversation experience. | Large | [01](./01-threading-model.md) |
 
@@ -48,8 +48,8 @@ The key insight: KiRoom treats agent conversations as a **first-class collaborat
 
 ## Recommended Adoption Order
 
-### Phase 1: The Learning Loop (Insights + Feedback)
-Start here because it's the most differentiated feature and doesn't require restructuring Stallion's core data model. Add message ratings, automated analysis, and prompt injection. This alone makes Stallion meaningfully smarter over time.
+### Phase 1: The Learning Loop (Insights + Feedback) — ✅ COMPLETE
+Implemented via `FeedbackService` (two-tier analysis using Stallion's own LLM router), `InsightsDashboard` feedback tab, and `/feedback` REST routes. Behavior guidelines auto-injected into chat prompts via `stallion-runtime.ts`.
 
 ### Phase 2: Threading & Conversations
 Evolve Stallion's flat conversation model into a threaded one. This is the biggest architectural change but unlocks forking, family trees, and per-message settings. Consider whether Stallion's project/layout model maps to KiRoom's room/thread model or if a hybrid is better.

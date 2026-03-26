@@ -71,6 +71,23 @@ stallion upgrade
 # then: stallion start
 ```
 
+### `fresh`
+
+Wipe `~/.stallion-ai` data directory. Alias for the `--clean` flag without starting.
+
+```
+stallion fresh [--force]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation prompt |
+
+```bash
+stallion fresh
+stallion fresh --force
+```
+
 ### `doctor`
 
 Check that all required prerequisites are installed: Node.js (≥20), npm, git, tsx. Also checks for Rust (optional, needed for desktop builds).

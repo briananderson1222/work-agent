@@ -6,7 +6,7 @@ Stallion is a local-first AI agent system built on Amazon Bedrock. It runs as a 
 
 **Core/plugin boundary:**
 - The core server (`src-server/`) provides the runtime, HTTP API, streaming pipeline, MCP lifecycle, and provider registry. It has no domain-specific logic.
-- Plugins are installed into `.stallion-ai/plugins/` and register providers (auth, branding, agent registry, tool registry, settings, onboarding) that the core discovers at startup. Plugins can also ship agents, tools, and UI components.
+- Plugins are installed into `.stallion-ai/plugins/` and register providers (auth, branding, agent registry, integration registry, settings, user identity, etc.) that the core discovers at startup. Plugins can also ship agents, tools, and UI components.
 - The SDK (`packages/sdk/`) is the contract between the core and plugin UIs — plugins import from `@stallion-ai/sdk` and never call the server directly.
 
 This means the core can be upgraded independently of plugins, and plugins can be swapped without touching the runtime.
@@ -32,13 +32,13 @@ graph TB
         ME --> |SSE fan-out| EB
         ME --> |disk| MEVT[events-DATE.ndjson]
 
-        ROUTES --> |POST /api/agents/:slug/chat| STREAM[StreamOrchestrator]
+        ROUTES --> |POST /api/agents/:slug/chat| STREAM[stream-orchestrator]
         STREAM --> |pipeline| PIPE[StreamPipeline]
-        PIPE --> H1[TextDeltaHandler]
-        PIPE --> H2[ReasoningHandler]
+        PIPE --> H1[ReasoningHandler]
+        PIPE --> H2[TextDeltaHandler]
         PIPE --> H3[ToolCallHandler]
-        PIPE --> H4[CompletionHandler]
-        PIPE --> H5[MetadataHandler]
+        PIPE --> H4[MetadataHandler]
+        PIPE --> H5[CompletionHandler]
 
         ROUTES --> |/knowledge/*| KS[KnowledgeService]
         KS --> LDB[(LanceDB)]
@@ -107,7 +107,7 @@ graph TB
 | Component | Location | Description |
 |---|---|---|
 | `StallionRuntime` | `src-server/runtime/stallion-runtime.ts` | Top-level orchestrator — initializes agents, mounts routes, starts ACP, runs health checks |
-| `StreamOrchestrator` | `src-server/runtime/stream-orchestrator.ts` | Creates the `StreamPipeline`, wires elicitation callbacks, writes SSE chunks |
+| `StreamOrchestrator` | `src-server/runtime/stream-orchestrator.ts` | Standalone functions — `createStreamingPipeline()`, `createElicitationCallback()`, SSE write helpers |
 | `StreamPipeline` | `src-server/runtime/streaming/StreamPipeline.ts` | Chains `StreamHandler` instances as async generators; supports abort |
 | `MCPManager` | `src-server/runtime/mcp-manager.ts` | Creates `MCPConfiguration` objects, normalizes tool names, manages ref counts |
 | `ACPManager` | `src-server/services/acp-bridge.ts` | Spawns external CLI processes via Agent Client Protocol, exposes virtual agents |
@@ -156,7 +156,7 @@ sequenceDiagram
         Bedrock-->>Agent: token stream
         Agent-->>Pipeline: fullStream (AsyncIterable)
         loop each chunk
-            Pipeline->>Pipeline: TextDeltaHandler → ReasoningHandler → ToolCallHandler → CompletionHandler → MetadataHandler
+            Pipeline->>Pipeline: ReasoningHandler → TextDeltaHandler → ToolCallHandler → MetadataHandler → CompletionHandler
             Pipeline-->>UI: SSE data: {type, ...}
         end
         alt tool call required
@@ -207,8 +207,8 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> Defined: agent JSON written to .stallion-ai/agents/
-    Defined --> Loading: createAgentInstance()
-    Loading --> MCPConnect: MCPManager.loadTools()
+    Defined --> Loading: framework.createAgent()
+    Loading --> MCPConnect: framework.loadTools()
     MCPConnect --> Ready: agent registered in activeAgents
     Ready --> Running: POST /api/agents/:slug/chat
     Running --> Ready: stream complete
@@ -220,7 +220,7 @@ stateDiagram-v2
 
 **Define** — An agent is a JSON file in `.stallion-ai/agents/<slug>/agent.json` (schema: `schemas/agent.schema.json`). It specifies model, prompt, tools, guardrails, and MCP server references.
 
-**Load** — `createAgentInstance()` reads the spec, resolves the Bedrock model, creates a `FileMemoryAdapter`, and delegates to the active framework adapter.
+**Load** — `framework.createAgent()` reads the spec, resolves the model via the configured provider, creates a `FileMemoryAdapter`, and delegates to the active framework adapter (VoltAgent or Strands).
 
 **Chat** — `agent.streamText()` is called with the user input and conversation context. The result's `fullStream` is piped through the `StreamPipeline` and written as SSE.
 
@@ -280,9 +280,9 @@ graph LR
     IS --> RH[ReasoningHandler]
     RH --> TDH[TextDeltaHandler]
     TDH --> TCH[ToolCallHandler]
-    TCH --> CH[CompletionHandler]
-    CH --> MH[MetadataHandler]
-    MH --> SSE[SSE writer]
+    TCH --> MH[MetadataHandler]
+    MH --> CH[CompletionHandler]
+    CH --> SSE[SSE writer]
 ```
 
 | Handler | Responsibility |
@@ -290,8 +290,8 @@ graph LR
 | `ReasoningHandler` | Buffers `<thinking>` blocks; emits `reasoning` events; holds all chunks during thinking so injected approval events appear at the right boundary |
 | `TextDeltaHandler` | Pass-through for text events (reasoning handler already formats them correctly) |
 | `ToolCallHandler` | Augments `tool-call` events with parsed `server` and `tool` fields for UI display |
-| `CompletionHandler` | Tracks accumulated text, finish reason, and whether any output was produced |
 | `MetadataHandler` | Emits usage stats and monitoring events on stream completion |
+| `CompletionHandler` | Tracks accumulated text, finish reason, and whether any output was produced |
 
 The `InjectableStream` wrapper allows the elicitation callback to inject `tool-approval-request` events into the stream at chunk boundaries without modifying the underlying `fullStream`.
 
@@ -304,16 +304,20 @@ Abort is handled via `AbortController` — the pipeline checks the signal before
 | Extension Point | How to Hook In |
 |---|---|
 | **Auth provider** | Plugin registers `AuthProvider` — controls login, session validation, and user identity |
+| **User identity** | Plugin registers `UserIdentityProvider` — supplies user alias, name, and profile |
+| **User directory** | Plugin registers `UserDirectoryProvider` — user lookup and search |
 | **Agent registry** | Plugin registers `AgentRegistryProvider` — supplies the browsable agent catalog |
-| **Tool registry** | Plugin registers `ToolRegistryProvider` — supplies the browsable tool/MCP catalog |
+| **Integration registry** | Plugin registers `IntegrationRegistryProvider` — supplies the browsable MCP integration catalog |
+| **Skill registry** | Plugin registers `SkillRegistryProvider` — supplies the browsable skill catalog |
+| **Plugin registry** | Plugin registers `PluginRegistryProvider` — supplies the plugin marketplace/catalog |
 | **Branding** | Plugin registers `BrandingProvider` — overrides logo, colors, app name |
 | **Settings** | Plugin registers `SettingsProvider` — adds plugin-specific settings UI |
-| **Onboarding** | Plugin registers `OnboardingProvider` — controls the first-run flow |
+| **Notification provider** | Plugin registers `NotificationProvider` — contributes notifications via `poll()` |
 | **MCP tools** | Any stdio/HTTP/WebSocket MCP server can be referenced in an agent's `tools.mcpServers` |
 | **ACP connections** | Any CLI that implements the Agent Client Protocol can be connected via `/acp/connections` |
 | **Voice providers** | Plugins register `STTProvider`, `TTSProvider`, or `ConversationalVoiceProvider` via `voiceRegistry` (SDK) |
 | **Context providers** | Plugins register `MessageContextProvider` via `contextRegistry` (SDK) to inject context into chat messages |
-| **Workspace providers** | Plugins register layout-level data providers via `registerProvider` (SDK) |
+| **Layout providers** | Plugins register layout-level data providers via `registerProvider` (SDK) |
 | **Scheduler** | Agents can be invoked on a cron schedule via `POST /scheduler/jobs` |
 
 ---
@@ -330,7 +334,7 @@ The plugin UI contract. Exports React hooks (`useAgents`, `useConversations`, `u
 Multi-host connection management for mobile and remote scenarios. Exports `ConnectionStore`, `ConnectionsProvider`, `useConnectionStatus`, `useHostUrl`, `QRDisplay`, `QRScanner`, and `ConnectionManagerModal`. Handles server discovery, QR-based pairing, and connection persistence via a pluggable `StorageAdapter`.
 
 ### `packages/shared/` — `@stallion-ai/shared`
-Build utilities shared between the server and plugin toolchain — primarily `buildPlugin()` and `copyPluginTools()` used by the plugin install flow.
+Build utilities shared between the server and plugin toolchain — primarily `buildPlugin()` and `copyPluginIntegrations()` used by the plugin install flow.
 
 ### `packages/cli/` — `@stallion-ai/cli`
 The `stallion` CLI binary. Wraps the server startup and provides developer commands.

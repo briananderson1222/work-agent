@@ -14,7 +14,7 @@ This document describes all REST API endpoints available in Stallion.
 ## Table of Contents
 
 - [Agent Management](#agent-management)
-- [Tool Management](#tool-management)
+- [Integration Management](#integration-management)
 - [Layout Management](#layout-management)
 - [Workflow Management](#workflow-management)
 - [Conversation Management](#conversation-management)
@@ -275,11 +275,11 @@ GET /agents/:slug/health
 
 ---
 
-## Tool Management
+## Integration Management
 
-### List All Tools
+### List All Integrations
 ```http
-GET /tools
+GET /integrations
 ```
 
 **Response**:
@@ -300,7 +300,70 @@ GET /tools
 }
 ```
 
-**Used by**: Tool management view
+**Used by**: Integration management view
+
+---
+
+### Create Integration
+```http
+POST /integrations
+```
+
+**Request Body**: Integration definition (same shape as `integration.json`).
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": { /* created integration */ }
+}
+```
+
+---
+
+### Get Integration
+```http
+GET /integrations/:id
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": { /* integration definition */ }
+}
+```
+
+---
+
+### Update Integration
+```http
+PUT /integrations/:id
+```
+
+**Request Body**: Partial integration definition.
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": { /* updated integration */ }
+}
+```
+
+---
+
+### Delete Integration
+```http
+DELETE /integrations/:id
+```
+
+**Response**:
+```json
+{
+  "success": true
+}
+```
 
 ---
 
@@ -358,7 +421,7 @@ POST /agents/:slug/tools
 }
 ```
 
-**Used by**: Agent editor, tool management
+**Used by**: Agent editor, integration management
 
 ---
 
@@ -374,7 +437,7 @@ DELETE /agents/:slug/tools/:toolId
 }
 ```
 
-**Used by**: Agent editor, tool management
+**Used by**: Agent editor, integration management
 
 ---
 
@@ -432,34 +495,9 @@ PUT /agents/:slug/tools/aliases
 
 ---
 
-### Get Q Developer Agents
-```http
-GET /q-agents
-```
-
-Returns Q Developer CLI agents from `~/.aws/amazonq/cli-agents.json`.
-
-**Response**:
-```json
-{
-  "success": true,
-  "agents": [
-    {
-      "name": "Q Agent",
-      "description": "...",
-      ...
-    }
-  ]
-}
-```
-
-**Used by**: Q Developer integration features
-
----
-
 ## Layout Management
 
-### List All Workspaces
+### List All Layouts
 ```http
 GET /layouts
 ```
@@ -491,7 +529,7 @@ GET /layouts
 
 ---
 
-### Get Workspace
+### Get Layout
 ```http
 GET /layouts/:slug
 ```
@@ -508,7 +546,7 @@ GET /layouts/:slug
 
 ---
 
-### Create Workspace
+### Create Layout
 ```http
 POST /layouts
 ```
@@ -550,7 +588,7 @@ POST /layouts
 
 ---
 
-### Update Workspace
+### Update Layout
 ```http
 PUT /layouts/:slug
 ```
@@ -569,7 +607,7 @@ PUT /layouts/:slug
 
 ---
 
-### Delete Workspace
+### Delete Layout
 ```http
 DELETE /layouts/:slug
 ```
@@ -1287,43 +1325,6 @@ Execute a tool directly without LLM processing.
 
 ---
 
-### Transform Invocation (Tool + Transform)
-```http
-POST /agents/:slug/invoke/transform
-```
-
-Execute a tool and apply a JavaScript transformation function.
-
-**Request Body**:
-```json
-{
-  "toolName": "files_list_directory",
-  "toolArgs": {
-    "path": "/home/user/documents"
-  },
-  "transform": "(data) => data.files.map(f => ({ name: f.name, size: f.size }))"
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "response": [
-    { "title": "Meeting", "start": "2025-12-08T10:00:00Z" }
-  ],
-  "debug": {
-    "toolDuration": 150.5,
-    "transformDuration": 2.1,
-    "totalDuration": 155.8
-  }
-}
-```
-
-**Used by**: Stallion layout, custom data transformations
-
----
-
 ### Streaming Invocation
 ```http
 POST /agents/:slug/invoke/stream
@@ -1455,8 +1456,8 @@ Triggered when error message contains:
 ### Components Using Direct API Calls
 
 - **ChatDock**: Uses the custom `/api/agents/:slug/chat` streaming endpoint
-- **Stallion Workspace**: `/agents/:slug/invoke/transform`, `/agents/:slug/tools/:toolName`
-- **Agent Editor**: Tool management endpoints
+- **Stallion Layout**: `/agents/:slug/tools/:toolName`
+- **Agent Editor**: Integration management endpoints
 - **Settings View**: Configuration endpoints
 
 ---
@@ -2140,9 +2141,9 @@ DELETE /registry/agents/:id
 
 ---
 
-### List Available Tools (Registry)
+### List Available Integrations (Registry)
 ```http
-GET /registry/tools
+GET /registry/integrations
 ```
 
 **Response**:
@@ -2152,9 +2153,9 @@ GET /registry/tools
 
 ---
 
-### List Installed Tools (Registry)
+### List Installed Integrations (Registry)
 ```http
-GET /registry/tools/installed
+GET /registry/integrations/installed
 ```
 
 **Response**:
@@ -2164,12 +2165,12 @@ GET /registry/tools/installed
 
 ---
 
-### Install Tool from Registry
+### Install Integration from Registry
 ```http
-POST /registry/tools/install
+POST /registry/integrations/install
 ```
 
-Installs a tool and auto-generates its `tool.json` from provider metadata.
+Installs an integration and auto-generates its `integration.json` from provider metadata.
 
 **Request Body**:
 ```json
@@ -2183,9 +2184,9 @@ Installs a tool and auto-generates its `tool.json` from provider metadata.
 
 ---
 
-### Uninstall Tool from Registry
+### Uninstall Integration from Registry
 ```http
-DELETE /registry/tools/:id
+DELETE /registry/integrations/:id
 ```
 
 **Response**:
@@ -2195,12 +2196,110 @@ DELETE /registry/tools/:id
 
 ---
 
-### Sync Tool Registry
+### Sync Integration Registry
 ```http
-POST /registry/tools/sync
+POST /registry/integrations/sync
 ```
 
-Triggers a sync of the tool registry provider.
+Triggers a sync of the integration registry provider.
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### List Available Skills (Registry)
+```http
+GET /registry/skills
+```
+
+Lists skills available in the configured registry provider.
+
+**Response**:
+```json
+{ "success": true, "data": [{ "id": "my-skill", "description": "..." }] }
+```
+
+---
+
+### Install Skill from Registry
+```http
+POST /registry/skills/install
+```
+
+**Request Body**:
+```json
+{ "id": "my-skill" }
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### Uninstall Skill from Registry
+```http
+DELETE /registry/skills/:id
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### List Available Plugins (Registry)
+```http
+GET /registry/plugins
+```
+
+Lists plugins available in the configured registry provider.
+
+**Response**:
+```json
+{ "success": true, "data": [{ "id": "my-plugin", "version": "1.0.0", "description": "..." }] }
+```
+
+---
+
+### List Installed Plugins (Registry)
+```http
+GET /registry/plugins/installed
+```
+
+**Response**:
+```json
+{ "success": true, "data": [{ "id": "my-plugin", "version": "1.0.0" }] }
+```
+
+---
+
+### Install Plugin from Registry
+```http
+POST /registry/plugins/install
+```
+
+**Request Body**:
+```json
+{ "id": "my-plugin" }
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+### Uninstall Plugin from Registry
+```http
+DELETE /registry/plugins/:id
+```
 
 **Response**:
 ```json
@@ -2612,6 +2711,161 @@ Open-CORS endpoint that LAN clients can probe to detect a Stallion server withou
   "port": 3141
 }
 ```
+
+---
+
+## Global Routes
+
+### Global Invoke (No Agent Context)
+```http
+POST /invoke
+```
+
+Lightweight multi-turn invocation without a named agent. Supports tool calling and structured output.
+
+**Request Body**:
+```json
+{
+  "prompt": "What is 2+2?",
+  "schema": { "type": "object", "properties": { "answer": { "type": "number" } } },
+  "tools": ["calculator"],
+  "maxSteps": 5,
+  "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "response": "4"
+}
+```
+
+---
+
+### Tool Approval Response
+```http
+POST /tool-approval/:approvalId
+```
+
+Approve or reject a pending tool call.
+
+**Request Body**:
+```json
+{
+  "approved": true
+}
+```
+
+**Response**:
+```json
+{
+  "success": true
+}
+```
+
+**Used by**: `useToolApproval.ts`, `ToolApprovalHandler.ts`
+
+---
+
+### Global Conversation Lookup
+```http
+GET /api/conversations/:id
+```
+
+Looks up a conversation by ID across all agents and projects.
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "conv-123",
+    "agentSlug": "my-agent",
+    "title": "Conversation Title"
+  }
+}
+```
+
+---
+
+## Additional System Routes
+
+### Get Runtime Info
+```http
+GET /api/system/runtime
+```
+
+Returns the current runtime type.
+
+**Response**:
+```json
+{ "runtime": "voltagent" }
+```
+
+---
+
+### List Skills
+```http
+GET /api/system/skills
+```
+
+Returns available skills.
+
+---
+
+### Get Terminal Port
+```http
+GET /api/system/terminal-port
+```
+
+Returns the terminal WebSocket port.
+
+---
+
+## UI Commands
+
+### Dispatch UI Command
+```http
+POST /api/ui
+```
+
+Dispatches a command to the frontend via the event bus.
+
+**Request Body**:
+```json
+{
+  "command": "navigate",
+  "args": { "path": "/settings" }
+}
+```
+
+**Response**:
+```json
+{ "success": true }
+```
+
+---
+
+## Additional Analytics
+
+### Clear Usage Data
+```http
+DELETE /api/analytics/usage
+```
+
+Clears all usage analytics data.
+
+**Response**:
+```json
+{
+  "data": {},
+  "message": "Usage data cleared"
+}
+```
+
+**Used by**: `UsageStatsPanel.tsx`
 
 ---
 

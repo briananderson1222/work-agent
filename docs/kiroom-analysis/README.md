@@ -4,17 +4,17 @@ A thorough analysis of KiRoom's architecture and features, with concrete recomme
 
 ## Documents
 
-| Document | Description |
-|----------|-------------|
-| [Executive Summary](./00-executive-summary.md) | High-level overview, priority matrix, and recommended adoption order |
-| [Threading & Conversations](./01-threading-model.md) | Threads, forking, family trees, message groups — the core interaction model |
-| [Insights & Feedback](./02-insights-feedback.md) | Rating system, automated analysis, template proposals — the "learning loop" |
-| [ACP Integration](./03-acp-integration.md) | Session management, tool approvals, sub-agents, context compaction |
-| [Search & Navigation](./04-search-navigation.md) | Cross-room search, URL filters, deep links, unread tracking |
-| [Files & Notes](./05-files-notes.md) | Room files, thread files, doc collaboration, notes system |
-| [Queue & Dispatch](./06-queue-dispatch.md) | Server-side message queuing, countdown, retry, crash recovery |
-| [Settings & Preferences](./07-settings-preferences.md) | Per-room/thread settings, themes, trusted tools, agent config |
-| [Audit Addendum](./08-audit-addendum.md) | Second-pass findings: quote & respond, MCP prompt discovery, backup/recovery, draft persistence, and more |
+| Document | Description | Status |
+|----------|-------------|--------|
+| [Executive Summary](./00-executive-summary.md) | High-level overview, priority matrix, and recommended adoption order | Updated |
+| [Threading & Conversations](./01-threading-model.md) | Threads, forking, family trees, message groups — the core interaction model | ❌ Not started |
+| [Insights & Feedback](./02-insights-feedback.md) | Rating system, automated analysis, template proposals — the "learning loop" | ✅ Done |
+| [ACP Integration](./03-acp-integration.md) | Session management, tool approvals, sub-agents, context compaction | 🟡 Partial |
+| [Search & Navigation](./04-search-navigation.md) | Cross-room search, URL filters, deep links, unread tracking | ❌ Not started |
+| [Files & Notes](./05-files-notes.md) | Room files, thread files, doc collaboration, notes system | 🟡 Partial |
+| [Queue & Dispatch](./06-queue-dispatch.md) | Server-side message queuing, countdown, retry, crash recovery | 🟡 Partial |
+| [Settings & Preferences](./07-settings-preferences.md) | Per-room/thread settings, themes, trusted tools, agent config | ❌ Not started |
+| [Audit Addendum](./08-audit-addendum.md) | Second-pass findings: quote & respond, MCP prompt discovery, backup/recovery, draft persistence, and more | ❌ Mostly not started |
 
 ## How to Read This
 

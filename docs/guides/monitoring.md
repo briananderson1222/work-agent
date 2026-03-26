@@ -51,6 +51,8 @@ All instruments are defined in `src-server/telemetry/metrics.ts` and are safe to
 
 ### Counters
 
+#### Chat & Tokens
+
 | Metric                      | Description                                              | Labels         |
 |-----------------------------|----------------------------------------------------------|----------------|
 | `stallion.chat.requests`    | Total chat requests                                      | `agent`        |
@@ -61,12 +63,73 @@ All instruments are defined in `src-server/telemetry/metrics.ts` and are safe to
 | `stallion.chat.errors`      | Total chat errors                                        | `agent`        |
 | `stallion.cost.estimated`   | Estimated cost in USD (cumulative)                       | `agent`        |
 
+#### Plugins
+
+| Metric                        | Description              | Labels   |
+|-------------------------------|--------------------------|----------|
+| `stallion.plugin.installs`    | Plugin install events    | —        |
+| `stallion.plugin.uninstalls`  | Plugin uninstall events  | —        |
+| `stallion.plugin.updates`     | Plugin update events     | —        |
+
+#### CRUD Operations
+
+| Metric                        | Description              | Labels      |
+|-------------------------------|--------------------------|-------------|
+| `stallion.agent.operations`   | Agent CRUD operations    | `operation` |
+| `stallion.layout.operations`  | Layout CRUD operations   | `operation` |
+| `stallion.project.operations` | Project CRUD operations  | `operation` |
+| `stallion.prompt.operations`  | Prompt CRUD operations   | `operation` |
+
+#### Providers & Infrastructure
+
+| Metric                             | Description                              | Labels      |
+|------------------------------------|------------------------------------------|-------------|
+| `stallion.provider.operations`     | Provider register/remove/health events   | `op`        |
+| `stallion.notification.operations` | Notification schedule/deliver/dismiss    | `op`        |
+| `stallion.scheduler.job.runs`      | Scheduler job executions                 | —           |
+| `stallion.mcp.lifecycle`           | MCP connection lifecycle events          | `event`     |
+| `stallion.knowledge.operations`    | Knowledge query/index operations         | `op`        |
+| `stallion.feedback.operations`     | Feedback submission events               | `op`        |
+| `stallion.approval.operations`     | Tool approval request/approve/deny       | `op`        |
+| `stallion.terminal.operations`     | Terminal session lifecycle events        | `op`        |
+| `stallion.acp.operations`          | ACP connection lifecycle events          | `op`        |
+| `stallion.voice.operations`        | Voice session lifecycle events           | `op`        |
+| `stallion.template.operations`     | Template list/apply events               | `op`        |
+| `stallion.conversation.operations` | Conversation lifecycle events            | `operation` |
+| `stallion.coding.operations`       | Coding session events                    | `op`        |
+| `stallion.auth.operations`         | Auth lifecycle events                    | `op`        |
+| `stallion.filetree.operations`     | File tree browse events                  | `op`        |
+| `stallion.registry.operations`     | Registry install/uninstall events        | `op`        |
+
+#### Skills
+
+| Metric                          | Description              | Labels |
+|---------------------------------|--------------------------|--------|
+| `stallion.skill.discoveries`    | Skill discovery events   | —      |
+| `stallion.skill.activations`    | Skill activation events  | —      |
+
+#### Other
+
+| Metric                          | Description                    | Labels |
+|---------------------------------|--------------------------------|--------|
+| `stallion.analytics.operations` | Analytics query events         | `op`   |
+| `stallion.bedrock.operations`   | Bedrock model catalog events   | `op`   |
+| `stallion.config.operations`    | App config read/write events   | `op`   |
+| `stallion.sse.operations`       | SSE connection events          | `op`   |
+| `stallion.insight.operations`   | Insight query events           | `op`   |
+| `stallion.system.operations`    | System status/verify events    | `op`   |
+| `stallion.uicommand.operations` | UI command execution events    | `op`   |
+
 ### Histograms
 
-| Metric                   | Unit | Description                  | Labels  |
-|--------------------------|------|------------------------------|---------|
-| `stallion.chat.duration` | ms   | Chat request duration        | `agent` |
-| `stallion.tool.duration` | ms   | Tool execution duration      | `tool`  |
+| Metric                              | Unit | Description                            | Labels  |
+|-------------------------------------|------|----------------------------------------|---------|
+| `stallion.chat.duration`            | ms   | Chat request duration                  | `agent` |
+| `stallion.tool.duration`            | ms   | Tool execution duration                | `tool`  |
+| `stallion.scheduler.job.duration`   | ms   | Scheduler job execution duration       | —       |
+| `stallion.approval.duration`        | ms   | Time from approval request to decision | —       |
+| `stallion.voice.duration`           | ms   | Voice session duration                 | —       |
+| `stallion.skill.activation.duration`| ms   | Skill activation duration              | —       |
 
 ### Observable Gauges
 
@@ -99,26 +162,38 @@ The Grafana dashboard shows both total estimated cost (stat panel) and cost brok
 
 ## Grafana Dashboard
 
-The dashboard (`monitoring/grafana/dashboards/stallion.json`) contains 16 panels:
+The dashboard (`monitoring/grafana/dashboards/stallion.json`) contains 28 panels:
 
 | # | Title | Type | Category |
 |---|-------|------|----------|
-| 1 | Chat Requests | stat | Requests |
-| 2 | Active Agents | stat | Requests |
-| 3 | MCP Connections | stat | Requests |
-| 4 | Errors | stat | Errors |
-| 5 | Chat Duration (p95) | stat | Latency |
-| 6 | Token Usage | stat | Tokens |
-| 7 | Requests by Agent | bargauge | Requests |
-| 8 | Requests Over Time | timeseries | Requests |
-| 9 | Token Consumption Over Time | timeseries | Tokens |
-| 10 | Tool Calls | bargauge | Tools |
-| 11 | Tool Duration (p95) | timeseries | Tools |
-| 12 | Context Overhead vs Input Tokens | timeseries | Tokens |
-| 13 | Estimated Cost | stat | Costs |
-| 14 | Cost by Agent | bargauge | Costs |
-| 15 | Error Rate | timeseries | Errors |
-| 16 | Chat Duration Distribution | timeseries | Latency |
+| 1 | Chat Requests | stat | General |
+| 2 | Active Agents | stat | General |
+| 3 | MCP Connections | stat | General |
+| 4 | Errors | stat | General |
+| 5 | Estimated Cost | stat | General |
+| 6 | Chat p95 | stat | General |
+| 7 | Requests Over Time | timeseries | General |
+| 8 | Token Consumption | timeseries | General |
+| 9 | Requests by Agent | bargauge | General |
+| 10 | Tool Calls | bargauge | General |
+| 11 | Agent Operations | bargauge | CRUD Operations |
+| 12 | Layout Operations | bargauge | CRUD Operations |
+| 13 | Prompt Operations | bargauge | CRUD Operations |
+| 14 | Project Operations | bargauge | CRUD Operations |
+| 15 | Plugin Activity | bargauge | Plugins |
+| 16 | Plugin Events Over Time | timeseries | Plugins |
+| 17 | Notifications | bargauge | Notifications & Scheduler |
+| 18 | Scheduler Jobs | bargauge | Notifications & Scheduler |
+| 19 | Scheduler Job Duration | timeseries | Notifications & Scheduler |
+| 20 | Provider Operations | bargauge | Providers & MCP |
+| 21 | MCP Lifecycle | bargauge | Providers & MCP |
+| 22 | Knowledge Operations | bargauge | Providers & MCP |
+| 23 | Tool Duration (p95) | timeseries | Performance |
+| 24 | Chat Duration Distribution | timeseries | Performance |
+| 25 | Context Overhead vs Input Tokens | timeseries | Performance |
+| 26 | Error Rate | timeseries | Performance |
+| 27 | Cost by Agent | bargauge | Performance |
+| 28 | Token Usage | stat | Performance |
 
 ## Distributed Traces (Jaeger)
 
@@ -251,6 +326,14 @@ Stallion extensions:
 
 **SSE stream**: `GET /monitoring/events` — real-time event stream for the Monitoring view.
 
-**Disk**: Events persist to `~/.stallion-ai/events/events-YYYY-MM-DD.ndjson` (one JSON object per line). Historical events are queryable via `GET /monitoring/events?since=<timestamp>`.
+**Disk**: Events persist to `~/.stallion-ai/monitoring/events-YYYY-MM-DD.ndjson` (one JSON object per line). Historical events are queryable via `GET /monitoring/events?start=<iso-or-ms>&end=<iso-or-ms>`.
 
 **UI**: The Monitoring view (`MonitoringContext.tsx`) subscribes to the SSE stream and displays events in real-time with filtering by agent, operation type, and time range.
+
+### Insights API
+
+`GET /api/insights` aggregates event data from the monitoring directory for the Insights Dashboard.
+
+- Reads all `events-*.ndjson` files from `~/.stallion-ai/monitoring/`
+- Returns parsed events for analytics and feedback analysis
+- Used by the `InsightsDashboard` component alongside the feedback tab

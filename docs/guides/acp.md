@@ -66,9 +66,11 @@ On `start()`, the bridge:
 | `connecting` | Subprocess spawned, handshake in progress |
 | `connected` | Session active, ready to handle prompts |
 | `error` | Startup failed |
+| `available` | Command found on PATH, ready to connect |
 | `unavailable` | Configured command not found on PATH |
+| `probing` | Periodic probe in progress (connect→discover→disconnect) |
 
-On subprocess exit, the bridge automatically schedules reconnection with exponential backoff (1s → 2s → 4s … up to 30s, max 5 attempts).
+On subprocess exit, the bridge automatically schedules reconnection with exponential backoff (1s → 2s → 4s … up to 30s).
 
 ### Session Persistence
 
@@ -340,11 +342,12 @@ ACP connections are configured in `<stallion-home>/config/acp.json`:
 Connections can also be managed at runtime via the REST API:
 
 ```
-GET    /acp/connections          List all connections with live status
-POST   /acp/connections          Add a new connection
-PUT    /acp/connections/:id      Update a connection (restarts it)
-DELETE /acp/connections/:id      Remove and shut down a connection
-GET    /acp/status               Get status of all connections
+GET    /acp/connections                List all connections with live status
+POST   /acp/connections                Add a new connection
+PUT    /acp/connections/:id            Update a connection (restarts it)
+DELETE /acp/connections/:id            Remove and shut down a connection
+POST   /acp/connections/:id/reconnect  Force reconnect a connection
+GET    /acp/status                     Get status of all connections
 ```
 
 ### SSE Status Events
@@ -423,4 +426,4 @@ The bridge blocks the prompt until the user responds at `POST /tool-approval/:ap
 
 If the subprocess keeps exiting and reconnecting, check:
 - The subprocess is not crashing on startup (run it manually)
-- `maxReconnectAttempts` (5) hasn't been exhausted — after 5 failures the bridge stops retrying and stays in `error` state. Restart Stallion or use `PUT /acp/connections/:id` to trigger a fresh start.
+- `maxReconnectAttempts` may be exhausted — after repeated failures the bridge stops retrying and stays in `error` state. Restart Stallion or use `POST /acp/connections/:id/reconnect` to trigger a fresh start.

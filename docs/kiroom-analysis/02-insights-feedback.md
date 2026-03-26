@@ -2,6 +2,15 @@
 
 ## Priority: 🔴 High
 
+## Implementation Status: ✅ DONE
+
+Implemented in Stallion as `FeedbackService` (`src-server/services/feedback-service.ts`). Key differences from KiRoom's approach:
+- Uses Stallion's own LLM router (via `AnalyzeCallback`) instead of spawning kiro-cli
+- `JsonFileStore` persistence at `~/.stallion-ai/feedback/feedback.json` instead of SQLite
+- `InsightsDashboard` has a dedicated feedback tab alongside existing monitoring metrics
+- Behavior guidelines injected via `stallion-runtime.ts` into all chat system prompts
+- Template proposals (Phase 3 in the recommendation) are NOT yet implemented
+
 This is KiRoom's most differentiated feature and the one I'd adopt first. It's relatively independent of the threading model and delivers immediate value.
 
 ## What KiRoom Built

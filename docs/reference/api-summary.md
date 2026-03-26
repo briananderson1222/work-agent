@@ -2,7 +2,7 @@
 
 ## Endpoint Overview
 
-### Stallion Endpoints (~177 endpoints total):
+### Stallion Endpoints (~203 endpoints total):
 
 #### Agent Management (5)
 - `GET /api/agents` - Enriched agent list
@@ -11,14 +11,17 @@
 - `DELETE /agents/:slug` - Delete agent
 - `GET /agents/:slug/health` - Health check
 
-#### Tool Management (7)
-- `GET /tools` - List all tools
+#### Integration Management (10)
+- `GET /integrations` - List all integrations
+- `POST /integrations` - Create integration
+- `GET /integrations/:id` - Get integration
+- `PUT /integrations/:id` - Update integration
+- `DELETE /integrations/:id` - Delete integration
 - `GET /agents/:slug/tools` - Get agent tools with schemas
 - `POST /agents/:slug/tools` - Add tool to agent
 - `DELETE /agents/:slug/tools/:toolId` - Remove tool
 - `PUT /agents/:slug/tools/allowed` - Update allow-list
 - `PUT /agents/:slug/tools/aliases` - Update aliases
-- `GET /q-agents` - Q Developer agents
 
 #### Layout Management (5)
 - `GET /layouts` - List layouts
@@ -52,21 +55,21 @@
 - `GET /bedrock/models/:modelId/validate` - Validate model
 - `GET /bedrock/models/:modelId` - Get model info
 
-#### Analytics (3)
+#### Analytics (4)
 - `GET /api/analytics/usage` - Usage statistics
 - `GET /api/analytics/achievements` - Achievements
 - `POST /api/analytics/rescan` - Rescan analytics
+- `DELETE /api/analytics/usage` - Clear usage data
 
 #### Monitoring (3)
 - `GET /monitoring/stats` - System stats
 - `GET /monitoring/metrics` - Historical metrics
 - `GET /monitoring/events` - Events (SSE stream)
 
-#### Agent Invocation (5)
+#### Agent Invocation (4)
 - `POST /api/agents/:slug/chat` - Custom chat stream (SSE)
 - `POST /agents/:slug/invoke` - Silent invocation (no memory)
 - `POST /agents/:slug/tools/:toolName` - Raw tool call
-- `POST /agents/:slug/invoke/transform` - Transform invocation
 - `POST /agents/:slug/invoke/stream` - Streaming invocation
 
 #### Model Capabilities (Legacy) (2)
@@ -93,7 +96,7 @@
 #### Insights (1)
 - `GET /insights` - Aggregated usage insights (tool, hourly, agent, model)
 
-#### Plugins (17)
+#### Plugins (16)
 - `GET /plugins` - List installed plugins
 - `POST /plugins/preview` - Pre-install validation
 - `POST /plugins/install` - Install plugin
@@ -111,18 +114,25 @@
 - `GET /plugins/:name/overrides` - Get provider overrides
 - `PUT /plugins/:name/overrides` - Update provider overrides
 
-#### Registry (9)
+#### Registry (16)
 - `GET /registry/agents` - List available agents
 - `GET /registry/agents/installed` - List installed agents
 - `POST /registry/agents/install` - Install agent
 - `DELETE /registry/agents/:id` - Uninstall agent
-- `GET /registry/tools` - List available tools
-- `GET /registry/tools/installed` - List installed tools
-- `POST /registry/tools/install` - Install tool
-- `DELETE /registry/tools/:id` - Uninstall tool
-- `POST /registry/tools/sync` - Sync tool registry
+- `GET /registry/integrations` - List available integrations
+- `GET /registry/integrations/installed` - List installed integrations
+- `POST /registry/integrations/install` - Install integration
+- `DELETE /registry/integrations/:id` - Uninstall integration
+- `POST /registry/integrations/sync` - Sync integration registry
+- `GET /registry/skills` - List available skills
+- `POST /registry/skills/install` - Install skill
+- `DELETE /registry/skills/:id` - Uninstall skill
+- `GET /registry/plugins` - List available plugins
+- `GET /registry/plugins/installed` - List installed plugins
+- `POST /registry/plugins/install` - Install plugin
+- `DELETE /registry/plugins/:id` - Uninstall plugin
 
-#### Scheduler (17)
+#### Scheduler (16)
 - `GET /scheduler/providers` - List scheduler providers
 - `GET /scheduler/events` - Scheduler SSE event stream
 - `POST /scheduler/webhook` - Webhook receiver
@@ -140,16 +150,16 @@
 - `DELETE /scheduler/jobs/:target` - Delete job
 - `POST /scheduler/open` - Open file with OS handler
 
-#### System (7)
+#### System (10)
 - `GET /system/status` - System readiness status
 - `POST /system/verify-bedrock` - Verify Bedrock credentials
 - `GET /system/core-update` - Check for core app update
 - `POST /system/core-update` - Apply core app update
 - `GET /system/capabilities` - Server runtime capabilities
 - `GET /system/discover` - LAN discovery beacon
-- `GET /system/vapid-public-key` - VAPID key for Web Push
-- `POST /system/push-subscribe` - Subscribe to Web Push
-- `POST /system/push-unsubscribe` - Unsubscribe from Web Push
+- `GET /system/runtime` - Runtime info
+- `GET /system/skills` - List skills
+- `GET /system/terminal-port` - Terminal port info
 
 #### ACP (8)
 - `GET /acp/status` - ACP connection status
@@ -254,6 +264,14 @@
 #### Telemetry Events (1)
 - `POST /api/telemetry/events` - Ingest plugin telemetry events
 
+#### Global Routes (3)
+- `POST /invoke` - Lightweight multi-turn invocation (no named agent)
+- `POST /tool-approval/:approvalId` - Approve/reject pending tool call
+- `GET /api/conversations/:id` - Global conversation lookup
+
+#### UI Commands (1)
+- `POST /api/ui` - Dispatch UI command to frontend
+
 ---
 
 ## Category Breakdown
@@ -261,15 +279,15 @@
 | Category | Count |
 |----------|-------|
 | Agent Management | 5 |
-| Tool Management | 7 |
+| Integration Management | 10 |
 | Layout Management | 5 |
 | Workflow Management | 5 |
 | Conversation Management | 6 |
 | Configuration | 2 |
 | Bedrock Models | 4 |
-| Analytics | 3 |
+| Analytics | 4 |
 | Monitoring | 3 |
-| Agent Invocation | 5 |
+| Agent Invocation | 4 |
 | Model Capabilities (Legacy) | 2 |
 | Auth & Users | 6 |
 | Branding | 1 |
@@ -277,9 +295,9 @@
 | File System | 1 |
 | Insights | 1 |
 | Plugins | 16 |
-| Registry | 9 |
+| Registry | 16 |
 | Scheduler | 16 |
-| System | 9 |
+| System | 10 |
 | ACP | 8 |
 | Knowledge | 14 |
 | Projects | 12 |
@@ -291,7 +309,9 @@
 | Coding | 8 |
 | Providers | 9 |
 | Telemetry Events | 1 |
-| **Total** | **~177** |
+| Global Routes | 3 |
+| UI Commands | 1 |
+| **Total** | **~203** |
 
 ---
 
@@ -322,7 +342,6 @@
 | `useServerEvents` | `/events` (SSE) |
 | `useBranding` | `/api/branding` |
 | `useScheduler*` | `/scheduler/*` (jobs, stats, status, providers, events, logs) |
-| `useApprovalNotifications` | `/api/system/vapid-public-key`, `/api/system/push-subscribe`, `/api/system/push-unsubscribe` |
 | `useACPConnections` | `/acp/connections` |
 | `useToolApproval` | `/tool-approval/:approvalId` |
 | `useSlashCommands` | `/acp/commands/:agentSlug` |
@@ -356,7 +375,6 @@
 
 - **`POST /agents/:slug/invoke`** (🟢 Custom) - Silent invocation without memory loading
 - **`POST /agents/:slug/tools/:toolName`** (🟢 Custom) - Direct tool execution
-- **`POST /agents/:slug/invoke/transform`** (🟢 Custom) - Tool + JS transformation
 
 ### Auth Endpoints
 

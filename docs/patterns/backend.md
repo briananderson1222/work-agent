@@ -85,7 +85,7 @@ src-server/
 
 ## Refactoring Principles
 
-The backend is being refactored from a monolithic `stallion-runtime.ts` (~3,800 lines) to a layered architecture. Follow these principles:
+The backend has been refactored from a monolithic `stallion-runtime.ts` (~1,800 lines) to a layered architecture. Follow these principles:
 
 ### 1. Routes Handle HTTP Only
 
@@ -126,22 +126,25 @@ Each route file exports a factory function:
 // routes/agents.ts
 import { Hono } from 'hono';
 import type { AgentService } from '../services/agent-service.js';
+import { agentOps } from '../telemetry/metrics.js';
 
-interface AgentRouteDeps {
-  agentService: AgentService;
-  logger: Logger;
-}
-
-export function createAgentRoutes(deps: AgentRouteDeps) {
+export function createAgentRoutes(
+  agentService: AgentService,
+  reinitialize: () => Promise<void>,
+  getVoltAgent: () => any,
+) {
   const app = new Hono();
-  const { agentService, logger } = deps;
 
   app.get('/', async (c) => {
     try {
-      const agents = await agentService.listAgents();
-      return c.json(agents);
+      const voltAgent = getVoltAgent();
+      if (!voltAgent) {
+        return c.json({ success: false, error: 'VoltAgent not initialized' }, 500);
+      }
+      const coreAgents = await voltAgent.getAgents();
+      const enrichedAgents = await agentService.getEnrichedAgents(coreAgents);
+      return c.json({ success: true, data: enrichedAgents });
     } catch (error: any) {
-      logger.error('Failed to list agents', { error });
       return c.json({ success: false, error: error.message }, 500);
     }
   });
@@ -150,9 +153,11 @@ export function createAgentRoutes(deps: AgentRouteDeps) {
     try {
       const body = await c.req.json();
       const agent = await agentService.createAgent(body);
+      agentOps.add(1, { operation: 'create' });
+      await reinitialize();
       return c.json({ success: true, agent });
     } catch (error: any) {
-      logger.error('Failed to create agent', { error });
+      return c.json({ success: false, error: error.message }, 500);
       return c.json({ success: false, error: error.message }, 500);
     }
   });
@@ -424,19 +429,23 @@ async doSomething(): Promise<Result> {
 
 ### Stream Handler Pattern
 
-Handlers process chunks in a pipeline:
+Handlers process a stream using the async generator pattern:
 
 ```typescript
 export class MyHandler implements StreamHandler {
-  async handle(chunk: StreamChunk): Promise<StreamChunk | null> {
-    if (chunk.type === 'my-type') {
-      // Process and transform
-      return { ...chunk, processed: true };
+  name = 'my-handler';
+
+  async *process(input: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk> {
+    for await (const chunk of input) {
+      if (chunk.type === 'my-type') {
+        yield { ...chunk, processed: true };
+      } else {
+        yield chunk;  // Pass through unchanged
+      }
     }
-    return chunk;  // Pass through unchanged
   }
-  
-  async finalize(): Promise<HandlerResult> {
+
+  async finalize() {
     return { /* final state */ };
   }
 }
@@ -445,11 +454,12 @@ export class MyHandler implements StreamHandler {
 ### Pipeline Usage
 
 ```typescript
-const pipeline = new StreamPipeline();
+const pipeline = new StreamPipeline(abortSignal);
 pipeline
   .use(new ReasoningHandler({ enableThinking: true }))
   .use(new TextDeltaHandler())
   .use(new ToolCallHandler())
+  .use(new MetadataHandler(monitoringEvents, contextData))
   .use(new CompletionHandler());
 
 for await (const chunk of pipeline.run(stream)) {
@@ -559,6 +569,11 @@ This pattern is used in `stallion-runtime.ts` (OTel recording + monitoring event
 | `tool.duration` | `MetadataHandler.collectStats()` | Between `tool-call` and `tool-result` chunks |
 | `tokens.context`, `cost.estimated` | `tool-executor.ts` stats update | After framework hook fires |
 | `agents.active`, `mcp.connections` | `stallion-runtime.ts` init | Observable gauges, polled by SDK |
+| `plugin.installs`, `plugin.updates` | `routes/plugins.ts` | After install/update completes |
+| `scheduler.job.runs`, `scheduler.job.duration` | `builtin-scheduler.ts` | After job execution |
+| `knowledge.operations` | `routes/knowledge.ts` | On CRUD operations |
+
+> **45+ instruments total** — see `src-server/telemetry/metrics.ts` for the full list covering all domains (agents, layouts, projects, prompts, providers, notifications, MCP, feedback, approvals, terminals, ACP, voice, templates, conversations, coding, auth, etc.).
 
 ### Dashboard
 

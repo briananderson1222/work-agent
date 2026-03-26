@@ -8,6 +8,16 @@ Stallion has a single global ACP connection used for agent discovery and chat ro
 2. **No per-project context** — the ACP process runs in the server's cwd, not the project's working directory. Agents don't see the right files.
 3. **Duplicated UI** — ChatDock and the terminal ACP tab need the same chat rendering (messages, streaming, tool calls, approvals) but can't share components today.
 
+## Implementation Status
+
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 1: Extract Shared Chat Components | **Partial** | ChatMessageList, MessageBubble, StreamingMessage, ToolCallDisplay extracted to `src-ui/src/components/chat/`. ChatInput and useChat not yet extracted. |
+| Phase 2: ACPSessionPool Backend | **Not started** | |
+| Phase 3: Chat Route Integration | **Not started** | |
+| Phase 4: ACPChatPanel for Terminal Tabs | **Partial** | ACPChatPanel exists and is wired into CodingLayout. |
+| Phase 5: Hardening | **Not started** | |
+
 ## Reference: KiRoom's Approach
 
 KiRoom spawns one `kiro-cli acp` process per thread. Each `AcpSessionManager` owns a child process and speaks JSON-RPC 2.0 over stdin/stdout. Key patterns:

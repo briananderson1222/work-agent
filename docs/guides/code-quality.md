@@ -12,6 +12,8 @@ npm run build:server && npm run build:ui
 npm test -- --run                   # all tests pass
 ```
 
+> `packages/shared` has no build step — it's consumed directly as TypeScript source by the server and other packages.
+
 ## Biome Lint
 
 Auto-fix safe issues: `npx biome lint src-server/ src-ui/ packages/ --write --unsafe`

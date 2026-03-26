@@ -78,6 +78,7 @@ All fields:
 | `tools.required` | string[] | no | MCP tool IDs that must be installed |
 | `dependencies` | array | no | Other plugins this plugin depends on |
 | `knowledge` | object | no | Knowledge namespace configuration |
+| `settings` | PluginSettingField[] | no | Configurable settings (see Settings) |
 
 ### Provider Entry Fields
 
@@ -87,7 +88,7 @@ All fields:
 
 | Field | Description |
 |-------|-------------|
-| `type` | Provider type: `auth`, `branding`, `userIdentity`, `userDirectory`, `agentRegistry`, `toolRegistry`, `onboarding`, `settings` |
+| `type` | Provider type: `auth`, `branding`, `userIdentity`, `userDirectory`, `agentRegistry`, `integrationRegistry`, `skillRegistry`, `pluginRegistry`, `settings` (or any custom type via the generic provider registry) |
 | `module` | Path to the JS module (relative to plugin root) |
 | `layout` | Optional — scope this provider to a specific layout slug |
 
@@ -101,6 +102,49 @@ All fields:
 |-------|-------------|
 | `id` | Plugin name (must match the dependency's `plugin.json` `name`) |
 | `source` | Git URL or local path to install from if not already installed |
+
+### Settings
+
+Plugins can declare configurable settings that users edit in the Plugins UI. Values are persisted in `plugin-overrides.json` and passed to provider factory functions at load time.
+
+```json
+{
+  "settings": [
+    { "key": "apiEndpoint", "label": "API Endpoint", "type": "string", "default": "https://api.example.com" },
+    { "key": "maxRetries", "label": "Max Retries", "type": "number", "default": 3 },
+    { "key": "verbose", "label": "Verbose Logging", "type": "boolean", "default": false },
+    { "key": "apiKey", "label": "API Key", "type": "string", "secret": true },
+    { "key": "region", "label": "Region", "type": "select", "options": [
+      { "label": "US East", "value": "us-east-1" },
+      { "label": "EU West", "value": "eu-west-1" }
+    ]}
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key` | string | yes | Unique key within the plugin |
+| `label` | string | yes | Display label in the UI |
+| `type` | string | yes | `'string'`, `'number'`, `'boolean'`, or `'select'` |
+| `description` | string | no | Help text shown below the field |
+| `default` | any | no | Default value when no user value is saved |
+| `options` | array | no | For `type: 'select'` — `[{ label, value }]` |
+| `secret` | boolean | no | Mask input (for API keys) |
+| `required` | boolean | no | Show required indicator |
+
+Provider factory functions receive the current settings as their first argument:
+
+```js
+// providers/my-provider.js
+module.exports = (settings) => ({
+  async doSomething() {
+    const endpoint = settings.apiEndpoint || 'https://default.com';
+  },
+});
+```
+
+Settings are reloaded when the user saves — providers are automatically re-instantiated with the new values.
 
 ## layout.json
 
@@ -382,27 +426,9 @@ module.exports = () => ({
 
 Alternatively, point `module` at a JSON file and the server auto-wraps it with `JsonManifestRegistryProvider`.
 
-### toolRegistry
+### integrationRegistry
 
-Same interface as `agentRegistry` but for MCP tools.
-
-### onboarding
-
-```js
-module.exports = () => ({
-  async getPrerequisites() {
-    // Returns: Array<Prerequisite>
-    return [{
-      id: 'my-tool',
-      name: 'My Tool',
-      description: 'Required for X',
-      status: 'missing',
-      category: 'required',
-      installGuide: { steps: ['Run: brew install my-tool'], commands: ['brew install my-tool'] },
-    }];
-  },
-});
-```
+Same interface as `agentRegistry` but for MCP integrations.
 
 ### settings
 

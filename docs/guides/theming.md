@@ -205,8 +205,9 @@ if (theme) {
 Implement `IBrandingProvider` from `src-server/providers/types.ts` and register it:
 
 ```ts
-import type { IBrandingProvider } from '@stallion-ai/server';
-import { registerBrandingProvider } from '@stallion-ai/server';
+// Internal server imports — not a published npm package
+import type { IBrandingProvider } from '../providers/types.js';
+import { registerBrandingProvider } from '../providers/registry.js';
 
 class MyBranding implements IBrandingProvider {
   async getAppName() { return 'Acme AI'; }
@@ -221,3 +222,5 @@ registerBrandingProvider(new MyBranding());
 ```
 
 The provider is registered in the plugin or runtime entry point. The `getLogo`, `getTheme`, and `getWelcomeMessage` methods are all optional — omit any you don't need.
+
+> **Note:** For plugins, branding providers are loaded from the `providers/` directory in your plugin and registered automatically by the server when `"type": "branding"` is declared in `plugin.json`. You don't need to call `registerBrandingProvider` directly — just export the factory function from your module.

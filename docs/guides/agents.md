@@ -105,7 +105,7 @@ Tools not in `autoApprove` pause the stream and request user confirmation before
 Flow:
 1. `beforeToolCall` hook fires — checks `autoApprove` list via `isAutoApproved()`
 2. If not auto-approved, the hook calls `requestApproval` (wired per-request by the chat handler)
-3. `requestApproval` injects an `approval-request` SSE event into the stream
+3. `requestApproval` injects a `tool-approval-request` SSE event into the stream
 4. The client renders a confirmation UI and `POST /tool-approval/:approvalId` with `{ approved: true/false }`
 5. `ApprovalRegistry.resolve()` unblocks the hook; the tool executes or is skipped
 
@@ -142,27 +142,6 @@ The `InjectableStream` wrapper ensures approval events are emitted in the correc
 ---
 
 ## Quick Reference
-
-### Data Layer Architecture
-
-All layout data flows through typed abstractions:
-
-```
-Provider Interface (contract)  →  Provider Impl (plugin)        →  ViewModel (UI shape)
-  ICalendarProvider                 (plugin-provided)              CalendarEventVM
-  ICRMProvider                      (plugin-provided)              AccountVM, OpportunityVM
-  IInsightsProvider                  (plugin-provided)              InsightVM
-  IEmailProvider                    (plugin-provided)              EmailVM
-  IUserDirectoryProvider            (plugin-provided)              UserDetailVM
-```
-
-**Rules:**
-- Components consume **ViewModels only** — never raw API/tool responses
-- Provider implementations map raw responses to ViewModels via mapper functions (e.g., `mapAccount`, `mapInsight`)
-- Hooks in `data/index.ts` wrap providers with React Query — components use hooks, not providers directly
-- **No `as any` in new code** — use proper ViewModel types. Existing `any` usage in Calendar.tsx, CRM.tsx, StallionContext.tsx is tech debt to be migrated
-- Core app (`src-ui/src/`) never imports from layout providers — use SDK abstractions (`useAuth`, `useNavigation`, etc.)
-- The CRM page has a legacy local `Account` type that should be migrated to `AccountVM`
 
 ### Core Boundaries
 

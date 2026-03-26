@@ -54,19 +54,22 @@ POST /api/agents/default/chat
 | `/agents/:slug` | DELETE | ✅ in-use | `AgentsContext.tsx` (delete agent) |
 | `/agents/:slug/health` | GET | ⚪ not-in-use | Not used yet |
 
-### Tool Management (3/7)
+### Integration Management (3/9)
 
 | Endpoint | Method | Status | Used By |
 |----------|--------|--------|---------|
-| `/tools` | GET | ✅ in-use | `AgentEditorView.tsx`, `ToolManagementView.tsx`, `ToolsView.tsx` |
+| `/integrations` | GET | ✅ in-use | `AgentEditorView.tsx`, `ToolManagementView.tsx`, `ToolsView.tsx` |
+| `/integrations` | POST | ⚪ not-in-use | Not used yet |
+| `/integrations/:id` | GET | ⚪ not-in-use | Not used yet |
+| `/integrations/:id` | PUT | ⚪ not-in-use | Not used yet |
+| `/integrations/:id` | DELETE | ⚪ not-in-use | Not used yet |
 | `/agents/:slug/tools` | GET | ✅ in-use | `ConversationsContext.tsx`, `ToolManagementView.tsx` |
 | `/agents/:slug/tools` | POST | ✅ in-use | `ToolManagementView.tsx` (add tool to agent) |
 | `/agents/:slug/tools/:toolId` | DELETE | ⚪ not-in-use | Not used yet |
 | `/agents/:slug/tools/allowed` | PUT | ⚪ not-in-use | Not used yet |
 | `/agents/:slug/tools/aliases` | PUT | ⚪ not-in-use | Not used yet |
-| `/q-agents` | GET | ⚪ not-in-use | Not used yet |
 
-> **Update**: `ToolManagementView.tsx` uses `/tools` (GET), `/agents` (GET), `/agents/:slug/tools` (GET and POST), making tool management 3/7 in use rather than 1/7.
+> **Update**: `ToolManagementView.tsx` uses `/integrations` (GET), `/agents` (GET), `/agents/:slug/tools` (GET and POST), making integration management 3/9 in use rather than 1/7.
 
 ### Layout Management (5/5)
 
@@ -132,14 +135,13 @@ POST /api/agents/default/chat
 | `/monitoring/events` | GET | ✅ in-use | `MonitoringContext.tsx` (SSE stream + historical) |
 | `/monitoring/metrics` | GET | ⚪ not-in-use | Not used yet |
 
-### Agent Invocation (4/5)
+### Agent Invocation (3/4)
 
 | Endpoint | Method | Status | Used By |
 |----------|--------|--------|---------|
 | `/api/agents/:slug/chat` | POST | ✅ in-use | `ConversationsContext.tsx` (primary chat SSE stream) |
 | `/agents/:slug/invoke` | POST | ✅ in-use | `AgentEditorView.tsx` (prompt generation via `default` agent) |
 | `/agents/:slug/tools/:toolName` | POST | ✅ in-use | `stallion-layout` (direct tool calls) |
-| `/agents/:slug/invoke/transform` | POST | ✅ in-use | `stallion-layout` (tool + transform) |
 | `/agents/:slug/invoke/stream` | POST | ⚪ not-in-use | Not used yet |
 
 ### Model Capabilities (Legacy) (0/2)
@@ -211,7 +213,7 @@ POST /api/agents/default/chat
 | `/plugins/:name/overrides` | GET | ⚪ not-in-use | Not used yet |
 | `/plugins/:name/overrides` | PUT | ✅ in-use | `PluginManagementView.tsx` — called as `/api/plugins/:name/overrides` |
 
-### Registry (3/9)
+### Registry (3/20)
 
 | Endpoint | Method | Status | Used By |
 |----------|--------|--------|---------|
@@ -219,11 +221,18 @@ POST /api/agents/default/chat
 | `/registry/agents/installed` | GET | ⚪ not-in-use | Not used yet |
 | `/registry/agents/install` | POST | ⚪ not-in-use | Not used yet |
 | `/registry/agents/:id` | DELETE | ⚪ not-in-use | Not used yet |
-| `/registry/tools` | GET | ✅ in-use | `ToolsView.tsx` — called as `/api/registry/tools` |
-| `/registry/tools/installed` | GET | ⚪ not-in-use | Not used yet |
-| `/registry/tools/install` | POST | ✅ in-use | `ToolsView.tsx` — called as `/api/registry/tools/install` |
-| `/registry/tools/:id` | DELETE | ✅ in-use | `ToolsView.tsx` — called as `/api/registry/tools/:id` |
-| `/registry/tools/sync` | POST | ⚪ not-in-use | Not used yet |
+| `/registry/integrations` | GET | ✅ in-use | `ToolsView.tsx` — called as `/api/registry/integrations` |
+| `/registry/integrations/installed` | GET | ⚪ not-in-use | Not used yet |
+| `/registry/integrations/install` | POST | ✅ in-use | `ToolsView.tsx` — called as `/api/registry/integrations/install` |
+| `/registry/integrations/:id` | DELETE | ✅ in-use | `ToolsView.tsx` — called as `/api/registry/integrations/:id` |
+| `/registry/integrations/sync` | POST | ⚪ not-in-use | Not used yet |
+| `/registry/skills` | GET | ⚪ not-in-use | Not used yet |
+| `/registry/skills/install` | POST | ⚪ not-in-use | Not used yet |
+| `/registry/skills/:id` | DELETE | ⚪ not-in-use | Not used yet |
+| `/registry/plugins` | GET | ✅ in-use | `useRegistryPluginsQuery` hook |
+| `/registry/plugins/installed` | GET | ⚪ not-in-use | Not used yet |
+| `/registry/plugins/install` | POST | ✅ in-use | `usePluginRegistryInstallMutation` hook |
+| `/registry/plugins/:id` | DELETE | ✅ in-use | `usePluginRegistryInstallMutation` hook |
 
 ### Scheduler (12/16)
 
@@ -246,7 +255,7 @@ POST /api/agents/default/chat
 | `/scheduler/jobs/:target` | DELETE | ✅ in-use | `useDeleteJob` hook (`ScheduleView.tsx`) |
 | `/scheduler/open` | POST | ✅ in-use | `useOpenArtifact` hook (`ScheduleView.tsx`) |
 
-### System (6/9)
+### System (6/10)
 
 | Endpoint | Method | Status | Used By |
 |----------|--------|--------|---------|
@@ -256,9 +265,9 @@ POST /api/agents/default/chat
 | `/system/core-update` | POST | ✅ in-use | `SettingsView.tsx` (apply update) — called as `/api/system/core-update` |
 | `/system/capabilities` | GET | ✅ in-use | `useServerCapabilities.ts` hook — called as `/api/system/capabilities` |
 | `/system/discover` | GET | ⚪ not-in-use | LAN discovery — not called by the main frontend |
-| `/system/vapid-public-key` | GET | ✅ in-use | `useApprovalNotifications.ts` — called as `/api/system/vapid-public-key` |
-| `/system/push-subscribe` | POST | ✅ in-use | `useApprovalNotifications.ts` — called as `/api/system/push-subscribe` |
-| `/system/push-unsubscribe` | POST | ✅ in-use | `useApprovalNotifications.ts` — called as `/api/system/push-unsubscribe` |
+| `/system/runtime` | GET | ✅ in-use | Runtime info — called as `/api/system/runtime` |
+| `/system/skills` | GET | ⚪ not-in-use | List skills |
+| `/system/terminal-port` | GET | ⚪ not-in-use | Terminal port info |
 
 ---
 
@@ -274,7 +283,6 @@ These endpoints are called by the frontend but not yet documented in `api.md`:
 | `/acp/connections` | POST | `ACPConnectionsSection.tsx` | Add ACP connection |
 | `/acp/commands/:agentSlug` | GET | `useSlashCommands.ts` | ACP slash commands |
 | `/tool-approval/:approvalId` | POST | `useToolApproval.ts`, `ToolApprovalHandler.ts` | Approve/reject tool calls |
-| `/tools/test` | POST | `AgentEditorView.tsx` | Test a tool configuration |
 
 ### Voice (4/4)
 
@@ -350,7 +358,7 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 ### Least Used Endpoint Categories
 
 1. **Model Capabilities (Legacy)** - 0/2 endpoints (0%)
-2. **Registry** - 3/9 endpoints (33%) — only tool registry used
+2. **Registry** - 3/9 endpoints (33%) — only integration registry used
 3. **Workflow Management** - 1/5 endpoints (20%)
 4. **Bedrock Models** - 1/4 endpoints (25%)
 5. **Auth & Users** - 3/6 endpoints (50%)
@@ -385,16 +393,15 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 | `useSystemStatus.ts` | `/api/system/status`, `/api/system/verify-bedrock` |
 | `useServerCapabilities.ts` | `/api/system/capabilities` |
 | `useScheduler*.ts` | `/scheduler/jobs`, `/scheduler/stats`, `/scheduler/status`, `/scheduler/providers`, `/scheduler/events`, `/scheduler/jobs/:target/*`, `/scheduler/runs/output`, `/scheduler/open` |
-| `useApprovalNotifications.ts` | `/api/system/vapid-public-key`, `/api/system/push-subscribe`, `/api/system/push-unsubscribe` |
 | `useACPConnections.ts` | `/acp/connections` |
 | `useToolApproval.ts` | `/tool-approval/:approvalId` |
 | `useSlashCommands.ts` | `/acp/commands/:agentSlug` |
 | `PluginManagementView.tsx` | `/api/plugins` (GET/DELETE), `/api/plugins/preview`, `/api/plugins/install`, `/api/plugins/check-updates`, `/api/plugins/:name/update`, `/api/plugins/:name/providers`, `/api/plugins/:name/overrides` (PUT), `/api/plugins/reload`, `/api/fs/browse` |
 | `PluginRegistry.ts` | `/api/plugins`, `/api/plugins/:name/bundle.js`, `/api/plugins/:name/bundle.css` |
-| `ToolsView.tsx` | `/tools`, `/api/registry/tools`, `/api/registry/tools/install`, `/api/registry/tools/:id` |
-| `ToolManagementView.tsx` | `/tools`, `/agents`, `/agents/:slug/tools` (GET/POST) |
+| `ToolsView.tsx` | `/integrations`, `/api/registry/integrations`, `/api/registry/integrations/install`, `/api/registry/integrations/:id` |
+| `ToolManagementView.tsx` | `/integrations`, `/agents`, `/agents/:slug/tools` (GET/POST) |
 | `SettingsView.tsx` | `/api/system/status`, `/api/system/core-update` (GET/POST) |
-| `AgentEditorView.tsx` | `/api/agents`, `/tools`, `/agents/default/invoke`, `/tools/test` |
+| `AgentEditorView.tsx` | `/api/agents`, `/integrations`, `/agents/default/invoke` |
 | `InsightsDashboard.tsx` | `/api/insights/insights` |
 | `ActivityTimeline.tsx` | `/api/analytics/usage` |
 | `UsageStatsPanel.tsx` | `/api/analytics/usage` (DELETE) |
@@ -411,7 +418,6 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 ### High Priority
 1. ✅ Keep all "in-use" endpoints — they're actively serving the frontend
 2. 📝 Document ACP endpoints (`/acp/*`) and tool-approval (`/tool-approval/*`) in `api.md` — they're used but undocumented
-3. 📝 Document push notification endpoints (`/system/vapid-public-key`, `/system/push-subscribe`, `/system/push-unsubscribe`) in `api.md`
 
 ### Medium Priority
 4. 📊 Implement UI for historical metrics (`/monitoring/metrics`)

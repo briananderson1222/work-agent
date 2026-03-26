@@ -84,6 +84,40 @@ The notification system follows the provider pattern. Core is abstract — it kn
 - `dedupeTag` prevents duplicate notifications without core knowing the domain
 - Tool-approval was NOT migrated — it's streaming-event-driven (ephemeral), not a scheduled notification
 
+### Feedback system
+
+Two-tier feedback loop inspired by KiRoom. Core is provider-agnostic — works with any framework adapter.
+
+**Architecture:**
+- `FeedbackService` (`src-server/services/feedback-service.ts`) — ratings storage, two-tier LLM analysis, behavior guideline generation
+- REST API at `/feedback` — rate, list ratings, get summary, trigger analysis
+- `InsightsDashboard` — feedback tab alongside existing monitoring metrics
+- Behavior injection — `stallion-runtime.ts` injects `reinforce`/`avoid` lists into all chat system prompts
+
+**How it works:**
+1. User rates agent messages (thumbs up/down with optional reason)
+2. Mini-analysis (per-message): LLM analyzes why the user rated that way — runs every 10 minutes
+3. Full-analysis (aggregate): LLM distills all mini-analyses into top 25 behaviors to reinforce and avoid
+4. Guidelines auto-injected into agent system prompts — every session benefits from accumulated feedback
+
+**Storage:** `JsonFileStore` at `~/.stallion-ai/feedback/feedback.json`
+**OTel:** `stallion.feedback.operations` counter
+
+### Voice system
+
+Speech-to-speech via WebSocket. Plugin-extensible provider model.
+
+**Architecture:**
+- `VoiceSession` (`src-server/voice/voice-session.ts`) — manages WebSocket lifecycle, tool execution, provider delegation
+- `IS2SProvider` interface (`src-server/voice/s2s-types.ts`) — provider contract for speech-to-speech backends
+- Built-in provider: Nova Sonic (`src-server/voice/providers/nova-sonic.ts`)
+- Plugin providers: ElevenLabs, custom providers via `examples/elevenlabs-voice/` and `examples/nova-sonic-voice/`
+
+**Key patterns:**
+- Voice prompt prefix auto-prepended: "You are in voice mode. Be concise..."
+- Agent MCP tools translated to S2S tool definitions
+- OTel: `stallion.voice.operations` counter + `stallion.voice.duration` histogram
+
 ### Windows compatibility
 
 All `spawn()` and `execSync()` calls MUST include `windowsHide: true` to prevent console windows flashing on Windows. Use `where` instead of `which` for command lookups (`process.platform === 'win32'`).

@@ -571,9 +571,129 @@ const data = await callTool('my-agent', 'get_account', { id: '123' });
 
 Fetches app configuration imperatively.
 
-### `transformTool(agentSlug, toolName, toolArgs, transformFn): Promise<any>`
+### `createChatSession(agentSlug: string, name: string): string`
 
-**Removed.** Use `callTool` instead.
+Creates a new chat session and returns the session ID.
+
+### `fetchLayouts(): Promise<LayoutConfig[]>`
+
+Fetches all layouts imperatively.
+
+### `fetchAvailableLayouts(): Promise<any[]>`
+
+Fetches available layout sources (for adding layouts to projects).
+
+### `fetchProjectConversations(projectSlug: string, limit?: number): Promise<any[]>`
+
+Fetches recent conversations for a project.
+
+### `addProjectLayoutFromPlugin(projectSlug: string, plugin: string): Promise<any>`
+
+Adds a layout from an installed plugin to a project.
+
+### Knowledge API Functions
+
+#### `fetchKnowledgeDocs(projectSlug: string, namespace?: string): Promise<any[]>`
+
+Lists knowledge documents for a project.
+
+#### `fetchKnowledgeStatus(projectSlug: string): Promise<any>`
+
+Gets the knowledge index status for a project.
+
+#### `fetchKnowledgeDocContent(projectSlug: string, docId: string, namespace?: string): Promise<string>`
+
+Gets the content of a specific knowledge document.
+
+#### `fetchKnowledgeNamespaces(projectSlug: string): Promise<any[]>`
+
+Lists knowledge namespaces for a project.
+
+#### `searchKnowledge(projectSlug: string, query: string, namespace?: string): Promise<any[]>`
+
+Performs semantic search across a project's knowledge base.
+
+#### `uploadKnowledge(projectSlug: string, filename: string, content: string, namespace?: string, metadata?: Record<string, any>): Promise<any>`
+
+Uploads a document to the knowledge base.
+
+#### `scanKnowledgeDirectory(projectSlug: string, options?: { extensions?: string[]; includePatterns?: string[]; excludePatterns?: string[] }): Promise<any>`
+
+Triggers a directory scan to ingest documents.
+
+#### `updateKnowledgeNamespace(projectSlug: string, nsId: string, data: any): Promise<any>`
+
+Updates a knowledge namespace configuration.
+
+#### `deleteKnowledgeDoc(projectSlug: string, docId: string, namespace?: string): Promise<any>`
+
+Deletes a single knowledge document.
+
+#### `bulkDeleteKnowledgeDocs(projectSlug: string, ids: string[], namespace?: string): Promise<any>`
+
+Bulk-deletes knowledge documents.
+
+---
+
+## Plugin Query Hooks
+
+React Query wrappers for plugin management. Use these instead of raw `useQuery`.
+
+### `usePluginsQuery(config?)`
+
+Fetches all installed plugins. Cache key: `['plugins']`.
+
+### `usePluginUpdatesQuery(config?)`
+
+Checks for available plugin updates. Cache key: `['plugin-updates']`.
+
+### `useRegistryPluginsQuery(config?)`
+
+Fetches plugins available in the registry. Cache key: `['registry-plugins']`.
+
+### `usePluginInstallMutation()`
+
+Installs a plugin from a source URL. Invalidates plugins, layouts, and agents caches on success.
+
+```tsx
+const { mutate } = usePluginInstallMutation();
+mutate({ source: 'https://github.com/org/my-plugin.git', skip: ['agent:plugin:chat'] });
+```
+
+### `usePluginPreviewMutation()`
+
+Previews a plugin before installing. Returns manifest, components, conflicts.
+
+```tsx
+const { mutate } = usePluginPreviewMutation();
+mutate('https://github.com/org/my-plugin.git');
+```
+
+### `usePluginUpdateMutation()`
+
+Updates an installed plugin. Invalidates plugins cache on success.
+
+### `usePluginRemoveMutation()`
+
+Removes an installed plugin. Invalidates plugins and layouts caches on success.
+
+### `usePluginProviderToggleMutation()`
+
+Toggles plugin provider overrides (enable/disable specific providers).
+
+```tsx
+const { mutate } = usePluginProviderToggleMutation();
+mutate({ pluginName: 'my-plugin', disabled: ['auth'] });
+```
+
+### `usePluginRegistryInstallMutation()`
+
+Installs or uninstalls a plugin from the registry.
+
+```tsx
+const { mutate } = usePluginRegistryInstallMutation();
+mutate({ id: 'my-plugin', action: 'install' });
+```
 
 ---
 
@@ -688,6 +808,22 @@ interface AutoSelectModalProps<T = any> {
 
 Keyboard: `↑`/`↓` to navigate, `Enter` to select, `Escape` to close.
 
+### `ActionButton`
+
+Button with icon and label for layout action bars.
+
+### `AuthStatusBadge`
+
+Displays the current authentication status as a colored badge.
+
+### `FullScreenError`
+
+Full-viewport error display with message and optional retry action.
+
+### `LayoutHeader`
+
+Standard header component for layout plugins with title, tabs, and actions.
+
 ---
 
 ## Context Providers
@@ -765,24 +901,6 @@ Returns `true` if the slug is namespace-qualified.
 ```ts
 isLayoutAgent('sa-agent:my-agent'); // true
 isLayoutAgent('my-agent');          // false
-```
-
-### `agentQueries`
-
-Query factory for imperative fetching (e.g. in slash commands). Returns React Query config objects.
-
-```ts
-agentQueries.agent(agentSlug)                        // GET /agents/:slug
-agentQueries.tools(agentSlug)                        // GET /agents/:slug/tools
-agentQueries.stats(agentSlug, conversationId)        // GET /agents/:slug/conversations/:id/stats
-```
-
-```ts
-import { agentQueries } from '@stallion-ai/sdk';
-import { useQueryClient } from '@stallion-ai/sdk';
-
-const queryClient = useQueryClient();
-const agent = await queryClient.fetchQuery(agentQueries.agent('my-agent'));
 ```
 
 ---
@@ -919,7 +1037,7 @@ interface ContextCapability {
 
 ---
 
-## Workspace Providers
+## Layout Providers
 
 Plugin-defined data providers scoped to a layout (e.g. a CRM data source).
 
@@ -955,6 +1073,67 @@ interface ProviderMetadata {
   type: string;
 }
 ```
+
+---
+
+## Notifications API
+
+### `NotificationsAPI`
+
+Full REST client for programmatic notification access (outside React components).
+
+```ts
+import { NotificationsAPI } from '@stallion-ai/sdk';
+
+const api = new NotificationsAPI(apiBase);
+await api.create({ category: 'build', title: 'Build complete', priority: 'normal' });
+await api.dismiss(notificationId);
+const notifications = await api.list({ status: 'pending' });
+```
+
+---
+
+## Query Factories
+
+### `agentQueries`
+
+Query factory for imperative fetching (e.g. in slash commands). Returns React Query config objects.
+
+```ts
+agentQueries.agent(agentSlug)                        // GET /agents/:slug
+agentQueries.tools(agentSlug)                        // GET /agents/:slug/tools
+agentQueries.stats(agentSlug, conversationId)        // GET /agents/:slug/conversations/:id/stats
+```
+
+### `knowledgeQueries`
+
+Query factory for knowledge operations.
+
+```ts
+knowledgeQueries.list(projectSlug, namespace?)       // GET /api/projects/:slug/knowledge
+knowledgeQueries.search(projectSlug, query, ns?)     // POST /api/projects/:slug/knowledge/search
+knowledgeQueries.namespaces(projectSlug)             // GET /api/projects/:slug/knowledge/namespaces
+```
+
+---
+
+## Telemetry
+
+### `telemetry`
+
+Client-side telemetry utilities for plugins.
+
+```ts
+import { telemetry } from '@stallion-ai/sdk';
+```
+
+---
+
+## Layout Context
+
+### `createLayoutContext()`
+
+Creates a layout context for use in layout plugins. Used internally by `LayoutProvider`.
 
 ---
 

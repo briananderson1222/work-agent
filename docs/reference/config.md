@@ -33,6 +33,12 @@ Global settings applied across all agents and sessions.
 | `registryUrl` | string | — | URL for the plugin registry |
 | `runtime` | `"voltagent"` \| `"strands"` | `"voltagent"` | Agent framework runtime. Use `--features=strands-runtime` to opt in to Strands. |
 | `gitRemote` | string | — | Git remote URL, resolved on first build for update checks |
+| `logLevel` | `"trace"` \| `"debug"` \| `"info"` \| `"warn"` \| `"error"` | `"info"` | Server log level |
+| `defaultLLMProvider` | string | — | Default LLM provider ID for new projects |
+| `defaultEmbeddingProvider` | string | — | Default embedding provider ID for new projects |
+| `defaultEmbeddingModel` | string | — | Default embedding model for new projects |
+| `defaultVectorDbProvider` | string | — | Default vector DB provider ID for new projects |
+| `terminalShell` | string | — | Shell to use for terminal sessions (e.g. `/bin/zsh`) |
 
 ### templateVariables
 
@@ -88,6 +94,7 @@ Defines a single agent. The directory name is the agent's slug.
 | `guardrails` | object | no | Model inference constraints |
 | `commands` | object | no | Slash commands available in this agent's chat |
 | `ui` | object | no | UI configuration including quick prompts |
+| `skills` | string[] | no | Skill IDs available to this agent |
 
 ### tools
 
@@ -95,7 +102,7 @@ Controls which MCP servers and tools the agent can use.
 
 | field | type | description |
 |---|---|---|
-| `mcpServers` | string[] | IDs of MCP server tools to connect (defined in `~/.stallion-ai/integrations/<id>/tool.json`) |
+| `mcpServers` | string[] | IDs of MCP server integrations to connect (defined in `~/.stallion-ai/integrations/<id>/integration.json`) |
 | `available` | string[] | Allowlist of specific tool names exposed to the agent. Empty means all tools from connected servers |
 | `autoApprove` | string[] | Tool names that execute without user confirmation |
 | `aliases` | object | Map of `{ "alias": "actual-tool-name" }` for renaming tools in prompts |

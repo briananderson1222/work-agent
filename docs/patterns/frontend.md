@@ -132,14 +132,70 @@ export function useInvokeAgent<T = any>(
 ```
 
 **Available SDK Query Hooks:**
-- `useAgentsQuery` - All agents
-- `useLayoutsQuery` - All layouts
-- `useConversationsQuery(agentSlug)` - Conversations for agent
-- `useModelsQuery` - Bedrock models
-- `useConfigQuery` - App configuration
-- `useInvokeAgent` - Agent invocation with schema
-- `useApiQuery` - Generic custom queries
-- `useStatsQuery` - Conversation stats
+
+Agents:
+- `useAgentsQuery` — All agents
+- `useAgentToolsQuery(agentSlug)` — Tools for an agent
+- `useAgentInvokeMutation(agentSlug)` — Invoke agent (mutation)
+
+Projects:
+- `useProjectsQuery` — All projects
+- `useProjectQuery(slug)` — Single project
+- `useProjectLayoutsQuery(projectSlug)` — Layouts for a project
+- `useCreateProjectMutation` — Create project
+- `useUpdateProjectMutation` — Update project
+- `useDeleteProjectMutation` — Delete project
+
+Layouts:
+- `useLayoutQuery(slug)` — Single layout
+- `useLayoutsQuery` — All layouts
+- `useCreateLayoutMutation(projectSlug)` — Create layout
+- `useAddLayoutFromPluginMutation(projectSlug)` — Add layout from plugin
+
+Conversations:
+- `useConversationsQuery(agentSlug)` — Conversations for agent
+- `useProjectConversationsQuery(projectSlug)` — Conversations for project
+- `useStatsQuery(agentSlug, conversationId)` — Conversation stats
+
+Knowledge:
+- `useKnowledgeNamespacesQuery(projectSlug)` — Namespaces
+- `useKnowledgeDocsQuery(projectSlug, namespace)` — Documents
+- `useKnowledgeSearchQuery(projectSlug, query, namespace)` — Search
+- `useKnowledgeDocContentQuery(projectSlug, docId)` — Document content
+- `useKnowledgeStatusQuery(projectSlug)` — Indexing status
+- `useKnowledgeSaveMutation(projectSlug)` — Save document
+- `useKnowledgeDeleteMutation(projectSlug)` — Delete document
+- `useKnowledgeBulkDeleteMutation(projectSlug)` — Bulk delete
+- `useKnowledgeScanMutation(projectSlug)` — Scan directory
+
+Plugins:
+- `usePluginsQuery` — Installed plugins
+- `usePluginUpdatesQuery` — Available updates
+- `useRegistryPluginsQuery` — Registry catalog
+- `usePluginInstallMutation` — Install plugin
+- `usePluginPreviewMutation` — Preview before install
+- `usePluginUpdateMutation` — Update plugin
+- `usePluginRemoveMutation` — Remove plugin
+- `usePluginProviderToggleMutation` — Toggle provider
+- `usePluginRegistryInstallMutation` — Install from registry
+
+Models & Config:
+- `useModelsQuery` — Available models
+- `useModelCapabilitiesQuery` — Model capabilities
+- `useConfigQuery` — App configuration
+
+Other:
+- `usePromptsQuery` — Saved prompts
+- `useUsageQuery` — Token usage stats
+- `useAchievementsQuery` — Usage achievements
+- `useGitStatusQuery(projectSlug)` — Git status
+- `useGitLogQuery(projectSlug)` — Git log
+
+Utilities:
+- `useInvokeAgent(agent, content, options)` — Agent invocation with schema
+- `useApiQuery(queryKey, queryFn, config)` — Generic custom queries
+- `useApiMutation(mutationFn, options)` — Generic custom mutations
+- `useInvalidateQuery` — Cache invalidation helper
 
 ## Layer 3: ViewModel Hooks
 
@@ -459,7 +515,7 @@ Single source of truth for all types, config parsers, and API contracts shared a
 | TypeScript types (AgentSpec, PluginManifest, LayoutConfig, etc.) | `@stallion-ai/shared` |
 | API response shapes (ToolCallResponse, AgentInvokeResponse) | `@stallion-ai/shared` |
 | Config file parsers (readPluginManifest, readAgentSpec, etc.) | `@stallion-ai/shared` |
-| Plugin install helpers (copyPluginTools, buildPlugin) | `@stallion-ai/shared` |
+| Plugin install helpers (copyPluginIntegrations, buildPlugin) | `@stallion-ai/shared` |
 | React Query hooks for fetching data | `@stallion-ai/sdk` |
 | Context hooks (useAgents, useLayouts, etc.) | `@stallion-ai/sdk` |
 
@@ -471,7 +527,7 @@ Single source of truth for all types, config parsers, and API contracts shared a
 // Types
 import type {
   AgentSpec, AgentMetadata, AgentGuardrails, AgentTools,
-  PluginManifest, PluginManifest, PluginComponent, PluginPreview,
+  PluginManifest, PluginComponent, PluginPreview,
   LayoutConfig, LayoutTab, LayoutMetadata,
   ToolDef, ToolMetadata,
   AppConfig, TemplateVariable,
@@ -487,21 +543,17 @@ import type {
 import {
   readPluginManifest,     // parse plugin.json
   readAgentSpec,          // parse agent JSON
-  readLayoutConfig,    // parse layout JSON
-  readToolDef,            // parse tool.json
-  listToolIds,            // list tool IDs from a tools/ dir
-  resolvePluginTools,     // resolve all tools declared by a plugin
-  copyPluginTools,        // copy plugin tools/ to project tools dir
+  readLayoutConfig,       // parse layout JSON
+  readIntegrationDef,     // parse integration.json
+  listIntegrationIds,     // list integration IDs from an integrations/ dir
+  resolvePluginIntegrations, // resolve all integrations declared by a plugin
+  copyPluginIntegrations, // copy plugin integrations/ to project integrations dir
   buildPlugin,            // build a plugin if it has a build script
   resolveGitInfo,         // get git root, branch, hash, remote
 } from '@stallion-ai/shared';
-
-// Permission helpers (re-exported from plugin-permissions)
-import {
-  getPermissionTier, needsConsent,
-  processInstallPermissions,
-} from '@stallion-ai/shared';
 ```
+
+> **Note:** Permission helpers (`getPermissionTier`, `needsConsent`, `processInstallPermissions`) live in `src-server/services/plugin-permissions.ts` — server-only, not exported from shared.
 
 ### Do not redefine shared types
 

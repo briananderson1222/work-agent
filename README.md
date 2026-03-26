@@ -50,15 +50,13 @@ All runtime data lives in `~/.stallion-ai/`:
 │   ├── app.json          # Model settings, system prompt, template vars
 │   └── acp.json          # ACP connection configs
 ├── agents/               # Agent definitions (JSON + memory)
+├── analytics/            # Usage data
 ├── integrations/         # MCP tool server configs
-├── layouts/              # Layout configs
+├── monitoring/           # Event logs (NDJSON)
 ├── plugins/              # Installed plugin source
 ├── projects/             # Project definitions
 ├── prompts/              # Prompt templates
-├── vectordb/             # LanceDB vector store
-├── monitoring/           # Event logs (NDJSON)
-├── analytics/            # Usage data
-└── plugin-grants.json    # Plugin permission grants
+└── scheduler/            # Scheduled job state (created by BuiltinScheduler)
 ```
 
 Set `STALLION_AI_DIR` to override the default location.
@@ -354,6 +352,8 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 ./stallion start
 | `stallion.cost.estimated` | Counter | Estimated cost in USD (by agent) |
 | `stallion.agents.active` | Gauge | Number of loaded agents |
 | `stallion.mcp.connections` | Gauge | Number of MCP connections |
+
+> Full list of ~40 instruments in `src-server/telemetry/metrics.ts`. Additional counters cover plugins, agents, layouts, projects, prompts, providers, notifications, scheduler, MCP, knowledge, feedback, approvals, terminals, ACP, voice, templates, conversations, coding, auth, file tree, registry, skills, analytics, bedrock, config, SSE, insights, system, and UI commands.
 
 The Grafana dashboard at `http://localhost:3333/d/stallion-overview` provides 16 panels covering requests, tokens, costs, tool usage, errors, and latency distributions.
 
