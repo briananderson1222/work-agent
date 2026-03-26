@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { SchedulerService } from '../services/scheduler-service.js';
 import { schedulerJobRuns } from '../telemetry/metrics.js';
+import { addJobSchema, editJobSchema, runOutputSchema, validate, getBody, param } from './schemas.js';
 
 export function createSchedulerRoutes(
   schedulerService: SchedulerService,
@@ -107,7 +108,7 @@ export function createSchedulerRoutes(
     try {
       const count = parseInt(c.req.query('count') || '20', 10);
       const data = await schedulerService.getJobLogs(
-        c.req.param('target'),
+        param(c, 'target'),
         count,
       );
       return c.json({ success: true, data });
@@ -118,9 +119,9 @@ export function createSchedulerRoutes(
   });
 
   // Read a run's output content by its log path
-  app.post('/runs/output', async (c) => {
+  app.post('/runs/output', validate(runOutputSchema), async (c) => {
     try {
-      const { path } = await c.req.json();
+      const { path } = getBody(c);
       const content = await schedulerService.readRunFile(path);
       return c.json({ success: true, data: { content } });
     } catch (error: any) {
@@ -129,9 +130,9 @@ export function createSchedulerRoutes(
     }
   });
 
-  app.post('/jobs', async (c) => {
+  app.post('/jobs', validate(addJobSchema), async (c) => {
     try {
-      const body = await c.req.json();
+      const body = getBody(c);
       schedulerJobRuns.add(1, { op: 'create_job' });
       const output = await schedulerService.addJob(body);
       return c.json({ success: true, data: { output } });
@@ -141,12 +142,12 @@ export function createSchedulerRoutes(
     }
   });
 
-  app.put('/jobs/:target', async (c) => {
+  app.put('/jobs/:target', validate(editJobSchema), async (c) => {
     try {
-      const opts = await c.req.json();
+      const opts = getBody(c);
       schedulerJobRuns.add(1, { op: 'edit_job' });
       const output = await schedulerService.editJob(
-        c.req.param('target'),
+        param(c, 'target'),
         opts,
       );
       return c.json({ success: true, data: { output } });
@@ -156,21 +157,30 @@ export function createSchedulerRoutes(
     }
   });
 
+  const runningJobs = new Set<string>();
+
   app.post('/jobs/:target/run', async (c) => {
+    const target = param(c, 'target');
+    if (runningJobs.has(target)) {
+      return c.json({ success: false, error: `Job '${target}' is already running` }, 409);
+    }
     try {
+      runningJobs.add(target);
       schedulerJobRuns.add(1, { op: 'run_job' });
-      const output = await schedulerService.runJob(c.req.param('target'));
+      const output = await schedulerService.runJob(target);
       return c.json({ success: true, data: { output } });
     } catch (error: any) {
       logger.error('Failed to run job', { error });
       return c.json({ success: false, error: error.message }, 500);
+    } finally {
+      runningJobs.delete(target);
     }
   });
 
   app.put('/jobs/:target/enable', async (c) => {
     try {
       schedulerJobRuns.add(1, { op: 'enable_job' });
-      await schedulerService.enableJob(c.req.param('target'));
+      await schedulerService.enableJob(param(c, 'target'));
       return c.json({ success: true });
     } catch (error: any) {
       logger.error('Failed to enable job', { error });
@@ -181,7 +191,7 @@ export function createSchedulerRoutes(
   app.put('/jobs/:target/disable', async (c) => {
     try {
       schedulerJobRuns.add(1, { op: 'disable_job' });
-      await schedulerService.disableJob(c.req.param('target'));
+      await schedulerService.disableJob(param(c, 'target'));
       return c.json({ success: true });
     } catch (error: any) {
       logger.error('Failed to disable job', { error });
@@ -192,7 +202,7 @@ export function createSchedulerRoutes(
   app.delete('/jobs/:target', async (c) => {
     try {
       schedulerJobRuns.add(1, { op: 'delete_job' });
-      await schedulerService.removeJob(c.req.param('target'));
+      await schedulerService.removeJob(param(c, 'target'));
       return c.json({ success: true });
     } catch (error: any) {
       logger.error('Failed to remove job', { error });

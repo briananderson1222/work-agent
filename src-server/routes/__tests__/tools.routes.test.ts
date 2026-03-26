@@ -10,6 +10,7 @@ function createMockMCPService() {
   return {
     listIntegrations: vi.fn().mockResolvedValue([{ id: 'mcp-1', name: 'Test MCP' }]),
     getToolAgentMap: vi.fn().mockResolvedValue({ 'mcp-1': ['default'] }),
+    getConnectionStatus: vi.fn().mockReturnValue({ connected: true }),
     saveIntegration: vi.fn().mockResolvedValue(undefined),
     getIntegration: vi.fn().mockResolvedValue({ id: 'mcp-1', name: 'Test MCP', type: 'stdio' }),
     deleteIntegration: vi.fn().mockResolvedValue(undefined),

@@ -24,7 +24,7 @@ export interface EnrichedAgent {
   model?: string;
   region?: string;
   guardrails?: AgentSpec['guardrails'];
-  maxTurns?: number;
+  maxSteps?: number;
   icon?: string;
   commands?: AgentSpec['commands'];
   toolsConfig?: AgentSpec['tools'];
@@ -64,7 +64,7 @@ export class AgentService {
             model: spec.model,
             region: spec.region,
             guardrails: spec.guardrails,
-            maxTurns: spec.maxTurns,
+            maxSteps: spec.maxSteps,
             icon: spec.icon,
             commands: spec.commands,
             toolsConfig: spec.tools,

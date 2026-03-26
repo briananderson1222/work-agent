@@ -60,6 +60,9 @@ export const pluginUninstalls = meter.createCounter(
 export const pluginUpdates = meter.createCounter('stallion.plugin.updates', {
   description: 'Plugin update events',
 });
+export const pluginSettingsUpdates = meter.createCounter('stallion.plugin.settings_updates', {
+  description: 'Plugin settings update events',
+});
 
 // ── CRUD operations ──
 export const agentOps = meter.createCounter('stallion.agent.operations', {

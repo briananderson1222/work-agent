@@ -36,6 +36,7 @@ import {
 } from '../services/plugin-permissions.js';
 import {
   pluginInstalls,
+  pluginSettingsUpdates,
   pluginUninstalls,
   pluginUpdates,
 } from '../telemetry/metrics.js';
@@ -107,20 +108,11 @@ export function createPluginRoutes(
         let git: { hash: string; branch: string; remote?: string } | undefined;
         if (isGit) {
           try {
-            const { stdout: hash } = await execFile('git', ['rev-parse', '--short', 'HEAD'], {
-              cwd: pluginDir,
-              encoding: 'utf-8',
-            });
-            const { stdout: branch } = await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-              cwd: pluginDir,
-              encoding: 'utf-8',
-            });
+            const { stdout: hash } = await execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd: pluginDir, encoding: 'utf-8', windowsHide: true });
+            const { stdout: branch } = await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: pluginDir, encoding: 'utf-8', windowsHide: true });
             let remote: string | undefined;
             try {
-              const { stdout: r } = await execFile('git', ['remote', 'get-url', 'origin'], {
-                cwd: pluginDir,
-                encoding: 'utf-8',
-              });
+              const { stdout: r } = await execFile('git', ['remote', 'get-url', 'origin'], { cwd: pluginDir, encoding: 'utf-8', windowsHide: true });
               remote = r.trim();
             } catch (e) { logger.debug('Failed to get git remote URL', { error: e }); }
             git = { hash: hash.trim(), branch: branch.trim(), remote };
@@ -139,6 +131,7 @@ export function createPluginRoutes(
           version: manifest.version,
           description: manifest.description,
           hasBundle: existsSync(bundlePath),
+          hasSettings: Array.isArray(manifest.settings) && manifest.settings.length > 0,
           layout: manifest.layout,
           agents: manifest.agents,
           providers: manifest.providers,
@@ -182,15 +175,13 @@ export function createPluginRoutes(
       if (branch) cloneArgs.push('--branch', branch);
       cloneArgs.push(url, tempDir);
       try {
-        await execFile('git', cloneArgs, { timeout: 30000 });
+        await execFile('git', cloneArgs, { timeout: 30000, windowsHide: true });
       } catch (e) {
         logger.debug('Failed to clone with branch, retrying without', { error: e });
         rmSync(tempDir, { recursive: true, force: true });
         mkdirSync(tempDir, { recursive: true });
         try {
-          await execFile('git', ['clone', '--depth', '1', url, tempDir], {
-            timeout: 30000,
-          });
+          await execFile('git', ['clone', '--depth', '1', url, tempDir], { timeout: 30000, windowsHide: true });
         } catch (e: any) {
           rmSync(tempDir, { recursive: true, force: true });
           return { error: `Failed to clone: ${e.message}` };
@@ -410,20 +401,11 @@ export function createPluginRoutes(
   ): Promise<{ hash: string; branch: string; remote?: string } | undefined> {
     if (!existsSync(join(dir, '.git'))) return undefined;
     try {
-      const { stdout: hash } = await execFile('git', ['rev-parse', '--short', 'HEAD'], {
-        cwd: dir,
-        encoding: 'utf-8',
-      });
-      const { stdout: branch } = await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-        cwd: dir,
-        encoding: 'utf-8',
-      });
+      const { stdout: hash } = await execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd: dir, encoding: 'utf-8', windowsHide: true });
+      const { stdout: branch } = await execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir, encoding: 'utf-8', windowsHide: true });
       let remote: string | undefined;
       try {
-        const { stdout: r } = await execFile('git', ['remote', 'get-url', 'origin'], {
-          cwd: dir,
-          encoding: 'utf-8',
-        });
+        const { stdout: r } = await execFile('git', ['remote', 'get-url', 'origin'], { cwd: dir, encoding: 'utf-8', windowsHide: true });
         remote = r.trim();
       } catch (e) { logger.debug('Failed to get git remote URL for plugin', { error: e }); }
       return { hash: hash.trim(), branch: branch.trim(), remote };
@@ -651,7 +633,7 @@ export function createPluginRoutes(
           const def = JSON.parse(readFileSync(defPath, 'utf-8'));
           if (!def.command) continue;
           try {
-            await execFile('which', [def.command]);
+            await execFile(process.platform === 'win32' ? 'where' : 'which', [def.command], { windowsHide: true });
             continue;
           } catch (e) { logger.debug('Command not found, will attempt auto-install', { command: def.command, error: e }); }
           const registry = getIntegrationRegistryProvider();
@@ -781,18 +763,9 @@ export function createPluginRoutes(
           if (!existsSync(gitDir) || !existsSync(manifestPath)) continue;
 
           try {
-            await execFile('git', ['fetch', '--quiet'], {
-              cwd: dir,
-              timeout: 10000,
-            });
-            const { stdout: _local } = await execFile('git', ['rev-parse', 'HEAD'], {
-              cwd: dir,
-              encoding: 'utf-8',
-            });
-            const { stdout: behind } = await execFile('git', ['rev-list', '--count', 'HEAD..@{u}'], {
-              cwd: dir,
-              encoding: 'utf-8',
-            });
+            await execFile('git', ['fetch', '--quiet'], { cwd: dir, timeout: 10000, windowsHide: true });
+            const { stdout: _local } = await execFile('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf-8', windowsHide: true });
+            const { stdout: behind } = await execFile('git', ['rev-list', '--count', 'HEAD..@{u}'], { cwd: dir, encoding: 'utf-8', windowsHide: true });
             if (parseInt(behind.trim(), 10) > 0) {
               const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
               const b = behind.trim();
@@ -856,7 +829,7 @@ export function createPluginRoutes(
       const gitDir = join(pluginDir, '.git');
       if (existsSync(gitDir)) {
         // Git update
-        await execFile('git', ['pull', '--ff-only'], { cwd: pluginDir, timeout: 30000 });
+        await execFile('git', ['pull', '--ff-only'], { cwd: pluginDir, timeout: 30000, windowsHide: true });
       } else {
         // Registry re-install
         const registryProvider = getAgentRegistryProvider();
@@ -1061,6 +1034,78 @@ export function createPluginRoutes(
     }
   });
 
+  // ── Plugin Settings ────────────────────────────────────
+
+  app.get('/:name/settings', async (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const manifestPath = join(pluginsDir, name, 'plugin.json');
+    if (!existsSync(manifestPath)) return c.json({ error: 'Plugin not found' }, 404);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    const schema = manifest.settings || [];
+
+    const { ConfigLoader } = await import('../domain/config-loader.js');
+    const configLoader = new ConfigLoader({ projectHomeDir });
+    const overrides = await configLoader.loadPluginOverrides();
+    const values = overrides[manifest.name || name]?.settings || {};
+
+    const merged: Record<string, any> = {};
+    for (const field of schema) {
+      merged[field.key] = values[field.key] ?? field.default ?? null;
+    }
+
+    return c.json({ schema, values: merged });
+  });
+
+  app.put('/:name/settings', async (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const body = await c.req.json();
+
+    const { ConfigLoader } = await import('../domain/config-loader.js');
+    const configLoader = new ConfigLoader({ projectHomeDir });
+    const overrides = await configLoader.loadPluginOverrides();
+
+    if (!overrides[name]) overrides[name] = {};
+    overrides[name].settings = body.settings || {};
+    await configLoader.savePluginOverrides(overrides);
+
+    pluginSettingsUpdates.add(1, { plugin: name });
+    eventBus?.emit('plugins:settings-changed', { name, settings: body.settings });
+    return c.json({ success: true });
+  });
+
+  // ── Plugin Changelog ──────────────────────────────────
+
+  app.get('/:name/changelog', async (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const pluginDir = join(pluginsDir, name);
+    if (!existsSync(pluginDir)) return c.json({ error: 'Plugin not found' }, 404);
+
+    const isGit = existsSync(join(pluginDir, '.git'));
+    if (!isGit) return c.json({ entries: [], source: 'local' });
+
+    try {
+      const { stdout } = await execFile('git', [
+        'log', '--oneline', '--no-decorate', '-20',
+        '--format=%H|%h|%s|%an|%aI',
+      ], { cwd: pluginDir, encoding: 'utf-8', windowsHide: true });
+
+      const entries = stdout.trim().split('\n').filter(Boolean).map((line) => {
+        const [hash, short, subject, author, date] = line.split('|');
+        return { hash, short, subject, author, date };
+      });
+
+      const changelogPath = join(pluginDir, 'CHANGELOG.md');
+      const changelog = existsSync(changelogPath)
+        ? await readFile(changelogPath, 'utf-8')
+        : null;
+
+      return c.json({ entries, source: 'git', changelog });
+    } catch (e: any) {
+      return c.json({ entries: [], source: 'git', error: e.message });
+    }
+  });
+
   // ── Plugin Provider Overrides ─────────────────────────
 
   app.get('/:name/providers', async (c) => {
@@ -1160,6 +1205,13 @@ async function loadProviders(
 ): Promise<number> {
   if (!manifest.providers) return 0;
 
+  // Load settings for this plugin
+  const { ConfigLoader } = await import('../domain/config-loader.js');
+  const { dirname } = await import('node:path');
+  const configLoader = new ConfigLoader({ projectHomeDir: dirname(pluginsDir) });
+  const overrides = await configLoader.loadPluginOverrides();
+  const pluginSettings = overrides[pluginName]?.settings || {};
+
   const {
     registerProvider,
     registerBrandingProvider,
@@ -1186,7 +1238,6 @@ async function loadProviders(
         const { JsonManifestRegistryProvider } = await import(
           '../providers/json-manifest-registry.js'
         );
-        const { dirname } = await import('node:path');
         const instance = new JsonManifestRegistryProvider(
           modulePath,
           dirname(pluginsDir),
@@ -1201,7 +1252,7 @@ async function loadProviders(
       const fileUrl = `file://${modulePath}?t=${Date.now()}`;
       const mod = await import(fileUrl);
       const factory = mod.default || mod;
-      const instance = typeof factory === 'function' ? factory() : factory;
+      const instance = typeof factory === 'function' ? factory(pluginSettings) : factory;
 
       if (p.type === 'auth') registerAuthProvider(instance);
       else if (p.type === 'userIdentity')

@@ -216,13 +216,11 @@ export class ConfigLoader {
     const {
       slug: _,
       updatedAt,
-      description,
       workflowWarnings,
       ...cleanUpdates
     } = updates as Partial<AgentSpec> & {
       slug?: string;
       updatedAt?: string;
-      description?: string;
       workflowWarnings?: string[];
     };
 

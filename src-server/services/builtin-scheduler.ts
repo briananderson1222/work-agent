@@ -3,7 +3,7 @@
  * In-process cron matching, JSON file persistence, calls local agent chat API for runs.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '../utils/paths.js';
 import type {
@@ -95,7 +95,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
     }
   }
 
-  private async executeJob(job: StoredJob) {
+  private async executeJob(job: StoredJob, manual = false) {
     const done = this.trackJob(job.name);
     const id = `${job.name}-${Date.now()}`;
     const startedAt = new Date().toISOString();
@@ -130,6 +130,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
         success: true,
         durationSecs,
         missedCount: this.missed.get(job.name) || 0,
+        manual,
         output: outFile,
       });
       this.broadcast({
@@ -154,6 +155,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
         success: false,
         durationSecs,
         missedCount: this.missed.get(job.name) || 0,
+        manual,
         output: outFile,
         error: e.message,
       });
@@ -239,8 +241,8 @@ export class BuiltinScheduler implements ISchedulerProvider {
   async runJob(target: string): Promise<string> {
     const job = jobStore.read().find((j) => j.name === target);
     if (!job) throw new Error(`Job '${target}' not found`);
-    this.executeJob(job);
-    return `Job '${target}' triggered`;
+    await this.executeJob(job, true);
+    return `Job '${target}' completed`;
   }
 
   async enableJob(target: string): Promise<void> {
@@ -270,10 +272,11 @@ export class BuiltinScheduler implements ISchedulerProvider {
   }
 
   async readRunFile(path: string): Promise<string> {
-    const { resolve } = await import('node:path');
-    if (!resolve(path).startsWith(resolve(LOGS_DIR)))
+    const real = realpathSync(path);
+    const logsReal = realpathSync(LOGS_DIR);
+    if (!real.startsWith(logsReal))
       throw new Error('Invalid path');
-    return readFileSync(path, 'utf-8');
+    return readFileSync(real, 'utf-8');
   }
 
   async getStats(): Promise<SchedulerProviderStats> {

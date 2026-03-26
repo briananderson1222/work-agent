@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import type { MCPService } from '../services/mcp-service.js';
 import { toolCalls } from '../telemetry/metrics.js';
+import { integrationSchema, validate, getBody, param } from './schemas.js';
 
 export function createToolRoutes(
   mcpService: MCPService,
@@ -20,7 +21,11 @@ export function createToolRoutes(
         mcpService.listIntegrations(),
         mcpService.getToolAgentMap(),
       ]);
-      const data = tools.map((t) => ({ ...t, usedBy: agentMap[t.id] || [] }));
+      const data = tools.map((t) => ({
+        ...t,
+        usedBy: agentMap[t.id] || [],
+        connected: mcpService.getConnectionStatus('default', t.id)?.connected ?? false,
+      }));
       return c.json({ success: true, data });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);
@@ -28,10 +33,9 @@ export function createToolRoutes(
   });
 
   // Create/update an integration (POST /integrations)
-  app.post('/', async (c) => {
+  app.post('/', validate(integrationSchema), async (c) => {
     try {
-      const body = await c.req.json();
-      await mcpService.saveIntegration(body);
+      await mcpService.saveIntegration(getBody(c));
       return c.json({ success: true });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -41,7 +45,7 @@ export function createToolRoutes(
   // Get single integration (GET /integrations/:id)
   app.get('/:id', async (c) => {
     try {
-      const def = await mcpService.getIntegration(c.req.param('id'));
+      const def = await mcpService.getIntegration(param(c, 'id'));
       return c.json({ success: true, data: def });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 404);
@@ -49,10 +53,9 @@ export function createToolRoutes(
   });
 
   // Update integration (PUT /integrations/:id)
-  app.put('/:id', async (c) => {
+  app.put('/:id', validate(integrationSchema.partial()), async (c) => {
     try {
-      const body = await c.req.json();
-      await mcpService.saveIntegration({ ...body, id: c.req.param('id') });
+      await mcpService.saveIntegration({ ...getBody(c), id: param(c, 'id') });
       return c.json({ success: true });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 400);
@@ -62,7 +65,7 @@ export function createToolRoutes(
   // Delete integration (DELETE /integrations/:id)
   app.delete('/:id', async (c) => {
     try {
-      await mcpService.deleteIntegration(c.req.param('id'));
+      await mcpService.deleteIntegration(param(c, 'id'));
       return c.json({ success: true });
     } catch (error: any) {
       return c.json({ success: false, error: error.message }, 500);

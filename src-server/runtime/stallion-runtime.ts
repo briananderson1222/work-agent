@@ -64,6 +64,7 @@ import { createConfigRoutes } from '../routes/config.js';
 import { createConversationRoutes, createGlobalConversationRoutes } from '../routes/conversations.js';
 import { createFeedbackRoutes } from '../routes/feedback.js';
 import { createFsRoutes } from '../routes/fs.js';
+import { createInsightsRoutes } from '../routes/insights.js';
 import {
   createCrossProjectKnowledgeRoutes,
   createKnowledgeRoutes,
@@ -901,7 +902,7 @@ export class StallionRuntime {
     // === Agent CRUD Endpoints ===
     const agentRoutes = createAgentRoutes(
       this.agentService,
-      () => this.initialize(),
+      () => this.reloadAgents(),
       () => this.voltAgent,
     );
     app.route('/agents', agentRoutes);
@@ -949,7 +950,7 @@ export class StallionRuntime {
                       : await this.configLoader.loadAgent(slug);
                   return {
                     slug, name: metadata.name, prompt: spec.prompt, description: spec.description,
-                    model: spec.model, region: spec.region, guardrails: spec.guardrails, maxTurns: spec.maxTurns,
+                    model: spec.model, region: spec.region, guardrails: spec.guardrails, maxSteps: spec.maxSteps,
                     icon: spec.icon, commands: spec.commands, toolsConfig: spec.tools, skills: spec.skills,
                     updatedAt: metadata.updatedAt,
                   };
@@ -965,6 +966,29 @@ export class StallionRuntime {
         return c.json({ success: true, data: enrichedAgents });
       } catch (error: any) {
         this.logger.error('Failed to fetch agents', { error: error.message });
+        return c.json({ success: false, error: error.message }, 500);
+      }
+    });
+
+    // Single enriched agent
+    app.get('/api/agents/:slug', async (c) => {
+      const slug = c.req.param('slug');
+      const metadata = this.agentMetadataMap.get(slug);
+      if (!metadata || !this.activeAgents.has(slug)) {
+        return c.json({ success: false, error: 'Agent not found' }, 404);
+      }
+      try {
+        const spec: AgentSpec =
+          slug === 'default'
+            ? { name: 'default', prompt: metadata.description, description: metadata.description, model: this.appConfig.defaultModel, tools: { mcpServers: ['stallion-control'], autoApprove: SC_READ_ONLY_TOOLS } }
+            : await this.configLoader.loadAgent(slug);
+        return c.json({ success: true, data: {
+          slug, name: metadata.name, prompt: spec.prompt, description: spec.description,
+          model: spec.model, region: spec.region, guardrails: spec.guardrails, maxSteps: spec.maxSteps,
+          icon: spec.icon, commands: spec.commands, toolsConfig: spec.tools, skills: spec.skills,
+          updatedAt: metadata.updatedAt,
+        }});
+      } catch (error: any) {
         return c.json({ success: false, error: error.message }, 500);
       }
     });
@@ -1076,6 +1100,7 @@ export class StallionRuntime {
     this.notificationService.start();
     app.route('/notifications', createNotificationRoutes(this.notificationService));
     app.route('/api/feedback', createFeedbackRoutes(this.feedbackService));
+    app.route('/api/insights', createInsightsRoutes(this.eventLogPath));
     app.route('/api/voice', createVoiceRoutes(this.voiceService));
     app.route(
       '/api/prompts',

@@ -20,72 +20,8 @@ export type GenAiOperationName =
   | 'text_completion';
 
 // ── Attribute key constants ─────────────────────────────────────────
-// Single source of truth — import these instead of repeating strings.
-
-export const K = {
-  // OTel core
-  TIMESTAMP: 'timestamp' as const,
-  TIMESTAMP_MS: 'timestamp.ms' as const,
-  TRACE_ID: 'trace.id' as const,
-  SPAN_KIND: 'span.kind' as const,
-
-  // GenAI
-  OP_NAME: 'gen_ai.operation.name' as const,
-  PROVIDER: 'gen_ai.provider.name' as const,
-  MODEL: 'gen_ai.request.model' as const,
-  CONVERSATION_ID: 'gen_ai.conversation.id' as const,
-  INPUT_TOKENS: 'gen_ai.usage.input_tokens' as const,
-  OUTPUT_TOKENS: 'gen_ai.usage.output_tokens' as const,
-  FINISH_REASONS: 'gen_ai.response.finish_reasons' as const,
-
-  // GenAI tool
-  TOOL_NAME: 'gen_ai.tool.name' as const,
-  TOOL_CALL_ID: 'gen_ai.tool.call.id' as const,
-  TOOL_CALL_ARGS: 'gen_ai.tool.call.arguments' as const,
-  TOOL_CALL_RESULT: 'gen_ai.tool.call.result' as const,
-
-  // Stallion extensions
-  AGENT_SLUG: 'stallion.agent.slug' as const,
-  AGENT_STEPS: 'stallion.agent.steps' as const,
-  AGENT_MAX_STEPS: 'stallion.agent.max_steps' as const,
-  INPUT_CHARS: 'stallion.input.chars' as const,
-  OUTPUT_CHARS: 'stallion.output.chars' as const,
-  ARTIFACTS: 'stallion.artifacts' as const,
-  USER_ID: 'stallion.user.id' as const,
-
-  // Health
-  HEALTHY: 'stallion.health.healthy' as const,
-  HEALTH_CHECKS: 'stallion.health.checks' as const,
-  HEALTH_INTEGRATIONS: 'stallion.health.integrations' as const,
-
-  // Reasoning
-  REASONING_TEXT: 'stallion.reasoning.text' as const,
-
-  // Agent telemetry ingest
-  AT_SESSION_ID: 'stallion.agent_telemetry.session_id' as const,
-  AT_EVENT_ID: 'stallion.agent_telemetry.event_id' as const,
-  AT_SCHEMA_VERSION: 'stallion.agent_telemetry.schema_version' as const,
-  AT_CONTEXT: 'stallion.agent_telemetry.context' as const,
-  AT_ENRICHMENT: 'stallion.agent_telemetry.enrichment' as const,
-
-  // System protocol events
-  SYSTEM_TYPE: 'stallion.system.type' as const,
-} as const;
-
-// Operation name constants
-export const OP = {
-  CHAT: 'chat' as const,
-  INVOKE_AGENT: 'invoke_agent' as const,
-  EXECUTE_TOOL: 'execute_tool' as const,
-} as const;
-
-// Span kind constants
-export const SPAN = {
-  START: 'start' as const,
-  END: 'end' as const,
-  EVENT: 'event' as const,
-  LOG: 'log' as const,
-} as const;
+// Re-exported from shared — single source of truth for both UI and server.
+export { K, OP, SPAN } from '../../src-shared/monitoring-keys.js';
 
 // ── Monitoring event: OTel-shaped, flat attributes ──────────────────
 

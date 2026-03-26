@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { PromptService } from '../services/prompt-service.js';
 import { promptOps } from '../telemetry/metrics.js';
+import { promptCreateSchema, promptUpdateSchema, validate, getBody, param } from './schemas.js';
 
 export function createPromptRoutes(service: PromptService, logger: any) {
   const app = new Hono();
@@ -22,7 +23,8 @@ export function createPromptRoutes(service: PromptService, logger: any) {
 
   app.get('/:id', async (c) => {
     try {
-      const data = await service.getPrompt(c.req.param('id'));
+      const id = param(c, 'id');
+      const data = await service.getPrompt(id);
       if (!data)
         return c.json({ success: false, error: 'Prompt not found' }, 404);
       return c.json({ success: true, data });
@@ -32,9 +34,9 @@ export function createPromptRoutes(service: PromptService, logger: any) {
     }
   });
 
-  app.post('/', async (c) => {
+  app.post('/', validate(promptCreateSchema), async (c) => {
     try {
-      const body = await c.req.json();
+      const body = getBody(c);
       promptOps.add(1, { op: 'create' });
       const data = await service.addPrompt(body);
       return c.json({ success: true, data }, 201);
@@ -44,11 +46,12 @@ export function createPromptRoutes(service: PromptService, logger: any) {
     }
   });
 
-  app.put('/:id', async (c) => {
+  app.put('/:id', validate(promptUpdateSchema), async (c) => {
     try {
-      const body = await c.req.json();
+      const id = param(c, 'id');
+      const body = getBody(c);
       promptOps.add(1, { op: 'update' });
-      const data = await service.updatePrompt(c.req.param('id'), body);
+      const data = await service.updatePrompt(id, body);
       return c.json({ success: true, data });
     } catch (error: any) {
       logger.error('Failed to update prompt', { error });
@@ -58,8 +61,9 @@ export function createPromptRoutes(service: PromptService, logger: any) {
 
   app.delete('/:id', async (c) => {
     try {
+      const id = param(c, 'id');
       promptOps.add(1, { op: 'delete' });
-      await service.deletePrompt(c.req.param('id'));
+      await service.deletePrompt(id);
       return c.json({ success: true });
     } catch (error: any) {
       logger.error('Failed to delete prompt', { error });

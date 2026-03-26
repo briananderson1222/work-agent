@@ -69,4 +69,27 @@ describe('Agent Routes', () => {
     const res = await app.request('/default', { method: 'DELETE' });
     expect(res.status).toBe(400);
   });
+
+  test('reinitialize failure does not crash the route handler', async () => {
+    const agentService = {
+      getEnrichedAgents: vi.fn().mockResolvedValue([]),
+      createAgent: vi.fn().mockResolvedValue({ slug: 'test', spec: { name: 'Test' } }),
+      deleteAgent: vi.fn().mockResolvedValue({ success: true }),
+    };
+    const reinitialize = vi.fn().mockRejectedValue(new Error('reload failed'));
+    const getVoltAgent = vi.fn().mockReturnValue({ getAgents: vi.fn().mockResolvedValue([]) });
+    const app = createAgentRoutes(agentService as any, reinitialize, getVoltAgent);
+
+    // POST should return 400 (error bubbles) but not crash the process
+    const createRes = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', prompt: 'test' }),
+    });
+    expect(createRes.status).toBe(400);
+
+    // Server should still respond to GET after a failed reinitialize
+    const listRes = await app.request('/');
+    expect(listRes.status).toBe(200);
+  });
 });

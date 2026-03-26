@@ -6,7 +6,6 @@ import { execFile, execFile as execFileCb, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 const execFileAsync = promisify(execFileCb);
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveGitInfo } from '@stallion-ai/shared';
@@ -312,17 +311,6 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
 
   app.get('/skills', (c) => {
     return c.json({ success: true, data: SkillService.listSkills() });
-  });
-
-  app.get('/q-agents', (c) => {
-    try {
-      const qAgentsPath = join(homedir(), '.aws', 'amazonq', 'cli-agents.json');
-      if (!existsSync(qAgentsPath)) return c.json({ success: false, error: 'Q Developer agents file not found', agents: [] });
-      const agents = JSON.parse(readFileSync(qAgentsPath, 'utf-8'));
-      return c.json({ success: true, agents });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message, agents: [] });
-    }
   });
 
   app.get('/terminal-port', (c) => {

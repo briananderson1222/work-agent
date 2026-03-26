@@ -223,8 +223,8 @@ export class VoltAgentFramework {
       memory,
       tools: tools as Tool<any>[],
       hooks,
-      ...(spec.maxTurns || config.appConfig.defaultMaxTurns
-        ? { maxTurns: spec.maxTurns || config.appConfig.defaultMaxTurns }
+      ...(spec.maxSteps || config.appConfig.defaultMaxTurns
+        ? { maxTurns: spec.maxSteps || config.appConfig.defaultMaxTurns }
         : {}),
       ...(spec.guardrails && {
         temperature: spec.guardrails.temperature,
