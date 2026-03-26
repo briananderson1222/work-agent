@@ -1077,8 +1077,12 @@
 
   .cron-editor__fields,
   .cron-editor__labels {
-    grid-template-columns: repeat(3, 1fr);
-    font-size: 0.85rem;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.25rem;
+  }
+
+  .cron-editor__input {
+    font-size: 1.25rem;
   }
 
   .schedule__table-wrap {
@@ -1109,3 +1113,152 @@
     min-height: 44px;
   }
 }
+
+@media (max-width: 640px) {
+  /* Hide less-critical columns on small phones */
+  .schedule__table th:nth-child(5),
+  .schedule__table td:nth-child(5),
+  .schedule__table th:nth-child(6),
+  .schedule__table td:nth-child(6) {
+    display: none;
+  }
+
+  .schedule__action-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .schedule__td--name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ── Agent Picker ── */
+.agent-picker__trigger {
+  padding: 0.5rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 0.375rem;
+  background: var(--bg-input);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  min-height: 2.25rem;
+}
+
+.agent-picker__trigger-name {
+  flex: 1;
+}
+
+.agent-picker__trigger-model {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.agent-picker__trigger-caret {
+  font-size: 0.7rem;
+  opacity: 0.5;
+}
+
+.agent-picker__dropdown {
+  position: fixed;
+  z-index: 10000;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: 0.375rem;
+  max-height: 280px;
+  overflow: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.agent-picker__filter-wrap {
+  padding: 0.375rem;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.agent-picker__filter {
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 0.25rem;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  box-sizing: border-box;
+}
+
+.agent-picker__option {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-picker__option--selected {
+  background: var(--bg-highlight);
+}
+
+.agent-picker__option:hover:not(.agent-picker__option--selected) {
+  background: var(--bg-hover);
+}
+
+.agent-picker__option-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-picker__option-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.agent-picker__option-slug {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-left: 6px;
+  font-weight: 400;
+}
+
+.agent-picker__option-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.agent-picker__check {
+  color: var(--accent-primary);
+  font-size: 0.8rem;
+}
+
+.agent-picker__empty {
+  padding: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* ── Job Detail Empty ── */
+.schedule__detail-empty {
+  padding: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* ── Wave 2 additions ── */
+.schedule__detail-logs-wrap { padding: 0.5rem 0.75rem; }
+.schedule__empty-intro { margin-bottom: 1rem; }
+.schedule__table-scroll { overflow-x: auto; }
+.schedule__detail-artifact-btn { font-size: 0.75rem; padding: 0.35rem 0.75rem; }
+.schedule__log-status--ok { color: var(--success-text); }
+.schedule__log-status--fail { color: var(--error-text); }
+.stat-card__value--success { color: var(--success-text); }
+.stat-card__value--error { color: var(--error-text); }
+.stat-card__value--warning { color: var(--warning-text); }
+.schedule__rate-value--high { color: var(--success-text); }
+.schedule__rate-value--mid { color: var(--warning-text); }
+.schedule__rate-value--low { color: var(--error-text); }
