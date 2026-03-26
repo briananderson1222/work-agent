@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { log } from '@/utils/logger';
 import { useAgents } from '../contexts/AgentsContext';
 import { useAnalytics } from '../contexts/AnalyticsContext';
@@ -13,7 +14,7 @@ type DrillDownType = 'model' | 'agent' | null;
 export function UsageStatsPanel() {
   const { usageStats, loading, error, refresh, rescan } = useAnalytics();
   const { apiBase } = useApiBase();
-  const [resetting, setResetting] = useState(false);
+  const queryClient = useQueryClient();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const models = useModels();
   const agents = useAgents();
@@ -22,6 +23,14 @@ export function UsageStatsPanel() {
     id: string;
   } | null>(null);
   const [hasAutoRescanned, setHasAutoRescanned] = useState(false);
+
+  const resetMutation = useMutation({
+    mutationFn: () => fetch(`${apiBase}/api/analytics/usage`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analytics-usage'] });
+      refresh();
+    },
+  });
 
   // Auto-rescan if we have messages but no conversations
   useEffect(() => {
@@ -98,18 +107,10 @@ export function UsageStatsPanel() {
         </h3>
         <button
           onClick={() => setShowResetConfirm(true)}
-          disabled={resetting}
-          style={{
-            fontSize: '11px',
-            padding: '3px 8px',
-            border: '1px solid var(--border-primary)',
-            borderRadius: '4px',
-            background: 'transparent',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-          }}
+          disabled={resetMutation.isPending}
+          className="usage-stats-reset-btn"
         >
-          {resetting ? 'Resetting...' : 'Reset'}
+          {resetMutation.isPending ? 'Resetting...' : 'Reset'}
         </button>
       </div>
 
@@ -122,15 +123,7 @@ export function UsageStatsPanel() {
         variant="danger"
         onConfirm={async () => {
           setShowResetConfirm(false);
-          setResetting(true);
-          try {
-            await fetch(`${apiBase}/api/analytics/usage`, { method: 'DELETE' });
-            refresh();
-          } catch {
-            /* ignore */
-          } finally {
-            setResetting(false);
-          }
+          resetMutation.mutate();
         }}
         onCancel={() => setShowResetConfirm(false)}
       />

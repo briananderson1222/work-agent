@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
-import { K, OP, SPAN } from '../monitoring-keys';
+import { K } from '@shared/monitoring-keys';
 
 export interface AgentStats {
   slug: string;
@@ -61,20 +62,21 @@ export interface MonitoringEvent {
 }
 
 class MonitoringStore {
-  private stats: MonitoringStats | null = null;
   private events: MonitoringEvent[] = [];
   private listeners = new Set<() => void>();
   private eventSource: EventSource | null = null;
-  private apiBase: string;
-  private pollInterval: NodeJS.Timeout | null = null;
+  readonly apiBase: string;
   private lastHeartbeat: number = Date.now();
   private heartbeatCheckInterval: NodeJS.Timeout | null = null;
   private cachedSnapshot: {
-    stats: MonitoringStats | null;
     events: MonitoringEvent[];
+    connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'error';
+    isLoading: boolean;
   } | null = null;
   isLiveMode: boolean = true;
   dateRange: { start?: Date; end?: Date } | null = null;
+  connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'error' = 'disconnected';
+  isLoading: boolean = false;
 
   constructor(apiBase: string) {
     this.apiBase = apiBase;
@@ -88,8 +90,9 @@ class MonitoringStore {
   getSnapshot = () => {
     if (!this.cachedSnapshot) {
       this.cachedSnapshot = {
-        stats: this.stats,
         events: this.events,
+        connectionStatus: this.connectionStatus,
+        isLoading: this.isLoading,
       };
     }
     return this.cachedSnapshot;
@@ -100,21 +103,10 @@ class MonitoringStore {
     this.listeners.forEach((listener) => listener());
   }
 
-  async fetchStats() {
-    try {
-      const response = await fetch(`${this.apiBase}/monitoring/stats`);
-      const result = await response.json();
-      if (result.success) {
-        this.stats = result.data;
-        this.notify();
-      }
-    } catch (error) {
-      log.api('Failed to fetch monitoring stats:', error);
-    }
-  }
-
   async fetchHistoricalEvents(start?: Date, end?: Date) {
     try {
+      this.isLoading = true;
+      this.notify();
       const params = new URLSearchParams();
       if (start) params.set('start', start.toISOString());
       if (end) params.set('end', end.toISOString());
@@ -126,10 +118,12 @@ class MonitoringStore {
 
       if (result.success) {
         this.events = result.data;
-        this.notify();
       }
     } catch (error) {
       log.api('Failed to fetch historical events:', error);
+    } finally {
+      this.isLoading = false;
+      this.notify();
     }
   }
 
@@ -188,6 +182,9 @@ class MonitoringStore {
   connectEventStream(startFrom?: Date) {
     if (this.eventSource) return;
 
+    this.connectionStatus = 'connecting';
+    this.notify();
+
     // Load historical data from specified start time or last 5 minutes
     const now = new Date();
     const start = startFrom || new Date(now.getTime() - 5 * 60 * 1000);
@@ -196,6 +193,11 @@ class MonitoringStore {
     this.eventSource = new EventSource(
       `${this.apiBase}/monitoring/events`,
     );
+
+    this.eventSource.onopen = () => {
+      this.connectionStatus = 'connected';
+      this.notify();
+    };
 
     this.eventSource.onmessage = (event) => {
       try {
@@ -207,32 +209,12 @@ class MonitoringStore {
           return;
         }
         if (data[K.SYSTEM_TYPE] === 'connected') {
-          return; // SSE handshake, not a monitoring event
+          this.connectionStatus = 'connected';
+          this.notify();
+          return;
         }
 
         this.events = [data, ...this.events].slice(0, 1000);
-
-        // Update stats in real-time based on events
-        if (data[K.OP_NAME] === OP.INVOKE_AGENT && data[K.SPAN_KIND] === SPAN.START && this.stats) {
-          const agent = this.stats.agents.find(
-            (a) => a.slug === data[K.AGENT_SLUG],
-          );
-          if (agent) agent.status = 'running';
-        } else if (data[K.OP_NAME] === OP.INVOKE_AGENT && data[K.SPAN_KIND] === SPAN.END && this.stats) {
-          const agent = this.stats.agents.find(
-            (a) => a.slug === data[K.AGENT_SLUG],
-          );
-          if (agent) {
-            agent.status = 'idle';
-            agent.messageCount += 2; // User + assistant message
-          }
-        } else if (data[K.SPAN_KIND] === SPAN.LOG && data[K.HEALTHY] !== undefined && this.stats) {
-          const agent = this.stats.agents.find(
-            (a) => a.slug === data[K.AGENT_SLUG],
-          );
-          if (agent) agent.healthy = data[K.HEALTHY] as boolean;
-        }
-
         this.notify();
       } catch (error) {
         log.api('Failed to parse event:', error);
@@ -241,25 +223,18 @@ class MonitoringStore {
 
     this.eventSource.onerror = () => {
       log.api('EventSource error, reconnecting...');
+      this.connectionStatus = 'error';
+      this.notify();
       this.disconnect();
       setTimeout(() => this.connectEventStream(), 5000);
     };
 
-    // Poll stats every 5 seconds
-    this.pollInterval = setInterval(() => this.fetchStats(), 5000);
-    this.fetchStats(); // Initial fetch
-
-    // Check heartbeat every 10 seconds - reset running agents if no heartbeat
+    // Check heartbeat every 10 seconds - mark stale if no heartbeat
     this.heartbeatCheckInterval = setInterval(() => {
       const timeSinceHeartbeat = Date.now() - this.lastHeartbeat;
-      if (timeSinceHeartbeat > 60000 && this.stats) {
-        // 60 seconds without heartbeat
-        log.api('No heartbeat for 60s, resetting running agents to idle');
-        this.stats.agents.forEach((agent) => {
-          if (agent.status === 'running') {
-            agent.status = 'idle';
-          }
-        });
+      if (timeSinceHeartbeat > 60000 && this.connectionStatus === 'connected') {
+        log.api('No heartbeat for 60s, marking connection as error');
+        this.connectionStatus = 'error';
         this.notify();
       }
     }, 10000);
@@ -270,14 +245,11 @@ class MonitoringStore {
       this.eventSource.close();
       this.eventSource = null;
     }
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
-    }
     if (this.heartbeatCheckInterval) {
       clearInterval(this.heartbeatCheckInterval);
       this.heartbeatCheckInterval = null;
     }
+    this.connectionStatus = 'disconnected';
   }
 
   clearEvents() {
@@ -297,13 +269,34 @@ function getStore(apiBase: string): MonitoringStore {
   return stores.get(apiBase)!;
 }
 
+/** Disconnect and remove a store when no longer needed */
+export function releaseStore(apiBase: string) {
+  const store = stores.get(apiBase);
+  if (store) {
+    store.disconnect();
+    stores.delete(apiBase);
+  }
+}
+
+async function fetchMonitoringStats(apiBase: string): Promise<MonitoringStats | null> {
+  const response = await fetch(`${apiBase}/monitoring/stats`);
+  const result = await response.json();
+  return result.success ? result.data : null;
+}
+
 export function useMonitoring() {
   const { apiBase } = useApiBase();
   const store = useMemo(() => getStore(apiBase), [apiBase]);
   const data = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
+  // Stats via useQuery — replaces manual polling
+  const { data: stats } = useQuery<MonitoringStats | null>({
+    queryKey: ['monitoring-stats', apiBase],
+    queryFn: () => fetchMonitoringStats(apiBase),
+    refetchInterval: 5000,
+  });
+
   const clearEvents = useCallback(() => store.clearEvents(), [store]);
-  const refresh = useCallback(() => store.fetchStats(), [store]);
   const setDateRange = useCallback(
     (range: 'now' | 'today' | 'week' | 'month' | 'all') =>
       store.setDateRange(range),
@@ -316,10 +309,11 @@ export function useMonitoring() {
   );
 
   return {
-    stats: data.stats,
+    stats: stats ?? null,
     events: data.events,
+    connectionStatus: data.connectionStatus,
+    isLoading: data.isLoading,
     clearEvents,
-    refresh,
     setDateRange,
     setTimeRange,
   };

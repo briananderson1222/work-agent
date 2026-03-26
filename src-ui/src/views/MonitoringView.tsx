@@ -1,29 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { useModels } from '../contexts/ModelsContext';
-import { MonitoringEvent, useMonitoring } from '../contexts/MonitoringContext';
+import { useMonitoring } from '../contexts/MonitoringContext';
 import { useToast } from '../contexts/ToastContext';
 import {
   parseSearchQuery,
   useSearchAutocomplete,
 } from '../hooks/useSearchAutocomplete';
-import { K, OP, SPAN } from '../monitoring-keys';
-
-/** Derive a display-friendly event type from OTel attributes */
-function getEventType(event: MonitoringEvent): string {
-  const op = event[K.OP_NAME];
-  const kind = event[K.SPAN_KIND];
-  if (op === OP.INVOKE_AGENT && kind === SPAN.START) return 'agent-start';
-  if (op === OP.INVOKE_AGENT && kind === SPAN.END) return 'agent-complete';
-  if (op === OP.EXECUTE_TOOL && kind === SPAN.START) return 'tool-call';
-  if (op === OP.EXECUTE_TOOL && kind === SPAN.END) return 'tool-result';
-  if (op === OP.INVOKE_AGENT && kind === SPAN.LOG) return 'agent-health';
-  if (event[K.REASONING_TEXT]) return 'reasoning';
-  if (event[K.AT_EVENT_ID]) return 'agent-telemetry';
-  return `${op}-${kind}`;
-}
+import { K } from '@shared/monitoring-keys';
+import { EventEntry } from '../components/monitoring/EventEntry';
+import { MetricsPanel } from '../components/monitoring/MetricsPanel';
+import {
+  EVENT_TYPE_GROUPS,
+  RELATIVE_TIME_OPTIONS,
+  getAgentColor,
+  getConversationColor,
+  getEventType,
+  getRelativeMs,
+  type RelativeTimeValue,
+} from './monitoring-utils';
+import './MonitoringView.css';
 
 export function MonitoringView() {
-  const { stats, events, clearEvents, setTimeRange } = useMonitoring();
+  const { stats, events, clearEvents, setTimeRange, connectionStatus, isLoading } = useMonitoring();
   const { showToast } = useToast();
   const models = useModels();
   const [autoFollow, setAutoFollow] = useState(true);
@@ -73,17 +71,9 @@ export function MonitoringView() {
     handleKeyDown,
   } = useSearchAutocomplete(searchQuery, searchFilters);
 
-  // Event type groups
-  const eventTypeGroups = {
-    Agent: ['agent-start', 'agent-complete'],
-    Tool: ['tool-call', 'tool-result'],
-    Reasoning: ['reasoning'],
-    Planning: ['planning'],
-    Health: ['agent-health'],
-  };
 
   const [eventTypeFilter, setEventTypeFilter] = useState<string[]>(
-    Object.values(eventTypeGroups).flat(),
+    Object.values(EVENT_TYPE_GROUPS).flat(),
   );
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<
@@ -94,9 +84,7 @@ export function MonitoringView() {
   );
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [timeMode, setTimeMode] = useState<'relative' | 'absolute'>('absolute');
-  const [relativeTime, setRelativeTime] = useState<
-    '5m' | '15m' | '1h' | '6h' | '24h' | '7d' | '30d'
-  >('5m');
+  const [relativeTime, setRelativeTime] = useState<RelativeTimeValue>('5m');
   const [absoluteStart, setAbsoluteStart] = useState<string>('');
   const [absoluteEnd, setAbsoluteEnd] = useState<string>('');
   const [isLiveMode, setIsLiveMode] = useState(true);
@@ -174,20 +162,7 @@ export function MonitoringView() {
   // When switching to absolute mode, initialize start time from current relative time
   const handleTimeModeChange = (mode: 'relative' | 'absolute') => {
     if (mode === 'absolute' && !absoluteStart) {
-      const ms =
-        relativeTime === '5m'
-          ? 5 * 60 * 1000
-          : relativeTime === '15m'
-            ? 15 * 60 * 1000
-            : relativeTime === '1h'
-              ? 60 * 60 * 1000
-              : relativeTime === '6h'
-                ? 6 * 60 * 60 * 1000
-                : relativeTime === '24h'
-                  ? 24 * 60 * 60 * 1000
-                  : relativeTime === '7d'
-                    ? 7 * 24 * 60 * 60 * 1000
-                    : 30 * 24 * 60 * 60 * 1000;
+      const ms = getRelativeMs(relativeTime);
       const start = new Date(Date.now() - ms);
       const localDateTime = new Date(
         start.getTime() - start.getTimezoneOffset() * 60000,
@@ -227,23 +202,24 @@ export function MonitoringView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setTimeRange]); // Only run on mount
 
+  // Parse URL filter params on mount (deep link from chat MessageBubble)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const filtersParam = params.get('filters');
+      if (!filtersParam) return;
+      const filters = JSON.parse(filtersParam);
+      if (filters.trace) setSelectedTraceId(filters.trace[0] ?? null);
+      if (filters.agent) setSelectedAgents(filters.agent);
+      if (filters.conversation) setSelectedConversation(filters.conversation[0] ?? null);
+      if (filters.tool) setSelectedToolCallId(filters.tool[0] ?? null);
+    } catch { /* ignore malformed params */ }
+  }, []);
+
   // Update time range when live mode changes
   useEffect(() => {
     if (timeMode === 'relative') {
-      const ms =
-        relativeTime === '5m'
-          ? 5 * 60 * 1000
-          : relativeTime === '15m'
-            ? 15 * 60 * 1000
-            : relativeTime === '1h'
-              ? 60 * 60 * 1000
-              : relativeTime === '6h'
-                ? 6 * 60 * 60 * 1000
-                : relativeTime === '24h'
-                  ? 24 * 60 * 60 * 1000
-                  : relativeTime === '7d'
-                    ? 7 * 24 * 60 * 60 * 1000
-                    : 30 * 24 * 60 * 60 * 1000;
+      const ms = getRelativeMs(relativeTime);
       const now = new Date();
       const start = new Date(now.getTime() - ms);
       setTimeRange(start, now, isLiveMode);
@@ -349,38 +325,6 @@ export function MonitoringView() {
     }
   };
 
-  // Generate consistent color for agent
-  const getAgentColor = (agentSlug: string) => {
-    // Avoid filter colors: blue (#3b82f6), orange (#f59e0b), cyan (#06b6d4), purple (#8b5cf6)
-    const colors = [
-      '#ef4444',
-      '#22c55e',
-      '#a855f7',
-      '#f97316',
-      '#14b8a6',
-      '#ec4899',
-    ];
-    const hash = agentSlug
-      .split('')
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
-
-  // Generate consistent color for conversation ID
-  const getConversationColor = (conversationId: string) => {
-    const colors = [
-      '#3b82f6',
-      '#8b5cf6',
-      '#ec4899',
-      '#f59e0b',
-      '#10b981',
-      '#06b6d4',
-    ];
-    const hash = conversationId
-      .split('')
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
 
   useEffect(() => {
     if (autoFollow && logEndRef.current) {
@@ -474,7 +418,7 @@ export function MonitoringView() {
     ); // Oldest to newest
 
   const toggleEventType = (group: string) => {
-    const groupTypes = eventTypeGroups[group as keyof typeof eventTypeGroups];
+    const groupTypes = EVENT_TYPE_GROUPS[group as keyof typeof EVENT_TYPE_GROUPS] as readonly string[];
     const allSelected = groupTypes.every((type) =>
       eventTypeFilter.includes(type),
     );
@@ -495,8 +439,8 @@ export function MonitoringView() {
         <div className="monitoring-title">
           <h1>MONITORING</h1>
           <div className="status-badge">
-            <span className="status-dot"></span>
-            Connected
+            <span className={`status-dot status-dot-${connectionStatus}`}></span>
+            {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting...' : connectionStatus === 'error' ? 'Error' : 'Disconnected'}
           </div>
         </div>
 
@@ -543,11 +487,7 @@ export function MonitoringView() {
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
               <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                }}
+                className="time-filter-content"
               >
                 <span>
                   {(clearTime || (timeMode === 'absolute' && absoluteStart)) &&
@@ -564,11 +504,7 @@ export function MonitoringView() {
                     // Show fixed range when cleared but not live
                     return (
                       <span
-                        style={{
-                          fontSize: '0.7rem',
-                          opacity: 0.7,
-                          marginTop: '2px',
-                        }}
+                        className="time-range-sublabel"
                       >
                         {clearTime.toLocaleString([], {
                           month: 'short',
@@ -587,28 +523,11 @@ export function MonitoringView() {
                     );
                   } else if (timeMode === 'relative' && !clearTime) {
                     // Show relative range
-                    const ms =
-                      relativeTime === '5m'
-                        ? 5 * 60 * 1000
-                        : relativeTime === '15m'
-                          ? 15 * 60 * 1000
-                          : relativeTime === '1h'
-                            ? 60 * 60 * 1000
-                            : relativeTime === '6h'
-                              ? 6 * 60 * 60 * 1000
-                              : relativeTime === '24h'
-                                ? 24 * 60 * 60 * 1000
-                                : relativeTime === '7d'
-                                  ? 7 * 24 * 60 * 60 * 1000
-                                  : 30 * 24 * 60 * 60 * 1000;
+                    const ms = getRelativeMs(relativeTime);
                     const start = new Date(Date.now() - ms);
                     return (
                       <span
-                        style={{
-                          fontSize: '0.7rem',
-                          opacity: 0.7,
-                          marginTop: '2px',
-                        }}
+                        className="time-range-sublabel"
                       >
                         {start.toLocaleString([], {
                           month: 'short',
@@ -635,11 +554,7 @@ export function MonitoringView() {
                     // Show absolute range
                     return (
                       <span
-                        style={{
-                          fontSize: '0.7rem',
-                          opacity: 0.7,
-                          marginTop: '2px',
-                        }}
+                        className="time-range-sublabel"
                       >
                         {new Date(absoluteStart).toLocaleString([], {
                           month: 'short',
@@ -683,39 +598,7 @@ export function MonitoringView() {
 
                 {timeMode === 'relative' ? (
                   <div className="relative-time-options">
-                    {[
-                      {
-                        value: '5m',
-                        label: 'Last 5 minutes',
-                        ms: 5 * 60 * 1000,
-                      },
-                      {
-                        value: '15m',
-                        label: 'Last 15 minutes',
-                        ms: 15 * 60 * 1000,
-                      },
-                      { value: '1h', label: 'Last 1 hour', ms: 60 * 60 * 1000 },
-                      {
-                        value: '6h',
-                        label: 'Last 6 hours',
-                        ms: 6 * 60 * 60 * 1000,
-                      },
-                      {
-                        value: '24h',
-                        label: 'Last 24 hours',
-                        ms: 24 * 60 * 60 * 1000,
-                      },
-                      {
-                        value: '7d',
-                        label: 'Last 7 days',
-                        ms: 7 * 24 * 60 * 60 * 1000,
-                      },
-                      {
-                        value: '30d',
-                        label: 'Last 30 days',
-                        ms: 30 * 24 * 60 * 60 * 1000,
-                      },
-                    ].map((option) => {
+                    {RELATIVE_TIME_OPTIONS.map((option) => {
                       const now = new Date();
                       const start = new Date(now.getTime() - option.ms);
                       return (
@@ -725,16 +608,7 @@ export function MonitoringView() {
                             relativeTime === option.value ? 'active' : ''
                           }
                           onClick={() => {
-                            setRelativeTime(
-                              option.value as
-                                | '5m'
-                                | '15m'
-                                | '1h'
-                                | '6h'
-                                | '24h'
-                                | '7d'
-                                | '30d',
-                            );
+                            setRelativeTime(option.value);
                             setTimeMode('relative');
                             setClearTime(null);
                             setShowTimeControls(false);
@@ -760,7 +634,7 @@ export function MonitoringView() {
                     </label>
                     <label>
                       End
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div className="time-end-row">
                         <input
                           type="datetime-local"
                           value={absoluteEnd}
@@ -770,11 +644,7 @@ export function MonitoringView() {
                           }}
                           disabled={isLiveMode}
                           placeholder="Leave empty for now"
-                          style={{
-                            flex: 1,
-                            opacity: isLiveMode ? 0.6 : 1,
-                            cursor: isLiveMode ? 'not-allowed' : 'text',
-                          }}
+                          className={isLiveMode ? 'time-end-input-disabled' : ''}
                         />
                         <button
                           type="button"
@@ -789,18 +659,7 @@ export function MonitoringView() {
                             if (isLiveMode) setIsLiveMode(false);
                           }}
                           disabled={isLiveMode}
-                          style={{
-                            padding: '0.5rem 1rem',
-                            background: 'var(--bg-tertiary)',
-                            border: '1px solid var(--border-primary)',
-                            borderRadius: '4px',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.875rem',
-                            fontWeight: 600,
-                            cursor: isLiveMode ? 'not-allowed' : 'pointer',
-                            opacity: isLiveMode ? 0.6 : 1,
-                            whiteSpace: 'nowrap',
-                          }}
+                          className="time-now-button"
                         >
                           Now
                         </button>
@@ -958,12 +817,7 @@ export function MonitoringView() {
                       <span className="meta-label">Messages:</span>
                       <span className="meta-value">{agent.messageCount}</span>
                     </div>
-                    <div className="meta-item">
-                      <span className="meta-label">Cost:</span>
-                      <span className="meta-value">
-                        ${agent.cost.toFixed(3)}
-                      </span>
-                    </div>
+                    {/* TODO: Wire up real cost from usage-aggregator (see utils/pricing.ts) */}
                   </div>
                 </div>
               );
@@ -983,18 +837,7 @@ export function MonitoringView() {
 
               return (
                 <>
-                  <div
-                    style={{
-                      padding: '0.75rem 0.5rem 0.5rem',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: 'var(--text-secondary)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      borderTop: '1px solid var(--border-primary)',
-                      marginTop: '0.5rem',
-                    }}
-                  >
+                  <div className="agent-historical-header">
                     Historical
                   </div>
                   {historicalSlugs.map((slug) => {
@@ -1004,24 +847,19 @@ export function MonitoringView() {
                     return (
                       <div
                         key={slug}
-                        className={`agent-card ${selectedAgents.includes(slug) ? 'selected' : ''}`}
+                        className={`agent-card historical ${selectedAgents.includes(slug) ? 'selected' : ''}`}
                         onClick={(e) => handleAgentClick(slug, e)}
                         style={{
                           borderLeftColor: getAgentColor(slug),
                           background: selectedAgents.includes(slug)
                             ? `color-mix(in srgb, ${getAgentColor(slug)} 10%, var(--bg-secondary))`
                             : undefined,
-                          opacity: 0.7,
                         }}
                       >
                         <div className="agent-header">
                           <span className="agent-name">{slug}</span>
                           <span
-                            className="agent-status"
-                            style={{
-                              background: 'var(--text-tertiary)',
-                              color: 'var(--bg-secondary)',
-                            }}
+                            className="agent-status historical-status"
                           >
                             HISTORICAL
                           </span>
@@ -1046,9 +884,9 @@ export function MonitoringView() {
           <div className="log-controls">
             <div className="log-controls-row">
               <div className="event-filters">
-                {Object.keys(eventTypeGroups).map((group) => {
+                {Object.keys(EVENT_TYPE_GROUPS).map((group) => {
                   const groupTypes =
-                    eventTypeGroups[group as keyof typeof eventTypeGroups];
+                    EVENT_TYPE_GROUPS[group as keyof typeof EVENT_TYPE_GROUPS];
                   const allSelected = groupTypes.every((type) =>
                     eventTypeFilter.includes(type),
                   );
@@ -1199,617 +1037,29 @@ export function MonitoringView() {
           </div>
 
           <div className="log-stream" ref={logStreamRef}>
-            {filteredEvents.length === 0 ? (
+            {isLoading && events.length === 0 ? (
+              <div className="log-empty">
+                <p>Loading events...</p>
+              </div>
+            ) : filteredEvents.length === 0 ? (
               <div className="log-empty">
                 <p>No events yet. Waiting for agent activity...</p>
               </div>
             ) : (
-              filteredEvents.map((event, idx) => {
-                const eventId = `${event.timestamp}-${getEventType(event)}`;
-                const isNew = newEventIds.has(eventId);
-                const agentColor = event[K.AGENT_SLUG]
-                  ? getAgentColor(event[K.AGENT_SLUG] as string)
-                  : undefined;
-                return (
-                  <div
-                    key={idx}
-                    className={`log-entry event-${getEventType(event)} agent-${event[K.AGENT_SLUG]} ${isNew ? 'new-event' : ''}`}
-                    style={
-                      agentColor
-                        ? {
-                            background: `color-mix(in srgb, ${agentColor} 8%, var(--bg-secondary))`,
-                          }
-                        : undefined
-                    }
-                  >
-                    <div className="log-row">
-                      <div className="log-timestamp-col">
-                        <div
-                          className="log-timestamp"
-                          title={
-                            event.timestamp
-                              ? new Date(event.timestamp).toLocaleString(
-                                  'en-US',
-                                  {
-                                    dateStyle: 'full',
-                                    timeStyle: 'long',
-                                  },
-                                )
-                              : 'No timestamp'
-                          }
-                        >
-                          {event.timestamp
-                            ? new Date(event.timestamp).toLocaleTimeString()
-                            : '-'}
-                          {!!event[K.TIMESTAMP_MS] && (
-                            <span
-                              style={{
-                                fontSize: '0.7em',
-                                opacity: 0.6,
-                                marginLeft: '0.25rem',
-                              }}
-                            >
-                              .
-                              {String(event[K.TIMESTAMP_MS] % 1000).padStart(
-                                3,
-                                '0',
-                              )}
-                            </span>
-                          )}
-                        </div>
-                        {!!event[K.TRACE_ID] && (
-                          <button
-                            className={`trace-pill ${selectedTraceId === event[K.TRACE_ID] ? 'selected' : ''}`}
-                            onClick={() => handleTraceClick(event[K.TRACE_ID] as string)}
-                            title={`Trace ID: ${event[K.TRACE_ID]}\nClick to filter`}
-                            style={
-                              selectedTraceId === event[K.TRACE_ID] && agentColor
-                                ? {
-                                    borderColor: agentColor,
-                                    color: agentColor,
-                                  }
-                                : undefined
-                            }
-                          >
-                            {(event[K.TRACE_ID] as string).slice(-8)}
-                          </button>
-                        )}
-                      </div>
-                      <div className="log-type">{getEventType(event).toUpperCase()}</div>
-                      <div className="log-agent">{event[K.AGENT_SLUG] || '-'}</div>
-
-                      <div className="log-data">
-                        {!!event[K.CONVERSATION_ID] && (
-                          <span className="log-inline">
-                            <span className="meta-label">Conversation:</span>
-                            <button
-                              className={`pill-button ${selectedConversation === event[K.CONVERSATION_ID] ? 'selected' : ''}`}
-                              style={{
-                                backgroundColor: 'var(--event-agent-start)',
-                                borderColor: 'var(--event-agent-start)',
-                              }}
-                              onClick={() =>
-                                handleConversationClick(
-                                  event[K.CONVERSATION_ID] as string,
-                                  event[K.AGENT_SLUG] as string,
-                                )
-                              }
-                              title="Filter by conversation"
-                            >
-                              ...{(event[K.CONVERSATION_ID] as string).slice(-6)}
-                            </button>
-                          </span>
-                        )}
-
-                        {!!event[K.TOOL_CALL_ID] && (
-                          <span className="log-inline">
-                            <span className="meta-label">Tool Call:</span>
-                            <button
-                              className={`pill-button ${selectedToolCallId === event[K.TOOL_CALL_ID] ? 'selected' : ''}`}
-                              onClick={() =>
-                                handleToolCallClick(event[K.TOOL_CALL_ID] as string)
-                              }
-                              title="Filter by tool call ID"
-                              style={{
-                                background: 'var(--event-tool-call)',
-                                borderColor: 'var(--event-tool-call)',
-                                color: 'white',
-                              }}
-                            >
-                              ...{(event[K.TOOL_CALL_ID] as string).slice(-6)}
-                            </button>
-                          </span>
-                        )}
-
-                        {!!event[K.TOOL_NAME] && (
-                          <span className="log-inline">
-                            <span className="meta-label">Tool:</span>
-                            <span className="pill-badge tool-badge">
-                              {event[K.TOOL_NAME] as string}
-                            </span>
-                          </span>
-                        )}
-
-                        {event[K.HEALTHY] !== undefined && (
-                          <span className="log-inline">
-                            <span className="meta-label">Status:</span>
-                            <span
-                              className={`pill-badge ${event[K.HEALTHY] ? 'health-ok' : 'health-error'}`}
-                            >
-                              {event[K.HEALTHY] ? '✓ Healthy' : '⚠ Unhealthy'}
-                            </span>
-                          </span>
-                        )}
-
-                        {!!(event[K.HEALTH_INTEGRATIONS] as Array<unknown> | undefined) &&
-                          (event[K.HEALTH_INTEGRATIONS] as Array<{ type: string; id: string; connected: boolean; metadata?: { transport: string; toolCount: number } }>).length > 0 && (
-                            <span className="log-inline">
-                              <span className="meta-label">Integrations:</span>
-                              {(event[K.HEALTH_INTEGRATIONS] as Array<{ type: string; id: string; connected: boolean; metadata?: { transport: string; toolCount: number } }>).map((integration, idx) => (
-                                <span
-                                  key={idx}
-                                  className={`pill-badge ${integration.connected ? 'health-ok' : 'health-error'}`}
-                                  title={`${integration.type.toUpperCase()} - ${integration.connected ? 'Connected' : 'Disconnected'}${integration.metadata ? `\nTransport: ${integration.metadata.transport}\nTools: ${integration.metadata.toolCount}` : ''}`}
-                                >
-                                  {integration.id}
-                                  {integration.metadata &&
-                                    ` (${integration.metadata.toolCount} tools)`}
-                                </span>
-                              ))}
-                            </span>
-                          )}
-
-                        {!!(event[K.FINISH_REASONS] as string[] | undefined)?.[0] && (
-                          <span className="log-inline">
-                            <span className="meta-label">Reason:</span>
-                            <span className="pill-badge">{(event[K.FINISH_REASONS] as string[])[0]}</span>
-                            {(event[K.FINISH_REASONS] as string[])[0] === 'tool-calls' &&
-                              !!event[K.AGENT_MAX_STEPS] && (
-                                <span
-                                  style={{
-                                    marginLeft: '0.5rem',
-                                    fontSize: '0.75rem',
-                                    color: 'var(--text-secondary)',
-                                  }}
-                                >
-                                  (Hit max steps limit: {event[K.AGENT_STEPS]}/
-                                  {event[K.AGENT_MAX_STEPS]})
-                                </span>
-                              )}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Collapsible sections */}
-                    {!!event[K.REASONING_TEXT] && (
-                      <details
-                        className="log-details"
-                        style={{ marginTop: '0.75rem' }}
-                      >
-                        <summary>
-                          Output
-                          <span
-                            style={{
-                              fontSize: '0.75rem',
-                              marginLeft: '0.5rem',
-                              color: 'var(--text-secondary)',
-                            }}
-                          >
-                            ({(event[K.REASONING_TEXT] as string).length} chars)
-                          </span>
-                        </summary>
-                        <pre
-                          style={{
-                            whiteSpace: 'pre-wrap',
-                            maxHeight: '400px',
-                            overflow: 'auto',
-                          }}
-                        >
-                          {event[K.REASONING_TEXT] as string}
-                        </pre>
-                      </details>
-                    )}
-
-                    {!!(event[K.HEALTH_CHECKS] as Record<string, boolean> | undefined) && (
-                      <details className="log-details">
-                        <summary>Health Checks</summary>
-                        <div style={{ padding: '0.5rem 0' }}>
-                          {Object.entries(event[K.HEALTH_CHECKS] as Record<string, boolean>).map(([key, value]) => (
-                            <div
-                              key={key}
-                              style={{
-                                display: 'flex',
-                                gap: '0.5rem',
-                                marginBottom: '0.25rem',
-                              }}
-                            >
-                              <span style={{ color: 'var(--text-secondary)' }}>
-                                {key}:
-                              </span>
-                              <span
-                                style={{
-                                  color: value
-                                    ? 'var(--success)'
-                                    : 'var(--error)',
-                                }}
-                              >
-                                {value ? '✓' : '✗'}
-                              </span>
-                            </div>
-                          ))}
-                          {!!(event[K.HEALTH_INTEGRATIONS] as Array<unknown> | undefined) &&
-                            (event[K.HEALTH_INTEGRATIONS] as Array<{ type: string; id: string; connected: boolean; metadata?: { transport: string; toolCount: number } }>).length > 0 && (
-                              <div
-                                style={{
-                                  marginTop: '1rem',
-                                  paddingTop: '0.5rem',
-                                  borderTop: '1px solid var(--border-primary)',
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: '0.5rem',
-                                  }}
-                                >
-                                  Integrations:
-                                </div>
-                                {(event[K.HEALTH_INTEGRATIONS] as Array<{ type: string; id: string; connected: boolean; metadata?: { transport: string; toolCount: number } }>).map((integration, idx) => (
-                                  <div
-                                    key={idx}
-                                    style={{
-                                      marginLeft: '1rem',
-                                      marginBottom: '0.5rem',
-                                    }}
-                                  >
-                                    <div style={{ fontWeight: 500 }}>
-                                      {integration.id} ({integration.type})
-                                      <span
-                                        style={{
-                                          color: integration.connected
-                                            ? 'var(--success)'
-                                            : 'var(--error)',
-                                          marginLeft: '0.5rem',
-                                        }}
-                                      >
-                                        {integration.connected
-                                          ? '✓ Connected'
-                                          : '✗ Disconnected'}
-                                      </span>
-                                    </div>
-                                    {integration.metadata && (
-                                      <div
-                                        style={{
-                                          fontSize: '0.8rem',
-                                          color: 'var(--text-secondary)',
-                                          marginTop: '0.25rem',
-                                        }}
-                                      >
-                                        Transport:{' '}
-                                        {integration.metadata.transport} |
-                                        Tools: {integration.metadata.toolCount}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                        </div>
-                      </details>
-                    )}
-
-                    {(() => {
-                      const args = event[K.TOOL_CALL_ARGS];
-                      if (!args) return null;
-                      const hasContent = typeof args === 'string' ? (args as string).length > 0 : Object.keys(args as Record<string, unknown>).length > 0;
-                      if (!hasContent) return null;
-                      const argsStr = typeof args === 'string' ? (args as string) : JSON.stringify(args, null, 2);
-                      const argsLabel = typeof args === 'string' ? `${(args as string).length} chars` : `${Object.keys(args as Record<string, unknown>).length} params`;
-                      return (
-                        <details className="log-details">
-                          <summary>
-                            Input ({argsLabel})
-                          </summary>
-                          <pre>{argsStr}</pre>
-                        </details>
-                      );
-                    })()}
-
-                    {!!event[K.TOOL_CALL_RESULT] && (
-                      <details className="log-details">
-                        <summary>
-                          Result
-                          <button
-                            className="export-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigator.clipboard.writeText(
-                                JSON.stringify(event[K.TOOL_CALL_RESULT], null, 2),
-                              );
-                              showToast('Copied to clipboard');
-                            }}
-                            title="Copy to clipboard"
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <rect
-                                x="9"
-                                y="9"
-                                width="13"
-                                height="13"
-                                rx="2"
-                                ry="2"
-                              ></rect>
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                            </svg>
-                          </button>
-                        </summary>
-                        <pre>{JSON.stringify(event[K.TOOL_CALL_RESULT], null, 2)}</pre>
-                      </details>
-                    )}
-
-                    {getEventType(event) === 'agent-complete' &&
-                      !!(event[K.ARTIFACTS] as Array<unknown> | undefined) &&
-                      (() => {
-                        const artifacts = event[K.ARTIFACTS] as Array<{ type: string; name?: string; content?: unknown }>;
-                        const textArtifacts = artifacts.filter(
-                          (a) => a.type === 'text',
-                        );
-                        const finalOutput =
-                          textArtifacts.length > 0
-                            ? String(textArtifacts[textArtifacts.length - 1].content ?? '')
-                            : null;
-                        const toolCalls = artifacts.filter(
-                          (a) => a.type === 'tool-call',
-                        );
-
-                        return (
-                          <>
-                            {finalOutput &&
-                              (() => {
-                                const needsExpansion = finalOutput.length > 200;
-
-                                return (
-                                  <details className="log-details">
-                                    <summary>
-                                      Output
-                                      {needsExpansion && (
-                                        <span
-                                          style={{
-                                            fontSize: '0.75rem',
-                                            marginLeft: '0.5rem',
-                                            color: 'var(--text-secondary)',
-                                          }}
-                                        >
-                                          ({finalOutput.length} chars)
-                                        </span>
-                                      )}
-                                    </summary>
-                                    <pre
-                                      style={{
-                                        whiteSpace: 'pre-wrap',
-                                        maxHeight: '400px',
-                                        overflow: 'auto',
-                                      }}
-                                    >
-                                      {finalOutput}
-                                    </pre>
-                                  </details>
-                                );
-                              })()}
-                            {toolCalls.length > 0 && (
-                              <details className="log-details">
-                                <summary>
-                                  Tools Used ({toolCalls.length})
-                                </summary>
-                                <div style={{ padding: '0.5rem 0' }}>
-                                  {toolCalls.map((tool, idx) => (
-                                    <div
-                                      key={idx}
-                                      style={{
-                                        marginBottom: '0.5rem',
-                                        paddingBottom: '0.5rem',
-                                        borderBottom:
-                                          idx < toolCalls.length - 1
-                                            ? '1px solid var(--border-primary)'
-                                            : 'none',
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          fontWeight: 500,
-                                          color: 'var(--event-tool-call)',
-                                        }}
-                                      >
-                                        {tool.name}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            )}
-                            {event[K.INPUT_TOKENS] !== undefined || event[K.INPUT_CHARS] !== undefined ? (
-                              <details className="log-details">
-                                <summary>Usage & Stats</summary>
-                                <div
-                                  style={{
-                                    padding: '0.5rem 0',
-                                    display: 'grid',
-                                    gridTemplateColumns: 'auto 1fr',
-                                    gap: '0.5rem',
-                                    fontSize: '0.9em',
-                                  }}
-                                >
-                                  {/* Character Counts */}
-                                  {event[K.INPUT_CHARS] !== undefined && (
-                                    <>
-                                      <div
-                                        style={{
-                                          color: 'var(--text-secondary)',
-                                        }}
-                                      >
-                                        Input:
-                                      </div>
-                                      <div style={{ fontFamily: 'monospace' }}>
-                                        {(event[K.INPUT_CHARS] as number).toLocaleString()}{' '}
-                                        chars
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {event[K.OUTPUT_CHARS] !== undefined && (
-                                    <>
-                                      <div
-                                        style={{
-                                          color: 'var(--text-secondary)',
-                                        }}
-                                      >
-                                        Output:
-                                      </div>
-                                      <div style={{ fontFamily: 'monospace' }}>
-                                        {(event[K.OUTPUT_CHARS] as number).toLocaleString()}{' '}
-                                        chars
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {event[K.INPUT_CHARS] !== undefined &&
-                                    event[K.OUTPUT_CHARS] !== undefined && (
-                                      <>
-                                        <div
-                                          style={{
-                                            color: 'var(--text-secondary)',
-                                            fontWeight: 500,
-                                          }}
-                                        >
-                                          Total:
-                                        </div>
-                                        <div
-                                          style={{
-                                            fontFamily: 'monospace',
-                                            fontWeight: 500,
-                                          }}
-                                        >
-                                          {(
-                                            (event[K.INPUT_CHARS] as number) + (event[K.OUTPUT_CHARS] as number)
-                                          ).toLocaleString()}{' '}
-                                          chars
-                                        </div>
-                                      </>
-                                    )}
-
-                                  {/* Token Usage */}
-                                  {event[K.INPUT_TOKENS] !== undefined && (
-                                    <>
-                                      <div
-                                        style={{
-                                          color: 'var(--text-secondary)',
-                                          marginTop: '0.5rem',
-                                        }}
-                                      >
-                                        Input Tokens:
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontFamily: 'monospace',
-                                          marginTop: '0.5rem',
-                                        }}
-                                      >
-                                        {(event[K.INPUT_TOKENS] as number).toLocaleString()}
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {event[K.OUTPUT_TOKENS] !== undefined && (
-                                    <>
-                                      <div
-                                        style={{
-                                          color: 'var(--text-secondary)',
-                                        }}
-                                      >
-                                        Output Tokens:
-                                      </div>
-                                      <div style={{ fontFamily: 'monospace' }}>
-                                        {(event[K.OUTPUT_TOKENS] as number).toLocaleString()}
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {event[K.INPUT_TOKENS] !== undefined && event[K.OUTPUT_TOKENS] !== undefined && (
-                                    <>
-                                      <div
-                                        style={{
-                                          color: 'var(--text-secondary)',
-                                          fontWeight: 500,
-                                        }}
-                                      >
-                                        Total Tokens:
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontFamily: 'monospace',
-                                          fontWeight: 500,
-                                        }}
-                                      >
-                                        {((event[K.INPUT_TOKENS] as number || 0) + (event[K.OUTPUT_TOKENS] as number || 0)).toLocaleString()}
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {/* Execution Stats */}
-                                  {event[K.AGENT_STEPS] !== undefined && (
-                                    <>
-                                      <div
-                                        style={{
-                                          color: 'var(--text-secondary)',
-                                          marginTop: '0.5rem',
-                                        }}
-                                      >
-                                        Steps Taken:
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontFamily: 'monospace',
-                                          marginTop: '0.5rem',
-                                        }}
-                                      >
-                                        {event[K.AGENT_STEPS] as number}
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {event[K.AGENT_MAX_STEPS] !== undefined && (
-                                    <>
-                                      <div
-                                        style={{
-                                          color: 'var(--text-secondary)',
-                                        }}
-                                      >
-                                        Max Steps:
-                                      </div>
-                                      <div style={{ fontFamily: 'monospace' }}>
-                                        {event[K.AGENT_MAX_STEPS] as number}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              </details>
-                            ) : null}
-                          </>
-                        );
-                      })()}
-                  </div>
-                );
-              })
+              filteredEvents.map((event, idx) => (
+                <EventEntry
+                  key={idx}
+                  event={event}
+                  isNew={newEventIds.has(`${event.timestamp}-${getEventType(event)}`)}
+                  selectedTraceId={selectedTraceId}
+                  selectedConversation={selectedConversation}
+                  selectedToolCallId={selectedToolCallId}
+                  onTraceClick={handleTraceClick}
+                  onConversationClick={handleConversationClick}
+                  onToolCallClick={handleToolCallClick}
+                  onCopyResult={(text) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard'); }}
+                />
+              ))
             )}
             <div ref={logEndRef} />
             {showScrollButton && (
@@ -1822,1227 +1072,37 @@ export function MonitoringView() {
               </button>
             )}
           </div>
+          <MetricsPanel />
         </div>
       </div>
 
-      <style>{`
-        .monitoring-view {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-          background: var(--bg-primary);
-          color: var(--text-primary);
-        }
-
-        .monitoring-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 1rem 1.5rem;
-          background: var(--bg-secondary);
-          border-bottom: 1px solid var(--border-primary);
-        }
-
-        .monitoring-title {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-        }
-
-        .monitoring-title h1 {
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin: 0;
-        }
-
-        .status-badge {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.25rem 0.75rem;
-          background: var(--bg-tertiary);
-          border-radius: 4px;
-          font-size: 0.875rem;
-        }
-
-        .status-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: var(--health-success);
-          animation: statusPulse 2s ease-in-out infinite;
-        }
-
-        @keyframes statusPulse {
-          0%, 100% { 
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% { 
-            opacity: 0.5;
-            transform: scale(0.85);
-          }
-        }
-
-        .monitoring-stats {
-          display: flex;
-          gap: 2rem;
-        }
-
-        .stat-item {
-          display: flex;
-          gap: 0.5rem;
-          font-size: 0.875rem;
-        }
-
-        .stat-label {
-          color: var(--text-secondary);
-        }
-
-        .stat-value {
-          font-weight: 600;
-          color: var(--text-primary);
-        }
-
-        .monitoring-actions {
-          display: flex;
-          gap: 0.5rem;
-          align-items: center;
-        }
-
-        .time-filter-wrapper {
-          position: relative;
-        }
-
-        .time-filter-button {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          border-radius: 4px;
-          color: var(--text-primary);
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .time-filter-button:hover {
-          background: var(--bg-hover);
-        }
-
-        .time-controls-dropdown {
-          position: absolute;
-          top: calc(100% + 0.5rem);
-          right: 0;
-          background: var(--bg-secondary);
-          border: 1px solid var(--border-primary);
-          border-radius: 6px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-          z-index: 100;
-          min-width: 250px;
-        }
-
-        .time-mode-tabs {
-          display: flex;
-          border-bottom: 1px solid var(--border-primary);
-        }
-
-        .time-mode-tabs button {
-          flex: 1;
-          padding: 0.75rem;
-          background: none;
-          border: none;
-          color: var(--text-secondary);
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .time-mode-tabs button.active {
-          color: var(--accent-primary);
-          border-bottom: 2px solid var(--accent-primary);
-        }
-
-        .relative-time-options {
-          display: flex;
-          flex-direction: column;
-          padding: 0.5rem;
-        }
-
-        .relative-time-options button {
-          padding: 0.75rem;
-          background: none;
-          border: none;
-          color: var(--text-primary);
-          font-size: 0.875rem;
-          text-align: left;
-          cursor: pointer;
-          border-radius: 4px;
-          transition: all 0.2s;
-        }
-
-        .relative-time-options button .option-label {
-          font-weight: 600;
-        }
-
-        .relative-time-options button .option-time {
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-          margin-top: 0.25rem;
-        }
-
-        .relative-time-options button:hover {
-          background: var(--bg-tertiary);
-        }
-
-        .relative-time-options button.active {
-          background: var(--accent-primary);
-          color: white;
-        }
-
-        .absolute-time-inputs {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          padding: 1rem;
-        }
-
-        .absolute-time-inputs label {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: var(--text-secondary);
-        }
-
-        .absolute-time-inputs input {
-          padding: 0.5rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          border-radius: 4px;
-          color: var(--text-primary);
-          font-size: 0.875rem;
-        }
-
-        .apply-button {
-          padding: 0.5rem 1rem;
-          background: var(--accent-primary);
-          border: none;
-          border-radius: 4px;
-          color: white;
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .apply-button:hover {
-          opacity: 0.9;
-        }
-
-        .active-filters {
-          display: flex;
-          gap: 0.5rem;
-          align-items: center;
-        }
-
-        .filter-badge {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.375rem 0.75rem;
-          background: var(--accent-primary);
-          color: white;
-          border-radius: 4px;
-          font-size: 0.75rem;
-          font-weight: 600;
-        }
-
-        .filter-badge button {
-          background: none;
-          border: none;
-          color: white;
-          font-size: 1.25rem;
-          line-height: 1;
-          cursor: pointer;
-          padding: 0;
-          margin-left: 0.25rem;
-        }
-
-        .filter-badge button:hover {
-          opacity: 0.8;
-        }
-
-        .monitoring-content {
-          display: flex;
-          flex: 1;
-          overflow: hidden;
-        }
-
-        .monitoring-sidebar {
-          width: 280px;
-          background: var(--bg-secondary);
-          border-right: 1px solid var(--border-primary);
-          display: flex;
-          flex-direction: column;
-        }
-
-        .sidebar-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 1rem;
-          border-bottom: 1px solid var(--border-primary);
-        }
-
-        .sidebar-header h3 {
-          font-size: 0.875rem;
-          font-weight: 600;
-          margin: 0;
-        }
-
-        .agent-count {
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-        }
-
-        .agent-list {
-          flex: 1;
-          overflow-y: auto;
-          padding: 0.5rem;
-          user-select: none;
-        }
-
-        .agent-card {
-          padding: 0.75rem;
-          margin-bottom: 0.5rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          border-radius: 6px;
-          border-left: 3px solid var(--border-primary);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .agent-card:hover {
-          background: var(--bg-hover);
-        }
-
-        .agent-card.selected {
-          border-left-color: var(--accent-primary);
-          border-color: var(--accent-primary);
-          background: var(--bg-hover);
-          box-shadow: 0 0 0 1px var(--accent-primary);
-        }
-
-        .agent-card.status-idle {
-          border-left-color: var(--text-tertiary);
-        }
-
-        .agent-card.status-active {
-          border-left-color: var(--accent-primary);
-        }
-
-        .agent-card.status-running {
-          border-left-color: var(--success);
-          animation: pulseBackground 2s ease-in-out infinite;
-        }
-
-        @keyframes pulseBackground {
-          0%, 100% {
-            background: var(--bg-tertiary);
-          }
-          50% {
-            background: color-mix(in srgb, var(--success) 15%, var(--bg-tertiary));
-          }
-        }
-
-        .agent-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 0.5rem;
-        }
-
-        .agent-name {
-          font-weight: 500;
-          font-size: 0.875rem;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .health-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          display: inline-block;
-          flex-shrink: 0;
-          animation: pulse 3s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.6;
-            transform: scale(0.95);
-          }
-        }
-
-        .health-dot.healthy {
-          background: var(--health-success);
-        }
-
-        .health-dot.unhealthy {
-          background: var(--health-error);
-        }
-
-        .health-dot.unknown {
-          background: var(--health-warning);
-        }
-
-        .agent-status {
-          font-size: 0.625rem;
-          padding: 0.125rem 0.5rem;
-          border-radius: 3px;
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-
-        .agent-status.idle {
-          background: var(--bg-tertiary);
-          color: var(--text-tertiary);
-        }
-
-        .agent-status.active {
-          background: var(--bg-tertiary);
-          color: var(--accent-primary);
-        }
-
-        .agent-status.running {
-          background: var(--bg-tertiary);
-          color: var(--success);
-          animation: pulse 2s ease-in-out infinite;
-        }
-
-        .agent-meta {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-
-        .running-conversations {
-          margin-top: 0.75rem;
-          padding-top: 0.75rem;
-          border-top: 1px solid var(--border-primary);
-          animation: slideDown 0.3s ease-out;
-        }
-
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            max-height: 0;
-          }
-          to {
-            opacity: 1;
-            max-height: 200px;
-          }
-        }
-
-        .conversations-label {
-          font-size: 0.7rem;
-          font-weight: 600;
-          color: var(--text-secondary);
-          text-transform: uppercase;
-          margin-bottom: 0.5rem;
-          letter-spacing: 0.5px;
-        }
-
-        .conversation-item {
-          display: flex;
-          align-items: center;
-          padding: 0.5rem;
-          margin-bottom: 0.25rem;
-          background: var(--bg-secondary);
-          border-left: 3px solid var(--border-primary);
-          border-radius: 4px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .conversation-item:hover {
-          background: var(--bg-hover);
-          transform: translateX(2px);
-        }
-
-        .conversation-id {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.75rem;
-          color: var(--text-primary);
-        }
-
-        .conversation-pill {
-          font-size: 0.65rem;
-          padding: 0.125rem 0.375rem;
-          border-radius: 3px;
-          color: white;
-          font-weight: 500;
-        }
-
-        .meta-item {
-          display: flex;
-          justify-content: space-between;
-          font-size: 0.75rem;
-        }
-
-        .meta-label {
-          color: var(--text-secondary);
-        }
-
-        .meta-value {
-          color: var(--text-primary);
-          font-weight: 500;
-        }
-
-        .monitoring-main {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .log-controls {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-          padding: 1rem;
-          background: var(--bg-secondary);
-          border-bottom: 1px solid var(--border-primary);
-        }
-
-        .log-controls-row {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-        }
-
-        .event-filters {
-          display: flex;
-          gap: 0.5rem;
-        }
-
-        .event-filter {
-          padding: 0.375rem 0.75rem;
-          border: 1px solid var(--border-primary);
-          background: var(--bg-tertiary);
-          color: var(--text-secondary);
-          border-radius: 4px;
-          font-size: 0.75rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .event-filter.active {
-          color: white;
-        }
-
-        .event-filter[data-type="agent"].active {
-          background: var(--event-agent-start);
-          border-color: var(--event-agent-start);
-        }
-
-        .event-filter[data-type="tool"].active {
-          background: var(--event-tool-call);
-          border-color: var(--event-tool-call);
-        }
-
-        .event-filter[data-type="planning"].active {
-          background: var(--event-planning);
-          border-color: var(--event-planning);
-        }
-
-        .event-filter[data-type="reasoning"].active {
-          background: var(--event-reasoning);
-          border-color: var(--event-reasoning);
-        }
-
-        .event-filter[data-type="health"].active {
-          background: var(--event-agent-health);
-          border-color: var(--event-agent-health);
-        }
-
-        .search-wrapper {
-          position: relative;
-          flex: 1;
-        }
-
-        .search-input {
-          width: 100%;
-          padding: 0.5rem 1rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          border-radius: 4px;
-          color: var(--text-primary);
-          font-size: 0.875rem;
-        }
-
-        .search-input::placeholder {
-          color: var(--text-secondary);
-        }
-
-        .search-clear {
-          position: absolute;
-          right: 0.5rem;
-          top: 50%;
-          transform: translateY(-50%);
-          background: none;
-          border: none;
-          color: var(--text-secondary);
-          font-size: 1.5rem;
-          line-height: 1;
-          cursor: pointer;
-          padding: 0.25rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .search-clear:hover {
-          color: var(--text-primary);
-        }
-
-        .autocomplete-dropdown {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          margin-top: 0.25rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          border-radius: 4px;
-          max-height: 200px;
-          overflow-y: auto;
-          z-index: 1000;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .autocomplete-item {
-          padding: 0.5rem 1rem;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.875rem;
-          color: var(--text-primary);
-        }
-
-        .autocomplete-item:hover {
-          background: var(--bg-secondary);
-        }
-
-        .autocomplete-item.selected {
-          background: var(--accent-primary);
-          color: white;
-        }
-
-        .autocomplete-item.selected .autocomplete-type {
-          background: rgba(255, 255, 255, 0.3);
-        }
-
-        .autocomplete-item.empty {
-          cursor: default;
-          opacity: 0.7;
-        }
-
-        .autocomplete-item.empty:hover {
-          background: var(--bg-tertiary);
-        }
-
-        .autocomplete-empty {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-
-        .autocomplete-hint {
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-        }
-
-        .autocomplete-type {
-          padding: 0.125rem 0.375rem;
-          border-radius: 3px;
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: white;
-        }
-
-        .autocomplete-item[data-type="agent"] .autocomplete-type {
-          background: var(--event-agent-start);
-        }
-
-        .autocomplete-item[data-type="conversation"] .autocomplete-type {
-          background: var(--event-agent-start);
-        }
-
-        .autocomplete-item[data-type="tool"] .autocomplete-type {
-          background: var(--event-tool-call);
-        }
-
-        .active-filters-inline {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-        }
-
-        .filter-badge-inline {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.25rem 0.5rem;
-          border-radius: 4px;
-          font-size: 0.75rem;
-          font-family: 'JetBrains Mono', monospace;
-          color: var(--text-primary);
-        }
-
-        .filter-badge-inline button {
-          background: none;
-          border: none;
-          color: var(--text-secondary);
-          cursor: pointer;
-          font-size: 1rem;
-          line-height: 1;
-          padding: 0;
-          margin-left: 0.25rem;
-        }
-
-        .filter-badge-inline button:hover {
-          color: var(--text-primary);
-        }
-
-        .btn-toggle {
-          padding: 0.5rem 1rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          color: var(--text-secondary);
-          border-radius: 4px;
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-toggle.active {
-          background: var(--accent-primary);
-          color: white;
-          border-color: var(--accent-primary);
-        }
-
-        .live-mode-toggle {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.375rem 0.625rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          color: var(--text-secondary);
-          border-radius: 4px;
-          font-size: 0.75rem;
-          font-weight: 700;
-          letter-spacing: 0.5px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .live-mode-toggle:hover {
-          background: var(--bg-hover);
-        }
-
-        .live-mode-toggle.active {
-          background: var(--health-success);
-          color: white;
-          border-color: var(--health-success);
-        }
-
-        .live-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: currentColor;
-        }
-
-        .live-mode-toggle.active .live-dot {
-          animation: livePulse 2s ease-in-out infinite;
-        }
-
-        @keyframes livePulse {
-          0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.4;
-            transform: scale(0.8);
-          }
-        }
-
-        .log-stream {
-          flex: 1;
-          overflow-y: auto;
-          padding: 1rem;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.875rem;
-          position: relative;
-        }
-
-        .scroll-to-bottom {
-          position: sticky;
-          bottom: 1rem;
-          right: 1rem;
-          float: right;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          background: var(--accent-primary);
-          color: white;
-          border: none;
-          font-size: 1.5rem;
-          cursor: pointer;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-          transition: all 0.2s;
-          z-index: 10;
-        }
-
-        .scroll-to-bottom:hover {
-          transform: scale(1.1);
-          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-        }
-
-        .log-empty {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 100%;
-          color: var(--text-secondary);
-        }
-
-        .log-entry {
-          display: flex;
-          flex-direction: column;
-          padding: 0.75rem;
-          margin-bottom: 0.5rem;
-          background: var(--bg-secondary);
-          border-left: 4px solid var(--border-primary);
-          border-radius: 4px;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-          max-width: 100%;
-        }
-
-        .log-trace {
-          display: flex;
-          align-items: center;
-        }
-
-        .trace-pill {
-          padding: 0.25rem 0.5rem;
-          background: var(--color-primary);
-          color: white;
-          border: none;
-          border-radius: 12px;
-          font-size: 0.7rem;
-          font-weight: 600;
-          font-family: 'JetBrains Mono', monospace;
-          cursor: pointer;
-          transition: all 0.2s;
-          opacity: 0.7;
-          white-space: nowrap;
-        }
-
-        .trace-pill:hover {
-          opacity: 1;
-          transform: translateY(-1px);
-        }
-
-        .trace-pill.selected {
-          opacity: 1;
-          box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--color-primary);
-        }
-
-        .log-row {
-          display: grid;
-          grid-template-columns: 120px 140px 180px 1fr;
-          gap: 1rem;
-          align-items: start;
-        }
-
-        .log-timestamp-col {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-
-        .log-timestamp {
-          color: var(--text-secondary);
-          white-space: nowrap;
-        }
-
-        .trace-pill {
-          padding: 0.125rem 0.375rem;
-          background: transparent;
-          color: var(--text-tertiary);
-          border: 1px solid var(--border-primary);
-          border-radius: 8px;
-          font-size: 0.65rem;
-          font-weight: 600;
-          font-family: 'JetBrains Mono', monospace;
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
-          align-self: flex-start;
-        }
-
-        .trace-pill:hover {
-          border-color: var(--text-secondary);
-          color: var(--text-secondary);
-        }
-
-        .trace-pill.selected {
-          border-width: 1.5px;
-          font-weight: 700;
-        }
-
-        .log-entry.new-event {
-          animation: slideInFade 5s ease-out;
-        }
-
-        @keyframes slideInFade {
-          0% {
-            transform: translateX(-10px);
-            opacity: 0;
-          }
-          5% {
-            transform: translateX(0);
-            opacity: 1;
-          }
-          100% {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-
-        .log-entry.event-tool-call,
-        .log-entry.event-tool-result {
-          border-left-color: var(--event-tool-call);
-          background: color-mix(in srgb, var(--event-tool-call) 5%, var(--bg-secondary));
-        }
-
-        .log-entry.event-agent-start,
-        .log-entry.event-agent-complete {
-          border-left-color: var(--event-agent-start);
-          background: color-mix(in srgb, var(--event-agent-start) 5%, var(--bg-secondary));
-        }
-
-        .log-entry.event-agent-health {
-          border-left-color: var(--event-agent-health);
-          background: color-mix(in srgb, var(--event-agent-health) 5%, var(--bg-secondary));
-        }
-
-        .log-entry.event-text-delta,
-        .log-entry.event-planning {
-          border-left-color: var(--event-planning);
-          background: color-mix(in srgb, var(--event-planning) 5%, var(--bg-secondary));
-        }
-
-        .log-entry.event-reasoning {
-          border-left-color: var(--event-reasoning);
-          background: color-mix(in srgb, var(--event-reasoning) 5%, var(--bg-secondary));
-        }
-
-        .log-timestamp {
-          color: var(--text-secondary);
-          white-space: nowrap;
-        }
-
-        .log-type {
-          font-weight: 600;
-          padding: 0.25rem 0.5rem;
-          border-radius: 4px;
-          font-size: 0.75rem;
-          text-align: center;
-          white-space: nowrap;
-        }
-
-        .event-agent-start .log-type,
-        .event-agent-complete .log-type {
-          background: var(--event-agent-start);
-          color: white;
-        }
-
-        .event-tool-call .log-type,
-        .event-tool-result .log-type {
-          background: var(--event-tool-call);
-          color: white;
-        }
-
-        .event-agent-health .log-type {
-          background: var(--event-agent-health);
-          color: white;
-        }
-
-        .event-text-delta .log-type,
-        .event-planning .log-type {
-          background: var(--event-planning);
-          color: white;
-        }
-
-        .event-reasoning .log-type {
-          background: var(--event-reasoning);
-          color: white;
-        }
-
-        .log-agent {
-          color: var(--accent-primary);
-          font-weight: 500;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-        }
-
-        .log-data {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 1rem;
-          color: var(--text-secondary);
-        }
-
-        .log-inline {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .log-details {
-          grid-column: 1 / -1;
-          margin-top: 0.75rem;
-          padding-top: 0.75rem;
-          border-top: 1px solid var(--border-primary);
-        }
-
-        .log-details summary {
-          cursor: pointer;
-          font-size: 0.75rem;
-          color: var(--accent-primary);
-          user-select: none;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .export-btn {
-          background: var(--bg-secondary);
-          border: 1px solid var(--border-primary);
-          border-radius: 4px;
-          cursor: pointer;
-          padding: 0.25rem;
-          opacity: 0.6;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--text-secondary);
-          transition: opacity 0.2s;
-        }
-
-        .export-btn:hover {
-          opacity: 1;
-        }
-
-        .artifacts-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-          margin-top: 0.5rem;
-        }
-
-        .artifact-item {
-          padding: 0.75rem;
-          background: var(--bg-tertiary);
-          border-radius: 4px;
-          border-left: 3px solid var(--accent-primary);
-        }
-
-        .artifact-header {
-          display: flex;
-          gap: 0.5rem;
-          margin-bottom: 0.5rem;
-          font-size: 0.75rem;
-        }
-
-        .artifact-type {
-          padding: 0.125rem 0.5rem;
-          background: var(--bg-primary);
-          border-radius: 3px;
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-
-        .artifact-name {
-          color: var(--warning);
-          font-weight: 500;
-        }
-
-        .artifact-item pre {
-          margin: 0;
-          font-size: 0.75rem;
-        }
-
-        .log-details pre {
-          margin-top: 0.5rem;
-          padding: 0.5rem;
-          background: var(--bg-tertiary);
-          border-radius: 4px;
-          font-size: 0.75rem;
-          white-space: pre-wrap;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-          overflow-x: auto;
-        }
-
-        .tool-badge {
-          background: var(--bg-tertiary);
-          border-color: var(--warning);
-          color: var(--warning);
-        }
-
-        .health-ok {
-          background: var(--bg-tertiary);
-          border-color: var(--success);
-          color: var(--success);
-        }
-
-        .health-error {
-          background: var(--bg-tertiary);
-          border-color: var(--error);
-          color: var(--error);
-        }
-
-        .meta-label {
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-        }
-
-        .pill-button {
-          padding: 0.125rem 0.5rem;
-          background: var(--accent-primary);
-          color: white;
-          border: none;
-          border-radius: 12px;
-          font-size: 0.75rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .pill-button:hover {
-          opacity: 0.8;
-          transform: translateY(-1px);
-        }
-
-        .pill-button.selected {
-          box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px currentColor;
-        }
-
-        .pill-badge {
-          padding: 0.125rem 0.5rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          border-radius: 12px;
-          font-size: 0.75rem;
-          font-weight: 500;
-        }
-
-        .btn-secondary {
-          padding: 0.5rem 1rem;
-          background: var(--bg-tertiary);
-          border: 1px solid var(--border-primary);
-          color: var(--text-primary);
-          border-radius: 4px;
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-secondary:hover {
-          background: var(--bg-hover);
-        }
-
-        @media (max-width: 768px) {
-          .monitoring-content {
-            flex-direction: column;
-          }
-
-          .monitoring-sidebar {
-            width: 100%;
-            border-right: none;
-            border-bottom: 1px solid var(--border-primary);
-            max-height: 40vh;
-            overflow-y: auto;
-          }
-
-          .monitoring-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.75rem;
-          }
-
-          .monitoring-stats {
-            flex-wrap: wrap;
-            gap: 0.5rem;
-          }
-
-          .monitoring-actions {
-            flex-wrap: wrap;
-            width: 100%;
-          }
-
-          .event-filters {
-            flex-wrap: wrap;
-            gap: 4px;
-          }
-
-          .event-filter {
-            font-size: 11px;
-            padding: 4px 8px;
-          }
-
-          .log-entry {
-            padding: 8px 10px;
-            font-size: 12px;
-          }
-
-          .log-entry .log-meta {
-            flex-wrap: wrap;
-            gap: 4px;
-          }
-
-          .time-controls-dropdown {
-            min-width: unset;
-            width: calc(100vw - 2rem);
-            max-width: 300px;
-          }
-        }
-      `}</style>
     </div>
+  );
+}
+
+class MonitoringErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('MonitoringView error:', error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="monitoring-view" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center' }}>
+            <p>Something went wrong in the monitoring view.</p>
+            <button className="btn-secondary" onClick={() => this.setState({ hasError: false })}>Reload</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export function MonitoringViewWithBoundary() {
+  return (
+    <MonitoringErrorBoundary>
+      <MonitoringView />
+    </MonitoringErrorBoundary>
   );
 }

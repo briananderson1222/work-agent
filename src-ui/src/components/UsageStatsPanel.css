@@ -341,6 +341,16 @@
   margin-right: 8px;
 }
 
+.usage-stats-reset-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {
   .usage-stats-cards {
