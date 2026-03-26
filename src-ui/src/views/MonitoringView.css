@@ -384,8 +384,8 @@
 }
 
 .agent-card.selected {
-  border-left-color: var(--accent-primary);
   border-color: var(--accent-primary);
+  border-left-color: var(--accent-primary);
   background: var(--bg-hover);
   box-shadow: 0 0 0 1px var(--accent-primary);
 }

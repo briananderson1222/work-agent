@@ -81,7 +81,7 @@ const PROVIDER_ICONS: Record<string, () => ReactNode> = {
   'openai-compat': IconLink,
 };
 
-export interface ConnectionsHubProps {}
+export type ConnectionsHubProps = Record<string, never>;
 
 export function ConnectionsHub(_props: ConnectionsHubProps) {
   const { apiBase } = useApiBase();
