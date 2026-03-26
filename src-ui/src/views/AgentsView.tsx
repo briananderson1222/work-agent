@@ -4,9 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ACPConnectionsSection } from '../components/ACPConnectionsSection';
 import { DetailHeader } from '../components/DetailHeader';
 import { AgentIcon } from '../components/AgentIcon';
-import { Checkbox } from '../components/Checkbox';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { ModelSelector } from '../components/ModelSelector';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import {
   type AgentData,
@@ -18,6 +16,8 @@ import { useACPConnections } from '../hooks/useACPConnections';
 import { useAIEnrich } from '../hooks/useAIEnrich';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import type { AgentSummary, NavigationView, Tool } from '../types';
+import { AgentAddModal } from './AgentAddModal';
+import { AgentEditorForm, type AgentFormData } from './AgentEditorForm';
 import './editor-layout.css';
 import './page-layout.css';
 
@@ -28,30 +28,6 @@ interface AgentsViewProps {
   defaultModel?: string;
   bedrockReady: boolean;
   onNavigate: (view: NavigationView) => void;
-}
-
-interface AgentFormData {
-  slug: string;
-  name: string;
-  description: string;
-  prompt: string;
-  modelId: string;
-  region: string;
-  guardrails: {
-    maxTokens?: number;
-    temperature?: number;
-    topP?: number;
-    maxSteps?: number;
-  } | null;
-  maxSteps: string;
-  tools: {
-    mcpServers: string[];
-    available: string[];
-    autoApprove: string[];
-  };
-  icon: string;
-  skills: string[];
-  prompts: string[];
 }
 
 const EMPTY_FORM: AgentFormData = {
@@ -68,13 +44,6 @@ const EMPTY_FORM: AgentFormData = {
   skills: [],
   prompts: [],
 };
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-}
 
 function formFromAgent(agent: any): AgentFormData {
   return {
@@ -148,7 +117,15 @@ export function AgentsView({
     Record<string, string>
   >({});
   const [_toolsConfig, setToolsConfig] = useState<any>(null);
-  const [availableTools, setAvailableTools] = useState<Tool[]>([]);
+  const { data: availableTools = [] } = useQuery<Tool[]>({
+    queryKey: ['integrations'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/integrations`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    },
+  });
   const { data: availableSkills = [] } = useQuery<any[]>({
     queryKey: ['skills'],
     queryFn: async () => {
@@ -165,10 +142,8 @@ export function AgentsView({
       return json.data ?? [];
     },
   });
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [addModalType, setAddModalType] = useState<'integrations' | 'skills' | 'prompts' | null>(null);
-  const [expandedIntegrations, setExpandedIntegrations] = useState<Record<string, boolean>>({});
   const [integrationTools, setIntegrationTools] = useState<Record<string, Tool[]>>({});
 
   // Use live agents from context, fall back to prop
@@ -205,34 +180,21 @@ export function AgentsView({
       id: `__acp:${c.id}`,
       name: c.name || c.id,
       subtitle: `${(c.modes || []).length} agents · ACP`,
-      icon: c.icon ? <img src={c.icon} alt="" style={{ width: 20, height: 20, borderRadius: 4 }} /> : <span style={{ fontSize: 14 }}>🔌</span>,
+      icon: c.icon ? <img src={c.icon} alt="" className="agents-list__acp-icon" /> : <span className="agents-list__acp-emoji">🔌</span>,
     }));
     return [...agentItems, ...connItems];
   }, [filteredAgents, acpConnections]);
-
-  const loadTools = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiBase}/integrations`);
-      if (res.ok) {
-        const data = await res.json();
-        setAvailableTools(data.data || []);
-      }
-    } catch {
-      /* non-critical */
-    }
-  }, [apiBase]);
 
   const loadAgent = useCallback(
     async (slug: string) => {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await fetch(`${apiBase}/api/agents`);
-        if (!res.ok) throw new Error('Failed to load agents');
+        const res = await fetch(`${apiBase}/api/agents/${encodeURIComponent(slug)}`);
+        if (res.status === 404) throw new Error('Agent not found');
+        if (!res.ok) throw new Error('Failed to load agent');
         const data = await res.json();
-        const agent = (data.data || []).find(
-          (a: any) => a.slug === slug || a.id === slug,
-        );
+        const agent = data.data;
         if (!agent) throw new Error('Agent not found');
         const f = formFromAgent(agent);
         setForm(f);
@@ -262,10 +224,6 @@ export function AgentsView({
     },
     [apiBase],
   );
-
-  useEffect(() => {
-    loadTools();
-  }, [loadTools]);
 
   useEffect(() => {
     if (selectedSlug && !isCreating) {
@@ -301,6 +259,7 @@ export function AgentsView({
   function validate(): boolean {
     const errors: Record<string, string> = {};
     if (!form.name.trim()) errors.name = 'Name is required';
+    if (!form.prompt.trim()) errors.prompt = 'System prompt is required';
     if (isCreating) {
       if (!form.slug.trim()) errors.slug = 'Slug is required';
       else if (!/^[a-z0-9-]+$/.test(form.slug))
@@ -362,6 +321,7 @@ export function AgentsView({
   const isAcp = selectedAgent?.source === 'acp';
   const locked = !!(isPlugin && isLocked) || !!isAcp;
   const selectedAcpConnection = selectedSlug?.startsWith('__acp:') ? selectedSlug.slice(6) : null;
+  const notFound = !isCreating && error === 'Agent not found';
 
   const editorId = isCreating ? '__new__' : (selectedSlug ?? null);
 
@@ -426,7 +386,7 @@ export function AgentsView({
         }
       >
         {selectedAcpConnection ? (
-          <div style={{ padding: '24px' }}>
+          <div className="agent-editor__acp-section">
             <ACPConnectionsSection
               acpAgents={acpAgents as unknown as AgentSummary[]}
               apiBase={apiBase}
@@ -434,12 +394,19 @@ export function AgentsView({
           </div>
         ) : isLoading ? (
           <div className="editor__loading">Loading agent...</div>
+        ) : notFound ? (
+          <div className="split-pane__empty">
+            <div className="split-pane__empty-icon">⬡</div>
+            <p className="split-pane__empty-title">Agent not found</p>
+            <p className="split-pane__empty-desc">The agent "{selectedSlug}" doesn't exist or was deleted.</p>
+            <button type="button" className="editor-btn editor-btn--primary" onClick={handleDeselect}>Back to agents</button>
+          </div>
         ) : (
           <div className="agent-inline-editor">
             {/* Editor header */}
             <DetailHeader
               title={isCreating ? 'New Agent' : form.name || selectedSlug || ''}
-              icon={!isCreating && selectedAgent ? <AgentIcon agent={selectedAgent} size="medium" style={{ borderRadius: '8px' }} /> : undefined}
+              icon={!isCreating && selectedAgent ? <AgentIcon agent={selectedAgent} size="medium" className="editor-icon-preview" /> : undefined}
               badge={isAcp ? { label: 'ACP', variant: 'muted' as const } : isPlugin ? { label: selectedSlug?.split(':')[0] || 'plugin', variant: 'info' as const } : undefined}
             >
               {!isCreating && selectedSlug && !isAcp && (
@@ -448,8 +415,7 @@ export function AgentsView({
               {!isAcp && (
                 <button
                   type="button"
-                  className="editor-btn editor-btn--primary"
-                  style={{ position: 'relative' }}
+                  className="editor-btn editor-btn--primary agent-editor__save-btn"
                   onClick={handleSave}
                   disabled={isSaving || locked}
                 >
@@ -466,8 +432,7 @@ export function AgentsView({
 
             {error && (
               <div
-                className="management-view__error"
-                style={{ margin: '0 24px 0' }}
+                className="management-view__error agent-editor__error-banner"
               >
                 {error}
               </div>
@@ -501,24 +466,11 @@ export function AgentsView({
 
             <div className="agent-inline-editor__body">
               {isCreating && !templatePicked && agents.length > 0 ? (
-                <div style={{ padding: '2rem' }}>
-                  <h3
-                    style={{
-                      margin: '0 0 0.5rem',
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}
-                  >
+                <div className="agent-editor__template-picker">
+                  <h3 className="agent-editor__template-title">
                     Start with a template
                   </h3>
-                  <p
-                    style={{
-                      margin: '0 0 1.5rem',
-                      fontSize: '0.8rem',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
+                  <p className="agent-editor__template-desc">
                     Pick a starting point or start from scratch
                   </p>
                   <div className="template-grid">
@@ -548,530 +500,24 @@ export function AgentsView({
                   </button>
                 </div>
               ) : (
-                <>
-                  {/* Basic section */}
-                  <div className="agent-editor__section">
-                    <div className="editor-field">
-                      <label className="editor-label" htmlFor="ae-name">
-                        Name
-                      </label>
-                      <input
-                        id="ae-name"
-                        type="text"
-                        className="editor-input"
-                        value={form.name}
-                        onChange={(e) => {
-                          const name = e.target.value;
-                          setForm((f) => ({
-                            ...f,
-                            name,
-                            slug: isCreating ? slugify(name) : f.slug,
-                          }));
-                        }}
-                        placeholder="My Agent"
-                        disabled={locked}
-                      />
-                      {validationErrors.name && (
-                        <span className="editor-error">
-                          {validationErrors.name}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="editor-field">
-                      <label className="editor-label" htmlFor="ae-slug">
-                        Slug
-                      </label>
-                      <input
-                        id="ae-slug"
-                        type="text"
-                        className="editor-input"
-                        value={form.slug}
-                        onChange={(e) =>
-                          isCreating &&
-                          setForm((f) => ({ ...f, slug: e.target.value }))
-                        }
-                        disabled={!isCreating}
-                        placeholder="my-agent"
-                      />
-                      {validationErrors.slug && (
-                        <span className="editor-error">
-                          {validationErrors.slug}
-                        </span>
-                      )}
-                      {!isCreating && (
-                        <span className="editor-label">
-                          <span className="editor-hint">
-                            Slug cannot be changed after creation
-                          </span>
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="editor-field">
-                      <label className="editor-label">Icon</label>
-                      <div className="editor-icon-row">
-                        <AgentIcon
-                          agent={{
-                            name: form.name || 'Agent',
-                            icon: form.icon,
-                          }}
-                          size="large"
-                          style={{ borderRadius: '10px', flexShrink: 0 }}
-                        />
-                        <input
-                          type="text"
-                          className="editor-input"
-                          value={form.icon}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, icon: e.target.value }))
-                          }
-                          placeholder="Emoji (e.g. 🤖) or leave empty for initials"
-                          disabled={locked}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="editor-field">
-                      <div className="editor-label-row">
-                        <label
-                          className="editor-label"
-                          htmlFor="ae-description"
-                        >
-                          Description
-                        </label>
-                        <button
-                          type="button"
-                          className="editor-enrich-btn"
-                          disabled={isEnriching || !form.name || locked}
-                          onClick={async () => {
-                            const text = await enrich(
-                              `Write a brief one-sentence description for an AI agent named "${form.name}".`,
-                            );
-                            if (text)
-                              setForm((f) => ({
-                                ...f,
-                                description: text.trim(),
-                              }));
-                          }}
-                        >
-                          {isEnriching ? '...' : '✨ Generate'}
-                        </button>
-                      </div>
-                      <input
-                        id="ae-description"
-                        type="text"
-                        className="editor-input"
-                        value={form.description}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            description: e.target.value,
-                          }))
-                        }
-                        placeholder="A helpful agent for..."
-                        disabled={locked}
-                      />
-                    </div>
-
-                    <div className="editor-field">
-                      <div className="editor-label-row">
-                        <label className="editor-label" htmlFor="ae-prompt">
-                          System Prompt
-                        </label>
-                        <button
-                          type="button"
-                          className="editor-enrich-btn"
-                          disabled={isEnriching || !form.name || locked}
-                          onClick={async () => {
-                            const text = await enrich(
-                              `Write a system prompt for an AI agent named "${form.name}"${form.description ? ` that ${form.description}` : ''}. Be specific and actionable.`,
-                            );
-                            if (text)
-                              setForm((f) => ({ ...f, prompt: text.trim() }));
-                          }}
-                        >
-                          {isEnriching ? '...' : '✨ Generate'}
-                        </button>
-                      </div>
-                      <textarea
-                        id="ae-prompt"
-                        className="editor-textarea editor-textarea--tall editor-textarea--mono"
-                        value={form.prompt}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, prompt: e.target.value }))
-                        }
-                        placeholder="You are a helpful assistant..."
-                        disabled={locked}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Integrations */}
-                  <div className="agent-editor__section">
-                    <div className="editor-field">
-                      <div className="editor-label-row">
-                        <label className="editor-label">Integrations</label>
-                        <span className="editor-label-row__actions">
-                          <button type="button" className="editor-enrich-btn" onClick={() => onNavigate({ type: 'connections-tools' })}>Manage →</button>
-                          {!locked && <button type="button" className="editor-enrich-btn" onClick={() => setAddModalType('integrations')}>+ Add</button>}
-                        </span>
-                      </div>
-                      {(() => {
-                        const enabledServers = new Set(form.tools.mcpServers);
-                        const enabled = availableTools.filter((t) => enabledServers.has(t.id));
-
-                        if (enabled.length === 0) {
-                          return (
-                            <div className="editor__tools-empty">
-                              No integrations enabled.{' '}
-                              {!locked && <button type="button" className="editor__tools-link" onClick={() => setAddModalType('integrations')}>Add integrations</button>}
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="editor__tools-grouped">
-                            {enabled.map((integration) => {
-                              const isExpanded = expandedIntegrations[integration.id] || false;
-                              const tools = integrationTools[integration.id] || [];
-                              const hasAutoApprove = form.tools.autoApprove.includes(`${integration.id}_*`);
-
-                              return (
-                                <div key={integration.id} className="editor__tools-server">
-                                  <div
-                                    className="editor__tools-server-header"
-                                    onClick={() => tools.length > 0 && setExpandedIntegrations((s) => ({ ...s, [integration.id]: !s[integration.id] }))}
-                                    style={tools.length > 0 ? { cursor: 'pointer' } : undefined}
-                                  >
-                                    <Checkbox
-                                      checked={true}
-                                      onChange={() => {
-                                        if (locked) return;
-                                        setForm((f) => {
-                                          const servers = new Set(f.tools.mcpServers);
-                                          servers.delete(integration.id);
-                                          return { ...f, tools: { ...f.tools, mcpServers: [...servers], available: f.tools.available.filter((p) => !p.startsWith(`${integration.id}_`)) } };
-                                        });
-                                      }}
-                                      disabled={locked}
-                                    />
-                                    <span className="editor__tools-server-name">{integration.displayName || integration.id}</span>
-                                    {hasAutoApprove ? (
-                                      <button
-                                        className="editor__tool-badge editor__tool-badge--auto"
-                                        style={{ cursor: locked ? 'default' : 'pointer', border: 'none', padding: '2px 6px', borderRadius: '3px', fontSize: '0.6rem', fontWeight: 600 }}
-                                        onClick={(e) => { e.stopPropagation(); if (!locked) setForm((f) => ({ ...f, tools: { ...f.tools, autoApprove: f.tools.autoApprove.filter((p: string) => p !== `${integration.id}_*`) } })); }}
-                                      >✓ auto-approve</button>
-                                    ) : (
-                                      <button
-                                        className="editor__tool-badge"
-                                        style={{ cursor: locked ? 'default' : 'pointer', border: 'none', background: 'rgba(74,158,255,0.1)', padding: '2px 6px', borderRadius: '3px', fontSize: '0.6rem', fontWeight: 600, color: 'var(--accent-primary)' }}
-                                        onClick={(e) => { e.stopPropagation(); if (!locked) setForm((f) => ({ ...f, tools: { ...f.tools, autoApprove: [...f.tools.autoApprove, `${integration.id}_*`] } })); }}
-                                      >+ auto-approve</button>
-                                    )}
-                                    {tools.length > 0 && (
-                                      <span className={`agent-editor__chevron${isExpanded ? ' agent-editor__chevron--open' : ''}`}>›</span>
-                                    )}
-                                  </div>
-                                  {isExpanded && tools.length > 0 && (
-                                    <div className="editor__tools-list">
-                                      {tools.map((tool) => {
-                                        const toolKey = `${integration.id}_${tool.toolName || tool.name}`;
-                                        const toolEnabled = form.tools.available.includes(`${integration.id}_*`) || form.tools.available.includes(toolKey);
-                                        const toolAutoApprove = form.tools.autoApprove.includes(`${integration.id}_*`) || form.tools.autoApprove.includes(toolKey);
-                                        return (
-                                          <div key={tool.id} className={`editor__tool-item${toolEnabled ? ' editor__tool-item--active' : ''}`}>
-                                            <Checkbox checked={toolEnabled} disabled={locked} onChange={() => {
-                                              if (locked) return;
-                                              setForm((f) => {
-                                                const avail = new Set(f.tools.available);
-                                                if (avail.has(`${integration.id}_*`)) {
-                                                  avail.delete(`${integration.id}_*`);
-                                                  tools.forEach((t) => { const k = `${integration.id}_${t.toolName || t.name}`; if (k !== toolKey) avail.add(k); });
-                                                } else if (avail.has(toolKey)) {
-                                                  avail.delete(toolKey);
-                                                } else {
-                                                  avail.add(toolKey);
-                                                }
-                                                return { ...f, tools: { ...f.tools, available: [...avail] } };
-                                              });
-                                            }} />
-                                            <div className="editor__tool-info">
-                                              <div className="editor__tool-name">{tool.toolName || tool.name}</div>
-                                              {tool.description && <div className="editor__tool-desc">{tool.description}</div>}
-                                            </div>
-                                            <button
-                                              className={`editor__tool-badge${toolAutoApprove ? ' editor__tool-badge--auto' : ''}`}
-                                              style={{ cursor: locked ? 'default' : 'pointer', border: 'none', padding: '2px 6px', borderRadius: '3px', fontSize: '0.55rem', fontWeight: 600, marginLeft: 'auto', background: toolAutoApprove ? undefined : 'rgba(74,158,255,0.1)', color: toolAutoApprove ? undefined : 'var(--accent-primary)' }}
-                                              onClick={() => {
-                                                if (locked) return;
-                                                setForm((f) => {
-                                                  const ap = new Set(f.tools.autoApprove);
-                                                  if (ap.has(`${integration.id}_*`)) {
-                                                    ap.delete(`${integration.id}_*`);
-                                                    tools.forEach((t) => { const k = `${integration.id}_${t.toolName || t.name}`; if (k !== toolKey) ap.add(k); });
-                                                  } else if (ap.has(toolKey)) {
-                                                    ap.delete(toolKey);
-                                                  } else {
-                                                    ap.add(toolKey);
-                                                  }
-                                                  return { ...f, tools: { ...f.tools, autoApprove: [...ap] } };
-                                                });
-                                              }}
-                                            >{toolAutoApprove ? '✓ auto' : '+ auto'}</button>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Skills */}
-                  <div className="agent-editor__section">
-                    <div className="editor-field">
-                      <div className="editor-label-row">
-                        <label className="editor-label">Skills</label>
-                        <span className="editor-label-row__actions">
-                          <span className="editor__tools-server-count">{form.skills.length} enabled</span>
-                          {!locked && <button type="button" className="editor-enrich-btn" onClick={() => setAddModalType('skills')}>+ Add</button>}
-                        </span>
-                      </div>
-                      {form.skills.length === 0 ? (
-                        <div className="editor__tools-empty">
-                          No skills enabled.{' '}
-                          {!locked && availableSkills.length > 0 && <button type="button" className="editor__tools-link" onClick={() => setAddModalType('skills')}>Add skills</button>}
-                        </div>
-                      ) : (
-                        <div className="editor__tools-server">
-                          <div className="editor__tools-list">
-                            {availableSkills.filter((s: any) => form.skills.includes(s.name)).map((skill: any) => (
-                              <div key={skill.name} className="editor__tool-item editor__tool-item--active">
-                                <Checkbox checked={true} disabled={locked} onChange={() => {
-                                  if (locked) return;
-                                  setForm((f) => ({ ...f, skills: f.skills.filter((s: string) => s !== skill.name) }));
-                                }} />
-                                <div className="editor__tool-info">
-                                  <div className="editor__tool-name">{skill.name}</div>
-                                  {skill.description && <div className="editor__tool-desc">{skill.description}</div>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Prompts */}
-                  <div className="agent-editor__section">
-                    <div className="editor-field">
-                      <div className="editor-label-row">
-                        <label className="editor-label">Prompts</label>
-                        <span className="editor-label-row__actions">
-                          <span className="editor__tools-server-count">{form.prompts.length} enabled</span>
-                          <button type="button" className="editor-enrich-btn" onClick={() => onNavigate({ type: 'prompts' })}>+ new</button>
-                          {!locked && <button type="button" className="editor-enrich-btn" onClick={() => setAddModalType('prompts')}>+ Add</button>}
-                        </span>
-                      </div>
-                      {form.prompts.length === 0 ? (
-                        <div className="editor__tools-empty">
-                          No prompts enabled.{' '}
-                          {!locked && availablePrompts.length > 0 && <button type="button" className="editor__tools-link" onClick={() => setAddModalType('prompts')}>Add prompts</button>}
-                        </div>
-                      ) : (
-                        <div className="editor__tools-server">
-                          <div className="editor__tools-list">
-                            {availablePrompts.filter((p: any) => form.prompts.includes(p.id)).map((prompt: any) => (
-                              <div key={prompt.id} className="editor__tool-item editor__tool-item--active">
-                                <Checkbox checked={true} disabled={locked} onChange={() => {
-                                  if (locked) return;
-                                  setForm((f) => ({ ...f, prompts: f.prompts.filter((p: string) => p !== prompt.id) }));
-                                }} />
-                                <div className="editor__tool-info">
-                                  <div className="editor__tool-name">{prompt.name}</div>
-                                  {prompt.description && <div className="editor__tool-desc">{prompt.description}</div>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Advanced section */}
-                  <div className="agent-editor__section">
-                    <button
-                      type="button"
-                      className="agent-editor__section-toggle"
-                      onClick={() => setAdvancedOpen((o) => !o)}
-                      aria-expanded={advancedOpen}
-                    >
-                      <span>Advanced</span>
-                      <span
-                        className={`agent-editor__chevron${advancedOpen ? ' agent-editor__chevron--open' : ''}`}
-                      >
-                        ›
-                      </span>
-                    </button>
-
-                    {advancedOpen && (
-                      <div className="agent-editor__advanced-content">
-                        <div className="editor-field">
-                          <label className="editor-label">
-                            Model{' '}
-                            <span className="editor-hint">
-                              — leave empty to use default
-                            </span>
-                          </label>
-                          <div
-                            style={
-                              locked
-                                ? { opacity: 0.5, pointerEvents: 'none' }
-                                : undefined
-                            }
-                          >
-                            <ModelSelector
-                              value={form.modelId}
-                              onChange={(modelId) =>
-                                setForm((f) => ({ ...f, modelId }))
-                              }
-                              placeholder="Select a model..."
-                              defaultModel={appConfig?.defaultModel}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="editor-field">
-                          <label className="editor-label" htmlFor="ae-region">
-                            AWS Region
-                          </label>
-                          <input
-                            id="ae-region"
-                            type="text"
-                            className="editor-input"
-                            value={form.region}
-                            onChange={(e) =>
-                              setForm((f) => ({ ...f, region: e.target.value }))
-                            }
-                            placeholder={appConfig?.region || 'us-east-1'}
-                          />
-                        </div>
-
-                        <div className="editor-field">
-                          <label
-                            className="editor-label"
-                            htmlFor="ae-guardrails"
-                          >
-                            Guardrails
-                          </label>
-                          {form.guardrails ? (
-                            <div className="editor__guardrails-grid">
-                              <div className="editor__guardrails-item">
-                                <label className="editor-label">
-                                  Temperature
-                                </label>
-                                <input
-                                  type="number"
-                                  className="editor-input"
-                                  min="0"
-                                  max="1"
-                                  step="0.1"
-                                  value={form.guardrails.temperature ?? ''}
-                                  onChange={(e) =>
-                                    setForm((f) => ({
-                                      ...f,
-                                      guardrails: {
-                                        ...f.guardrails!,
-                                        temperature: e.target.value
-                                          ? parseFloat(e.target.value)
-                                          : undefined,
-                                      },
-                                    }))
-                                  }
-                                  placeholder="0.7"
-                                  disabled={isPlugin && isLocked}
-                                />
-                              </div>
-                              <div className="editor__guardrails-item">
-                                <label className="editor-label">
-                                  Max Tokens
-                                </label>
-                                <input
-                                  type="number"
-                                  className="editor-input"
-                                  min="1"
-                                  value={form.guardrails.maxTokens ?? ''}
-                                  onChange={(e) =>
-                                    setForm((f) => ({
-                                      ...f,
-                                      guardrails: {
-                                        ...f.guardrails!,
-                                        maxTokens: e.target.value
-                                          ? parseInt(e.target.value, 10)
-                                          : undefined,
-                                      },
-                                    }))
-                                  }
-                                  placeholder="4096"
-                                  disabled={isPlugin && isLocked}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="editor-btn editor-btn--secondary"
-                              onClick={() =>
-                                setForm((f) => ({
-                                  ...f,
-                                  guardrails: {
-                                    temperature: 0.7,
-                                    maxTokens: 4096,
-                                  },
-                                }))
-                              }
-                              disabled={isPlugin && isLocked}
-                            >
-                              + Add Guardrails
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="editor-field">
-                          <label className="editor-label" htmlFor="ae-maxsteps">
-                            Max Steps
-                          </label>
-                          <input
-                            id="ae-maxsteps"
-                            type="number"
-                            min="0"
-                            max="100"
-                            className="editor-input"
-                            value={form.maxSteps}
-                            onChange={(e) =>
-                              setForm((f) => ({
-                                ...f,
-                                maxSteps: e.target.value,
-                              }))
-                            }
-                            placeholder="0 (unlimited)"
-                            disabled={isPlugin && isLocked}
-                          />
-                        </div>
-
-                      </div>
-                    )}
-                  </div>
-                </>
+                <AgentEditorForm
+                  form={form}
+                  setForm={setForm}
+                  isCreating={isCreating}
+                  locked={locked}
+                  isPlugin={isPlugin}
+                  isLocked={isLocked}
+                  validationErrors={validationErrors}
+                  availableTools={availableTools}
+                  availableSkills={availableSkills}
+                  availablePrompts={availablePrompts}
+                  integrationTools={integrationTools}
+                  appConfig={appConfig}
+                  enrich={enrich}
+                  isEnriching={isEnriching}
+                  onNavigate={onNavigate}
+                  onOpenAddModal={setAddModalType}
+                />
               )}
             </div>
           </div>
@@ -1088,73 +534,16 @@ export function AgentsView({
         variant="danger"
       />
 
-      {/* Add modal for integrations/skills/prompts */}
       {addModalType && (
-        <div className="editor-add-modal__overlay" onClick={() => setAddModalType(null)}>
-          <div className="editor-add-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="editor-add-modal__header">
-              <h3>Add {addModalType === 'integrations' ? 'Integrations' : addModalType === 'skills' ? 'Skills' : 'Prompts'}</h3>
-              <button type="button" className="editor-add-modal__close" onClick={() => setAddModalType(null)}>×</button>
-            </div>
-            <div className="editor-add-modal__body">
-              {addModalType === 'integrations' && availableTools.map((integration) => {
-                const enabled = form.tools.mcpServers.includes(integration.id);
-                return (
-                  <div key={integration.id} className={`editor__tool-item${enabled ? ' editor__tool-item--active' : ''}`} onClick={() => {
-                    setForm((f) => {
-                      const servers = new Set(f.tools.mcpServers);
-                      const avail = [...f.tools.available];
-                      if (servers.has(integration.id)) {
-                        servers.delete(integration.id);
-                        return { ...f, tools: { ...f.tools, mcpServers: [...servers], available: avail.filter((p) => !p.startsWith(`${integration.id}_`)) } };
-                      }
-                      servers.add(integration.id);
-                      avail.push(`${integration.id}_*`);
-                      return { ...f, tools: { ...f.tools, mcpServers: [...servers], available: avail } };
-                    });
-                  }}>
-                    <Checkbox checked={enabled} onChange={() => {}} />
-                    <div className="editor__tool-info">
-                      <div className="editor__tool-name">{integration.displayName || integration.id}</div>
-                      {integration.description && <div className="editor__tool-desc">{integration.description}</div>}
-                    </div>
-                  </div>
-                );
-              })}
-              {addModalType === 'skills' && availableSkills.map((skill: any) => {
-                const enabled = form.skills.includes(skill.name);
-                return (
-                  <div key={skill.name} className={`editor__tool-item${enabled ? ' editor__tool-item--active' : ''}`} onClick={() => {
-                    setForm((f) => ({ ...f, skills: enabled ? f.skills.filter((s: string) => s !== skill.name) : [...f.skills, skill.name] }));
-                  }}>
-                    <Checkbox checked={enabled} onChange={() => {}} />
-                    <div className="editor__tool-info">
-                      <div className="editor__tool-name">{skill.name}</div>
-                      {skill.description && <div className="editor__tool-desc">{skill.description}</div>}
-                    </div>
-                  </div>
-                );
-              })}
-              {addModalType === 'prompts' && availablePrompts.map((prompt: any) => {
-                const enabled = form.prompts.includes(prompt.id);
-                return (
-                  <div key={prompt.id} className={`editor__tool-item${enabled ? ' editor__tool-item--active' : ''}`} onClick={() => {
-                    setForm((f) => ({ ...f, prompts: enabled ? f.prompts.filter((p: string) => p !== prompt.id) : [...f.prompts, prompt.id] }));
-                  }}>
-                    <Checkbox checked={enabled} onChange={() => {}} />
-                    <div className="editor__tool-info">
-                      <div className="editor__tool-name">{prompt.name}</div>
-                      {prompt.description && <div className="editor__tool-desc">{prompt.description}</div>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="editor-add-modal__footer">
-              <button type="button" className="editor-btn editor-btn--primary" onClick={() => setAddModalType(null)}>Done</button>
-            </div>
-          </div>
-        </div>
+        <AgentAddModal
+          type={addModalType}
+          availableTools={availableTools}
+          availableSkills={availableSkills}
+          availablePrompts={availablePrompts}
+          form={form}
+          setForm={setForm}
+          onClose={() => setAddModalType(null)}
+        />
       )}
     </div>
   );
