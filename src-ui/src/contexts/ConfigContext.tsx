@@ -55,5 +55,6 @@ export function useConfigActions() {
   return {
     updateConfig: (config: Partial<ConfigData>) =>
       updateMutation.mutateAsync(config),
+    isSaving: updateMutation.isPending,
   };
 }

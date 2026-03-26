@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AchievementsBadge } from '../components/AchievementsBadge';
 import { ActivityTimeline } from '../components/ActivityTimeline';
 import { AuthStatusBadge } from '@stallion-ai/sdk';
@@ -13,7 +13,7 @@ import './ProfilePage.css';
 import '../views/page-layout.css';
 
 export function ProfilePage() {
-  const { usageStats, refresh } = useAnalytics();
+  const { usageStats, loading } = useAnalytics();
   const { user } = useAuth();
 
   const achievementLinks = pluginRegistry.getLinks('achievements');
@@ -22,9 +22,13 @@ export function ProfilePage() {
   const totalCost = usageStats?.lifetime.totalCost || 0;
   const [showUserLookup, setShowUserLookup] = useState(false);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  if (loading && !usageStats) {
+    return (
+      <div className="profile-page page page--narrow">
+        <div className="profile-loading">Loading profile...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="profile-page page page--narrow">

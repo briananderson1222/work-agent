@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { log } from '@/utils/logger';
+import './ImportPromptsModal.css';
 
 interface ImportPreview {
   name: string;
@@ -22,7 +23,6 @@ function extractMetadata(content: string): {
   const descMatch = content.match(/^---\s*\ndescription:\s*(.+?)\n---/s);
   const titleMatch = content.match(/^#\s+(.+?)$/m);
 
-  // Remove frontmatter if present
   const cleanContent = descMatch
     ? content.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '')
     : content;
@@ -102,9 +102,8 @@ export function ImportPromptsModal({
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div
-        className="modal-dialog"
+        className="modal-dialog import-modal__dialog"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '600px' }}
       >
         <div className="modal-header">
           <h3>📁 Import Markdown</h3>
@@ -118,109 +117,40 @@ export function ImportPromptsModal({
               accept=".md"
               multiple
               onChange={handleFileSelect}
-              style={{ display: 'none' }}
+              hidden
             />
             <button
               type="button"
-              className="button button--secondary"
+              className="button button--secondary import-modal__file-btn"
               onClick={() => fileInputRef.current?.click()}
-              style={{ width: '100%' }}
             >
               📂 Choose Files
             </button>
           </div>
 
           {isLoading ? (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '24px',
-                color: 'var(--text-muted)',
-              }}
-            >
-              Loading files...
-            </div>
+            <div className="import-modal__loading">Loading files...</div>
           ) : preview.length > 0 ? (
             <div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '12px',
-                }}
-              >
-                <strong style={{ fontSize: '14px' }}>
+              <div className="import-modal__preview-header">
+                <strong className="import-modal__preview-title">
                   Preview ({preview.length} commands)
                 </strong>
               </div>
-              <div
-                style={{
-                  maxHeight: '300px',
-                  overflowY: 'auto',
-                  border: '1px solid var(--border-primary)',
-                  borderRadius: '6px',
-                }}
-              >
+              <div className="import-modal__preview-list">
                 {preview.map((item, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: '12px',
-                      borderBottom:
-                        i < preview.length - 1
-                          ? '1px solid var(--border-primary)'
-                          : 'none',
-                      background:
-                        i % 2 === 0 ? 'var(--bg-secondary)' : 'transparent',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        marginBottom: '4px',
-                      }}
-                    >
-                      <code style={{ fontSize: '13px', fontWeight: 600 }}>
-                        /
-                      </code>
+                  <div key={i} className="import-modal__preview-item">
+                    <div className="import-modal__name-row">
+                      <code className="import-modal__slash">/</code>
                       <input
                         type="text"
                         value={item.name}
                         onChange={(e) =>
                           updatePreview(i, 'name', e.target.value)
                         }
-                        style={{
-                          padding: '2px 4px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          fontFamily: 'monospace',
-                          color: 'var(--color-primary)',
-                          border: '1px solid transparent',
-                          borderRadius: '3px',
-                          background: 'transparent',
-                          outline: 'none',
-                          transition: 'all 0.15s',
-                        }}
-                        onFocus={(e) => {
-                          e.target.style.border =
-                            '1px solid var(--color-primary)';
-                          e.target.style.background = 'var(--bg-primary)';
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.border = '1px solid transparent';
-                          e.target.style.background = 'transparent';
-                        }}
+                        className="import-modal__name-input"
                       />
-                      <span
-                        style={{
-                          fontSize: '12px',
-                          color: 'var(--text-muted)',
-                          marginLeft: 'auto',
-                        }}
-                      >
+                      <span className="import-modal__file-label">
                         {item.file}
                       </span>
                     </div>
@@ -231,41 +161,14 @@ export function ImportPromptsModal({
                         updatePreview(i, 'description', e.target.value)
                       }
                       placeholder="No description"
-                      style={{
-                        width: '100%',
-                        padding: '2px 4px',
-                        fontSize: '13px',
-                        color: 'var(--text-secondary)',
-                        border: '1px solid transparent',
-                        borderRadius: '3px',
-                        background: 'transparent',
-                        outline: 'none',
-                        transition: 'all 0.15s',
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.border =
-                          '1px solid var(--border-primary)';
-                        e.target.style.background = 'var(--bg-primary)';
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.border = '1px solid transparent';
-                        e.target.style.background = 'transparent';
-                      }}
+                      className="import-modal__desc-input"
                     />
                   </div>
                 ))}
               </div>
             </div>
           ) : (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '24px',
-                color: 'var(--text-muted)',
-                border: '2px dashed var(--border-primary)',
-                borderRadius: '6px',
-              }}
-            >
+            <div className="import-modal__empty">
               Select markdown files to preview
             </div>
           )}

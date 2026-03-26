@@ -1538,6 +1538,21 @@
   border-left: 2px solid var(--error-text, #ef4444);
 }
 
+/* ── Status dot (integration list items) ── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot--connected {
+  background: var(--success-text, #22c55e);
+}
+.status-dot--disconnected {
+  background: var(--text-muted);
+  opacity: 0.4;
+}
+
 /* ── Integration server name in agent editor ── */
 .editor__tools-server-name {
   flex: 1;
@@ -1661,3 +1676,60 @@
   transition: transform 0.15s;
   margin-left: 4px;
 }
+
+/* ═══ Agent Editor — Additional Classes ═══ */
+
+.agent-editor__acp-section {
+  padding: 24px;
+}
+
+.agent-editor__error-banner {
+  margin: 0 24px;
+}
+
+.agent-editor__template-picker {
+  padding: 2rem;
+}
+
+.agent-editor__template-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agent-editor__template-desc {
+  margin: 0 0 1.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.agent-editor__locked-field {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.agent-editor__save-btn {
+  position: relative;
+}
+
+.editor__tool-badge--btn {
+  cursor: pointer;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 600;
+}
+
+.editor__tool-badge--add {
+  background: rgba(74, 158, 255, 0.1);
+  color: var(--accent-primary);
+}
+
+/* Agent editor extracted inline styles */
+.editor-icon-preview { border-radius: 10px; flex-shrink: 0; }
+.editor__tools-server-header--clickable { cursor: pointer; }
+.editor-required { color: var(--color-danger, #e53935); margin-left: 2px; }
+.agents-list__acp-icon { width: 20px; height: 20px; border-radius: 4px; }
+.agents-list__acp-emoji { font-size: 14px; }

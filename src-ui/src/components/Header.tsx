@@ -208,6 +208,7 @@ export function Header({
             }
           }}
           title="Profile"
+          aria-label="Profile"
         >
           {userInitials}
         </button>

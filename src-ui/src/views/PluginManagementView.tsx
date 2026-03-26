@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { Checkbox } from '../components/Checkbox';
 import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
@@ -19,6 +19,7 @@ interface Plugin {
   version: string;
   description?: string;
   hasBundle: boolean;
+  hasSettings?: boolean;
   layout?: { slug: string };
   agents?: Array<{ slug: string }>;
   providers?: Array<{ type: string }>;
@@ -50,41 +51,28 @@ function FolderPickerModal({
   onClose: () => void;
 }) {
   const [currentPath, setCurrentPath] = useState('');
-  const [entries, setEntries] = useState<
-    Array<{ name: string; isDirectory: boolean }>
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  const browse = useCallback(
-    async (path?: string) => {
-      setLoading(true);
-      setError('');
-      try {
-        const q = path ? `?path=${encodeURIComponent(path)}` : '';
-        const res = await fetch(`${apiBase}/api/fs/browse${q}`);
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || 'Failed to browse');
-          return;
-        }
-        setCurrentPath(data.path);
-        setEntries(data.entries);
-      } catch {
-        setError('Failed to connect');
-      } finally {
-        setLoading(false);
-      }
+  const {
+    data,
+    isLoading: loading,
+    error,
+  } = useQuery({
+    queryKey: ['fs-browse', currentPath],
+    queryFn: async () => {
+      const q = currentPath ? `?path=${encodeURIComponent(currentPath)}` : '';
+      const res = await fetch(`${apiBase}/api/fs/browse${q}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Failed to browse');
+      return d;
     },
-    [apiBase],
-  );
+  });
 
-  useEffect(() => {
-    browse();
-  }, [browse]);
+  const entries: Array<{ name: string; isDirectory: boolean }> =
+    data?.entries || [];
+  const resolvedPath = data?.path || currentPath;
 
-  const parentPath = currentPath
-    ? currentPath.replace(/\/[^/]+\/?$/, '') || '/'
+  const parentPath = resolvedPath
+    ? resolvedPath.replace(/\/[^/]+\/?$/, '') || '/'
     : '';
 
   return (
@@ -100,11 +88,11 @@ function FolderPickerModal({
           </button>
         </div>
         <div className="plugins__folder-path">
-          <code>{currentPath}</code>
+          <code>{resolvedPath}</code>
           <button
             className="plugins__folder-select-btn"
             onClick={() => {
-              onSelect(currentPath);
+              onSelect(resolvedPath);
               onClose();
             }}
           >
@@ -114,17 +102,17 @@ function FolderPickerModal({
         <div className="plugins__modal-body">
           {error && (
             <div className="plugins__modal-message plugins__message--error">
-              {error}
+              {(error as Error).message}
             </div>
           )}
           {loading ? (
             <div className="plugins__empty">Loading...</div>
           ) : (
             <div className="plugins__folder-list">
-              {currentPath !== '/' && (
+              {resolvedPath !== '/' && (
                 <div
                   className="plugins__folder-entry"
-                  onClick={() => browse(parentPath)}
+                  onClick={() => setCurrentPath(parentPath)}
                 >
                   <span className="plugins__folder-icon">↑</span>
                   <span className="plugins__folder-name">..</span>
@@ -134,7 +122,7 @@ function FolderPickerModal({
                 <div
                   key={e.name}
                   className="plugins__folder-entry"
-                  onClick={() => browse(`${currentPath}/${e.name}`)}
+                  onClick={() => setCurrentPath(`${resolvedPath}/${e.name}`)}
                 >
                   <span className="plugins__folder-icon">📁</span>
                   <span className="plugins__folder-name">{e.name}</span>
@@ -184,63 +172,59 @@ interface PreviewData {
 import { PathAutocomplete } from '../components/PathAutocomplete';
 
 /* ── Plugin Registry Modal ── */
-function PluginRegistryModal({
-  apiBase,
-  onClose,
-}: {
-  apiBase: string;
-  onClose: () => void;
-}) {
-  const [items, setItems] = useState<Array<{ id: string; displayName?: string; description?: string; version?: string; installed?: boolean; source?: string }>>([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+function PluginRegistryModal({ onClose }: { onClose: () => void }) {
+  const { apiBase } = useApiBase();
+  const { data: items = [], isLoading: loading } = useQuery({
+    queryKey: ['registry-plugins'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/registry/plugins`);
+      const data = await res.json();
+      return data.success ? data.data || [] : [];
+    },
+  });
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [filter, setFilter] = useState('');
 
-  const fetchItems = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/registry/plugins`);
-      if (!res.ok) throw new Error('Failed to fetch');
+  const queryClient = useQueryClient();
+  const actionMutation = useMutation({
+    mutationFn: async ({
+      id,
+      action,
+    }: {
+      id: string;
+      action: 'install' | 'uninstall';
+    }) => {
+      const res =
+        action === 'install'
+          ? await fetch(`${apiBase}/api/registry/plugins/install`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id }),
+            })
+          : await fetch(
+              `${apiBase}/api/registry/plugins/${encodeURIComponent(id)}`,
+              { method: 'DELETE' },
+            );
       const data = await res.json();
-      setItems(data.success ? data.data || [] : []);
-    } catch {
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [apiBase]);
-
-  useEffect(() => { fetchItems(); }, [fetchItems]);
-
-  const handleAction = async (item: { id: string; displayName?: string; installed?: boolean }, action: 'install' | 'uninstall') => {
-    setActionLoading(item.id);
-    setMessage(null);
-    try {
-      const res = action === 'install'
-        ? await fetch(`${apiBase}/api/registry/plugins/install`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: item.id }),
-          })
-        : await fetch(`${apiBase}/api/registry/plugins/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        setMessage({ type: 'success', text: `${action === 'install' ? 'Installed' : 'Removed'} ${item.displayName || item.id}` });
-        fetchItems();
-      } else {
-        setMessage({ type: 'error', text: data.error || `${action} failed` });
-      }
-    } catch (e: any) {
-      setMessage({ type: 'error', text: e.message });
-    } finally {
-      setActionLoading(null);
-    }
-  };
+      if (!data.success) throw new Error(data.error || `${action} failed`);
+      return { data, action };
+    },
+    onSuccess: (_result, _variables) => {
+      queryClient.invalidateQueries({ queryKey: ['registry-plugins'] });
+      queryClient.invalidateQueries({ queryKey: ['plugins'] });
+    },
+  });
 
   const filtered = items.filter((item) => {
     if (!filter) return true;
     const q = filter.toLowerCase();
-    return (item.displayName || item.id).toLowerCase().includes(q) || item.description?.toLowerCase().includes(q);
+    return (
+      (item.displayName || item.id).toLowerCase().includes(q) ||
+      item.description?.toLowerCase().includes(q)
+    );
   });
 
   return (
@@ -248,16 +232,26 @@ function PluginRegistryModal({
       <div className="plugins__modal" onClick={(e) => e.stopPropagation()}>
         <div className="plugins__modal-header">
           <h3 className="plugins__modal-title">Plugin Registry</h3>
-          <button className="plugins__modal-close" onClick={onClose}>&times;</button>
+          <button className="plugins__modal-close" onClick={onClose}>
+            &times;
+          </button>
         </div>
         <div className="plugins__modal-body">
           {message && (
-            <div className={`plugins__modal-message plugins__message--${message.type}`}>{message.text}</div>
+            <div
+              className={`plugins__modal-message plugins__message--${message.type}`}
+            >
+              {message.text}
+            </div>
           )}
           {loading ? (
             <div className="plugins__empty">Loading registry...</div>
           ) : items.length === 0 ? (
-            <div className="plugins__empty">No plugin registry configured.</div>
+            <div className="plugins__empty">
+              No plugin registry configured.
+              <br />
+              Add a <code>pluginRegistry</code> provider to enable browsing.
+            </div>
           ) : (
             <>
               <input
@@ -270,28 +264,65 @@ function PluginRegistryModal({
               />
               <div className="plugins__registry-list">
                 {filtered.length === 0 ? (
-                  <div className="plugins__empty">No matches for &ldquo;{filter}&rdquo;</div>
+                  <div className="plugins__empty">
+                    No matches for &ldquo;{filter}&rdquo;
+                  </div>
                 ) : (
                   filtered.map((item) => (
                     <div key={item.id} className="plugins__registry-item">
                       <div className="plugins__registry-info">
                         <div className="plugins__registry-name">
                           {item.displayName || item.id}
-                          {item.version && <span className="plugins__card-version">v{item.version}</span>}
-                          {item.source && <span className="plugins__cap plugins__cap--ref">{item.source}</span>}
+                          {item.version && (
+                            <span className="plugins__card-version">
+                              v{item.version}
+                            </span>
+                          )}
+                          {item.source && (
+                            <span className="plugins__cap plugins__cap--ref">
+                              {item.source}
+                            </span>
+                          )}
                         </div>
                         {item.description && (
-                          <div className="plugins__registry-desc" style={{ maxHeight: 60, overflow: 'hidden' }}>
+                          <div className="plugins__registry-desc plugins__registry-desc--clamp">
                             {item.description.replace(/\\n/g, ' ')}
                           </div>
                         )}
                       </div>
                       <button
                         className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
-                        onClick={() => handleAction(item, item.installed ? 'uninstall' : 'install')}
-                        disabled={actionLoading === item.id}
+                        onClick={() => {
+                          setMessage(null);
+                          const action = item.installed
+                            ? 'uninstall'
+                            : 'install';
+                          actionMutation.mutate(
+                            { id: item.id, action },
+                            {
+                              onSuccess: (result) => {
+                                setMessage({
+                                  type: 'success',
+                                  text: `${result.action === 'install' ? 'Installed' : 'Removed'} ${item.displayName || item.id}`,
+                                });
+                              },
+                              onError: (e) => {
+                                setMessage({ type: 'error', text: e.message });
+                              },
+                            },
+                          );
+                        }}
+                        disabled={
+                          actionMutation.isPending &&
+                          actionMutation.variables?.id === item.id
+                        }
                       >
-                        {actionLoading === item.id ? '...' : item.installed ? 'Remove' : 'Install'}
+                        {actionMutation.isPending &&
+                        actionMutation.variables?.id === item.id
+                          ? '...'
+                          : item.installed
+                            ? 'Remove'
+                            : 'Install'}
                       </button>
                     </div>
                   ))
@@ -305,10 +336,46 @@ function PluginRegistryModal({
   );
 }
 
+/* ── Plugin Setting Field ── */
+function PluginSettingFieldRow({
+  field,
+  value,
+  onChange,
+}: {
+  field: { key: string; label: string; type: string; description?: string; options?: Array<{ label: string; value: string }>; secret?: boolean; required?: boolean };
+  value: any;
+  onChange: (val: any) => void;
+}) {
+  return (
+    <div className="plugins__setting-field">
+      <label className="plugins__setting-label">
+        {field.label}
+        {field.required && <span className="plugins__setting-required"> *</span>}
+      </label>
+      {field.description && <div className="plugins__setting-desc">{field.description}</div>}
+      {field.type === 'boolean' ? (
+        <Toggle checked={!!value} onChange={onChange} size="sm" />
+      ) : field.type === 'select' ? (
+        <select className="plugins__setting-input" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+          <option value="">—</option>
+          {field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : (
+        <input
+          className="plugins__setting-input"
+          type={field.secret ? 'password' : field.type === 'number' ? 'number' : 'text'}
+          value={value ?? ''}
+          onChange={(e) => onChange(field.type === 'number' ? Number(e.target.value) : e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
 /* ── Main View ── */
 export function PluginManagementView() {
   const { apiBase } = useApiBase();
-  const { navigate } = useNavigation();
+  const { setLayout } = useNavigation();
   const queryClient = useQueryClient();
   const { requestConsent } = usePermissions();
   const { data: plugins = [], isLoading } = useQuery<Plugin[]>({
@@ -335,24 +402,29 @@ export function PluginManagementView() {
       return data.updates || [];
     },
   });
+  useQuery<Array<{ id: string }>>({
+    queryKey: ['registry-plugins'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/registry/plugins`);
+      const d = await res.json();
+      return d.success ? d.data || [] : [];
+    },
+  });
+
   const [installSource, setInstallSource] = useState('');
-  const [installing, setInstalling] = useState(false);
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
-  const [updating, setUpdating] = useState<string | null>(null);
-  const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showRegistryModal, setShowRegistryModal] = useState(false);
-  const [hasRegistry, setHasRegistry] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [previewSkips, setPreviewSkips] = useState<Set<string>>(new Set());
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(
     new Set(),
   );
+  const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const {
     selectedId: selectedPlugin,
     select: selectPlugin,
@@ -370,65 +442,189 @@ export function PluginManagementView() {
   );
   const [quickProjectName, setQuickProjectName] = useState('');
   const [assigningLayout, setAssigningLayout] = useState(false);
+  const [loadingProviders, setLoadingProviders] = useState<Set<string>>(
+    new Set(),
+  );
+  const [installMessage, setInstallMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
+  const [changelogExpanded, setChangelogExpanded] = useState(false);
 
-  useEffect(() => {
-    fetch(`${apiBase}/api/registry/plugins`)
-      .then((r) => r.json())
-      .then((d) => setHasRegistry(d.success && d.data?.length > 0))
-      .catch(() => {});
-  }, [apiBase]);
+  /* ── Settings & Changelog Queries ── */
 
-  const fetchProviderDetails = useCallback(
-    async (name: string) => {
+  const selected = plugins.find((p) => p.name === selectedPlugin);
+
+  const { data: settingsData } = useQuery({
+    queryKey: ['plugin-settings', selectedPlugin],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/plugins/${encodeURIComponent(selectedPlugin!)}/settings`);
+      return res.json();
+    },
+    enabled: !!selectedPlugin && !!selected?.hasSettings,
+  });
+
+  const { data: changelogData } = useQuery({
+    queryKey: ['plugin-changelog', selectedPlugin],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/plugins/${encodeURIComponent(selectedPlugin!)}/changelog`);
+      return res.json();
+    },
+    enabled: !!selectedPlugin && !!selected?.git,
+  });
+
+  /* ── Mutations ── */
+
+  const saveSettingsMutation = useMutation({
+    mutationFn: async ({ name, settings }: { name: string; settings: Record<string, any> }) => {
+      const res = await fetch(`${apiBase}/api/plugins/${encodeURIComponent(name)}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings }),
+      });
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plugin-settings', selectedPlugin] }),
+  });
+
+  const previewMutation = useMutation({
+    mutationFn: async (source: string) => {
+      const res = await fetch(`${apiBase}/api/plugins/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source }),
+      });
+      return res.json() as Promise<PreviewData>;
+    },
+  });
+
+  const installMutation = useMutation({
+    mutationFn: async ({
+      source,
+      skip,
+    }: {
+      source: string;
+      skip: string[];
+    }) => {
+      const res = await fetch(`${apiBase}/api/plugins/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, skip }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Install failed');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plugins'] });
+      queryClient.invalidateQueries({ queryKey: ['layouts'] });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(name)}/update`,
+        { method: 'POST' },
+      );
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Update failed');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plugins'] });
+      queryClient.invalidateQueries({ queryKey: ['plugin-updates'] });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(name)}`,
+        { method: 'DELETE' },
+      );
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Remove failed');
+      return data;
+    },
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['plugins'] });
+      queryClient.invalidateQueries({ queryKey: ['layouts'] });
       try {
-        const res = await fetch(
-          `${apiBase}/api/plugins/${encodeURIComponent(name)}/providers`,
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        queryClient.setQueryData<Plugin[]>(
-          ['plugins'],
-          (prev) =>
-            prev?.map((p) =>
-              p.name === name ? { ...p, providerDetails: data.providers } : p,
-            ) ?? [],
-        );
-      } catch {
-        /* ignore */
+        const { pluginRegistry } = await import('../core/PluginRegistry');
+        await pluginRegistry.reload();
+      } catch (e) {
+        console.warn('Plugin registry reload failed', e);
       }
     },
-    [apiBase, queryClient.setQueryData],
-  );
+  });
 
-  const toggleProvider = useCallback(
-    async (
-      pluginName: string,
-      providerType: string,
-      currentlyEnabled: boolean,
-    ) => {
-      const plugin = plugins.find((p) => p.name === pluginName);
-      if (!plugin?.providerDetails) return;
-      const disabled = plugin.providerDetails
-        .filter((p) =>
-          p.type === providerType ? currentlyEnabled : !p.enabled,
-        )
-        .map((p) => p.type);
-      try {
-        await fetch(
-          `${apiBase}/api/plugins/${encodeURIComponent(pluginName)}/overrides`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ disabled }),
-          },
-        );
-        fetchProviderDetails(pluginName);
-      } catch {
-        /* ignore */
-      }
+  const toggleProviderMutation = useMutation({
+    mutationFn: async ({
+      pluginName,
+      disabled,
+    }: {
+      pluginName: string;
+      disabled: string[];
+    }) => {
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(pluginName)}/overrides`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ disabled }),
+        },
+      );
+      return res.json();
     },
-    [apiBase, plugins, fetchProviderDetails],
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plugins'] });
+    },
+  });
+
+  const fetchProviderDetails = async (name: string) => {
+    setLoadingProviders((prev) => new Set(prev).add(name));
+    try {
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(name)}/providers`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      queryClient.setQueryData<Plugin[]>(
+        ['plugins'],
+        (prev) =>
+          prev?.map((p) =>
+            p.name === name ? { ...p, providerDetails: data.providers } : p,
+          ) ?? [],
+      );
+    } catch (e) {
+      console.warn('Failed to fetch provider details', e);
+    } finally {
+      setLoadingProviders((prev) => {
+        const next = new Set(prev);
+        next.delete(name);
+        return next;
+      });
+    }
+  };
+
+  const toggleProvider = (
+    pluginName: string,
+    providerType: string,
+    currentlyEnabled: boolean,
+  ) => {
+    const plugin = plugins.find((p) => p.name === pluginName);
+    if (!plugin?.providerDetails) return;
+    const disabled = plugin.providerDetails
+      .filter((p) => (p.type === providerType ? currentlyEnabled : !p.enabled))
+      .map((p) => p.type);
+    toggleProviderMutation.mutate(
+      { pluginName, disabled },
+      {
+        onSuccess: () => fetchProviderDetails(pluginName),
+      },
+    );
+  };
 
   const install = async (skipList?: string[]) => {
     const source = installSource.trim();
@@ -436,156 +632,111 @@ export function PluginManagementView() {
 
     // If no preview yet, fetch preview first
     if (!previewData && !skipList) {
-      setPreviewLoading(true);
-      setMessage(null);
-      try {
-        const res = await fetch(`${apiBase}/api/plugins/preview`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ source }),
-        });
-        const data: PreviewData = await res.json();
-        if (!data.valid) {
-          setMessage({ type: 'error', text: data.error || 'Invalid plugin' });
-        } else {
-          // Auto-skip conflicting components
-          const autoSkips = new Set(
-            data.conflicts.map((c) => `${c.type}:${c.id}`),
-          );
-          setPreviewSkips(autoSkips);
-          setPreviewData(data);
-        }
-      } catch (e: any) {
-        setMessage({ type: 'error', text: e.message });
-      } finally {
-        setPreviewLoading(false);
-      }
+      setInstallMessage(null);
+      previewMutation.mutate(source, {
+        onSuccess: (data) => {
+          if (!data.valid) {
+            setInstallMessage({ type: 'error', text: data.error || 'Invalid plugin' });
+          } else {
+            const autoSkips = new Set(
+              data.conflicts.map((c) => `${c.type}:${c.id}`),
+            );
+            setPreviewSkips(autoSkips);
+            setPreviewData(data);
+          }
+        },
+        onError: (e) => setInstallMessage({ type: 'error', text: e.message }),
+      });
       return;
     }
 
     // Proceed with actual install
-    setInstalling(true);
     setMessage(null);
     setPreviewData(null);
-    try {
-      const res = await fetch(`${apiBase}/api/plugins/install`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source,
-          skip: skipList || Array.from(previewSkips),
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        const pluginName = data.plugin.displayName || data.plugin.name;
-        const pending = data.permissions?.pendingConsent;
-        if (pending?.length > 0) {
-          await requestConsent(data.plugin.name, pluginName, pending);
-        }
-        setInstallSource('');
-        setMessage({
-          type: 'success',
-          text: `Installed ${pluginName}. Setting up tools...`,
-        });
-        queryClient.invalidateQueries({ queryKey: ['plugins'] });
-        fetch(`${apiBase}/api/plugins/reload`, { method: 'POST' }).catch(
-          () => {},
-        );
-        queryClient.invalidateQueries({ queryKey: ['layouts'] });
-        try {
-          const { pluginRegistry } = await import('../core/PluginRegistry');
-          await pluginRegistry.reload();
-        } catch {}
-
-        // Poll agent health until tools are connected (max 30s)
-        const agents = data.plugin.agents || [];
-        if (agents.length > 0) {
-          const slug = agents[0].slug;
-          let ready = false;
-          for (let i = 0; i < 15 && !ready; i++) {
-            await new Promise((r) => setTimeout(r, 2000));
-            try {
-              const h = await (
-                await fetch(
-                  `${apiBase}/agents/${encodeURIComponent(slug)}/health`,
-                )
-              ).json();
-              ready = h.healthy;
-            } catch {}
+    installMutation.mutate(
+      { source, skip: skipList || Array.from(previewSkips) },
+      {
+        onSuccess: async (data) => {
+          setShowInstallModal(false);
+          const pluginName = data.plugin.displayName || data.plugin.name;
+          const pending = data.permissions?.pendingConsent;
+          if (pending?.length > 0) {
+            await requestConsent(data.plugin.name, pluginName, pending);
           }
-        }
-        queryClient.invalidateQueries({ queryKey: ['agents'] });
-        queryClient.invalidateQueries({ queryKey: ['projects'] });
-        setMessage({ type: 'success', text: `${pluginName} is ready.` });
-
-        // If the plugin installed a layout, prompt user to assign it to a project
-        if (data.layout?.slug) {
-          setQuickProjectName(pluginName);
-          setSelectedProjects(new Set());
-          setLayoutAssignment({
-            pluginName: data.plugin.name,
-            displayName: pluginName,
-            layoutSlug: data.layout.slug,
+          setInstallSource('');
+          setMessage({
+            type: 'success',
+            text: `Installed ${pluginName}. Setting up tools...`,
           });
-        }
-      } else {
-        setMessage({ type: 'error', text: data.error || 'Install failed' });
-      }
-    } catch (e: any) {
-      setMessage({ type: 'error', text: e.message });
-    } finally {
-      setInstalling(false);
-    }
+          fetch(`${apiBase}/api/plugins/reload`, { method: 'POST' }).catch(
+            (e) => console.warn('Plugin reload failed', e),
+          );
+          queryClient.invalidateQueries({ queryKey: ['layouts'] });
+          try {
+            const { pluginRegistry } = await import('../core/PluginRegistry');
+            await pluginRegistry.reload();
+          } catch (e) {
+            console.warn('Plugin registry reload failed', e);
+          }
+
+          // Poll agent health until tools are connected (max 30s)
+          const agents = data.plugin.agents || [];
+          if (agents.length > 0) {
+            const slug = agents[0].slug;
+            let ready = false;
+            for (let i = 0; i < 15 && !ready; i++) {
+              await new Promise((r) => setTimeout(r, 2000));
+              try {
+                const h = await (
+                  await fetch(
+                    `${apiBase}/agents/${encodeURIComponent(slug)}/health`,
+                  )
+                ).json();
+                ready = h.healthy;
+              } catch (e) {
+                console.warn('Agent health poll failed', e);
+              }
+            }
+          }
+          queryClient.invalidateQueries({ queryKey: ['agents'] });
+          queryClient.invalidateQueries({ queryKey: ['projects'] });
+          setMessage({ type: 'success', text: `${pluginName} is ready.` });
+
+          if (data.layout?.slug) {
+            setQuickProjectName(pluginName);
+            setSelectedProjects(new Set());
+            setLayoutAssignment({
+              pluginName: data.plugin.name,
+              displayName: pluginName,
+              layoutSlug: data.layout.slug,
+            });
+          }
+        },
+        onError: (e) => setInstallMessage({ type: 'error', text: e.message }),
+      },
+    );
   };
 
-  const updatePlugin = async (name: string) => {
-    setUpdating(name);
-    try {
-      const res = await fetch(
-        `${apiBase}/api/plugins/${encodeURIComponent(name)}/update`,
-        { method: 'POST' },
-      );
-      const data = await res.json();
-      if (data.success) {
+  const updatePlugin = (name: string) => {
+    setMessage(null);
+    updateMutation.mutate(name, {
+      onSuccess: (data) => {
         setMessage({
           type: 'success',
           text: `Updated ${data.plugin?.name || name} to v${data.plugin?.version}`,
         });
-        queryClient.invalidateQueries({ queryKey: ['plugins'] });
-        queryClient.invalidateQueries({ queryKey: ['plugin-updates'] });
-      } else {
-        setMessage({ type: 'error', text: data.error || 'Update failed' });
-      }
-    } catch (e: any) {
-      setMessage({ type: 'error', text: e.message });
-    } finally {
-      setUpdating(null);
-    }
+      },
+      onError: (e) => setMessage({ type: 'error', text: e.message }),
+    });
   };
 
-  const remove = async (name: string) => {
+  const remove = (name: string) => {
     setRemoveConfirm(null);
-    try {
-      const res = await fetch(
-        `${apiBase}/api/plugins/${encodeURIComponent(name)}`,
-        { method: 'DELETE' },
-      );
-      const data = await res.json();
-      if (data.success) {
-        setMessage({ type: 'success', text: `Removed ${name}.` });
-        queryClient.invalidateQueries({ queryKey: ['plugins'] });
-        queryClient.invalidateQueries({ queryKey: ['layouts'] });
-        try {
-          const { pluginRegistry } = await import('../core/PluginRegistry');
-          await pluginRegistry.reload();
-        } catch {}
-      } else {
-        setMessage({ type: 'error', text: data.error || 'Remove failed' });
-      }
-    } catch (e: any) {
-      setMessage({ type: 'error', text: e.message });
-    }
+    removeMutation.mutate(name, {
+      onSuccess: () =>
+        setMessage({ type: 'success', text: `Removed ${name}.` }),
+      onError: (e) => setMessage({ type: 'error', text: e.message }),
+    });
   };
 
   const filtered = useMemo(
@@ -607,8 +758,6 @@ export function PluginManagementView() {
     subtitle: `v${p.version}${p.description ? ` · ${p.description}` : ''}`,
   }));
 
-  const selected = plugins.find((p) => p.name === selectedPlugin);
-
   return (
     <>
       <SplitPaneLayout
@@ -622,17 +771,19 @@ export function PluginManagementView() {
         onDeselect={deselectPlugin}
         onSearch={setSearch}
         searchPlaceholder="Search plugins..."
-        onAdd={() => setShowInstallModal(true)}
+        onAdd={() => {
+          setInstallMessage(null);
+          setShowInstallModal(true);
+        }}
         addLabel="+ Install Plugin"
-        sidebarActions={hasRegistry ? (
+        sidebarActions={
           <button
-            className="split-pane__add-btn"
-            style={{ background: 'transparent', border: '1px solid var(--border-primary)', color: 'var(--text-secondary)' }}
+            className="split-pane__add-btn plugins__registry-btn"
             onClick={() => setShowRegistryModal(true)}
           >
             Browse Registry
           </button>
-        ) : undefined}
+        }
         emptyIcon="⬡"
         emptyTitle="No plugin selected"
         emptyDescription="Select a plugin from the list or install a new one"
@@ -679,21 +830,29 @@ export function PluginManagementView() {
             <DetailHeader
               title={selected.displayName || selected.name}
               subtitle={selected.description}
-              badge={{ label: `v${selected.version}`, variant: 'muted' as const }}
+              badge={{
+                label: `v${selected.version}`,
+                variant: 'muted' as const,
+              }}
             >
               {(() => {
                 const upd = updates.find((u) => u.name === selected.name);
                 if (upd) {
-                  const label = updating === selected.name
-                    ? 'Updating…'
-                    : upd.source === 'git'
-                      ? `Update (${upd.latestVersion})`
-                      : `Update to v${upd.latestVersion}`;
+                  const label =
+                    updateMutation.isPending &&
+                    updateMutation.variables === selected.name
+                      ? 'Updating…'
+                      : upd.source === 'git'
+                        ? `Update (${upd.latestVersion})`
+                        : `Update to v${upd.latestVersion}`;
                   return (
                     <button
                       className="editor-btn editor-btn--primary"
                       onClick={() => updatePlugin(selected.name)}
-                      disabled={updating === selected.name}
+                      disabled={
+                        updateMutation.isPending &&
+                        updateMutation.variables === selected.name
+                      }
                     >
                       {label}
                     </button>
@@ -702,7 +861,11 @@ export function PluginManagementView() {
                 return (
                   <button
                     className="editor-btn"
-                    onClick={() => queryClient.invalidateQueries({ queryKey: ['plugin-updates'] })}
+                    onClick={() =>
+                      queryClient.invalidateQueries({
+                        queryKey: ['plugin-updates'],
+                      })
+                    }
                   >
                     Check for Updates
                   </button>
@@ -717,117 +880,167 @@ export function PluginManagementView() {
             </DetailHeader>
 
             <div className="detail-panel__body">
-            {/* Capabilities */}
-            <div className="detail-panel__caps">
-              {selected.hasBundle && (
-                <span className="plugins__cap plugins__cap--bundle">ui</span>
-              )}
-              {selected.layout && (
-                <span className="plugins__cap plugins__cap--workspace">
-                  layout:{selected.layout.slug}
-                </span>
-              )}
-              {selected.agents?.map((a) => (
-                <span key={a.slug} className="plugins__cap plugins__cap--agent">
-                  agent:{a.slug}
-                </span>
-              ))}
-              {selected.providers?.map((pr) => (
-                <span
-                  key={pr.type}
-                  className="plugins__cap plugins__cap--provider"
-                >
-                  provider:{pr.type}
-                </span>
-              ))}
-              {selected.git && (
-                <span className="plugins__cap plugins__cap--ref">
-                  {selected.git.branch}@{selected.git.hash?.slice(0, 7)}
-                </span>
-              )}
-            </div>
-
-            {/* Providers */}
-            {selected.providers && selected.providers.length > 0 && (
-              <div className="detail-panel__section">
-                <button
-                  className="plugins__providers-toggle"
-                  onClick={() => {
-                    const next = new Set(expandedProviders);
-                    if (next.has(selected.name)) next.delete(selected.name);
-                    else {
-                      next.add(selected.name);
-                      fetchProviderDetails(selected.name);
-                    }
-                    setExpandedProviders(next);
-                  }}
-                >
+              {/* Capabilities */}
+              <div className="detail-panel__caps">
+                {selected.hasBundle && (
+                  <span className="plugins__cap plugins__cap--bundle">ui</span>
+                )}
+                {selected.layout && (
+                  <span className="plugins__cap plugins__cap--workspace">
+                    layout:{selected.layout.slug}
+                  </span>
+                )}
+                {selected.agents?.map((a) => (
                   <span
-                    style={{
-                      transform: expandedProviders.has(selected.name)
-                        ? 'rotate(90deg)'
-                        : 'none',
-                      display: 'inline-block',
-                      transition: 'transform 0.15s',
+                    key={a.slug}
+                    className="plugins__cap plugins__cap--agent"
+                  >
+                    agent:{a.slug}
+                  </span>
+                ))}
+                {selected.providers?.map((pr) => (
+                  <span
+                    key={pr.type}
+                    className="plugins__cap plugins__cap--provider"
+                  >
+                    provider:{pr.type}
+                  </span>
+                ))}
+                {selected.git && (
+                  <span className="plugins__cap plugins__cap--ref">
+                    {selected.git.branch}@{selected.git.hash?.slice(0, 7)}
+                  </span>
+                )}
+              </div>
+
+              {/* Providers */}
+              {selected.providers && selected.providers.length > 0 && (
+                <div className="detail-panel__section">
+                  <button
+                    className="plugins__providers-toggle"
+                    onClick={() => {
+                      const next = new Set(expandedProviders);
+                      if (next.has(selected.name)) next.delete(selected.name);
+                      else {
+                        next.add(selected.name);
+                        fetchProviderDetails(selected.name);
+                      }
+                      setExpandedProviders(next);
                     }}
                   >
-                    ▶
-                  </span>{' '}
-                  Providers ({selected.providers.length})
-                </button>
-                {expandedProviders.has(selected.name) &&
-                  selected.providerDetails && (
-                    <div className="plugins__providers-list">
-                      {selected.providerDetails.map((pr) => (
-                        <div key={pr.type} className="plugins__provider-row">
-                          <span className="plugins__cap plugins__cap--provider">
-                            {pr.type}
-                          </span>
-                          {pr.layout && (
-                            <span className="plugins__provider-scope">
-                              {pr.layout}
+                    <span
+                      className={`plugins__providers-arrow${expandedProviders.has(selected.name) ? ' plugins__providers-arrow--expanded' : ''}`}
+                    >
+                      ▶
+                    </span>{' '}
+                    Providers ({selected.providers.length})
+                  </button>
+                  {expandedProviders.has(selected.name) &&
+                    (loadingProviders.has(selected.name) &&
+                    !selected.providerDetails ? (
+                      <div className="plugins__empty">
+                        Loading providers...
+                      </div>
+                    ) : (
+                      selected.providerDetails && (
+                        <div className="plugins__providers-list">
+                        {selected.providerDetails.map((pr) => (
+                          <div key={pr.type} className="plugins__provider-row">
+                            <span className="plugins__cap plugins__cap--provider">
+                              {pr.type}
                             </span>
-                          )}
-                          <label className="plugins__provider-toggle">
-                            <Toggle
-                              checked={pr.enabled}
-                              onChange={() =>
-                                toggleProvider(
-                                  selected.name,
-                                  pr.type,
-                                  pr.enabled,
-                                )
-                              }
-                              size="sm"
-                            />
-                            {pr.enabled ? 'Enabled' : 'Disabled'}
-                          </label>
+                            {pr.layout && (
+                              <span className="plugins__provider-scope">
+                                {pr.layout}
+                              </span>
+                            )}
+                            <label className="plugins__provider-toggle">
+                              <Toggle
+                                checked={pr.enabled}
+                                onChange={() =>
+                                  toggleProvider(
+                                    selected.name,
+                                    pr.type,
+                                    pr.enabled,
+                                  )
+                                }
+                                size="sm"
+                              />
+                              {pr.enabled ? 'Enabled' : 'Disabled'}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    )))}
+                </div>
+              )}
+
+              {/* Settings */}
+              {selected.hasSettings && settingsData?.schema?.length > 0 && (
+                <div className="detail-panel__section">
+                  <div className="plugins__settings-header">Settings</div>
+                  <div className="plugins__settings-form">
+                    {settingsData.schema.map((field: any) => (
+                      <PluginSettingFieldRow
+                        key={field.key}
+                        field={field}
+                        value={settingsData.values[field.key]}
+                        onChange={(val) => {
+                          const updated = { ...settingsData.values, [field.key]: val };
+                          saveSettingsMutation.mutate({ name: selected.name, settings: updated });
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Changelog */}
+              {selected.git && changelogData?.entries?.length > 0 && (
+                <div className="detail-panel__section">
+                  <button
+                    className="plugins__providers-toggle"
+                    onClick={() => setChangelogExpanded((v) => !v)}
+                  >
+                    <span className={`plugins__providers-arrow${changelogExpanded ? ' plugins__providers-arrow--expanded' : ''}`}>▶</span>
+                    {' '}Changelog ({changelogData.entries.length})
+                  </button>
+                  {changelogExpanded && (
+                    <div className="plugins__changelog-list">
+                      {changelogData.entries.map((entry: any) => (
+                        <div key={entry.hash} className="plugins__changelog-entry">
+                          <code className="plugins__changelog-hash">{entry.short}</code>
+                          <span className="plugins__changelog-subject">{entry.subject}</span>
+                          <span className="plugins__changelog-meta">
+                            {entry.author} · {new Date(entry.date).toLocaleDateString()}
+                          </span>
                         </div>
                       ))}
                     </div>
                   )}
-              </div>
-            )}
-
-            {/* Permissions */}
-            {selected.permissions?.missing &&
-              selected.permissions.missing.length > 0 && (
-                <button
-                  className="plugins__btn plugins__btn--permissions"
-                  onClick={async () => {
-                    const approved = await requestConsent(
-                      selected.name,
-                      selected.displayName || selected.name,
-                      selected.permissions!.missing,
-                    );
-                    if (approved)
-                      queryClient.invalidateQueries({ queryKey: ['plugins'] });
-                  }}
-                >
-                  Review Permissions ({selected.permissions.missing.length})
-                </button>
+                </div>
               )}
 
+              {/* Permissions */}
+              {selected.permissions?.missing &&
+                selected.permissions.missing.length > 0 && (
+                  <button
+                    className="plugins__btn plugins__btn--permissions"
+                    onClick={async () => {
+                      const approved = await requestConsent(
+                        selected.name,
+                        selected.displayName || selected.name,
+                        selected.permissions!.missing,
+                      );
+                      if (approved)
+                        queryClient.invalidateQueries({
+                          queryKey: ['plugins'],
+                        });
+                    }}
+                  >
+                    Review Permissions ({selected.permissions.missing.length})
+                  </button>
+                )}
             </div>
           </div>
         )}
@@ -835,7 +1048,6 @@ export function PluginManagementView() {
 
       {showRegistryModal && (
         <PluginRegistryModal
-          apiBase={apiBase}
           onClose={() => {
             setShowRegistryModal(false);
             queryClient.invalidateQueries({ queryKey: ['plugins'] });
@@ -845,34 +1057,75 @@ export function PluginManagementView() {
 
       {/* Install Plugin Modal */}
       {showInstallModal && (
-        <div className="plugins__modal-overlay" onClick={() => setShowInstallModal(false)}>
-          <div className="plugins__modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, overflow: 'visible' }}>
+        <div
+          className="plugins__modal-overlay"
+          onClick={() => setShowInstallModal(false)}
+        >
+          <div
+            className="plugins__modal plugins__modal--install"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="plugins__modal-header">
               <h3 className="plugins__modal-title">Install Plugin</h3>
-              <button className="plugins__modal-close" onClick={() => setShowInstallModal(false)}>&times;</button>
+              <button
+                className="plugins__modal-close"
+                onClick={() => setShowInstallModal(false)}
+              >
+                &times;
+              </button>
             </div>
-            <div className="plugins__modal-body" style={{ overflow: 'visible' }}>
-              <div className="plugins__install" style={{ marginBottom: 16 }}>
+            <div className="plugins__modal-body plugins__modal-body--visible">
+              {installMessage && (
+                <div
+                  className={`plugins__modal-message plugins__message--${installMessage.type}`}
+                >
+                  {installMessage.text}
+                </div>
+              )}
+              <div className="plugins__install plugins__install--modal">
                 <span className="plugins__install-prefix">$</span>
                 <PathAutocomplete
                   className="plugins__install-input"
                   value={installSource}
-                  onChange={(val) => { setInstallSource(val); setPreviewData(null); }}
-                  onSubmit={() => { install(); setShowInstallModal(false); }}
+                  onChange={(val) => {
+                    setInstallSource(val);
+                    setPreviewData(null);
+                    setInstallMessage(null);
+                  }}
+                  onSubmit={() => {
+                    install();
+                  }}
                   placeholder="git@github.com:org/plugin.git or /local/path"
-                  disabled={installing}
+                  disabled={installMutation.isPending}
                   apiBase={apiBase}
                 />
-                <button className="plugins__browse-btn" onClick={() => setShowFolderPicker(true)} disabled={installing} title="Browse local folders">📁</button>
+                <button
+                  className="plugins__browse-btn"
+                  onClick={() => setShowFolderPicker(true)}
+                  disabled={installMutation.isPending}
+                  title="Browse local folders"
+                >
+                  📁
+                </button>
                 <button
                   className="plugins__install-btn"
-                  onClick={() => { install(); setShowInstallModal(false); }}
-                  disabled={installing || previewLoading || !installSource.trim()}
+                  onClick={() => {
+                    install();
+                  }}
+                  disabled={
+                    installMutation.isPending ||
+                    previewMutation.isPending ||
+                    !installSource.trim()
+                  }
                 >
-                  {installing ? 'Installing...' : previewLoading ? 'Validating...' : 'Install'}
+                  {installMutation.isPending
+                    ? 'Installing...'
+                    : previewMutation.isPending
+                      ? 'Validating...'
+                      : 'Install'}
                 </button>
               </div>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+              <p className="plugins__install-hint">
                 Paste a git URL or local path to a Stallion plugin.
               </p>
             </div>
@@ -906,36 +1159,27 @@ export function PluginManagementView() {
               </button>
             </div>
             <div className="plugins__modal-body">
-              <div style={{ marginBottom: '1rem' }}>
+              <div className="plugins__preview-header">
                 <strong>
                   {previewData.manifest?.displayName ||
                     previewData.manifest?.name}
                 </strong>
-                <span
-                  className="plugins__card-version"
-                  style={{ marginLeft: 8 }}
-                >
+                <span className="plugins__card-version plugins__preview-version">
                   v{previewData.manifest?.version}
                 </span>
                 {previewData.git && (
-                  <span
-                    className="plugins__cap plugins__cap--ref"
-                    style={{ marginLeft: 8 }}
-                  >
+                  <span className="plugins__cap plugins__cap--ref plugins__preview-version">
                     {previewData.git.branch}@{previewData.git.hash}
                   </span>
                 )}
                 {previewData.manifest?.description && (
-                  <div className="plugins__card-desc" style={{ marginTop: 4 }}>
+                  <div className="plugins__card-desc plugins__preview-desc">
                     {previewData.manifest.description}
                   </div>
                 )}
               </div>
               {previewData.conflicts.length > 0 && (
-                <div
-                  className="plugins__modal-message plugins__message--error"
-                  style={{ marginBottom: '0.75rem' }}
-                >
+                <div className="plugins__modal-message plugins__message--error plugins__preview-conflicts">
                   {previewData.conflicts.length} conflict
                   {previewData.conflicts.length > 1 ? 's' : ''} detected —
                   conflicting components are unchecked by default
@@ -948,18 +1192,9 @@ export function PluginManagementView() {
                   return (
                     <div
                       key={key}
-                      className="plugins__registry-item"
-                      style={{ opacity: skipped ? 0.5 : 1 }}
+                      className={`plugins__registry-item${skipped ? ' plugins__registry-item--skipped' : ''}`}
                     >
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          flex: 1,
-                          cursor: 'pointer',
-                        }}
-                      >
+                      <label className="plugins__preview-label">
                         <Checkbox
                           checked={!skipped}
                           onChange={() => {
@@ -977,12 +1212,7 @@ export function PluginManagementView() {
                         <span>{comp.id}</span>
                       </label>
                       {comp.conflict && (
-                        <span
-                          style={{
-                            color: 'var(--accent-primary)',
-                            fontSize: 12,
-                          }}
-                        >
+                        <span className="plugins__preview-conflict-tag">
                           ⚠ conflict
                           {comp.conflict.existingSource
                             ? ` (${comp.conflict.existingSource})`
@@ -995,53 +1225,27 @@ export function PluginManagementView() {
               </div>
               {previewData.dependencies &&
                 previewData.dependencies.length > 0 && (
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: 'var(--text-muted)',
-                        marginBottom: 4,
-                      }}
-                    >
+                  <div className="plugins__preview-deps">
+                    <div className="plugins__preview-deps-label">
                       Dependencies ({previewData.dependencies.length})
                     </div>
                     <div className="plugins__registry-list">
                       {previewData.dependencies.map((dep) => (
                         <div
                           key={dep.id}
-                          className="plugins__registry-item"
-                          style={{
-                            flexDirection: 'column',
-                            alignItems: 'stretch',
-                            gap: 4,
-                          }}
+                          className="plugins__registry-item plugins__preview-dep-item"
                         >
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                            }}
-                          >
+                          <div className="plugins__preview-dep-row">
                             <span className="plugins__cap plugins__cap--bundle">
                               dep
                             </span>
                             <span>{dep.id}</span>
                             {dep.git && (
-                              <span
-                                className="plugins__cap plugins__cap--ref"
-                                style={{ fontSize: 11 }}
-                              >
+                              <span className="plugins__cap plugins__cap--ref plugins__cap--sm">
                                 {dep.git.branch}@{dep.git.hash}
                               </span>
                             )}
-                            <span
-                              style={{
-                                fontSize: 12,
-                                color: 'var(--text-muted)',
-                                marginLeft: 'auto',
-                              }}
-                            >
+                            <span className="plugins__preview-dep-status">
                               {dep.status === 'installed'
                                 ? '✓ installed'
                                 : dep.status === 'will-install'
@@ -1050,19 +1254,11 @@ export function PluginManagementView() {
                             </span>
                           </div>
                           {dep.components && dep.components.length > 0 && (
-                            <div
-                              style={{
-                                paddingLeft: 24,
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: 4,
-                              }}
-                            >
+                            <div className="plugins__preview-dep-components">
                               {dep.components.map((c) => (
                                 <span
                                   key={`${c.type}:${c.id}`}
-                                  className={`plugins__cap plugins__cap--${c.type === 'agent' ? 'agent' : c.type === 'workspace' ? 'workspace' : 'provider'}`}
-                                  style={{ fontSize: 11 }}
+                                  className={`plugins__cap plugins__cap--sm plugins__cap--${c.type === 'agent' ? 'agent' : c.type === 'workspace' ? 'workspace' : 'provider'}`}
                                 >
                                   {c.type}:{c.id}
                                 </span>
@@ -1074,14 +1270,7 @@ export function PluginManagementView() {
                     </div>
                   </div>
                 )}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: 8,
-                  marginTop: '1rem',
-                }}
-              >
+              <div className="plugins__preview-actions">
                 <button
                   className="plugins__confirm-cancel"
                   onClick={() => setPreviewData(null)}
@@ -1091,9 +1280,11 @@ export function PluginManagementView() {
                 <button
                   className="plugins__install-btn"
                   onClick={() => install(Array.from(previewSkips))}
-                  disabled={installing}
+                  disabled={installMutation.isPending}
                 >
-                  {installing ? 'Installing...' : 'Confirm Install'}
+                  {installMutation.isPending
+                    ? 'Installing...'
+                    : 'Confirm Install'}
                 </button>
               </div>
             </div>
@@ -1102,7 +1293,7 @@ export function PluginManagementView() {
       )}
 
       {/* Installing overlay */}
-      {installing && (
+      {installMutation.isPending && (
         <div className="plugins__modal-overlay">
           <div className="plugins__installing-card">
             <div className="plugins__installing-spinner" />
@@ -1194,9 +1385,10 @@ export function PluginManagementView() {
                     );
                     queryClient.invalidateQueries({ queryKey: ['projects'] });
                     setLayoutAssignment(null);
-                    navigate(`/projects/${slug}`);
+                    setLayout(slug, layoutAssignment.layoutSlug);
                   }
-                } catch {
+                } catch (e) {
+                  console.warn('Quick project creation failed', e);
                 } finally {
                   setAssigningLayout(false);
                 }
@@ -1258,8 +1450,9 @@ export function PluginManagementView() {
                           queryKey: ['projects'],
                         });
                         setLayoutAssignment(null);
-                        navigate(`/projects/${[...selectedProjects][0]}`);
-                      } catch {
+                        setLayout([...selectedProjects][0], layoutAssignment.layoutSlug);
+                      } catch (e) {
+                        console.warn('Layout assignment failed', e);
                       } finally {
                         setAssigningLayout(false);
                       }

@@ -1,6 +1,6 @@
 import { LoadingState } from '@stallion-ai/sdk';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -22,6 +22,7 @@ interface IntegrationDef {
   plugin?: string;
   usedBy?: string[];
   permissions?: Record<string, boolean>;
+  connected?: boolean;
 }
 
 interface RegistryItem {
@@ -41,39 +42,25 @@ function RegistryModal({
   apiBase: string;
   onClose: () => void;
 }) {
-  const [items, setItems] = useState<RegistryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
   const [message, setMessage] = useState<{
     type: 'success' | 'error';
     text: string;
   } | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
 
-  const fetchItems = useCallback(async () => {
-    try {
+  const { data: items = [], isLoading } = useQuery<RegistryItem[]>({
+    queryKey: ['registry', 'integrations'],
+    queryFn: async () => {
       const res = await fetch(`${apiBase}/api/registry/integrations`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setItems(data.success ? data.data || [] : []);
-    } catch {
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [apiBase]);
+      return data.success ? data.data || [] : [];
+    },
+  });
 
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
-
-  const handleAction = async (
-    item: RegistryItem,
-    action: 'install' | 'uninstall',
-  ) => {
-    setActionLoading(item.id);
-    setMessage(null);
-    try {
+  const actionMutation = useMutation({
+    mutationFn: async ({ item, action }: { item: RegistryItem; action: 'install' | 'uninstall' }) => {
       const res =
         action === 'install'
           ? await fetch(`${apiBase}/api/registry/integrations/install`, {
@@ -86,21 +73,15 @@ function RegistryModal({
               { method: 'DELETE' },
             );
       const data = await res.json();
-      if (data.success) {
-        setMessage({
-          type: 'success',
-          text: `${action === 'install' ? 'Installed' : 'Removed'} ${item.displayName || item.id}`,
-        });
-        fetchItems();
-      } else {
-        setMessage({ type: 'error', text: data.error || `${action} failed` });
-      }
-    } catch (e: any) {
-      setMessage({ type: 'error', text: e.message });
-    } finally {
-      setActionLoading(null);
-    }
-  };
+      if (!data.success) throw new Error(data.error || `${action} failed`);
+      return { action, name: item.displayName || item.id };
+    },
+    onSuccess: ({ action, name }) => {
+      setMessage({ type: 'success', text: `${action === 'install' ? 'Installed' : 'Removed'} ${name}` });
+      qc.invalidateQueries({ queryKey: ['registry', 'integrations'] });
+    },
+    onError: (e: Error) => setMessage({ type: 'error', text: e.message }),
+  });
 
   const filtered = items.filter((item) => {
     if (!filter) return true;
@@ -128,7 +109,7 @@ function RegistryModal({
               {message.text}
             </div>
           )}
-          {loading ? (
+          {isLoading ? (
             <LoadingState message="Loading registry..." />
           ) : items.length === 0 ? (
             <div className="plugins__empty">
@@ -168,8 +149,7 @@ function RegistryModal({
                         </div>
                         {item.description && (
                           <div
-                            className="plugins__registry-desc"
-                            style={{ maxHeight: 60, overflow: 'hidden' }}
+                            className="plugins__registry-desc plugins__registry-desc--clamp"
                           >
                             {item.description.replace(/\\n/g, ' ')}
                           </div>
@@ -178,14 +158,14 @@ function RegistryModal({
                       <button
                         className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
                         onClick={() =>
-                          handleAction(
+                          actionMutation.mutate({
                             item,
-                            item.installed ? 'uninstall' : 'install',
-                          )
+                            action: item.installed ? 'uninstall' : 'install',
+                          })
                         }
-                        disabled={actionLoading === item.id}
+                        disabled={actionMutation.isPending}
                       >
-                        {actionLoading === item.id
+                        {actionMutation.isPending
                           ? '...'
                           : item.installed
                             ? 'Remove'
@@ -216,82 +196,69 @@ export function IntegrationsView() {
     },
   });
   const [showRegistry, setShowRegistry] = useState(false);
-  const [_hasRegistry, setHasRegistry] = useState(false);
+  const [search, setSearch] = useState('');
   const [message, setMessage] = useState<{
     type: 'success' | 'error';
     text: string;
   } | null>(null);
   const { selectedId, select, deselect } = useUrlSelection('/connections/tools');
   const [editForm, setEditForm] = useState<IntegrationDef | null>(null);
-  const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
   const [viewMode, setViewMode] = useState<'form' | 'raw'>('form');
   const [rawJson, setRawJson] = useState('');
   const [rawError, setRawError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch(`${apiBase}/api/registry/integrations`)
-      .then((r) => r.json())
-      .then((d) => setHasRegistry(d.success && d.data?.length > 0))
-      .catch(() => {});
-  }, [apiBase]);
-
   // Load full detail when selected
-  useEffect(() => {
-    if (!selectedId || selectedId === 'new') return;
-    fetch(`${apiBase}/integrations/${encodeURIComponent(selectedId)}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) setEditForm(d.data);
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, apiBase]);
+  const { data: detailData } = useQuery<IntegrationDef>({
+    queryKey: ['integrations', selectedId],
+    queryFn: async () => {
+      const r = await fetch(`${apiBase}/integrations/${encodeURIComponent(selectedId!)}`);
+      const d = await r.json();
+      if (d.success) return d.data;
+      throw new Error(d.error || 'Failed to load');
+    },
+    enabled: !!selectedId && selectedId !== 'new',
+  });
 
-  const handleSave = async () => {
-    if (!editForm?.id) return;
-    setSaving(true);
-    setMessage(null);
-    try {
+  useEffect(() => {
+    if (detailData) setEditForm(detailData);
+  }, [detailData]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (form: IntegrationDef) => {
       const isNew = selectedId === 'new';
       const url = isNew
         ? `${apiBase}/integrations`
-        : `${apiBase}/integrations/${encodeURIComponent(editForm.id)}`;
+        : `${apiBase}/integrations/${encodeURIComponent(form.id)}`;
       const res = await fetch(url, {
         method: isNew ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify(form),
       });
       const data = await res.json();
-      if (data.success) {
-        setMessage({ type: 'success', text: 'Saved' });
-        qc.invalidateQueries({ queryKey: ['integrations'] });
-        if (isNew) select(editForm.id);
-      } else {
-        setMessage({ type: 'error', text: data.error || 'Save failed' });
-      }
-    } catch (e: any) {
-      setMessage({ type: 'error', text: e.message });
-    } finally {
-      setSaving(false);
-    }
-  };
+      if (!data.success) throw new Error(data.error || 'Save failed');
+      return data;
+    },
+    onSuccess: () => {
+      setMessage({ type: 'success', text: 'Saved' });
+      qc.invalidateQueries({ queryKey: ['integrations'] });
+      if (selectedId === 'new' && editForm?.id) select(editForm.id);
+    },
+    onError: (e: Error) => setMessage({ type: 'error', text: e.message }),
+  });
 
-  const handleDelete = async () => {
-    if (!selectedId) return;
-    setDeleteConfirm(false);
-    try {
-      await fetch(`${apiBase}/integrations/${encodeURIComponent(selectedId)}`, {
-        method: 'DELETE',
-      });
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`${apiBase}/integrations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations'] });
       deselect();
       setEditForm(null);
-      qc.invalidateQueries({ queryKey: ['integrations'] });
-    } catch (e: any) {
-      setMessage({ type: 'error', text: e.message });
-    }
-  };
+    },
+    onError: (e: Error) => setMessage({ type: 'error', text: e.message }),
+  });
 
   const handleNew = () => {
     setEditForm({
@@ -382,14 +349,24 @@ export function IntegrationsView() {
 
   const items = useMemo(
     () =>
-      integrations.map((t) => ({
-        id: t.id,
-        name: t.displayName || t.id,
-        subtitle: [t.transport || t.kind, t.description]
-          .filter(Boolean)
-          .join(' · '),
-      })),
-    [integrations],
+      integrations
+        .filter((t) => {
+          if (!search) return true;
+          const q = search.toLowerCase();
+          return (
+            (t.displayName || t.id).toLowerCase().includes(q) ||
+            t.description?.toLowerCase().includes(q)
+          );
+        })
+        .map((t) => ({
+          id: t.id,
+          name: t.displayName || t.id,
+          subtitle: [t.transport || t.kind, t.description]
+            .filter(Boolean)
+            .join(' · '),
+          icon: <span className={`status-dot status-dot--${t.connected ? 'connected' : 'disconnected'}`} />,
+        })),
+    [integrations, search],
   );
 
   const isNew = selectedId === 'new';
@@ -413,19 +390,14 @@ export function IntegrationsView() {
           deselect();
           setEditForm(null);
         }}
-        onSearch={() => {}}
+        onSearch={setSearch}
         searchPlaceholder="Search tool servers..."
         onAdd={handleNew}
         addLabel="+ Add Tool Server"
         sidebarActions={
           <button
-            className="split-pane__add-btn"
+            className="split-pane__add-btn split-pane__add-btn--secondary"
             onClick={() => setShowRegistry(true)}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--border-primary)',
-              color: 'var(--text-secondary)',
-            }}
           >
             Browse Registry
           </button>
@@ -444,7 +416,7 @@ export function IntegrationsView() {
         }
       >
         {editForm && (
-          <div className="detail-panel" style={{ overflow: 'auto' }}>
+          <div className="detail-panel">
             <DetailHeader
               title={editForm.displayName || editForm.id || 'New Integration'}
               badge={editForm.transport ? { label: editForm.transport, variant: 'muted' as const } : undefined}
@@ -452,8 +424,8 @@ export function IntegrationsView() {
               {!isNew && (
                 <button type="button" className="editor-btn editor-btn--danger" onClick={() => setDeleteConfirm(true)}>Delete</button>
               )}
-              <button type="button" className="editor-btn editor-btn--primary" onClick={handleSave} disabled={saving || !editForm.id || locked}>
-                {saving ? 'Saving…' : isNew ? 'Create' : 'Save'}
+              <button type="button" className="editor-btn editor-btn--primary" onClick={() => editForm && saveMutation.mutate(editForm)} disabled={saveMutation.isPending || !editForm.id || locked}>
+                {saveMutation.isPending ? 'Saving…' : isNew ? 'Create' : 'Save'}
               </button>
             </DetailHeader>
 
@@ -518,8 +490,9 @@ export function IntegrationsView() {
             )}
 
             <div className="editor-field">
-              <label className="editor-label">ID</label>
+              <label className="editor-label" htmlFor="int-id">ID</label>
               <input
+                id="int-id"
                 className="editor-input"
                 value={editForm.id}
                 onChange={(e) =>
@@ -535,8 +508,9 @@ export function IntegrationsView() {
               )}
             </div>
             <div className="editor-field">
-              <label className="editor-label">Display Name</label>
+              <label className="editor-label" htmlFor="int-name">Display Name</label>
               <input
+                id="int-name"
                 className="editor-input"
                 value={editForm.displayName || ''}
                 onChange={(e) =>
@@ -547,8 +521,9 @@ export function IntegrationsView() {
               />
             </div>
             <div className="editor-field">
-              <label className="editor-label">Description</label>
+              <label className="editor-label" htmlFor="int-desc">Description</label>
               <input
+                id="int-desc"
                 className="editor-input"
                 value={editForm.description || ''}
                 onChange={(e) =>
@@ -559,9 +534,11 @@ export function IntegrationsView() {
               />
             </div>
             <div className="editor-field">
-              <label className="editor-label">Transport</label>
+              <label className="editor-label" htmlFor="int-transport">Transport</label>
               <select
+                id="int-transport"
                 className="editor-select"
+                aria-label="Transport"
                 value={editForm.transport || 'stdio'}
                 disabled={locked}
                 onChange={(e) =>
@@ -576,8 +553,9 @@ export function IntegrationsView() {
             {(!editForm.transport || editForm.transport === 'stdio') && (
               <>
                 <div className="editor-field">
-                  <label className="editor-label">Command</label>
+                  <label className="editor-label" htmlFor="int-cmd">Command</label>
                   <input
+                    id="int-cmd"
                     className="editor-input"
                     value={editForm.command || ''}
                     onChange={(e) =>
@@ -588,8 +566,9 @@ export function IntegrationsView() {
                   />
                 </div>
                 <div className="editor-field">
-                  <label className="editor-label">Arguments</label>
+                  <label className="editor-label" htmlFor="int-args">Arguments</label>
                   <input
+                    id="int-args"
                     className="editor-input"
                     value={(editForm.args || []).join(' ')}
                     onChange={(e) =>
@@ -610,8 +589,9 @@ export function IntegrationsView() {
             {(editForm.transport === 'sse' ||
               editForm.transport === 'streamable-http') && (
               <div className="editor-field">
-                <label className="editor-label">Endpoint URL</label>
+                <label className="editor-label" htmlFor="int-endpoint">Endpoint URL</label>
                 <input
+                  id="int-endpoint"
                   className="editor-input"
                   value={editForm.endpoint || ''}
                   onChange={(e) =>
@@ -662,7 +642,7 @@ export function IntegrationsView() {
               </button>
               <button
                 className="plugins__confirm-delete"
-                onClick={handleDelete}
+                onClick={() => { setDeleteConfirm(false); if (selectedId) deleteMutation.mutate(selectedId); }}
               >
                 Delete
               </button>

@@ -1,0 +1,104 @@
+/* ═══ Import Prompts Modal ═══ */
+
+.import-modal__dialog {
+  max-width: 600px;
+}
+
+.import-modal__file-btn {
+  width: 100%;
+}
+
+.import-modal__loading,
+.import-modal__empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.import-modal__empty {
+  border: 2px dashed var(--border-primary);
+  border-radius: 6px;
+}
+
+.import-modal__preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.import-modal__preview-title {
+  font-size: 14px;
+}
+
+.import-modal__preview-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+}
+
+.import-modal__preview-item {
+  padding: 12px;
+}
+
+.import-modal__preview-item:not(:last-child) {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.import-modal__preview-item:nth-child(even) {
+  background: var(--bg-secondary);
+}
+
+.import-modal__name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.import-modal__slash {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.import-modal__name-input {
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--color-primary);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.import-modal__name-input:focus {
+  border-color: var(--color-primary);
+  background: var(--bg-primary);
+}
+
+.import-modal__file-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.import-modal__desc-input {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.import-modal__desc-input:focus {
+  border-color: var(--border-primary);
+  background: var(--bg-primary);
+}

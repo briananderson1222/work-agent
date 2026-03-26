@@ -166,6 +166,15 @@
   transition:
     background 0.15s,
     border-color 0.15s;
+  /* button reset */
+  background: none;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  color: inherit;
 }
 
 .split-pane__item:hover {
@@ -240,6 +249,12 @@
 .split-pane__add-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
+}
+
+.split-pane__add-btn--secondary {
+  border-style: solid;
+  border-color: var(--border-primary);
+  color: var(--text-secondary);
 }
 
 /* ── Empty state ── */

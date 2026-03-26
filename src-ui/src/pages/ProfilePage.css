@@ -333,6 +333,13 @@
   gap: 0.5rem;
 }
 
+.profile-loading {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
 /* ── Responsive ── */
 
 @media (max-width: 700px) {

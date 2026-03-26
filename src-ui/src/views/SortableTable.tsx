@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import './SortableTable.css';
 
 type SortDir = 'asc' | 'desc';
 
@@ -70,7 +71,7 @@ export function SortHeader({
   return (
     <th
       onClick={() => onClick(sortKey)}
-      className="schedule__th schedule__th--sortable"
+      className="sortable-table__th sortable-table__th--sortable"
       style={style}
     >
       {label} {active ? (dir === 'asc' ? '↑' : '↓') : ''}
@@ -93,7 +94,7 @@ export function TableFilter({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="schedule__filter-input"
+      className="sortable-table__filter-input"
     />
   );
 }

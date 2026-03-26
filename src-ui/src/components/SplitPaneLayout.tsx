@@ -117,8 +117,9 @@ export function SplitPaneLayout({
             <LoadingState message="Loading..." />
           ) : (
             items.map((item) => (
-              <div
+              <button
                 key={item.id}
+                type="button"
                 className={`split-pane__item${selectedId === item.id ? ' split-pane__item--selected' : ''}`}
                 onClick={() => onSelect(item.id)}
               >
@@ -133,7 +134,7 @@ export function SplitPaneLayout({
                     </div>
                   )}
                 </div>
-              </div>
+              </button>
             ))
           )}
         </div>

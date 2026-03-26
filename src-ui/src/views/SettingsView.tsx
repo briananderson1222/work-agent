@@ -2,7 +2,7 @@ import { QRDisplay, useConnections, useHostUrl } from '@stallion-ai/connect';
 import './SettingsView.css';
 import './page-layout.css';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
@@ -17,7 +17,6 @@ import type { FeatureSettings } from '../hooks/useFeatureSettings';
 import { useFeatureSettings } from '../hooks/useFeatureSettings';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import type { AppConfig, NavigationView } from '../types';
-import './SettingsView.css';
 
 function MobilePairingSection() {
   const { activeConnection } = useConnections();
@@ -39,29 +38,14 @@ function MobilePairingSection() {
   return (
     <div className="form-group">
       <label>Mobile Pairing</label>
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          gap: 12,
-        }}
-      >
+      <div className="settings__pairing-content">
         {isDetecting ? (
-          <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Detecting local IP…
-          </div>
+          <div className="settings__pairing-detecting">Detecting local IP…</div>
         ) : (
           <QRDisplay url={hostUrl} size={160} label={hostUrl} />
         )}
         {isLocalhost && !isDetecting && (
-          <div
-            style={{
-              fontSize: '12px',
-              color: 'var(--color-warning, #eab308)',
-              maxWidth: 320,
-            }}
-          >
+          <div className="settings__pairing-warning">
             Showing localhost — your device may not be able to reach this
             address. Make sure both devices are on the same network and use your
             computer's LAN IP.
@@ -84,32 +68,37 @@ export interface SettingsViewProps {
 
 /* ── Environment Status ── */
 
+interface Prerequisite {
+  id: string;
+  name: string;
+  description: string;
+  status: 'installed' | 'error' | 'missing';
+  category: 'required' | 'optional';
+  source?: string;
+  installGuide?: { steps: string[]; commands?: string[] };
+}
+
 function EnvironmentStatus({ apiBase }: { apiBase: string }) {
   const [expanded, setExpanded] = useState(false);
   const [guideOpen, setGuideOpen] = useState<Set<string>>(new Set());
 
-  const { data: prerequisites = [], isLoading: loading } = useQuery<any[]>({
+  const { data: prerequisites = [], isLoading: loading } = useQuery<
+    Prerequisite[]
+  >({
     queryKey: ['system-status'],
     queryFn: async () => {
       const r = await fetch(`${apiBase}/api/system/status`);
       const data = await r.json();
-      return data.prerequisites || [];
+      return Array.isArray(data.prerequisites) ? data.prerequisites : [];
     },
     enabled: !!apiBase,
   });
 
   useEffect(() => {
-    if (!Array.isArray(prerequisites)) {
-      console.warn(
-        '[EnvironmentStatus] prerequisites is not an array:',
-        typeof prerequisites,
-        prerequisites,
-      );
-      return;
-    }
     if (
+      Array.isArray(prerequisites) &&
       prerequisites.some(
-        (p: any) => p.category === 'required' && p.status !== 'installed',
+        (p) => p.category === 'required' && p.status !== 'installed',
       )
     ) {
       setExpanded(true);
@@ -120,10 +109,10 @@ function EnvironmentStatus({ apiBase }: { apiBase: string }) {
     return null;
 
   const allRequiredMet = prerequisites
-    .filter((p: any) => p.category === 'required')
-    .every((p: any) => p.status === 'installed');
+    .filter((p) => p.category === 'required')
+    .every((p) => p.status === 'installed');
   const missingCount = prerequisites.filter(
-    (p: any) => p.status !== 'installed',
+    (p) => p.status !== 'installed',
   ).length;
 
   const toggleGuide = (id: string) =>
@@ -135,40 +124,29 @@ function EnvironmentStatus({ apiBase }: { apiBase: string }) {
 
   const icon = (status: string) =>
     status === 'installed' ? '✓' : status === 'error' ? '⚠' : '✗';
-  const iconColor = (status: string) =>
-    status === 'installed'
-      ? 'var(--success-text)'
-      : status === 'error'
-        ? 'var(--warning-text)'
-        : 'var(--error-text)';
 
   const stripClass = allRequiredMet
     ? 'settings__env'
     : 'settings__env settings__env--error';
 
   // Group by source
-  const grouped = new Map<string, any[]>();
+  const grouped = new Map<string, Prerequisite[]>();
   for (const p of prerequisites) {
     const src = p.source || 'Core';
     if (!grouped.has(src)) grouped.set(src, []);
     grouped.get(src)!.push(p);
   }
 
-  const renderItem = (p: any) => (
+  const renderItem = (p: Prerequisite) => (
     <div key={p.id}>
       <div
-        className="settings__env-item"
-        style={{
-          cursor:
-            p.status !== 'installed' && p.installGuide ? 'pointer' : 'default',
-        }}
+        className={`settings__env-item${p.status !== 'installed' && p.installGuide ? ' settings__env-item--clickable' : ''}`}
         onClick={() =>
           p.status !== 'installed' && p.installGuide && toggleGuide(p.id)
         }
       >
         <span
-          className="settings__env-status"
-          style={{ color: iconColor(p.status) }}
+          className={`settings__env-status settings__env-status--${p.status}`}
         >
           {icon(p.status)}
         </span>
@@ -234,53 +212,35 @@ function EnvironmentStatus({ apiBase }: { apiBase: string }) {
 /* ── Core Update Check ── */
 
 function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
-  const [status, setStatus] = useState<any>(null);
-  const [checking, setChecking] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  const check = async () => {
-    setChecking(true);
-    setMessage(null);
-    setStatus(null);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
-    try {
-      const res = await fetch(`${apiBase}/api/system/core-update`, {
-        signal: controller.signal,
-      });
-      const data = await res.json();
-      if (data.error) {
-        setMessage(data.error);
-      } else {
-        setStatus(data);
-      }
-    } catch (e: any) {
-      setMessage(
-        e.name === 'AbortError'
-          ? 'Timed out — could not reach git remote'
-          : e.message,
-      );
-    } finally {
-      clearTimeout(timeout);
-      setChecking(false);
-    }
-  };
-
   const [restarting, setRestarting] = useState(false);
 
-  const update = async () => {
-    setUpdating(true);
-    setMessage(null);
-    try {
+  const {
+    data: status,
+    isFetching: checking,
+    error: checkError,
+    refetch: check,
+  } = useQuery<any>({
+    queryKey: ['core-update-check'],
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`${apiBase}/api/system/core-update`, { signal });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    },
+    enabled: false,
+    retry: false,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch(`${apiBase}/api/system/core-update`, {
         method: 'POST',
       });
-      const data = await res.json();
+      return res.json();
+    },
+    onSuccess: (data) => {
       if (data.success && data.restarting) {
         setRestarting(true);
-        setMessage('Updated — server restarting…');
-        // Poll until server is back
         const poll = setInterval(async () => {
           try {
             const r = await fetch(`${apiBase}/api/system/status`, {
@@ -289,24 +249,25 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
             if (r.ok) {
               clearInterval(poll);
               setRestarting(false);
-              setUpdating(false);
-              setMessage(null);
               check();
             }
           } catch {
             /* still restarting */
           }
         }, 1500);
-      } else {
-        setMessage(data.success ? data.message : data.error || 'Update failed');
-        if (data.success) check();
-        setUpdating(false);
+      } else if (data.success) {
+        check();
       }
-    } catch (e: any) {
-      setMessage(e.message);
-      setUpdating(false);
-    }
-  };
+    },
+  });
+
+  const message = restarting
+    ? 'Updated — server restarting…'
+    : updateMutation.error
+      ? (updateMutation.error as Error).message
+      : checkError
+        ? (checkError as Error).message
+        : null;
 
   return (
     <div>
@@ -314,7 +275,7 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
         <button
           type="button"
           className="settings__update-btn settings__update-btn--check"
-          onClick={check}
+          onClick={() => check()}
           disabled={checking}
         >
           {checking ? 'Checking…' : 'Check for Updates'}
@@ -323,12 +284,12 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
           <button
             type="button"
             className="settings__update-btn settings__update-btn--apply"
-            onClick={update}
-            disabled={updating || restarting}
+            onClick={() => updateMutation.mutate()}
+            disabled={updateMutation.isPending || restarting}
           >
             {restarting
               ? 'Restarting…'
-              : updating
+              : updateMutation.isPending
                 ? 'Updating…'
                 : `Update (${status.behind} commit${status.behind !== 1 ? 's' : ''} behind)`}
           </button>
@@ -347,7 +308,7 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
           {status.updateAvailable && (
             <>
               <span>·</span>
-              <span style={{ color: 'var(--success-text)' }}>
+              <span className="settings__update-text--success">
                 Latest: {status.remoteHash}
               </span>
             </>
@@ -355,7 +316,7 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
           {!status.updateAvailable && status.ahead > 0 && (
             <>
               <span>·</span>
-              <span style={{ color: 'var(--warning-text)' }}>
+              <span className="settings__update-text--warning">
                 {status.ahead} commit{status.ahead !== 1 ? 's' : ''} ahead
               </span>
             </>
@@ -364,11 +325,7 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
             <>
               <span>·</span>
               <span
-                style={{
-                  color: status.noUpstream
-                    ? 'var(--text-muted)'
-                    : 'var(--success-text)',
-                }}
+                className={`settings__update-text--${status.noUpstream ? 'muted' : 'success'}`}
               >
                 {status.noUpstream ? 'No upstream configured' : 'Up to date ✓'}
               </span>
@@ -378,14 +335,7 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
       )}
       {message && (
         <div
-          className="settings__update-msg"
-          style={{
-            color: restarting
-              ? 'var(--warning-text)'
-              : message.includes('Updated')
-                ? 'var(--success-text)'
-                : 'var(--error-text)',
-          }}
+          className={`settings__update-msg settings__update-msg--${restarting ? 'warning' : message.includes('Updated') ? 'success' : 'error'}`}
         >
           {message}
         </div>
@@ -401,18 +351,22 @@ function CoreUpdateCheck({ apiBase }: { apiBase: string }) {
 /* ── Section wrapper ── */
 
 function Section({
+  id,
   icon,
   title,
   children,
 }: {
+  id?: string;
   icon: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="settings__section">
+    <div id={id} className="settings__section">
       <div className="settings__section-head">
-        <span className="settings__section-icon">{icon}</span>
+        <span className="settings__section-icon" aria-hidden="true">
+          {icon}
+        </span>
         <span className="settings__section-title">{title}</span>
       </div>
       <div className="settings__section-body">{children}</div>
@@ -476,32 +430,12 @@ function FeatureToggle({
       className="settings__feature-toggle"
       onClick={() => onToggle(featureKey)}
     >
-      <Toggle
-        checked={checked}
-        onChange={() => {}}
-        size="sm"
-      />
+      <Toggle checked={checked} onChange={() => {}} size="sm" />
       <div>
-        <div style={{ fontWeight: 500, marginBottom: 2 }}>{label}</div>
-        <div
-          style={{
-            fontSize: 12,
-            color: 'var(--text-secondary)',
-            lineHeight: 1.5,
-          }}
-        >
-          {description}
-        </div>
+        <div className="settings__toggle-name">{label}</div>
+        <div className="settings__toggle-detail">{description}</div>
         {privacyNote && (
-          <div
-            style={{
-              fontSize: 11,
-              color: 'var(--color-warning, #eab308)',
-              marginTop: 3,
-            }}
-          >
-            {privacyNote}
-          </div>
+          <div className="settings__toggle-privacy">{privacyNote}</div>
         )}
       </div>
     </div>
@@ -518,10 +452,10 @@ function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
   if (!notifs.supported) return null;
 
   return (
-    <div style={{ marginTop: 8 }}>
+    <div className="settings__notif-subscribe">
       {notifs.subscribed ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--success-text, #22c55e)' }}>
+        <div className="settings__notif-subscribed">
+          <span className="settings__notif-status">
             ✓ Subscribed to push notifications
           </span>
           <button
@@ -545,15 +479,7 @@ function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
         </button>
       )}
       {notifs.error && (
-        <div
-          style={{
-            fontSize: 12,
-            color: 'var(--error-text, #ef4444)',
-            marginTop: 4,
-          }}
-        >
-          {notifs.error}
-        </div>
+        <div className="settings__notif-error">{notifs.error}</div>
       )}
     </div>
   );
@@ -573,9 +499,7 @@ function VoiceFeaturesSection() {
     useMessageContextContext();
 
   return (
-    <div className="form-group">
-      <label>Voice Providers</label>
-
+    <Section icon="🎙" title="Voice & Features" id="section-voice">
       {/* STT provider */}
       <div className="voice-provider-section">
         <div className="voice-provider-section__label">
@@ -636,23 +560,11 @@ function VoiceFeaturesSection() {
               className="settings__feature-toggle"
               onClick={() => toggleProvider(p.id)}
             >
-              <Toggle
-                checked={p.enabled}
-                onChange={() => {}}
-                size="sm"
-              />
+              <Toggle checked={p.enabled} onChange={() => {}} size="sm" />
               <div>
-                <div style={{ fontWeight: 500, marginBottom: 2 }}>{p.name}</div>
+                <div className="settings__toggle-name">{p.name}</div>
                 {p.description && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {p.description}
-                  </div>
+                  <div className="settings__toggle-detail">{p.description}</div>
                 )}
               </div>
             </div>
@@ -675,11 +587,11 @@ function VoiceFeaturesSection() {
         ))}
       </div>
       {settings.mobilePairingEnabled && <MobilePairingSection />}
-      <span className="form-help" style={{ marginTop: 8, display: 'block' }}>
+      <span className="form-help settings__form-help-block">
         Voice provider selection and context settings are saved in this browser
         only. Install plugins to add ElevenLabs or Nova Sonic providers.
       </span>
-    </div>
+    </Section>
   );
 }
 
@@ -695,63 +607,118 @@ export function SettingsView({
     isCustom,
   } = useApiBase();
   const configData = useConfig();
-  const { updateConfig } = useConfigActions();
+  const { updateConfig, isSaving } = useConfigActions();
   const invalidate = useInvalidateQuery();
 
   const [config, setConfig] = useState<AppConfig>(
     (configData as AppConfig) || {},
   );
-  const [originalConfig, setOriginalConfig] = useState<AppConfig>(
-    (configData as AppConfig) || {},
-  );
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<
     'idle' | 'testing' | 'success' | 'failed'
   >('idle');
+  const testConnection = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${currentApiBase}/api/agents`);
+      if (!res.ok) throw new Error('Connection failed');
+    },
+    onMutate: () => setTestStatus('testing'),
+    onSuccess: () => {
+      setTestStatus('success');
+      setTimeout(() => setTestStatus('idle'), 3000);
+    },
+    onError: () => {
+      setTestStatus('failed');
+      setTimeout(() => setTestStatus('idle'), 3000);
+    },
+  });
   const [showResetModal, setShowResetModal] = useState(false);
+  const [apiBaseError, setApiBaseError] = useState<string | null>(null);
   const { settings: featureSettings, toggle: toggleFeature } =
     useFeatureSettings();
 
+  const configJson = JSON.stringify(config);
+  const baselineJson = JSON.stringify(configData || {});
+  const hasChanges = configJson !== baselineJson;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-sync when server data changes, not on local edits
   useEffect(() => {
-    if (configData) {
+    if (configData && configJson === baselineJson) {
       setConfig(configData as AppConfig);
-      setOriginalConfig(configData as AppConfig);
     }
   }, [configData]);
 
   useCloseShortcut(onBack);
 
-  const hasChanges = JSON.stringify(config) !== JSON.stringify(originalConfig);
+  // ── Validation ──
+  const validationErrors: Record<string, string> = {};
+  if (config.region && !/^[a-z]{2}(-[a-z]+-\d+)?$/.test(config.region)) {
+    validationErrors.region = 'Invalid region format (e.g. us-east-1)';
+  }
+  if ((config.systemPrompt || '').length > 10000) {
+    validationErrors.systemPrompt = 'Exceeds 10,000 character limit';
+  }
+  for (const v of config.templateVariables || []) {
+    if (!v.key.trim()) {
+      validationErrors.templateVars = 'Variable names cannot be empty';
+      break;
+    }
+    if (/\s/.test(v.key)) {
+      validationErrors.templateVars = 'Variable names cannot contain spaces';
+      break;
+    }
+  }
+  const isValid = Object.keys(validationErrors).length === 0;
+
+  const validationWarnings: Record<string, string> = {};
+  for (const v of config.templateVariables || []) {
+    if (v.type === 'static' && !v.value?.trim()) {
+      validationWarnings.templateVarValues =
+        'Static variables with empty values will resolve to blank';
+      break;
+    }
+  }
 
   const saveConfig = async () => {
+    if (!isValid) return;
     try {
-      setIsSaving(true);
       setError(null);
       await updateConfig(config);
-      setOriginalConfig(config);
       onSaved?.();
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setIsSaving(false);
     }
   };
 
   const resetToDefaults = async () => {
     setShowResetModal(false);
     try {
-      setIsSaving(true);
       setError(null);
       await updateConfig({});
       invalidate(['config']);
       onSaved?.();
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setIsSaving(false);
     }
   };
+
+  if (!configData) {
+    return (
+      <div className="settings page page--narrow">
+        <div className="page__header">
+          <div className="page__header-text">
+            <div className="page__label">settings</div>
+            <h1 className="page__title">Settings</h1>
+          </div>
+        </div>
+        <div className="settings__skeleton">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="settings__skeleton-section" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -774,13 +741,34 @@ export function SettingsView({
           </div>
         </div>
 
-        {error && <div className="settings__error">{error}</div>}
+        {error && (
+          <div className="settings__error-banner">
+            <span className="settings__error-banner-msg">{error}</span>
+            <button
+              type="button"
+              className="settings__error-banner-retry"
+              onClick={saveConfig}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* ── Section Nav ── */}
+        <nav className="settings__section-nav" aria-label="Settings sections">
+          <a href="#section-ai">AI & Models</a>
+          <a href="#section-appearance">Appearance</a>
+          <a href="#section-notifications">Notifications</a>
+          <a href="#section-connection">Connection</a>
+          <a href="#section-voice">Voice & Features</a>
+          <a href="#section-system">System</a>
+        </nav>
 
         {/* ── Environment Status ── */}
         <EnvironmentStatus apiBase={currentApiBase} />
 
         {/* ── AI & Models ── */}
-        <Section icon="◆" title="AI & Models">
+        <Section icon="◆" title="AI & Models" id="section-ai">
           <div className="settings__field">
             <label className="settings__field-label" htmlFor="defaultModel">
               Default Model
@@ -810,6 +798,14 @@ export function SettingsView({
               placeholder="Global instructions prepended to all agent prompts…"
               rows={6}
             />
+            <div className="settings__char-count">
+              {(config.systemPrompt || '').length.toLocaleString()} / 10,000
+            </div>
+            {validationErrors.systemPrompt && (
+              <span className="settings__field-error">
+                {validationErrors.systemPrompt}
+              </span>
+            )}
             <span className="settings__field-hint">
               Agents can override this with their own instructions. Supports
               template variables like {'{{date}}'}, {'{{time}}'}, or custom
@@ -907,6 +903,16 @@ export function SettingsView({
               >
                 + Add Variable
               </button>
+              {validationErrors.templateVars && (
+                <span className="settings__field-error">
+                  {validationErrors.templateVars}
+                </span>
+              )}
+              {validationWarnings.templateVarValues && (
+                <span className="settings__field-warning">
+                  {validationWarnings.templateVarValues}
+                </span>
+              )}
             </div>
             <div className="settings__var-ref">
               <strong>Built-in (always available):</strong>
@@ -927,7 +933,7 @@ export function SettingsView({
         </Section>
 
         {/* ── Appearance ── */}
-        <Section icon="◐" title="Appearance">
+        <Section icon="◐" title="Appearance" id="section-appearance">
           <div className="settings__field">
             <label className="settings__field-label" htmlFor="chatFontSize">
               Chat Font Size
@@ -954,10 +960,19 @@ export function SettingsView({
               Font size for chat messages (10–24px).
             </span>
           </div>
+          <div className="settings__field">
+            <label className="settings__field-label">Theme</label>
+            <div className="settings__theme-row">
+              <ThemeToggle />
+              <span className="settings__field-hint">
+                Toggle between light and dark mode.
+              </span>
+            </div>
+          </div>
         </Section>
 
         {/* ── Notifications ── */}
-        <Section icon="◉" title="Notifications">
+        <Section icon="◉" title="Notifications" id="section-notifications">
           <label className="settings__toggle-row">
             <Toggle
               checked={featureSettings.pushNotificationsEnabled}
@@ -977,7 +992,7 @@ export function SettingsView({
         </Section>
 
         {/* ── Connection ── */}
-        <Section icon="◇" title="Connection">
+        <Section icon="◇" title="Connection" id="section-connection">
           <div className="settings__field">
             <label className="settings__field-label" htmlFor="apiBase">
               Backend API Base URL
@@ -987,7 +1002,16 @@ export function SettingsView({
                 id="apiBase"
                 type="text"
                 value={currentApiBase}
-                onChange={(e) => setApiBase(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  try {
+                    if (val) new URL(val);
+                    setApiBaseError(null);
+                    setApiBase(val);
+                  } catch {
+                    setApiBaseError('Invalid URL format');
+                  }
+                }}
                 placeholder="http://localhost:3141"
               />
               {isCustom && (
@@ -1000,10 +1024,13 @@ export function SettingsView({
                 </button>
               )}
             </div>
+            {apiBaseError && (
+              <span className="settings__field-error">{apiBaseError}</span>
+            )}
             <span className="settings__field-hint">
               Changes take effect immediately.
               {isCustom && (
-                <span style={{ color: 'var(--warning-text)' }}>
+                <span className="settings__conn-custom-warning">
                   {' '}
                   Using custom URL.
                 </span>
@@ -1013,16 +1040,7 @@ export function SettingsView({
               type="button"
               className={`settings__conn-test${testStatus === 'success' ? ' settings__conn-test--ok' : testStatus === 'failed' ? ' settings__conn-test--fail' : ''}`}
               disabled={testStatus === 'testing'}
-              onClick={async () => {
-                setTestStatus('testing');
-                try {
-                  const res = await fetch(`${currentApiBase}/agents`);
-                  setTestStatus(res.ok ? 'success' : 'failed');
-                } catch {
-                  setTestStatus('failed');
-                }
-                setTimeout(() => setTestStatus('idle'), 3000);
-              }}
+              onClick={() => testConnection.mutate()}
             >
               {testStatus === 'testing'
                 ? 'Testing…'
@@ -1041,10 +1059,18 @@ export function SettingsView({
             <input
               id="region"
               type="text"
+              className={
+                validationErrors.region ? 'settings__field--invalid' : ''
+              }
               value={config.region || ''}
               onChange={(e) => setConfig({ ...config, region: e.target.value })}
               placeholder="us-east-1"
             />
+            {validationErrors.region && (
+              <span className="settings__field-error">
+                {validationErrors.region}
+              </span>
+            )}
             <span className="settings__field-hint">
               Region for Bedrock API calls.
             </span>
@@ -1054,7 +1080,7 @@ export function SettingsView({
         <VoiceFeaturesSection />
 
         {/* ── System ── */}
-        <Section icon="⚙" title="System">
+        <Section icon="⚙" title="System" id="section-system">
           <div className="settings__field">
             <label className="settings__field-label">Core App Updates</label>
             <CoreUpdateCheck apiBase={currentApiBase} />
@@ -1068,7 +1094,10 @@ export function SettingsView({
               id="logLevel"
               value={config.logLevel || 'info'}
               onChange={(e) =>
-                setConfig({ ...config, logLevel: e.target.value as AppConfig['logLevel'] })
+                setConfig({
+                  ...config,
+                  logLevel: e.target.value as AppConfig['logLevel'],
+                })
               }
             >
               <option value="error">Error</option>
@@ -1079,6 +1108,52 @@ export function SettingsView({
             </select>
             <span className="settings__field-hint">
               Logging verbosity. Higher levels include more detail.
+            </span>
+          </div>
+
+          <div className="settings__field">
+            <label className="settings__field-label">Backup & Restore</label>
+            <div className="settings__export-row">
+              <button
+                type="button"
+                className="settings__secondary-btn"
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(config, null, 2)], {
+                    type: 'application/json',
+                  });
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = 'stallion-settings.json';
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                }}
+              >
+                Export Settings
+              </button>
+              <label className="settings__secondary-btn settings__import-label">
+                Import Settings
+                <input
+                  type="file"
+                  accept=".json"
+                  hidden
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      const imported = JSON.parse(text);
+                      setConfig({ ...config, ...imported });
+                    } catch {
+                      setError('Invalid settings file');
+                    }
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+            <span className="settings__field-hint">
+              Export current settings as JSON or import from a backup. Imported
+              settings appear as unsaved changes.
             </span>
           </div>
 
@@ -1104,12 +1179,12 @@ export function SettingsView({
       </div>
 
       {hasChanges && (
-        <div className="settings__save-pill">
+        <div className="settings__save-pill" role="status" aria-live="polite">
           <span className="settings__save-pill-text">Unsaved changes</span>
           <button
             type="button"
             className="settings__save-pill-discard"
-            onClick={() => setConfig(originalConfig)}
+            onClick={() => setConfig((configData as AppConfig) || {})}
           >
             Discard
           </button>
@@ -1117,9 +1192,9 @@ export function SettingsView({
             type="button"
             className="settings__save-pill-btn"
             onClick={saveConfig}
-            disabled={isSaving}
+            disabled={isSaving || !isValid}
           >
-            {isSaving ? 'Saving…' : 'Save'}
+            {isSaving ? 'Saving…' : !isValid ? 'Fix errors' : 'Save'}
           </button>
         </div>
       )}

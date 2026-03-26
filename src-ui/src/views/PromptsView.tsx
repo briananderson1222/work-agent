@@ -1,9 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAgentsQuery, usePromptsQuery } from '@stallion-ai/sdk';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { DetailHeader } from '../components/DetailHeader';
+import { PromptRunModal } from '../components/PromptRunModal';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
+import { useCreateChatSession, useSendMessage } from '../contexts/ActiveChatsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useNavigation } from '../contexts/NavigationContext';
+import { useToast } from '../contexts/ToastContext';
 import { useAIEnrich } from '../hooks/useAIEnrich';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import './page-layout.css';
@@ -70,6 +75,7 @@ export function PromptsView() {
     deselect: urlDeselect,
   } = useUrlSelection('/prompts');
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
   const selectedId = urlId === 'new' ? null : urlId;
   const [isNew, setIsNew] = useState(urlId === 'new');
@@ -77,27 +83,31 @@ export function PromptsView() {
   const [search, setSearch] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showRunModal, setShowRunModal] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
 
-  const { data: prompts = [], isLoading } = useQuery<Prompt[]>({
-    queryKey: ['prompts'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/prompts`);
-      const json = await res.json();
-      return json.data ?? [];
-    },
-  });
+  const { data: prompts = [], isLoading } = usePromptsQuery() as { data?: Prompt[]; isLoading: boolean };
 
-  const { data: agents = [] } = useQuery<{ slug: string; name: string }[]>({
-    queryKey: ['agents'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/agents`);
-      const json = await res.json();
-      return json.data ?? [];
+  const { data: agents = [] } = useAgentsQuery() as { data?: { slug: string; name: string }[] };
+
+  const { setDockState, setActiveChat } = useNavigation();
+  const createChatSession = useCreateChatSession();
+  const sendMessage = useSendMessage(apiBase);
+
+  const handleRun = useCallback(
+    async (resolvedContent: string, agentSlug: string) => {
+      const agent = agents.find((a) => a.slug === agentSlug);
+      if (!agent) return;
+      const sessionId = createChatSession(agent.slug, agent.name, form.name || 'Prompt Test');
+      setDockState(true);
+      setActiveChat(null);
+      setShowRunModal(false);
+      await sendMessage(sessionId, agent.slug, undefined, resolvedContent);
     },
-  });
+    [agents, createChatSession, setDockState, setActiveChat, sendMessage, form.name],
+  );
 
   const createMutation = useMutation({
     mutationFn: async (body: object) => {
@@ -113,7 +123,9 @@ export function PromptsView() {
       setIsNew(false);
       urlSelect(data.data?.id ?? '');
       setDirty(false);
+      showToast('Prompt created');
     },
+    onError: () => showToast('Failed to create prompt'),
   });
 
   const updateMutation = useMutation({
@@ -128,7 +140,9 @@ export function PromptsView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prompts'] });
       setDirty(false);
+      showToast('Prompt saved');
     },
+    onError: () => showToast('Failed to save prompt'),
   });
 
   const deleteMutation = useMutation({
@@ -140,7 +154,9 @@ export function PromptsView() {
       urlDeselect();
       setIsNew(false);
       setDirty(false);
+      showToast('Prompt deleted');
     },
+    onError: () => showToast('Failed to delete prompt'),
   });
 
   const categories = useMemo(
@@ -170,6 +186,14 @@ export function PromptsView() {
     }
   }, [selectedPrompt?.id, dirty, isNew, selectedPrompt]);
 
+  // Unsaved changes guard
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
   function selectPrompt(id: string) {
     const p = prompts.find((x) => x.id === id);
     if (!p) return;
@@ -177,6 +201,7 @@ export function PromptsView() {
     setIsNew(false);
     setForm(promptToForm(p));
     setDirty(false);
+    setTouched({});
     setAdvancedOpen(false);
   }
 
@@ -185,6 +210,7 @@ export function PromptsView() {
     setIsNew(true);
     setForm(EMPTY_FORM);
     setDirty(false);
+    setTouched({});
     setAdvancedOpen(false);
   }
 
@@ -214,24 +240,32 @@ export function PromptsView() {
     };
   }
 
-  async function handleUpload(files: FileList) {
-    setUploading(true);
-    for (const file of Array.from(files)) {
-      if (!file.name.endsWith('.md')) continue;
-      const text = await file.text();
-      const parsed = parseFrontmatter(text);
-      const name = parsed.name || file.name.replace(/\.md$/, '').replace(/[^a-zA-Z0-9_-]/g, '-');
-      try {
-        await fetch(`${apiBase}/api/prompts`, {
+  const uploadMutation = useMutation({
+    mutationFn: async (files: FileList) => {
+      let count = 0;
+      let failed = 0;
+      for (const file of Array.from(files)) {
+        if (!file.name.endsWith('.md')) continue;
+        const text = await file.text();
+        const parsed = parseFrontmatter(text);
+        const name = parsed.name || file.name.replace(/\.md$/, '').replace(/[^a-zA-Z0-9_-]/g, '-');
+        const res = await fetch(`${apiBase}/api/prompts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, content: parsed.content, description: parsed.description }),
         });
-      } catch {}
-    }
-    queryClient.invalidateQueries({ queryKey: ['prompts'] });
-    setUploading(false);
-  }
+        if (res.ok) count++;
+        else failed++;
+      }
+      if (failed > 0 && count === 0) throw new Error('All uploads failed');
+      return { count, failed };
+    },
+    onSuccess: ({ count, failed }) => {
+      queryClient.invalidateQueries({ queryKey: ['prompts'] });
+      showToast(failed > 0 ? `Uploaded ${count} prompt${count !== 1 ? 's' : ''} (${failed} failed)` : `Uploaded ${count} prompt${count !== 1 ? 's' : ''}`);
+    },
+    onError: () => showToast('Upload failed'),
+  });
 
   function handleSave() {
     if (isNew) {
@@ -243,6 +277,12 @@ export function PromptsView() {
 
   const { enrich, isEnriching } = useAIEnrich();
   const isEditing = isNew || !!selectedId;
+
+  const templateVars = useMemo(() => {
+    const matches = form.content.match(/\{\{(\w+)\}\}/g);
+    if (!matches) return [];
+    return [...new Set(matches.map(m => m.slice(2, -2)))];
+  }, [form.content]);
 
   const listItems = filtered.map((p) => ({
     id: p.id,
@@ -278,15 +318,14 @@ export function PromptsView() {
               accept=".md"
               multiple
               style={{ display: 'none' }}
-              onChange={(e) => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }}
+              onChange={(e) => { if (e.target.files) uploadMutation.mutate(e.target.files); e.target.value = ''; }}
             />
             <button
-              className="split-pane__add-btn"
+              className="split-pane__add-btn split-pane__add-btn--secondary"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              style={{ background: 'transparent', border: '1px solid var(--border-primary)', color: 'var(--text-secondary)' }}
+              disabled={uploadMutation.isPending}
             >
-              {uploading ? 'Uploading…' : '↑ Upload .md'}
+              {uploadMutation.isPending ? 'Uploading…' : '↑ Upload .md'}
             </button>
           </>
         }
@@ -300,7 +339,10 @@ export function PromptsView() {
               {!isNew && selectedId && (
                 <button className="editor-btn editor-btn--danger" onClick={() => setShowDeleteModal(true)}>Delete</button>
               )}
-              <button className="editor-btn editor-btn--primary" onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending || !form.name}>
+              {!isNew && selectedId && (
+                <button className="editor-btn" onClick={() => setShowRunModal(true)} disabled={!form.content.trim()}>▶ Test</button>
+              )}
+              <button className="editor-btn editor-btn--primary" onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending || !form.name.trim() || !form.content.trim()}>
                 {(createMutation.isPending || updateMutation.isPending) ? 'Saving…' : isNew ? 'Create' : 'Save'}
               </button>
             </DetailHeader>
@@ -314,8 +356,10 @@ export function PromptsView() {
                   className="editor-input"
                   value={form.name}
                   onChange={(e) => updateField('name', e.target.value)}
+                  onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                   placeholder="Prompt name"
                 />
+                {touched.name && !form.name.trim() && <div className="editor-error">Name is required</div>}
               </div>
 
               <div className="editor-field">
@@ -339,9 +383,19 @@ export function PromptsView() {
                   className="editor-textarea editor-textarea--tall editor-textarea--mono"
                   value={form.content}
                   onChange={(e) => updateField('content', e.target.value)}
+                  onBlur={() => setTouched((t) => ({ ...t, content: true }))}
                   placeholder="Write your prompt here..."
                   spellCheck={false}
                 />
+                {touched.content && !form.content.trim() && <div className="editor-error">Content is required</div>}
+                {templateVars.length > 0 && (
+                  <div className="editor__tags">
+                    <span className="editor-label" style={{ marginBottom: 0 }}>Variables:</span>
+                    {templateVars.map((v) => (
+                      <span key={v} className="editor__tag">{`{{${v}}}`}</span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="editor-field">
@@ -411,7 +465,7 @@ export function PromptsView() {
                     />
                   </div>
                   {form.tags && (
-                    <div className="editor__tags" style={{ marginTop: 8 }}>
+                    <div className="editor__tags">
                       {form.tags
                         .split(',')
                         .map((t) => t.trim())
@@ -466,7 +520,7 @@ export function PromptsView() {
       <ConfirmModal
         isOpen={showDeleteModal}
         title="Delete Prompt"
-        message={`Delete "${selectedPrompt?.name}"? This cannot be undone.`}
+        message={`Delete "${selectedPrompt?.name ?? form.name}"? This cannot be undone.`}
         confirmLabel="Delete"
         variant="danger"
         onConfirm={() => {
@@ -474,6 +528,15 @@ export function PromptsView() {
           if (selectedId) deleteMutation.mutate(selectedId);
         }}
         onCancel={() => setShowDeleteModal(false)}
+      />
+
+      <PromptRunModal
+        isOpen={showRunModal}
+        prompt={{ name: form.name, content: form.content, agent: form.agent }}
+        templateVars={templateVars}
+        agents={agents}
+        onRun={handleRun}
+        onCancel={() => setShowRunModal(false)}
       />
     </div>
   );

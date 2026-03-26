@@ -6,11 +6,11 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChatDock } from './components/ChatDock';
 import { CodingLayout } from './components/CodingLayout';
-import { VoicePill } from './components/VoicePill';
 import { Header } from './components/Header';
 import { NewProjectModal } from './components/NewProjectModal';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ShortcutsCheatsheet } from './components/ShortcutsCheatsheet';
+import { VoicePill } from './components/VoicePill';
 import { useAgents } from './contexts/AgentsContext';
 import { useApiBase } from './contexts/ApiBaseContext';
 import { useConfig } from './contexts/ConfigContext';
@@ -36,7 +36,7 @@ import { IntegrationsView } from './views/IntegrationsView';
 import { KnowledgeConnectionView } from './views/KnowledgeConnectionView';
 import { LayoutsView } from './views/LayoutsView';
 import { LayoutView } from './views/LayoutView';
-import { MonitoringView } from './views/MonitoringView';
+import { MonitoringViewWithBoundary as MonitoringView } from './views/MonitoringView';
 import { PluginManagementView } from './views/PluginManagementView';
 import { ProjectPage } from './views/ProjectPage';
 import { ProjectSettingsView } from './views/ProjectSettingsView';
@@ -95,8 +95,7 @@ function App() {
     const path = window.location.pathname;
 
     if (path === '/agents' || path.startsWith('/agents/')) {
-      if (path === '/agents/new')
-        return { type: 'agent-new' };
+      if (path === '/agents/new') return { type: 'agent-new' };
       if (path.endsWith('/edit')) {
         const slug = path.split('/')[2];
         return { type: 'agent-edit', slug };
@@ -166,7 +165,6 @@ function App() {
     // Legacy /sys/* redirects
     if (path === '/sys/monitoring') return { type: 'monitoring' };
     if (path === '/sys/schedule') return { type: 'schedule' };
-    if (path === '/sys/settings') return { type: 'settings' };
 
     // Project routes
     if (path === '/projects/new') return { type: 'project-new' };
@@ -429,10 +427,6 @@ function App() {
         }
         if (path === '/sys/schedule') {
           setCurrentView({ type: 'schedule' });
-          return;
-        }
-        if (path === '/sys/settings') {
-          setCurrentView({ type: 'settings' });
           return;
         }
       }
@@ -731,9 +725,7 @@ function App() {
         {currentView.type === 'skills' && <SkillsView />}
         {currentView.type === 'prompts' && <PromptsView />}
         {currentView.type === 'plugins' && <PluginManagementView />}
-        {currentView.type === 'connections' && (
-          <ConnectionsHub onNavigate={navigateToView} />
-        )}
+        {currentView.type === 'connections' && <ConnectionsHub />}
         {currentView.type === 'connections-providers' && (
           <ProviderSettingsView onNavigate={navigateToView} />
         )}
@@ -744,9 +736,7 @@ function App() {
           />
         )}
         {(currentView.type === 'connections-tools' ||
-          currentView.type === 'connections-tool-edit') && (
-          <IntegrationsView />
-        )}
+          currentView.type === 'connections-tool-edit') && <IntegrationsView />}
         {currentView.type === 'connections-knowledge' && (
           <KnowledgeConnectionView />
         )}
@@ -880,7 +870,9 @@ function ProjectLayoutRenderer({
   if (!layoutConfig)
     return <LayoutView projectSlug={projectSlug} layoutSlug={layoutSlug} />;
 
-  const Renderer = layoutConfig.type ? layoutTypeRegistry[layoutConfig.type] : undefined;
+  const Renderer = layoutConfig.type
+    ? layoutTypeRegistry[layoutConfig.type]
+    : undefined;
   if (Renderer) {
     return (
       <Renderer

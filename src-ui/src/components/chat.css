@@ -59,6 +59,25 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .app-toolbar__actions {
+    gap: 2px;
+  }
+  .app-toolbar__icon-btn {
+    padding: 4px 6px;
+    font-size: 13px;
+  }
+  .app-toolbar__workspace-btn {
+    display: none;
+  }
+  .app-toolbar__conn-name {
+    display: none;
+  }
 }
 
 /* ── Header Buttons ── */

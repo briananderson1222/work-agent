@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import './ActivityTimeline.css';
 
 interface DailyStats {
   messages: number;
@@ -51,11 +52,7 @@ export function ActivityTimeline() {
   });
 
   if (loading && !data)
-    return (
-      <div style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
-        Loading activity...
-      </div>
-    );
+    return <div className="timeline-loading">Loading activity...</div>;
   if (!data?.byDate) return null;
 
   const dates: string[] = [];
@@ -82,58 +79,24 @@ export function ActivityTimeline() {
   );
   const hoverDay = hoverDate ? data.byDate[hoverDate] : null;
 
-  const inputStyle: React.CSSProperties = {
-    padding: '0.3rem 0.5rem',
-    fontSize: '0.8rem',
-    borderRadius: '0.375rem',
-    border: '1px solid var(--border-primary)',
-    background: 'var(--bg-tertiary)',
-    color: 'var(--text-primary)',
-  };
-
   return (
     <div>
       {/* Date range picker */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          marginBottom: '0.75rem',
-          flexWrap: 'wrap',
-        }}
-      >
-        <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          From:
-        </label>
+      <div className="timeline-date-picker">
+        <label className="timeline-label">From:</label>
         <input
           type="date"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
-          style={inputStyle}
+          className="timeline-date-input"
         />
-        <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          To:
-        </label>
+        <label className="timeline-label">To:</label>
         <input
           type="date"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
-          style={inputStyle}
+          className="timeline-date-input"
         />
-        <button
-          style={{
-            padding: '0.3rem 0.75rem',
-            fontSize: '0.8rem',
-            borderRadius: '0.375rem',
-            border: '1px solid var(--accent-primary)',
-            background: 'var(--accent-primary)',
-            color: '#fff',
-            cursor: 'pointer',
-          }}
-        >
-          Search
-        </button>
       </div>
 
       {/* Summary bar */}
@@ -141,149 +104,60 @@ export function ActivityTimeline() {
         const rs = data.rangeSummary;
         const streak = data.lifetime?.streak ?? 0;
         return (
-          <div
-            style={{
-              display: 'flex',
-              gap: '1.5rem',
-              marginBottom: '0.75rem',
-              fontSize: '0.85rem',
-              flexWrap: 'wrap',
-            }}
-          >
-            <span>
-              Current Streak: <strong>{streak} days</strong>
-            </span>
-            <span>
-              Days Active:{' '}
-              <strong>
-                {rs?.activeDays ?? 0}/{rs?.totalDays ?? dates.length}
-              </strong>
-            </span>
-            <span>
-              Total:{' '}
-              <strong>{(rs?.totalMessages ?? 0).toLocaleString()} msgs</strong>
-            </span>
-            <span>
-              Avg/Day:{' '}
-              <strong>{(rs?.avgPerDay ?? 0).toFixed(1)} msgs</strong>
-            </span>
+          <div className="timeline-summary">
+            <span>Current Streak: <strong>{streak} days</strong></span>
+            <span>Days Active: <strong>{rs?.activeDays ?? 0}/{rs?.totalDays ?? dates.length}</strong></span>
+            <span>Total: <strong>{(rs?.totalMessages ?? 0).toLocaleString()} msgs</strong></span>
+            <span>Avg/Day: <strong>{(rs?.avgPerDay ?? 0).toFixed(1)} msgs</strong></span>
             {(rs?.totalCost ?? 0) > 0 && (
-              <span>
-                Cost: <strong>${rs.totalCost.toFixed(2)}</strong>
-              </span>
+              <span>Cost: <strong>${rs.totalCost.toFixed(2)}</strong></span>
             )}
           </div>
         );
       })()}
 
       {/* Chart + hover detail */}
-      <div style={{ position: 'relative' }}>
+      <div className="timeline-chart-wrap">
         {/* Hover tooltip */}
         {hoverDate && hoverDay && (
-          <div
-            data-testid="chart-tooltip"
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              zIndex: 2,
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '0.5rem',
-              padding: '0.5rem 0.75rem',
-              fontSize: '0.8rem',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              minWidth: 180,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+          <div data-testid="chart-tooltip" className="timeline-tooltip">
+            <div className="timeline-tooltip-date">
               {new Date(`${hoverDate}T12:00:00`).toLocaleDateString(undefined, {
                 weekday: 'short',
                 month: 'short',
                 day: 'numeric',
               })}
             </div>
-            <div
-              style={{
-                color: 'var(--text-secondary)',
-                marginBottom: '0.25rem',
-              }}
-            >
-              ({hoverDay.messages} messages · ${(hoverDay.cost ?? 0).toFixed(2)}
-              )
+            <div className="timeline-tooltip-stats">
+              ({hoverDay.messages} messages · ${(hoverDay.cost ?? 0).toFixed(2)})
             </div>
             {Object.entries(hoverDay.byAgent)
               .sort(([, a], [, b]) => b - a)
               .map(([agent, count]) => (
-                <div
-                  key={agent}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontSize: '0.75rem',
-                    marginTop: 2,
-                  }}
-                >
+                <div key={agent} className="timeline-tooltip-agent">
                   <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 2,
-                      background: agentColorMap[agent],
-                      flexShrink: 0,
-                    }}
+                    className="timeline-agent-dot"
+                    style={{ background: agentColorMap[agent] }}
                   />
-                  <span
-                    style={{
-                      flex: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <span className="timeline-tooltip-agent-name">
                     {shortAgent(agent)}
                   </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    {count}
-                  </span>
+                  <span className="timeline-tooltip-agent-count">{count}</span>
                 </div>
               ))}
           </div>
         )}
 
         {/* Stacked bar chart */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 2,
-            height: 160,
-            marginBottom: '0.5rem',
-            position: 'relative',
-          }}
-        >
+        <div className="timeline-bars-container">
           {/* Y-axis labels */}
-          <div
-            style={{
-              width: 32,
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              fontSize: '0.6rem',
-              color: 'var(--text-secondary)',
-              textAlign: 'right',
-              paddingRight: 4,
-            }}
-          >
+          <div className="timeline-y-axis">
             <span>{maxMessages}</span>
             <span>{Math.round(maxMessages / 2)}</span>
             <span>0</span>
           </div>
           {/* Bars */}
-          <div
-            style={{ flex: 1, display: 'flex', gap: 2, position: 'relative' }}
-          >
+          <div className="timeline-bars">
             {dates.map((date) => {
               const day = data.byDate[date];
               const isHovered = date === hoverDate;
@@ -295,45 +169,23 @@ export function ActivityTimeline() {
                 <div
                   key={date}
                   data-testid={`chart-col-${date}`}
-                  style={{ flex: 1, minWidth: 0, position: 'relative' }}
+                  className="timeline-bar-col"
                 >
-                  {/* Invisible full-height hover target — absolutely positioned, covers entire column */}
                   <div
                     data-testid={`chart-hover-${date}`}
                     onMouseEnter={() => setHoverDate(date)}
                     onMouseLeave={() => setHoverDate(null)}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      zIndex: 2,
-                      cursor: 'pointer',
-                    }}
+                    className="timeline-bar-hover-target"
                   />
-                  {/* Visual bar — positioned at bottom */}
                   <div
+                    className="timeline-bar-visual"
                     style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
                       height: totalH > 0 ? `${totalH}%` : '2px',
                       opacity: hoverDate && !isHovered ? 0.4 : 1,
-                      transition: 'opacity 0.15s',
                     }}
                   >
                     {totalH > 0 ? (
-                      <div
-                        style={{
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          borderRadius: '2px 2px 0 0',
-                          overflow: 'hidden',
-                        }}
-                      >
+                      <div className="timeline-bar-stack">
                         {agents.map((agent) => {
                           const count = day!.byAgent[agent] || 0;
                           if (!count) return null;
@@ -351,13 +203,7 @@ export function ActivityTimeline() {
                         })}
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          height: 2,
-                          background: 'var(--border-primary)',
-                          borderRadius: 1,
-                        }}
-                      />
+                      <div className="timeline-bar-empty" />
                     )}
                   </div>
                 </div>
@@ -368,25 +214,9 @@ export function ActivityTimeline() {
       </div>
 
       {/* X-axis labels */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 2,
-          fontSize: '0.6rem',
-          color: 'var(--text-secondary)',
-          paddingLeft: 36,
-        }}
-      >
+      <div className="timeline-x-axis">
         {dates.map((date, i) => (
-          <div
-            key={date}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              textAlign: 'center',
-              overflow: 'hidden',
-            }}
-          >
+          <div key={date} className="timeline-x-label">
             {i % Math.max(1, Math.floor(dates.length / 7)) === 0
               ? date.slice(5)
               : ''}
@@ -395,28 +225,12 @@ export function ActivityTimeline() {
       </div>
 
       {/* Legend */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '0.75rem',
-          flexWrap: 'wrap',
-          marginTop: '0.5rem',
-          fontSize: '0.75rem',
-        }}
-      >
+      <div className="timeline-legend">
         {agents.map((agent) => (
-          <span
-            key={agent}
-            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-          >
+          <span key={agent} className="timeline-legend-item">
             <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 2,
-                background: agentColorMap[agent],
-                display: 'inline-block',
-              }}
+              className="timeline-legend-swatch"
+              style={{ background: agentColorMap[agent] }}
             />
             {shortAgent(agent)}
           </span>

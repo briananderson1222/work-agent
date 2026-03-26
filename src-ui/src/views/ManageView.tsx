@@ -56,22 +56,15 @@ const sections = [
     desc: 'AI agents with custom prompts, models, and tools',
   },
   {
-    type: 'prompts' as const,
-    idx: '03',
-    icon: <span>⌘</span>,
-    label: 'Prompts',
-    desc: 'Quick prompts and saved workflows',
-  },
-  {
     type: 'connections-tools' as const,
-    idx: '04',
+    idx: '03',
     icon: <IconTool />,
     label: 'Integrations',
     desc: 'MCP server connections and registry',
   },
   {
     type: 'plugins' as const,
-    idx: '05',
+    idx: '04',
     icon: <IconPlugin />,
     label: 'Plugins',
     desc: 'Installed plugins — layouts, agents, and providers',
@@ -93,7 +86,7 @@ export function ManageView({
       <div className="manage__header">
         <div className="manage__label">manage</div>
         <h1 className="manage__title">Configuration</h1>
-        <p className="manage__subtitle">Layouts, agents, and prompts</p>
+        <p className="manage__subtitle">Layouts, agents, and integrations</p>
       </div>
       <div className="manage__grid">
         {sections.map((s) => (

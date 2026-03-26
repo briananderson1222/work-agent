@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import type { NavigationView } from '../types';
 import './ConnectionsHub.css';
 
 interface ProviderConnection {
@@ -19,6 +18,7 @@ interface ToolServer {
   description?: string;
   transport: string;
   kind?: string;
+  connected?: boolean;
 }
 
 interface KnowledgeStatus {
@@ -81,11 +81,9 @@ const PROVIDER_ICONS: Record<string, () => ReactNode> = {
   'openai-compat': IconLink,
 };
 
-export interface ConnectionsHubProps {
-  onNavigate: (view: NavigationView) => void;
-}
+export interface ConnectionsHubProps {}
 
-export function ConnectionsHub({ onNavigate: _onNavigate }: ConnectionsHubProps) {
+export function ConnectionsHub(_props: ConnectionsHubProps) {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
 
@@ -219,6 +217,7 @@ export function ConnectionsHub({ onNavigate: _onNavigate }: ConnectionsHubProps)
                   <div className="connections-hub__card-header">
                     <span className="connections-hub__card-icon"><IconTool /></span>
                     <span className="connections-hub__card-name">{t.displayName ?? t.id}</span>
+                    <span className={`connections-hub__card-status connections-hub__card-status--${t.connected ? 'enabled' : 'disabled'}`} />
                   </div>
                   <span className="connections-hub__card-type">{t.transport}</span>
                 </button>

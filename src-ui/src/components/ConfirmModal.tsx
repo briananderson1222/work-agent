@@ -33,6 +33,11 @@ export function ConfirmModal({
     };
 
     document.addEventListener('keydown', handleKeyDown);
+
+    // Focus trap: focus first button on open
+    const firstBtn = modalRef.current?.querySelector('button');
+    firstBtn?.focus();
+
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onCancel]);
 
@@ -43,10 +48,13 @@ export function ConfirmModal({
       <div
         className={`modal-dialog modal-dialog--${variant}`}
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h3>{title}</h3>
+          <h3 id="confirm-modal-title">{title}</h3>
         </div>
         <div className="modal-body">
           <p>{message}</p>

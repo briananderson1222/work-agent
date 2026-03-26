@@ -20,6 +20,12 @@
   max-width: 48px;
 }
 
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+}
+
 /* Header */
 .sidebar__header {
   display: flex;

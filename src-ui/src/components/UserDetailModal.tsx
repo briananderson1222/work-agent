@@ -1,5 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { useApiBase } from '../contexts/ApiBaseContext';
+import { useUserQuery } from '@stallion-ai/sdk';
 
 function getInitials(name: string): string {
   return (
@@ -20,24 +19,12 @@ export function UserDetailModal({
   alias: string;
   onClose: () => void;
 }) {
-  const { apiBase } = useApiBase();
-
   const {
     data: person,
     isLoading: loading,
     error: queryError,
     refetch,
-  } = useQuery({
-    queryKey: ['user', alias],
-    queryFn: async () => {
-      const r = await fetch(
-        `${apiBase}/api/users/${encodeURIComponent(alias)}`,
-      );
-      const data = await r.json();
-      if (data.error && !data.name) throw new Error(data.error);
-      return data;
-    },
-  });
+  } = useUserQuery(alias);
   const error = queryError?.message || null;
 
   const hasDetails =
@@ -70,10 +57,7 @@ export function UserDetailModal({
               </div>
               <div className="user-detail-hero-info">
                 <div className="user-detail-name">{alias}</div>
-                <div
-                  className="user-detail-subtitle"
-                  style={{ color: 'var(--warning-text, #f59e0b)' }}
-                >
+                <div className="user-detail-subtitle user-detail-subtitle--warning">
                   Could not load profile
                 </div>
               </div>
@@ -81,25 +65,11 @@ export function UserDetailModal({
                 ✕
               </button>
             </div>
-            <div
-              style={{
-                padding: '1rem 1.25rem',
-                fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
-              }}
-            >
+            <div className="user-detail-error-body">
               <p style={{ margin: '0 0 0.75rem' }}>{error}</p>
               <button
                 onClick={() => refetch()}
-                style={{
-                  padding: '0.4rem 0.75rem',
-                  fontSize: '0.8rem',
-                  borderRadius: '0.375rem',
-                  border: '1px solid var(--accent-primary)',
-                  background: 'transparent',
-                  color: 'var(--accent-primary)',
-                  cursor: 'pointer',
-                }}
+                className="user-detail-retry-btn"
               >
                 Retry
               </button>
@@ -175,13 +145,7 @@ export function UserDetailModal({
                 )}
               </div>
             ) : (
-              <div
-                style={{
-                  padding: '1rem 1.25rem',
-                  fontSize: '0.85rem',
-                  color: 'var(--text-secondary)',
-                }}
-              >
+              <div className="user-detail-empty">
                 No additional details available. Install a user directory plugin
                 for richer profiles.
               </div>
