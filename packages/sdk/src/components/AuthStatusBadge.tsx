@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks';
+import './AuthStatusBadge.css';
 
 export function AuthStatusBadge({
   inline,
@@ -12,8 +13,6 @@ export function AuthStatusBadge({
   const [showConfirm, setShowConfirm] = useState(false);
 
   if (status === 'loading') return null;
-
-  // No auth provider configured — don't show the badge
   if (!provider || provider === 'none') return null;
 
   const color =
@@ -33,15 +32,7 @@ export function AuthStatusBadge({
   };
 
   const dot = (
-    <span
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: '50%',
-        background: color,
-        flexShrink: 0,
-      }}
-    />
+    <span className="auth-badge__dot" style={{ background: color }} />
   );
   const label =
     status === 'valid' || status === 'expiring' ? timeLeft() : status;
@@ -53,74 +44,29 @@ export function AuthStatusBadge({
 
   const confirmModal = showConfirm && (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-      }}
+      className="auth-badge-modal-overlay"
       onClick={() => setShowConfirm(false)}
     >
       <div
-        style={{
-          background: 'var(--bg-secondary, #1e1e1e)',
-          border: '1px solid var(--border-primary, #333)',
-          borderRadius: '8px',
-          padding: '20px',
-          maxWidth: '360px',
-          width: '90%',
-        }}
+        className="auth-badge-modal"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 600 }}>
-          Renew Authentication
-        </h3>
-        <p
-          style={{
-            margin: '0 0 16px',
-            fontSize: '13px',
-            color: 'var(--text-secondary, #999)',
-          }}
-        >
+        <h3 className="auth-badge-modal__title">Renew Authentication</h3>
+        <p className="auth-badge-modal__text">
           This will attempt to renew your authentication.
           {provider ? ` Provider: ${provider}` : ''}
         </p>
-        <div
-          style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}
-        >
+        <div className="auth-badge-modal__actions">
           <button
             onClick={() => setShowConfirm(false)}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              background: 'transparent',
-              border: '1px solid var(--border-primary, #333)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              color: 'var(--text-secondary, #999)',
-            }}
+            className="auth-badge-modal__cancel"
           >
             Cancel
           </button>
           <button
             onClick={handleRenew}
             disabled={isRenewing}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              background: 'var(--accent-primary, #3b82f6)',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              color: 'white',
-              fontWeight: 500,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
+            className="auth-badge-modal__confirm"
           >
             <svg
               width="14"
@@ -148,13 +94,8 @@ export function AuthStatusBadge({
         <button
           onClick={() => setShowConfirm(true)}
           disabled={isRenewing}
+          className="auth-badge auth-badge--expanded"
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '13px',
-            padding: '6px 12px',
-            borderRadius: '6px',
             background: `${color}15`,
             border: `1px solid ${color}30`,
             color,
@@ -163,14 +104,8 @@ export function AuthStatusBadge({
         >
           {isRenewing ? (
             <span
-              style={{
-                width: 7,
-                height: 7,
-                border: '1.5px solid #666',
-                borderTop: `1.5px solid ${color}`,
-                borderRadius: '50%',
-                animation: 'spin 0.8s linear infinite',
-              }}
+              className="auth-badge__spinner auth-badge__spinner--expanded"
+              style={{ borderTopColor: color }}
             />
           ) : (
             dot
@@ -182,7 +117,6 @@ export function AuthStatusBadge({
               ? `expires ${expiresAt?.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
               : status || 'click to renew'}
         </button>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         {confirmModal}
       </>
     );
@@ -192,13 +126,8 @@ export function AuthStatusBadge({
     return (
       <>
         <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
-            color,
-          }}
+          className="auth-badge auth-badge--inline"
+          style={{ color }}
           onClick={(e) => {
             e.stopPropagation();
             setShowConfirm(true);
@@ -227,35 +156,22 @@ export function AuthStatusBadge({
             ? `Auth valid — ${timeLeft()} remaining`
             : 'Click to renew authentication'
         }
+        className="auth-badge auth-badge--compact"
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '5px',
-          padding: '3px 8px',
           border: `1px solid ${color}30`,
-          borderRadius: '4px',
           background: `${color}15`,
           cursor: isRenewing ? 'wait' : 'pointer',
-          fontSize: '11px',
-          color: 'var(--text-secondary, #9ca3af)',
         }}
       >
         {isRenewing ? (
           <span
-            style={{
-              width: 6,
-              height: 6,
-              border: '1.5px solid #666',
-              borderTop: `1.5px solid ${color}`,
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite',
-            }}
+            className="auth-badge__spinner auth-badge__spinner--compact"
+            style={{ borderTopColor: color }}
           />
         ) : (
           dot
         )}
         <span style={{ color }}>{label}</span>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </button>
       {confirmModal}
     </>

@@ -312,6 +312,89 @@ export function useAchievementsQuery(config?: QueryConfig<any>) {
 }
 
 /**
+ * Fetch insights (hourly activity, tool/agent usage)
+ */
+export function useInsightsQuery(days = 14, config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['insights', days],
+    async () => {
+      const apiBase = await _getApiBase();
+      const r = await fetch(`${apiBase}/api/insights/insights?days=${days}`);
+      if (!r.ok) throw new Error('Failed to fetch insights');
+      return (await r.json()).data;
+    },
+    config,
+  );
+}
+
+/**
+ * Fetch feedback ratings
+ */
+export function useFeedbackRatingsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['feedback', 'ratings'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const r = await fetch(`${apiBase}/api/feedback/ratings`);
+      if (!r.ok) throw new Error('Failed to fetch ratings');
+      return (await r.json()).data || [];
+    },
+    config,
+  );
+}
+
+/**
+ * Fetch feedback behavior guidelines
+ */
+export function useFeedbackGuidelinesQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['feedback', 'guidelines'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const r = await fetch(`${apiBase}/api/feedback/guidelines`);
+      if (!r.ok) throw new Error('Failed to fetch guidelines');
+      return (await r.json()).data?.summary || null;
+    },
+    config,
+  );
+}
+
+/**
+ * Fetch feedback analysis status
+ */
+export function useFeedbackStatusQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['feedback', 'status'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const r = await fetch(`${apiBase}/api/feedback/status`);
+      if (!r.ok) throw new Error('Failed to fetch feedback status');
+      return (await r.json()).data || null;
+    },
+    config,
+  );
+}
+
+/**
+ * Fetch user details by alias
+ */
+export function useUserQuery(alias: string, config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['user', alias],
+    async () => {
+      const apiBase = await _getApiBase();
+      const r = await fetch(
+        `${apiBase}/api/users/${encodeURIComponent(alias)}`,
+      );
+      const data = await r.json();
+      if (data.error && !data.name) throw new Error(data.error);
+      return data;
+    },
+    config,
+  );
+}
+
+/**
  * Fetch all agents
  */
 export function useAgentsQuery(config?: QueryConfig<any>) {
@@ -699,6 +782,192 @@ export function useProjectConversationsQuery(
   );
 }
 
+// ── Plugin Hooks ───────────────────────────────────────────────────
+
+export function usePluginsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['plugins'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/plugins`);
+      const json = await res.json();
+      return json.plugins || [];
+    },
+    config,
+  );
+}
+
+export function usePluginUpdatesQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['plugin-updates'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/plugins/check-updates`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.updates || [];
+    },
+    config,
+  );
+}
+
+export function useRegistryPluginsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['registry-plugins'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/plugins`);
+      const data = await res.json();
+      return data.success ? data.data || [] : [];
+    },
+    config,
+  );
+}
+
+export function usePluginInstallMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      source,
+      skip,
+    }: {
+      source: string;
+      skip?: string[];
+    }) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/plugins/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, skip }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Install failed');
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['plugins'] });
+      qc.invalidateQueries({ queryKey: ['plugin-updates'] });
+      qc.invalidateQueries({ queryKey: ['layouts'] });
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+}
+
+export function usePluginPreviewMutation() {
+  return useMutation({
+    mutationFn: async (source: string) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/plugins/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source }),
+      });
+      return res.json();
+    },
+  });
+}
+
+export function usePluginUpdateMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(name)}/update`,
+        { method: 'POST' },
+      );
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Update failed');
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['plugins'] });
+      qc.invalidateQueries({ queryKey: ['plugin-updates'] });
+    },
+  });
+}
+
+export function usePluginRemoveMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(name)}`,
+        { method: 'DELETE' },
+      );
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Remove failed');
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['plugins'] });
+      qc.invalidateQueries({ queryKey: ['layouts'] });
+    },
+  });
+}
+
+export function usePluginProviderToggleMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      pluginName,
+      disabled,
+    }: {
+      pluginName: string;
+      disabled: string[];
+    }) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(pluginName)}/overrides`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ disabled }),
+        },
+      );
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['plugins'] });
+    },
+  });
+}
+
+export function usePluginRegistryInstallMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      action,
+    }: {
+      id: string;
+      action: 'install' | 'uninstall';
+    }) => {
+      const apiBase = await _getApiBase();
+      const res =
+        action === 'install'
+          ? await fetch(`${apiBase}/api/registry/plugins/install`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id }),
+            })
+          : await fetch(
+              `${apiBase}/api/registry/plugins/${encodeURIComponent(id)}`,
+              { method: 'DELETE' },
+            );
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || `${action} failed`);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['registry-plugins'] });
+      qc.invalidateQueries({ queryKey: ['plugins'] });
+    },
+  });
+}
+
 export function useAddLayoutFromPluginMutation(projectSlug: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -709,5 +978,125 @@ export function useAddLayoutFromPluginMutation(projectSlug: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects', projectSlug, 'layouts'] });
     },
+  });
+}
+
+// ── Scheduler Hooks ──
+
+async function schedulerFetch<T>(path: string): Promise<T> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(`${apiBase}/scheduler${path}`);
+  if (!res.ok) throw new Error(`Scheduler API error: ${res.status}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'Unknown scheduler error');
+  return json.data;
+}
+
+async function schedulerMutate(path: string, method: string, body?: unknown) {
+  const apiBase = await _getApiBase();
+  const opts: RequestInit = { method };
+  if (body) {
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${apiBase}/scheduler${path}`, opts);
+  if (!res.ok) throw new Error(`Scheduler API error: ${res.status}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'Unknown scheduler error');
+  return json.data;
+}
+
+export function useSchedulerJobs() {
+  return useApiQuery(['scheduler', 'jobs'], () => schedulerFetch<any[]>('/jobs'), { staleTime: 30_000 });
+}
+
+export function useSchedulerProviders() {
+  return useApiQuery(['scheduler', 'providers'], () => schedulerFetch<any[]>('/providers'), { staleTime: 60_000 });
+}
+
+export function useSchedulerStats() {
+  return useApiQuery(['scheduler', 'stats'], () => schedulerFetch<any>('/stats'), { staleTime: 30_000 });
+}
+
+export function useSchedulerStatus() {
+  return useApiQuery(['scheduler', 'status'], () => schedulerFetch<any>('/status'), { staleTime: 30_000 });
+}
+
+export function useJobLogs(target: string | null) {
+  return useApiQuery(
+    ['scheduler', 'logs', target ?? ''],
+    () => schedulerFetch<any[]>(`/jobs/${target}/logs`),
+    { staleTime: 30_000, enabled: !!target },
+  );
+}
+
+export function usePreviewSchedule(cron: string | null) {
+  return useApiQuery(
+    ['scheduler', 'preview', cron ?? ''],
+    () => schedulerFetch<string[]>(`/jobs/preview-schedule?cron=${encodeURIComponent(cron!)}`),
+    { staleTime: 60_000, enabled: !!cron && cron.trim().length > 0 },
+  );
+}
+
+export function useRunJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (target: string) => schedulerMutate(`/jobs/${target}/run`, 'POST'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
+  });
+}
+
+export function useToggleJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ target, enabled }: { target: string; enabled: boolean }) =>
+      schedulerMutate(`/jobs/${target}/${enabled ? 'enable' : 'disable'}`, 'PUT'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
+  });
+}
+
+export function useDeleteJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (target: string) => schedulerMutate(`/jobs/${target}`, 'DELETE'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
+  });
+}
+
+export function useEditJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ target, ...opts }: { target: string; [key: string]: unknown }) =>
+      schedulerMutate(`/jobs/${target}`, 'PUT', opts),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
+  });
+}
+
+export function useAddJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (opts: {
+      name: string;
+      cron?: string;
+      prompt?: string;
+      agent?: string;
+      provider?: string;
+      openArtifact?: string;
+      notifyStart?: boolean;
+      trustAllTools?: boolean;
+    }) => schedulerMutate('/jobs', 'POST', opts),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
+  });
+}
+
+export function useFetchRunOutput() {
+  return useMutation({
+    mutationFn: (outputPath: string) => schedulerMutate('/runs/output', 'POST', { path: outputPath }),
+  });
+}
+
+export function useOpenArtifact() {
+  return useMutation({
+    mutationFn: (path: string) => schedulerMutate('/open', 'POST', { path }),
   });
 }
