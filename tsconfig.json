@@ -11,12 +11,12 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist-server",
-    "rootDir": "./src-server",
+    "rootDir": ".",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src-server/**/*"],
+  "include": ["src-server/**/*", "src-shared/**/*"],
   "exclude": ["node_modules", "dist-server", "**/*.test.ts"]
 }

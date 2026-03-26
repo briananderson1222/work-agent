@@ -17,7 +17,8 @@
     /* Path aliases (mirrors vite.config.ts resolve.alias) */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@shared/*": ["../src-shared/*"]
     },
 
     /* Linting */
