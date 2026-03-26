@@ -178,6 +178,13 @@
         "type": "string"
       }
     },
+    "prompts": {
+      "type": "array",
+      "description": "Prompt IDs to enable for this agent",
+      "items": {
+        "type": "string"
+      }
+    },
     "commands": {
       "type": "object",
       "description": "Custom slash commands for the agent",

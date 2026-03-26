@@ -39,6 +39,17 @@ export interface PluginDependency {
   source?: string;
 }
 
+export interface PluginSettingField {
+  key: string;
+  label: string;
+  type: 'string' | 'number' | 'boolean' | 'select';
+  description?: string;
+  default?: string | number | boolean;
+  options?: Array<{ label: string; value: string }>;
+  secret?: boolean;
+  required?: boolean;
+}
+
 export interface PluginManifest {
   name: string;
   version: string;
@@ -57,10 +68,12 @@ export interface PluginManifest {
   dependencies?: PluginDependency[];
   knowledge?: { namespaces: KnowledgeNamespaceConfig[] };
   skills?: string[];
+  settings?: PluginSettingField[];
 }
 
 export interface PluginOverrideConfig {
   disabled?: string[];
+  settings?: Record<string, string | number | boolean>;
 }
 
 export type PluginOverrides = Record<string, PluginOverrideConfig>;
@@ -74,7 +87,7 @@ export interface AgentSpec {
   icon?: string;
   model?: string;
   region?: string;
-  maxTurns?: number;
+  maxSteps?: number;
   guardrails?: AgentGuardrails;
   streaming?: {
     useNewPipeline?: boolean;
@@ -458,6 +471,17 @@ export type {
   NotificationStatus,
   ScheduleNotificationOpts,
 } from './notifications.js';
+
+export type {
+  AddJobOpts,
+  SchedulerCapability,
+  SchedulerEvent,
+  SchedulerFormField,
+  SchedulerJob,
+  SchedulerLogEntry,
+  SchedulerProviderStats,
+  SchedulerProviderStatus,
+} from './scheduler.js';
 
 export interface RegistryItem {
   id: string;

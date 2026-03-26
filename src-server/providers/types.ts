@@ -135,6 +135,7 @@ export interface SchedulerLogEntry {
   success: boolean;
   durationSecs?: number;
   missedCount?: number;
+  manual?: boolean;
   output?: string;
   error?: string;
 }

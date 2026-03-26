@@ -11,6 +11,18 @@ export const acpConnectionSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
+// Integrations
+export const integrationSchema = z.object({
+  id: z.string().min(1),
+  kind: z.string().optional(),
+  transport: z.enum(['stdio', 'sse', 'streamable-http']).optional(),
+  command: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  endpoint: z.string().optional(),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+});
+
 // Agent tools
 export const addToolSchema = z.object({ toolId: z.string().min(1) });
 export const updateAllowedSchema = z.object({ allowed: z.array(z.string()) });
@@ -73,6 +85,43 @@ export const contextActionSchema = z.object({
   action: z.string().min(1),
   content: z.any().optional(),
 });
+
+// Scheduler
+export const addJobSchema = z.object({
+  name: z.string().min(1).regex(/^[a-z0-9-]+$/, 'lowercase alphanumeric + hyphens only'),
+  cron: z.string().optional(),
+  prompt: z.string().optional(),
+  agent: z.string().optional(),
+  provider: z.string().optional(),
+  openArtifact: z.string().optional(),
+  notifyStart: z.boolean().optional(),
+  trustAllTools: z.boolean().optional(),
+});
+
+export const editJobSchema = z.object({
+  cron: z.string().optional(),
+  prompt: z.string().optional(),
+  agent: z.string().optional(),
+  enabled: z.boolean().optional(),
+  openArtifact: z.string().optional(),
+  notifyStart: z.boolean().optional(),
+}).passthrough();
+
+export const runOutputSchema = z.object({
+  path: z.string().min(1),
+});
+
+// Prompts
+export const promptCreateSchema = z.object({
+  name: z.string().min(1),
+  content: z.string().min(1),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  agent: z.string().optional(),
+});
+
+export const promptUpdateSchema = promptCreateSchema.partial();
 
 export function validate<T>(schema: z.ZodSchema<T>) {
   return async (c: Context, next: Next) => {
