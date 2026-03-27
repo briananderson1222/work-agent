@@ -33,7 +33,15 @@ export function JobFormModal({
     activeProvider?.formFields || [];
   const init = prefill || {};
 
-  const [form, setForm] = useState<Record<string, any>>({
+  const [form, setForm] = useState<{
+    name: string;
+    cron: string;
+    prompt: string;
+    agent: string;
+    retryCount: number;
+    retryDelaySecs: number;
+    [key: string]: string | number | boolean;
+  }>({
     name: job?.name || init.name || '',
     cron:
       (job as Record<string, unknown>)?.schedule
@@ -84,7 +92,8 @@ export function JobFormModal({
       if (form.retryDelaySecs !== (job.retryDelaySecs ?? 60))
         opts.retryDelaySecs = form.retryDelaySecs;
       for (const f of extraFields) {
-        if (form[f.key] !== (job[f.key] || '')) opts[f.key] = form[f.key];
+        if (form[f.key] !== (job[f.key] || ''))
+          opts[f.key] = form[f.key] as string | number;
       }
       editJob.mutate({ target: job.name, ...opts }, { onSuccess: onClose });
     } else {
@@ -230,14 +239,14 @@ export function JobFormModal({
                 />
               ) : f.type === 'textarea' ? (
                 <textarea
-                  value={form[f.key] || ''}
+                  value={(form[f.key] as string) || ''}
                   onChange={set(f.key)}
                   rows={3}
                   placeholder={f.placeholder}
                 />
               ) : (
                 <input
-                  value={form[f.key] || ''}
+                  value={(form[f.key] as string) || ''}
                   onChange={set(f.key)}
                   placeholder={f.placeholder}
                 />

@@ -1,4 +1,5 @@
 import { useAgentsQuery, useSkillsQuery } from '@stallion-ai/sdk';
+import type { Skill } from '@stallion-ai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AgentIcon } from '../components/AgentIcon';
@@ -243,7 +244,7 @@ export function AgentsHub({ onNavigate }: AgentsHubProps) {
                   </button>
                 </div>
               ) : skills.length > 0 ? (
-                skills.map((skill: any) => (
+                skills.map((skill: Skill) => (
                   <button
                     key={skill.name}
                     className="agents-hub__card"
