@@ -9,14 +9,11 @@ import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectConfig } from '../contexts/ProjectsContext';
 import './page-layout.css';
 import './editor-layout.css';
+import './ProjectSettingsView.css';
 
 type ProjectForm = Pick<
   ProjectConfig,
-  | 'name'
-  | 'icon'
-  | 'description'
-  | 'defaultModel'
-  | 'workingDirectory'
+  'name' | 'icon' | 'description' | 'defaultModel' | 'workingDirectory'
 >;
 
 export function ProjectSettingsView({ slug }: { slug: string }) {
@@ -97,20 +94,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
   });
 
   if (isLoading || !form) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          color: 'var(--text-muted)',
-          fontSize: '14px',
-        }}
-      >
-        Loading…
-      </div>
-    );
+    return <div className="project-settings__loading">Loading…</div>;
   }
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
@@ -123,18 +107,15 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        background: 'var(--bg-primary)',
-      }}
-    >
+    <div className="project-settings">
       {/* Header */}
       <DetailHeader
         title={`${form.icon || project?.icon || ''} ${form.name}`.trim()}
-        badge={isDirty ? { label: 'unsaved', variant: 'warning' as const } : undefined}
+        badge={
+          isDirty
+            ? { label: 'unsaved', variant: 'warning' as const }
+            : undefined
+        }
       >
         <button
           className="editor-btn"
@@ -151,59 +132,29 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         </button>
       </DetailHeader>
 
-      {error && (
-        <div
-          style={{
-            margin: '12px 24px',
-            padding: '10px 14px',
-            background: 'var(--error-bg)',
-            border: '1px solid var(--error-border)',
-            borderRadius: '6px',
-            color: 'var(--error-text)',
-            fontSize: '13px',
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <div className="project-settings__error">{error}</div>}
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="project-settings__body">
         {/* Basic Info */}
-        <section
-          style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--border-primary)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--text-primary)',
-              marginBottom: '16px',
-            }}
-          >
-            Basic Info
-          </div>
+        <section className="project-settings__section">
+          <div className="project-settings__section-title">Basic Info</div>
 
           <div className="editor-field">
             <label className="editor-label">Name *</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="project-settings__name-row">
               <input
-                className="editor-input"
+                className="editor-input project-settings__icon-input"
                 type="text"
                 value={form.icon ?? ''}
                 placeholder="🚀"
                 onChange={(e) => setField('icon', e.target.value)}
-                style={{ width: '48px', textAlign: 'center', flexShrink: 0 }}
               />
               <input
-                className="editor-input"
+                className="editor-input project-settings__name-input"
                 type="text"
                 value={form.name}
                 onChange={(e) => setField('name', e.target.value)}
-                style={{ flex: 1 }}
               />
             </div>
           </div>
@@ -228,20 +179,8 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         </section>
 
         {/* Default AI Model */}
-        <section
-          style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--border-primary)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--text-primary)',
-              marginBottom: '12px',
-            }}
-          >
+        <section className="project-settings__section">
+          <div className="project-settings__section-title project-settings__section-title--sm">
             Default AI Model
           </div>
           <div className="editor-field">
@@ -250,7 +189,9 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
               onChange={(modelId) => setField('defaultModel', modelId)}
               placeholder="System default"
             />
-            <span className="editor-hint">Leave empty to use the system default.</span>
+            <span className="editor-hint">
+              Leave empty to use the system default.
+            </span>
           </div>
         </section>
 
@@ -261,14 +202,10 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         <KnowledgeSection slug={slug} apiBase={apiBase} />
 
         {/* Danger Zone */}
-        <section style={{ padding: '20px 24px' }}>
+        <section className="project-settings__section">
           <div
-            style={{
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--error-text)',
-              marginBottom: '12px',
-            }}
+            className="project-settings__section-title project-settings__section-title--sm"
+            style={{ color: 'var(--error-text)' }}
           >
             Danger Zone
           </div>
@@ -431,10 +368,7 @@ function LayoutsSection({ slug, apiBase }: { slug: string; apiBase: string }) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="knowledge-section__title">Add Layout</h3>
-            <div
-              className="knowledge-section__doc-list"
-              style={{ marginTop: '12px' }}
-            >
+            <div className="knowledge-section__doc-list project-settings__actions--top">
               {available.map((item) => (
                 <button
                   key={`${item.source}-${item.slug}`}
@@ -443,7 +377,7 @@ function LayoutsSection({ slug, apiBase }: { slug: string; apiBase: string }) {
                   onClick={() => addLayout(item)}
                 >
                   {item.icon && <span>{item.icon}</span>}
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="project-settings__layout-item">
                     <div className="knowledge-section__source-name">
                       {item.name}
                     </div>
@@ -459,7 +393,7 @@ function LayoutsSection({ slug, apiBase }: { slug: string; apiBase: string }) {
                 </button>
               ))}
             </div>
-            <div style={{ marginTop: '16px', textAlign: 'right' }}>
+            <div className="project-settings__actions">
               <button
                 className="knowledge-section__action-btn"
                 onClick={() => setShowAdd(false)}

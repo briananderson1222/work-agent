@@ -109,7 +109,9 @@ export function ChatInputArea({
   const isOverride = currentModel && currentModel !== agentDefaultModel;
   const modelInfo = availableModels.find((m) => m.id === currentModel);
   const safeMaxHeight = Math.max(dockHeight - 200, 120);
-  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+  const isMobile =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(max-width: 768px)').matches;
   const placeholder = isMobile
     ? 'Type a message...'
     : 'Type a message... (Enter to send, Shift+Enter for new line)';

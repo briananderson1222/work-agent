@@ -27,6 +27,28 @@ const NAV_ITEMS: { type: string; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    type: 'prompts',
+    label: 'Prompts',
+    icon: (
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+        <path d="M14 2v6h6" />
+        <path d="M16 13H8" />
+        <path d="M16 17H8" />
+        <path d="M10 9H8" />
+      </svg>
+    ),
+  },
+  {
     type: 'connections',
     label: 'Connections',
     icon: (
@@ -106,8 +128,8 @@ const NAV_ITEMS: { type: string; label: string; icon: ReactNode }[] = [
 const STORAGE_KEY = 'stallion-sidebar-collapsed';
 
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() =>
-    window.matchMedia('(max-width: 768px)').matches,
+  const [isMobile, setIsMobile] = useState(
+    () => window.matchMedia('(max-width: 768px)').matches,
   );
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -247,7 +269,7 @@ export function ProjectSidebar() {
 
   // Listen for toggle-sidebar event from Header
   useEffect(() => {
-    const handler = () => setMobileOpen(prev => !prev);
+    const handler = () => setMobileOpen((prev) => !prev);
     window.addEventListener('toggle-sidebar', handler);
     return () => window.removeEventListener('toggle-sidebar', handler);
   }, []);
@@ -264,30 +286,118 @@ export function ProjectSidebar() {
     <>
       {/* Mobile top bar — always visible, shows logo + menu toggle */}
       {isMobile && mobileOpen && (
-        <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
-      <aside className={`sidebar${isMobile ? (mobileOpen ? ' sidebar--expanded' : ' sidebar--collapsed') : (collapsed ? ' sidebar--collapsed' : '')}`}>
-      {/* Header */}
-      <div className="sidebar__header" onClick={() => { navigate('/'); if (isMobile) setMobileOpen(false); }}>
-        <img src="/favicon.png" alt="" className="sidebar__logo" />
-        <span className="sidebar__brand-name">{appName}</span>
-        <button
-          type="button"
-          className="sidebar__toggle"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isMobile) { setMobileOpen(false); } else { toggleCollapse(); }
+      <aside
+        className={`sidebar${isMobile ? (mobileOpen ? ' sidebar--expanded' : ' sidebar--collapsed') : collapsed ? ' sidebar--collapsed' : ''}`}
+      >
+        {/* Header */}
+        <div
+          className="sidebar__header"
+          onClick={() => {
+            navigate('/');
+            if (isMobile) setMobileOpen(false);
           }}
-          title={isMobile ? 'Close menu' : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')}
         >
-          {isMobile ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          ) : (
+          <img src="/favicon.png" alt="" className="sidebar__logo" />
+          <span className="sidebar__brand-name">{appName}</span>
+          <button
+            type="button"
+            className="sidebar__toggle"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isMobile) {
+                setMobileOpen(false);
+              } else {
+                toggleCollapse();
+              }
+            }}
+            title={
+              isMobile
+                ? 'Close menu'
+                : collapsed
+                  ? 'Expand sidebar'
+                  : 'Collapse sidebar'
+            }
+          >
+            {isMobile ? (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {collapsed ? (
+                  <>
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="9" y1="3" x2="9" y2="21" />
+                    <polyline points="13 9 16 12 13 15" />
+                  </>
+                ) : (
+                  <>
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="9" y1="3" x2="9" y2="21" />
+                    <polyline points="15 9 12 12 15 15" />
+                  </>
+                )}
+              </svg>
+            )}
+          </button>
+        </div>
+
+        {/* Projects */}
+        <div className="sidebar__body">
+          {projects.map((project) => {
+            const isActive = selectedProject === project.slug;
+            return (
+              <ProjectRow
+                key={project.slug}
+                project={project}
+                isActive={isActive}
+                activeLayout={
+                  isActive
+                    ? ((selectedProjectLayout as string | null) ?? null)
+                    : null
+                }
+                collapsed={effectiveCollapsed}
+                onNavigate={isMobile ? () => setMobileOpen(false) : undefined}
+              />
+            );
+          })}
+
+          <button
+            type="button"
+            className="sidebar__new-project"
+            onClick={() => {
+              navigate('/projects/new');
+              if (isMobile) setMobileOpen(false);
+            }}
+            title={effectiveCollapsed ? 'New Project' : undefined}
+          >
             <svg
-              width="16"
-              height="16"
+              width="13"
+              height="13"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -295,90 +405,35 @@ export function ProjectSidebar() {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              {collapsed ? (
-                <>
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <line x1="9" y1="3" x2="9" y2="21" />
-                  <polyline points="13 9 16 12 13 15" />
-                </>
-              ) : (
-                <>
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <line x1="9" y1="3" x2="9" y2="21" />
-                  <polyline points="15 9 12 12 15 15" />
-                </>
-              )}
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-          )}
-        </button>
-      </div>
+            <span className="sidebar__new-project-label">New Project</span>
+          </button>
+        </div>
 
-      {/* Projects */}
-      <div className="sidebar__body">
-        {projects.map((project) => {
-          const isActive = selectedProject === project.slug;
-          return (
-            <ProjectRow
-              key={project.slug}
-              project={project}
-              isActive={isActive}
-              activeLayout={
-                isActive ? ((selectedProjectLayout as string | null) ?? null) : null
-              }
-              collapsed={effectiveCollapsed}
-              onNavigate={isMobile ? () => setMobileOpen(false) : undefined}
-            />
-          );
-        })}
-
-        <button
-          type="button"
-          className="sidebar__new-project"
-          onClick={() => {
-            navigate('/projects/new');
-            if (isMobile) setMobileOpen(false);
-          }}
-          title={effectiveCollapsed ? 'New Project' : undefined}
-        >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          <span className="sidebar__new-project-label">New Project</span>
-        </button>
-      </div>
-
-      {/* Global nav */}
-      <div className="sidebar__nav">
-        {NAV_ITEMS.map(({ type, label, icon }) => {
-          const isActive = window.location.pathname.startsWith(`/${type}`);
-          return (
-            <button
-              key={type}
-              type="button"
-              className={`sidebar__nav-btn${isActive ? ' sidebar__nav-btn--active' : ''}`}
-              onClick={() => {
-                navigate(`/${type}`);
-                if (isMobile) setMobileOpen(false);
-              }}
-              title={effectiveCollapsed ? label : undefined}
-            >
-              {icon}
-              <span className="sidebar__nav-label">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </aside>
+        {/* Global nav */}
+        <div className="sidebar__nav">
+          {NAV_ITEMS.map(({ type, label, icon }) => {
+            const isActive = window.location.pathname.startsWith(`/${type}`);
+            return (
+              <button
+                key={type}
+                type="button"
+                className={`sidebar__nav-btn${isActive ? ' sidebar__nav-btn--active' : ''}`}
+                onClick={() => {
+                  navigate(`/${type}`);
+                  if (isMobile) setMobileOpen(false);
+                }}
+                title={effectiveCollapsed ? label : undefined}
+              >
+                {icon}
+                <span className="sidebar__nav-label">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
     </>
   );
 }

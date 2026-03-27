@@ -8,8 +8,6 @@
 import type {
   SchedulerEvent,
   SchedulerFormField,
-  SchedulerJob,
-  SchedulerLogEntry,
   SchedulerProviderStats,
   SchedulerProviderStatus,
 } from '@stallion-ai/shared';
@@ -18,8 +16,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
-
-export type { SchedulerEvent } from '@stallion-ai/shared';
 
 // Re-export SDK hooks so existing imports from '../hooks/useScheduler' keep working
 export {
@@ -37,6 +33,7 @@ export {
   useSchedulerStatus,
   useToggleJob,
 } from '@stallion-ai/sdk';
+export type { SchedulerEvent } from '@stallion-ai/shared';
 
 /** Aggregated stats shape returned by GET /scheduler/stats */
 export interface SchedulerStatsResponse {
@@ -46,7 +43,10 @@ export interface SchedulerStatsResponse {
 
 /** Aggregated status shape returned by GET /scheduler/status */
 export interface SchedulerStatusResponse {
-  providers: Record<string, SchedulerProviderStatus & { id: string; displayName: string }>;
+  providers: Record<
+    string,
+    SchedulerProviderStatus & { id: string; displayName: string }
+  >;
 }
 
 /** Provider info returned by GET /scheduler/providers */
@@ -66,8 +66,11 @@ export function useSchedulerEvents(enabled = true) {
   const runningRef = useRef(new Set<string>());
   const timeoutRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const recentErrorRef = useRef(new Set<string>());
+  const missedRef = useRef(new Map<string, number>());
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(1000);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 10;
 
   useEffect(() => {
     if (!enabled) return;
@@ -76,14 +79,20 @@ export function useSchedulerEvents(enabled = true) {
 
     const clearRunTimeout = (job: string) => {
       const t = timeoutRef.current.get(job);
-      if (t) { clearTimeout(t); timeoutRef.current.delete(job); }
+      if (t) {
+        clearTimeout(t);
+        timeoutRef.current.delete(job);
+      }
     };
 
     const connect = () => {
       if (closed) return;
       es = new EventSource(`${apiBase}/scheduler/events`);
 
-      es.onopen = () => { backoffRef.current = 1000; };
+      es.onopen = () => {
+        backoffRef.current = 1000;
+        retryCountRef.current = 0;
+      };
 
       es.onmessage = (e) => {
         if (!e.data) return;
@@ -92,36 +101,67 @@ export function useSchedulerEvents(enabled = true) {
           if (evt.event === 'job.started') {
             runningRef.current.add(evt.job);
             clearRunTimeout(evt.job);
-            timeoutRef.current.set(evt.job, setTimeout(() => {
-              runningRef.current.delete(evt.job);
-              timeoutRef.current.delete(evt.job);
-              qc.invalidateQueries({ queryKey: ['scheduler'] });
-            }, 5 * 60_000));
+            timeoutRef.current.set(
+              evt.job,
+              setTimeout(() => {
+                runningRef.current.delete(evt.job);
+                timeoutRef.current.delete(evt.job);
+                qc.invalidateQueries({ queryKey: ['scheduler'] });
+              }, 5 * 60_000),
+            );
             showToast(`🚀 Job '${evt.job}' started`);
           } else if (evt.event === 'job.completed') {
             runningRef.current.delete(evt.job);
+            missedRef.current.delete(evt.job);
             clearRunTimeout(evt.job);
-            const dur = evt.duration_secs ? ` (${evt.duration_secs.toFixed(1)}s)` : '';
+            const dur = evt.duration_secs
+              ? ` (${evt.duration_secs.toFixed(1)}s)`
+              : '';
             showToast(`✓ Job '${evt.job}' completed${dur}`, undefined, 8000, [
-              { label: 'View Output', onClick: () => navigate('/schedule', { job: evt.job, run: evt.id || null }), variant: 'primary' },
+              {
+                label: 'View Output',
+                onClick: () =>
+                  navigate('/schedule', { job: evt.job, run: evt.id || null }),
+                variant: 'primary',
+              },
             ]);
           } else if (evt.event === 'job.failed') {
             runningRef.current.delete(evt.job);
+            missedRef.current.delete(evt.job);
             clearRunTimeout(evt.job);
             if (!recentErrorRef.current.has(evt.job)) {
-              showToast(`✗ Job '${evt.job}' failed: ${evt.error || 'unknown error'}`, undefined, 8000, [
-                { label: 'View Output', onClick: () => navigate('/schedule', { job: evt.job, run: evt.id || null }), variant: 'secondary' },
-              ]);
+              showToast(
+                `✗ Job '${evt.job}' failed: ${evt.error || 'unknown error'}`,
+                undefined,
+                8000,
+                [
+                  {
+                    label: 'View Output',
+                    onClick: () =>
+                      navigate('/schedule', {
+                        job: evt.job,
+                        run: evt.id || null,
+                      }),
+                    variant: 'secondary',
+                  },
+                ],
+              );
             }
             recentErrorRef.current.delete(evt.job);
+          } else if (evt.event === 'job.missed') {
+            missedRef.current.set(evt.job, evt.missedCount ?? 1);
           }
           qc.invalidateQueries({ queryKey: ['scheduler'] });
-        } catch { /* ignore parse errors */ }
+        } catch {
+          /* ignore parse errors */
+        }
       };
 
       es.onerror = () => {
         es?.close();
         if (closed) return;
+        retryCountRef.current++;
+        if (retryCountRef.current > MAX_RETRIES) return;
         const delay = backoffRef.current;
         backoffRef.current = Math.min(delay * 2, 30_000);
         retryRef.current = setTimeout(connect, delay);
@@ -144,10 +184,15 @@ export function useSchedulerEvents(enabled = true) {
     [],
   );
 
+  const getMissedCount = useCallback(
+    (jobName: string) => missedRef.current.get(jobName) ?? 0,
+    [],
+  );
+
   const markErrorShown = useCallback((name: string) => {
     recentErrorRef.current.add(name);
     setTimeout(() => recentErrorRef.current.delete(name), 10_000);
   }, []);
 
-  return { isRunning, runningJobs: runningRef, markErrorShown };
+  return { isRunning, runningJobs: runningRef, markErrorShown, getMissedCount };
 }

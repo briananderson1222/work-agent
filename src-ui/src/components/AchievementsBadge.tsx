@@ -39,21 +39,14 @@ export function AchievementsBadge({
           <span>🏆</span>
           <span>Achievements</span>
         </h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="achievements-header-actions">
           {links.map((link) => (
             <a
               key={link.href}
               href={link.href}
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                fontSize: '12px',
-                color: 'var(--accent-primary)',
-                textDecoration: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
+              className="achievements-link"
             >
               {link.icon && (
                 <img
@@ -61,7 +54,7 @@ export function AchievementsBadge({
                   alt=""
                   width={14}
                   height={14}
-                  style={{ borderRadius: 2 }}
+                  className="achievements-link-icon"
                 />
               )}
               {link.label} ↗

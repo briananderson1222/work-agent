@@ -1,5 +1,5 @@
-import type { MonitoringEvent } from '../contexts/MonitoringContext';
 import { K, OP, SPAN } from '@shared/monitoring-keys';
+import type { MonitoringEvent } from '../contexts/MonitoringContext';
 
 /** Relative time presets — single source of truth for the 4x duplicated ms calc */
 export const RELATIVE_TIME_OPTIONS = [
@@ -9,7 +9,11 @@ export const RELATIVE_TIME_OPTIONS = [
   { value: '6h' as const, label: 'Last 6 hours', ms: 6 * 60 * 60 * 1000 },
   { value: '24h' as const, label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000 },
   { value: '7d' as const, label: 'Last 7 days', ms: 7 * 24 * 60 * 60 * 1000 },
-  { value: '30d' as const, label: 'Last 30 days', ms: 30 * 24 * 60 * 60 * 1000 },
+  {
+    value: '30d' as const,
+    label: 'Last 30 days',
+    ms: 30 * 24 * 60 * 60 * 1000,
+  },
 ] as const;
 
 export type RelativeTimeValue = (typeof RELATIVE_TIME_OPTIONS)[number]['value'];
@@ -49,14 +53,32 @@ export const EVENT_TYPE_GROUPS = {
 
 /** Consistent color for agent slug (avoids filter colors) */
 export function getAgentColor(agentSlug: string): string {
-  const colors = ['#ef4444', '#22c55e', '#a855f7', '#f97316', '#14b8a6', '#ec4899'];
-  const hash = agentSlug.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = [
+    '#ef4444',
+    '#22c55e',
+    '#a855f7',
+    '#f97316',
+    '#14b8a6',
+    '#ec4899',
+  ];
+  const hash = agentSlug
+    .split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return colors[hash % colors.length];
 }
 
 /** Consistent color for conversation ID */
 export function getConversationColor(conversationId: string): string {
-  const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
-  const hash = conversationId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = [
+    '#3b82f6',
+    '#8b5cf6',
+    '#ec4899',
+    '#f59e0b',
+    '#10b981',
+    '#06b6d4',
+  ];
+  const hash = conversationId
+    .split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return colors[hash % colors.length];
 }

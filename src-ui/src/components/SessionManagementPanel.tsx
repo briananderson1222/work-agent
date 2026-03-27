@@ -31,32 +31,32 @@ export function SessionManagementPanel({
     <>
       {/* Backdrop for mobile tap-to-dismiss */}
       <div className="session-menu__backdrop" onClick={onClose} />
-    <div
-      className="session-panel"
-      style={{
-        left: isRight ? undefined : bounds.left,
-        top: bounds.top,
-        bottom: `${vh - bounds.bottom}px`,
-      }}
-    >
-      <div className="session-panel__header">
-        <div className="session-panel__title">
-          Conversation History ({conversationCount})
-        </div>
-        <div className="session-panel__actions">
-          {conversationCount > 0 && (
-            <button className="session-panel__clear-btn" onClick={onClearAll}>
-              Clear All
+      <div
+        className="session-panel"
+        style={{
+          left: isRight ? undefined : bounds.left,
+          top: bounds.top,
+          bottom: `${vh - bounds.bottom}px`,
+        }}
+      >
+        <div className="session-panel__header">
+          <div className="session-panel__title">
+            Conversation History ({conversationCount})
+          </div>
+          <div className="session-panel__actions">
+            {conversationCount > 0 && (
+              <button className="session-panel__clear-btn" onClick={onClearAll}>
+                Clear All
+              </button>
+            )}
+            <button className="session-panel__close-btn" onClick={onClose}>
+              ×
             </button>
-          )}
-          <button className="session-panel__close-btn" onClick={onClose}>
-            ×
-          </button>
+          </div>
         </div>
-      </div>
 
-      <div className="session-panel__content">{children}</div>
-    </div>
+        <div className="session-panel__content">{children}</div>
+      </div>
     </>
   );
 }

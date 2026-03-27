@@ -30,18 +30,32 @@ const DATA_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
   },
   'plugins:updates-available': (data) => {
     const count = data.count as number | undefined;
-    const updates = data.updates as Array<{ name: string; currentVersion: string; latestVersion: string; source: string }> | undefined;
+    const updates = data.updates as
+      | Array<{
+          name: string;
+          currentVersion: string;
+          latestVersion: string;
+          source: string;
+        }>
+      | undefined;
     if (count && count > 0) {
-      const detail = updates?.map(u => `${u.name}: ${u.currentVersion} → ${u.latestVersion} (${u.source})`).join('\n');
+      const detail = updates
+        ?.map(
+          (u) =>
+            `${u.name}: ${u.currentVersion} → ${u.latestVersion} (${u.source})`,
+        )
+        .join('\n');
       toastStore.show(
         `${count} plugin update${count > 1 ? 's' : ''} available`,
         undefined,
         10000,
-        [{
-          label: 'View Updates',
-          variant: 'primary',
-          onClick: () => navigationStore.navigate('/manage/plugins'),
-        }],
+        [
+          {
+            label: 'View Updates',
+            variant: 'primary',
+            onClick: () => navigationStore.navigate('/manage/plugins'),
+          },
+        ],
         { detail },
       );
     }

@@ -16,7 +16,6 @@ function slugify(name: string) {
     .replace(/^-|-$/g, '');
 }
 
-
 export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
   const { apiBase } = useApiBase();
   const { setProject } = useNavigation();

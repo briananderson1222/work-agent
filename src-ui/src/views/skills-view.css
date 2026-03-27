@@ -78,6 +78,9 @@
 /* Actions */
 .skill-detail__actions {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .skill-detail__btn {
@@ -166,4 +169,109 @@
   border-left: 2px solid var(--accent-primary);
   background: rgba(74, 158, 255, 0.04);
   border-radius: 0 6px 6px 0;
+}
+
+/* Tags */
+.skill-detail__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skill-detail__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+}
+
+/* Version badge */
+.skill-detail__badge--version {
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+/* SKILL.md body */
+.skill-detail__body {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.skill-detail__body h1,
+.skill-detail__body h2,
+.skill-detail__body h3 {
+  color: var(--text-primary);
+  margin: 16px 0 8px;
+}
+
+.skill-detail__body h1 {
+  font-size: 18px;
+}
+.skill-detail__body h2 {
+  font-size: 16px;
+}
+.skill-detail__body h3 {
+  font-size: 14px;
+}
+
+.skill-detail__body p {
+  margin: 0 0 12px;
+}
+
+.skill-detail__body code {
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.skill-detail__body pre {
+  background: var(--bg-tertiary);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+
+.skill-detail__body pre code {
+  background: none;
+  padding: 0;
+}
+
+.skill-detail__body ul,
+.skill-detail__body ol {
+  padding-left: 20px;
+  margin: 0 0 12px;
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  .skill-detail {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .skill-detail__hero {
+    flex-wrap: wrap;
+  }
+
+  .skill-detail__actions {
+    width: 100%;
+  }
+
+  .skill-detail__btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .skill-detail__name {
+    font-size: 18px;
+  }
 }

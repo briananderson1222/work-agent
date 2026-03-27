@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   useFeedbackGuidelinesQuery,
   useFeedbackRatingsQuery,
   useFeedbackStatusQuery,
   useInsightsQuery,
 } from '@stallion-ai/sdk';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import './InsightsDashboard.css';
 
@@ -58,8 +58,7 @@ function UsageTab() {
 
   const { data } = useInsightsQuery(days) as { data: Insights | undefined };
 
-  if (!data)
-    return <div className="insights-loading">Loading...</div>;
+  if (!data) return <div className="insights-loading">Loading...</div>;
 
   const maxHourly = Math.max(...data.hourlyActivity, 1);
   const topTools = Object.entries(data.toolUsage)
@@ -92,7 +91,9 @@ function UsageTab() {
         ].map((s) => (
           <div key={s.label} className="insights-stat-cell">
             <div className="insights-section-label">{s.label}</div>
-            <div className="insights-stat-value">{s.value.toLocaleString()}</div>
+            <div className="insights-stat-value">
+              {s.value.toLocaleString()}
+            </div>
           </div>
         ))}
       </div>
@@ -113,7 +114,11 @@ function UsageTab() {
           ))}
         </div>
         <div className="insights-hourly-labels">
-          <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span>
+          <span>12am</span>
+          <span>6am</span>
+          <span>12pm</span>
+          <span>6pm</span>
+          <span>11pm</span>
         </div>
       </div>
 
@@ -130,7 +135,8 @@ function UsageTab() {
                     {name.length > 25 ? `${name.slice(0, 25)}…` : name}
                   </span>
                   <span className="insights-muted">
-                    {stats.calls}{stats.errors > 0 ? ` (${stats.errors} err)` : ''}
+                    {stats.calls}
+                    {stats.errors > 0 ? ` (${stats.errors} err)` : ''}
                   </span>
                 </div>
                 <div className="insights-bar-track">
@@ -172,9 +178,15 @@ function FeedbackTab() {
     'all' | 'thumbs_up' | 'thumbs_down' | 'pending' | 'no_reason'
   >('all');
 
-  const { data: ratings = [] } = useFeedbackRatingsQuery() as { data: MessageRating[] };
-  const { data: summary } = useFeedbackGuidelinesQuery() as { data: FeedbackSummary | null };
-  const { data: status } = useFeedbackStatusQuery() as { data: FeedbackStatus | null };
+  const { data: ratings = [] } = useFeedbackRatingsQuery() as {
+    data: MessageRating[];
+  };
+  const { data: summary } = useFeedbackGuidelinesQuery() as {
+    data: FeedbackSummary | null;
+  };
+  const { data: status } = useFeedbackStatusQuery() as {
+    data: FeedbackStatus | null;
+  };
 
   const invalidateFeedback = () => {
     queryClient.invalidateQueries({ queryKey: ['feedback', 'ratings'] });
@@ -183,12 +195,14 @@ function FeedbackTab() {
   };
 
   const analyzeMutation = useMutation({
-    mutationFn: () => fetch(`${apiBase}/api/feedback/analyze`, { method: 'POST' }),
+    mutationFn: () =>
+      fetch(`${apiBase}/api/feedback/analyze`, { method: 'POST' }),
     onSuccess: invalidateFeedback,
   });
 
   const clearMutation = useMutation({
-    mutationFn: () => fetch(`${apiBase}/api/feedback/clear-analysis`, { method: 'POST' }),
+    mutationFn: () =>
+      fetch(`${apiBase}/api/feedback/clear-analysis`, { method: 'POST' }),
     onSuccess: invalidateFeedback,
   });
 
@@ -197,7 +211,10 @@ function FeedbackTab() {
       fetch(`${apiBase}/api/feedback/rate`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: r.conversationId, messageIndex: r.messageIndex }),
+        body: JSON.stringify({
+          conversationId: r.conversationId,
+          messageIndex: r.messageIndex,
+        }),
       }),
     onSuccess: invalidateFeedback,
   });
@@ -282,13 +299,17 @@ function FeedbackTab() {
                     {new Date(r.createdAt).toLocaleDateString()}
                   </span>
                 </div>
-                <div className={`feedback-preview ${r.reason || r.analysis ? 'has-extra' : ''}`}>
+                <div
+                  className={`feedback-preview ${r.reason || r.analysis ? 'has-extra' : ''}`}
+                >
                   {r.messagePreview.length > 120
                     ? `${r.messagePreview.slice(0, 120)}…`
                     : r.messagePreview}
                 </div>
                 {r.reason && (
-                  <div className={`feedback-reason ${r.rating === 'thumbs_up' ? 'positive' : 'negative'}`}>
+                  <div
+                    className={`feedback-reason ${r.rating === 'thumbs_up' ? 'positive' : 'negative'}`}
+                  >
                     &ldquo;{r.reason}&rdquo;
                   </div>
                 )}
@@ -313,7 +334,10 @@ function FeedbackTab() {
             >
               {analyzeMutation.isPending ? '⏳ Analyzing...' : '🔄 Analyze'}
             </button>
-            <button onClick={() => clearMutation.mutate()} className="insights-pill">
+            <button
+              onClick={() => clearMutation.mutate()}
+              className="insights-pill"
+            >
               Clear
             </button>
           </div>
@@ -336,23 +360,31 @@ function FeedbackTab() {
         ) : (
           <>
             <div className="feedback-behavior-section">
-              <div className="feedback-behavior-heading positive">✅ Behaviors to Reinforce</div>
+              <div className="feedback-behavior-heading positive">
+                ✅ Behaviors to Reinforce
+              </div>
               {summary.reinforce.length === 0 ? (
                 <div className="insights-empty">None identified yet</div>
               ) : (
                 summary.reinforce.map((b, i) => (
-                  <div key={i} className="feedback-behavior-item">{b}</div>
+                  <div key={i} className="feedback-behavior-item">
+                    {b}
+                  </div>
                 ))
               )}
             </div>
 
             <div className="feedback-behavior-section">
-              <div className="feedback-behavior-heading negative">❌ Behaviors to Avoid</div>
+              <div className="feedback-behavior-heading negative">
+                ❌ Behaviors to Avoid
+              </div>
               {summary.avoid.length === 0 ? (
                 <div className="insights-empty">None identified yet</div>
               ) : (
                 summary.avoid.map((b, i) => (
-                  <div key={i} className="feedback-behavior-item">{b}</div>
+                  <div key={i} className="feedback-behavior-item">
+                    {b}
+                  </div>
                 ))
               )}
             </div>

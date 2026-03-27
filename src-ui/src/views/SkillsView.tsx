@@ -1,52 +1,56 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInstallSkillMutation,
+  useRegistrySkillsQuery,
+  useSkillContentQuery,
+  useSkillsQuery,
+  useUninstallSkillMutation,
+  useUpdateSkillMutation,
+} from '@stallion-ai/sdk';
+import type { Skill } from '@stallion-ai/shared';
 import { useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
-import { useApiBase } from '../contexts/ApiBaseContext';
+import { useToast } from '../contexts/ToastContext';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import './editor-layout.css';
 import './page-layout.css';
 import './skills-view.css';
 
-interface Skill {
-  name: string;
-  description?: string;
-  source?: string;
-  path?: string;
-  installed?: boolean;
-}
-
 export function SkillsView() {
-  const { apiBase } = useApiBase();
   const { selectedId, select, deselect } = useUrlSelection('/skills');
   const [search, setSearch] = useState('');
-  const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
-  const { data: localSkills = [] } = useQuery<Skill[]>({
-    queryKey: ['skills', 'local'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/system/skills`);
-      const json = await res.json();
-      return (json.data ?? []).map((s: any) => ({ ...s, source: 'local', installed: true }));
-    },
-  });
+  const { data: localRaw = [] } = useSkillsQuery();
+  const { data: registryRaw = [], isLoading } = useRegistrySkillsQuery();
 
-  const { data: registrySkills = [], isLoading } = useQuery<Skill[]>({
-    queryKey: ['skills', 'registry'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/registry/skills`);
-      const json = await res.json();
-      return (json.data ?? []).map((s: any) => ({
-        name: s.id || s.displayName,
-        description: s.description,
-        source: 'registry',
-        installed: false,
-      }));
-    },
-  });
+  const localSkills: Skill[] = localRaw.map((s: any) => ({
+    ...s,
+    name: s.name || s.id,
+    installedVersion: s.version,
+    source: 'local',
+    installed: true,
+  }));
+
+  const registrySkills: Skill[] = registryRaw.map((s: any) => ({
+    ...s,
+    name: s.id || s.displayName,
+    source: 'registry',
+    installed: false,
+  }));
 
   const skills = useMemo(() => {
+    const registryMap = new Map(registrySkills.map((s) => [s.name, s]));
     const localNames = new Set(localSkills.map((s) => s.name));
-    const merged = [...localSkills];
+    const merged = localSkills.map((s) => {
+      const reg = registryMap.get(s.name);
+      const updateAvailable =
+        !!reg?.version &&
+        !!s.installedVersion &&
+        reg.version !== s.installedVersion;
+      return { ...s, updateAvailable };
+    });
     for (const s of registrySkills) {
       if (!localNames.has(s.name)) merged.push(s);
     }
@@ -59,7 +63,8 @@ export function SkillsView() {
       (s) =>
         !q ||
         s.name.toLowerCase().includes(q) ||
-        s.description?.toLowerCase().includes(q),
+        s.description?.toLowerCase().includes(q) ||
+        s.tags?.some((t) => t.toLowerCase().includes(q)),
     );
   }, [skills, search]);
 
@@ -71,25 +76,13 @@ export function SkillsView() {
 
   const selected = skills.find((s) => s.name === selectedId);
 
-  const installMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`${apiBase}/api/registry/skills/install`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      return res.json();
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
-  });
+  const installMutation = useInstallSkillMutation();
+  const uninstallMutation = useUninstallSkillMutation();
+  const updateMutation = useUpdateSkillMutation();
 
-  const uninstallMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`${apiBase}/api/registry/skills/${id}`, { method: 'DELETE' });
-      return res.json();
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
-  });
+  const { data: skillBody } = useSkillContentQuery(
+    selected && !selected.installed ? selected.name : undefined,
+  );
 
   return (
     <div className="page page--full">
@@ -112,35 +105,83 @@ export function SkillsView() {
           <div className="skill-detail">
             <div className="skill-detail__hero">
               <div className="skill-detail__icon">
-                {selected.installed ? '⚡' : '📦'}
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {selected.installed ? (
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  ) : (
+                    <>
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                      <line x1="12" y1="22.08" x2="12" y2="12" />
+                    </>
+                  )}
+                </svg>
               </div>
               <div className="skill-detail__hero-text">
                 <h2 className="skill-detail__name">{selected.name}</h2>
                 <div className="skill-detail__meta">
                   {selected.installed ? (
-                    <span className="skill-detail__badge skill-detail__badge--installed">Installed</span>
+                    <span className="skill-detail__badge skill-detail__badge--installed">
+                      Installed
+                    </span>
                   ) : (
-                    <span className="skill-detail__badge skill-detail__badge--registry">Registry</span>
+                    <span className="skill-detail__badge skill-detail__badge--registry">
+                      Registry
+                    </span>
                   )}
-                  {selected.source === 'local' && selected.path && (
-                    <span className="skill-detail__badge skill-detail__badge--local">Local</span>
+                  {selected.version && (
+                    <span className="skill-detail__badge skill-detail__badge--version">
+                      v{selected.version}
+                    </span>
                   )}
                 </div>
               </div>
               <div className="skill-detail__actions">
                 {selected.installed ? (
-                  <button
-                    className="skill-detail__btn skill-detail__btn--uninstall"
-                    disabled={uninstallMutation.isPending}
-                    onClick={() => uninstallMutation.mutate(selected.name)}
-                  >
-                    {uninstallMutation.isPending ? 'Removing…' : 'Uninstall'}
-                  </button>
+                  <>
+                    {selected.updateAvailable && (
+                      <button
+                        className="skill-detail__btn skill-detail__btn--install"
+                        disabled={updateMutation.isPending}
+                        onClick={() =>
+                          updateMutation.mutate(selected.name, {
+                            onError: () => showToast('Failed to update skill'),
+                          })
+                        }
+                      >
+                        {updateMutation.isPending ? 'Updating…' : 'Update'}
+                      </button>
+                    )}
+                    <button
+                      className="skill-detail__btn skill-detail__btn--uninstall"
+                      disabled={uninstallMutation.isPending}
+                      onClick={() =>
+                        uninstallMutation.mutate(selected.name, {
+                          onError: () => showToast('Failed to remove skill'),
+                        })
+                      }
+                    >
+                      {uninstallMutation.isPending ? 'Removing…' : 'Uninstall'}
+                    </button>
+                  </>
                 ) : (
                   <button
                     className="skill-detail__btn skill-detail__btn--install"
                     disabled={installMutation.isPending}
-                    onClick={() => installMutation.mutate(selected.name)}
+                    onClick={() =>
+                      installMutation.mutate(selected.name, {
+                        onError: () => showToast('Failed to install skill'),
+                      })
+                    }
                   >
                     {installMutation.isPending ? (
                       'Installing…'
@@ -155,9 +196,29 @@ export function SkillsView() {
               </div>
             </div>
 
+            {selected.tags && selected.tags.length > 0 && (
+              <div className="skill-detail__tags">
+                {selected.tags.map((tag) => (
+                  <span key={tag} className="skill-detail__tag">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {selected.description && (
               <div className="skill-detail__section">
-                <p className="skill-detail__description">{selected.description}</p>
+                <p className="skill-detail__description">
+                  {selected.description}
+                </p>
+              </div>
+            )}
+
+            {skillBody && (
+              <div className="skill-detail__section skill-detail__body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {skillBody}
+                </ReactMarkdown>
               </div>
             )}
 
@@ -168,9 +229,10 @@ export function SkillsView() {
               </div>
             )}
 
-            {!selected.installed && (
+            {!selected.installed && !skillBody && (
               <div className="skill-detail__hint">
-                Install this skill, then enable it on any agent from the agent editor.
+                Install this skill, then enable it on any agent from the agent
+                editor.
               </div>
             )}
           </div>

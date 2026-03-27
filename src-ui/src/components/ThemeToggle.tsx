@@ -33,6 +33,7 @@ export function ThemeToggle() {
       type="button"
       className="theme-toggle"
       onClick={toggleTheme}
+      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
       title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode (${shortcut})`}
     >
       {theme === 'dark' ? '☀️' : '🌙'}

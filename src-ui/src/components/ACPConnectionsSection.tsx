@@ -144,7 +144,9 @@ export function ACPConnectionsSection({
             onToggle={(enabled) => toggleEnabled(conn.id, enabled)}
             onRemove={() => removeConnection(conn.id)}
             onReconnect={async () => {
-              await fetch(`${apiBase}/acp/connections/${conn.id}/reconnect`, { method: 'POST' });
+              await fetch(`${apiBase}/acp/connections/${conn.id}/reconnect`, {
+                method: 'POST',
+              });
               refresh();
             }}
           />

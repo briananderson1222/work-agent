@@ -349,10 +349,19 @@ export function LayoutsView() {
           <div className="workspace-editor">
             <DetailHeader
               title={isNew ? 'New Layout' : form.name || selectedSlug || ''}
-              badge={isDirty ? { label: 'unsaved', variant: 'warning' as const } : undefined}
+              badge={
+                isDirty
+                  ? { label: 'unsaved', variant: 'warning' as const }
+                  : undefined
+              }
             >
               {!isNew && selectedSlug && (
-                <button className="editor-btn editor-btn--danger" onClick={() => setDeleteOpen(true)}>Delete</button>
+                <button
+                  className="editor-btn editor-btn--danger"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  Delete
+                </button>
               )}
               <button
                 className="editor-btn editor-btn--primary"

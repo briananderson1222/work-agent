@@ -161,7 +161,9 @@ export function useSessionManagementMenu({
         });
       } catch (error) {
         log.api('Failed to clear all conversations:', error);
-        showToast('Failed to clear all conversations. Check console for details.');
+        showToast(
+          'Failed to clear all conversations. Check console for details.',
+        );
       }
     },
     [apiBase, agents, invalidate, sessions, onDelete, showToast],

@@ -66,7 +66,7 @@ export function UserDetailModal({
               </button>
             </div>
             <div className="user-detail-error-body">
-              <p style={{ margin: '0 0 0.75rem' }}>{error}</p>
+              <p>{error}</p>
               <button
                 onClick={() => refetch()}
                 className="user-detail-retry-btn"

@@ -77,7 +77,8 @@ class WebSpeechSTTProvider extends ListenerManager implements STTProvider {
 
     // Ensure mic permission before starting — getUserMedia triggers the prompt
     if (navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
         .then((stream) => {
           // Got permission — stop the stream immediately, SpeechRecognition manages its own
           stream.getTracks().forEach((t) => t.stop());

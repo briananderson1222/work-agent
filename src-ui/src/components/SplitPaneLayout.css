@@ -37,6 +37,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
+  min-height: 44px;
   border-bottom: 1px solid var(--border-primary);
   background: var(--bg-secondary);
   cursor: pointer;
@@ -154,6 +155,26 @@
   flex: 1;
   overflow-y: auto;
   padding: 0.5rem 0;
+}
+
+.split-pane__list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  color: var(--text-muted);
+  gap: 0.5rem;
+}
+
+.split-pane__list-empty-icon {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.split-pane__list-empty p {
+  margin: 0;
+  font-size: 0.85rem;
 }
 
 .split-pane__item {
@@ -284,4 +305,15 @@
   font-size: 0.8rem;
   color: var(--text-muted);
   margin: 0;
+}
+
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .split-pane__add-btn {
+    min-height: 44px;
+  }
+
+  .split-pane__label {
+    font-size: 0.75rem;
+  }
 }

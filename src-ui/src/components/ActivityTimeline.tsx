@@ -1,15 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useActivityUsageQuery } from '@stallion-ai/sdk';
 import { useState } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import './ActivityTimeline.css';
-
-interface DailyStats {
-  messages: number;
-  cost: number;
-  inputTokens: number;
-  outputTokens: number;
-  byAgent: Record<string, number>;
-}
 
 const AGENT_COLORS = [
   'var(--accent-primary)',
@@ -29,27 +20,13 @@ function shortAgent(a: string) {
 }
 
 export function ActivityTimeline() {
-  const { apiBase } = useApiBase();
   const [fromDate, setFromDate] = useState(() =>
     fmt(new Date(Date.now() - 13 * 86400000)),
   );
   const [toDate, setToDate] = useState(() => fmt(new Date()));
   const [hoverDate, setHoverDate] = useState<string | null>(null);
 
-  const { data, isLoading: loading } = useQuery<{
-    byDate: Record<string, DailyStats>;
-    lifetime: any;
-    rangeSummary?: any;
-  }>({
-    queryKey: ['analytics-usage', fromDate, toDate],
-    queryFn: async () => {
-      const r = await fetch(
-        `${apiBase}/api/analytics/usage?from=${fromDate}&to=${toDate}`,
-      );
-      const d = await r.json();
-      return d.data;
-    },
-  });
+  const { data, isLoading: loading } = useActivityUsageQuery(fromDate, toDate);
 
   if (loading && !data)
     return <div className="timeline-loading">Loading activity...</div>;
@@ -105,12 +82,26 @@ export function ActivityTimeline() {
         const streak = data.lifetime?.streak ?? 0;
         return (
           <div className="timeline-summary">
-            <span>Current Streak: <strong>{streak} days</strong></span>
-            <span>Days Active: <strong>{rs?.activeDays ?? 0}/{rs?.totalDays ?? dates.length}</strong></span>
-            <span>Total: <strong>{(rs?.totalMessages ?? 0).toLocaleString()} msgs</strong></span>
-            <span>Avg/Day: <strong>{(rs?.avgPerDay ?? 0).toFixed(1)} msgs</strong></span>
+            <span>
+              Current Streak: <strong>{streak} days</strong>
+            </span>
+            <span>
+              Days Active:{' '}
+              <strong>
+                {rs?.activeDays ?? 0}/{rs?.totalDays ?? dates.length}
+              </strong>
+            </span>
+            <span>
+              Total:{' '}
+              <strong>{(rs?.totalMessages ?? 0).toLocaleString()} msgs</strong>
+            </span>
+            <span>
+              Avg/Day: <strong>{(rs?.avgPerDay ?? 0).toFixed(1)} msgs</strong>
+            </span>
             {(rs?.totalCost ?? 0) > 0 && (
-              <span>Cost: <strong>${rs.totalCost.toFixed(2)}</strong></span>
+              <span>
+                Cost: <strong>${rs.totalCost.toFixed(2)}</strong>
+              </span>
             )}
           </div>
         );
@@ -129,7 +120,8 @@ export function ActivityTimeline() {
               })}
             </div>
             <div className="timeline-tooltip-stats">
-              ({hoverDay.messages} messages · ${(hoverDay.cost ?? 0).toFixed(2)})
+              ({hoverDay.messages} messages · ${(hoverDay.cost ?? 0).toFixed(2)}
+              )
             </div>
             {Object.entries(hoverDay.byAgent)
               .sort(([, a], [, b]) => b - a)

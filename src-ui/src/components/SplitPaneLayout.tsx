@@ -4,7 +4,9 @@ import { useNavigation } from '../contexts/NavigationContext';
 import './SplitPaneLayout.css';
 
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches);
+  const [isMobile, setIsMobile] = useState(
+    () => window.matchMedia('(max-width: 768px)').matches,
+  );
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
@@ -94,7 +96,9 @@ export function SplitPaneLayout({
   });
   return (
     <div className="split-pane">
-      <div className={`split-pane__left${!isMobile || !selectedId ? ' split-pane__left--visible' : ''}`}>
+      <div
+        className={`split-pane__left${!isMobile || !selectedId ? ' split-pane__left--visible' : ''}`}
+      >
         <div className="split-pane__header">
           <div className="split-pane__label">{breadcrumb}</div>
           <h2
@@ -115,6 +119,13 @@ export function SplitPaneLayout({
         <div className="split-pane__list">
           {loading ? (
             <LoadingState message="Loading..." />
+          ) : items.length === 0 ? (
+            <div className="split-pane__list-empty">
+              <span className="split-pane__list-empty-icon">
+                {emptyIcon || '📋'}
+              </span>
+              <p>No items yet</p>
+            </div>
           ) : (
             items.map((item) => (
               <button
@@ -151,7 +162,9 @@ export function SplitPaneLayout({
         )}
       </div>
 
-      <div className={`split-pane__right${!isMobile || selectedId ? ' split-pane__right--visible' : ''}`}>
+      <div
+        className={`split-pane__right${!isMobile || selectedId ? ' split-pane__right--visible' : ''}`}
+      >
         {isMobile && selectedId && (
           <button className="split-pane__back" onClick={() => onDeselect?.()}>
             ← Back to list

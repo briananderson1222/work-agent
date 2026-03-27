@@ -36,7 +36,8 @@ export function useChatDockActions({
   const focusSession = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
-      const convId = sessions.find((s) => s.id === sessionId)?.conversationId ?? null;
+      const convId =
+        sessions.find((s) => s.id === sessionId)?.conversationId ?? null;
       setActiveChat(convId);
       setDockState(true, isDockMaximized);
       updateChat(sessionId, { hasUnread: false });
@@ -88,7 +89,12 @@ export function useChatDockActions({
   );
 
   const openConversation = useCallback(
-    async (conversationId: string, agentSlug: string, projectSlug?: string, projectName?: string) => {
+    async (
+      conversationId: string,
+      agentSlug: string,
+      projectSlug?: string,
+      projectName?: string,
+    ) => {
       const agent = agents.find((a) => a.slug === agentSlug);
       if (!agent) return;
 

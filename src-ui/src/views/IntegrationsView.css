@@ -1,0 +1,7 @@
+/* IntegrationsView — integration-specific overrides + mobile */
+
+@media (max-width: 768px) {
+  .integration__mode-tab {
+    min-height: 44px;
+  }
+}

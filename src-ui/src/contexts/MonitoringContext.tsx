@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { K } from '@shared/monitoring-keys';
 import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
-import { K } from '@shared/monitoring-keys';
 
 export interface AgentStats {
   slug: string;
@@ -47,11 +47,20 @@ export interface MonitoringEvent {
   'stallion.agent.max_steps'?: number;
   'stallion.input.chars'?: number;
   'stallion.output.chars'?: number;
-  'stallion.artifacts'?: Array<{ type: string; name?: string; content?: unknown }>;
+  'stallion.artifacts'?: Array<{
+    type: string;
+    name?: string;
+    content?: unknown;
+  }>;
   'stallion.user.id'?: string;
   'stallion.health.healthy'?: boolean;
   'stallion.health.checks'?: Record<string, boolean>;
-  'stallion.health.integrations'?: Array<{ id: string; type: string; connected: boolean; metadata?: { transport?: string; toolCount?: number } }>;
+  'stallion.health.integrations'?: Array<{
+    id: string;
+    type: string;
+    connected: boolean;
+    metadata?: { transport?: string; toolCount?: number };
+  }>;
   'stallion.reasoning.text'?: string;
   'stallion.agent_telemetry.session_id'?: string;
   'stallion.agent_telemetry.event_id'?: string;
@@ -75,7 +84,8 @@ class MonitoringStore {
   } | null = null;
   isLiveMode: boolean = true;
   dateRange: { start?: Date; end?: Date } | null = null;
-  connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'error' = 'disconnected';
+  connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'error' =
+    'disconnected';
   isLoading: boolean = false;
 
   constructor(apiBase: string) {
@@ -190,9 +200,7 @@ class MonitoringStore {
     const start = startFrom || new Date(now.getTime() - 5 * 60 * 1000);
     this.fetchHistoricalEvents(start, now);
 
-    this.eventSource = new EventSource(
-      `${this.apiBase}/monitoring/events`,
-    );
+    this.eventSource = new EventSource(`${this.apiBase}/monitoring/events`);
 
     this.eventSource.onopen = () => {
       this.connectionStatus = 'connected';
@@ -278,7 +286,9 @@ export function releaseStore(apiBase: string) {
   }
 }
 
-async function fetchMonitoringStats(apiBase: string): Promise<MonitoringStats | null> {
+async function fetchMonitoringStats(
+  apiBase: string,
+): Promise<MonitoringStats | null> {
   const response = await fetch(`${apiBase}/monitoring/stats`);
   const result = await response.json();
   return result.success ? result.data : null;

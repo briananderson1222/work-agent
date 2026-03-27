@@ -1,4 +1,15 @@
-import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
+import { K } from '@shared/monitoring-keys';
+import {
+  Component,
+  type ErrorInfo,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { EventEntry } from '../components/monitoring/EventEntry';
+import { MetricsPanel } from '../components/monitoring/MetricsPanel';
 import { useModels } from '../contexts/ModelsContext';
 import { useMonitoring } from '../contexts/MonitoringContext';
 import { useToast } from '../contexts/ToastContext';
@@ -6,22 +17,26 @@ import {
   parseSearchQuery,
   useSearchAutocomplete,
 } from '../hooks/useSearchAutocomplete';
-import { K } from '@shared/monitoring-keys';
-import { EventEntry } from '../components/monitoring/EventEntry';
-import { MetricsPanel } from '../components/monitoring/MetricsPanel';
 import {
   EVENT_TYPE_GROUPS,
-  RELATIVE_TIME_OPTIONS,
   getAgentColor,
   getConversationColor,
   getEventType,
   getRelativeMs,
+  RELATIVE_TIME_OPTIONS,
   type RelativeTimeValue,
 } from './monitoring-utils';
 import './MonitoringView.css';
 
 export function MonitoringView() {
-  const { stats, events, clearEvents, setTimeRange, connectionStatus, isLoading } = useMonitoring();
+  const {
+    stats,
+    events,
+    clearEvents,
+    setTimeRange,
+    connectionStatus,
+    isLoading,
+  } = useMonitoring();
   const { showToast } = useToast();
   const models = useModels();
   const [autoFollow, setAutoFollow] = useState(true);
@@ -70,7 +85,6 @@ export function MonitoringView() {
     handleSelect,
     handleKeyDown,
   } = useSearchAutocomplete(searchQuery, searchFilters);
-
 
   const [eventTypeFilter, setEventTypeFilter] = useState<string[]>(
     Object.values(EVENT_TYPE_GROUPS).flat(),
@@ -211,9 +225,12 @@ export function MonitoringView() {
       const filters = JSON.parse(filtersParam);
       if (filters.trace) setSelectedTraceId(filters.trace[0] ?? null);
       if (filters.agent) setSelectedAgents(filters.agent);
-      if (filters.conversation) setSelectedConversation(filters.conversation[0] ?? null);
+      if (filters.conversation)
+        setSelectedConversation(filters.conversation[0] ?? null);
       if (filters.tool) setSelectedToolCallId(filters.tool[0] ?? null);
-    } catch { /* ignore malformed params */ }
+    } catch {
+      /* ignore malformed params */
+    }
   }, []);
 
   // Update time range when live mode changes
@@ -318,13 +335,10 @@ export function MonitoringView() {
     } else {
       // Single click: toggle if only one selected, otherwise narrow to clicked
       setSelectedAgents((prev) =>
-        prev.length === 1 && prev[0] === agentSlug
-          ? []
-          : [agentSlug],
+        prev.length === 1 && prev[0] === agentSlug ? [] : [agentSlug],
       );
     }
   };
-
 
   useEffect(() => {
     if (autoFollow && logEndRef.current) {
@@ -389,7 +403,10 @@ export function MonitoringView() {
       // Check both parsed conversation and selectedConversation from sidebar clicks
       const conversationToFilter =
         parsed.filters.conversation?.[0] || selectedConversation;
-      if (conversationToFilter && event[K.CONVERSATION_ID] !== conversationToFilter)
+      if (
+        conversationToFilter &&
+        event[K.CONVERSATION_ID] !== conversationToFilter
+      )
         return false;
       // Check tool call ID filter
       const toolCallIdToFilter = parsed.filters.tool?.[0] || selectedToolCallId;
@@ -397,8 +414,12 @@ export function MonitoringView() {
         return false;
       // Check trace ID filter
       const traceIdToFilter = parsed.filters.trace?.[0] || selectedTraceId;
-      if (traceIdToFilter && event[K.TRACE_ID] !== traceIdToFilter) return false;
-      if (eventTypeFilter.length > 0 && !eventTypeFilter.includes(getEventType(event)))
+      if (traceIdToFilter && event[K.TRACE_ID] !== traceIdToFilter)
+        return false;
+      if (
+        eventTypeFilter.length > 0 &&
+        !eventTypeFilter.includes(getEventType(event))
+      )
         return false;
       // Only apply text filter if it's not just a filter key with colon
       const isIncompleteFilter = /^(agent|conversation|tool|trace):$/.test(
@@ -418,7 +439,9 @@ export function MonitoringView() {
     ); // Oldest to newest
 
   const toggleEventType = (group: string) => {
-    const groupTypes = EVENT_TYPE_GROUPS[group as keyof typeof EVENT_TYPE_GROUPS] as readonly string[];
+    const groupTypes = EVENT_TYPE_GROUPS[
+      group as keyof typeof EVENT_TYPE_GROUPS
+    ] as readonly string[];
     const allSelected = groupTypes.every((type) =>
       eventTypeFilter.includes(type),
     );
@@ -439,8 +462,16 @@ export function MonitoringView() {
         <div className="monitoring-title">
           <h1>MONITORING</h1>
           <div className="status-badge">
-            <span className={`status-dot status-dot-${connectionStatus}`}></span>
-            {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting...' : connectionStatus === 'error' ? 'Error' : 'Disconnected'}
+            <span
+              className={`status-dot status-dot-${connectionStatus}`}
+            ></span>
+            {connectionStatus === 'connected'
+              ? 'Connected'
+              : connectionStatus === 'connecting'
+                ? 'Connecting...'
+                : connectionStatus === 'error'
+                  ? 'Error'
+                  : 'Disconnected'}
           </div>
         </div>
 
@@ -486,9 +517,7 @@ export function MonitoringView() {
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
-              <div
-                className="time-filter-content"
-              >
+              <div className="time-filter-content">
                 <span>
                   {(clearTime || (timeMode === 'absolute' && absoluteStart)) &&
                   isLiveMode
@@ -503,9 +532,7 @@ export function MonitoringView() {
                   if (clearTime && !isLiveMode) {
                     // Show fixed range when cleared but not live
                     return (
-                      <span
-                        className="time-range-sublabel"
-                      >
+                      <span className="time-range-sublabel">
                         {clearTime.toLocaleString([], {
                           month: 'short',
                           day: 'numeric',
@@ -526,9 +553,7 @@ export function MonitoringView() {
                     const ms = getRelativeMs(relativeTime);
                     const start = new Date(Date.now() - ms);
                     return (
-                      <span
-                        className="time-range-sublabel"
-                      >
+                      <span className="time-range-sublabel">
                         {start.toLocaleString([], {
                           month: 'short',
                           day: 'numeric',
@@ -553,9 +578,7 @@ export function MonitoringView() {
                   ) {
                     // Show absolute range
                     return (
-                      <span
-                        className="time-range-sublabel"
-                      >
+                      <span className="time-range-sublabel">
                         {new Date(absoluteStart).toLocaleString([], {
                           month: 'short',
                           day: 'numeric',
@@ -644,7 +667,9 @@ export function MonitoringView() {
                           }}
                           disabled={isLiveMode}
                           placeholder="Leave empty for now"
-                          className={isLiveMode ? 'time-end-input-disabled' : ''}
+                          className={
+                            isLiveMode ? 'time-end-input-disabled' : ''
+                          }
                         />
                         <button
                           type="button"
@@ -745,7 +770,9 @@ export function MonitoringView() {
                     ) {
                       acc.push({
                         id: e[K.CONVERSATION_ID] as string,
-                        color: getConversationColor(e[K.CONVERSATION_ID] as string),
+                        color: getConversationColor(
+                          e[K.CONVERSATION_ID] as string,
+                        ),
                       });
                     }
                     return acc;
@@ -837,9 +864,7 @@ export function MonitoringView() {
 
               return (
                 <>
-                  <div className="agent-historical-header">
-                    Historical
-                  </div>
+                  <div className="agent-historical-header">Historical</div>
                   {historicalSlugs.map((slug) => {
                     const eventCount = filteredEvents.filter(
                       (e) => e[K.AGENT_SLUG] === slug,
@@ -858,9 +883,7 @@ export function MonitoringView() {
                       >
                         <div className="agent-header">
                           <span className="agent-name">{slug}</span>
-                          <span
-                            className="agent-status historical-status"
-                          >
+                          <span className="agent-status historical-status">
                             HISTORICAL
                           </span>
                         </div>
@@ -1050,14 +1073,19 @@ export function MonitoringView() {
                 <EventEntry
                   key={idx}
                   event={event}
-                  isNew={newEventIds.has(`${event.timestamp}-${getEventType(event)}`)}
+                  isNew={newEventIds.has(
+                    `${event.timestamp}-${getEventType(event)}`,
+                  )}
                   selectedTraceId={selectedTraceId}
                   selectedConversation={selectedConversation}
                   selectedToolCallId={selectedToolCallId}
                   onTraceClick={handleTraceClick}
                   onConversationClick={handleConversationClick}
                   onToolCallClick={handleToolCallClick}
-                  onCopyResult={(text) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard'); }}
+                  onCopyResult={(text) => {
+                    navigator.clipboard.writeText(text);
+                    showToast('Copied to clipboard');
+                  }}
                 />
               ))
             )}
@@ -1075,22 +1103,40 @@ export function MonitoringView() {
           <MetricsPanel />
         </div>
       </div>
-
     </div>
   );
 }
 
-class MonitoringErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+class MonitoringErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
   state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error, info: ErrorInfo) { console.error('MonitoringView error:', error, info); }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('MonitoringView error:', error, info);
+  }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="monitoring-view" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div
+          className="monitoring-view"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <div style={{ textAlign: 'center' }}>
             <p>Something went wrong in the monitoring view.</p>
-            <button className="btn-secondary" onClick={() => this.setState({ hasError: false })}>Reload</button>
+            <button
+              className="btn-secondary"
+              onClick={() => this.setState({ hasError: false })}
+            >
+              Reload
+            </button>
           </div>
         </div>
       );

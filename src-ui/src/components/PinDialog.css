@@ -1,0 +1,93 @@
+.pin-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.pin-dialog {
+  background: var(--color-bg);
+  padding: 24px;
+  border-radius: 8px;
+  min-width: 360px;
+  max-width: 480px;
+  border: 1px solid var(--color-border);
+}
+
+.pin-dialog__title {
+  margin: 0 0 16px;
+  color: var(--color-text);
+  font-size: 16px;
+}
+
+.pin-dialog__input {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.pin-dialog__error {
+  color: var(--color-error);
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.pin-dialog__hint {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 4px 0;
+}
+
+.pin-dialog__output {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  padding: 8px;
+  border-radius: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+  margin: 8px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.pin-dialog__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.pin-dialog__btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.pin-dialog__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.pin-dialog__btn--primary {
+  background: var(--color-primary);
+  color: white;
+}
+
+.pin-dialog__btn--secondary {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}

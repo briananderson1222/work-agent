@@ -161,7 +161,10 @@ class NavigationStore {
       activeTab,
       isDockOpen: params.get('dock') === 'open',
       isDockMaximized: params.get('maximize') === 'true',
-      dockMode: (params.get('dockMode') as DockMode) || this.dockModeOverride || 'bottom',
+      dockMode:
+        (params.get('dockMode') as DockMode) ||
+        this.dockModeOverride ||
+        'bottom',
       fontSize: params.get('fontSize')
         ? parseInt(params.get('fontSize')!, 10)
         : null,

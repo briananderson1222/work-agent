@@ -186,12 +186,16 @@ export function LayoutView({
       let promptText = prompt.prompt;
       if (prompt.id?.includes(':') && promptText === prompt.label) {
         try {
-          const res = await fetch(`${apiBase}/api/prompts/${encodeURIComponent(prompt.id)}`);
+          const res = await fetch(
+            `${apiBase}/api/prompts/${encodeURIComponent(prompt.id)}`,
+          );
           const data = await res.json();
           if (data.success && data.data?.content) {
             promptText = data.data.content;
           }
-        } catch { /* fall through to label */ }
+        } catch {
+          /* fall through to label */
+        }
       }
 
       const sessionId = createChatSession(

@@ -70,42 +70,65 @@
 }
 
 [data-theme="light"] {
+  /* Backgrounds */
   --bg-primary: #ffffff;
   --bg-secondary: #f5f5f5;
   --bg-tertiary: #eeeeee;
-  --bg-elevated: #fafafa;
+  --bg-elevated: #e0e0e0;
   --bg-input: #ffffff;
+  --bg-hover: #e8e8e8;
+  --bg-active: #d8d8d8;
+  --bg-selected: #d0d0d0;
+  --bg-highlight: #c5c5c5;
+  --bg-modal: #ffffff;
 
+  /* Text */
   --text-primary: #1a1a1a;
   --text-secondary: #333333;
   --text-tertiary: #666666;
-  --text-muted: #999999;
+  --text-muted: #757575;
+  --text-disabled: #999999;
+  --text-inverted: #ffffff;
+  --text-muted-light: #757575;
+  --text-muted-lighter: #9e9e9e;
+  --text-subtle: #bdbdbd;
 
+  /* Borders */
   --border-primary: #e0e0e0;
-  --border-secondary: #d0d0d0;
+  --border-secondary: #cccccc;
+  --border-light: #b0b0b0;
+  --border-dashed: #e0e0e0;
 
-  --accent-primary: #0066cc;
-  --accent-hover: rgba(0, 102, 204, 0.1);
+  /* Accent / Brand */
+  --accent-primary: #0052a3;
+  --accent-hover: rgba(0, 82, 163, 0.1);
   --accent-darker: #0052a3;
   --accent-yellow: #ca8a04;
+  --accent-light: rgba(0, 82, 163, 0.2);
+  --accent-medium: rgba(0, 82, 163, 0.12);
+  --accent-strong: rgba(0, 82, 163, 0.2);
+  --accent-subtle: rgba(0, 82, 163, 0.05);
+  --accent-border: rgba(0, 82, 163, 0.3);
 
+  /* Semantic */
   --error-bg: #fff5f5;
   --error-border: #ffcccc;
-  --error-text: #cc0000;
-  --error-dark: #990000;
-
-  --success-bg: #f0fff0;
+  --error-text: #d32f2f;
+  --error-dark: #c62828;
+  --success-bg: #f5fff5;
   --success-border: #ccffcc;
-  --success-text: #006600;
-
+  --success-text: #2e7d32;
   --warning-bg: #fffbf0;
   --warning-border: #ffe0b2;
   --warning-text: #d97706;
+  --warning-primary: #f57c00;
 
+  /* Health */
   --health-success: #059669;
   --health-error: #dc2626;
   --health-warning: #d97706;
 
+  /* Event colors */
   --event-agent-start: #2563eb;
   --event-agent-complete: #7c3aed;
   --event-tool-call: #d97706;
@@ -114,10 +137,18 @@
   --event-planning: #7c3aed;
   --event-reasoning: #db2777;
 
+  /* Overlays & Shadows */
   --overlay-bg: rgba(0, 0, 0, 0.05);
   --overlay-bg-dark: rgba(0, 0, 0, 0.1);
   --overlay-bg-darker: rgba(0, 0, 0, 0.15);
+  --overlay-modal: rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 18px 40px rgba(0, 0, 0, 0.12);
+  --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.3);
 
+  /* Semantic aliases */
   --color-bg: var(--bg-primary);
   --color-bg-secondary: var(--bg-secondary);
   --color-text: var(--text-primary);
@@ -163,69 +194,6 @@
   --accent-border: rgba(74, 158, 255, 0.3);
 }
 
-[data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f5f5f5;
-  --bg-tertiary: #eeeeee;
-  --bg-elevated: #e0e0e0;
-  --bg-input: #ffffff;
-
-  --text-primary: #1a1a1a;
-  --text-secondary: #333333;
-  --text-tertiary: #666666;
-  --text-muted: #757575;
-
-  --border-primary: #e0e0e0;
-  --border-secondary: #cccccc;
-
-  --accent-primary: #0052a3;
-  --accent-hover: rgba(0, 82, 163, 0.1);
-
-  --error-bg: #fff5f5;
-  --error-border: #ffcccc;
-  --error-text: #d32f2f;
-
-  --success-bg: #f5fff5;
-  --success-border: #ccffcc;
-  --success-text: #2e7d32;
-
-  --overlay-bg: rgba(0, 0, 0, 0.05);
-  --overlay-bg-dark: rgba(0, 0, 0, 0.1);
-  --overlay-bg-darker: rgba(0, 0, 0, 0.15);
-
-  --shadow-sm: 0 -2px 10px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 -4px 20px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.2);
-  --shadow-xl: 0 18px 40px rgba(0, 0, 0, 0.12);
-
-  --bg-hover: #e8e8e8;
-  --bg-active: #d8d8d8;
-  --bg-selected: #d0d0d0;
-  --bg-highlight: #c5c5c5;
-
-  --accent-light: rgba(0, 82, 163, 0.2);
-  --accent-medium: rgba(0, 82, 163, 0.12);
-  --accent-strong: rgba(0, 82, 163, 0.2);
-
-  --border-light: #b0b0b0;
-  --text-disabled: #999999;
-  --text-inverted: #ffffff;
-
-  --warning-primary: #f57c00;
-
-  --accent-darker: #0052a3;
-  --error-dark: #c62828;
-  --text-muted-light: #757575;
-  --text-muted-lighter: #9e9e9e;
-  --text-subtle: #bdbdbd;
-  --bg-modal: #ffffff;
-  --border-dashed: #e0e0e0;
-  --overlay-modal: rgba(0, 0, 0, 0.5);
-  --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.3);
-  --accent-subtle: rgba(0, 82, 163, 0.05);
-  --accent-border: rgba(0, 82, 163, 0.3);
-}
-
 * {
   margin: 0;
   padding: 0;
@@ -237,10 +205,20 @@
   scrollbar-width: thin;
   scrollbar-color: var(--border-secondary) transparent;
 }
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-secondary); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-secondary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
 
 body {
   font-family: "DM Sans", system-ui, sans-serif;
@@ -264,11 +242,20 @@ body {
 }
 
 @supports (height: 100dvh) {
-  #root, .app { height: 100dvh; }
+  #root,
+  .app {
+    height: 100dvh;
+  }
 }
 
 .app--with-sidebar {
   flex-direction: row;
+}
+
+@media (max-width: 768px) {
+  .app--with-sidebar {
+    flex-direction: column;
+  }
 }
 
 .app__main {
@@ -713,6 +700,15 @@ body {
   flex-direction: column;
 }
 
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+  .sidebar.sidebar--expanded {
+    display: flex;
+  }
+}
+
 .sidebar-header {
   padding: 20px;
   border-bottom: 1px solid var(--border-primary);
@@ -1080,7 +1076,7 @@ body {
 }
 .chat-dock__project-dir {
   display: flex;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   opacity: 0.7;
   overflow: hidden;
@@ -1122,7 +1118,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
 }
 .git-badge__branch {
@@ -1145,7 +1141,7 @@ body {
   padding: 8px 0;
   min-width: 240px;
   max-width: 320px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   font-size: 11px;
   color: var(--text-primary);
 }
@@ -1174,7 +1170,7 @@ body {
   font-size: 10px;
   color: var(--text-muted);
   margin-top: 2px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
 }
 .git-tooltip__changes {
   display: flex;
@@ -1182,13 +1178,19 @@ body {
   flex-wrap: wrap;
 }
 .git-tooltip__stat {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   color: var(--text-secondary);
 }
-.git-tooltip__stat--staged { color: var(--success, #98c379); }
-.git-tooltip__stat--unstaged { color: var(--warning, #e5c07b); }
-.git-tooltip__stat--untracked { color: var(--text-muted); }
+.git-tooltip__stat--staged {
+  color: var(--success, #98c379);
+}
+.git-tooltip__stat--unstaged {
+  color: var(--warning, #e5c07b);
+}
+.git-tooltip__stat--untracked {
+  color: var(--text-muted);
+}
 .git-tooltip__clean {
   color: var(--success, #98c379);
   font-size: 10px;
@@ -5277,7 +5279,7 @@ body {
 
 .new-chat-modal__context-dir {
   display: flex;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   opacity: 0.6;
   overflow: hidden;
@@ -5360,7 +5362,7 @@ body {
 
 .new-chat-modal__dropdown-item-dir {
   display: flex;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-size: 10px;
   opacity: 0.5;
   overflow: hidden;

@@ -122,32 +122,60 @@ export function NotificationHistory({
                     )}
                     <div>{notification.message}</div>
                     {notification.metadata?.detail ? (
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', whiteSpace: 'pre-line', lineHeight: 1.3 }}>
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--text-muted)',
+                          marginTop: '4px',
+                          whiteSpace: 'pre-line',
+                          lineHeight: 1.3,
+                        }}
+                      >
                         {notification.metadata.detail as string}
                       </div>
                     ) : null}
-                    {notification.actions && notification.actions.length > 0 && (
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-                        {notification.actions.map((action, idx) => (
-                          <button
-                            key={idx}
-                            onClick={(e) => { e.stopPropagation(); action.onClick(); onClose(); }}
-                            style={{
-                              padding: '4px 10px',
-                              background: action.variant === 'primary' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                              color: action.variant === 'primary' ? 'white' : 'var(--text-primary)',
-                              border: action.variant === 'primary' ? 'none' : '1px solid var(--border-primary)',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '11px',
-                              fontWeight: 500,
-                            }}
-                          >
-                            {action.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {notification.actions &&
+                      notification.actions.length > 0 && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '6px',
+                            marginTop: '8px',
+                          }}
+                        >
+                          {notification.actions.map((action, idx) => (
+                            <button
+                              key={idx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                action.onClick();
+                                onClose();
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                background:
+                                  action.variant === 'primary'
+                                    ? 'var(--accent-primary)'
+                                    : 'var(--bg-tertiary)',
+                                color:
+                                  action.variant === 'primary'
+                                    ? 'white'
+                                    : 'var(--text-primary)',
+                                border:
+                                  action.variant === 'primary'
+                                    ? 'none'
+                                    : '1px solid var(--border-primary)',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                fontWeight: 500,
+                              }}
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                   </div>
                   <div
                     style={{

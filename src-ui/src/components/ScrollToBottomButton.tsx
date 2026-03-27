@@ -8,7 +8,8 @@ export function ScrollToBottomButton({ onClick }: ScrollToBottomButtonProps) {
       onClick={onClick}
       style={{
         position: 'absolute',
-        bottom: 'calc(var(--chat-dock-height, 49px) + var(--safe-bottom, 0px) + 24px)',
+        bottom:
+          'calc(var(--chat-dock-height, 49px) + var(--safe-bottom, 0px) + 24px)',
         right: '20px',
         background: 'var(--color-primary)',
         color: 'white',

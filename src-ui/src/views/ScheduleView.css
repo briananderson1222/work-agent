@@ -843,6 +843,11 @@
   text-transform: none;
   letter-spacing: 0;
 }
+.schedule__field-error {
+  font-size: 0.7rem;
+  color: var(--error-text);
+  margin-top: 0.25rem;
+}
 .schedule__field input,
 .schedule__field textarea,
 .schedule__field select {
@@ -1051,6 +1056,13 @@
 }
 
 /* ── Mobile responsive ── */
+.cron-editor__tz-note {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
 @media (max-width: 768px) {
   .schedule__stats {
     flex-direction: column;
@@ -1250,15 +1262,67 @@
 }
 
 /* ── Wave 2 additions ── */
-.schedule__detail-logs-wrap { padding: 0.5rem 0.75rem; }
-.schedule__empty-intro { margin-bottom: 1rem; }
-.schedule__table-scroll { overflow-x: auto; }
-.schedule__detail-artifact-btn { font-size: 0.75rem; padding: 0.35rem 0.75rem; }
-.schedule__log-status--ok { color: var(--success-text); }
-.schedule__log-status--fail { color: var(--error-text); }
-.stat-card__value--success { color: var(--success-text); }
-.stat-card__value--error { color: var(--error-text); }
-.stat-card__value--warning { color: var(--warning-text); }
-.schedule__rate-value--high { color: var(--success-text); }
-.schedule__rate-value--mid { color: var(--warning-text); }
-.schedule__rate-value--low { color: var(--error-text); }
+.schedule__detail-logs-wrap {
+  padding: 0.5rem 0.75rem;
+}
+.schedule__empty-intro {
+  margin-bottom: 1rem;
+}
+.schedule__table-scroll {
+  overflow-x: auto;
+}
+.schedule__mobile-hint {
+  display: none;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: right;
+  padding: 0.25rem 0.5rem;
+}
+@media (max-width: 640px) {
+  .schedule__mobile-hint {
+    display: block;
+  }
+}
+.schedule__detail-artifact-btn {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.75rem;
+}
+.schedule__log-status--ok {
+  color: var(--success-text);
+}
+.schedule__log-status--fail {
+  color: var(--error-text);
+}
+.stat-card__value--success {
+  color: var(--success-text);
+}
+.stat-card__value--error {
+  color: var(--error-text);
+}
+.stat-card__value--warning {
+  color: var(--warning-text);
+}
+.stat-card__hint {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+.schedule__missed-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--warning-text);
+  background: var(--warning-bg, rgba(255, 170, 0, 0.1));
+  border-radius: 4px;
+}
+.schedule__rate-value--high {
+  color: var(--success-text);
+}
+.schedule__rate-value--mid {
+  color: var(--warning-text);
+}
+.schedule__rate-value--low {
+  color: var(--error-text);
+}

@@ -6,12 +6,23 @@ interface GitData {
   staged: number;
   unstaged: number;
   untracked: number;
-  lastCommit: { sha: string; author: string; relativeTime: string; message: string } | null;
+  lastCommit: {
+    sha: string;
+    author: string;
+    relativeTime: string;
+    message: string;
+  } | null;
   ahead: number;
   behind: number;
 }
 
-export function GitBadge({ git, className = '' }: { git: GitData; className?: string }) {
+export function GitBadge({
+  git,
+  className = '',
+}: {
+  git: GitData;
+  className?: string;
+}) {
   return (
     <GitTooltip git={git}>
       <span className={`git-badge ${className}`.trim()}>

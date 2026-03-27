@@ -491,6 +491,18 @@
   border: 1px dashed var(--border-primary);
   border-radius: 0.5rem;
 }
+.plugins__empty-cta {
+  display: block;
+  margin: 0.75rem auto 0;
+  padding: 0.5rem 1rem;
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+}
 
 /* ── Registry Modal ── */
 .plugins__modal-overlay {
@@ -833,7 +845,9 @@
   animation: plugins-spin 0.8s linear infinite;
 }
 @keyframes plugins-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .plugins__installing-text {
   margin: 0;
@@ -1062,5 +1076,23 @@
   .plugins__modal-close {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  .editor-btn {
+    min-height: 44px;
+  }
+
+  .plugins__install-btn,
+  .plugins__browse-btn {
+    min-height: 44px;
+  }
+
+  .plugins__update-all-btn {
+    min-height: 44px;
+  }
+
+  .plugins__modal--install .plugins__modal-body--visible {
+    max-height: 70vh;
+    overflow-y: auto;
   }
 }

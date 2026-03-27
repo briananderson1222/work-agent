@@ -2,9 +2,9 @@ import { useAgentsQuery } from '@stallion-ai/sdk';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ACPConnectionsSection } from '../components/ACPConnectionsSection';
-import { DetailHeader } from '../components/DetailHeader';
 import { AgentIcon } from '../components/AgentIcon';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import {
   type AgentData,
@@ -143,8 +143,12 @@ export function AgentsView({
     },
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [addModalType, setAddModalType] = useState<'integrations' | 'skills' | 'prompts' | null>(null);
-  const [integrationTools, setIntegrationTools] = useState<Record<string, Tool[]>>({});
+  const [addModalType, setAddModalType] = useState<
+    'integrations' | 'skills' | 'prompts' | null
+  >(null);
+  const [integrationTools, setIntegrationTools] = useState<
+    Record<string, Tool[]>
+  >({});
 
   // Use live agents from context, fall back to prop
   const allAgents = liveAgents.length > 0 ? liveAgents : agents;
@@ -180,7 +184,11 @@ export function AgentsView({
       id: `__acp:${c.id}`,
       name: c.name || c.id,
       subtitle: `${(c.modes || []).length} agents · ACP`,
-      icon: c.icon ? <img src={c.icon} alt="" className="agents-list__acp-icon" /> : <span className="agents-list__acp-emoji">🔌</span>,
+      icon: c.icon ? (
+        <img src={c.icon} alt="" className="agents-list__acp-icon" />
+      ) : (
+        <span className="agents-list__acp-emoji">🔌</span>
+      ),
     }));
     return [...agentItems, ...connItems];
   }, [filteredAgents, acpConnections]);
@@ -190,7 +198,9 @@ export function AgentsView({
       try {
         setIsLoading(true);
         setError(null);
-        const res = await fetch(`${apiBase}/api/agents/${encodeURIComponent(slug)}`);
+        const res = await fetch(
+          `${apiBase}/api/agents/${encodeURIComponent(slug)}`,
+        );
         if (res.status === 404) throw new Error('Agent not found');
         if (!res.ok) throw new Error('Failed to load agent');
         const data = await res.json();
@@ -210,12 +220,15 @@ export function AgentsView({
             const grouped: Record<string, Tool[]> = {};
             for (const tool of toolsData.data || []) {
               if (tool.server) {
-                (grouped[tool.server] ??= []).push(tool);
+                if (!grouped[tool.server]) grouped[tool.server] = [];
+                grouped[tool.server].push(tool);
               }
             }
             setIntegrationTools(grouped);
           }
-        } catch { /* non-critical */ }
+        } catch {
+          /* non-critical */
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -239,12 +252,13 @@ export function AgentsView({
     setAdvancedOpen(false);
   }
 
-  function handleNew() {
+  function handleNew(initialForm?: Partial<AgentFormData>) {
     urlSelect('new');
     setIsCreating(true);
-    setTemplatePicked(agents.length === 0);
-    setForm(EMPTY_FORM);
-    setSavedForm(EMPTY_FORM);
+    setTemplatePicked(!!initialForm || agents.length === 0);
+    const base = initialForm ? { ...EMPTY_FORM, ...initialForm } : EMPTY_FORM;
+    setForm(base);
+    setSavedForm(base);
     setError(null);
     setValidationErrors({});
     setAdvancedOpen(false);
@@ -320,7 +334,9 @@ export function AgentsView({
   const selectedAgent = allAgents.find((a) => a.slug === selectedSlug);
   const isAcp = selectedAgent?.source === 'acp';
   const locked = !!(isPlugin && isLocked) || !!isAcp;
-  const selectedAcpConnection = selectedSlug?.startsWith('__acp:') ? selectedSlug.slice(6) : null;
+  const selectedAcpConnection = selectedSlug?.startsWith('__acp:')
+    ? selectedSlug.slice(6)
+    : null;
   const notFound = !isCreating && error === 'Agent not found';
 
   const editorId = isCreating ? '__new__' : (selectedSlug ?? null);
@@ -356,20 +372,17 @@ export function AgentsView({
                     <button
                       key={t.id}
                       className="template-card"
-                      onClick={() => {
-                        handleNew();
-                        setTimeout(() => {
-                          setForm((f) => ({ ...f, ...t.form }));
-                          setSavedForm((f) => ({ ...f, ...t.form }));
-                          setTemplatePicked(true);
-                        }, 0);
-                      }}
+                      onClick={() => handleNew(t.form)}
                     >
                       <span className="template-card__icon">{t.icon}</span>
                       <span className="template-card__label">{t.label}</span>
-                      <span className="template-card__desc">{t.description}</span>
+                      <span className="template-card__desc">
+                        {t.description}
+                      </span>
                       {t.source !== 'built-in' && (
-                        <span className="template-card__source">{t.source}</span>
+                        <span className="template-card__source">
+                          {t.source}
+                        </span>
                       )}
                     </button>
                   ))}
@@ -379,7 +392,9 @@ export function AgentsView({
               <div className="split-pane__empty">
                 <div className="split-pane__empty-icon">⬡</div>
                 <p className="split-pane__empty-title">No agent selected</p>
-                <p className="split-pane__empty-desc">Select an agent to edit, or create a new one</p>
+                <p className="split-pane__empty-desc">
+                  Select an agent to edit, or create a new one
+                </p>
               </div>
             )}
           </div>
@@ -398,19 +413,51 @@ export function AgentsView({
           <div className="split-pane__empty">
             <div className="split-pane__empty-icon">⬡</div>
             <p className="split-pane__empty-title">Agent not found</p>
-            <p className="split-pane__empty-desc">The agent "{selectedSlug}" doesn't exist or was deleted.</p>
-            <button type="button" className="editor-btn editor-btn--primary" onClick={handleDeselect}>Back to agents</button>
+            <p className="split-pane__empty-desc">
+              The agent "{selectedSlug}" doesn't exist or was deleted.
+            </p>
+            <button
+              type="button"
+              className="editor-btn editor-btn--primary"
+              onClick={handleDeselect}
+            >
+              Back to agents
+            </button>
           </div>
         ) : (
           <div className="agent-inline-editor">
             {/* Editor header */}
             <DetailHeader
               title={isCreating ? 'New Agent' : form.name || selectedSlug || ''}
-              icon={!isCreating && selectedAgent ? <AgentIcon agent={selectedAgent} size="medium" className="editor-icon-preview" /> : undefined}
-              badge={isAcp ? { label: 'ACP', variant: 'muted' as const } : isPlugin ? { label: selectedSlug?.split(':')[0] || 'plugin', variant: 'info' as const } : undefined}
+              icon={
+                !isCreating && selectedAgent ? (
+                  <AgentIcon
+                    agent={selectedAgent}
+                    size="medium"
+                    className="editor-icon-preview"
+                  />
+                ) : undefined
+              }
+              badge={
+                isAcp
+                  ? { label: 'ACP', variant: 'muted' as const }
+                  : isPlugin
+                    ? {
+                        label: selectedSlug?.split(':')[0] || 'plugin',
+                        variant: 'info' as const,
+                      }
+                    : undefined
+              }
             >
               {!isCreating && selectedSlug && !isAcp && (
-                <button type="button" className="editor-btn editor-btn--danger" onClick={() => setShowDeleteModal(true)} disabled={locked}>Delete</button>
+                <button
+                  type="button"
+                  className="editor-btn editor-btn--danger"
+                  onClick={() => setShowDeleteModal(true)}
+                  disabled={locked}
+                >
+                  Delete
+                </button>
               )}
               {!isAcp && (
                 <button
@@ -425,15 +472,17 @@ export function AgentsView({
                       aria-label="Unsaved changes"
                     />
                   )}
-                  {isSaving ? 'Saving…' : isCreating ? 'Create Agent' : 'Save Changes'}
+                  {isSaving
+                    ? 'Saving…'
+                    : isCreating
+                      ? 'Create Agent'
+                      : 'Save Changes'}
                 </button>
               )}
             </DetailHeader>
 
             {error && (
-              <div
-                className="management-view__error agent-editor__error-banner"
-              >
+              <div className="management-view__error agent-editor__error-banner">
                 {error}
               </div>
             )}

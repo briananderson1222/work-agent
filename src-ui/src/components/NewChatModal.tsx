@@ -1,17 +1,24 @@
 import { useLayoutQuery } from '@stallion-ai/sdk';
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import type { AgentData } from '../contexts/AgentsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectMetadata } from '../contexts/ProjectsContext';
-import { getRecentAgentSlugs, trackRecentAgent } from '../hooks/useRecentAgents';
+import {
+  getRecentAgentSlugs,
+  trackRecentAgent,
+} from '../hooks/useRecentAgents';
 import { AgentIcon } from './AgentIcon';
 
 interface NewChatModalProps {
   agents: AgentData[];
   projects: ProjectMetadata[];
   activeProjectSlug?: string | null;
-  onSelect: (agent: AgentData, projectSlug?: string, projectName?: string) => void;
+  onSelect: (
+    agent: AgentData,
+    projectSlug?: string,
+    projectName?: string,
+  ) => void;
   onClose: () => void;
 }
 
@@ -78,7 +85,9 @@ export function NewChatModal({
     return contextOptions.filter((o) => o.label.toLowerCase().includes(q));
   }, [contextOptions, contextSearch]);
 
-  const currentContextOption = contextOptions.find((o) => o.value === selectedContext);
+  const currentContextOption = contextOptions.find(
+    (o) => o.value === selectedContext,
+  );
 
   // Close context dropdown on outside click
   useEffect(() => {
@@ -133,9 +142,9 @@ export function NewChatModal({
     const recentSlugs = getRecentForContext(selectedContext);
     const recentAgents = agentSearch
       ? []
-      : recentSlugs
+      : (recentSlugs
           .map((s) => filtered.find((a) => a.slug === s))
-          .filter(Boolean) as AgentData[];
+          .filter(Boolean) as AgentData[]);
     const recentSet = new Set(recentSlugs);
 
     const groups: AgentGroup[] = [];
@@ -143,7 +152,8 @@ export function NewChatModal({
     if (recentAgents.length > 0)
       groups.push({ label: 'Recent', icon: '🕐', agents: recentAgents });
 
-    const showLayoutAgents = isGlobal || (selectedProject?.layoutCount ?? 0) > 0;
+    const showLayoutAgents =
+      isGlobal || (selectedProject?.layoutCount ?? 0) > 0;
 
     const wsName = layout?.name;
     if (showLayoutAgents && wsAgents.length > 0)
@@ -154,7 +164,9 @@ export function NewChatModal({
       });
 
     for (const [conn, connAgents] of acpGroups) {
-      const visible = connAgents.filter((a) => !recentSet.has(a.slug) || !!agentSearch);
+      const visible = connAgents.filter(
+        (a) => !recentSet.has(a.slug) || !!agentSearch,
+      );
       if (visible.length > 0)
         groups.push({ label: conn, icon: '🔌', agents: visible });
     }
@@ -163,14 +175,25 @@ export function NewChatModal({
       groups.push({
         label: 'Global',
         icon: '🌐',
-        agents: globalAgents.filter((a) => !recentSet.has(a.slug) || !!agentSearch),
+        agents: globalAgents.filter(
+          (a) => !recentSet.has(a.slug) || !!agentSearch,
+        ),
       });
 
     const flatList = groups
       .filter((g) => g.agents.length > 0)
       .flatMap((g) => g.agents);
     return { groups: groups.filter((g) => g.agents.length > 0), flatList };
-  }, [agents, agentSearch, wsAgentSlugs, layout?.icon, layout?.name, selectedContext, isGlobal, selectedProject?.layoutCount]);
+  }, [
+    agents,
+    agentSearch,
+    wsAgentSlugs,
+    layout?.icon,
+    layout?.name,
+    selectedContext,
+    isGlobal,
+    selectedProject?.layoutCount,
+  ]);
 
   const handleSelect = (agent: AgentData) => {
     trackRecentAgent(agent.slug);
@@ -189,7 +212,9 @@ export function NewChatModal({
 
           {/* Context picker */}
           <div className="new-chat-modal__context-picker" ref={contextRef}>
-            <label className="new-chat-modal__context-label-text">Context</label>
+            <label className="new-chat-modal__context-label-text">
+              Context
+            </label>
             <button
               className="new-chat-modal__context-button"
               onClick={() => {
@@ -198,7 +223,9 @@ export function NewChatModal({
               }}
             >
               {currentContextOption?.icon && (
-                <span className="new-chat-modal__context-icon">{currentContextOption.icon}</span>
+                <span className="new-chat-modal__context-icon">
+                  {currentContextOption.icon}
+                </span>
               )}
               <span className="new-chat-modal__context-label">
                 {currentContextOption?.label || 'Select context'}
@@ -208,11 +235,17 @@ export function NewChatModal({
                   <CwdBreadcrumb path={selectedProject.workingDirectory} />
                 </span>
               )}
-              {!isGlobal && selectedProject && !selectedProject.workingDirectory && (
-                <span className="new-chat-modal__context-dir new-chat-modal__context-dir--fallback">~ (defaults to home)</span>
-              )}
+              {!isGlobal &&
+                selectedProject &&
+                !selectedProject.workingDirectory && (
+                  <span className="new-chat-modal__context-dir new-chat-modal__context-dir--fallback">
+                    ~ (defaults to home)
+                  </span>
+                )}
               {isGlobal && (
-                <span className="new-chat-modal__context-dir new-chat-modal__context-dir--fallback">~ (home directory)</span>
+                <span className="new-chat-modal__context-dir new-chat-modal__context-dir--fallback">
+                  ~ (home directory)
+                </span>
               )}
               <span className="new-chat-modal__chevron">▾</span>
             </button>
@@ -241,7 +274,9 @@ export function NewChatModal({
                     }}
                   >
                     <span className="new-chat-modal__dropdown-item-main">
-                      <span>{opt.icon} {opt.label}</span>
+                      <span>
+                        {opt.icon} {opt.label}
+                      </span>
                       {opt.workingDirectory && (
                         <span className="new-chat-modal__dropdown-item-dir">
                           <CwdBreadcrumb path={opt.workingDirectory} />
@@ -270,7 +305,9 @@ export function NewChatModal({
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setSelectedAgentIndex((p) => Math.min(p + 1, flatList.length - 1));
+                setSelectedAgentIndex((p) =>
+                  Math.min(p + 1, flatList.length - 1),
+                );
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 setSelectedAgentIndex((p) => Math.max(p - 1, 0));
@@ -289,7 +326,8 @@ export function NewChatModal({
               <div
                 className={`new-chat-modal__group-label ${group.icon === '🔌' ? 'new-chat-modal__group-label--acp' : ''}`}
                 style={{
-                  borderTop: gi > 0 ? '1px solid var(--border-primary)' : undefined,
+                  borderTop:
+                    gi > 0 ? '1px solid var(--border-primary)' : undefined,
                 }}
               >
                 {group.icon && <>{group.icon} </>}

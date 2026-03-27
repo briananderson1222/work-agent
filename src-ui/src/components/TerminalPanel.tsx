@@ -28,7 +28,8 @@ export function TerminalPanel({
       cursorBlink: true,
       convertEol: true,
       fontSize: 12,
-      fontFamily: "'MesloLGS NF', 'MesloLGM Nerd Font', 'Hack Nerd Font', 'FiraCode Nerd Font', 'JetBrainsMono Nerd Font', Menlo, courier-new, courier, monospace",
+      fontFamily:
+        "'MesloLGS NF', 'MesloLGM Nerd Font', 'Hack Nerd Font', 'FiraCode Nerd Font', 'JetBrainsMono Nerd Font', Menlo, courier-new, courier, monospace",
       theme: {
         background: '#1a1a2e',
         foreground: '#e0e0e0',

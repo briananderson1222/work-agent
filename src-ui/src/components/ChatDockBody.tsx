@@ -140,24 +140,27 @@ export function ChatDockBody({
   );
   const ephemeralMessages = activeSession.messages.filter((m) => m.isEphemeral);
 
-  const handleDismissEphemeral = useCallback((messageId: string) => {
-    setRemovingMessages((prev) => new Set(prev).add(messageId));
-    setTimeout(() => {
-      const updated = ephemeralMessages.filter(
-        (m, i) => ((m as any).id || `ephemeral-${i}`) !== messageId,
-      );
-      if (updated.length === 0) {
-        clearEphemeralMessages(activeSession.id);
-      } else {
-        updateChat(activeSession.id, { ephemeralMessages: updated });
-      }
-      setRemovingMessages((prev) => {
-        const next = new Set(prev);
-        next.delete(messageId);
-        return next;
-      });
-    }, 300);
-  }, [ephemeralMessages, activeSession.id, clearEphemeralMessages, updateChat]);
+  const handleDismissEphemeral = useCallback(
+    (messageId: string) => {
+      setRemovingMessages((prev) => new Set(prev).add(messageId));
+      setTimeout(() => {
+        const updated = ephemeralMessages.filter(
+          (m, i) => ((m as any).id || `ephemeral-${i}`) !== messageId,
+        );
+        if (updated.length === 0) {
+          clearEphemeralMessages(activeSession.id);
+        } else {
+          updateChat(activeSession.id, { ephemeralMessages: updated });
+        }
+        setRemovingMessages((prev) => {
+          const next = new Set(prev);
+          next.delete(messageId);
+          return next;
+        });
+      }, 300);
+    },
+    [ephemeralMessages, activeSession.id, clearEphemeralMessages, updateChat],
+  );
 
   const agent = agents.find((a) => a.slug === activeSession.agentSlug);
 
@@ -207,7 +210,13 @@ export function ChatDockBody({
 
       return null; // Use default MessageBubble rendering
     },
-    [chatFontSize, removingMessages, activeSession.id, clearEphemeralMessages, handleDismissEphemeral],
+    [
+      chatFontSize,
+      removingMessages,
+      activeSession.id,
+      clearEphemeralMessages,
+      handleDismissEphemeral,
+    ],
   );
 
   return (

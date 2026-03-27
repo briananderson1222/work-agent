@@ -1,6 +1,5 @@
-import { FullScreenError } from '@stallion-ai/sdk';
+import { FullScreenError, LayoutHeader } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
-import { LayoutHeader } from '@stallion-ai/sdk';
 import { pluginRegistry } from '../core/PluginRegistry';
 import type {
   AgentQuickPrompt,
@@ -47,9 +46,7 @@ const DefaultLayout: AgentLayoutComponent = ({ layout, onShowChat }) => (
         <circle cx="26" cy="14" r="1.5" fill="currentColor" stroke="none" />
         <path d="M16 28l4-4 3 3 5-5 4 4" opacity="0.5" />
       </svg>
-      <h3 className="workspace-default__title">
-        {layout?.name || 'Layout'}
-      </h3>
+      <h3 className="workspace-default__title">{layout?.name || 'Layout'}</h3>
       <p className="workspace-default__desc">
         Start a conversation or schedule an automated job to get things moving.
       </p>
@@ -126,12 +123,36 @@ export function LayoutRenderer({
             actions={layout.actions}
             layoutPrompts={layout.globalPrompts}
             onLayoutPromptSelect={onLaunchPrompt}
-            onLaunchAction={onLaunchPrompt ? (action) => onLaunchPrompt({ id: action.data, label: action.label, prompt: action.type === 'inline-prompt' ? action.data : action.label }) : undefined}
+            onLaunchAction={
+              onLaunchPrompt
+                ? (action) =>
+                    onLaunchPrompt({
+                      id: action.data,
+                      label: action.label,
+                      prompt:
+                        action.type === 'inline-prompt'
+                          ? action.data
+                          : action.label,
+                    })
+                : undefined
+            }
             title={activeTab?.label || layout.name}
             description={activeTab?.description || layout.description || ''}
             tabActions={activeTab?.actions as any}
             tabPrompts={activeTab?.prompts as any}
-            onTabPromptSelect={onLaunchPrompt ? (action: any) => onLaunchPrompt({ id: action.data || action.id, label: action.label, prompt: action.type === 'inline-prompt' ? action.data : (action.prompt || action.label) }) : undefined}
+            onTabPromptSelect={
+              onLaunchPrompt
+                ? (action: any) =>
+                    onLaunchPrompt({
+                      id: action.data || action.id,
+                      label: action.label,
+                      prompt:
+                        action.type === 'inline-prompt'
+                          ? action.data
+                          : action.prompt || action.label,
+                    })
+                : undefined
+            }
             onRefresh={onRefresh}
             loading={loading}
           />

@@ -1,19 +1,13 @@
 import { LoadingState } from '@stallion-ai/sdk';
 import type { SchedulerJob } from '@stallion-ai/shared';
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import {
+  cronToHuman,
   JobDetail,
   JobFormModal,
-  RateCell,
-  cronToHuman,
   localTime,
+  RateCell,
   relTime,
 } from '../components/scheduler';
 import { useNavigation } from '../contexts/NavigationContext';
@@ -103,7 +97,8 @@ export function ScheduleView() {
   } = useSchedulerStatus();
   const { data: providers = [] } = useSchedulerProviders();
   const schedulerAvailable = !jobsError && !statusError;
-  const { isRunning, markErrorShown } = useSchedulerEvents(schedulerAvailable);
+  const { isRunning, markErrorShown, getMissedCount } =
+    useSchedulerEvents(schedulerAvailable);
   const runJob = useRunJob();
   const toggleJob = useToggleJob();
   const deleteJob = useDeleteJob();
@@ -113,7 +108,11 @@ export function ScheduleView() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingJob, setEditingJob] = useState<SchedulerJob | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [prefill, setPrefill] = useState<Partial<{ name: string; cron: string; prompt: string }> | null>(null);
+  const [prefill, setPrefill] = useState<Partial<{
+    name: string;
+    cron: string;
+    prompt: string;
+  }> | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     message: string;
@@ -137,9 +136,14 @@ export function ScheduleView() {
     }
   }, [jobs, isLoading, updateParams]);
 
-  const statsMap = new Map<string, { name: string; total: number; success_rate: number }>();
+  const statsMap = new Map<
+    string,
+    { name: string; total: number; success_rate: number }
+  >();
   if (stats?.providers) {
-    for (const provStats of Object.values(stats.providers) as { jobs?: { name: string; total: number; success_rate: number }[] }[]) {
+    for (const provStats of Object.values(stats.providers) as {
+      jobs?: { name: string; total: number; success_rate: number }[];
+    }[]) {
       for (const s of provStats.jobs || []) statsMap.set(s.name, s);
     }
   }
@@ -206,7 +210,17 @@ export function ScheduleView() {
 
   const daemonOk =
     !statusError &&
-    Object.values(status?.providers || {}).some((p) => (p as { running?: boolean }).running);
+    Object.values(status?.providers || {}).some(
+      (p) => (p as { running?: boolean }).running,
+    );
+  const schedulerHealthy =
+    !statusError &&
+    Object.values(status?.providers || {}).every(
+      (p) => (p as { healthy?: boolean }).healthy !== false,
+    );
+  const lastTickAt = Object.values(status?.providers || {}).find(
+    (p) => (p as { lastTickAt?: string }).lastTickAt,
+  ) as { lastTickAt?: string } | undefined;
   const totalRuns = stats?.summary?.totalRuns ?? 0;
   const successRate = stats?.summary?.successRate ?? -1;
 
@@ -228,31 +242,44 @@ export function ScheduleView() {
         </div>
       </div>
 
-      {isLoading && loadingStats && loadingStatus ? (
+      {isLoading || loadingStats || loadingStatus ? (
         <LoadingState message="Loading scheduler..." />
       ) : (
         <>
           {/* Stats */}
-          <div className="schedule__stats" role="status" aria-label="Scheduler statistics">
+          <div
+            className="schedule__stats"
+            role="status"
+            aria-label="Scheduler statistics"
+          >
             <div
-              className={`stat-card ${statusError ? 'stat-card--warning' : daemonOk ? 'stat-card--success' : 'stat-card--error'}`}
+              className={`stat-card ${statusError ? 'stat-card--warning' : daemonOk && schedulerHealthy ? 'stat-card--success' : daemonOk ? 'stat-card--warning' : 'stat-card--error'}`}
             >
               <div className="stat-card__label">Scheduler</div>
               <div
                 className={`stat-card__value ${
                   statusError
                     ? 'stat-card__value--warning'
-                    : daemonOk
+                    : daemonOk && schedulerHealthy
                       ? 'stat-card__value--success'
-                      : 'stat-card__value--error'
+                      : daemonOk
+                        ? 'stat-card__value--warning'
+                        : 'stat-card__value--error'
                 }`}
               >
                 {statusError
                   ? '⚠ Unreachable'
-                  : daemonOk
-                    ? '● Running'
-                    : '○ Stopped'}
+                  : daemonOk && schedulerHealthy
+                    ? '● Healthy'
+                    : daemonOk
+                      ? '⚠ Degraded'
+                      : '○ Stopped'}
               </div>
+              {lastTickAt?.lastTickAt && (
+                <div className="stat-card__hint">
+                  Last tick {relTime(lastTickAt.lastTickAt)}
+                </div>
+              )}
             </div>
             <div className="stat-card stat-card--accent">
               <div className="stat-card__label">Jobs</div>
@@ -364,6 +391,7 @@ export function ScheduleView() {
               </div>
             ) : (
               <div className="schedule__table-scroll">
+                <span className="schedule__mobile-hint">Swipe for more →</span>
                 <table className="schedule__table" aria-label="Scheduled jobs">
                   <thead>
                     <tr>
@@ -404,6 +432,7 @@ export function ScheduleView() {
                     {sortedJobs.map((job) => {
                       const isExpanded = expanded === job.name;
                       const running = isRunning(job.name);
+                      const missed = getMissedCount(job.name);
                       return (
                         <Fragment key={job.id}>
                           <tr
@@ -421,6 +450,14 @@ export function ScheduleView() {
                                 <IconChevron />
                               </span>
                               {job.name}
+                              {missed > 0 && (
+                                <span
+                                  className="schedule__missed-badge"
+                                  title={`${missed} scheduled run${missed > 1 ? 's' : ''} missed (job still running)`}
+                                >
+                                  ⚠ {missed} missed
+                                </span>
+                              )}
                             </td>
                             <td className="schedule__td schedule__td--schedule">
                               <div>{job.cron || '-'}</div>
@@ -499,13 +536,30 @@ export function ScheduleView() {
                               <div className="schedule__actions">
                                 <button
                                   title="Edit"
+                                  aria-label={`Edit ${job.name}`}
                                   onClick={() => setEditingJob(job)}
                                   className="schedule__action-btn"
                                 >
                                   <IconEdit />
                                 </button>
                                 <button
+                                  title="Duplicate"
+                                  aria-label={`Duplicate ${job.name}`}
+                                  onClick={() => {
+                                    setPrefill({
+                                      name: `${job.name}-copy`,
+                                      cron: job.cron,
+                                      prompt: job.prompt,
+                                    });
+                                    setShowAddForm(true);
+                                  }}
+                                  className="schedule__action-btn"
+                                >
+                                  ⧉
+                                </button>
+                                <button
                                   title="Run now"
+                                  aria-label={`Run ${job.name}`}
                                   data-testid={`run-${job.name}`}
                                   disabled={running}
                                   onClick={() => handleRun(job.name)}
@@ -516,6 +570,7 @@ export function ScheduleView() {
                                 {job.openArtifact && (
                                   <button
                                     title="Open artifact"
+                                    aria-label={`Open artifact for ${job.name}`}
                                     onClick={() =>
                                       openArtifact.mutate(job.openArtifact)
                                     }
@@ -526,6 +581,7 @@ export function ScheduleView() {
                                 )}
                                 <button
                                   title="Delete"
+                                  aria-label={`Delete ${job.name}`}
                                   onClick={() => {
                                     setConfirmAction({
                                       title: 'Delete Job',

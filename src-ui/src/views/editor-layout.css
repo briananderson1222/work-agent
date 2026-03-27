@@ -583,9 +583,12 @@
   color: var(--text-muted);
 }
 
-.editor-input:disabled {
+.editor-input:disabled,
+.editor-select:disabled,
+.editor-textarea:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  background: var(--bg-tertiary, var(--bg-secondary));
 }
 
 .editor-textarea {
@@ -761,6 +764,7 @@
 .agent-inline-editor__body {
   flex: 1;
   overflow-y: auto;
+  padding-bottom: calc(var(--chat-dock-height, 49px) + 16px);
 }
 
 /* ── Agent Editor Sections ── */
@@ -1297,7 +1301,11 @@
 /* ACP info banner variant */
 .editor__lock-banner--info {
   background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
-  border-bottom-color: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--accent-primary) 20%,
+    transparent
+  );
   color: var(--text-secondary);
 }
 
@@ -1508,7 +1516,7 @@
   width: 100%;
   min-height: 280px;
   padding: 12px 14px;
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-primary);
@@ -1602,6 +1610,23 @@
   .editor-btn--small {
     min-height: 44px;
   }
+
+  .editor-btn {
+    min-height: 44px;
+  }
+
+  .agent-editor__section-toggle {
+    min-height: 44px;
+  }
+
+  .editor-enrich-btn {
+    min-height: 44px;
+  }
+
+  .editor-icon-preview {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* ═══ Agent Editor — Label Row Actions ═══ */
@@ -1668,6 +1693,18 @@
   display: flex;
   justify-content: flex-end;
 }
+.editor-add-modal__search {
+  margin-bottom: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.editor-add-modal__loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
 
 /* ═══ Agent Editor — Expandable Integration Tools ═══ */
 .editor__tools-server-header .agent-editor__chevron {
@@ -1728,8 +1765,81 @@
 }
 
 /* Agent editor extracted inline styles */
-.editor-icon-preview { border-radius: 10px; flex-shrink: 0; }
-.editor__tools-server-header--clickable { cursor: pointer; }
-.editor-required { color: var(--color-danger, #e53935); margin-left: 2px; }
-.agents-list__acp-icon { width: 20px; height: 20px; border-radius: 4px; }
-.agents-list__acp-emoji { font-size: 14px; }
+.editor-icon-preview {
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.editor__tools-server-header--clickable {
+  cursor: pointer;
+}
+.editor-required {
+  color: var(--color-danger, #e53935);
+  margin-left: 2px;
+}
+.agents-list__acp-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+.agents-list__acp-emoji {
+  font-size: 14px;
+}
+
+/* ── Key-value editor rows (env vars) ── */
+.editor-kv-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.editor-input--half {
+  flex: 1;
+  min-width: 0;
+}
+.editor-btn--icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+.editor-btn--icon:hover {
+  color: var(--color-danger, #e53935);
+  border-color: var(--color-danger, #e53935);
+}
+.editor-btn--ghost {
+  background: transparent;
+  border: 1px dashed var(--border-primary);
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  width: 100%;
+  margin-top: 4px;
+}
+.editor-btn--ghost:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* Mobile touch targets — 44px minimum */
+@media (max-width: 768px) {
+  .editor-btn {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+  .editor-enrich-btn {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}

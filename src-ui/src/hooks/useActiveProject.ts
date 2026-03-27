@@ -22,8 +22,10 @@ export function useActiveProject(): {
   const { project } = useProject(slug ?? '');
 
   return useMemo(() => {
-    if (!slug) return { projectSlug: null, projectName: null, workingDirectory: null };
-    const name = project?.name ?? projects.find((p: any) => p.slug === slug)?.name ?? slug;
+    if (!slug)
+      return { projectSlug: null, projectName: null, workingDirectory: null };
+    const name =
+      project?.name ?? projects.find((p: any) => p.slug === slug)?.name ?? slug;
     return {
       projectSlug: slug,
       projectName: name,

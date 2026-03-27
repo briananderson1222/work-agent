@@ -103,6 +103,11 @@ const API_BASE = (() => {
 // Set API base for SDK before rendering
 _setApiBase(API_BASE);
 
+// Restore accent color from localStorage
+const _accent = localStorage.getItem('stallion-accent-color');
+if (_accent)
+  document.documentElement.style.setProperty('--accent-primary', _accent);
+
 // Initialize plugins before rendering
 pluginRegistry.setApiBase(API_BASE);
 pluginRegistry.initialize().then(() => {

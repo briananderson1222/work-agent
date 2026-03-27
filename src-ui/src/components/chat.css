@@ -80,6 +80,64 @@
   }
 }
 
+/* Mobile: overflow menu for secondary actions */
+.app-toolbar__overflow-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .app-toolbar__action--secondary {
+    display: none;
+  }
+  .app-toolbar__overflow-btn {
+    display: flex;
+  }
+  .app-toolbar__icon-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+  .app-toolbar__conn-name {
+    display: none;
+  }
+}
+
+.app-toolbar__overflow-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  z-index: 100;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  min-width: 160px;
+}
+
+.app-toolbar__overflow-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.app-toolbar__overflow-menu button:hover {
+  background: var(--bg-tertiary);
+}
+
+.app-toolbar__overflow-menu button + button {
+  border-top: 1px solid var(--border-primary);
+}
+
 /* ── Header Buttons ── */
 .app-toolbar__workspace-btn {
   font-family: "DM Sans", system-ui, sans-serif;
@@ -506,8 +564,13 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .message__model-badge {
@@ -786,7 +849,7 @@
   padding: 4px 10px;
   margin-top: 8px;
   font-size: 0.7rem;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   color: #e5534b;
   background: rgba(229, 83, 75, 0.1);
   border-radius: 4px;
@@ -794,8 +857,13 @@
 }
 
 @keyframes pulse-waiting {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ── Mobile responsive ── */
@@ -834,6 +902,18 @@
   .app-toolbar__icon-btn {
     min-height: 44px;
     min-width: 44px;
+  }
+
+  .app-toolbar__actions {
+    gap: 4px;
+  }
+
+  .app-toolbar__icon-btn--help {
+    display: none;
+  }
+
+  .app-toolbar__conn-name {
+    display: none;
   }
 
   .message__rating-btn {

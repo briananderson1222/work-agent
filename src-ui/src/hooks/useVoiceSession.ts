@@ -25,7 +25,11 @@ function float32ToInt16(input: Float32Array): Int16Array {
   return out;
 }
 
-function downsample(input: Float32Array, fromRate: number, toRate: number): Float32Array {
+function downsample(
+  input: Float32Array,
+  fromRate: number,
+  toRate: number,
+): Float32Array {
   if (fromRate === toRate) return input;
   const ratio = fromRate / toRate;
   const length = Math.ceil(input.length / ratio);
@@ -54,7 +58,8 @@ function base64ToInt16(b64: string): Int16Array {
 function int16ToBase64(buf: Int16Array): string {
   const bytes = new Uint8Array(buf.buffer);
   let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i++)
+    binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
 }
 
@@ -62,7 +67,9 @@ export function useVoiceSession(): UseVoiceSessionResult {
   const { apiBase } = useApiBase();
   const [state, setState] = useState<VoiceState>('idle');
   const [transcript, setTranscript] = useState('');
-  const [transcriptRole, setTranscriptRole] = useState<'user' | 'assistant' | null>(null);
+  const [transcriptRole, setTranscriptRole] = useState<
+    'user' | 'assistant' | null
+  >(null);
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -79,12 +86,14 @@ export function useVoiceSession(): UseVoiceSessionResult {
   const outputSampleRateRef = useRef(24000);
 
   // Keep isMutedRef in sync so the audio processor closure sees current value
-  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   const stopMic = useCallback(() => {
     processorRef.current?.disconnect();
     processorRef.current = null;
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }, []);
 
@@ -92,7 +101,9 @@ export function useVoiceSession(): UseVoiceSessionResult {
     playQueueRef.current = [];
     isPlayingRef.current = false;
     if (currentSourceRef.current) {
-      try { currentSourceRef.current.stop(); } catch {}
+      try {
+        currentSourceRef.current.stop();
+      } catch {}
       currentSourceRef.current = null;
     }
     setAudioLevel(0);
@@ -129,16 +140,23 @@ export function useVoiceSession(): UseVoiceSessionResult {
     src.start();
   }, []);
 
-  const enqueueAudio = useCallback((b64: string) => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    const int16 = base64ToInt16(b64);
-    const float32 = int16ToFloat32(int16);
-    const buf = ctx.createBuffer(1, float32.length, outputSampleRateRef.current);
-    buf.copyToChannel(new Float32Array(float32), 0);
-    playQueueRef.current.push(buf);
-    if (!isPlayingRef.current) playNext();
-  }, [playNext]);
+  const enqueueAudio = useCallback(
+    (b64: string) => {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      const int16 = base64ToInt16(b64);
+      const float32 = int16ToFloat32(int16);
+      const buf = ctx.createBuffer(
+        1,
+        float32.length,
+        outputSampleRateRef.current,
+      );
+      buf.copyToChannel(new Float32Array(float32), 0);
+      playQueueRef.current.push(buf);
+      if (!isPlayingRef.current) playNext();
+    },
+    [playNext],
+  );
 
   const startMic = useCallback(() => {
     const ctx = audioCtxRef.current;
@@ -151,15 +169,22 @@ export function useVoiceSession(): UseVoiceSessionResult {
     // ScriptProcessorNode is sufficient for this use case.
     const processor = ctx.createScriptProcessor(CHUNK, 1, 1);
     processor.onaudioprocess = (e) => {
-      if (isMutedRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
+      if (isMutedRef.current || wsRef.current?.readyState !== WebSocket.OPEN)
+        return;
       const float32 = e.inputBuffer.getChannelData(0);
       // Compute RMS for audio level visualization
       let sum = 0;
       for (let i = 0; i < float32.length; i++) sum += float32[i] * float32[i];
       setAudioLevel(Math.min(1, Math.sqrt(sum / float32.length) * 5));
-      const resampled = downsample(float32, ctx.sampleRate, inputSampleRateRef.current);
+      const resampled = downsample(
+        float32,
+        ctx.sampleRate,
+        inputSampleRateRef.current,
+      );
       const int16 = float32ToInt16(resampled);
-      wsRef.current!.send(JSON.stringify({ type: 'audio_in', data: int16ToBase64(int16) }));
+      wsRef.current!.send(
+        JSON.stringify({ type: 'audio_in', data: int16ToBase64(int16) }),
+      );
     };
     source.connect(processor);
     processor.connect(ctx.destination);
@@ -177,13 +202,17 @@ export function useVoiceSession(): UseVoiceSessionResult {
     setState('connecting');
 
     try {
-      const res = await fetch(`${apiBase}/api/voice/sessions`, { method: 'POST' });
+      const res = await fetch(`${apiBase}/api/voice/sessions`, {
+        method: 'POST',
+      });
       if (!res.ok) throw new Error(`Session creation failed: ${res.status}`);
       const { sessionId: _sessionId } = await res.json();
 
       const wsUrl = new URL(apiBase);
       const voiceWsPort = parseInt(wsUrl.port || '3141', 10) + 2;
-      const ws = new WebSocket(`ws://${wsUrl.hostname}:${voiceWsPort}/?agent=stallion-voice`);
+      const ws = new WebSocket(
+        `ws://${wsUrl.hostname}:${voiceWsPort}/?agent=stallion-voice`,
+      );
       wsRef.current = ws;
 
       const ctx = new AudioContext();
@@ -191,22 +220,30 @@ export function useVoiceSession(): UseVoiceSessionResult {
 
       ws.onmessage = (ev) => {
         let msg: any;
-        try { msg = JSON.parse(ev.data); } catch (err) {
+        try {
+          msg = JSON.parse(ev.data);
+        } catch (err) {
           console.warn('[VoiceSession] Failed to parse server message:', err);
           return;
         }
 
         switch (msg.type) {
           case 'session_ready': {
-            if (msg.inputAudioFormat?.sampleRateHertz) inputSampleRateRef.current = msg.inputAudioFormat.sampleRateHertz;
-            if (msg.outputAudioFormat?.sampleRateHertz) outputSampleRateRef.current = msg.outputAudioFormat.sampleRateHertz;
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-              streamRef.current = stream;
-              startMic();
-            }).catch(err => {
-              setError(`Mic access denied: ${err.message}`);
-              setState('idle');
-            });
+            if (msg.inputAudioFormat?.sampleRateHertz)
+              inputSampleRateRef.current = msg.inputAudioFormat.sampleRateHertz;
+            if (msg.outputAudioFormat?.sampleRateHertz)
+              outputSampleRateRef.current =
+                msg.outputAudioFormat.sampleRateHertz;
+            navigator.mediaDevices
+              .getUserMedia({ audio: true })
+              .then((stream) => {
+                streamRef.current = stream;
+                startMic();
+              })
+              .catch((err) => {
+                setError(`Mic access denied: ${err.message}`);
+                setState('idle');
+              });
             break;
           }
           case 'audio_out':
@@ -249,12 +286,27 @@ export function useVoiceSession(): UseVoiceSessionResult {
       cleanup();
       setState('idle');
     }
-  }, [apiBase, startMic, enqueueAudio, stopAudio, cleanup]);
+  }, [apiBase, startMic, enqueueAudio, stopAudio, cleanup, state]);
 
-  const toggleMute = useCallback(() => setIsMuted(m => !m), []);
+  const toggleMute = useCallback(() => setIsMuted((m) => !m), []);
 
   // Cleanup on unmount
-  useEffect(() => () => { cleanup(); }, [cleanup]);
+  useEffect(
+    () => () => {
+      cleanup();
+    },
+    [cleanup],
+  );
 
-  return { state, transcript, transcriptRole, connect, disconnect, isMuted, toggleMute, error, audioLevel };
+  return {
+    state,
+    transcript,
+    transcriptRole,
+    connect,
+    disconnect,
+    isMuted,
+    toggleMute,
+    error,
+    audioLevel,
+  };
 }

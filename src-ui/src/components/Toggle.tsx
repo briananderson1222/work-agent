@@ -9,6 +9,7 @@ interface ToggleProps {
   id?: string;
   disabled?: boolean;
   size?: 'sm' | 'md';
+  describedBy?: string;
 }
 
 export function Toggle({
@@ -17,6 +18,7 @@ export function Toggle({
   id,
   disabled,
   size = 'md',
+  describedBy,
 }: ToggleProps) {
   return (
     <button
@@ -24,6 +26,7 @@ export function Toggle({
       id={id}
       role="switch"
       aria-checked={checked}
+      aria-describedby={describedBy}
       disabled={disabled}
       className={`toggle toggle--${size}${checked ? ' toggle--on' : ''}`}
       onClick={() => onChange(!checked)}

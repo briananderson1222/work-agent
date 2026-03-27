@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  getRecentAgentSlugs,
+  trackRecentAgent,
+} from '../hooks/useRecentAgents';
 import type { AgentSummary } from '../types';
-import { getRecentAgentSlugs, trackRecentAgent } from '../hooks/useRecentAgents';
 
 export interface AgentSelectorProps {
   agents: AgentSummary[];
@@ -125,7 +128,9 @@ export function AgentSelector({
         <div className="agent-selector__menu" role="menu">
           {recentAgents.length > 0 && (
             <div className="agent-selector__section">
-              <span className="agent-selector__section-title">Recently Used</span>
+              <span className="agent-selector__section-title">
+                Recently Used
+              </span>
               <ul>
                 {recentAgents.map((agent) => (
                   <li key={agent.slug}>

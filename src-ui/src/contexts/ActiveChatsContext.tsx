@@ -1005,7 +1005,13 @@ export function useOpenConversation(apiBase: string) {
   const { fetchMessages } = useConversationActions();
 
   return useCallback(
-    async (conversationId: string, agentSlug: string, agentName: string, projectSlug?: string, projectName?: string) => {
+    async (
+      conversationId: string,
+      agentSlug: string,
+      agentName: string,
+      projectSlug?: string,
+      projectName?: string,
+    ) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
 
       initChat(sessionId, {

@@ -5,10 +5,13 @@ import {
   useConnections,
 } from '@stallion-ai/connect';
 import { useState } from 'react';
+import {
+  useCreateChatSession,
+  useSendMessage,
+} from '../contexts/ActiveChatsContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import { useApiBase } from '../contexts/ApiBaseContext';
-import { useSendMessage, useCreateChatSession } from '../contexts/ActiveChatsContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { NavigationView } from '../types';
 import { getInitials } from '../utils/layout';
@@ -21,10 +24,19 @@ function checkServerHealth(url: string): Promise<boolean> {
     .catch(() => false);
 }
 
-function getHelpPrompts(view?: NavigationView): Array<{ label: string; prompt: string }> {
+function getHelpPrompts(
+  view?: NavigationView,
+): Array<{ label: string; prompt: string }> {
   const generic = [
-    { label: 'What can you do?', prompt: 'What can you help me with? List your capabilities.' },
-    { label: 'System health check', prompt: 'Run a system health check and tell me if anything needs attention.' },
+    {
+      label: 'What can you do?',
+      prompt: 'What can you help me with? List your capabilities.',
+    },
+    {
+      label: 'System health check',
+      prompt:
+        'Run a system health check and tell me if anything needs attention.',
+    },
   ];
 
   if (!view) return generic;
@@ -34,35 +46,57 @@ function getHelpPrompts(view?: NavigationView): Array<{ label: string; prompt: s
   switch (view.type) {
     case 'agents':
       contextual.push(
-        { label: 'Create an agent for me', prompt: 'Help me create a new agent. Ask me what I need it to do.' },
-        { label: 'What skills should I add?', prompt: 'List available skills and recommend which ones to install based on common use cases.' },
+        {
+          label: 'Create an agent for me',
+          prompt: 'Help me create a new agent. Ask me what I need it to do.',
+        },
+        {
+          label: 'What skills should I add?',
+          prompt:
+            'List available skills and recommend which ones to install based on common use cases.',
+        },
       );
       break;
     case 'connections-tools':
       contextual.push(
-        { label: 'Add an MCP server', prompt: 'Help me add a new MCP tool server. What popular ones are available?' },
-        { label: 'Browse the registry', prompt: 'List available integrations from the registry and help me pick ones to install.' },
+        {
+          label: 'Add an MCP server',
+          prompt:
+            'Help me add a new MCP tool server. What popular ones are available?',
+        },
+        {
+          label: 'Browse the registry',
+          prompt:
+            'List available integrations from the registry and help me pick ones to install.',
+        },
       );
       break;
     case 'skills':
-      contextual.push(
-        { label: 'Install recommended skills', prompt: 'What skills are available in the registry? Recommend the most useful ones and install them.' },
-      );
+      contextual.push({
+        label: 'Install recommended skills',
+        prompt:
+          'What skills are available in the registry? Recommend the most useful ones and install them.',
+      });
       break;
     case 'prompts':
-      contextual.push(
-        { label: 'Create a prompt for me', prompt: 'Help me create a useful prompt. Ask me what task I want to automate.' },
-      );
+      contextual.push({
+        label: 'Create a prompt for me',
+        prompt:
+          'Help me create a useful prompt. Ask me what task I want to automate.',
+      });
       break;
     case 'schedule':
-      contextual.push(
-        { label: 'Schedule a recurring task', prompt: 'Help me set up a scheduled job. Ask me what I want to run and when.' },
-      );
+      contextual.push({
+        label: 'Schedule a recurring task',
+        prompt:
+          'Help me set up a scheduled job. Ask me what I want to run and when.',
+      });
       break;
     case 'connections-providers':
-      contextual.push(
-        { label: 'Configure a provider', prompt: 'Help me set up a new LLM provider connection.' },
-      );
+      contextual.push({
+        label: 'Configure a provider',
+        prompt: 'Help me set up a new LLM provider connection.',
+      });
       break;
   }
 
@@ -84,6 +118,7 @@ export function Header({
   const { setDockState, setActiveChat, navigate } = useNavigation();
   const { apiBase } = useApiBase();
   const [showHelp, setShowHelp] = useState(false);
+  const [showOverflow, setShowOverflow] = useState(false);
   const createChatSession = useCreateChatSession();
   const sendMessage = useSendMessage(apiBase);
 
@@ -119,8 +154,15 @@ export function Header({
       >
         ☰
       </button>
-      <img src="/favicon.png" alt="" className="app-toolbar__logo" onClick={() => navigate('/')} />
-      <span className="app-toolbar__brand" onClick={() => navigate('/')}>Stallion</span>
+      <img
+        src="/favicon.png"
+        alt=""
+        className="app-toolbar__logo"
+        onClick={() => navigate('/')}
+      />
+      <span className="app-toolbar__brand" onClick={() => navigate('/')}>
+        Stallion
+      </span>
 
       {/* Breadcrumb — show current project/layout context */}
       {currentView &&
@@ -154,10 +196,10 @@ export function Header({
       <div className="app-toolbar__actions">
         <div className="header-divider" />
 
-        {/* Connection status chip */}
+        {/* Connection status chip — secondary (hidden on mobile) */}
         <button
           type="button"
-          className="app-toolbar__icon-btn"
+          className="app-toolbar__icon-btn app-toolbar__action--secondary"
           onClick={() => setShowConnectionModal(true)}
           title="Manage connections"
         >
@@ -213,14 +255,26 @@ export function Header({
           {userInitials}
         </button>
 
-        <div style={{ position: 'relative' }}>
+        <div
+          className="app-toolbar__action--secondary"
+          style={{ position: 'relative' }}
+        >
           <button
             type="button"
-            className={`app-toolbar__icon-btn ${showHelp ? 'is-active' : ''}`}
+            className={`app-toolbar__icon-btn app-toolbar__icon-btn--help ${showHelp ? 'is-active' : ''}`}
             onClick={() => setShowHelp(!showHelp)}
             title="Ask Stallion for help"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <circle cx="12" cy="12" r="10" />
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -228,14 +282,36 @@ export function Header({
           </button>
           {showHelp && (
             <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowHelp(false)} />
-              <div style={{
-                position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 100,
-                background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)',
-                borderRadius: 8, width: 'min(280px, calc(100vw - 32px))', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                overflow: 'hidden',
-              }}>
-                <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border-primary)' }}>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                onClick={() => setShowHelp(false)}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 6,
+                  zIndex: 100,
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: 8,
+                  width: 'min(280px, calc(100vw - 32px))',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    borderBottom: '1px solid var(--border-primary)',
+                  }}
+                >
                   Ask Stallion
                 </div>
                 {helpPrompts.map((p, i) => (
@@ -243,20 +319,98 @@ export function Header({
                     key={i}
                     onClick={() => handleHelpPrompt(p.prompt)}
                     style={{
-                      display: 'flex', alignItems: 'center', width: '100%', padding: '10px 12px', border: 'none',
-                      background: 'transparent', color: 'var(--text-primary)', fontSize: 13,
-                      textAlign: 'left', cursor: 'pointer', borderBottom: i < helpPrompts.length - 1 ? '1px solid var(--border-primary)' : 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      borderBottom:
+                        i < helpPrompts.length - 1
+                          ? '1px solid var(--border-primary)'
+                          : 'none',
                       fontFamily: 'inherit',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = 'var(--bg-tertiary)')
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = 'transparent')
+                    }
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 8 }}>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="var(--text-muted)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ flexShrink: 0, marginRight: 8 }}
+                    >
                       <polyline points="9 18 15 12 9 6" />
                     </svg>
                     {p.label}
                   </button>
                 ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Mobile overflow menu for secondary actions */}
+        <div className="app-toolbar__overflow" style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className="app-toolbar__icon-btn app-toolbar__overflow-btn"
+            onClick={() => setShowOverflow(!showOverflow)}
+            aria-label="More actions"
+          >
+            ⋯
+          </button>
+          {showOverflow && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                onClick={() => setShowOverflow(false)}
+              />
+              <div className="app-toolbar__overflow-menu">
+                <button
+                  onClick={() => {
+                    setShowOverflow(false);
+                    setShowConnectionModal(true);
+                  }}
+                >
+                  <ConnectionStatusDot status={connStatus} size={7} />
+                  Connections
+                </button>
+                <button
+                  onClick={() => {
+                    setShowOverflow(false);
+                    setShowHelp(true);
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  Help
+                </button>
               </div>
             </>
           )}

@@ -12,7 +12,7 @@ const STORAGE_PREFIX = 'stallion-dock-mode-override:';
  * Only explicit user actions (⌘⇧D, settings panel) write to URL + sessionStorage.
  */
 export function useDockModePreference(layoutKey: string, preferred: DockMode) {
-  const { dockMode, setDockMode, setDockModeQuiet } = useNavigation();
+  const { dockMode, setDockModeQuiet } = useNavigation();
   const prevMode = useRef<DockMode>(dockMode);
   const applied = useRef(false);
 
@@ -22,11 +22,15 @@ export function useDockModePreference(layoutKey: string, preferred: DockMode) {
     prevMode.current = dockMode;
 
     // URL param already present → explicit user choice, respect it
-    const urlMode = new URLSearchParams(window.location.search).get('dockMode') as DockMode | null;
+    const urlMode = new URLSearchParams(window.location.search).get(
+      'dockMode',
+    ) as DockMode | null;
     if (urlMode) return;
 
     // SessionStorage override → user previously cycled via ⌘⇧D / settings
-    const override = sessionStorage.getItem(STORAGE_PREFIX + layoutKey) as DockMode | null;
+    const override = sessionStorage.getItem(
+      STORAGE_PREFIX + layoutKey,
+    ) as DockMode | null;
     if (override) {
       setDockModeQuiet(override);
       return;
@@ -36,7 +40,7 @@ export function useDockModePreference(layoutKey: string, preferred: DockMode) {
     setDockModeQuiet(preferred);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layoutKey, preferred, setDockMode, setDockModeQuiet]);
+  }, [layoutKey, preferred, setDockModeQuiet, dockMode]);
 
   // Restore previous mode on unmount
   useEffect(() => {

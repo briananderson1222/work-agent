@@ -1,3 +1,14 @@
+import {
+  usePluginInstallMutation,
+  usePluginPreviewMutation,
+  usePluginProviderToggleMutation,
+  usePluginRegistryInstallMutation,
+  usePluginRemoveMutation,
+  usePluginsQuery,
+  usePluginUpdateMutation,
+  usePluginUpdatesQuery,
+  useRegistryPluginsQuery,
+} from '@stallion-ai/sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Checkbox } from '../components/Checkbox';
@@ -173,50 +184,25 @@ import { PathAutocomplete } from '../components/PathAutocomplete';
 
 /* ── Plugin Registry Modal ── */
 function PluginRegistryModal({ onClose }: { onClose: () => void }) {
-  const { apiBase } = useApiBase();
-  const { data: items = [], isLoading: loading } = useQuery({
-    queryKey: ['registry-plugins'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/registry/plugins`);
-      const data = await res.json();
-      return data.success ? data.data || [] : [];
-    },
-  });
+  const { data: items = [], isLoading: loading } =
+    useRegistryPluginsQuery() as {
+      data: Array<{
+        id: string;
+        displayName?: string;
+        description?: string;
+        version?: string;
+        source?: string;
+        installed?: boolean;
+      }>;
+      isLoading: boolean;
+    };
   const [message, setMessage] = useState<{
     type: 'success' | 'error';
     text: string;
   } | null>(null);
   const [filter, setFilter] = useState('');
 
-  const queryClient = useQueryClient();
-  const actionMutation = useMutation({
-    mutationFn: async ({
-      id,
-      action,
-    }: {
-      id: string;
-      action: 'install' | 'uninstall';
-    }) => {
-      const res =
-        action === 'install'
-          ? await fetch(`${apiBase}/api/registry/plugins/install`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id }),
-            })
-          : await fetch(
-              `${apiBase}/api/registry/plugins/${encodeURIComponent(id)}`,
-              { method: 'DELETE' },
-            );
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || `${action} failed`);
-      return { data, action };
-    },
-    onSuccess: (_result, _variables) => {
-      queryClient.invalidateQueries({ queryKey: ['registry-plugins'] });
-      queryClient.invalidateQueries({ queryKey: ['plugins'] });
-    },
-  });
+  const actionMutation = usePluginRegistryInstallMutation();
 
   const filtered = items.filter((item) => {
     if (!filter) return true;
@@ -342,7 +328,15 @@ function PluginSettingFieldRow({
   value,
   onChange,
 }: {
-  field: { key: string; label: string; type: string; description?: string; options?: Array<{ label: string; value: string }>; secret?: boolean; required?: boolean };
+  field: {
+    key: string;
+    label: string;
+    type: string;
+    description?: string;
+    options?: Array<{ label: string; value: string }>;
+    secret?: boolean;
+    required?: boolean;
+  };
   value: any;
   onChange: (val: any) => void;
 }) {
@@ -350,22 +344,44 @@ function PluginSettingFieldRow({
     <div className="plugins__setting-field">
       <label className="plugins__setting-label">
         {field.label}
-        {field.required && <span className="plugins__setting-required"> *</span>}
+        {field.required && (
+          <span className="plugins__setting-required"> *</span>
+        )}
       </label>
-      {field.description && <div className="plugins__setting-desc">{field.description}</div>}
+      {field.description && (
+        <div className="plugins__setting-desc">{field.description}</div>
+      )}
       {field.type === 'boolean' ? (
         <Toggle checked={!!value} onChange={onChange} size="sm" />
       ) : field.type === 'select' ? (
-        <select className="plugins__setting-input" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+        <select
+          className="plugins__setting-input"
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value)}
+        >
           <option value="">—</option>
-          {field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {field.options?.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
       ) : (
         <input
           className="plugins__setting-input"
-          type={field.secret ? 'password' : field.type === 'number' ? 'number' : 'text'}
+          type={
+            field.secret
+              ? 'password'
+              : field.type === 'number'
+                ? 'number'
+                : 'text'
+          }
           value={value ?? ''}
-          onChange={(e) => onChange(field.type === 'number' ? Number(e.target.value) : e.target.value)}
+          onChange={(e) =>
+            onChange(
+              field.type === 'number' ? Number(e.target.value) : e.target.value,
+            )
+          }
         />
       )}
     </div>
@@ -378,38 +394,18 @@ export function PluginManagementView() {
   const { setLayout } = useNavigation();
   const queryClient = useQueryClient();
   const { requestConsent } = usePermissions();
-  const { data: plugins = [], isLoading } = useQuery<Plugin[]>({
-    queryKey: ['plugins'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/plugins`);
-      const json = await res.json();
-      return json.plugins || [];
-    },
-  });
-  const { data: updates = [] } = useQuery<
-    Array<{
+  const { data: plugins = [], isLoading } = usePluginsQuery() as {
+    data: Plugin[];
+    isLoading: boolean;
+  };
+  const { data: updates = [] } = usePluginUpdatesQuery() as {
+    data: Array<{
       name: string;
       currentVersion: string;
       latestVersion: string;
       source: string;
-    }>
-  >({
-    queryKey: ['plugin-updates'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/plugins/check-updates`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.updates || [];
-    },
-  });
-  useQuery<Array<{ id: string }>>({
-    queryKey: ['registry-plugins'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/registry/plugins`);
-      const d = await res.json();
-      return d.success ? d.data || [] : [];
-    },
-  });
+    }>;
+  };
 
   const [installSource, setInstallSource] = useState('');
   const [showFolderPicker, setShowFolderPicker] = useState(false);
@@ -442,9 +438,6 @@ export function PluginManagementView() {
   );
   const [quickProjectName, setQuickProjectName] = useState('');
   const [assigningLayout, setAssigningLayout] = useState(false);
-  const [loadingProviders, setLoadingProviders] = useState<Set<string>>(
-    new Set(),
-  );
   const [installMessage, setInstallMessage] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -458,7 +451,9 @@ export function PluginManagementView() {
   const { data: settingsData } = useQuery({
     queryKey: ['plugin-settings', selectedPlugin],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/plugins/${encodeURIComponent(selectedPlugin!)}/settings`);
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(selectedPlugin!)}/settings`,
+      );
       return res.json();
     },
     enabled: !!selectedPlugin && !!selected?.hasSettings,
@@ -467,7 +462,9 @@ export function PluginManagementView() {
   const { data: changelogData } = useQuery({
     queryKey: ['plugin-changelog', selectedPlugin],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/plugins/${encodeURIComponent(selectedPlugin!)}/changelog`);
+      const res = await fetch(
+        `${apiBase}/api/plugins/${encodeURIComponent(selectedPlugin!)}/changelog`,
+      );
       return res.json();
     },
     enabled: !!selectedPlugin && !!selected?.git,
@@ -476,152 +473,75 @@ export function PluginManagementView() {
   /* ── Mutations ── */
 
   const saveSettingsMutation = useMutation({
-    mutationFn: async ({ name, settings }: { name: string; settings: Record<string, any> }) => {
-      const res = await fetch(`${apiBase}/api/plugins/${encodeURIComponent(name)}/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings }),
-      });
-      return res.json();
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plugin-settings', selectedPlugin] }),
-  });
-
-  const previewMutation = useMutation({
-    mutationFn: async (source: string) => {
-      const res = await fetch(`${apiBase}/api/plugins/preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source }),
-      });
-      return res.json() as Promise<PreviewData>;
-    },
-  });
-
-  const installMutation = useMutation({
     mutationFn: async ({
-      source,
-      skip,
+      name,
+      settings,
     }: {
-      source: string;
-      skip: string[];
-    }) => {
-      const res = await fetch(`${apiBase}/api/plugins/install`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source, skip }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Install failed');
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plugins'] });
-      queryClient.invalidateQueries({ queryKey: ['layouts'] });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await fetch(
-        `${apiBase}/api/plugins/${encodeURIComponent(name)}/update`,
-        { method: 'POST' },
-      );
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Update failed');
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plugins'] });
-      queryClient.invalidateQueries({ queryKey: ['plugin-updates'] });
-    },
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await fetch(
-        `${apiBase}/api/plugins/${encodeURIComponent(name)}`,
-        { method: 'DELETE' },
-      );
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Remove failed');
-      return data;
-    },
-    onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: ['plugins'] });
-      queryClient.invalidateQueries({ queryKey: ['layouts'] });
-      try {
-        const { pluginRegistry } = await import('../core/PluginRegistry');
-        await pluginRegistry.reload();
-      } catch (e) {
-        console.warn('Plugin registry reload failed', e);
-      }
-    },
-  });
-
-  const toggleProviderMutation = useMutation({
-    mutationFn: async ({
-      pluginName,
-      disabled,
-    }: {
-      pluginName: string;
-      disabled: string[];
+      name: string;
+      settings: Record<string, any>;
     }) => {
       const res = await fetch(
-        `${apiBase}/api/plugins/${encodeURIComponent(pluginName)}/overrides`,
+        `${apiBase}/api/plugins/${encodeURIComponent(name)}/settings`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ disabled }),
+          body: JSON.stringify({ settings }),
         },
       );
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plugins'] });
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ['plugin-settings', selectedPlugin],
+      }),
   });
 
-  const fetchProviderDetails = async (name: string) => {
-    setLoadingProviders((prev) => new Set(prev).add(name));
-    try {
-      const res = await fetch(
-        `${apiBase}/api/plugins/${encodeURIComponent(name)}/providers`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      queryClient.setQueryData<Plugin[]>(
-        ['plugins'],
-        (prev) =>
-          prev?.map((p) =>
-            p.name === name ? { ...p, providerDetails: data.providers } : p,
-          ) ?? [],
-      );
-    } catch (e) {
-      console.warn('Failed to fetch provider details', e);
-    } finally {
-      setLoadingProviders((prev) => {
-        const next = new Set(prev);
-        next.delete(name);
-        return next;
-      });
-    }
-  };
+  const previewMutation = usePluginPreviewMutation();
+
+  const installMutation = usePluginInstallMutation();
+
+  const updateMutation = usePluginUpdateMutation();
+
+  const removeMutation = usePluginRemoveMutation();
+
+  const toggleProviderMutation = usePluginProviderToggleMutation();
+
+  const { data: providerDetails, isLoading: loadingProviderDetails } = useQuery(
+    {
+      queryKey: ['plugin-providers', selectedPlugin],
+      queryFn: async () => {
+        const res = await fetch(
+          `${apiBase}/api/plugins/${encodeURIComponent(selectedPlugin!)}/providers`,
+        );
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.providers as Array<{
+          type: string;
+          module: string;
+          layout: string | null;
+          enabled: boolean;
+        }>;
+      },
+      enabled: !!selectedPlugin && expandedProviders.has(selectedPlugin),
+    },
+  );
 
   const toggleProvider = (
     pluginName: string,
     providerType: string,
     currentlyEnabled: boolean,
   ) => {
-    const plugin = plugins.find((p) => p.name === pluginName);
-    if (!plugin?.providerDetails) return;
-    const disabled = plugin.providerDetails
+    if (!providerDetails) return;
+    const disabled = providerDetails
       .filter((p) => (p.type === providerType ? currentlyEnabled : !p.enabled))
       .map((p) => p.type);
     toggleProviderMutation.mutate(
       { pluginName, disabled },
       {
-        onSuccess: () => fetchProviderDetails(pluginName),
+        onSuccess: () =>
+          queryClient.invalidateQueries({
+            queryKey: ['plugin-providers', pluginName],
+          }),
       },
     );
   };
@@ -634,9 +554,12 @@ export function PluginManagementView() {
     if (!previewData && !skipList) {
       setInstallMessage(null);
       previewMutation.mutate(source, {
-        onSuccess: (data) => {
+        onSuccess: (data: PreviewData) => {
           if (!data.valid) {
-            setInstallMessage({ type: 'error', text: data.error || 'Invalid plugin' });
+            setInstallMessage({
+              type: 'error',
+              text: data.error || 'Invalid plugin',
+            });
           } else {
             const autoSkips = new Set(
               data.conflicts.map((c) => `${c.type}:${c.id}`),
@@ -733,8 +656,15 @@ export function PluginManagementView() {
   const remove = (name: string) => {
     setRemoveConfirm(null);
     removeMutation.mutate(name, {
-      onSuccess: () =>
-        setMessage({ type: 'success', text: `Removed ${name}.` }),
+      onSuccess: async () => {
+        setMessage({ type: 'success', text: `Removed ${name}.` });
+        try {
+          const { pluginRegistry } = await import('../core/PluginRegistry');
+          await pluginRegistry.reload();
+        } catch (e) {
+          console.warn('Plugin registry reload failed', e);
+        }
+      },
       onError: (e) => setMessage({ type: 'error', text: e.message }),
     });
   };
@@ -811,7 +741,23 @@ export function PluginManagementView() {
               </div>
             )}
             {plugins.length === 0 && !isLoading && (
-              <div className="plugins__empty">No plugins installed yet.</div>
+              <div className="plugins__empty">
+                No plugins installed yet.
+                <button
+                  className="plugins__empty-cta"
+                  onClick={() => {
+                    setInstallMessage(null);
+                    setShowInstallModal(true);
+                  }}
+                >
+                  Install your first plugin
+                </button>
+              </div>
+            )}
+            {plugins.length > 0 && filtered.length === 0 && search && (
+              <div className="plugins__empty">
+                No plugins matching &ldquo;{search}&rdquo;
+              </div>
             )}
           </div>
         }
@@ -921,10 +867,7 @@ export function PluginManagementView() {
                     onClick={() => {
                       const next = new Set(expandedProviders);
                       if (next.has(selected.name)) next.delete(selected.name);
-                      else {
-                        next.add(selected.name);
-                        fetchProviderDetails(selected.name);
-                      }
+                      else next.add(selected.name);
                       setExpandedProviders(next);
                     }}
                   >
@@ -936,42 +879,43 @@ export function PluginManagementView() {
                     Providers ({selected.providers.length})
                   </button>
                   {expandedProviders.has(selected.name) &&
-                    (loadingProviders.has(selected.name) &&
-                    !selected.providerDetails ? (
-                      <div className="plugins__empty">
-                        Loading providers...
-                      </div>
+                    (loadingProviderDetails && !providerDetails ? (
+                      <div className="plugins__empty">Loading providers...</div>
                     ) : (
-                      selected.providerDetails && (
+                      providerDetails && (
                         <div className="plugins__providers-list">
-                        {selected.providerDetails.map((pr) => (
-                          <div key={pr.type} className="plugins__provider-row">
-                            <span className="plugins__cap plugins__cap--provider">
-                              {pr.type}
-                            </span>
-                            {pr.layout && (
-                              <span className="plugins__provider-scope">
-                                {pr.layout}
+                          {providerDetails.map((pr) => (
+                            <div
+                              key={pr.type}
+                              className="plugins__provider-row"
+                            >
+                              <span className="plugins__cap plugins__cap--provider">
+                                {pr.type}
                               </span>
-                            )}
-                            <label className="plugins__provider-toggle">
-                              <Toggle
-                                checked={pr.enabled}
-                                onChange={() =>
-                                  toggleProvider(
-                                    selected.name,
-                                    pr.type,
-                                    pr.enabled,
-                                  )
-                                }
-                                size="sm"
-                              />
-                              {pr.enabled ? 'Enabled' : 'Disabled'}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    )))}
+                              {pr.layout && (
+                                <span className="plugins__provider-scope">
+                                  {pr.layout}
+                                </span>
+                              )}
+                              <label className="plugins__provider-toggle">
+                                <Toggle
+                                  checked={pr.enabled}
+                                  onChange={() =>
+                                    toggleProvider(
+                                      selected.name,
+                                      pr.type,
+                                      pr.enabled,
+                                    )
+                                  }
+                                  size="sm"
+                                />
+                                {pr.enabled ? 'Enabled' : 'Disabled'}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    ))}
                 </div>
               )}
 
@@ -986,8 +930,14 @@ export function PluginManagementView() {
                         field={field}
                         value={settingsData.values[field.key]}
                         onChange={(val) => {
-                          const updated = { ...settingsData.values, [field.key]: val };
-                          saveSettingsMutation.mutate({ name: selected.name, settings: updated });
+                          const updated = {
+                            ...settingsData.values,
+                            [field.key]: val,
+                          };
+                          saveSettingsMutation.mutate({
+                            name: selected.name,
+                            settings: updated,
+                          });
                         }}
                       />
                     ))}
@@ -1002,17 +952,29 @@ export function PluginManagementView() {
                     className="plugins__providers-toggle"
                     onClick={() => setChangelogExpanded((v) => !v)}
                   >
-                    <span className={`plugins__providers-arrow${changelogExpanded ? ' plugins__providers-arrow--expanded' : ''}`}>▶</span>
-                    {' '}Changelog ({changelogData.entries.length})
+                    <span
+                      className={`plugins__providers-arrow${changelogExpanded ? ' plugins__providers-arrow--expanded' : ''}`}
+                    >
+                      ▶
+                    </span>{' '}
+                    Changelog ({changelogData.entries.length})
                   </button>
                   {changelogExpanded && (
                     <div className="plugins__changelog-list">
                       {changelogData.entries.map((entry: any) => (
-                        <div key={entry.hash} className="plugins__changelog-entry">
-                          <code className="plugins__changelog-hash">{entry.short}</code>
-                          <span className="plugins__changelog-subject">{entry.subject}</span>
+                        <div
+                          key={entry.hash}
+                          className="plugins__changelog-entry"
+                        >
+                          <code className="plugins__changelog-hash">
+                            {entry.short}
+                          </code>
+                          <span className="plugins__changelog-subject">
+                            {entry.subject}
+                          </span>
                           <span className="plugins__changelog-meta">
-                            {entry.author} · {new Date(entry.date).toLocaleDateString()}
+                            {entry.author} ·{' '}
+                            {new Date(entry.date).toLocaleDateString()}
                           </span>
                         </div>
                       ))}
@@ -1450,7 +1412,10 @@ export function PluginManagementView() {
                           queryKey: ['projects'],
                         });
                         setLayoutAssignment(null);
-                        setLayout([...selectedProjects][0], layoutAssignment.layoutSlug);
+                        setLayout(
+                          [...selectedProjects][0],
+                          layoutAssignment.layoutSlug,
+                        );
                       } catch (e) {
                         console.warn('Layout assignment failed', e);
                       } finally {

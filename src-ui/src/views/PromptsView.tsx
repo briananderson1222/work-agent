@@ -1,11 +1,16 @@
 import { useAgentsQuery, usePromptsQuery } from '@stallion-ai/sdk';
+import type { Prompt } from '@stallion-ai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { DetailHeader } from '../components/DetailHeader';
+import { ImportPromptsModal } from '../components/ImportPromptsModal';
 import { PromptRunModal } from '../components/PromptRunModal';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
-import { useCreateChatSession, useSendMessage } from '../contexts/ActiveChatsContext';
+import {
+  useCreateChatSession,
+  useSendMessage,
+} from '../contexts/ActiveChatsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
@@ -13,19 +18,6 @@ import { useAIEnrich } from '../hooks/useAIEnrich';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import './page-layout.css';
 import './editor-layout.css';
-
-interface Prompt {
-  id: string;
-  name: string;
-  content: string;
-  description?: string;
-  category?: string;
-  tags?: string[];
-  agent?: string;
-  source?: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface PromptForm {
   name: string;
@@ -56,17 +48,6 @@ function promptToForm(p: Prompt): PromptForm {
   };
 }
 
-function parseFrontmatter(text: string): { name?: string; description?: string; content: string } {
-  const match = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { content: text };
-  const meta: Record<string, string> = {};
-  for (const line of match[1].split('\n')) {
-    const idx = line.indexOf(':');
-    if (idx > 0) meta[line.slice(0, idx).trim()] = line.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
-  }
-  return { name: meta.name, description: meta.description, content: match[2].trim() };
-}
-
 export function PromptsView() {
   const { apiBase } = useApiBase();
   const {
@@ -81,16 +62,22 @@ export function PromptsView() {
   const [isNew, setIsNew] = useState(urlId === 'new');
   const [form, setForm] = useState<PromptForm>(EMPTY_FORM);
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'category'>('date');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRunModal, setShowRunModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: prompts = [], isLoading } = usePromptsQuery() as { data?: Prompt[]; isLoading: boolean };
+  const { data: prompts = [], isLoading } = usePromptsQuery() as {
+    data?: Prompt[];
+    isLoading: boolean;
+  };
 
-  const { data: agents = [] } = useAgentsQuery() as { data?: { slug: string; name: string }[] };
+  const { data: agents = [] } = useAgentsQuery() as {
+    data?: { slug: string; name: string }[];
+  };
 
   const { setDockState, setActiveChat } = useNavigation();
   const createChatSession = useCreateChatSession();
@@ -100,13 +87,24 @@ export function PromptsView() {
     async (resolvedContent: string, agentSlug: string) => {
       const agent = agents.find((a) => a.slug === agentSlug);
       if (!agent) return;
-      const sessionId = createChatSession(agent.slug, agent.name, form.name || 'Prompt Test');
+      const sessionId = createChatSession(
+        agent.slug,
+        agent.name,
+        form.name || 'Prompt Test',
+      );
       setDockState(true);
       setActiveChat(null);
       setShowRunModal(false);
       await sendMessage(sessionId, agent.slug, undefined, resolvedContent);
     },
-    [agents, createChatSession, setDockState, setActiveChat, sendMessage, form.name],
+    [
+      agents,
+      createChatSession,
+      setDockState,
+      setActiveChat,
+      sendMessage,
+      form.name,
+    ],
   );
 
   const createMutation = useMutation({
@@ -168,14 +166,20 @@ export function PromptsView() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return prompts.filter(
+    const list = prompts.filter(
       (p) =>
         !q ||
         p.name.toLowerCase().includes(q) ||
         p.category?.toLowerCase().includes(q) ||
         p.tags?.some((t) => t.toLowerCase().includes(q)),
     );
-  }, [prompts, search]);
+    return list.sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'category')
+        return (a.category ?? '').localeCompare(b.category ?? '');
+      return b.updatedAt.localeCompare(a.updatedAt);
+    });
+  }, [prompts, search, sortBy]);
 
   const selectedPrompt = prompts.find((p) => p.id === selectedId);
 
@@ -189,7 +193,9 @@ export function PromptsView() {
   // Unsaved changes guard
   useEffect(() => {
     if (!dirty) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
@@ -240,34 +246,42 @@ export function PromptsView() {
     };
   }
 
-  const uploadMutation = useMutation({
-    mutationFn: async (files: FileList) => {
+  const importMutation = useMutation({
+    mutationFn: async (
+      items: { name: string; content: string; description?: string }[],
+    ) => {
       let count = 0;
       let failed = 0;
-      for (const file of Array.from(files)) {
-        if (!file.name.endsWith('.md')) continue;
-        const text = await file.text();
-        const parsed = parseFrontmatter(text);
-        const name = parsed.name || file.name.replace(/\.md$/, '').replace(/[^a-zA-Z0-9_-]/g, '-');
+      for (const item of items) {
         const res = await fetch(`${apiBase}/api/prompts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, content: parsed.content, description: parsed.description }),
+          body: JSON.stringify(item),
         });
         if (res.ok) count++;
         else failed++;
       }
-      if (failed > 0 && count === 0) throw new Error('All uploads failed');
+      if (failed > 0 && count === 0) throw new Error('All imports failed');
       return { count, failed };
     },
     onSuccess: ({ count, failed }) => {
       queryClient.invalidateQueries({ queryKey: ['prompts'] });
-      showToast(failed > 0 ? `Uploaded ${count} prompt${count !== 1 ? 's' : ''} (${failed} failed)` : `Uploaded ${count} prompt${count !== 1 ? 's' : ''}`);
+      setShowImportModal(false);
+      showToast(
+        failed > 0
+          ? `Imported ${count} prompt${count !== 1 ? 's' : ''} (${failed} failed)`
+          : `Imported ${count} prompt${count !== 1 ? 's' : ''}`,
+      );
     },
-    onError: () => showToast('Upload failed'),
+    onError: () => showToast('Import failed'),
   });
 
   function handleSave() {
+    if (
+      prompts.some((p) => p.name === form.name.trim() && p.id !== selectedId)
+    ) {
+      showToast('A prompt with this name already exists');
+    }
     if (isNew) {
       createMutation.mutate(buildPayload());
     } else if (selectedId) {
@@ -275,13 +289,31 @@ export function PromptsView() {
     }
   }
 
+  function handleDuplicate() {
+    createMutation.mutate({ ...buildPayload(), name: `Copy of ${form.name}` });
+  }
+
+  function handleExport() {
+    const parts = ['---'];
+    parts.push(`name: "${form.name}"`);
+    if (form.description) parts.push(`description: "${form.description}"`);
+    if (form.category) parts.push(`category: "${form.category}"`);
+    parts.push('---', '', form.content);
+    const blob = new Blob([parts.join('\n')], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${form.name.replace(/[^a-zA-Z0-9_-]/g, '-')}.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   const { enrich, isEnriching } = useAIEnrich();
   const isEditing = isNew || !!selectedId;
 
   const templateVars = useMemo(() => {
-    const matches = form.content.match(/\{\{(\w+)\}\}/g);
+    const matches = form.content.match(/\{\{([\w.-]+)\}\}/g);
     if (!matches) return [];
-    return [...new Set(matches.map(m => m.slice(2, -2)))];
+    return [...new Set(matches.map((m) => m.slice(2, -2)))];
   }, [form.content]);
 
   const listItems = filtered.map((p) => ({
@@ -312,20 +344,23 @@ export function PromptsView() {
         emptyDescription="Select a prompt or create a new one"
         sidebarActions={
           <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".md"
-              multiple
-              style={{ display: 'none' }}
-              onChange={(e) => { if (e.target.files) uploadMutation.mutate(e.target.files); e.target.value = ''; }}
-            />
+            <select
+              className="editor-select editor-select--small"
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(e.target.value as 'name' | 'date' | 'category')
+              }
+            >
+              <option value="date">Newest</option>
+              <option value="name">Name</option>
+              <option value="category">Category</option>
+            </select>
             <button
               className="split-pane__add-btn split-pane__add-btn--secondary"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadMutation.isPending}
+              onClick={() => setShowImportModal(true)}
+              disabled={importMutation.isPending}
             >
-              {uploadMutation.isPending ? 'Uploading…' : '↑ Upload .md'}
+              {importMutation.isPending ? 'Importing…' : 'Import .md'}
             </button>
           </>
         }
@@ -334,21 +369,67 @@ export function PromptsView() {
           <div className="prompt-editor">
             <DetailHeader
               title={isNew ? 'New Prompt' : form.name || 'Edit Prompt'}
-              badge={dirty ? { label: 'unsaved', variant: 'warning' as const } : undefined}
+              badge={
+                dirty
+                  ? { label: 'unsaved', variant: 'warning' as const }
+                  : undefined
+              }
             >
               {!isNew && selectedId && (
-                <button className="editor-btn editor-btn--danger" onClick={() => setShowDeleteModal(true)}>Delete</button>
+                <button
+                  className="editor-btn editor-btn--danger"
+                  onClick={() => setShowDeleteModal(true)}
+                >
+                  Delete
+                </button>
               )}
               {!isNew && selectedId && (
-                <button className="editor-btn" onClick={() => setShowRunModal(true)} disabled={!form.content.trim()}>▶ Test</button>
+                <button className="editor-btn" onClick={handleDuplicate}>
+                  Duplicate
+                </button>
               )}
-              <button className="editor-btn editor-btn--primary" onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending || !form.name.trim() || !form.content.trim()}>
-                {(createMutation.isPending || updateMutation.isPending) ? 'Saving…' : isNew ? 'Create' : 'Save'}
+              {!isNew && selectedId && (
+                <button className="editor-btn" onClick={handleExport}>
+                  Export .md
+                </button>
+              )}
+              {!isNew && selectedId && (
+                <button
+                  className="editor-btn"
+                  onClick={() => setShowRunModal(true)}
+                  disabled={!form.content.trim()}
+                >
+                  ▶ Test
+                </button>
+              )}
+              {isNew && (
+                <button
+                  className="editor-btn"
+                  disabled
+                  title="Save prompt first"
+                >
+                  ▶ Test
+                </button>
+              )}
+              <button
+                className="editor-btn editor-btn--primary"
+                onClick={handleSave}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  !form.name.trim() ||
+                  !form.content.trim()
+                }
+              >
+                {createMutation.isPending || updateMutation.isPending
+                  ? 'Saving…'
+                  : isNew
+                    ? 'Create'
+                    : 'Save'}
               </button>
             </DetailHeader>
             {/* Basic section */}
             <div className="editor__section">
-
               <div className="editor-field">
                 <label className="editor-label">Name</label>
                 <input
@@ -359,7 +440,9 @@ export function PromptsView() {
                   onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                   placeholder="Prompt name"
                 />
-                {touched.name && !form.name.trim() && <div className="editor-error">Name is required</div>}
+                {touched.name && !form.name.trim() && (
+                  <div className="editor-error">Name is required</div>
+                )}
               </div>
 
               <div className="editor-field">
@@ -387,10 +470,14 @@ export function PromptsView() {
                   placeholder="Write your prompt here..."
                   spellCheck={false}
                 />
-                {touched.content && !form.content.trim() && <div className="editor-error">Content is required</div>}
+                {touched.content && !form.content.trim() && (
+                  <div className="editor-error">Content is required</div>
+                )}
                 {templateVars.length > 0 && (
                   <div className="editor__tags">
-                    <span className="editor-label" style={{ marginBottom: 0 }}>Variables:</span>
+                    <span className="editor-label" style={{ marginBottom: 0 }}>
+                      Variables:
+                    </span>
                     {templateVars.map((v) => (
                       <span key={v} className="editor__tag">{`{{${v}}}`}</span>
                     ))}
@@ -537,6 +624,12 @@ export function PromptsView() {
         agents={agents}
         onRun={handleRun}
         onCancel={() => setShowRunModal(false)}
+      />
+
+      <ImportPromptsModal
+        isOpen={showImportModal}
+        onImport={(items) => importMutation.mutate(items)}
+        onCancel={() => setShowImportModal(false)}
       />
     </div>
   );

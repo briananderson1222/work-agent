@@ -138,3 +138,22 @@
   font-size: 0.875rem;
   color: var(--text-secondary);
 }
+
+.achievements-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.achievements-link {
+  font-size: 12px;
+  color: var(--accent-primary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.achievements-link-icon {
+  border-radius: 2px;
+}

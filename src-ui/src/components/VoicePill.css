@@ -1,10 +1,19 @@
 @keyframes voice-pulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
-  50% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(76, 175, 80, 0); }
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(76, 175, 80, 0);
+  }
 }
 
 @keyframes voice-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .voice-pill {
@@ -35,7 +44,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   animation: none;
   transform: scale(var(--audio-scale, 1));
-  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+  transition:
+    transform 0.08s ease-out,
+    box-shadow 0.08s ease-out;
 }
 
 .voice-pill__ring {
@@ -43,9 +54,12 @@
   inset: -4px;
   border-radius: 50%;
   border: 2px solid rgba(76, 175, 80, calc(0.3 + var(--audio-glow, 0) * 0.7));
-  box-shadow: 0 0 calc(4px + var(--audio-glow, 0) * 16px) rgba(76, 175, 80, calc(var(--audio-glow, 0) * 0.6));
+  box-shadow: 0 0 calc(4px + var(--audio-glow, 0) * 16px)
+    rgba(76, 175, 80, calc(var(--audio-glow, 0) * 0.6));
   pointer-events: none;
-  transition: border-color 0.08s, box-shadow 0.08s;
+  transition:
+    border-color 0.08s,
+    box-shadow 0.08s;
 }
 
 .voice-pill--thinking {
@@ -56,7 +70,9 @@
 
 .voice-pill--speaking {
   border-color: #2196f3;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 12px rgba(33, 150, 243, 0.4);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 12px rgba(33, 150, 243, 0.4);
   animation: voice-pulse 1s ease-in-out infinite;
 }
 

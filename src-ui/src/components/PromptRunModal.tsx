@@ -19,11 +19,16 @@ export function PromptRunModal({
   onCancel,
 }: PromptRunModalProps) {
   const [values, setValues] = useState<Record<string, string>>({});
-  const [agentSlug, setAgentSlug] = useState(prompt.agent || agents[0]?.slug || '');
+  const [agentSlug, setAgentSlug] = useState(
+    prompt.agent || agents[0]?.slug || '',
+  );
 
   const resolved = useMemo(
     () =>
-      prompt.content.replace(/\{\{(\w+)\}\}/g, (match, key) => values[key] || match),
+      prompt.content.replace(
+        /\{\{([\w.-]+)\}\}/g,
+        (match, key) => values[key] || match,
+      ),
     [prompt.content, values],
   );
 
@@ -31,7 +36,10 @@ export function PromptRunModal({
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+      <div
+        className="modal-dialog prompt-run__dialog"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Test: {prompt.name}</h3>
         </div>
@@ -47,7 +55,9 @@ export function PromptRunModal({
                       className="editor-input"
                       placeholder={v}
                       value={values[v] || ''}
-                      onChange={(e) => setValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                      onChange={(e) =>
+                        setValues((prev) => ({ ...prev, [v]: e.target.value }))
+                      }
                     />
                   </div>
                 ))}
@@ -58,7 +68,7 @@ export function PromptRunModal({
           <div className="prompt-run__section-label">Preview</div>
           <div className="prompt-run__preview">{resolved}</div>
 
-          <div className="editor-field" style={{ marginTop: 16 }}>
+          <div className="editor-field prompt-run__agent-field">
             <label className="editor-label">Agent</label>
             <select
               className="editor-select"
@@ -67,13 +77,17 @@ export function PromptRunModal({
             >
               <option value="">— select agent —</option>
               {agents.map((a) => (
-                <option key={a.slug} value={a.slug}>{a.name || a.slug}</option>
+                <option key={a.slug} value={a.slug}>
+                  {a.name || a.slug}
+                </option>
               ))}
             </select>
           </div>
         </div>
         <div className="modal-footer">
-          <button className="editor-btn" onClick={onCancel}>Cancel</button>
+          <button className="editor-btn" onClick={onCancel}>
+            Cancel
+          </button>
           <button
             className="editor-btn editor-btn--primary"
             disabled={!agentSlug}

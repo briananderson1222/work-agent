@@ -1,9 +1,11 @@
-import React, { useRef, useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 
 function useIsMobile() {
-  const [m, setM] = useState(() => window.matchMedia('(max-width: 768px)').matches);
+  const [m, setM] = useState(
+    () => window.matchMedia('(max-width: 768px)').matches,
+  );
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     const h = (e: MediaQueryListEvent) => setM(e.matches);
@@ -66,13 +68,18 @@ export function ChatDockHeader({
     touchStartY.current = e.touches[0].clientY;
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (touchStartY.current === null) return;
-    if (Math.abs(e.touches[0].clientY - touchStartY.current) > DRAG_THRESHOLD) {
-      touchStartY.current = null;
-      setIsDragging(true);
-    }
-  }, [setIsDragging]);
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (touchStartY.current === null) return;
+      if (
+        Math.abs(e.touches[0].clientY - touchStartY.current) > DRAG_THRESHOLD
+      ) {
+        touchStartY.current = null;
+        setIsDragging(true);
+      }
+    },
+    [setIsDragging],
+  );
 
   const handleHeaderClick = () => {
     if (isDockMaximized) {
@@ -219,14 +226,13 @@ export function ChatDockHeader({
             style={{
               width: '16px',
               height: '16px',
-              transform:
-                effectiveRight
-                  ? isDockOpen
-                    ? 'rotate(270deg)'
-                    : 'rotate(90deg)'
-                  : isDockOpen
-                    ? 'rotate(0deg)'
-                    : 'rotate(180deg)',
+              transform: effectiveRight
+                ? isDockOpen
+                  ? 'rotate(270deg)'
+                  : 'rotate(90deg)'
+                : isDockOpen
+                  ? 'rotate(0deg)'
+                  : 'rotate(180deg)',
               transition: 'transform 0.2s',
             }}
             fill="none"

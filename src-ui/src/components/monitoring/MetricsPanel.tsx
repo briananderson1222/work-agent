@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useApiBase } from '../../contexts/ApiBaseContext';
 
 interface AgentMetric {
@@ -42,8 +42,18 @@ export function MetricsPanel() {
         <h3>METRICS</h3>
         <div className="metrics-range-tabs">
           {(['today', 'week', 'month', 'all'] as const).map((r) => (
-            <button key={r} className={range === r ? 'active' : ''} onClick={() => setRange(r)}>
-              {r === 'all' ? 'All' : r === 'today' ? '24h' : r === 'week' ? '7d' : '30d'}
+            <button
+              key={r}
+              className={range === r ? 'active' : ''}
+              onClick={() => setRange(r)}
+            >
+              {r === 'all'
+                ? 'All'
+                : r === 'today'
+                  ? '24h'
+                  : r === 'week'
+                    ? '7d'
+                    : '30d'}
             </button>
           ))}
         </div>
@@ -59,7 +69,9 @@ export function MetricsPanel() {
         </div>
         {totals.cost > 0 && (
           <div className="metrics-stat">
-            <span className="metrics-stat-value">${totals.cost.toFixed(4)}</span>
+            <span className="metrics-stat-value">
+              ${totals.cost.toFixed(4)}
+            </span>
             <span className="metrics-stat-label">Cost</span>
           </div>
         )}
@@ -70,7 +82,9 @@ export function MetricsPanel() {
             <div key={m.agentSlug} className="metrics-agent-row">
               <span className="metrics-agent-name">{m.agentSlug}</span>
               <span className="metrics-agent-stat">{m.messageCount} msgs</span>
-              <span className="metrics-agent-stat">{m.conversationCount} convs</span>
+              <span className="metrics-agent-stat">
+                {m.conversationCount} convs
+              </span>
             </div>
           ))}
         </div>

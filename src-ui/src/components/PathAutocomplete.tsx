@@ -26,7 +26,9 @@ export function PathAutocomplete({
   const pickingRef = useRef(false);
 
   // Focus input on mount
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (!value.startsWith('/') && !value.startsWith('~')) {

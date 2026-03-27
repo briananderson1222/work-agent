@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
 import { useAgents } from '../contexts/AgentsContext';
 import { useAnalytics } from '../contexts/AnalyticsContext';
@@ -25,7 +25,8 @@ export function UsageStatsPanel() {
   const [hasAutoRescanned, setHasAutoRescanned] = useState(false);
 
   const resetMutation = useMutation({
-    mutationFn: () => fetch(`${apiBase}/api/analytics/usage`, { method: 'DELETE' }),
+    mutationFn: () =>
+      fetch(`${apiBase}/api/analytics/usage`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['analytics-usage'] });
       refresh();

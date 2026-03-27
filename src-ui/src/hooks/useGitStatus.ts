@@ -13,10 +13,19 @@ export function useGitStatus(workingDirectory: string | null | undefined) {
       const json = await res.json();
       if (!json.success) return null;
       return json.data as {
-        branch: string; changes: string[];
-        staged: number; unstaged: number; untracked: number;
-        lastCommit: { sha: string; author: string; relativeTime: string; message: string } | null;
-        ahead: number; behind: number;
+        branch: string;
+        changes: string[];
+        staged: number;
+        unstaged: number;
+        untracked: number;
+        lastCommit: {
+          sha: string;
+          author: string;
+          relativeTime: string;
+          message: string;
+        } | null;
+        ahead: number;
+        behind: number;
       };
     },
     enabled: !!workingDirectory,
@@ -24,7 +33,10 @@ export function useGitStatus(workingDirectory: string | null | undefined) {
   });
 }
 
-export function useGitLog(workingDirectory: string | null | undefined, count = 5) {
+export function useGitLog(
+  workingDirectory: string | null | undefined,
+  count = 5,
+) {
   const { apiBase } = useApiBase();
   return useQuery({
     queryKey: ['git-log', workingDirectory ?? '', count],
@@ -35,7 +47,12 @@ export function useGitLog(workingDirectory: string | null | undefined, count = 5
       );
       const json = await res.json();
       if (!json.success) return [];
-      return json.data as Array<{ sha: string; author: string; relativeTime: string; message: string }>;
+      return json.data as Array<{
+        sha: string;
+        author: string;
+        relativeTime: string;
+        message: string;
+      }>;
     },
     enabled: !!workingDirectory,
     staleTime: 30_000,
