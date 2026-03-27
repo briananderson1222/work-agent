@@ -81,7 +81,7 @@ export class ConfigLoader {
       // Create default config on first run
       const defaultConfig: AppConfig = {
         region: 'us-east-1',
-        defaultModel: 'anthropic.claude-sonnet-4-6-20260217-v1:0',
+        defaultModel: 'us.anthropic.claude-sonnet-4-6',
         invokeModel: 'us.amazon.nova-2-lite-v1:0',
         structureModel: 'us.amazon.nova-micro-v1:0',
         systemPrompt: DEFAULT_SYSTEM_PROMPT,

@@ -22,8 +22,7 @@ export function trackRecentAgent(slug: string): void {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      event: 'agent:selected',
-      properties: { slug, timestamp: Date.now() },
+      events: [{ event: 'agent:selected', plugin: 'core', attributes: { slug }, timestamp: Date.now() }],
     }),
   }).catch(() => {});
 }

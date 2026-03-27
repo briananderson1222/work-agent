@@ -214,6 +214,7 @@ class NavigationStore {
 
   updateParams(params: Record<string, string | null>) {
     const url = new URL(window.location.href);
+    const prev = url.search;
     const currentHash = url.hash; // Preserve the hash
 
     Object.entries(params).forEach(([key, value]) => {
@@ -223,6 +224,9 @@ class NavigationStore {
         url.searchParams.set(key, value);
       }
     });
+
+    // Bail out if nothing changed to avoid infinite re-render loops
+    if (url.search === prev) return;
 
     url.hash = currentHash; // Restore the hash
     window.history.replaceState({}, '', url.toString());

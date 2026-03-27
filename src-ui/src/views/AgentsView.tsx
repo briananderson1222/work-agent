@@ -249,7 +249,6 @@ export function AgentsView({
     setIsCreating(false);
     setError(null);
     setValidationErrors({});
-    setAdvancedOpen(false);
   }
 
   function handleNew(initialForm?: Partial<AgentFormData>) {
@@ -261,7 +260,6 @@ export function AgentsView({
     setSavedForm(base);
     setError(null);
     setValidationErrors({});
-    setAdvancedOpen(false);
   }
 
   function handleDeselect() {

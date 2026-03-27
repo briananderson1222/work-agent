@@ -49,7 +49,8 @@ export function PathAutocomplete({
       signal: controller.signal,
     })
       .then((r) => r.json())
-      .then((data) => {
+      .then((raw) => {
+        const data = raw.data ?? raw;
         if (!data.entries) return;
         const matches = data.entries
           .filter((e: any) => !prefix || e.name.toLowerCase().includes(prefix))
