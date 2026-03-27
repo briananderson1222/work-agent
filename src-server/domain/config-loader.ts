@@ -179,8 +179,6 @@ export class ConfigLoader {
   async createAgent(
     spec: AgentSpec,
   ): Promise<{ slug: string; spec: AgentSpec }> {
-    validator.validateAgentSpec(spec);
-
     // Use provided slug or generate from name
     const slug =
       (spec as any).slug?.trim() ||
