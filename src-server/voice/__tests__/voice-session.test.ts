@@ -234,7 +234,7 @@ describe('VoiceSession wiring', () => {
     await tick();
     const config = built2.getProvider().connectConfig!;
     expect(config.systemPrompt).toBe(
-      'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything.\n\nYou are a sales assistant.',
+      'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything. When you use tools, summarize the result in one or two sentences — never read raw JSON or full tool output aloud.\n\nYou are a sales assistant.',
     );
   });
 

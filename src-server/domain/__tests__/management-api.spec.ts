@@ -190,7 +190,7 @@ describe('App config operations', () => {
 
     expect(config.region).toBe('us-east-1');
     expect(config.defaultModel).toBe(
-      'anthropic.claude-sonnet-4-6-20260217-v1:0',
+      'us.anthropic.claude-sonnet-4-6',
     );
   });
 
@@ -203,7 +203,7 @@ describe('App config operations', () => {
 
     expect(updated.region).toBe('us-west-2');
     expect(updated.defaultModel).toBe(
-      'anthropic.claude-sonnet-4-6-20260217-v1:0',
+      'us.anthropic.claude-sonnet-4-6',
     ); // unchanged
   });
 });
