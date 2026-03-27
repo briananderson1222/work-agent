@@ -137,6 +137,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       setActiveChat(convId);
     },
     onAuthError: () => onRequestAuth?.(),
+    onOpenNewChat: () => setShowNewChatModal(true),
   });
 
   // Rehydrate sessions on mount
@@ -178,35 +179,34 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     });
 
   // Sync activeChat (conversationId) from URL to local state
+  const triedChatRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeChat) return;
+    if (triedChatRef.current === activeChat) return;
     const existing = sessions.find((s) => s.conversationId === activeChat);
     if (existing) {
       setActiveSessionId(existing.id);
       return;
     }
-    // Not in memory — fetch from server and open
+    // Not in memory — fetch from server and open (once)
+    triedChatRef.current = activeChat;
     (async () => {
       try {
         const res = await fetch(
           `${apiBase}/api/conversations/${encodeURIComponent(activeChat)}`,
         );
         const json = await res.json();
-        if (!json.success || !json.data) return;
+        if (!json.success || !json.data) {
+          setActiveChat(null);
+          return;
+        }
         const conv = json.data;
         await openConversation(conv.id, conv.agentSlug, conv.projectSlug);
       } catch {
-        /* conversation not found */
+        setActiveChat(null);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    activeChat,
-    apiBase,
-    openConversation,
-    sessions.find,
-    setActiveSessionId,
-  ]);
+  }, [activeChat, apiBase, openConversation, sessions, setActiveSessionId, setActiveChat]);
 
   // Drag to resize
   useDragResize({

@@ -539,6 +539,12 @@
   margin-bottom: 16px;
 }
 
+.editor-field--row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .editor-field:last-child {
   margin-bottom: 0;
 }
@@ -549,6 +555,10 @@
   font-weight: 500;
   color: var(--text-secondary);
   margin-bottom: 6px;
+}
+
+.editor-label--inline {
+  margin-bottom: 0;
 }
 
 .editor-label .editor-hint {
@@ -1374,7 +1384,13 @@
   gap: 10px;
   padding: 8px 12px;
   cursor: pointer;
+  border: none;
   border-bottom: 1px solid var(--border-primary);
+  background: none;
+  color: var(--text-primary);
+  width: 100%;
+  text-align: left;
+  font: inherit;
   transition: background 0.1s;
 }
 .editor__tool-item:last-child {
@@ -1764,6 +1780,14 @@
   color: var(--accent-primary);
 }
 
+.editor__tool-badge--disabled {
+  opacity: 0.35;
+  cursor: default;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 2px 6px;
+}
+
 /* Agent editor extracted inline styles */
 .editor-icon-preview {
   border-radius: 10px;
@@ -1841,5 +1865,12 @@
     min-height: 44px;
     padding: 10px 12px;
     font-size: 13px;
+  }
+  .editor-input,
+  .editor-select {
+    min-height: 44px;
+  }
+  .editor-textarea--tall {
+    min-height: 120px;
   }
 }

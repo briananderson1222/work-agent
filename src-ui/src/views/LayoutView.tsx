@@ -156,6 +156,7 @@ export function LayoutView({
       return await slashCommandHandler(sessionId, content, {
         autocomplete: {
           openModel: () => {},
+          openNewChat: () => {},
           closeCommand: () => {},
           closeAll: () => {},
         },

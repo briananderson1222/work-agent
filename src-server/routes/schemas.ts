@@ -149,12 +149,13 @@ export const runOutputSchema = z.object({
 
 // Prompts
 export const promptCreateSchema = z.object({
-  name: z.string().min(1),
-  content: z.string().min(1),
+  name: z.string().min(1).max(200),
+  content: z.string().min(1).max(100000),
   description: z.string().optional(),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),
   agent: z.string().optional(),
+  global: z.boolean().optional(),
 });
 
 export const promptUpdateSchema = promptCreateSchema
@@ -338,7 +339,7 @@ export const pluginPreviewSchema = z.object({
 
 export const pluginInstallSchema = z.object({
   source: z.string().min(1),
-  skip: z.record(z.boolean()).optional(),
+  skip: z.array(z.string()).optional(),
 });
 
 export const pluginGrantSchema = z.object({

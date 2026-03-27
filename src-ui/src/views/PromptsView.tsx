@@ -7,6 +7,7 @@ import { DetailHeader } from '../components/DetailHeader';
 import { ImportPromptsModal } from '../components/ImportPromptsModal';
 import { PromptRunModal } from '../components/PromptRunModal';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
+import { Toggle } from '../components/Toggle';
 import {
   useCreateChatSession,
   useSendMessage,
@@ -26,6 +27,7 @@ interface PromptForm {
   category: string;
   tags: string;
   agent: string;
+  global: boolean;
 }
 
 const EMPTY_FORM: PromptForm = {
@@ -35,6 +37,7 @@ const EMPTY_FORM: PromptForm = {
   category: '',
   tags: '',
   agent: '',
+  global: false,
 };
 
 function promptToForm(p: Prompt): PromptForm {
@@ -45,6 +48,7 @@ function promptToForm(p: Prompt): PromptForm {
     category: p.category ?? '',
     tags: (p.tags ?? []).join(', '),
     agent: p.agent ?? '',
+    global: p.global ?? false,
   };
 }
 
@@ -243,6 +247,7 @@ export function PromptsView() {
             .filter(Boolean)
         : undefined,
       agent: form.agent || undefined,
+      global: form.global || undefined,
     };
   }
 
@@ -250,17 +255,17 @@ export function PromptsView() {
     mutationFn: async (
       items: { name: string; content: string; description?: string }[],
     ) => {
-      let count = 0;
-      let failed = 0;
-      for (const item of items) {
-        const res = await fetch(`${apiBase}/api/prompts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(item),
-        });
-        if (res.ok) count++;
-        else failed++;
-      }
+      const results = await Promise.all(
+        items.map((item) =>
+          fetch(`${apiBase}/api/prompts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item),
+          }).then((r) => r.ok),
+        ),
+      );
+      const count = results.filter(Boolean).length;
+      const failed = results.length - count;
       if (failed > 0 && count === 0) throw new Error('All imports failed');
       return { count, failed };
     },
@@ -281,6 +286,7 @@ export function PromptsView() {
       prompts.some((p) => p.name === form.name.trim() && p.id !== selectedId)
     ) {
       showToast('A prompt with this name already exists');
+      return;
     }
     if (isNew) {
       createMutation.mutate(buildPayload());
@@ -454,7 +460,7 @@ export function PromptsView() {
                     disabled={isEnriching || !form.name}
                     onClick={async () => {
                       const text = await enrich(
-                        `Write a reusable prompt template named "${form.name}"${form.description ? ` for: ${form.description}` : ''}. Output only the prompt text, no explanation.`,
+                        `Write a reusable prompt template named "${form.name}"${form.description ? ` for: ${form.description}` : ''}${form.category ? ` (category: ${form.category})` : ''}. Include {{variable}} placeholders where the user should fill in context. Output only the prompt text.`,
                       );
                       if (text) updateField('content', text);
                     }}
@@ -475,7 +481,7 @@ export function PromptsView() {
                 )}
                 {templateVars.length > 0 && (
                   <div className="editor__tags">
-                    <span className="editor-label" style={{ marginBottom: 0 }}>
+                    <span className="editor-label editor-label--inline">
                       Variables:
                     </span>
                     {templateVars.map((v) => (
@@ -508,6 +514,18 @@ export function PromptsView() {
                   onChange={(e) => updateField('description', e.target.value)}
                   placeholder="Optional description"
                 />
+              </div>
+
+              <div className="editor-field editor-field--row">
+                <Toggle
+                  checked={form.global}
+                  onChange={(v) => {
+                    setForm((f) => ({ ...f, global: v }));
+                    setDirty(true);
+                  }}
+                  size="sm"
+                />
+                <span className="editor-label">Available as slash command for all agents</span>
               </div>
             </div>
 
@@ -573,7 +591,7 @@ export function PromptsView() {
                       onChange={(e) => updateField('agent', e.target.value)}
                     >
                       <option value="">— none —</option>
-                      {agents.map((a: any) => (
+                      {agents.map((a) => (
                         <option key={a.slug} value={a.slug}>
                           {a.name || a.slug}
                         </option>

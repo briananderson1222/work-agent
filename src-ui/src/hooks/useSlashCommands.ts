@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePromptsQuery } from '@stallion-ai/sdk';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
@@ -7,9 +8,13 @@ export interface SlashCommand {
   description: string;
   aliases?: string[];
   isCustom?: boolean;
-  source?: 'builtin' | 'custom' | 'acp';
+  source?: 'builtin' | 'custom' | 'acp' | 'prompt';
   handler?: (args: string[]) => void | Promise<void>;
   currentModel?: string;
+}
+
+export function promptSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function getModelDisplayName(modelId: string): string {
@@ -26,6 +31,7 @@ export function useSlashCommands(agentSlug: string | null) {
   const { apiBase } = useApiBase();
   const agents = useAgents();
   const [acpCommands, setAcpCommands] = useState<SlashCommand[]>([]);
+  const { data: prompts } = usePromptsQuery();
 
   const currentAgent = agentSlug
     ? agents.find((a) => a.slug === agentSlug)
@@ -69,7 +75,7 @@ export function useSlashCommands(agentSlug: string | null) {
       },
       {
         cmd: '/prompts',
-        description: 'List custom slash commands for this agent',
+        description: 'List available prompts and custom commands',
       },
       {
         cmd: '/clear',
@@ -77,9 +83,22 @@ export function useSlashCommands(agentSlug: string | null) {
         description: 'Clear conversation and start fresh',
       },
       { cmd: '/stats', description: 'Show conversation statistics' },
+      {
+        cmd: '/resume',
+        aliases: ['/chat'],
+        description: 'Open a new or existing conversation',
+      },
     ];
 
-    if (!agentSlug || !currentAgent) return BUILTIN_COMMANDS;
+    const promptCommands: SlashCommand[] = (prompts || [])
+      .filter((p: any) => p.global || (agentSlug && p.agent === agentSlug))
+      .map((p: any) => ({
+        cmd: `/${promptSlug(p.name)}`,
+        description: p.description || p.name,
+        source: 'prompt' as const,
+      }));
+
+    if (!agentSlug || !currentAgent) return [...BUILTIN_COMMANDS, ...promptCommands];
     if (isAcp) return acpCommands;
 
     const customCommands = currentAgent.commands
@@ -91,8 +110,8 @@ export function useSlashCommands(agentSlug: string | null) {
         }))
       : [];
 
-    return [...BUILTIN_COMMANDS, ...customCommands];
-  }, [agentSlug, acpCommands, currentAgent, isAcp]);
+    return [...BUILTIN_COMMANDS, ...customCommands, ...promptCommands];
+  }, [agentSlug, acpCommands, currentAgent, isAcp, prompts]);
 
   // Fetch live autocomplete options from kiro-cli for ACP agents
   const fetchCommandOptions = useCallback(

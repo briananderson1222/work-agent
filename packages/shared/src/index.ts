@@ -412,6 +412,7 @@ export interface Prompt {
   category?: string;
   tags?: string[];
   agent?: string;
+  global?: boolean;
   source?: string;
   requires?: string[];
   icon?: string;

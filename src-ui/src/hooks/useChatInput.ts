@@ -26,6 +26,7 @@ interface UseChatInputOptions {
   agentDefaultModel?: string;
   onSessionMigrate?: (newSessionId: string) => void;
   onAuthError?: () => void;
+  onOpenNewChat?: () => void;
 }
 
 export function useChatInput({
@@ -37,6 +38,7 @@ export function useChatInput({
   agentDefaultModel,
   onSessionMigrate,
   onAuthError,
+  onOpenNewChat,
 }: UseChatInputOptions) {
   const { showToast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -77,10 +79,10 @@ export function useChatInput({
     async (sid: string, command: string) => {
       return handleSlashCommand(sid, command, {
         onInputCleared,
-        autocomplete: { openModel, closeCommand, closeAll },
+        autocomplete: { openModel, openNewChat: onOpenNewChat || (() => {}), closeCommand, closeAll },
       });
     },
-    [handleSlashCommand, openModel, closeCommand, closeAll, onInputCleared],
+    [handleSlashCommand, openModel, onOpenNewChat, closeCommand, closeAll, onInputCleared],
   );
 
   // Send message

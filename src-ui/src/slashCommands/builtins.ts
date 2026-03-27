@@ -43,7 +43,10 @@ registerCommand(
 // Prompts command
 registerCommand(
   'prompts',
-  async ({ agent, addEphemeralMessage, sessionId }) => {
+  async ({ agent, addEphemeralMessage, sessionId, queryClient }) => {
+    const sections: string[] = [];
+
+    // Agent custom commands
     if (agent?.commands && Object.keys(agent.commands).length > 0) {
       const commandList = Object.values(agent.commands)
         .map((cmd: any) => {
@@ -54,16 +57,23 @@ registerCommand(
           return `• **/${cmd.name}** ${params ? `\`${params}\`` : ''}\n  ${cmd.description || 'No description'}`;
         })
         .join('\n\n');
-      addEphemeralMessage(sessionId, {
-        role: 'system',
-        content: `**Custom Slash Commands (${Object.keys(agent.commands).length})**\n\n${commandList}`,
-      });
-    } else {
-      addEphemeralMessage(sessionId, {
-        role: 'system',
-        content: 'No custom slash commands defined for this agent.',
-      });
+      sections.push(`**Custom Commands (${Object.keys(agent.commands).length})**\n\n${commandList}`);
     }
+
+    // Global prompts
+    const prompts = queryClient.getQueryData<any[]>(['prompts']) || [];
+    if (prompts.length > 0) {
+      const { promptSlug } = await import('../hooks/useSlashCommands');
+      const promptList = prompts
+        .map((p: any) => `• **/${promptSlug(p.name)}** — ${p.description || p.name}`)
+        .join('\n');
+      sections.push(`**Global Prompts (${prompts.length})**\n\n${promptList}`);
+    }
+
+    addEphemeralMessage(sessionId, {
+      role: 'system',
+      content: sections.length > 0 ? sections.join('\n\n---\n\n') : 'No prompts or custom commands defined.',
+    });
   },
 );
 
@@ -229,3 +239,14 @@ registerCommand(
     });
   },
 );
+
+// Resume/Chat command — opens the "Open chat" modal
+registerCommand('resume', async ({ autocomplete }) => {
+  autocomplete.closeAll();
+  autocomplete.openNewChat();
+});
+
+registerCommand('chat', async ({ autocomplete }) => {
+  autocomplete.closeAll();
+  autocomplete.openNewChat();
+});

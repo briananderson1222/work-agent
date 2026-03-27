@@ -9,6 +9,7 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { getAllCommands, getCommand } from '../slashCommands/registry';
 import '../slashCommands/builtins';
 import '../slashCommands/tools';
+import { promptSlug } from './useSlashCommands';
 
 export function useSlashCommandHandler() {
   const { apiBase } = useApiBase();
@@ -24,6 +25,7 @@ export function useSlashCommandHandler() {
         onInputCleared?: () => void;
         autocomplete: {
           openModel: () => void;
+          openNewChat: () => void;
           closeCommand: () => void;
           closeAll: () => void;
         };
@@ -68,7 +70,17 @@ export function useSlashCommandHandler() {
         return expandedPrompt;
       }
 
-      // 2. Check registered commands
+      // 2. Check global prompts
+      {
+        const cached = queryClient.getQueryData<any[]>(['prompts']);
+        const match = cached?.find((p: any) => promptSlug(p.name) === cmd);
+        if (match) {
+          cleanup();
+          return match.content;
+        }
+      }
+
+      // 3. Check registered commands
       const handler = getCommand(cmd);
       if (handler) {
         cleanup();
@@ -89,7 +101,7 @@ export function useSlashCommandHandler() {
         return true;
       }
 
-      // 3. Unknown command
+      // 4. Unknown command
       const availableCommands = getAllCommands();
       addEphemeralMessage(sessionId, {
         role: 'system',

@@ -20,6 +20,7 @@ export type SlashCommandContext = {
   sendMessage: (content: string) => Promise<void>;
   autocomplete: {
     openModel: () => void;
+    openNewChat: () => void;
     closeCommand: () => void;
     closeAll: () => void;
   };
