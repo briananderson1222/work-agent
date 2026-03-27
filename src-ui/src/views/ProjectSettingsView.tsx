@@ -7,6 +7,7 @@ import { PathAutocomplete } from '../components/PathAutocomplete';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectConfig } from '../contexts/ProjectsContext';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import './page-layout.css';
 import './editor-layout.css';
 import './ProjectSettingsView.css';
@@ -98,6 +99,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
   }
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
+  const { guard, DiscardModal } = useUnsavedGuard(isDirty);
 
   function setField<K extends keyof ProjectForm>(
     key: K,
@@ -119,7 +121,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
       >
         <button
           className="editor-btn"
-          onClick={() => navigate(`/projects/${slug}`)}
+          onClick={() => guard(() => navigate(`/projects/${slug}`))}
         >
           ← Back
         </button>
@@ -230,6 +232,8 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         }}
         onCancel={() => setDeleteOpen(false)}
       />
+
+      <DiscardModal />
     </div>
   );
 }

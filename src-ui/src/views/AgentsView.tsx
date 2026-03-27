@@ -14,6 +14,7 @@ import {
 import { useConfig } from '../contexts/ConfigContext';
 import { useACPConnections } from '../hooks/useACPConnections';
 import { useAIEnrich } from '../hooks/useAIEnrich';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import type { AgentSummary, NavigationView, Tool } from '../types';
 import { AgentAddModal } from './AgentAddModal';
@@ -245,21 +246,25 @@ export function AgentsView({
   }, [selectedSlug, isCreating, loadAgent]);
 
   function handleSelect(slug: string) {
-    urlSelect(slug);
-    setIsCreating(false);
-    setError(null);
-    setValidationErrors({});
+    guard(() => {
+      urlSelect(slug);
+      setIsCreating(false);
+      setError(null);
+      setValidationErrors({});
+    });
   }
 
   function handleNew(initialForm?: Partial<AgentFormData>) {
-    urlSelect('new');
-    setIsCreating(true);
-    setTemplatePicked(!!initialForm || agents.length === 0);
-    const base = initialForm ? { ...EMPTY_FORM, ...initialForm } : EMPTY_FORM;
-    setForm(base);
-    setSavedForm(base);
-    setError(null);
-    setValidationErrors({});
+    guard(() => {
+      urlSelect('new');
+      setIsCreating(true);
+      setTemplatePicked(!!initialForm || agents.length === 0);
+      const base = initialForm ? { ...EMPTY_FORM, ...initialForm } : EMPTY_FORM;
+      setForm(base);
+      setSavedForm(base);
+      setError(null);
+      setValidationErrors({});
+    });
   }
 
   function handleDeselect() {
@@ -328,6 +333,8 @@ export function AgentsView({
   }
 
   const dirty = isDirty(form, savedForm);
+  const { guard, DiscardModal } = useUnsavedGuard(dirty);
+
   const isPlugin = selectedSlug?.includes(':') && !isCreating;
   const selectedAgent = allAgents.find((a) => a.slug === selectedSlug);
   const isAcp = selectedAgent?.source === 'acp';
@@ -592,6 +599,8 @@ export function AgentsView({
           onClose={() => setAddModalType(null)}
         />
       )}
+
+      <DiscardModal />
     </div>
   );
 }

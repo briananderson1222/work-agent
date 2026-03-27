@@ -56,6 +56,15 @@ Before pushing, run the full local CI pipeline (typecheck, biome lint, build, te
 
 For the full CLI command and flag reference, see [docs/reference/cli.md](docs/reference/cli.md).
 
+### Unsaved changes guard
+
+All editor views with dirty state MUST use the `useUnsavedGuard(dirty)` hook from `src-ui/src/hooks/useUnsavedGuard.tsx`. It provides:
+- `guard(cb)` — shows a ConfirmModal if dirty, else runs the callback. Wrap any navigation handler (select, new, back).
+- `<DiscardModal />` — render at the bottom of the view's JSX.
+- Automatic `beforeunload` protection for browser close/reload.
+
+Never use `window.confirm` for unsaved-changes prompts — always use this hook.
+
 ### Known issues
 
 None currently tracked.

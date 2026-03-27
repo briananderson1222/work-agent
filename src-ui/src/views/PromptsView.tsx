@@ -16,6 +16,7 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 import { useAIEnrich } from '../hooks/useAIEnrich';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import './page-layout.css';
 import './editor-layout.css';
@@ -195,33 +196,30 @@ export function PromptsView() {
   }, [selectedPrompt?.id, dirty, isNew, selectedPrompt]);
 
   // Unsaved changes guard
-  useEffect(() => {
-    if (!dirty) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty]);
+  const { guard, DiscardModal } = useUnsavedGuard(dirty);
 
   function selectPrompt(id: string) {
-    const p = prompts.find((x) => x.id === id);
-    if (!p) return;
-    urlSelect(id);
-    setIsNew(false);
-    setForm(promptToForm(p));
-    setDirty(false);
-    setTouched({});
-    setAdvancedOpen(false);
+    guard(() => {
+      const p = prompts.find((x) => x.id === id);
+      if (!p) return;
+      urlSelect(id);
+      setIsNew(false);
+      setForm(promptToForm(p));
+      setDirty(false);
+      setTouched({});
+      setAdvancedOpen(false);
+    });
   }
 
   function startNew() {
-    urlDeselect();
-    setIsNew(true);
-    setForm(EMPTY_FORM);
-    setDirty(false);
-    setTouched({});
-    setAdvancedOpen(false);
+    guard(() => {
+      urlDeselect();
+      setIsNew(true);
+      setForm(EMPTY_FORM);
+      setDirty(false);
+      setTouched({});
+      setAdvancedOpen(false);
+    });
   }
 
   function handleDeselect() {
@@ -649,6 +647,8 @@ export function PromptsView() {
         onImport={(items) => importMutation.mutate(items)}
         onCancel={() => setShowImportModal(false)}
       />
+
+      <DiscardModal />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAIEnrich } from '../hooks/useAIEnrich';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import type {
   AgentSummary,
@@ -157,6 +158,7 @@ export function LayoutsView() {
   });
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
+  const { guard, DiscardModal } = useUnsavedGuard(isDirty);
 
   const filtered = useMemo(
     () =>
@@ -176,22 +178,26 @@ export function LayoutsView() {
   }));
 
   function handleSelect(slug: string) {
-    urlSelect(slug);
-    setIsNew(false);
-    setError(null);
-    setAdvancedOpen(false);
+    guard(() => {
+      urlSelect(slug);
+      setIsNew(false);
+      setError(null);
+      setAdvancedOpen(false);
+    });
   }
 
   function handleNew() {
-    urlSelect('new');
-    setIsNew(true);
-    setTemplatePicked(layouts.length === 0);
-    setForm(EMPTY_FORM);
-    setSavedForm(EMPTY_FORM);
-    setExpandedTabs(new Set());
-    setExpandedPrompts(new Set());
-    setError(null);
-    setAdvancedOpen(false);
+    guard(() => {
+      urlSelect('new');
+      setIsNew(true);
+      setTemplatePicked(layouts.length === 0);
+      setForm(EMPTY_FORM);
+      setSavedForm(EMPTY_FORM);
+      setExpandedTabs(new Set());
+      setExpandedPrompts(new Set());
+      setError(null);
+      setAdvancedOpen(false);
+    });
   }
 
   function handleDeselect() {
@@ -788,6 +794,8 @@ export function LayoutsView() {
         }}
         onCancel={() => setDeleteOpen(false)}
       />
+
+      <DiscardModal />
     </div>
   );
 }
