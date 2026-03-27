@@ -96,12 +96,20 @@ async function main() {
         else if (arg.startsWith('--ui-port='))
           uiPort = parseInt(arg.split('=')[1], 10);
         else if (arg.startsWith('--log=')) logFile = arg.split('=')[1];
-        else if (arg === '--log') logFile = join(tmpdir(), 'stallion-server.log');
+        else if (arg === '--log')
+          logFile = join(tmpdir(), 'stallion-server.log');
         else if (arg === '--build') buildFlag = true;
         else if (arg.startsWith('--base=')) baseDir = arg.split('=')[1];
         else if (arg.startsWith('--features=')) features = arg.split('=')[1];
       }
-      start({ serverPort, uiPort, logFile, build: buildFlag, baseDir, features });
+      start({
+        serverPort,
+        uiPort,
+        logFile,
+        build: buildFlag,
+        baseDir,
+        features,
+      });
       break;
     }
     case 'stop':
@@ -159,6 +167,7 @@ Usage:
     --port=<n>            Server port (default: 3141)
     --ui-port=<n>         UI port (default: 3000)
     --features=<flags>    Comma-separated feature flags (e.g. strands-runtime)
+    --log[=<path>]        Redirect server output to log file
   stallion stop                 Stop running application
   stallion upgrade              Pull latest + rebuild (keeps plugins)
 

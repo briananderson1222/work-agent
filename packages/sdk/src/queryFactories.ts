@@ -76,8 +76,20 @@ export const knowledgeQueries = {
     staleTime: 2 * 60 * 1000,
   }),
 
-  search: (projectSlug: string, query: string, namespace?: string, topK?: number) => ({
-    queryKey: ['knowledge', 'search', projectSlug, query, namespace ?? 'all', topK],
+  search: (
+    projectSlug: string,
+    query: string,
+    namespace?: string,
+    topK?: number,
+  ) => ({
+    queryKey: [
+      'knowledge',
+      'search',
+      projectSlug,
+      query,
+      namespace ?? 'all',
+      topK,
+    ],
     queryFn: async () => {
       const { searchKnowledge } = await import('./api');
       return searchKnowledge(projectSlug, query, namespace, topK);

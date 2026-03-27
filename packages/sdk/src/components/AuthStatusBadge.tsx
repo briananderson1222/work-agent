@@ -47,10 +47,7 @@ export function AuthStatusBadge({
       className="auth-badge-modal-overlay"
       onClick={() => setShowConfirm(false)}
     >
-      <div
-        className="auth-badge-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="auth-badge-modal" onClick={(e) => e.stopPropagation()}>
         <h3 className="auth-badge-modal__title">Renew Authentication</h3>
         <p className="auth-badge-modal__text">
           This will attempt to renew your authentication.

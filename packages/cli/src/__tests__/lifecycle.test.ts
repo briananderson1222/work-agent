@@ -1,17 +1,12 @@
 import { spawn } from 'node:child_process';
-import {
-  existsSync,
-  mkdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
-  afterEach,
   describe,
   expect,
   it,
@@ -77,11 +72,11 @@ function ensureNoPidfile() {
 }
 
 async function spawnLongRunning(): Promise<number> {
-  const proc = spawn(
-    'node',
-    ['-e', 'setInterval(() => {}, 10000)'],
-    { detached: true, stdio: 'ignore', windowsHide: true },
-  );
+  const proc = spawn('node', ['-e', 'setInterval(() => {}, 10000)'], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
   proc.unref();
   await new Promise((r) => setTimeout(r, 150));
   return proc.pid!;
@@ -117,7 +112,9 @@ describe('isRunning', () => {
       writeFileSync(TEST_PIDFILE, String(pid));
       expect(isRunning()).toBe(true);
     } finally {
-      try { process.kill(pid, 'SIGKILL'); } catch {}
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
     }
   });
 });
@@ -197,11 +194,11 @@ describe('clean', () => {
       .mockResolvedValue(false);
     // Throw on exit so execution doesn't fall through past process.exit(0),
     // matching real behaviour where exit() terminates the process.
-    const exitSpy = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit(${code})`);
-      }) as never);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((
+      code?: number,
+    ) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
     try {
       await expect(clean(false)).rejects.toThrow('process.exit(0)');
 

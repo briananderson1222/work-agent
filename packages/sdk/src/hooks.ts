@@ -9,7 +9,13 @@ import { useCallback, useContext, useEffect, useState } from 'react';
 import { resolveAgentName } from './agentResolver';
 import { _getApiBase, _getPluginName } from './api';
 import { SDKContext } from './providers';
-import { useKnowledgeDocsQuery, useKnowledgeNamespacesQuery, useKnowledgeSearchQuery, useProjectQuery, useProjectsQuery } from './queries';
+import {
+  useKnowledgeDocsQuery,
+  useKnowledgeNamespacesQuery,
+  useKnowledgeSearchQuery,
+  useProjectQuery,
+  useProjectsQuery,
+} from './queries';
 import type { AgentSummary } from './types';
 
 // SDK Context Access
@@ -453,6 +459,10 @@ export function useKnowledgeDocs(projectSlug: string, namespace?: string) {
   return useKnowledgeDocsQuery(projectSlug, namespace);
 }
 
-export function useKnowledgeSearch(projectSlug: string, query: string, namespace?: string) {
+export function useKnowledgeSearch(
+  projectSlug: string,
+  query: string,
+  namespace?: string,
+) {
   return useKnowledgeSearchQuery(projectSlug, query, namespace);
 }

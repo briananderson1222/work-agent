@@ -104,7 +104,9 @@ export function createPathLink(repoRoot: string): void {
   const pathDirs = (process.env.PATH || '').split(':');
   if (!pathDirs.includes(binDir)) {
     console.log(`\n  ⚠ ${binDir} is not on your PATH.`);
-    console.log('  Add this to your shell profile (~/.zshrc, ~/.bashrc, etc.):');
+    console.log(
+      '  Add this to your shell profile (~/.zshrc, ~/.bashrc, etc.):',
+    );
     console.log(`    export PATH="${binDir}:$PATH"`);
   } else {
     console.log("  You can now run 'stallion' from anywhere");

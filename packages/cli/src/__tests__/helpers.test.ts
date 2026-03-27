@@ -42,7 +42,9 @@ describe('isGitUrl', () => {
 
 describe('parseGitSource', () => {
   it('splits URL and branch on #', () => {
-    const result = parseGitSource('https://github.com/org/repo.git#feat/branch');
+    const result = parseGitSource(
+      'https://github.com/org/repo.git#feat/branch',
+    );
     expect(result.url).toBe('https://github.com/org/repo.git');
     expect(result.branch).toBe('feat/branch');
   });
@@ -65,21 +67,21 @@ describe('extractPluginName', () => {
   });
 
   it('extracts name from git URL with .git suffix', () => {
-    expect(
-      extractPluginName('https://github.com/org/awesome-plugin.git'),
-    ).toBe('awesome-plugin');
+    expect(extractPluginName('https://github.com/org/awesome-plugin.git')).toBe(
+      'awesome-plugin',
+    );
   });
 
   it('extracts name from git URL without .git suffix', () => {
-    expect(
-      extractPluginName('https://github.com/org/awesome-plugin'),
-    ).toBe('awesome-plugin');
+    expect(extractPluginName('https://github.com/org/awesome-plugin')).toBe(
+      'awesome-plugin',
+    );
   });
 
   it('extracts name from git URL with branch fragment', () => {
-    expect(
-      extractPluginName('https://github.com/org/my-plugin.git#main'),
-    ).toBe('my-plugin');
+    expect(extractPluginName('https://github.com/org/my-plugin.git#main')).toBe(
+      'my-plugin',
+    );
   });
 
   it('extracts name from SSH git URL', () => {

@@ -153,9 +153,17 @@ export interface WindowOptions {
 // ── Knowledge Provider ─────────────────────────────────────────────
 
 export interface IKnowledgeProvider {
-  listDocs(namespace?: string): Promise<import('@stallion-ai/shared').KnowledgeDocumentMeta[]>;
+  listDocs(
+    namespace?: string,
+  ): Promise<import('@stallion-ai/shared').KnowledgeDocumentMeta[]>;
   search(query: string, namespace?: string, topK?: number): Promise<any[]>;
-  save(filename: string, content: string, namespace?: string): Promise<import('@stallion-ai/shared').KnowledgeDocumentMeta>;
+  save(
+    filename: string,
+    content: string,
+    namespace?: string,
+  ): Promise<import('@stallion-ai/shared').KnowledgeDocumentMeta>;
   remove(docId: string, namespace?: string): Promise<void>;
-  listNamespaces(): Promise<import('@stallion-ai/shared').KnowledgeNamespaceConfig[]>;
+  listNamespaces(): Promise<
+    import('@stallion-ai/shared').KnowledgeNamespaceConfig[]
+  >;
 }

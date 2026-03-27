@@ -1,10 +1,5 @@
 import { execSync, spawn } from 'node:child_process';
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-} from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -47,11 +42,11 @@ describe('killProcessTree', () => {
   });
 
   it('kills a live process', async () => {
-    const proc = spawn(
-      'node',
-      ['-e', 'setInterval(() => {}, 10000)'],
-      { detached: true, stdio: 'ignore', windowsHide: true },
-    );
+    const proc = spawn('node', ['-e', 'setInterval(() => {}, 10000)'], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
     proc.unref();
     const pid = proc.pid!;
 
@@ -74,12 +69,14 @@ describe('promptYN (answer parsing logic)', () => {
 
   it('"y" is accepted', () => expect(accepts('y')).toBe(true));
   it('"Y" is accepted', () => expect(accepts('Y')).toBe(true));
-  it('"y " with trailing space is accepted', () => expect(accepts('y ')).toBe(true));
+  it('"y " with trailing space is accepted', () =>
+    expect(accepts('y ')).toBe(true));
   it('"n" is rejected', () => expect(accepts('n')).toBe(false));
   it('"N" is rejected', () => expect(accepts('N')).toBe(false));
   it('empty string is rejected', () => expect(accepts('')).toBe(false));
   it('whitespace-only is rejected', () => expect(accepts('  ')).toBe(false));
-  it('"yes" is rejected (must be single y)', () => expect(accepts('yes')).toBe(false));
+  it('"yes" is rejected (must be single y)', () =>
+    expect(accepts('yes')).toBe(false));
 });
 
 // ─── createPathLink ───────────────────────────────────────────────────────────
@@ -136,9 +133,7 @@ describe('createPathLink', () => {
       const mockExit = vi
         .spyOn(process, 'exit')
         .mockImplementation((() => {}) as never);
-      const mockErr = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      const mockErr = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       createPathLink(tmpDir); // no 'stallion' file in tmpDir
 
@@ -156,7 +151,7 @@ describe('createAppShortcut', () => {
     'Windows: writes a .bat launcher to the detected desktop',
     () => {
       const desktop = execSync(
-        "powershell -NoProfile -Command \"[Environment]::GetFolderPath('Desktop')\"",
+        'powershell -NoProfile -Command "[Environment]::GetFolderPath(\'Desktop\')"',
         { encoding: 'utf-8' },
       ).trim();
       const bat = join(desktop, 'Stallion.bat');
@@ -189,9 +184,9 @@ describe('createAppShortcut', () => {
         createAppShortcut('/test/repo');
 
         expect(existsSync(join(appDir, 'Contents', 'Info.plist'))).toBe(true);
-        expect(
-          existsSync(join(appDir, 'Contents', 'MacOS', 'launch')),
-        ).toBe(true);
+        expect(existsSync(join(appDir, 'Contents', 'MacOS', 'launch'))).toBe(
+          true,
+        );
         const plist = readFileSync(
           join(appDir, 'Contents', 'Info.plist'),
           'utf-8',
@@ -208,24 +203,21 @@ describe('createAppShortcut', () => {
     },
   );
 
-  it.runIf(!IS_WINDOWS && !IS_MAC)(
-    'Linux: creates .desktop entry',
-    () => {
-      const desktopDir = join(homedir(), '.local', 'share', 'applications');
-      const desktopFile = join(desktopDir, 'stallion.desktop');
+  it.runIf(!IS_WINDOWS && !IS_MAC)('Linux: creates .desktop entry', () => {
+    const desktopDir = join(homedir(), '.local', 'share', 'applications');
+    const desktopFile = join(desktopDir, 'stallion.desktop');
+    if (existsSync(desktopFile)) rmSync(desktopFile);
+
+    try {
+      createAppShortcut('/test/repo');
+
+      expect(existsSync(desktopFile)).toBe(true);
+      const content = readFileSync(desktopFile, 'utf-8');
+      expect(content).toContain('[Desktop Entry]');
+      expect(content).toContain('Name=Stallion AI');
+      expect(content).toContain('http://localhost:3000');
+    } finally {
       if (existsSync(desktopFile)) rmSync(desktopFile);
-
-      try {
-        createAppShortcut('/test/repo');
-
-        expect(existsSync(desktopFile)).toBe(true);
-        const content = readFileSync(desktopFile, 'utf-8');
-        expect(content).toContain('[Desktop Entry]');
-        expect(content).toContain('Name=Stallion AI');
-        expect(content).toContain('http://localhost:3000');
-      } finally {
-        if (existsSync(desktopFile)) rmSync(desktopFile);
-      }
-    },
-  );
+    }
+  });
 });

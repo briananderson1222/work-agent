@@ -295,6 +295,28 @@ export function useUsageQuery(config?: QueryConfig<any>) {
 }
 
 /**
+ * Fetch usage analytics with date range (for ActivityTimeline)
+ */
+export function useActivityUsageQuery(
+  from: string,
+  to: string,
+  config?: QueryConfig<any>,
+) {
+  return useApiQuery(
+    ['analytics', 'usage', from, to],
+    async () => {
+      const apiBase = await _getApiBase();
+      const r = await fetch(
+        `${apiBase}/api/analytics/usage?from=${from}&to=${to}`,
+      );
+      if (!r.ok) throw new Error('Failed to fetch activity usage');
+      return (await r.json()).data;
+    },
+    config,
+  );
+}
+
+/**
  * Fetch achievements
  */
 export function useAchievementsQuery(config?: QueryConfig<any>) {
@@ -319,7 +341,7 @@ export function useInsightsQuery(days = 14, config?: QueryConfig<any>) {
     ['insights', days],
     async () => {
       const apiBase = await _getApiBase();
-      const r = await fetch(`${apiBase}/api/insights/insights?days=${days}`);
+      const r = await fetch(`${apiBase}/api/insights?days=${days}`);
       if (!r.ok) throw new Error('Failed to fetch insights');
       return (await r.json()).data;
     },
@@ -1007,19 +1029,35 @@ async function schedulerMutate(path: string, method: string, body?: unknown) {
 }
 
 export function useSchedulerJobs() {
-  return useApiQuery(['scheduler', 'jobs'], () => schedulerFetch<any[]>('/jobs'), { staleTime: 30_000 });
+  return useApiQuery(
+    ['scheduler', 'jobs'],
+    () => schedulerFetch<any[]>('/jobs'),
+    { staleTime: 30_000 },
+  );
 }
 
 export function useSchedulerProviders() {
-  return useApiQuery(['scheduler', 'providers'], () => schedulerFetch<any[]>('/providers'), { staleTime: 60_000 });
+  return useApiQuery(
+    ['scheduler', 'providers'],
+    () => schedulerFetch<any[]>('/providers'),
+    { staleTime: 60_000 },
+  );
 }
 
 export function useSchedulerStats() {
-  return useApiQuery(['scheduler', 'stats'], () => schedulerFetch<any>('/stats'), { staleTime: 30_000 });
+  return useApiQuery(
+    ['scheduler', 'stats'],
+    () => schedulerFetch<any>('/stats'),
+    { staleTime: 30_000 },
+  );
 }
 
 export function useSchedulerStatus() {
-  return useApiQuery(['scheduler', 'status'], () => schedulerFetch<any>('/status'), { staleTime: 30_000 });
+  return useApiQuery(
+    ['scheduler', 'status'],
+    () => schedulerFetch<any>('/status'),
+    { staleTime: 30_000 },
+  );
 }
 
 export function useJobLogs(target: string | null) {
@@ -1033,7 +1071,10 @@ export function useJobLogs(target: string | null) {
 export function usePreviewSchedule(cron: string | null) {
   return useApiQuery(
     ['scheduler', 'preview', cron ?? ''],
-    () => schedulerFetch<string[]>(`/jobs/preview-schedule?cron=${encodeURIComponent(cron!)}`),
+    () =>
+      schedulerFetch<string[]>(
+        `/jobs/preview-schedule?cron=${encodeURIComponent(cron!)}`,
+      ),
     { staleTime: 60_000, enabled: !!cron && cron.trim().length > 0 },
   );
 }
@@ -1041,7 +1082,8 @@ export function usePreviewSchedule(cron: string | null) {
 export function useRunJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (target: string) => schedulerMutate(`/jobs/${target}/run`, 'POST'),
+    mutationFn: (target: string) =>
+      schedulerMutate(`/jobs/${target}/run`, 'POST'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
   });
 }
@@ -1050,7 +1092,10 @@ export function useToggleJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ target, enabled }: { target: string; enabled: boolean }) =>
-      schedulerMutate(`/jobs/${target}/${enabled ? 'enable' : 'disable'}`, 'PUT'),
+      schedulerMutate(
+        `/jobs/${target}/${enabled ? 'enable' : 'disable'}`,
+        'PUT',
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
   });
 }
@@ -1058,7 +1103,8 @@ export function useToggleJob() {
 export function useDeleteJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (target: string) => schedulerMutate(`/jobs/${target}`, 'DELETE'),
+    mutationFn: (target: string) =>
+      schedulerMutate(`/jobs/${target}`, 'DELETE'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
   });
 }
@@ -1066,8 +1112,13 @@ export function useDeleteJob() {
 export function useEditJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ target, ...opts }: { target: string; [key: string]: unknown }) =>
-      schedulerMutate(`/jobs/${target}`, 'PUT', opts),
+    mutationFn: ({
+      target,
+      ...opts
+    }: {
+      target: string;
+      [key: string]: unknown;
+    }) => schedulerMutate(`/jobs/${target}`, 'PUT', opts),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduler'] }),
   });
 }
@@ -1091,7 +1142,8 @@ export function useAddJob() {
 
 export function useFetchRunOutput() {
   return useMutation({
-    mutationFn: (outputPath: string) => schedulerMutate('/runs/output', 'POST', { path: outputPath }),
+    mutationFn: (outputPath: string) =>
+      schedulerMutate('/runs/output', 'POST', { path: outputPath }),
   });
 }
 
@@ -1099,4 +1151,101 @@ export function useOpenArtifact() {
   return useMutation({
     mutationFn: (path: string) => schedulerMutate('/open', 'POST', { path }),
   });
+}
+
+// ── Skills ──────────────────────────────────────────────
+
+export function useSkillsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['skills', 'local'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/system/skills`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data ?? [];
+    },
+    config,
+  );
+}
+
+export function useRegistrySkillsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['skills', 'registry'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/skills`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data ?? [];
+    },
+    config,
+  );
+}
+
+export function useInstallSkillMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/skills/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message || 'Install failed');
+      return json;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
+  });
+}
+
+export function useUninstallSkillMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/skills/${id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message || 'Uninstall failed');
+      return json;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
+  });
+}
+
+export function useUpdateSkillMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/skills/${id}/update`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message || 'Update failed');
+      return json;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
+  });
+}
+
+export function useSkillContentQuery(
+  id: string | undefined,
+  config?: QueryConfig<any>,
+) {
+  return useApiQuery(
+    ['skills', 'content', id ?? ''],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/skills/${id}/content`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data as string;
+    },
+    { ...config, enabled: !!id && (config?.enabled ?? true) },
+  );
 }

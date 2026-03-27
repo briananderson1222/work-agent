@@ -27,6 +27,8 @@ export interface SchedulerJob {
   enabled: boolean;
   openArtifact?: string;
   notifyStart?: boolean;
+  retryCount?: number;
+  retryDelaySecs?: number;
   lastRun?: string;
   nextRun?: string;
   [key: string]: unknown;
@@ -43,6 +45,8 @@ export interface SchedulerLogEntry {
   manual?: boolean;
   output?: string;
   error?: string;
+  attempt?: number;
+  maxAttempts?: number;
 }
 
 export interface AddJobOpts {
@@ -53,6 +57,8 @@ export interface AddJobOpts {
   agent?: string;
   openArtifact?: string;
   notifyStart?: boolean;
+  retryCount?: number;
+  retryDelaySecs?: number;
   [key: string]: unknown;
 }
 
@@ -69,15 +75,25 @@ export interface SchedulerProviderStats {
 export interface SchedulerProviderStatus {
   running: boolean;
   jobCount: number;
+  lastTickAt?: string | null;
+  healthy?: boolean;
 }
 
 /** SSE event shape pushed from scheduler to frontend */
 export interface SchedulerEvent {
-  event: 'job.started' | 'job.completed' | 'job.failed';
+  event:
+    | 'job.started'
+    | 'job.completed'
+    | 'job.failed'
+    | 'job.retrying'
+    | 'job.missed';
   job: string;
   id?: string;
   success?: boolean;
   duration_secs?: number;
   artifact?: string | null;
   error?: string;
+  attempt?: number;
+  maxAttempts?: number;
+  missedCount?: number;
 }

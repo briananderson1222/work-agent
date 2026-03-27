@@ -392,6 +392,7 @@ export interface AppConfig {
   defaultEmbeddingModel?: string;
   defaultVectorDbProvider?: string;
   terminalShell?: string;
+  disableDefaultSkillRegistries?: boolean;
 }
 
 export interface TemplateVariable {
@@ -399,6 +400,23 @@ export interface TemplateVariable {
   type: 'static' | 'date' | 'time' | 'datetime' | 'custom';
   value?: string;
   format?: string;
+}
+
+// ── Prompt ──────────────────────────────────────────────────────────
+
+export interface Prompt {
+  id: string;
+  name: string;
+  content: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  agent?: string;
+  source?: string;
+  requires?: string[];
+  icon?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ── API Contracts ──────────────────────────────────────────────────
@@ -489,7 +507,17 @@ export interface RegistryItem {
   description?: string;
   version?: string;
   status?: string;
+  tags?: string[];
   installed: boolean;
+}
+
+/** UI-facing skill type — extends RegistryItem with runtime fields. */
+export interface Skill extends RegistryItem {
+  name: string;
+  source?: string;
+  path?: string;
+  installedVersion?: string;
+  updateAvailable?: boolean;
 }
 
 export interface InstallResult {
@@ -886,7 +914,9 @@ function ensurePluginDeps(pluginDir: string): void {
       ? resolve(devRoot, '..', 'sdk')
       : null;
     if (sdkRoot) {
-      try { unlinkSync(sdkLink); } catch {}
+      try {
+        unlinkSync(sdkLink);
+      } catch {}
       symlinkSync(sdkRoot, sdkLink);
     }
   }

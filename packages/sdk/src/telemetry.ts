@@ -18,33 +18,56 @@ async function flush() {
     const apiBase = await _getApiBase();
     await fetch(`${apiBase}/api/telemetry/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-stallion-plugin': _getPluginName() },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stallion-plugin': _getPluginName(),
+      },
       body: JSON.stringify({ events }),
     });
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
 }
 
 function scheduleFlush() {
-  if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush(); }, FLUSH_INTERVAL);
+  if (!flushTimer)
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      flush();
+    }, FLUSH_INTERVAL);
 }
 
 export const telemetry = {
   track(event: string, attributes: Record<string, string | number> = {}) {
-    buffer.push({ event, plugin: _getPluginName(), attributes, timestamp: Date.now() });
+    buffer.push({
+      event,
+      plugin: _getPluginName(),
+      attributes,
+      timestamp: Date.now(),
+    });
     scheduleFlush();
   },
   flush,
 };
 
-export function instrument<T extends (...args: any[]) => Promise<any>>(name: string, fn: T): T {
+export function instrument<T extends (...args: any[]) => Promise<any>>(
+  name: string,
+  fn: T,
+): T {
   return (async (...args: any[]) => {
     const start = performance.now();
     try {
       const result = await fn(...args);
-      telemetry.track(`sdk.${name}`, { duration_ms: Math.round(performance.now() - start), status: 'ok' });
+      telemetry.track(`sdk.${name}`, {
+        duration_ms: Math.round(performance.now() - start),
+        status: 'ok',
+      });
       return result;
     } catch (err) {
-      telemetry.track(`sdk.${name}`, { duration_ms: Math.round(performance.now() - start), status: 'error' });
+      telemetry.track(`sdk.${name}`, {
+        duration_ms: Math.round(performance.now() - start),
+        status: 'error',
+      });
       throw err;
     }
   }) as unknown as T;
