@@ -257,7 +257,6 @@ export function Header({
 
         <div
           className="app-toolbar__action--secondary"
-          style={{ position: 'relative' }}
         >
           <button
             type="button"
@@ -280,88 +279,89 @@ export function Header({
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </button>
-          {showHelp && (
-            <>
-              <div
-                style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-                onClick={() => setShowHelp(false)}
-              />
+        </div>
+
+        {/* Help popup — rendered outside secondary div so it's visible on mobile */}
+        {showHelp && (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+              onClick={() => setShowHelp(false)}
+            />
+            <div
+              style={{
+                position: 'fixed',
+                top: 40,
+                right: 8,
+                zIndex: 100,
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-primary)',
+                borderRadius: 8,
+                width: 'min(280px, calc(100vw - 32px))',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                overflow: 'hidden',
+              }}
+            >
               <div
                 style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 6,
-                  zIndex: 100,
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-primary)',
-                  borderRadius: 8,
-                  width: 'min(280px, calc(100vw - 32px))',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                  overflow: 'hidden',
+                  padding: '8px 12px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  borderBottom: '1px solid var(--border-primary)',
                 }}
               >
-                <div
-                  style={{
-                    padding: '8px 12px',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--text-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    borderBottom: '1px solid var(--border-primary)',
-                  }}
-                >
-                  Ask Stallion
-                </div>
-                {helpPrompts.map((p, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleHelpPrompt(p.prompt)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      width: '100%',
-                      padding: '10px 12px',
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'var(--text-primary)',
-                      fontSize: 13,
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      borderBottom:
-                        i < helpPrompts.length - 1
-                          ? '1px solid var(--border-primary)'
-                          : 'none',
-                      fontFamily: 'inherit',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'var(--bg-tertiary)')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = 'transparent')
-                    }
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="var(--text-muted)"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{ flexShrink: 0, marginRight: 8 }}
-                    >
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                    {p.label}
-                  </button>
-                ))}
+                Ask Stallion
               </div>
-            </>
-          )}
-        </div>
+              {helpPrompts.map((p, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleHelpPrompt(p.prompt)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    borderBottom:
+                      i < helpPrompts.length - 1
+                        ? '1px solid var(--border-primary)'
+                        : 'none',
+                    fontFamily: 'inherit',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = 'var(--bg-tertiary)')
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = 'transparent')
+                  }
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--text-muted)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ flexShrink: 0, marginRight: 8 }}
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Mobile overflow menu for secondary actions */}
         <div className="app-toolbar__overflow" style={{ position: 'relative' }}>
@@ -390,7 +390,8 @@ export function Header({
                   Connections
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setShowOverflow(false);
                     setShowHelp(true);
                   }}

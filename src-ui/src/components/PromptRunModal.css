@@ -30,7 +30,7 @@
 }
 
 .prompt-run__dialog {
-  max-width: 560px;
+  max-width: min(560px, calc(100vw - 32px));
 }
 
 .prompt-run__agent-field {

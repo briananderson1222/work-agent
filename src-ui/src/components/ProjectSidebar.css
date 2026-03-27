@@ -346,6 +346,10 @@
     z-index: 499;
   }
 
+  .sidebar__nav {
+    padding-bottom: 8px;
+  }
+
   /* Hide the old edge-tab toggle */
   .sidebar__mobile-toggle {
     display: none;

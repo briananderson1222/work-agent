@@ -50,11 +50,11 @@ export function NotificationHistory({
     <div
       ref={dropdownRef}
       style={{
-        position: 'absolute',
-        top: '100%',
-        right: 0,
+        position: 'fixed',
+        top: 40,
+        right: 8,
         marginTop: '8px',
-        width: '360px',
+        width: 'min(360px, calc(100vw - 16px))',
         maxHeight: '400px',
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border-primary)',

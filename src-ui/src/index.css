@@ -783,10 +783,6 @@ body {
   padding-bottom: var(--chat-dock-height, 49px);
 }
 
-.content-view:has(.page--full) {
-  padding-bottom: 0;
-}
-
 /* Legacy class names for backward compatibility */
 .workspace-panel {
   flex: 1;
@@ -2686,6 +2682,17 @@ body {
   box-shadow: var(--shadow-modal);
   min-width: 400px;
   max-width: 600px;
+}
+
+@media (max-width: 480px) {
+  .modal-dialog {
+    min-width: unset;
+    width: calc(100vw - 32px);
+  }
+
+  .modal-dialog .button {
+    min-height: 44px;
+  }
 }
 
 .modal-dialog--danger {

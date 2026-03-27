@@ -81,15 +81,15 @@
 }
 
 /* Mobile: overflow menu for secondary actions */
-.app-toolbar__overflow-btn {
+.app-toolbar__overflow-btn.app-toolbar__overflow-btn {
   display: none;
 }
 
 @media (max-width: 768px) {
-  .app-toolbar__action--secondary {
+  .app-toolbar__action--secondary.app-toolbar__action--secondary {
     display: none;
   }
-  .app-toolbar__overflow-btn {
+  .app-toolbar__overflow-btn.app-toolbar__overflow-btn {
     display: flex;
   }
   .app-toolbar__icon-btn {

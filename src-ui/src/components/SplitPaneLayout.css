@@ -45,6 +45,9 @@
   color: var(--text-secondary);
   border: none;
   width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .split-pane__back:hover {
@@ -64,6 +67,7 @@
     width: 280px;
     flex-shrink: 0;
     border-right: 1px solid var(--border-primary);
+
   }
 
   .split-pane__right {
@@ -248,7 +252,7 @@
 
 /* ── Add Button ── */
 .split-pane__add {
-  padding: 0.75rem 1rem 3.5rem;
+  padding: 0.75rem 1rem;
   border-top: 1px solid var(--border-primary);
 }
 
@@ -310,6 +314,10 @@
 /* ── Mobile touch targets ── */
 @media (max-width: 768px) {
   .split-pane__add-btn {
+    min-height: 44px;
+  }
+
+  .split-pane__search {
     min-height: 44px;
   }
 
