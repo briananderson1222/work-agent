@@ -19,9 +19,11 @@ import {
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  type PluginManifest,
   buildPlugin as buildPluginBundle,
   copyPluginIntegrations,
 } from '@stallion-ai/shared';
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 import {
   getAgentRegistryProvider,
@@ -55,6 +57,13 @@ import {
   pluginSettingsSchema,
   validate,
 } from './schemas.js';
+
+/** Extended manifest type for fields not yet in shared PluginManifest */
+type Manifest = PluginManifest & {
+  integrations?: { required?: string[] };
+  links?: unknown;
+  prompts?: { source: string };
+};
 
 export function createPluginRoutes(
   projectHomeDir: string,
@@ -253,7 +262,7 @@ export function createPluginRoutes(
 
   /** Detect conflicts between a manifest and what's already installed */
   function detectConflicts(
-    manifest: any,
+    manifest: Manifest,
   ): Array<{ type: string; id: string; existingSource?: string }> {
     const conflicts: Array<{
       type: string;
@@ -299,7 +308,7 @@ export function createPluginRoutes(
 
   /** Resolve plugin dependencies recursively with cycle detection, including their components */
   async function resolveDependencies(
-    manifest: any,
+    manifest: Manifest,
     seen: Set<string> = new Set(),
   ): Promise<
     Array<{
@@ -324,7 +333,7 @@ export function createPluginRoutes(
       seen.add(dep.id);
 
       // Read manifest from installed dir or fetched source
-      let depManifest: any = null;
+      let depManifest: Manifest | null = null;
       let depGit: { hash: string; branch: string; remote?: string } | undefined;
       let status: 'installed' | 'will-install' | 'missing' = 'missing';
 
@@ -746,7 +755,7 @@ export function createPluginRoutes(
       // Load providers (unless skipped)
       if (manifest.providers) {
         const activeProviders = manifest.providers.filter(
-          (p: any) => !skipSet.has(`provider:${p.type}`),
+          (p: { type: string }) => !skipSet.has(`provider:${p.type}`),
         );
         if (activeProviders.length > 0) {
           await loadProviders(
@@ -811,7 +820,7 @@ export function createPluginRoutes(
       eventBus?.emit('plugins:installed', {
         name: pluginName,
         agents:
-          manifest.agents?.map((a: any) => `${pluginName}:${a.slug}`) || [],
+          manifest.agents?.map((a: { slug: string }) => `${pluginName}:${a.slug}`) || [],
       });
       pluginInstalls.add(1, { plugin: pluginName });
 
@@ -822,7 +831,7 @@ export function createPluginRoutes(
           displayName: manifest.displayName,
           version: manifest.version,
           hasBundle: existsSync(join(pluginDir, 'dist', 'bundle.js')),
-          agents: (manifest.agents || []).map((a: any) => ({
+          agents: (manifest.agents || []).map((a: { slug: string }) => ({
             slug: `${manifest.name}:${a.slug}`,
           })),
         },
@@ -1143,7 +1152,7 @@ export function createPluginRoutes(
           {
             providers: [{ type: entry.type, module: entry.module }],
             displayName: entry.pluginName,
-          },
+          } as Manifest,
           logger,
         );
       }
@@ -1170,7 +1179,7 @@ export function createPluginRoutes(
     const overrides = await configLoader.loadPluginOverrides();
     const values = overrides[manifest.name || name]?.settings || {};
 
-    const merged: Record<string, any> = {};
+    const merged: Record<string, unknown> = {};
     for (const field of schema) {
       merged[field.key] = values[field.key] ?? field.default ?? null;
     }
@@ -1257,7 +1266,7 @@ export function createPluginRoutes(
     const overrides = await configLoader.loadPluginOverrides();
     const disabled = overrides[manifest.name || name]?.disabled ?? [];
 
-    const providers = (manifest.providers || []).map((p: any) => ({
+    const providers = (manifest.providers || []).map((p: { type: string; module?: string; layout?: string | null }) => ({
       type: p.type,
       module: p.module,
       layout: p.layout ?? null,
@@ -1291,7 +1300,7 @@ export function createPluginRoutes(
 
 // ── Shared fetch proxy logic ───────────────────────────
 
-async function proxyFetch(c: any) {
+async function proxyFetch(c: Context) {
   try {
     const { url, method, headers, body } = getBody(c);
     if (!url || typeof url !== 'string')
@@ -1336,8 +1345,8 @@ function extractPluginName(source: string): string {
 async function loadProviders(
   pluginsDir: string,
   pluginName: string,
-  manifest: any,
-  logger: any,
+  manifest: Manifest,
+  logger: Logger,
 ): Promise<number> {
   if (!manifest.providers) return 0;
 
@@ -1393,15 +1402,15 @@ async function loadProviders(
       const fileUrl = `file://${modulePath}?t=${Date.now()}`;
       const mod = await import(fileUrl);
       const factory = mod.default || mod;
-      let instance: any;
+      let instance;
       try {
         instance =
           typeof factory === 'function' ? factory(pluginSettings) : factory;
-      } catch (factoryErr: any) {
+      } catch (factoryErr: unknown) {
         logger.error('Plugin provider factory threw', {
           plugin: pluginName,
           type: p.type,
-          error: factoryErr.message,
+          error: errorMessage(factoryErr),
         });
         continue;
       }
