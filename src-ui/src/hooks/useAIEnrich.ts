@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
 /**
- * Hook for AI-enriching form fields via the default agent.
+ * Hook for AI-enriching form fields via POST /invoke.
  * Returns { enrich, isEnriching } where enrich(prompt) returns the generated text.
  */
 export function useAIEnrich() {
@@ -18,42 +18,19 @@ export function useAIEnrich() {
       setIsEnriching(true);
 
       try {
-        // Find default agent
-        const agentsRes = await fetch(`${apiBase}/api/agents`, {
-          signal: controller.signal,
-        });
-        const { data: agents } = await agentsRes.json();
-        const slug = agents?.[0]?.slug;
-        if (!slug) throw new Error('No agents available');
-
-        const res = await fetch(`${apiBase}/api/agents/${slug}/chat`, {
+        const res = await fetch(`${apiBase}/invoke`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ input: prompt, options: {} }),
+          body: JSON.stringify({
+            prompt,
+            system:
+              'You are a concise content generator for a UI form. Output ONLY the requested text. No questions, no preamble, no explanation, no markdown formatting unless requested.',
+          }),
           signal: controller.signal,
         });
 
-        let text = '';
-        if (res.body) {
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            for (const line of decoder
-              .decode(value, { stream: true })
-              .split('\n')) {
-              if (!line.startsWith('data: ')) continue;
-              try {
-                const evt = JSON.parse(line.slice(6));
-                if (evt.type === 'text-delta') text += evt.text;
-              } catch {
-                /* skip */
-              }
-            }
-          }
-        }
-        return text;
+        const data = await res.json();
+        return data.response || '';
       } finally {
         setIsEnriching(false);
         abortRef.current = null;

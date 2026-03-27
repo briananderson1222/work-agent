@@ -504,7 +504,7 @@ export function LayoutsView() {
                           disabled={isEnriching || !form.name}
                           onClick={async () => {
                             const text = await enrich(
-                              `Write a brief one-sentence description for a layout named "${form.name}".`,
+                              `Write a brief one-sentence description for a UI layout named "${form.name}"${form.tabs?.length ? ` with ${form.tabs.length} tab(s)` : ''}.`,
                             );
                             if (text)
                               setForm((f) => ({

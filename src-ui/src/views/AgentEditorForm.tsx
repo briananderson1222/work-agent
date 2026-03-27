@@ -168,7 +168,7 @@ export function AgentEditorForm({
               aria-label="Generate description"
               onClick={async () => {
                 const text = await enrich(
-                  `Write a brief one-sentence description for an AI agent named "${form.name}".`,
+                  `Write a brief one-sentence description for an AI agent named "${form.name}"${form.prompt ? `. Its system prompt starts with: "${form.prompt.slice(0, 200)}"` : ''}.`,
                 );
                 if (text) setForm((f) => ({ ...f, description: text.trim() }));
               }}
@@ -202,7 +202,7 @@ export function AgentEditorForm({
               aria-label="Generate system prompt"
               onClick={async () => {
                 const text = await enrich(
-                  `Write a system prompt for an AI agent named "${form.name}"${form.description ? ` that ${form.description}` : ''}. Be specific and actionable.`,
+                  `Write a system prompt for an AI agent named "${form.name}"${form.description ? ` described as: "${form.description}"` : ''}. Be specific and actionable. Output only the system prompt text.`,
                 );
                 if (text) setForm((f) => ({ ...f, prompt: text.trim() }));
               }}
@@ -278,9 +278,17 @@ export function AgentEditorForm({
                   const isExpanded =
                     expandedIntegrations[integration.id] || false;
                   const tools = integrationTools[integration.id] || [];
+                  const prefix = `${integration.id}_`;
                   const hasAutoApprove = form.tools.autoApprove.includes(
-                    `${integration.id}_*`,
+                    `${prefix}*`,
                   );
+                  // No entries for this integration in available → all tools active
+                  const hasExplicitAvailable = form.tools.available.some(
+                    (a) => a.startsWith(prefix),
+                  );
+                  const allToolsActive =
+                    !hasExplicitAvailable ||
+                    form.tools.available.includes(`${prefix}*`);
 
                   return (
                     <div key={integration.id} className="editor__tools-server">
@@ -294,27 +302,35 @@ export function AgentEditorForm({
                           }))
                         }
                       >
-                        <Checkbox
-                          checked={true}
-                          onChange={() => {
-                            if (locked) return;
-                            setForm((f) => {
-                              const servers = new Set(f.tools.mcpServers);
-                              servers.delete(integration.id);
-                              return {
-                                ...f,
-                                tools: {
-                                  ...f.tools,
-                                  mcpServers: [...servers],
-                                  available: f.tools.available.filter(
-                                    (p) => !p.startsWith(`${integration.id}_`),
-                                  ),
-                                },
-                              };
-                            });
-                          }}
-                          disabled={locked}
-                        />
+                        <span
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ display: 'contents' }}
+                        >
+                          <Checkbox
+                            checked={true}
+                            onChange={() => {
+                              if (locked) return;
+                              setForm((f) => {
+                                const servers = new Set(f.tools.mcpServers);
+                                servers.delete(integration.id);
+                                return {
+                                  ...f,
+                                  tools: {
+                                    ...f.tools,
+                                    mcpServers: [...servers],
+                                    available: f.tools.available.filter(
+                                      (p) => !p.startsWith(prefix),
+                                    ),
+                                    autoApprove: f.tools.autoApprove.filter(
+                                      (p) => !p.startsWith(prefix),
+                                    ),
+                                  },
+                                };
+                              });
+                            }}
+                            disabled={locked}
+                          />
+                        </span>
                         <span className="editor__tools-server-name">
                           {integration.displayName || integration.id}
                         </span>
@@ -329,8 +345,7 @@ export function AgentEditorForm({
                                   tools: {
                                     ...f.tools,
                                     autoApprove: f.tools.autoApprove.filter(
-                                      (p: string) =>
-                                        p !== `${integration.id}_*`,
+                                      (p: string) => !p.startsWith(prefix),
                                     ),
                                   },
                                 }));
@@ -350,7 +365,7 @@ export function AgentEditorForm({
                                     ...f.tools,
                                     autoApprove: [
                                       ...f.tools.autoApprove,
-                                      `${integration.id}_*`,
+                                      `${prefix}*`,
                                     ],
                                   },
                                 }));
@@ -370,15 +385,14 @@ export function AgentEditorForm({
                       {isExpanded && tools.length > 0 && (
                         <div className="editor__tools-list">
                           {tools.map((tool) => {
-                            const toolKey = `${integration.id}_${tool.toolName || tool.name}`;
+                            const toolKey = `${prefix}${tool.toolName || tool.name}`;
                             const toolEnabled =
-                              form.tools.available.includes(
-                                `${integration.id}_*`,
-                              ) || form.tools.available.includes(toolKey);
+                              allToolsActive ||
+                              form.tools.available.includes(toolKey);
                             const toolAutoApprove =
-                              form.tools.autoApprove.includes(
-                                `${integration.id}_*`,
-                              ) || form.tools.autoApprove.includes(toolKey);
+                              toolEnabled &&
+                              (form.tools.autoApprove.includes(`${prefix}*`) ||
+                                form.tools.autoApprove.includes(toolKey));
                             return (
                               <div
                                 key={tool.id}
@@ -391,10 +405,20 @@ export function AgentEditorForm({
                                     if (locked) return;
                                     setForm((f) => {
                                       const avail = new Set(f.tools.available);
-                                      if (avail.has(`${integration.id}_*`)) {
-                                        avail.delete(`${integration.id}_*`);
+                                      // Expand implicit all-active to explicit list
+                                      const hasExplicit = [...avail].some((a) =>
+                                        a.startsWith(prefix),
+                                      );
+                                      if (!hasExplicit) {
+                                        // All were implicitly active — add all except this one
                                         tools.forEach((t) => {
-                                          const k = `${integration.id}_${t.toolName || t.name}`;
+                                          const k = `${prefix}${t.toolName || t.name}`;
+                                          if (k !== toolKey) avail.add(k);
+                                        });
+                                      } else if (avail.has(`${prefix}*`)) {
+                                        avail.delete(`${prefix}*`);
+                                        tools.forEach((t) => {
+                                          const k = `${prefix}${t.toolName || t.name}`;
                                           if (k !== toolKey) avail.add(k);
                                         });
                                       } else if (avail.has(toolKey)) {
@@ -402,11 +426,17 @@ export function AgentEditorForm({
                                       } else {
                                         avail.add(toolKey);
                                       }
+                                      // Also remove auto-approve if tool is now off
+                                      const ap = new Set(f.tools.autoApprove);
+                                      if (!avail.has(toolKey)) {
+                                        ap.delete(toolKey);
+                                      }
                                       return {
                                         ...f,
                                         tools: {
                                           ...f.tools,
                                           available: [...avail],
+                                          autoApprove: [...ap],
                                         },
                                       };
                                     });
@@ -422,35 +452,43 @@ export function AgentEditorForm({
                                     </div>
                                   )}
                                 </div>
-                                <button
-                                  className={`editor__tool-badge editor__tool-badge--btn${toolAutoApprove ? ' editor__tool-badge--auto' : ' editor__tool-badge--add'}`}
-                                  onClick={() => {
-                                    if (locked) return;
-                                    setForm((f) => {
-                                      const ap = new Set(f.tools.autoApprove);
-                                      if (ap.has(`${integration.id}_*`)) {
-                                        ap.delete(`${integration.id}_*`);
-                                        tools.forEach((t) => {
-                                          const k = `${integration.id}_${t.toolName || t.name}`;
-                                          if (k !== toolKey) ap.add(k);
-                                        });
-                                      } else if (ap.has(toolKey)) {
-                                        ap.delete(toolKey);
-                                      } else {
-                                        ap.add(toolKey);
-                                      }
-                                      return {
-                                        ...f,
-                                        tools: {
-                                          ...f.tools,
-                                          autoApprove: [...ap],
-                                        },
-                                      };
-                                    });
-                                  }}
-                                >
-                                  {toolAutoApprove ? '✓ auto' : '+ auto'}
-                                </button>
+                                {toolEnabled ? (
+                                  <button
+                                    className={`editor__tool-badge editor__tool-badge--btn${toolAutoApprove ? ' editor__tool-badge--auto' : ' editor__tool-badge--add'}`}
+                                    onClick={() => {
+                                      if (locked) return;
+                                      setForm((f) => {
+                                        const ap = new Set(
+                                          f.tools.autoApprove,
+                                        );
+                                        if (ap.has(`${prefix}*`)) {
+                                          ap.delete(`${prefix}*`);
+                                          tools.forEach((t) => {
+                                            const k = `${prefix}${t.toolName || t.name}`;
+                                            if (k !== toolKey) ap.add(k);
+                                          });
+                                        } else if (ap.has(toolKey)) {
+                                          ap.delete(toolKey);
+                                        } else {
+                                          ap.add(toolKey);
+                                        }
+                                        return {
+                                          ...f,
+                                          tools: {
+                                            ...f.tools,
+                                            autoApprove: [...ap],
+                                          },
+                                        };
+                                      });
+                                    }}
+                                  >
+                                    {toolAutoApprove ? '✓ auto' : '+ auto'}
+                                  </button>
+                                ) : (
+                                  <span className="editor__tool-badge editor__tool-badge--disabled">
+                                    auto
+                                  </span>
+                                )}
                               </div>
                             );
                           })}
