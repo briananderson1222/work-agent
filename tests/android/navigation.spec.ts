@@ -1,7 +1,7 @@
 /**
  * Android navigation tests — verifies key UI flows work at mobile viewport.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Android — Navigation', () => {
   test('app renders visible content', async ({ page }) => {
@@ -21,10 +21,12 @@ test.describe('Android — Navigation', () => {
   test('no elements overflow viewport horizontally', async ({ page }) => {
     await page.goto('/');
     // Wait for loading spinners to resolve (MCP tool init can be slow)
-    await page.waitForFunction(() =>
-      !document.body.innerText.includes('Loading accounts...'),
-      { timeout: 15000 },
-    ).catch(() => {});
+    await page
+      .waitForFunction(
+        () => !document.body.innerText.includes('Loading accounts...'),
+        { timeout: 15000 },
+      )
+      .catch(() => {});
     await page.waitForTimeout(500);
 
     const offscreen = await page.evaluate(() => {
@@ -43,17 +45,25 @@ test.describe('Android — Navigation', () => {
     expect(offscreen).toHaveLength(0);
   });
 
-  test('interactive elements are touch-target sized (>=44px)', async ({ page }) => {
+  test('interactive elements are touch-target sized (>=44px)', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.waitForTimeout(2000);
 
     const tooSmall = await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+      const buttons = Array.from(
+        document.querySelectorAll('button, a, [role="button"]'),
+      );
       return buttons
         .filter((el) => {
           const rect = el.getBoundingClientRect();
           // Only check visible elements
-          return rect.width > 0 && rect.height > 0 && (rect.width < 44 || rect.height < 44);
+          return (
+            rect.width > 0 &&
+            rect.height > 0 &&
+            (rect.width < 44 || rect.height < 44)
+          );
         })
         .map((el) => {
           const rect = el.getBoundingClientRect();
@@ -77,6 +87,10 @@ test.describe('Android — Navigation', () => {
     await page.goBack();
     await page.waitForTimeout(500);
 
-    expect(errors.filter(e => !e.includes('ResizeObserver') && !e.includes('import_debug'))).toHaveLength(0);
+    expect(
+      errors.filter(
+        (e) => !e.includes('ResizeObserver') && !e.includes('import_debug'),
+      ),
+    ).toHaveLength(0);
   });
 });

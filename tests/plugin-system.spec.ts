@@ -2,10 +2,11 @@
  * Plugin system integration tests using the demo-layout example.
  * No dependency on external plugins — uses the built-in demo layout.
  */
-import { test, expect } from '@playwright/test';
-import { execSync } from 'child_process';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+
+import { execSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expect, test } from '@playwright/test';
 
 const __filename = fileURLToPath(import.meta.url);
 const PROJECT_DIR = join(dirname(__filename), '..');
@@ -14,13 +15,24 @@ const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-layout');
 test.describe('Plugin System', () => {
   test.beforeAll(async () => {
     // Build the demo layout bundle using centralized build
-    execSync('npx tsx ../../packages/cli/src/cli.ts build', { cwd: DEMO_DIR, timeout: 30000 });
+    execSync('npx tsx ../../packages/cli/src/cli.ts build', {
+      cwd: DEMO_DIR,
+      timeout: 30000,
+    });
     // Ensure it's not installed
-    try { await fetch('http://localhost:3141/api/plugins/demo-layout', { method: 'DELETE' }); } catch {}
+    try {
+      await fetch('http://localhost:3141/api/plugins/demo-layout', {
+        method: 'DELETE',
+      });
+    } catch {}
   });
 
   test.afterAll(async () => {
-    try { await fetch('http://localhost:3141/api/plugins/demo-layout', { method: 'DELETE' }); } catch {}
+    try {
+      await fetch('http://localhost:3141/api/plugins/demo-layout', {
+        method: 'DELETE',
+      });
+    } catch {}
   });
 
   test('plugin API lists no plugins when none installed', async () => {
@@ -31,25 +43,31 @@ test.describe('Plugin System', () => {
   });
 
   test('install demo plugin via API and verify it appears', async () => {
-    const res = await (await fetch('http://localhost:3141/api/plugins/install', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: DEMO_DIR }),
-    })).json();
+    const res = await (
+      await fetch('http://localhost:3141/api/plugins/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: DEMO_DIR }),
+      })
+    ).json();
 
     expect(res.success).toBe(true);
     expect(res.plugin.name).toBe('demo-layout');
     expect(res.plugin.hasBundle).toBe(true);
 
     // Verify it's in the list
-    const list = await (await fetch('http://localhost:3141/api/plugins')).json();
+    const list = await (
+      await fetch('http://localhost:3141/api/plugins')
+    ).json();
     const demo = list.plugins.find((p: any) => p.name === 'demo-layout');
     expect(demo).toBeTruthy();
     expect(demo.hasBundle).toBe(true);
   });
 
   test('plugin bundle is served via API', async () => {
-    const jsRes = await fetch('http://localhost:3141/api/plugins/demo-layout/bundle.js');
+    const jsRes = await fetch(
+      'http://localhost:3141/api/plugins/demo-layout/bundle.js',
+    );
     expect(jsRes.status).toBe(200);
     const js = await jsRes.text();
     expect(js).toContain('__plugin');
@@ -83,12 +101,16 @@ test.describe('Plugin System', () => {
       body: JSON.stringify({ source: DEMO_DIR }),
     });
 
-    const res = await (await fetch('http://localhost:3141/api/plugins/demo-layout', {
-      method: 'DELETE',
-    })).json();
+    const res = await (
+      await fetch('http://localhost:3141/api/plugins/demo-layout', {
+        method: 'DELETE',
+      })
+    ).json();
     expect(res.success).toBe(true);
 
-    const list = await (await fetch('http://localhost:3141/api/plugins')).json();
+    const list = await (
+      await fetch('http://localhost:3141/api/plugins')
+    ).json();
     const demo = list.plugins.find((p: any) => p.name === 'demo-layout');
     expect(demo).toBeFalsy();
   });

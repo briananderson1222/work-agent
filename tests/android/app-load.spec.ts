@@ -3,7 +3,7 @@
  * These run against the Vite dev server using a mobile viewport that matches
  * the Tauri Android WebView dimensions. Fast feedback without needing an emulator.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Android — App Load', () => {
   test('app renders without crash', async ({ page }) => {
@@ -13,7 +13,11 @@ test.describe('Android — App Load', () => {
     await page.goto('/');
     await page.waitForTimeout(2000);
 
-    expect(errors.filter(e => !e.includes('ResizeObserver') && !e.includes('import_debug'))).toHaveLength(0);
+    expect(
+      errors.filter(
+        (e) => !e.includes('ResizeObserver') && !e.includes('import_debug'),
+      ),
+    ).toHaveLength(0);
   });
 
   test('root element mounts', async ({ page }) => {
@@ -28,7 +32,10 @@ test.describe('Android — App Load', () => {
     await page.waitForTimeout(1500);
 
     const overflow = await page.evaluate(() => {
-      return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+      return (
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth
+      );
     });
     expect(overflow).toBe(false);
   });

@@ -14,7 +14,7 @@
  *  - /api/system/capabilities response populates provider dropdowns
  *  - Visual: screenshot of Advanced tab voice section (desktop + mobile)
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 // Seed a connected server so the app skips onboarding
 const SEED_STORAGE = `
@@ -27,10 +27,22 @@ const SEED_STORAGE = `
 const CAPABILITIES_RESPONSE = JSON.stringify({
   voice: {
     stt: [
-      { id: 'webspeech', name: 'WebSpeech (Browser)', clientOnly: true, visibleOn: ['all'], configured: true },
+      {
+        id: 'webspeech',
+        name: 'WebSpeech (Browser)',
+        clientOnly: true,
+        visibleOn: ['all'],
+        configured: true,
+      },
     ],
     tts: [
-      { id: 'webspeech', name: 'WebSpeech (Browser)', clientOnly: true, visibleOn: ['all'], configured: true },
+      {
+        id: 'webspeech',
+        name: 'WebSpeech (Browser)',
+        clientOnly: true,
+        visibleOn: ['all'],
+        configured: true,
+      },
     ],
   },
   context: {
@@ -52,7 +64,9 @@ const STATUS_READY = JSON.stringify({
 /** Open the Settings view (flat layout — no tabs). */
 async function openSettings(page: import('@playwright/test').Page) {
   await page.goto('/settings');
-  await page.waitForSelector('.settings__section, .voice-provider-section', { timeout: 5000 });
+  await page.waitForSelector('.settings__section, .voice-provider-section', {
+    timeout: 5000,
+  });
 }
 
 test.describe('Voice Providers — Settings UI', () => {
@@ -60,14 +74,26 @@ test.describe('Voice Providers — Settings UI', () => {
     await page.addInitScript(SEED_STORAGE);
     // Register catch-all FIRST (Playwright matches LIFO — last registered wins)
     await page.route('**/api/**', (r) => {
-      r.fulfill({ status: 200, contentType: 'application/json', body: '{"agents":[],"plugins":[]}' });
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: '{"agents":[],"plugins":[]}',
+      });
     });
     // Specific routes registered AFTER catch-all so they take priority
     await page.route('**/api/system/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY }),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: STATUS_READY,
+      }),
     );
     await page.route('**/api/system/capabilities', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: CAPABILITIES_RESPONSE }),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: CAPABILITIES_RESPONSE,
+      }),
     );
   });
 
@@ -103,7 +129,9 @@ test.describe('Voice Providers — Settings UI', () => {
     await openSettings(page);
     const sttSelect = page.locator('[data-testid="stt-provider-select"]');
     await sttSelect.selectOption('webspeech'); // same value — just exercises the handler
-    const stored = await page.evaluate(() => localStorage.getItem('stallion-stt-provider'));
+    const stored = await page.evaluate(() =>
+      localStorage.getItem('stallion-stt-provider'),
+    );
     expect(stored).toBe('webspeech');
   });
 
@@ -152,13 +180,19 @@ test.describe('Voice Providers — Settings UI', () => {
 });
 
 test.describe('Voice Providers — server capability discovery', () => {
-  test('server-backed configured provider appears in STT dropdown', async ({ page }) => {
+  test('server-backed configured provider appears in STT dropdown', async ({
+    page,
+  }) => {
     await page.addInitScript(SEED_STORAGE);
     await page.route('**/api/**', (r) => {
       r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
     await page.route('**/api/system/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY }),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: STATUS_READY,
+      }),
     );
     // Capabilities response includes a server-backed ElevenLabs provider
     await page.route('**/api/system/capabilities', (r) =>
@@ -168,11 +202,29 @@ test.describe('Voice Providers — server capability discovery', () => {
         body: JSON.stringify({
           voice: {
             stt: [
-              { id: 'webspeech', name: 'WebSpeech (Browser)', clientOnly: true, visibleOn: ['all'], configured: true },
-              { id: 'elevenlabs', name: 'ElevenLabs Scribe', clientOnly: false, visibleOn: ['all'], configured: true },
+              {
+                id: 'webspeech',
+                name: 'WebSpeech (Browser)',
+                clientOnly: true,
+                visibleOn: ['all'],
+                configured: true,
+              },
+              {
+                id: 'elevenlabs',
+                name: 'ElevenLabs Scribe',
+                clientOnly: false,
+                visibleOn: ['all'],
+                configured: true,
+              },
             ],
             tts: [
-              { id: 'webspeech', name: 'WebSpeech (Browser)', clientOnly: true, visibleOn: ['all'], configured: true },
+              {
+                id: 'webspeech',
+                name: 'WebSpeech (Browser)',
+                clientOnly: true,
+                visibleOn: ['all'],
+                configured: true,
+              },
             ],
           },
           context: { providers: [] },
@@ -191,7 +243,11 @@ test.describe('Voice Providers — server capability discovery', () => {
       r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
     await page.route('**/api/system/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY }),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: STATUS_READY,
+      }),
     );
     await page.route('**/api/system/capabilities', (r) =>
       r.fulfill({
@@ -200,10 +256,30 @@ test.describe('Voice Providers — server capability discovery', () => {
         body: JSON.stringify({
           voice: {
             stt: [
-              { id: 'webspeech', name: 'WebSpeech (Browser)', clientOnly: true, visibleOn: ['all'], configured: true },
-              { id: 'nova-sonic', name: 'Nova Sonic', clientOnly: false, visibleOn: ['mobile'], configured: false },
+              {
+                id: 'webspeech',
+                name: 'WebSpeech (Browser)',
+                clientOnly: true,
+                visibleOn: ['all'],
+                configured: true,
+              },
+              {
+                id: 'nova-sonic',
+                name: 'Nova Sonic',
+                clientOnly: false,
+                visibleOn: ['mobile'],
+                configured: false,
+              },
             ],
-            tts: [{ id: 'webspeech', name: 'WebSpeech (Browser)', clientOnly: true, visibleOn: ['all'], configured: true }],
+            tts: [
+              {
+                id: 'webspeech',
+                name: 'WebSpeech (Browser)',
+                clientOnly: true,
+                visibleOn: ['all'],
+                configured: true,
+              },
+            ],
           },
           context: { providers: [] },
         }),
@@ -223,17 +299,31 @@ test.describe('Voice Providers — GlobalVoiceButton', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(SEED_STORAGE);
     await page.route('**/api/**', (r) => {
-      r.fulfill({ status: 200, contentType: 'application/json', body: '{"agents":[],"plugins":[]}' });
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: '{"agents":[],"plugins":[]}',
+      });
     });
     await page.route('**/api/system/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY }),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: STATUS_READY,
+      }),
     );
     await page.route('**/api/system/capabilities', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: CAPABILITIES_RESPONSE }),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: CAPABILITIES_RESPONSE,
+      }),
     );
   });
 
-  test('GlobalVoiceButton is present in the DOM on mobile', async ({ page }) => {
+  test('GlobalVoiceButton is present in the DOM on mobile', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.waitForTimeout(2000);
     // The button is only rendered when SpeechRecognition is supported — stub it
@@ -257,7 +347,9 @@ test.describe('Voice Providers — GlobalVoiceButton', () => {
     expect(position).toBe('fixed');
   });
 
-  test('screenshot: GlobalVoiceButton on mobile home screen', async ({ page }) => {
+  test('screenshot: GlobalVoiceButton on mobile home screen', async ({
+    page,
+  }) => {
     await page.addInitScript(`
       window.SpeechRecognition = function() {
         this.continuous = false; this.interimResults = false;
@@ -267,7 +359,10 @@ test.describe('Voice Providers — GlobalVoiceButton', () => {
     `);
     await page.goto('/');
     await page.waitForTimeout(2500);
-    await page.screenshot({ path: '/tmp/wa-global-voice-mobile.png', fullPage: false });
+    await page.screenshot({
+      path: '/tmp/wa-global-voice-mobile.png',
+      fullPage: false,
+    });
   });
 });
 
@@ -285,7 +380,9 @@ test.describe('Voice Providers — VoiceOrb in chat input', () => {
     `);
   });
 
-  test('VoiceOrb renders in chat input when SpeechRecognition is available', async ({ page }) => {
+  test('VoiceOrb renders in chat input when SpeechRecognition is available', async ({
+    page,
+  }) => {
     // Use real server (needs agents loaded for chat input to render)
     await page.goto('/?dock=open');
     await page.locator('button:has-text("+ New")').click();
@@ -317,16 +414,23 @@ test.describe('Voice Providers — VoiceOrb in chat input', () => {
     await page.goto('/');
     await page.waitForTimeout(2500);
     // Scroll to bottom so chat input is visible
-    const chatInput = page.locator('.chat-input-area, [class*="chat-input"]').first();
+    const chatInput = page
+      .locator('.chat-input-area, [class*="chat-input"]')
+      .first();
     if (await chatInput.isVisible()) {
       await chatInput.scrollIntoViewIfNeeded();
     }
-    await page.screenshot({ path: '/tmp/wa-voice-orb-chat-input.png', fullPage: false });
+    await page.screenshot({
+      path: '/tmp/wa-voice-orb-chat-input.png',
+      fullPage: false,
+    });
   });
 });
 
 test.describe('Voice Providers — useMobileSettings cleanup', () => {
-  test('removed feature flags are absent from localStorage shape', async ({ page }) => {
+  test('removed feature flags are absent from localStorage shape', async ({
+    page,
+  }) => {
     await page.addInitScript(SEED_STORAGE);
     await page.route('**/api/**', (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),

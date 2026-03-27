@@ -2,7 +2,7 @@
  * WebView compatibility tests.
  * Catches APIs used in code that aren't available in Android System WebView.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Android — WebView Compatibility', () => {
   test('no use of unsupported APIs at startup', async ({ page }) => {
@@ -15,14 +15,15 @@ test.describe('Android — WebView Compatibility', () => {
     await page.goto('/');
     await page.waitForTimeout(3000);
 
-    const critical = errors.filter(e =>
-      !e.includes('ResizeObserver') &&
-      !e.includes('import_debug') &&
-      !e.includes('favicon') &&
-      !e.includes('404') &&
-      !e.includes('ERR_CONNECTION_REFUSED') && // backend not running in CI
-      !e.includes('Failed to load resource') &&
-      !e.includes('Failed to fetch')
+    const critical = errors.filter(
+      (e) =>
+        !e.includes('ResizeObserver') &&
+        !e.includes('import_debug') &&
+        !e.includes('favicon') &&
+        !e.includes('404') &&
+        !e.includes('ERR_CONNECTION_REFUSED') && // backend not running in CI
+        !e.includes('Failed to load resource') &&
+        !e.includes('Failed to fetch'),
     );
     expect(critical).toHaveLength(0);
   });
@@ -61,7 +62,9 @@ test.describe('Android — WebView Compatibility', () => {
   test('viewport meta tag is present for mobile scaling', async ({ page }) => {
     await page.goto('/');
 
-    const viewportMeta = await page.locator('meta[name="viewport"]').getAttribute('content');
+    const viewportMeta = await page
+      .locator('meta[name="viewport"]')
+      .getAttribute('content');
     expect(viewportMeta).toBeTruthy();
     expect(viewportMeta).toContain('width=device-width');
   });

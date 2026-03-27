@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const BASE = process.env.PW_BASE_URL ?? 'http://localhost:5274';
 const API = BASE.replace(/:\d+$/, ':3242');
@@ -34,13 +34,17 @@ test.describe('Notification System', () => {
     expect(list[0].id).toBe(created.id);
 
     // Dismiss it
-    const dismissRes = await fetch(`${API}/notifications/${created.id}`, { method: 'DELETE' });
+    const dismissRes = await fetch(`${API}/notifications/${created.id}`, {
+      method: 'DELETE',
+    });
     expect(dismissRes.ok).toBe(true);
 
     // Should be dismissed
     const afterDismiss = await fetch(`${API}/notifications`);
     const { data: dismissed } = await afterDismiss.json();
-    expect(dismissed.find((n: any) => n.id === created.id)?.status).toBe('dismissed');
+    expect(dismissed.find((n: any) => n.id === created.id)?.status).toBe(
+      'dismissed',
+    );
 
     // Clear all
     await fetch(`${API}/notifications`, { method: 'DELETE' });
@@ -90,7 +94,9 @@ test.describe('Notification System', () => {
 
     const { data } = await (await fetch(`${API}/notifications`)).json();
     // Should only have 1 notification (deduped), with updated title
-    const tagged = data.filter((n: any) => n.metadata?.dedupeTag === 'unique-tag-123');
+    const tagged = data.filter(
+      (n: any) => n.metadata?.dedupeTag === 'unique-tag-123',
+    );
     expect(tagged.length).toBe(1);
     expect(tagged[0].title).toBe('Dedupe Test v2');
   });
@@ -127,7 +133,11 @@ test.describe('Notification System', () => {
       await fetch(`${API}/notifications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: 'pw', category: cat, title: `${cat} notification` }),
+        body: JSON.stringify({
+          source: 'pw',
+          category: cat,
+          title: `${cat} notification`,
+        }),
       });
     }
 
@@ -146,7 +156,9 @@ test.describe('Notification System', () => {
   });
 
   test('API: providers endpoint returns empty list', async () => {
-    const { data } = await (await fetch(`${API}/notifications/providers`)).json();
+    const { data } = await (
+      await fetch(`${API}/notifications/providers`)
+    ).json();
     expect(Array.isArray(data)).toBe(true);
   });
 
@@ -157,7 +169,9 @@ test.describe('Notification System', () => {
     expect(data.providers['built-in'].running).toBe(true);
   });
 
-  test('UI: notification appears in toast when scheduled via API', async ({ page }) => {
+  test('UI: notification appears in toast when scheduled via API', async ({
+    page,
+  }) => {
     await page.goto(BASE);
     // Wait for app to load
     await page.waitForSelector('[class*="app-"]', { timeout: 10_000 });
@@ -186,7 +200,10 @@ test.describe('Notification System', () => {
     const hasNotification = pageContent?.includes('UI Toast Test');
 
     // Take a screenshot for visual verification regardless
-    await page.screenshot({ path: 'tests/screenshots/notification-toast.png', fullPage: false });
+    await page.screenshot({
+      path: 'tests/screenshots/notification-toast.png',
+      fullPage: false,
+    });
 
     // If the toast appeared, great. If not, at least verify the API worked
     if (!hasNotification) {
@@ -198,7 +215,9 @@ test.describe('Notification System', () => {
     }
   });
 
-  test('UI: notification with navigateTo shows View button', async ({ page }) => {
+  test('UI: notification with navigateTo shows View button', async ({
+    page,
+  }) => {
     await page.goto(BASE);
     await page.waitForSelector('[class*="app-"]', { timeout: 10_000 });
 
@@ -217,7 +236,9 @@ test.describe('Notification System', () => {
           body: 'AWS announces new container service',
           priority: 'normal',
           ttl: 60000,
-          metadata: { navigateTo: { project: 'research', layout: 'rss-reader' } },
+          metadata: {
+            navigateTo: { project: 'research', layout: 'rss-reader' },
+          },
         }),
       });
     }, API);
@@ -226,7 +247,10 @@ test.describe('Notification System', () => {
     await page.waitForTimeout(2000);
 
     // Take screenshot
-    await page.screenshot({ path: 'tests/screenshots/notification-with-view-button.png', fullPage: false });
+    await page.screenshot({
+      path: 'tests/screenshots/notification-with-view-button.png',
+      fullPage: false,
+    });
 
     // Check for the View button
     const viewButton = page.getByRole('button', { name: 'View' });
@@ -247,14 +271,20 @@ test.describe('Notification System', () => {
     await page.waitForSelector('[class*="app-"]', { timeout: 10_000 });
 
     // Take a screenshot of the header area where the bell icon lives
-    await page.screenshot({ path: 'tests/screenshots/notification-header.png', fullPage: false });
+    await page.screenshot({
+      path: 'tests/screenshots/notification-header.png',
+      fullPage: false,
+    });
 
     // Look for the notification bell button
     const bellButton = page.locator('button[title="Notifications"]');
     if (await bellButton.isVisible()) {
       await bellButton.click();
       await page.waitForTimeout(500);
-      await page.screenshot({ path: 'tests/screenshots/notification-history-open.png', fullPage: false });
+      await page.screenshot({
+        path: 'tests/screenshots/notification-history-open.png',
+        fullPage: false,
+      });
     }
   });
 });

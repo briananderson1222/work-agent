@@ -5,7 +5,7 @@
  * (no URL param) and that explicit user overrides (⌘⇧D, settings panel)
  * write to both URL and sessionStorage.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const STATUS_READY = JSON.stringify({
   ready: true,
@@ -17,59 +17,160 @@ const STATUS_READY = JSON.stringify({
 
 const TEST_PROJECTS = [
   {
-    id: 'p1', slug: 'dev', name: 'Dev', icon: '💻',
-    description: 'Dev project', hasWorkingDirectory: true, layoutCount: 1, hasKnowledge: false,
+    id: 'p1',
+    slug: 'dev',
+    name: 'Dev',
+    icon: '💻',
+    description: 'Dev project',
+    hasWorkingDirectory: true,
+    layoutCount: 1,
+    hasKnowledge: false,
   },
 ];
 
 const DEV_LAYOUTS = [
-  { id: 'l1', slug: 'code', projectSlug: 'dev', type: 'coding', name: 'Code', icon: '🖥️' },
+  {
+    id: 'l1',
+    slug: 'code',
+    projectSlug: 'dev',
+    type: 'coding',
+    name: 'Code',
+    icon: '🖥️',
+  },
 ];
 
 const DEV_CONFIG = {
-  id: 'p1', slug: 'dev', name: 'Dev', icon: '💻',
+  id: 'p1',
+  slug: 'dev',
+  name: 'Dev',
+  icon: '💻',
   description: 'Dev project',
-  createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
 };
 
 const CODING_LAYOUT = {
-  id: 'l1', slug: 'code', projectSlug: 'dev', type: 'coding', name: 'Code', icon: '🖥️',
+  id: 'l1',
+  slug: 'code',
+  projectSlug: 'dev',
+  type: 'coding',
+  name: 'Code',
+  icon: '🖥️',
   config: { workingDirectory: '/tmp/test', tabs: [], globalPrompts: [] },
-  createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
 };
 
 function seedRoutes(page: import('@playwright/test').Page) {
   return Promise.all([
     page.route('**/api/system/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: STATUS_READY,
+      }),
+    ),
     page.route('**/api/projects', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: TEST_PROJECTS }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: TEST_PROJECTS }),
+      }),
+    ),
     page.route('**/api/projects/dev', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: DEV_CONFIG }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: DEV_CONFIG }),
+      }),
+    ),
     page.route('**/api/projects/dev/layouts', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: DEV_LAYOUTS }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: DEV_LAYOUTS }),
+      }),
+    ),
     page.route('**/api/projects/dev/layouts/code', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: CODING_LAYOUT }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: CODING_LAYOUT }),
+      }),
+    ),
     page.route('**/api/agents', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
     page.route('**/layouts', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
     page.route('**/api/plugins', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
     page.route('**/api/branding', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: {} }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: {} }),
+      }),
+    ),
     page.route('**/api/auth/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: true }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ authenticated: true }),
+      }),
+    ),
     page.route('**/api/config/app', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { defaultModel: 'claude-sonnet', region: 'us-east-1' } }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { defaultModel: 'claude-sonnet', region: 'us-east-1' },
+        }),
+      }),
+    ),
     page.route('**/api/models/**', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
     page.route('**/api/projects/dev/git/**', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: null }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: null }),
+      }),
+    ),
     page.route('**/api/projects/dev/files**', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
     page.route('**/api/terminal/**', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
   ]);
 }
 
@@ -78,7 +179,9 @@ test.describe('Dock Mode Preference', () => {
     await seedRoutes(page);
   });
 
-  test('coding layout applies right dock mode without URL param', async ({ page }) => {
+  test('coding layout applies right dock mode without URL param', async ({
+    page,
+  }) => {
     await page.goto('/projects/dev/layouts/code');
     await page.waitForTimeout(3000);
 
@@ -114,15 +217,20 @@ test.describe('Dock Mode Preference', () => {
 
     // Check sessionStorage has the override
     const override = await page.evaluate(() =>
-      sessionStorage.getItem('stallion-dock-mode-override:coding')
+      sessionStorage.getItem('stallion-dock-mode-override:coding'),
     );
     expect(override).toBeTruthy();
   });
 
-  test('sessionStorage override applies without URL param on revisit', async ({ page }) => {
+  test('sessionStorage override applies without URL param on revisit', async ({
+    page,
+  }) => {
     // Pre-seed sessionStorage with a bottom-inline override
     await page.addInitScript(() => {
-      sessionStorage.setItem('stallion-dock-mode-override:coding', 'bottom-inline');
+      sessionStorage.setItem(
+        'stallion-dock-mode-override:coding',
+        'bottom-inline',
+      );
     });
 
     await page.goto('/projects/dev/layouts/code');
@@ -137,7 +245,9 @@ test.describe('Dock Mode Preference', () => {
     expect(url.searchParams.has('dockMode')).toBe(false);
   });
 
-  test('explicit URL dockMode param is respected over layout preference', async ({ page }) => {
+  test('explicit URL dockMode param is respected over layout preference', async ({
+    page,
+  }) => {
     await page.goto('/projects/dev/layouts/code?dockMode=bottom-inline');
     await page.waitForTimeout(3000);
 
@@ -150,7 +260,9 @@ test.describe('Dock Mode Preference', () => {
     expect(url.searchParams.get('dockMode')).toBe('bottom-inline');
   });
 
-  test('navigating away from coding layout restores previous dock mode', async ({ page }) => {
+  test('navigating away from coding layout restores previous dock mode', async ({
+    page,
+  }) => {
     // Start on home (default bottom dock)
     await page.goto('/');
     await page.waitForTimeout(2000);
@@ -188,12 +300,16 @@ test.describe('Dock Mode — Mobile', () => {
     const count = await subtitles.count();
     expect(count).toBeGreaterThan(0);
     for (let i = 0; i < count; i++) {
-      const display = await subtitles.nth(i).evaluate(el => getComputedStyle(el).display);
+      const display = await subtitles
+        .nth(i)
+        .evaluate((el) => getComputedStyle(el).display);
       expect(display).toBe('none');
     }
   });
 
-  test('New/Open buttons show icons instead of text on mobile', async ({ page }) => {
+  test('New/Open buttons show icons instead of text on mobile', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.waitForTimeout(2000);
 
@@ -205,7 +321,9 @@ test.describe('Dock Mode — Mobile', () => {
     const labels = page.locator('.chat-dock__new-label');
     const labelCount = await labels.count();
     for (let i = 0; i < labelCount; i++) {
-      const display = await labels.nth(i).evaluate(el => getComputedStyle(el).display);
+      const display = await labels
+        .nth(i)
+        .evaluate((el) => getComputedStyle(el).display);
       expect(display).toBe('none');
     }
 
@@ -214,12 +332,16 @@ test.describe('Dock Mode — Mobile', () => {
     const iconCount = await icons.count();
     expect(iconCount).toBeGreaterThan(0);
     for (let i = 0; i < iconCount; i++) {
-      const display = await icons.nth(i).evaluate(el => getComputedStyle(el).display);
+      const display = await icons
+        .nth(i)
+        .evaluate((el) => getComputedStyle(el).display);
       expect(display).not.toBe('none');
     }
   });
 
-  test('maximize arrows point up/down on mobile even in right dock mode', async ({ page }) => {
+  test('maximize arrows point up/down on mobile even in right dock mode', async ({
+    page,
+  }) => {
     // Navigate to coding layout which prefers right dock
     await page.goto('/projects/dev/layouts/code');
     await page.waitForTimeout(3000);

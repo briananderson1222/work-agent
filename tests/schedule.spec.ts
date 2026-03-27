@@ -1,10 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Schedule Page', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/schedule');
     // Wait for the schedule view to render (may show empty state or job table)
-    await page.waitForSelector('.schedule__table-wrap, .schedule__loading, .schedule__empty, .schedule__error', { timeout: 10_000 });
+    await page.waitForSelector(
+      '.schedule__table-wrap, .schedule__loading, .schedule__empty, .schedule__error',
+      { timeout: 10_000 },
+    );
   });
 
   test('shows job list with stats bar', async ({ page }) => {
@@ -16,7 +19,7 @@ test.describe('Schedule Page', () => {
 
   test('run now triggers job and shows running indicator', async ({ page }) => {
     // Skip if no jobs are present
-    const hasJobs = await page.locator('tbody tr').count() > 0;
+    const hasJobs = (await page.locator('tbody tr').count()) > 0;
     test.skip(!hasJobs, 'No scheduled jobs — skipping run-now test');
 
     const firstRunBtn = page.locator('button[title="Run now"]').first();
@@ -24,11 +27,13 @@ test.describe('Schedule Page', () => {
     await firstRunBtn.click();
 
     // Running indicator should appear
-    await expect(page.getByTestId('running-indicator').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId('running-indicator').first()).toBeVisible({
+      timeout: 5_000,
+    });
   });
 
   test('toast appears on job completion event', async ({ page }) => {
-    const hasJobs = await page.locator('tbody tr').count() > 0;
+    const hasJobs = (await page.locator('tbody tr').count()) > 0;
     test.skip(!hasJobs, 'No scheduled jobs — skipping completion test');
 
     const jobName = await page.locator('tbody tr td').first().innerText();
@@ -44,11 +49,13 @@ test.describe('Schedule Page', () => {
       }),
     });
 
-    await expect(page.getByText(/completed/i).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/completed/i).first()).toBeVisible({
+      timeout: 5_000,
+    });
   });
 
   test('expanded detail shows run history', async ({ page }) => {
-    const hasJobs = await page.locator('tbody tr').count() > 0;
+    const hasJobs = (await page.locator('tbody tr').count()) > 0;
     test.skip(!hasJobs, 'No scheduled jobs — skipping detail test');
 
     await page.locator('tbody tr').first().click();
@@ -56,21 +63,30 @@ test.describe('Schedule Page', () => {
   });
 
   test('toggle enable/disable works', async ({ page }) => {
-    const hasJobs = await page.locator('tbody tr').count() > 0;
+    const hasJobs = (await page.locator('tbody tr').count()) > 0;
     test.skip(!hasJobs, 'No scheduled jobs — skipping toggle test');
 
-    const toggleBtn = page.locator('button[title="Disable"], button[title="Enable"]').first();
+    const toggleBtn = page
+      .locator('button[title="Disable"], button[title="Enable"]')
+      .first();
     const title = await toggleBtn.getAttribute('title');
     await toggleBtn.click();
     await page.waitForTimeout(1000);
 
     if (title === 'Disable') {
-      await expect(page.locator('button[title="Enable"]').first()).toBeVisible();
+      await expect(
+        page.locator('button[title="Enable"]').first(),
+      ).toBeVisible();
     } else {
-      await expect(page.locator('button[title="Disable"]').first()).toBeVisible();
+      await expect(
+        page.locator('button[title="Disable"]').first(),
+      ).toBeVisible();
     }
 
     // Toggle back
-    await page.locator('button[title="Disable"], button[title="Enable"]').first().click();
+    await page
+      .locator('button[title="Disable"], button[title="Enable"]')
+      .first()
+      .click();
   });
 });

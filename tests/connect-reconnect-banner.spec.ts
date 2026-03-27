@@ -10,7 +10,7 @@
  * Strategy: use Playwright route interception to control /api/system/status
  * responses, simulating outage and recovery without a real server.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 // Minimal system status response that marks the system as "ready"
 const STATUS_READY = JSON.stringify({
@@ -38,7 +38,11 @@ test.describe('Reconnect Banner', () => {
     let healthy = true;
     await page.route('**/api/system/status', (route) => {
       if (healthy) {
-        route.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY });
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: STATUS_READY,
+        });
       } else {
         route.abort();
       }
@@ -46,45 +50,61 @@ test.describe('Reconnect Banner', () => {
 
     await page.goto('/');
     // Wait for connected state on the chip
-    await expect(page.getByRole('button', { name: /connected Dev Server/ })).toBeVisible({ timeout: 10000 });
+    await expect(
+      page.getByRole('button', { name: /connected Dev Server/ }),
+    ).toBeVisible({ timeout: 10000 });
 
     // Phase 2: server goes offline
     healthy = false;
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
     // The status dot should change to error
-    await expect(page.getByRole('button', { name: /error Dev Server/ })).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole('button', { name: /error Dev Server/ }),
+    ).toBeVisible({ timeout: 15000 });
 
     // App content should still be rendered (non-blocking)
     const body = await page.evaluate(() => document.body.innerHTML);
     expect(body.length).toBeGreaterThan(500);
   });
 
-  test('clicking error-state chip opens the connection modal', async ({ page }) => {
+  test('clicking error-state chip opens the connection modal', async ({
+    page,
+  }) => {
     await page.addInitScript(SEED_STORAGE);
 
     let callCount = 0;
     await page.route('**/api/system/status', (route) => {
       callCount++;
       if (callCount <= 1) {
-        route.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY });
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: STATUS_READY,
+        });
       } else {
         route.abort();
       }
     });
 
     await page.goto('/');
-    await expect(page.getByRole('button', { name: /Dev Server/ })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: /Dev Server/ })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Trigger refetch to get error state
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
     // Wait for error state on chip
-    await expect(page.getByRole('button', { name: /error Dev Server/ })).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole('button', { name: /error Dev Server/ }),
+    ).toBeVisible({ timeout: 15000 });
 
     // Click the error-state chip — should open modal
     await page.getByRole('button', { name: /error Dev Server/ }).click();
-    await expect(page.getByRole('heading', { name: 'Connections' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Connections' }),
+    ).toBeVisible();
   });
 
   test('banner disappears when server recovers', async ({ page }) => {
@@ -93,7 +113,11 @@ test.describe('Reconnect Banner', () => {
     let healthy = true;
     await page.route('**/api/system/status', (route) => {
       if (healthy) {
-        route.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY });
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: STATUS_READY,
+        });
       } else {
         route.abort();
       }

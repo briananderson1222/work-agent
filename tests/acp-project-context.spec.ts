@@ -6,7 +6,7 @@
  * 2. New chat sessions inherit the active project context
  * 3. Project context badge shows in session tab
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const STATUS_ACP_CONNECTED = {
   ready: true,
@@ -49,31 +49,90 @@ const TEST_PROJECTS = [
 ];
 
 const AGENTS = [
-  { slug: 'default', name: 'Default Agent', description: 'System default', source: 'local' },
-  { slug: 'kiro-chat', name: 'Chat', description: 'ACP Chat', source: 'acp', connectionName: 'kiro-cli' },
+  {
+    slug: 'default',
+    name: 'Default Agent',
+    description: 'System default',
+    source: 'local',
+  },
+  {
+    slug: 'kiro-chat',
+    name: 'Chat',
+    description: 'ACP Chat',
+    source: 'acp',
+    connectionName: 'kiro-cli',
+  },
 ];
 
 function seedRoutes(page: import('@playwright/test').Page) {
   return Promise.all([
     page.route('**/api/system/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STATUS_ACP_CONNECTED) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STATUS_ACP_CONNECTED),
+      }),
+    ),
     page.route('**/acp/connections', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: ACP_CONNECTIONS }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: ACP_CONNECTIONS }),
+      }),
+    ),
     page.route('**/api/projects', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEST_PROJECTS) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(TEST_PROJECTS),
+      }),
+    ),
     page.route('**/api/agents', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: AGENTS }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: AGENTS }),
+      }),
+    ),
     page.route('**/api/bedrock/models', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ models: [] }),
+      }),
+    ),
     page.route('**/api/config', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({}),
+      }),
+    ),
     page.route('**/events', (r) => r.abort()),
     page.route('**/api/system/capabilities', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ voice: { stt: [], tts: [] }, context: { providers: [] } }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          voice: { stt: [], tts: [] },
+          context: { providers: [] },
+        }),
+      }),
+    ),
     page.route('**/api/conversations**', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ conversations: [] }),
+      }),
+    ),
     page.route('**/api/providers/connections', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      }),
+    ),
   ]);
 }
 
@@ -100,7 +159,9 @@ test.describe('ACP + Project Context', () => {
     await expect(page.getByText('connected', { exact: true })).toBeVisible();
   });
 
-  test('new chat inherits project context from localStorage', async ({ page }) => {
+  test('new chat inherits project context from localStorage', async ({
+    page,
+  }) => {
     await seedRoutes(page);
     // Seed localStorage with a last-selected project before navigating
     await page.addInitScript(() => {
@@ -111,18 +172,24 @@ test.describe('ACP + Project Context', () => {
     // Click "+ New" — opens modal since there are 2 agents (default + ACP)
     const newChatBtn = page.getByRole('button', { name: '+ New' });
     await expect(newChatBtn).toBeVisible({ timeout: 5000 });
-    await newChatBtn.evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await newChatBtn.evaluate((el) =>
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true })),
+    );
 
     // Modal should show — click the Default Agent
     const modal = page.getByText('New Chat');
     await expect(modal).toBeVisible({ timeout: 3000 });
     const agentCard = page.getByText('Default Agent').first();
     await expect(agentCard).toBeVisible({ timeout: 3000 });
-    await agentCard.evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await agentCard.evaluate((el) =>
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true })),
+    );
 
     // The session tab or body should show the project context (name or slug)
     await page.waitForTimeout(500);
-    await expect(page.locator('.chat-dock__session-project').first()).toContainText(/My Project|my-project/);
+    await expect(
+      page.locator('.chat-dock__session-project').first(),
+    ).toContainText(/My Project|my-project/);
   });
 
   test('ACP badge hidden when no connections', async ({ page }) => {
@@ -135,24 +202,71 @@ test.describe('ACP + Project Context', () => {
           ...STATUS_ACP_CONNECTED,
           acp: { connected: false, connections: [] },
         }),
-      }));
+      }),
+    );
     await page.route('**/acp/connections', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) }));
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    );
     await page.route('**/api/projects', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEST_PROJECTS) }));
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(TEST_PROJECTS),
+      }),
+    );
     await page.route('**/api/agents', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: AGENTS.filter(a => a.source !== 'acp') }) }));
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: AGENTS.filter((a) => a.source !== 'acp'),
+        }),
+      }),
+    );
     await page.route('**/api/bedrock/models', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [] }) }));
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ models: [] }),
+      }),
+    );
     await page.route('**/api/config', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) }));
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({}),
+      }),
+    );
     await page.route('**/events', (r) => r.abort());
     await page.route('**/api/system/capabilities', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ voice: { stt: [], tts: [] }, context: { providers: [] } }) }));
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          voice: { stt: [], tts: [] },
+          context: { providers: [] },
+        }),
+      }),
+    );
     await page.route('**/api/conversations**', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: [] }) }));
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ conversations: [] }),
+      }),
+    );
     await page.route('**/api/providers/connections', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }));
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      }),
+    );
 
     await page.goto('/');
     // ACP badge should NOT be visible

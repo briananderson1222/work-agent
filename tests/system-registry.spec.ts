@@ -4,7 +4,7 @@
  * Tests the remaining untested routes via API interception.
  * No real server dependency — all API calls are mocked via page.route.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const SEED_STORAGE = `
   window.localStorage.setItem('stallion-connect-connections', JSON.stringify([
@@ -22,7 +22,11 @@ test.describe('System & Registry Routes', () => {
       route.fulfill({
         json: {
           prerequisites: [],
-          bedrock: { credentialsFound: true, verified: null, region: 'us-east-1' },
+          bedrock: {
+            credentialsFound: true,
+            verified: null,
+            region: 'us-east-1',
+          },
           acp: { connected: false, connections: [] },
           clis: { 'kiro-cli': true },
           ready: true,
@@ -46,7 +50,12 @@ test.describe('System & Registry Routes', () => {
         json: {
           success: true,
           data: [
-            { id: 'test-agent', name: 'Test Agent', description: 'A test agent', version: '1.0.0' },
+            {
+              id: 'test-agent',
+              name: 'Test Agent',
+              description: 'A test agent',
+              version: '1.0.0',
+            },
           ],
         },
       }),
@@ -57,7 +66,12 @@ test.describe('System & Registry Routes', () => {
         json: {
           success: true,
           data: [
-            { id: 'test-mcp', displayName: 'Test MCP', description: 'A test integration', source: 'AIM' },
+            {
+              id: 'test-mcp',
+              displayName: 'Test MCP',
+              description: 'A test integration',
+              source: 'AIM',
+            },
           ],
         },
       }),
@@ -76,7 +90,12 @@ test.describe('System & Registry Routes', () => {
       route.fulfill({ json: { success: true, data: [] } }),
     );
     await page.route('**/api/config/app', (route) =>
-      route.fulfill({ json: { success: true, data: { defaultModel: 'claude-3', region: 'us-east-1' } } }),
+      route.fulfill({
+        json: {
+          success: true,
+          data: { defaultModel: 'claude-3', region: 'us-east-1' },
+        },
+      }),
     );
     await page.route('**/api/projects', (route) =>
       route.fulfill({ json: { success: true, data: [] } }),
@@ -85,19 +104,34 @@ test.describe('System & Registry Routes', () => {
       route.fulfill({ json: { success: true, data: [] } }),
     );
     await page.route('**/api/auth/status', (route) =>
-      route.fulfill({ json: { authenticated: true, user: { alias: 'testuser' } } }),
+      route.fulfill({
+        json: { authenticated: true, user: { alias: 'testuser' } },
+      }),
     );
     await page.route('**/api/branding', (route) =>
-      route.fulfill({ json: { name: 'Stallion AI', logo: null, theme: null, welcomeMessage: null } }),
+      route.fulfill({
+        json: {
+          name: 'Stallion AI',
+          logo: null,
+          theme: null,
+          welcomeMessage: null,
+        },
+      }),
     );
     await page.route('**/api/events', (route) =>
-      route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: 'data: {"event":"connected"}\n\n' }),
+      route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: 'data: {"event":"connected"}\n\n',
+      }),
     );
     await page.route('**/api/scheduler/**', (route) =>
       route.fulfill({ json: { success: true, data: [] } }),
     );
     await page.route('**/api/system/discover', (route) =>
-      route.fulfill({ json: { stallion: true, name: 'Project Stallion', port: 3141 } }),
+      route.fulfill({
+        json: { stallion: true, name: 'Project Stallion', port: 3141 },
+      }),
     );
   });
 

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 interface CapturedRequest {
   url: string;
@@ -21,9 +21,9 @@ test('network audit - detect duplicate tool calls', async ({ page }) => {
         capturedRequests.push({
           url,
           body: { name: toolName, arguments: body },
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
-      } catch (e) {
+      } catch (_e) {
         // Skip if body isn't valid JSON
       }
     }
@@ -35,11 +35,13 @@ test('network audit - detect duplicate tool calls', async ({ page }) => {
 
   // Try to click stallion workspace tab
   try {
-    const stallionTab = page.locator('text=SA Agent').or(page.locator('text=Stallion'));
+    const stallionTab = page
+      .locator('text=SA Agent')
+      .or(page.locator('text=Stallion'));
     if (await stallionTab.isVisible()) {
       await stallionTab.click();
     }
-  } catch (e) {
+  } catch (_e) {
     // Continue if tab not found
   }
 
@@ -48,12 +50,12 @@ test('network audit - detect duplicate tool calls', async ({ page }) => {
 
   // Analyze captured requests for duplicates
   const toolCalls = new Map<string, CapturedRequest[]>();
-  
-  capturedRequests.forEach(req => {
+
+  capturedRequests.forEach((req) => {
     const toolName = req.body.name || 'unknown';
     const paramsKey = JSON.stringify(req.body.arguments || {});
     const key = `${toolName}:${paramsKey}`;
-    
+
     if (!toolCalls.has(key)) {
       toolCalls.set(key, []);
     }
@@ -64,16 +66,16 @@ test('network audit - detect duplicate tool calls', async ({ page }) => {
   // Flag anything called 3+ times as a real duplicate.
   const STRICT_MODE_MULTIPLIER = 2;
   const duplicates: string[] = [];
-  const summary: Array<{tool: string, count: number, params: string}> = [];
+  const summary: Array<{ tool: string; count: number; params: string }> = [];
 
   toolCalls.forEach((requests, key) => {
     const [toolName, paramsJson] = key.split(':', 2);
     const params = paramsJson.substring(0, 80);
-    
+
     summary.push({
       tool: toolName,
       count: requests.length,
-      params
+      params,
     });
 
     if (requests.length > STRICT_MODE_MULTIPLIER) {
@@ -86,13 +88,15 @@ test('network audit - detect duplicate tool calls', async ({ page }) => {
   console.log(`Tool call requests: ${capturedRequests.length}`);
   console.log('\nTool Name | Count | Params (first 80 chars)');
   console.log('----------|-------|------------------------');
-  summary.forEach(s => {
-    console.log(`${s.tool.padEnd(9)} | ${s.count.toString().padEnd(5)} | ${s.params}`);
+  summary.forEach((s) => {
+    console.log(
+      `${s.tool.padEnd(9)} | ${s.count.toString().padEnd(5)} | ${s.params}`,
+    );
   });
 
   if (duplicates.length > 0) {
     console.log('\n=== DUPLICATES DETECTED ===');
-    duplicates.forEach(dup => console.log(`- ${dup}`));
+    duplicates.forEach((dup) => console.log(`- ${dup}`));
   } else {
     console.log('\n✓ No duplicates detected');
   }

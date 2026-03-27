@@ -2,7 +2,7 @@
  * Core update flow — verifies update detection and update execution in Settings.
  * Uses page.route to mock API responses for isolation from backend state.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const STATUS_READY = JSON.stringify({
   ready: true,
@@ -15,19 +15,60 @@ const STATUS_READY = JSON.stringify({
 function seedRoutes(page: import('@playwright/test').Page) {
   return Promise.all([
     page.route('**/api/system/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: STATUS_READY })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: STATUS_READY,
+      }),
+    ),
     page.route('**/api/agents', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
     page.route('**/api/projects', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
     page.route('**/api/branding', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({}),
+      }),
+    ),
     page.route('**/api/auth/status', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: true }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ authenticated: true }),
+      }),
+    ),
     page.route('**/api/config/app', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { defaultModel: 'claude-sonnet', region: 'us-east-1' } }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { defaultModel: 'claude-sonnet', region: 'us-east-1' },
+        }),
+      }),
+    ),
     page.route('**/api/system/capabilities', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ runtime: 'voltagent', voice: { stt: [], tts: [] } }) })),
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          runtime: 'voltagent',
+          voice: { stt: [], tts: [] },
+        }),
+      }),
+    ),
   ]);
 }
 
@@ -58,7 +99,9 @@ test.describe('Core Update Flow', () => {
     await page.getByRole('button', { name: /Check for Updates/ }).click();
 
     // Should show the update button with commit count
-    await expect(page.getByRole('button', { name: /Update \(3 commits behind\)/ })).toBeVisible({ timeout: 10000 });
+    await expect(
+      page.getByRole('button', { name: /Update \(3 commits behind\)/ }),
+    ).toBeVisible({ timeout: 10000 });
     // Should show branch and hash info
     await expect(page.getByText('Branch: main')).toBeVisible();
     await expect(page.getByText('Current: abc1234')).toBeVisible();
@@ -77,8 +120,11 @@ test.describe('Core Update Flow', () => {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-              currentHash: 'def5678', branch: 'main',
-              behind: 0, ahead: 0, updateAvailable: false,
+              currentHash: 'def5678',
+              branch: 'main',
+              behind: 0,
+              ahead: 0,
+              updateAvailable: false,
             }),
           });
         }
@@ -86,8 +132,12 @@ test.describe('Core Update Flow', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            currentHash: 'abc1234', remoteHash: 'def5678',
-            branch: 'main', behind: 3, ahead: 0, updateAvailable: true,
+            currentHash: 'abc1234',
+            remoteHash: 'def5678',
+            branch: 'main',
+            behind: 3,
+            ahead: 0,
+            updateAvailable: true,
           }),
         });
       }
@@ -97,7 +147,8 @@ test.describe('Core Update Flow', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            success: true, hash: 'def5678',
+            success: true,
+            hash: 'def5678',
             message: 'Updated to def5678. Server restarting…',
             restarting: true,
           }),
@@ -108,12 +159,18 @@ test.describe('Core Update Flow', () => {
 
     await page.goto('/settings');
     await page.getByRole('button', { name: /Check for Updates/ }).click();
-    await expect(page.getByRole('button', { name: /Update \(3 commits behind\)/ })).toBeVisible({ timeout: 10000 });
+    await expect(
+      page.getByRole('button', { name: /Update \(3 commits behind\)/ }),
+    ).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole('button', { name: /Update \(3 commits behind\)/ }).click();
+    await page
+      .getByRole('button', { name: /Update \(3 commits behind\)/ })
+      .click();
 
     // Should show restarting message
-    await expect(page.getByText('Updated — server restarting…')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Updated — server restarting…')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('shows up-to-date when no updates', async ({ page }) => {
@@ -125,8 +182,11 @@ test.describe('Core Update Flow', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            currentHash: 'abc1234', branch: 'main',
-            behind: 0, ahead: 0, updateAvailable: false,
+            currentHash: 'abc1234',
+            branch: 'main',
+            behind: 0,
+            ahead: 0,
+            updateAvailable: false,
           }),
         });
       }
@@ -135,6 +195,8 @@ test.describe('Core Update Flow', () => {
 
     await page.goto('/settings');
     await page.getByRole('button', { name: /Check for Updates/ }).click();
-    await expect(page.getByText('Up to date ✓')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Up to date ✓')).toBeVisible({
+      timeout: 10000,
+    });
   });
 });

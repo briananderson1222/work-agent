@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test('activity chart hover shows stable tooltip', async ({ page }) => {
   await page.goto('/profile');
@@ -7,9 +7,12 @@ test('activity chart hover shows stable tooltip', async ({ page }) => {
 
   // Scroll to chart area
   const heading = page.getByText('Activity History');
-  if (await heading.count() === 0) {
+  if ((await heading.count()) === 0) {
     console.log('No Activity History section found');
-    await page.screenshot({ path: '/tmp/profile-no-chart.png', fullPage: true });
+    await page.screenshot({
+      path: '/tmp/profile-no-chart.png',
+      fullPage: true,
+    });
     return;
   }
   await heading.scrollIntoViewIfNeeded();
@@ -21,7 +24,10 @@ test('activity chart hover shows stable tooltip', async ({ page }) => {
   console.log(`Found ${count} hover targets`);
 
   if (count === 0) {
-    await page.screenshot({ path: '/tmp/profile-chart-empty.png', fullPage: true });
+    await page.screenshot({
+      path: '/tmp/profile-chart-empty.png',
+      fullPage: true,
+    });
     return;
   }
 
@@ -47,16 +53,23 @@ test('activity chart hover shows stable tooltip', async ({ page }) => {
     // Move to middle of bar
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.waitForTimeout(300);
-    console.log(`Tooltip visible after middle hover: ${await tooltip.isVisible()}`);
+    console.log(
+      `Tooltip visible after middle hover: ${await tooltip.isVisible()}`,
+    );
 
     // Move to bottom of bar
     await page.mouse.move(box.x + box.width / 2, box.y + box.height - 5);
     await page.waitForTimeout(300);
-    console.log(`Tooltip visible after bottom hover: ${await tooltip.isVisible()}`);
+    console.log(
+      `Tooltip visible after bottom hover: ${await tooltip.isVisible()}`,
+    );
 
     // Tooltip should stay visible throughout
     await expect(tooltip).toBeVisible();
   }
 
-  await page.screenshot({ path: '/tmp/profile-chart-hover.png', fullPage: true });
+  await page.screenshot({
+    path: '/tmp/profile-chart-hover.png',
+    fullPage: true,
+  });
 });

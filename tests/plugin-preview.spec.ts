@@ -2,11 +2,11 @@
  * Plugin preview modal tests — validates the install preview flow:
  * validation, component listing, conflict detection, dependency display.
  */
-import { test, expect } from '@playwright/test';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import { execSync } from 'child_process';
+
+import { execSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expect, test } from '@playwright/test';
 
 const __filename = fileURLToPath(import.meta.url);
 const PROJECT_DIR = join(dirname(__filename), '..');
@@ -18,15 +18,20 @@ const API = 'http://localhost:3141';
 test.describe('Plugin Preview', () => {
   test.beforeAll(() => {
     // Ensure demo-layout is built
-    execSync('npx tsx ../../packages/cli/src/cli.ts build', { cwd: DEMO_DIR, timeout: 15000 });
+    execSync('npx tsx ../../packages/cli/src/cli.ts build', {
+      cwd: DEMO_DIR,
+      timeout: 15000,
+    });
   });
 
   test('preview API validates a valid plugin', async () => {
-    const res = await (await fetch(`${API}/api/plugins/preview`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: DEMO_DIR }),
-    })).json();
+    const res = await (
+      await fetch(`${API}/api/plugins/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: DEMO_DIR }),
+      })
+    ).json();
 
     expect(res.valid).toBe(true);
     expect(res.manifest.name).toBe('demo-layout');
@@ -35,11 +40,13 @@ test.describe('Plugin Preview', () => {
   });
 
   test('preview API rejects invalid source', async () => {
-    const res = await (await fetch(`${API}/api/plugins/preview`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: '/tmp/nonexistent-plugin-xyz' }),
-    })).json();
+    const res = await (
+      await fetch(`${API}/api/plugins/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: '/tmp/nonexistent-plugin-xyz' }),
+      })
+    ).json();
 
     expect(res.valid).toBe(false);
     expect(res.error).toBeTruthy();
@@ -47,26 +54,32 @@ test.describe('Plugin Preview', () => {
 
   test('preview API detects conflicts for already-installed plugin', async () => {
     // sa-agent is installed — preview should show conflicts
-    const res = await (await fetch(`${API}/api/plugins/preview`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: SA_AGENT_DIR }),
-    })).json();
+    const res = await (
+      await fetch(`${API}/api/plugins/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: SA_AGENT_DIR }),
+      })
+    ).json();
 
     if (res.valid) {
       // If sa-agent components are already installed, expect conflicts
-      const agentConflicts = res.conflicts.filter((c: any) => c.type === 'agent');
+      const agentConflicts = res.conflicts.filter(
+        (c: any) => c.type === 'agent',
+      );
       expect(agentConflicts.length).toBeGreaterThanOrEqual(0); // may or may not conflict depending on state
       expect(res.components.length).toBeGreaterThan(0);
     }
   });
 
   test('preview API shows dependencies', async () => {
-    const res = await (await fetch(`${API}/api/plugins/preview`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: SA_AGENT_DIR }),
-    })).json();
+    const res = await (
+      await fetch(`${API}/api/plugins/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: SA_AGENT_DIR }),
+      })
+    ).json();
 
     if (res.valid) {
       expect(res.dependencies).toBeDefined();
@@ -82,14 +95,16 @@ test.describe('Plugin Preview', () => {
 
   test('install API accepts skip list', async () => {
     // Install demo-layout but skip the layout component
-    const res = await (await fetch(`${API}/api/plugins/install`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: DEMO_DIR,
-        skip: ['layout:demo-layout'],
-      }),
-    })).json();
+    const res = await (
+      await fetch(`${API}/api/plugins/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: DEMO_DIR,
+          skip: ['layout:demo-layout'],
+        }),
+      })
+    ).json();
 
     expect(res.success).toBe(true);
     expect(res.plugin.name).toBe('demo-layout');
@@ -100,7 +115,9 @@ test.describe('Plugin Preview', () => {
 });
 
 test.describe('Plugin Preview Modal (UI)', () => {
-  test('preview modal appears when installing from plugins page', async ({ page }) => {
+  test('preview modal appears when installing from plugins page', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.waitForTimeout(2000);
 
@@ -125,16 +142,22 @@ test.describe('Plugin Preview Modal (UI)', () => {
     await page.locator('.plugins__install-btn').click();
 
     // Wait for the preview modal
-    await expect(page.locator('.plugins__modal-overlay')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.plugins__modal-overlay')).toBeVisible({
+      timeout: 10000,
+    });
 
     // Should show the plugin name
     await expect(page.locator('.plugins__modal strong')).toContainText('Demo');
 
     // Should have component checkboxes
-    expect(await page.locator('.plugins__modal input[type="checkbox"]').count()).toBeGreaterThan(0);
+    expect(
+      await page.locator('.plugins__modal input[type="checkbox"]').count(),
+    ).toBeGreaterThan(0);
 
     // Should have confirm and cancel buttons
-    await expect(page.locator('.plugins__modal >> text=Confirm Install')).toBeVisible();
+    await expect(
+      page.locator('.plugins__modal >> text=Confirm Install'),
+    ).toBeVisible();
 
     // Take screenshot of the preview modal
     await page.screenshot({ path: 'test-results/plugin-preview-modal.png' });

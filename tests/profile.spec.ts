@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const MOCK_USAGE = {
   lifetime: {
@@ -20,8 +20,20 @@ const MOCK_USAGE = {
 };
 
 const MOCK_ACHIEVEMENTS = [
-  { id: 'first-message', name: 'First Message', description: 'Send your first message', unlocked: true, progress: 100 },
-  { id: 'power-user', name: 'Power User', description: 'Send 100 messages', unlocked: false, progress: 42 },
+  {
+    id: 'first-message',
+    name: 'First Message',
+    description: 'Send your first message',
+    unlocked: true,
+    progress: 100,
+  },
+  {
+    id: 'power-user',
+    name: 'Power User',
+    description: 'Send 100 messages',
+    unlocked: false,
+    progress: 42,
+  },
 ];
 
 const MOCK_INSIGHTS = {
@@ -46,7 +58,7 @@ function setupRoutes(page: import('@playwright/test').Page) {
     page.route('**/api/analytics/achievements', (route) =>
       route.fulfill({ json: { data: MOCK_ACHIEVEMENTS } }),
     ),
-    page.route('**/api/insights/insights*', (route) =>
+    page.route('**/api/insights*', (route) =>
       route.fulfill({ json: { data: MOCK_INSIGHTS } }),
     ),
     page.route('**/api/feedback/ratings', (route) =>
@@ -56,19 +68,37 @@ function setupRoutes(page: import('@playwright/test').Page) {
       route.fulfill({ json: { data: null } }),
     ),
     page.route('**/api/feedback/status', (route) =>
-      route.fulfill({ json: { data: { isAnalyzing: false, analyzeCallbackAvailable: true } } }),
+      route.fulfill({
+        json: { data: { isAnalyzing: false, analyzeCallbackAvailable: true } },
+      }),
     ),
     page.route('**/api/agents', (route) =>
       route.fulfill({ json: { success: true, data: [] } }),
     ),
     page.route('**/config/app', (route) =>
-      route.fulfill({ json: { success: true, data: { defaultModel: 'test' } } }),
+      route.fulfill({
+        json: { success: true, data: { defaultModel: 'test' } },
+      }),
     ),
     page.route('**/api/system/status', (route) =>
-      route.fulfill({ json: { prerequisites: [], bedrock: {}, acp: { connections: [] }, ready: true } }),
+      route.fulfill({
+        json: {
+          prerequisites: [],
+          bedrock: {},
+          acp: { connections: [] },
+          ready: true,
+        },
+      }),
     ),
     page.route('**/api/system/capabilities', (route) =>
-      route.fulfill({ json: { runtime: 'voltagent', voice: { stt: [], tts: [] }, context: { providers: [] }, scheduler: true } }),
+      route.fulfill({
+        json: {
+          runtime: 'voltagent',
+          voice: { stt: [], tts: [] },
+          context: { providers: [] },
+          scheduler: true,
+        },
+      }),
     ),
     page.route('**/api/models/**', (route) =>
       route.fulfill({ json: { success: true, data: [] } }),
@@ -98,7 +128,9 @@ test.describe('Profile Page', () => {
   test('displays hero card with usage stats', async ({ page }) => {
     await page.goto('/profile');
     await expect(page.locator('.profile-hero-title')).toBeVisible();
-    await expect(page.locator('.profile-hero-subtitle')).toContainText('42 messages');
+    await expect(page.locator('.profile-hero-subtitle')).toContainText(
+      '42 messages',
+    );
   });
 
   test('renders usage stats panel with stat cards', async ({ page }) => {
@@ -168,7 +200,11 @@ test.describe('Profile Page', () => {
         return route.fulfill({
           json: {
             data: {
-              lifetime: { totalMessages: 0, totalCost: 0, totalConversations: 0 },
+              lifetime: {
+                totalMessages: 0,
+                totalCost: 0,
+                totalConversations: 0,
+              },
               byModel: {},
               byAgent: {},
               byDate: {},
@@ -179,7 +215,9 @@ test.describe('Profile Page', () => {
       return route.fulfill({ json: { success: true } });
     });
     await page.goto('/profile');
-    await expect(page.getByText('Start your journey with your first message')).toBeVisible();
+    await expect(
+      page.getByText('Start your journey with your first message'),
+    ).toBeVisible();
     await expect(page.getByText('No model data yet')).toBeVisible();
     await expect(page.getByText('No agent data yet')).toBeVisible();
   });

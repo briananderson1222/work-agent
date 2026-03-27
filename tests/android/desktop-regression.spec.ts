@@ -2,7 +2,7 @@
  * Desktop regression tests — verifies desktop layout is not broken by mobile-first changes.
  * Overrides the Pixel 7 viewport from the android project to a desktop width.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 // Override viewport to desktop for this entire file
 test.use({ viewport: { width: 1280, height: 800 } });
@@ -12,8 +12,10 @@ test.describe('Desktop Regression', () => {
     await page.goto('/');
     await page.waitForTimeout(2000);
     const mobileBar = page.locator('.sidebar-mobile-bar');
-    if (await mobileBar.count() > 0) {
-      const isVisible = await mobileBar.evaluate(el => getComputedStyle(el).display !== 'none');
+    if ((await mobileBar.count()) > 0) {
+      const isVisible = await mobileBar.evaluate(
+        (el) => getComputedStyle(el).display !== 'none',
+      );
       expect(isVisible).toBe(false);
     }
   });
@@ -22,8 +24,8 @@ test.describe('Desktop Regression', () => {
     await page.goto('/');
     await page.waitForTimeout(2000);
     const nav = page.locator('.header-nav');
-    if (await nav.count() > 0) {
-      const display = await nav.evaluate(el => getComputedStyle(el).display);
+    if ((await nav.count()) > 0) {
+      const display = await nav.evaluate((el) => getComputedStyle(el).display);
       expect(display).not.toBe('none');
     }
   });
@@ -33,7 +35,7 @@ test.describe('Desktop Regression', () => {
     await page.waitForTimeout(2000);
     const left = page.locator('.split-pane__left');
     const right = page.locator('.split-pane__right');
-    if (await left.count() > 0) {
+    if ((await left.count()) > 0) {
       await expect(left).toBeVisible();
       await expect(right).toBeVisible();
     }
@@ -43,8 +45,10 @@ test.describe('Desktop Regression', () => {
     await page.goto('/');
     await page.waitForTimeout(2000);
     const sidebar = page.locator('.sidebar');
-    if (await sidebar.count() > 0) {
-      const position = await sidebar.evaluate(el => getComputedStyle(el).position);
+    if ((await sidebar.count()) > 0) {
+      const position = await sidebar.evaluate(
+        (el) => getComputedStyle(el).position,
+      );
       expect(position).not.toBe('fixed');
     }
   });
@@ -52,8 +56,10 @@ test.describe('Desktop Regression', () => {
   test('no horizontal overflow on desktop', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(2000);
-    const overflow = await page.evaluate(() =>
-      document.documentElement.scrollWidth > document.documentElement.clientWidth
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
     );
     expect(overflow).toBe(false);
   });
@@ -62,9 +68,9 @@ test.describe('Desktop Regression', () => {
     await page.goto('/');
     await page.waitForTimeout(2000);
     const codingLayout = page.locator('.coding-layout');
-    if (await codingLayout.count() > 0) {
-      const gridCols = await codingLayout.evaluate(el =>
-        getComputedStyle(el).gridTemplateColumns
+    if ((await codingLayout.count()) > 0) {
+      const gridCols = await codingLayout.evaluate(
+        (el) => getComputedStyle(el).gridTemplateColumns,
       );
       // Should have multiple columns (not just '1fr' which would be mobile)
       expect(gridCols).toContain('px');

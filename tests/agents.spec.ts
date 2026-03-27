@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Agents CRUD', () => {
   test.beforeEach(async ({ page }) => {
@@ -16,7 +16,11 @@ test.describe('Agents CRUD', () => {
 
     // --- CREATE ---
     // Click "+ New" on the Agents section header in the hub
-    await page.locator('.agents-hub__section').first().locator('.agents-hub__add-btn', { hasText: '+ New' }).click();
+    await page
+      .locator('.agents-hub__section')
+      .first()
+      .locator('.agents-hub__add-btn', { hasText: '+ New' })
+      .click();
     await page.waitForTimeout(1_000);
 
     // Pick blank template if template picker is shown
@@ -27,7 +31,9 @@ test.describe('Agents CRUD', () => {
 
     // Fill required fields
     await page.getByPlaceholder('My Agent').fill(agentName);
-    await page.getByPlaceholder('You are a helpful assistant...').fill('Test agent for e2e.');
+    await page
+      .getByPlaceholder('You are a helpful assistant...')
+      .fill('Test agent for e2e.');
 
     // Create
     await page.getByRole('button', { name: 'Create Agent' }).click();
@@ -43,7 +49,9 @@ test.describe('Agents CRUD', () => {
 
     // Save — use dispatchEvent to bypass ChatDock overlay
     const saveBtn = page.getByRole('button', { name: /Save Changes/i });
-    await saveBtn.evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await saveBtn.evaluate((el) =>
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true })),
+    );
     await page.waitForTimeout(2_000);
 
     // Verify server still up after update
@@ -52,10 +60,14 @@ test.describe('Agents CRUD', () => {
 
     // --- DELETE ---
     const deleteBtn = page.getByRole('button', { name: 'Delete' });
-    await deleteBtn.evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await deleteBtn.evaluate((el) =>
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true })),
+    );
 
     // Confirm deletion
-    await expect(page.getByText('Delete Agent')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Delete Agent')).toBeVisible({
+      timeout: 3_000,
+    });
     await page.locator('.modal-footer .button--danger').click();
     await page.waitForTimeout(2_000);
 
@@ -66,7 +78,11 @@ test.describe('Agents CRUD', () => {
 
   test('nonexistent agent shows not-found state', async ({ page }) => {
     await page.goto('/agents/nonexistent-slug-e2e-test');
-    await expect(page.getByText('Agent not found')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: 'Back to agents' })).toBeVisible();
+    await expect(page.getByText('Agent not found')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(
+      page.getByRole('button', { name: 'Back to agents' }),
+    ).toBeVisible();
   });
 });
