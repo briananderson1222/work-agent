@@ -1042,6 +1042,17 @@ export class StallionRuntime {
       ),
     );
     app.route('/api/providers', createProviderRoutes(this.providerService));
+
+    // Project conversations — aggregate across all agents
+    app.get('/api/projects/:slug/conversations', async (c) => {
+      const limit = Number(c.req.query('limit') || 50);
+      const adapter = this.memoryAdapters.values().next().value;
+      if (!adapter) return c.json({ success: true, data: [] });
+      const convs = await adapter.queryConversations({});
+      convs.sort((a: any, b: any) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      return c.json({ success: true, data: convs.slice(0, limit) });
+    });
+
     app.route(
       '/api/projects/:slug/knowledge',
       createKnowledgeRoutes(this.knowledgeService),
