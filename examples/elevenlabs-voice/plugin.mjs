@@ -23,24 +23,34 @@ export default function register(app, { config, logger }) {
     try {
       if (type === 'stt') {
         // Scribe v2 Realtime signed URL
-        const res = await fetch('https://api.elevenlabs.io/v1/speech-to-text/stream/auth', {
-          method: 'POST',
-          headers: {
-            'xi-api-key': apiKey,
-            'Content-Type': 'application/json',
+        const res = await fetch(
+          'https://api.elevenlabs.io/v1/speech-to-text/stream/auth',
+          {
+            method: 'POST',
+            headers: {
+              'xi-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ model_id: 'scribe_v2' }),
           },
-          body: JSON.stringify({ model_id: 'scribe_v2' }),
-        });
+        );
         if (!res.ok) {
           const err = await res.text();
-          logger.warn('ElevenLabs STT auth failed', { status: res.status, err });
+          logger.warn('ElevenLabs STT auth failed', {
+            status: res.status,
+            err,
+          });
           return c.json({ error: 'ElevenLabs auth failed', detail: err }, 502);
         }
         const data = await res.json();
-        return c.json({ url: data.signed_url, expiresAt: Date.now() + 180_000 });
+        return c.json({
+          url: data.signed_url,
+          expiresAt: Date.now() + 180_000,
+        });
       } else {
         // TTS streaming signed URL
-        const voiceId = body.voiceId || config.get('voiceId') || '21m00Tcm4TlvDq8ikWAM';
+        const voiceId =
+          body.voiceId || config.get('voiceId') || '21m00Tcm4TlvDq8ikWAM';
         const res = await fetch(
           `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input/auth`,
           {
@@ -53,10 +63,16 @@ export default function register(app, { config, logger }) {
         );
         if (!res.ok) {
           const err = await res.text();
-          return c.json({ error: 'ElevenLabs TTS auth failed', detail: err }, 502);
+          return c.json(
+            { error: 'ElevenLabs TTS auth failed', detail: err },
+            502,
+          );
         }
         const data = await res.json();
-        return c.json({ url: data.signed_url, expiresAt: Date.now() + 180_000 });
+        return c.json({
+          url: data.signed_url,
+          expiresAt: Date.now() + 180_000,
+        });
       }
     } catch (err) {
       logger.error('ElevenLabs signed-url error', { err });

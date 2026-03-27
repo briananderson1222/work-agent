@@ -2,14 +2,14 @@
 
 /**
  * Plugin Installation Script
- * 
+ *
  * Copies the built plugin to the core app's workspaces directory.
  * Runs automatically after `npm install`.
  */
 
-import { cpSync, existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -36,10 +36,10 @@ try {
 
   // Copy plugin files
   console.log(`📦 Installing ${pluginName} plugin...`);
-  
+
   cpSync(sourceDir, targetDir, { recursive: true });
   cpSync(pluginJsonPath, join(targetDir, 'plugin.json'));
-  
+
   console.log(`✅ Installed ${pluginName} to ${targetDir}`);
 } catch (error) {
   console.error(`❌ Failed to install plugin:`, error.message);

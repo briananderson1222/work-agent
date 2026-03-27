@@ -18,11 +18,12 @@ export default function register(app, { config, logger }) {
       return c.text('WebSocket required', 426);
     }
 
-    const region = config.get('region') || process.env.AWS_REGION || 'us-east-1';
+    const region =
+      config.get('region') || process.env.AWS_REGION || 'us-east-1';
     const modelId = config.get('model') || 'us.amazon.nova-lite-v1:0';
 
     // Dynamic import so the plugin only loads AWS SDK when actually used
-    const { BedrockRuntimeClient, InvokeModelWithBidirectionalStreamCommand } = await import(
+    const { BedrockRuntimeClient } = await import(
       '@aws-sdk/client-bedrock-runtime'
     ).catch(() => {
       logger.error('Nova Sonic: @aws-sdk/client-bedrock-runtime not installed');

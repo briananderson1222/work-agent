@@ -4,9 +4,7 @@
   "version": "0.1.0",
   "description": "Continuous speech capture \u2192 transcript \u2192 extract action items. Registers a toolbar action.",
   "providerTypes": [],
-  "permissions": [
-    "voice:stt"
-  ],
+  "permissions": ["voice:stt"],
   "clientBundle": "dist/index.js",
   "toolbarActions": [
     {

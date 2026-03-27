@@ -29,11 +29,18 @@ export class ElevenLabsSTTProvider implements STTProvider {
   }
 
   get isSupported(): boolean {
-    return typeof WebSocket !== 'undefined' && typeof navigator.mediaDevices !== 'undefined';
+    return (
+      typeof WebSocket !== 'undefined' &&
+      typeof navigator.mediaDevices !== 'undefined'
+    );
   }
 
-  get state(): STTState { return this._state; }
-  get transcript(): string { return this._transcript; }
+  get state(): STTState {
+    return this._state;
+  }
+  get transcript(): string {
+    return this._transcript;
+  }
 
   subscribe(fn: () => void): () => void {
     this._listeners.add(fn);
@@ -46,11 +53,14 @@ export class ElevenLabsSTTProvider implements STTProvider {
 
     try {
       // Get signed URL from local server
-      const res = await fetch(`${this._apiBase}/api/plugins/elevenlabs-voice/signed-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'stt' }),
-      });
+      const res = await fetch(
+        `${this._apiBase}/api/plugins/elevenlabs-voice/signed-url`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'stt' }),
+        },
+      );
       if (!res.ok) throw new Error('Failed to get signed URL');
       const { url } = await res.json();
 
@@ -61,7 +71,8 @@ export class ElevenLabsSTTProvider implements STTProvider {
       ws.onopen = () => {
         // Keepalive every 20s
         this._keepaliveTimer = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ text: ' ' }));
+          if (ws.readyState === WebSocket.OPEN)
+            ws.send(JSON.stringify({ text: ' ' }));
         }, 20_000);
       };
 
@@ -88,7 +99,9 @@ export class ElevenLabsSTTProvider implements STTProvider {
       };
 
       // Open microphone and stream PCM to WebSocket
-      this._mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this._mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
       this._audioCtx = new AudioContext({ sampleRate: 16_000 });
       const source = this._audioCtx.createMediaStreamSource(this._mediaStream);
 

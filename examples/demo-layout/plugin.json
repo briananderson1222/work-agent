@@ -4,13 +4,8 @@
   "displayName": "Demo Layout",
   "description": "A demo layout showing Stallion capabilities \u2014 no external dependencies",
   "entrypoint": "src/index.tsx",
-  "capabilities": [
-    "chat",
-    "navigation"
-  ],
-  "permissions": [
-    "navigation.dock"
-  ],
+  "capabilities": ["chat", "navigation"],
+  "permissions": ["navigation.dock"],
   "agents": [
     {
       "slug": "assistant",

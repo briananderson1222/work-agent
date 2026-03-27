@@ -3,9 +3,5 @@
   "identifier": "default",
   "description": "Default permissions for the application",
   "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "shell:allow-open",
-    "shell:allow-execute"
-  ]
+  "permissions": ["core:default", "shell:allow-open", "shell:allow-execute"]
 }

@@ -4,11 +4,6 @@
   "displayName": "Minimal Layout",
   "description": "A minimal layout plugin example",
   "entrypoint": "./index.tsx",
-  "capabilities": [
-    "chat",
-    "navigation"
-  ],
-  "permissions": [
-    "navigation.dock"
-  ]
+  "capabilities": ["chat", "navigation"],
+  "permissions": ["navigation.dock"]
 }

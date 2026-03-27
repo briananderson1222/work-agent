@@ -1,1 +1,9 @@
-{"default":{"identifier":"default","description":"Default permissions for the application","local":true,"windows":["main"],"permissions":["core:default","shell:allow-open","shell:allow-execute"]}}
+{
+  "default": {
+    "identifier": "default",
+    "description": "Default permissions for the application",
+    "local": true,
+    "windows": ["main"],
+    "permissions": ["core:default", "shell:allow-open", "shell:allow-execute"]
+  }
+}

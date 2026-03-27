@@ -1,14 +1,22 @@
-import { useAgents, useNavigation, useToast, type WorkspaceComponentProps } from '@stallion-ai/sdk';
+import {
+  useAgents,
+  useNavigation,
+  useToast,
+  type WorkspaceComponentProps,
+} from '@stallion-ai/sdk';
 
 /**
  * Minimal Workspace - Example plugin component
- * 
+ *
  * Demonstrates basic SDK usage:
  * - Accessing agents via useAgents()
  * - Controlling chat dock via useNavigation()
  * - Showing notifications via useToast()
  */
-export default function MinimalWorkspace({ layout, onShowChat }: WorkspaceComponentProps) {
+export default function MinimalWorkspace({
+  layout: _layout,
+  onShowChat: _onShowChat,
+}: WorkspaceComponentProps) {
   const agents = useAgents();
   const { setDockState } = useNavigation();
   const { showToast } = useToast();

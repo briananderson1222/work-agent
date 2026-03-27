@@ -27,28 +27,35 @@ export class ElevenLabsTTSProvider implements TTSProvider {
   }
 
   get isSupported(): boolean {
-    return typeof WebSocket !== 'undefined' && typeof AudioContext !== 'undefined';
+    return (
+      typeof WebSocket !== 'undefined' && typeof AudioContext !== 'undefined'
+    );
   }
 
-  get speaking(): boolean { return this._speaking; }
+  get speaking(): boolean {
+    return this._speaking;
+  }
 
   subscribe(fn: () => void): () => void {
     this._listeners.add(fn);
     return () => this._listeners.delete(fn);
   }
 
-  async speak(text: string, opts?: TTSOptions): Promise<void> {
+  async speak(text: string, _opts?: TTSOptions): Promise<void> {
     this.cancel();
     this._speaking = true;
     this._notify();
     this._mp3Chunks = [];
 
     try {
-      const res = await fetch(`${this._apiBase}/api/plugins/elevenlabs-voice/signed-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'tts' }),
-      });
+      const res = await fetch(
+        `${this._apiBase}/api/plugins/elevenlabs-voice/signed-url`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'tts' }),
+        },
+      );
       if (!res.ok) throw new Error('Failed to get TTS signed URL');
       const { url } = await res.json();
 
@@ -58,20 +65,23 @@ export class ElevenLabsTTSProvider implements TTSProvider {
 
       ws.onopen = () => {
         // Send text to synthesize
-        ws.send(JSON.stringify({
-          text,
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.8,
-          },
-          xi_api_key: undefined, // using signed URL, no key needed in payload
-        }));
+        ws.send(
+          JSON.stringify({
+            text,
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.8,
+            },
+            xi_api_key: undefined, // using signed URL, no key needed in payload
+          }),
+        );
 
         // Flush signal
         ws.send(JSON.stringify({ text: '' }));
 
         this._keepaliveTimer = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ text: ' ' }));
+          if (ws.readyState === WebSocket.OPEN)
+            ws.send(JSON.stringify({ text: ' ' }));
         }, 20_000);
       };
 
@@ -82,7 +92,8 @@ export class ElevenLabsTTSProvider implements TTSProvider {
             // Base64-encoded MP3 chunk
             const binary = atob(msg.audio);
             const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            for (let i = 0; i < binary.length; i++)
+              bytes[i] = binary.charCodeAt(i);
             this._mp3Chunks.push(bytes);
           }
           if (msg.isFinal) {
@@ -90,12 +101,20 @@ export class ElevenLabsTTSProvider implements TTSProvider {
             const total = this._mp3Chunks.reduce((a, c) => a + c.length, 0);
             const merged = new Uint8Array(total);
             let offset = 0;
-            for (const chunk of this._mp3Chunks) { merged.set(chunk, offset); offset += chunk.length; }
-            const audioBuffer = await this._audioCtx!.decodeAudioData(merged.buffer);
+            for (const chunk of this._mp3Chunks) {
+              merged.set(chunk, offset);
+              offset += chunk.length;
+            }
+            const audioBuffer = await this._audioCtx!.decodeAudioData(
+              merged.buffer,
+            );
             const source = this._audioCtx!.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(this._audioCtx!.destination);
-            source.onended = () => { this._speaking = false; this._notify(); };
+            source.onended = () => {
+              this._speaking = false;
+              this._notify();
+            };
             source.start();
           }
         } catch {

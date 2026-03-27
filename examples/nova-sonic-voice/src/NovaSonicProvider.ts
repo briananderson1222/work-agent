@@ -37,13 +37,24 @@ export class NovaSonicProvider implements ConversationalVoiceProvider {
   }
 
   get isSupported(): boolean {
-    return typeof WebSocket !== 'undefined' && typeof navigator.mediaDevices !== 'undefined';
+    return (
+      typeof WebSocket !== 'undefined' &&
+      typeof navigator.mediaDevices !== 'undefined'
+    );
   }
 
-  get state(): STTState { return this._sttState; }
-  get transcript(): string { return this._transcript; }
-  get speaking(): boolean { return this._speaking; }
-  get sessionState(): ConversationalSessionState { return this._sessionState; }
+  get state(): STTState {
+    return this._sttState;
+  }
+  get transcript(): string {
+    return this._transcript;
+  }
+  get speaking(): boolean {
+    return this._speaking;
+  }
+  get sessionState(): ConversationalSessionState {
+    return this._sessionState;
+  }
 
   subscribe(fn: () => void): () => void {
     this._listeners.add(fn);
@@ -56,7 +67,9 @@ export class NovaSonicProvider implements ConversationalVoiceProvider {
     this._setSttState('listening');
 
     try {
-      const wsUrl = this._apiBase.replace(/^http/, 'ws') + '/api/plugins/nova-sonic-voice/relay';
+      const wsUrl =
+        this._apiBase.replace(/^http/, 'ws') +
+        '/api/plugins/nova-sonic-voice/relay';
       const ws = new WebSocket(wsUrl);
       this._ws = ws;
 
@@ -66,7 +79,9 @@ export class NovaSonicProvider implements ConversationalVoiceProvider {
 
       ws.onmessage = async (evt) => {
         try {
-          const msg = JSON.parse(typeof evt.data === 'string' ? evt.data : await evt.data.text());
+          const msg = JSON.parse(
+            typeof evt.data === 'string' ? evt.data : await evt.data.text(),
+          );
           if (msg.type === 'transcript') {
             this._transcript = msg.text ?? '';
             this._notify();
@@ -140,7 +155,9 @@ export class NovaSonicProvider implements ConversationalVoiceProvider {
 
   private async _startMic(): Promise<void> {
     try {
-      this._mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this._mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
       this._audioCtx = new AudioContext({ sampleRate: 16_000 });
       const source = this._audioCtx.createMediaStreamSource(this._mediaStream);
       const processor = this._audioCtx.createScriptProcessor(4096, 1, 1);
@@ -151,7 +168,9 @@ export class NovaSonicProvider implements ConversationalVoiceProvider {
         for (let i = 0; i < pcm.length; i++) {
           int16[i] = Math.max(-32768, Math.min(32767, pcm[i] * 32768));
         }
-        this._ws.send(JSON.stringify({ type: 'audio', data: Array.from(int16) }));
+        this._ws.send(
+          JSON.stringify({ type: 'audio', data: Array.from(int16) }),
+        );
       };
       source.connect(processor);
       processor.connect(this._audioCtx.destination);
@@ -178,7 +197,10 @@ export class NovaSonicProvider implements ConversationalVoiceProvider {
       source.connect(this._audioCtx.destination);
       this._speaking = true;
       this._notify();
-      source.onended = () => { this._speaking = false; this._notify(); };
+      source.onended = () => {
+        this._speaking = false;
+        this._notify();
+      };
       source.start();
     } catch {
       // ignore decode errors
