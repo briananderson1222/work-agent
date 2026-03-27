@@ -2,7 +2,14 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["@stallion-ai/sdk", "@stallion-ai/shared", "@stallion-ai/cli", "@stallion-ai/connect"]],
+  "fixed": [
+    [
+      "@stallion-ai/sdk",
+      "@stallion-ai/shared",
+      "@stallion-ai/cli",
+      "@stallion-ai/connect"
+    ]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

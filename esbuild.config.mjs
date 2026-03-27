@@ -8,8 +8,8 @@ const shared = {
   sourcemap: true,
   external: ['fsevents', 'esbuild', 'node-pty'],
   banner: {
-    js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
-  }
+    js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+  },
 };
 
 await Promise.all([
