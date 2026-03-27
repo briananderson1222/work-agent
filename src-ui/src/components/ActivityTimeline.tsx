@@ -41,7 +41,9 @@ export function ActivityTimeline() {
   }
 
   const agentSet = new Set<string>();
-  for (const day of Object.values(data.byDate)) {
+  for (const day of Object.values(data.byDate) as Array<{
+    byAgent: Record<string, number>;
+  }>) {
     for (const a of Object.keys(day.byAgent)) agentSet.add(a);
   }
   const agents = Array.from(agentSet);
@@ -124,8 +126,8 @@ export function ActivityTimeline() {
               )
             </div>
             {Object.entries(hoverDay.byAgent)
-              .sort(([, a], [, b]) => b - a)
-              .map(([agent, count]) => (
+              .sort(([, a], [, b]) => (b as number) - (a as number))
+              .map(([agent, count]: [string, unknown]) => (
                 <div key={agent} className="timeline-tooltip-agent">
                   <span
                     className="timeline-agent-dot"
@@ -134,7 +136,9 @@ export function ActivityTimeline() {
                   <span className="timeline-tooltip-agent-name">
                     {shortAgent(agent)}
                   </span>
-                  <span className="timeline-tooltip-agent-count">{count}</span>
+                  <span className="timeline-tooltip-agent-count">
+                    {count as number}
+                  </span>
                 </div>
               ))}
           </div>

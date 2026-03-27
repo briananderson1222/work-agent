@@ -630,8 +630,8 @@ export class StallionRuntime {
       displayName: 'Stallion Control',
       description:
         'Manage agents, skills, integrations, prompts, and jobs via natural language',
-      kind: 'mcp',
-      transport: 'stdio',
+      kind: 'mcp' as const,
+      transport: 'stdio' as const,
       command: 'node',
       args: [selfServerPath],
       env: { STALLION_PORT: String(this.port) },

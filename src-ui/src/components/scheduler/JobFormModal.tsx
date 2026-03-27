@@ -13,7 +13,12 @@ export function JobFormModal({
   providers = [],
 }: {
   job?: SchedulerJob;
-  prefill?: Partial<{ name: string; cron: string; prompt: string }>;
+  prefill?: Partial<{
+    name: string;
+    cron: string;
+    prompt: string;
+    agent: string;
+  }>;
   onClose: () => void;
   providers?: SchedulerProviderInfo[];
 }) {
@@ -28,7 +33,7 @@ export function JobFormModal({
     activeProvider?.formFields || [];
   const init = prefill || {};
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<Record<string, any>>({
     name: job?.name || init.name || '',
     cron:
       (job as Record<string, unknown>)?.schedule
@@ -56,7 +61,7 @@ export function JobFormModal({
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
       >,
     ) =>
-      setForm((f: Record<string, string>) => ({
+      setForm((f) => ({
         ...f,
         [field]: e.target.value,
       }));
@@ -150,9 +155,7 @@ export function JobFormModal({
             <span className="schedule__field-label">Agent</span>
             <AgentPicker
               value={form.agent}
-              onChange={(v) =>
-                setForm((f: Record<string, string>) => ({ ...f, agent: v }))
-              }
+              onChange={(v) => setForm((f) => ({ ...f, agent: v }))}
             />
           </label>
           <label className="schedule__field">
@@ -169,9 +172,7 @@ export function JobFormModal({
             <span className="schedule__field-label">Schedule</span>
             <CronEditor
               value={form.cron}
-              onChange={(v) =>
-                setForm((f: Record<string, string>) => ({ ...f, cron: v }))
-              }
+              onChange={(v) => setForm((f) => ({ ...f, cron: v }))}
             />
             <CronPreview cron={cronInput} />
           </label>
@@ -220,7 +221,7 @@ export function JobFormModal({
                 <Toggle
                   checked={!!form[f.key]}
                   onChange={(v) =>
-                    setForm((prev: Record<string, string | boolean>) => ({
+                    setForm((prev) => ({
                       ...prev,
                       [f.key]: v,
                     }))

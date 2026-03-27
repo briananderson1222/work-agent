@@ -94,12 +94,13 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
     onError: (err: Error) => setError(err.message),
   });
 
+  const isDirty =
+    !isLoading && !!form && JSON.stringify(form) !== JSON.stringify(savedForm);
+  const { guard, DiscardModal } = useUnsavedGuard(isDirty);
+
   if (isLoading || !form) {
     return <div className="project-settings__loading">Loading…</div>;
   }
-
-  const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
-  const { guard, DiscardModal } = useUnsavedGuard(isDirty);
 
   function setField<K extends keyof ProjectForm>(
     key: K,

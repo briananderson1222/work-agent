@@ -108,11 +108,14 @@ export function ScheduleView() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingJob, setEditingJob] = useState<SchedulerJob | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [prefill, setPrefill] = useState<Partial<{
-    name: string;
-    cron: string;
-    prompt: string;
-  }> | null>(null);
+  const [prefill, setPrefill] = useState<
+    | Partial<{
+        name: string;
+        cron: string;
+        prompt: string;
+      }>
+    | undefined
+  >(undefined);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     message: string;
@@ -698,7 +701,7 @@ export function ScheduleView() {
           prefill={prefill}
           onClose={() => {
             setShowAddForm(false);
-            setPrefill(null);
+            setPrefill(undefined);
           }}
           providers={providers}
         />

@@ -243,7 +243,7 @@ export function AgentsHub({ onNavigate }: AgentsHubProps) {
                   </button>
                 </div>
               ) : skills.length > 0 ? (
-                skills.map((skill) => (
+                skills.map((skill: any) => (
                   <button
                     key={skill.name}
                     className="agents-hub__card"

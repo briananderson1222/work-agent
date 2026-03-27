@@ -17,7 +17,9 @@ export function useUnsavedGuard(dirty: boolean) {
   // Browser close / reload
   useEffect(() => {
     if (!dirty) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);

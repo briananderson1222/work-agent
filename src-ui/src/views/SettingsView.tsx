@@ -165,9 +165,9 @@ function EnvironmentStatus({ apiBase }: { apiBase: string }) {
               <li key={i}>{s}</li>
             ))}
           </ol>
-          {p.installGuide.commands?.length > 0 && (
+          {(p.installGuide.commands?.length ?? 0) > 0 && (
             <div className="settings__env-guide-cmds">
-              {p.installGuide.commands.map((cmd: string, i: number) => (
+              {p.installGuide.commands?.map((cmd: string, i: number) => (
                 <div key={i}>$ {cmd}</div>
               ))}
             </div>

@@ -49,10 +49,11 @@ export function SkillsView() {
         !!reg?.version &&
         !!s.installedVersion &&
         reg.version !== s.installedVersion;
-      return { ...s, updateAvailable };
+      return { ...s, updateAvailable: updateAvailable ?? false };
     });
     for (const s of registrySkills) {
-      if (!localNames.has(s.name)) merged.push(s);
+      if (!localNames.has(s.name))
+        merged.push({ ...s, updateAvailable: s.updateAvailable ?? false });
     }
     return merged;
   }, [localSkills, registrySkills]);
