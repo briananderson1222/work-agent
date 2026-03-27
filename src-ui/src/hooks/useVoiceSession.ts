@@ -77,7 +77,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const processorRef = useRef<AudioWorkletNode | null>(null);
   const playQueueRef = useRef<AudioBuffer[]>([]);
   const isPlayingRef = useRef(false);
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -158,24 +158,21 @@ export function useVoiceSession(): UseVoiceSessionResult {
     [playNext],
   );
 
-  const startMic = useCallback(() => {
+  const startMic = useCallback(async () => {
     const ctx = audioCtxRef.current;
     const stream = streamRef.current;
     if (!ctx || !stream) return;
 
-    const CHUNK = 4096;
     const source = ctx.createMediaStreamSource(stream);
-    // ScriptProcessorNode is deprecated but AudioWorklet requires a separate file;
-    // ScriptProcessorNode is sufficient for this use case.
-    const processor = ctx.createScriptProcessor(CHUNK, 1, 1);
-    processor.onaudioprocess = (e) => {
-      if (isMutedRef.current || wsRef.current?.readyState !== WebSocket.OPEN)
-        return;
-      const float32 = e.inputBuffer.getChannelData(0);
-      // Compute RMS for audio level visualization
+    await ctx.audioWorklet.addModule('/voice-processor.js');
+    const processor = new AudioWorkletNode(ctx, 'voice-processor');
+    processor.port.onmessage = (e) => {
+      const float32: Float32Array = e.data;
       let sum = 0;
       for (let i = 0; i < float32.length; i++) sum += float32[i] * float32[i];
       setAudioLevel(Math.min(1, Math.sqrt(sum / float32.length) * 5));
+      if (isMutedRef.current || wsRef.current?.readyState !== WebSocket.OPEN)
+        return;
       const resampled = downsample(
         float32,
         ctx.sampleRate,
@@ -204,6 +201,8 @@ export function useVoiceSession(): UseVoiceSessionResult {
     try {
       const res = await fetch(`${apiBase}/api/voice/sessions`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
       });
       if (!res.ok) throw new Error(`Session creation failed: ${res.status}`);
       const { sessionId: _sessionId } = await res.json();

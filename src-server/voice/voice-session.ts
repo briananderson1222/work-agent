@@ -10,7 +10,7 @@ import type {
 export type S2SProviderFactory = (config?: any) => IS2SProvider;
 
 const VOICE_PROMPT_PREFIX =
-  'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything.\n\n';
+  'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything. When you use tools, summarize the result in one or two sentences — never read raw JSON or full tool output aloud.\n\n';
 
 /** Translate an agent's MCP tool to S2S tool definition */
 function toS2STool(tool: {

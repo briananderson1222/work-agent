@@ -287,6 +287,8 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
                 parameters: {},
               });
             }
+          } else if (event.contentEnd.stopReason === 'INTERRUPTED') {
+            this.setState('listening');
           }
         } else if (event.completionEnd) {
           this.emit('turnEnd');

@@ -232,6 +232,7 @@ export class StallionRuntime {
   private terminalService!: TerminalService;
   private terminalWsServer!: TerminalWebSocketServer;
   private voiceService!: VoiceSessionService;
+  private voiceWsAttached = false;
   private acpBridge: ACPManager;
   private feedbackService: FeedbackService;
   private timers: NodeJS.Timeout[] = [];
@@ -620,27 +621,22 @@ export class StallionRuntime {
 
     // Seed built-in stallion-control integration (MCP server for managing Stallion itself)
     const selfIntegrationId = 'stallion-control';
-    try {
-      await this.configLoader.loadIntegration(selfIntegrationId);
-    } catch {
-      // Not registered yet — seed it
-      const selfServerPath = join(
-        import.meta.dirname || process.cwd(),
-        'stallion-control.js',
-      );
-      await this.configLoader.saveIntegration(selfIntegrationId, {
-        id: selfIntegrationId,
-        displayName: 'Stallion Control',
-        description:
-          'Manage agents, skills, integrations, prompts, and jobs via natural language',
-        kind: 'mcp',
-        transport: 'stdio',
-        command: 'node',
-        args: [selfServerPath],
-        env: { STALLION_PORT: String(this.port) },
-      });
-      this.logger.info('Seeded stallion-control integration');
-    }
+    const selfServerPath = join(
+      import.meta.dirname || process.cwd(),
+      'stallion-control.js',
+    );
+    const selfIntegration = {
+      id: selfIntegrationId,
+      displayName: 'Stallion Control',
+      description:
+        'Manage agents, skills, integrations, prompts, and jobs via natural language',
+      kind: 'mcp',
+      transport: 'stdio',
+      command: 'node',
+      args: [selfServerPath],
+      env: { STALLION_PORT: String(this.port) },
+    };
+    await this.configLoader.saveIntegration(selfIntegrationId, selfIntegration);
 
     // Create default agent with stallion-control tools
     // Auto-approve read-only tools; write ops (create/update/delete/install/remove) require user approval
@@ -739,9 +735,12 @@ export class StallionRuntime {
     });
 
     // Attach voice WebSocket on its own port (port + 2), same pattern as terminal WS
-    const voiceWsPort = this.port + 2;
-    attachVoiceWebSocket(voiceWsPort, this.voiceService);
-    this.logger.info('Voice WebSocket listening', { port: voiceWsPort });
+    if (!this.voiceWsAttached) {
+      const voiceWsPort = this.port + 2;
+      attachVoiceWebSocket(voiceWsPort, this.voiceService);
+      this.logger.info('Voice WebSocket listening', { port: voiceWsPort });
+      this.voiceWsAttached = true;
+    }
 
     this.logger.debug('Stallion Runtime initialized', { port: this.port });
 
